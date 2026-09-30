@@ -77,7 +77,7 @@ describe("migrateWorkspaceLayout", () => {
 
   it("moves tasks and renames db + state files", () => {
     writeLegacyTask("abc", {
-      "project-state.json": `{"showTutorial":true}`,
+      "project-state.json": `{"promptDraft":"hi"}`,
       "sessions.db": "db-bytes",
     });
     // a settings file at the task root should travel with the folder and be
@@ -100,7 +100,7 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db-bytes");
     // The legacy state file is renamed, then folded into the settings file.
     expect(exists("tasks", "abc", ".instrument", "state.json")).toBe(false);
-    expect(readSettings("abc").state).toEqual({ showTutorial: true });
+    expect(readSettings("abc").state).toEqual({ promptDraft: "hi" });
     expect(readSettings("abc").name).toBe("My Task");
 
     // old names gone

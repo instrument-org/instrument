@@ -147,7 +147,6 @@ const tasks = [
   {
     createdAt: new Date("2026-07-29T11:05:00Z"),
     id: TaskIdSchema.parse("task-fix-mobile-nav-overflow"),
-    pinnedAt: new Date("2026-07-29T11:30:00Z"),
     projectId: ProjectIdSchema.parse("prj_N1FZH5VKD9779DKV5HZF1NB3XS"),
     title: "Fix the mobile nav overflow",
     updatedAt: new Date("2026-07-30T09:15:00Z"),
@@ -254,5 +253,4 @@ export const FIXTURES: Record<string, unknown> = {
   "workspace.task.list": { tasks, total: tasks.length },
   "workspace.task.live.activity": [],
   "workspace.task.live.byId": byId,
-  "workspace.task.live.list": { tasks, total: tasks.length },
 };

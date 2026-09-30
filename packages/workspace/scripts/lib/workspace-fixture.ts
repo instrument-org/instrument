@@ -46,7 +46,6 @@ const FixtureTaskSchema = z.object({
   // a driving script can address a task by a name that is in the diff.
   key: SubdomainPartSchema,
   name: z.string().trim().min(1),
-  pinned: z.boolean().default(false),
 });
 
 // Anything the app persists under `userData`, keyed by store file name. Only

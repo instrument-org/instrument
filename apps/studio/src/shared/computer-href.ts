@@ -9,7 +9,7 @@ export function fileHref(
   hostPath: string,
   { source = false, tree }: { source?: boolean; tree?: string } = {},
 ) {
-  return `/orchestrator/computer?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}`;
+  return `/files?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}`;
 }
 
 /**
@@ -26,7 +26,7 @@ export function folderHref(
   hostPath: string,
   { select }: { select?: string } = {},
 ) {
-  return `/orchestrator/computer?path=&root=${encodeURIComponent(hostPath)}${select === undefined ? "" : `&select=${encodeURIComponent(select)}`}`;
+  return `/files?path=&root=${encodeURIComponent(hostPath)}${select === undefined ? "" : `&select=${encodeURIComponent(select)}`}`;
 }
 
 /**

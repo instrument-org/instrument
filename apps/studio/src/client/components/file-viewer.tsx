@@ -299,7 +299,7 @@ function useFileText(url: string) {
 // else, so it names itself: anything inside that has to paint its own
 // background -- a table's scroll fade, the controls that stand on it -- reads
 // `--markdown-surface` rather than assuming the window's.
-export const fileViewerClassName =
+const fileViewerClassName =
   "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm [--markdown-surface:var(--card)]";
 
 interface ViewerContext {
@@ -1043,7 +1043,7 @@ export function FileViewer({
  * so the answer holds from the first frame -- including in the placeholder,
  * which knows the path and nothing else yet.
  */
-export function FileViewerHeader({
+function FileViewerHeader({
   actions,
   filename,
   hostPath,

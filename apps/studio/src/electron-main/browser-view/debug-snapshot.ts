@@ -1,10 +1,10 @@
 // Debug-only snapshot of the browser view manager and the taskBrowser
 // XState machines that reap it.
 
-import { sendAppCommand } from "@/electron-main/app-command";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { openAppScreen } from "@/electron-main/windows/app-window";
 import {
   BrowserTargetIdSchema,
   type WorkspaceActorRef,
@@ -246,16 +246,8 @@ const openAsTab = devOnly
     if (!entry) {
       return;
     }
-    // Open the owning task's page for this session; the task page auto-opens the
-    // browser artifact panel. The typed `to` catches route staleness at compile
-    // time; the concrete id/session ride as params/search.
-    sendAppCommand({
-      newTab: true,
-      params: { id: String(entry.id) },
-      search: { selectedSessionId: String(entry.sessionId) },
-      to: "/tasks/$id/",
-      type: "navigate",
-    });
+    // The owning task's page, where its browser is.
+    openAppScreen(`/tasks/${entry.id}`);
   });
 
 export const browserViewManagerDebugRoutes = {

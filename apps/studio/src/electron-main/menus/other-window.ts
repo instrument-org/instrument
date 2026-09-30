@@ -1,8 +1,4 @@
-import {
-  resetZoom,
-  zoomIn,
-  zoomOut,
-} from "@/electron-main/windows/main/controls";
+import { resetZoom, zoomIn, zoomOut } from "@/electron-main/windows/controls";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -32,7 +28,7 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     createEditMenu(),
     createOtherWindowViewMenu(),
     createWindowMenu(),
-    createHelpMenu({ includeShortcutGuide: false }),
+    createHelpMenu(),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
   ];
 }
@@ -50,7 +46,7 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
       // Custom CSS `zoom` (not Electron's native page zoom), so these windows
       // share the app's zoom mechanism and persisted level. See
       // OnboardingZoomRoot. A focused browser guest zooms its own page first,
-      // the way it does in the main window.
+      // the way it does in the app window.
       {
         accelerator: "CmdOrCtrl+0",
         click: () => {

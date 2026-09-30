@@ -768,7 +768,7 @@ export async function sessionsFor(
 }
 
 /**
- * The two folders `orchestrator.ensure` attaches to the conversation in the
+ * The two folders `window.ensure` attaches to the conversation in the
  * app: the user's home, and the workspace folder inside it that results go to
  * when nobody said where.
  *

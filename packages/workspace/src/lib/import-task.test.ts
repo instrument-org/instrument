@@ -23,7 +23,7 @@ describe("importTask", () => {
     const zipFileData = await createZipData([
       { data: `{"name":"Legacy Task"}`, filename: ".instrument/settings.json" },
       { data: "db-bytes", filename: ".instrument/sessions.db" },
-      { data: `{"showTutorial":true}`, filename: ".instrument/state.json" },
+      { data: `{"promptDraft":"hi"}`, filename: ".instrument/state.json" },
       { data: `{"name":"task"}`, filename: "work/package.json" },
       {
         data: "sqlite",
@@ -45,7 +45,7 @@ describe("importTask", () => {
     const settings = JSON.parse(
       fs.readFileSync(path.join(privateDir, "settings.json"), "utf8"),
     ) as Record<string, unknown>;
-    expect(settings.state).toEqual({ showTutorial: true });
+    expect(settings.state).toEqual({ promptDraft: "hi" });
 
     // A package under work/ folds up to the task root.
     expect(fs.readFileSync(path.join(taskDir, "package.json"), "utf8")).toBe(

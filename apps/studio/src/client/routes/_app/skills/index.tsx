@@ -1,34 +1,30 @@
-import { openCreateSkill } from "@/client/atoms/skill-modal";
-import { CopyButton } from "@/client/components/copy-button";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
-import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
-import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
-import { matchSkills } from "@/client/lib/skill-search";
+import { useOnScreen } from "@/client/components/window/on-screen";
+import { SKILLS_HREF } from "@/client/components/window/tab-location";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
+import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useDeferredValue } from "react";
-import { z } from "zod";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useDeferredValue, useState } from "react";
 
-const skillsSearchSchema = z.object({
-  q: z.string().optional().default(""),
-});
-
+/**
+ * The Skills screen: every skill a task can load, grouped by where it comes
+ * from, each a row that opens the skill's page. A place to see what the
+ * conversation's tasks know how to do and where each piece of that came
+ * from; a skill is used by asking for the work, never from here.
+ */
 export const Route = createFileRoute("/_app/skills/")({
-  component: SkillsPage,
-  head: () => ({ meta: [{ title: "Skills" }] }),
-  staticData: { tabIcon: "graduation-cap" },
-  validateSearch: skillsSearchSchema,
+  component: SkillsRoute,
 });
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
@@ -113,13 +109,79 @@ function showsSourcePaths(source: Skill["source"]) {
   return !isProvidedSource(source) && source !== "workspace";
 }
 
-function SkillsPage() {
+/**
+ * One skill: its name the way it is invoked, what it is, and how much it
+ * brings with it. The whole row opens the skill's page, with the gestures
+ * every openable thing answers.
+ *
+ * Two lines rather than columns, because the pane this stands in is narrow:
+ * a name column wide enough for the longest name left the description no
+ * room at all.
+ */
+function SkillRow({
+  ranges,
+  skill,
+}: {
+  ranges: SkillMatch<Skill> | undefined;
+  skill: Skill;
+}) {
+  const navigate = useNavigate();
+  const gestures = useOpenGestures({
+    href: `${SKILLS_HREF}/${skill.id}`,
+    kind: "screen",
+  });
+  return (
+    <button
+      className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/40"
+      onAuxClick={gestures.onAuxClick}
+      onClick={() => {
+        void navigate({
+          params: { name: skill.id },
+          to: "/skills/$name",
+        });
+      }}
+      onContextMenu={gestures.onContextMenu}
+      type="button"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate font-mono text-sm font-medium">
+            {skill.userInvocable ? "/" : null}
+            <FuzzyHighlight
+              matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+              ranges={ranges?.nameRanges ?? null}
+              text={skill.name}
+            />
+          </span>
+          <SkillBadges
+            className="flex shrink-0 flex-wrap gap-1"
+            skill={skill}
+          />
+        </span>
+        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+          <FuzzyHighlight
+            ranges={ranges?.descriptionRanges ?? null}
+            text={skill.description}
+          />
+        </span>
+      </span>
+      {skill.fileCount > 1 ? (
+        <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
+          <FilesIcon className="size-3.5" />
+          {fileCountLabel(skill)}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function SkillsRoute() {
+  useOnScreen({ screen: "skills" });
   const { data: skills = [], isLoading } = useQuery(
     rpcClient.workspace.skill.list.queryOptions(),
   );
-  const { q } = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const deferredQuery = useDeferredValue(q);
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const matches = matchSkills(skills, deferredQuery, {
     scope: "name-and-description",
   });
@@ -127,21 +189,13 @@ function SkillsPage() {
   const groups = groupSkills(matches.map((match) => match.skill));
 
   return (
-    <main className="h-full overflow-y-auto scroll-fade-y">
-      <div className="mx-auto w-full max-w-5xl px-8 py-12">
-        <div className="mb-10 flex items-center justify-between gap-6">
-          <div>
-            <h1 className="font-serif text-3xl tracking-tight">Skills</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {`Extra know-how ${APP_NAME} can draw on for particular kinds of work.`}
-            </p>
-          </div>
-          <Button onClick={openCreateSkill}>
-            <PlusIcon className="size-4" />
-            New skill
-          </Button>
-        </div>
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
+      <h1 className="text-xl font-semibold">Skills</h1>
+      <p className="mt-1 max-w-lg text-sm text-muted-foreground">
+        {`What ${APP_NAME} knows how to do beyond the basics, and where each skill comes from.`}
+      </p>
 
+      <div className="mt-6 max-w-5xl">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">
             Finding installed skills…
@@ -150,7 +204,7 @@ function SkillsPage() {
           <div className="rounded-2xl border border-dashed p-10 text-center">
             <p className="font-medium">No skills yet</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              {`Create one, or add a skill folder to a directory ${APP_NAME} reads.`}
+              {`Add a skill folder to a directory ${APP_NAME} reads, or ask for one.`}
             </p>
           </div>
         ) : (
@@ -160,25 +214,18 @@ function SkillsPage() {
               <Input
                 className="pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
                 onChange={(event) => {
-                  const value = event.target.value;
-                  void navigate({
-                    replace: true,
-                    search: (prev) => ({ ...prev, q: value || undefined }),
-                  });
+                  setQuery(event.target.value);
                 }}
                 placeholder="Search skills"
                 type="search"
-                value={q}
+                value={query}
               />
-              {q ? (
+              {query ? (
                 <button
                   aria-label="Clear search"
                   className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   onClick={() => {
-                    void navigate({
-                      replace: true,
-                      search: (prev) => ({ ...prev, q: undefined }),
-                    });
+                    setQuery("");
                   }}
                   type="button"
                 >
@@ -200,77 +247,29 @@ function SkillsPage() {
 
                   return (
                     <section className="min-w-0" key={group.key}>
-                      <div className="mb-4">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                          <h2 className="text-base font-semibold tracking-tight text-foreground">
-                            {group.label}
-                          </h2>
-                          {sourcePaths.map((dir) => (
-                            <RevealPath
-                              className="max-w-full min-w-0"
-                              hideIcon
-                              key={dir}
-                              path={dir}
+                      <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <h2 className="text-lg font-medium text-muted-foreground">
+                          {group.label}
+                        </h2>
+                        {sourcePaths.map((dir) => (
+                          <RevealPath
+                            className="max-w-full min-w-0"
+                            hideIcon
+                            key={dir}
+                            path={dir}
+                          />
+                        ))}
+                      </div>
+                      <ul className="divide-y overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                        {group.skills.map((skill) => (
+                          <li className="min-w-0" key={skill.id}>
+                            <SkillRow
+                              ranges={matchBySkill.get(skill)}
+                              skill={skill}
                             />
-                          ))}
-                        </div>
-                      </div>
-                      <div className="divide-y overflow-hidden rounded-lg border">
-                        {group.skills.map((skill) => {
-                          const ranges = matchBySkill.get(skill);
-                          return (
-                            <div
-                              className="group relative isolate flex items-center gap-4 px-4 py-2.5 hover:bg-accent/40"
-                              key={skill.id}
-                            >
-                              <InternalLink
-                                className="absolute inset-0"
-                                params={{ name: skill.id }}
-                                to="/skills/$name"
-                              />
-                              <div className="flex w-52 shrink-0 items-center gap-2">
-                                <span className="min-w-0 truncate font-mono text-sm font-medium">
-                                  {skill.userInvocable ? "/" : null}
-                                  <FuzzyHighlight
-                                    matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-                                    ranges={ranges?.nameRanges ?? null}
-                                    text={skill.name}
-                                  />
-                                </span>
-                                {skill.userInvocable ? (
-                                  <CopyButton
-                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
-                                    iconSize={13}
-                                    onCopy={() =>
-                                      navigator.clipboard.writeText(
-                                        `/${skill.id}`,
-                                      )
-                                    }
-                                  />
-                                ) : null}
-                              </div>
-                              <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
-                                <SkillBadges
-                                  className="relative z-10 flex shrink-0 flex-wrap gap-1"
-                                  skill={skill}
-                                />
-                                <span className="min-w-0 truncate">
-                                  <FuzzyHighlight
-                                    ranges={ranges?.descriptionRanges ?? null}
-                                    text={skill.description}
-                                  />
-                                </span>
-                              </div>
-                              {skill.fileCount > 1 ? (
-                                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                                  <FilesIcon className="size-3.5" />
-                                  {fileCountLabel(skill)}
-                                </span>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
+                          </li>
+                        ))}
+                      </ul>
                     </section>
                   );
                 })}
@@ -279,6 +278,6 @@ function SkillsPage() {
           </>
         )}
       </div>
-    </main>
+    </div>
   );
 }

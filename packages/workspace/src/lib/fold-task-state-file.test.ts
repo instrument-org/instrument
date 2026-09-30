@@ -34,35 +34,35 @@ function write(name: string, contents: unknown): void {
 describe("foldTaskStateFile", () => {
   it("moves the state file under the settings file's state key", () => {
     write("settings.json", { name: "My task", pinnedAt: "2026-01-01" });
-    write("state.json", { promptDraft: "half typed", showTutorial: true });
+    write("state.json", { promptDraft: "half typed", selectedModelURI: "m" });
 
     expect(foldTaskStateFile(taskFolder)).toBe(true);
 
     expect(JSON.parse(read("settings.json"))).toEqual({
       name: "My task",
       pinnedAt: "2026-01-01",
-      state: { promptDraft: "half typed", showTutorial: true },
+      state: { promptDraft: "half typed", selectedModelURI: "m" },
     });
     expect(exists("state.json")).toBe(false);
   });
 
   it("folds a task that has state but no settings yet", () => {
-    write("state.json", { showTutorial: true });
+    write("state.json", { promptDraft: "hi" });
 
     expect(foldTaskStateFile(taskFolder)).toBe(true);
 
     expect(JSON.parse(read("settings.json"))).toEqual({
-      state: { showTutorial: true },
+      state: { promptDraft: "hi" },
     });
   });
 
   it("no-ops for a task already folded", () => {
-    write("settings.json", { name: "My task", state: { showTutorial: true } });
+    write("settings.json", { name: "My task", state: { promptDraft: "hi" } });
 
     expect(foldTaskStateFile(taskFolder)).toBe(false);
     expect(JSON.parse(read("settings.json"))).toEqual({
       name: "My task",
-      state: { showTutorial: true },
+      state: { promptDraft: "hi" },
     });
   });
 
@@ -104,7 +104,7 @@ describe("foldTaskStateFile", () => {
   // This runs over every task at boot, so it writes the way the runtime does.
   it("leaves no temporary file behind", () => {
     write("settings.json", { name: "My task" });
-    write("state.json", { showTutorial: true });
+    write("state.json", { promptDraft: "hi" });
 
     foldTaskStateFile(taskFolder);
 

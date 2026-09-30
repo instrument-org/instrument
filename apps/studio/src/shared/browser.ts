@@ -6,7 +6,6 @@
 // `will-attach-webview`.
 
 import {
-  type BrowserHost,
   type BrowserTargetId,
   BrowserTargetIdSchema,
 } from "@instrument-org/workspace/client";
@@ -39,9 +38,6 @@ export interface BrowserGuestTarget {
   // a destroy+recreate of the same (task, session), so the pool diffs the
   // generation to know it must dispose the old guest and mount a fresh one.
   generation: number;
-  // Which window's pool mounts the guest. Each window's pool mounts only its
-  // own, since a guest can attach to one host renderer.
-  host: BrowserHost;
   id: BrowserTargetId;
   // Whether a real page has started loading in this guest (see
   // BrowserEntry.navigated). What the UI shows a browser for: an attached guest

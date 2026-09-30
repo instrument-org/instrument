@@ -1,10 +1,10 @@
 import "./code-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
-import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
-import { linesLabel } from "@/client/components/orchestrator/staged-asks";
-import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
+import { useAskMarks } from "@/client/components/window/ask-marks";
+import { linesLabel } from "@/client/components/window/staged-asks";
+import { useAskCard } from "@/client/components/window/use-ask-card";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";

@@ -29,7 +29,6 @@ import {
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import { setTaskIndicator } from "../../lib/task-indicators";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -321,10 +320,6 @@ export const workspaceMachine = setup({
         };
       },
     ),
-
-    markTaskUnread: (_, { id }: { id: TaskId }) => {
-      void setTaskIndicator(id, "completed");
-    },
 
     releaseBrowserPresence: enqueueActions(
       (
@@ -660,17 +655,6 @@ export const workspaceMachine = setup({
     ],
     "session.done": {
       actions: enqueueActions(({ enqueue, event }) => {
-        // The task's turn is done once its root session finishes; subagent
-        // completions don't count (the parent turn is still running). Keying on
-        // the root session avoids depending on every session ref reaching a
-        // non-alive state, which a lingering subagent ref could block forever.
-        if (event.value.parentSessionId === undefined) {
-          enqueue({
-            params: { id: event.value.taskId },
-            type: "markTaskUnread",
-          });
-        }
-
         // Drop the finished session's ref so the task stops counting as active.
         // Later messages resolve their session from persisted store state, so
         // nothing reads a done ref.

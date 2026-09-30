@@ -1,9 +1,6 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { appTabsAtom } from "@/client/components/orchestrator/app-tabs";
-import {
-  folderOf,
-  segmentsOf,
-} from "@/client/components/orchestrator/host-path";
+import { appTabsAtom } from "@/client/components/window/app-tabs";
+import { folderOf, segmentsOf } from "@/client/components/window/host-path";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { addTab } from "@/client/lib/tabs-model";
 import { getFileManagerName, getRevealInFolderLabel } from "@/client/lib/utils";
@@ -16,11 +13,11 @@ import { toast } from "sonner";
 
 /**
  * Whether this window has a folder view of its own to show a thing in. The
- * 2.0 window does, and keeps the person in it; every other window hands the
- * thing to the system's file manager.
+ * app window does, and keeps the person in it; the onboarding window hands
+ * the thing to the system's file manager.
  */
 export function hasFilesView() {
-  return window.api.windowType === "orchestrator";
+  return window.api.windowType === "app";
 }
 
 /**
@@ -39,7 +36,7 @@ export async function revealInFileManager(hostPath: string) {
 }
 
 /**
- * Shows a file or folder on the computer where it lives: in the 2.0 window, a
+ * Shows a file or folder on the computer where it lives: in the app window, a
  * tab of the window's own in Files, standing in the folder, or in the one a
  * file is in with the file selected; elsewhere, in the Finder or its
  * counterpart. A tab of its own rather than the one up, so the person gets a

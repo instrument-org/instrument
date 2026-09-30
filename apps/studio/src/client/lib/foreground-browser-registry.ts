@@ -36,10 +36,10 @@ export function requestBrowserFind(): boolean {
   return true;
 }
 
-// Called from the app-command bus when Cmd+R fires. Someone looking at a page
-// means that page by "reload", so the guest reloads and the app does not;
-// returning false leaves the caller to reload the app, which is what the chord
-// does everywhere else.
+// Called from the window's command stream when Cmd+R fires and no guest holds
+// focus. Someone looking at a page means that page by "reload", so the guest
+// reloads; returning false means there is no page on screen, and the chord
+// does nothing.
 export function requestBrowserReload(): boolean {
   if (!foreground) {
     return false;

@@ -167,14 +167,6 @@ export function promptDraftAtom(key: PromptDraftKey) {
   }
 }
 
-/** Drop a task's draft from memory, once its last edit is on its way out. */
-export function releaseTaskDraft(taskId: TaskId) {
-  draftSavers.get(taskId)?.dispose();
-  draftSavers.delete(taskId);
-  taskDraftFamily.remove(taskId);
-  taskDraftValueFamily.remove(taskId);
-}
-
 /**
  * Seed a task's composer from its stored draft, once.
  *
@@ -202,37 +194,6 @@ export function removeTransientDraft(id: string) {
   promptDraftRefFamily.remove(draftKeyString({ id, scope: "transient" }));
 }
 
-// A per-tab focus signal, bumped whenever the active tab navigates in place (see
-// `navigateTab`). A sidebar click whose destination equals the current route is
-// a no-op navigation, so nothing remounts to re-run the prompt's focus effect;
-// the page's prompt watches this signal to re-assert focus on that click too.
-const promptFocusSignalFamily = atomFamily((_tabId: TabId) => atom(0));
-
-export function promptFocusSignalAtom(tabId: TabId) {
-  return promptFocusSignalFamily(tabId);
-}
-
-export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
-  const signal = promptFocusSignalFamily(tabId);
-  set(signal, get(signal) + 1);
-});
-
-// A per-tab nudge, bumped only when a navigation resolves to the location the
-// tab is already showing: "New task" pressed on the new task page, the chord
-// for it, the sidebar entry for the page under the cursor. Nothing about the
-// page can change to acknowledge that press, so the composer the page is built
-// around answers for it (see `nudgeOnReentry`).
-const promptNudgeSignalFamily = atomFamily((_tabId: TabId) => atom(0));
-
-export function promptNudgeSignalAtom(tabId: TabId) {
-  return promptNudgeSignalFamily(tabId);
-}
-
-export const bumpPromptNudgeAtom = atom(null, (get, set, tabId: TabId) => {
-  const signal = promptNudgeSignalFamily(tabId);
-  set(signal, get(signal) + 1);
-});
-
 /**
  * Add something to a draft from outside the composer: a file path, a folder.
  *
@@ -258,28 +219,5 @@ export const appendToPromptAtom = atom(
     }
     editor.focus();
     editor.insertText(text);
-  },
-);
-
-/**
- * Replace a draft's whole text from outside the composer: a prefill, a reset.
- *
- * The value atom is written too, not only the editor: it is what a composer
- * mounting later reads as its starting text, so a prefill that arrives before
- * anything is on screen still lands.
- */
-export const setPromptDraftAtom = atom(
-  null,
-  (
-    get,
-    set,
-    { key, update }: { key: PromptDraftKey; update: SetStateAction<string> },
-  ) => {
-    const editor = get(promptDraftRefAtom(key));
-    const valueAtom = promptDraftAtom(key);
-    const current = editor ? editor.getValue() : get(valueAtom);
-    const next = typeof update === "function" ? update(current) : update;
-    set(valueAtom, next);
-    editor?.setValue(next);
   },
 );

@@ -9,7 +9,6 @@ import { steppedZoom } from "@/shared/zoom";
 import {
   type AbsolutePath,
   type BrowserConfig,
-  type BrowserHost,
   type BrowserTarget,
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -67,7 +66,7 @@ import {
 } from "./window-open-policy";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
-// and Electron to fire `did-attach-webview`. The main-window renderer is alive
+// and Electron to fire `did-attach-webview`. The app window's renderer is alive
 // whenever the agent runs, so attach normally completes in well under a second;
 // the timeout only fires if no renderer is available to host the guest.
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -77,7 +76,7 @@ export interface BrowserViewManager {
   // Called once the window exists; the manager itself is created earlier. Each
   // window that mounts guests binds under its own name, and gets only the
   // guests meant for it.
-  bindHost: (host: WebContents, hostId: BrowserHost) => void;
+  bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
@@ -90,8 +89,7 @@ export interface BrowserViewManager {
   // (mouse buttons are handled by the guest's own app-command).
   navigateFocusedGuest: (direction: "back" | "forward") => boolean;
   // If a browser guest has focus, reload its own web content and return true.
-  // Lets keyboard Cmd+R reload the focused guest instead of the whole renderer
-  // (which the app-level reload command would otherwise do).
+  // Lets Cmd+R reload the focused guest rather than the window.
   reloadFocusedGuest: () => boolean;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
@@ -111,8 +109,8 @@ export interface BrowserViewManager {
   setHostFocus: () => void;
   teardown: () => void;
   // If a browser guest has focus, zoom its own web content and return true.
-  // Lets keyboard Cmd+/-/0 target the focused guest instead of the main window
-  // (main-window zoom is CSS-only and never reaches the guest's webContents).
+  // Lets keyboard Cmd+/-/0 target the focused guest instead of the window
+  // (app zoom is CSS-only and never reaches the guest's webContents).
   zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
@@ -136,15 +134,12 @@ const describeTabScript = (guestId: number) => `(() => {
 
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  // Per host, a FIFO of target ids accepted in `will-attach-webview`, drained
-  // in `did-attach-webview` (Electron pairs the two events in order, per host).
-  const pendingAttachQueues = new Map<BrowserHost, BrowserTargetId[]>();
   // The guest the renderer last reported real DOM focus on (see setGuestFocus).
   let focusedTargetId: BrowserTargetId | null = null;
-  const hosts = new Map<BrowserHost, WebContents>();
-  // The window whose renderer mounts a target's guest.
+  // The app window's renderer, which mounts every guest.
+  let hostContents: null | WebContents = null;
   const hostOf = (targetId: BrowserTargetId) =>
-    hosts.get(entries.get(targetId)?.host ?? "main") ?? null;
+    entries.has(targetId) ? hostContents : null;
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
 
@@ -262,7 +257,6 @@ export function createBrowserViewManager(): BrowserViewManager {
         );
         details.preventDefault();
         publisher.publish("browser.navigation-refused", {
-          host: entry.host,
           targetId,
         });
       }
@@ -281,19 +275,17 @@ export function createBrowserViewManager(): BrowserViewManager {
         ? { action: "deny" }
         : guestWindowOpenHandler(details);
       if (response.action === "deny") {
-        // A window with tabs gives a tab-open a tab of its own, as a browser
-        // does, while a person rather than an agent is driving the page.
-        const newTab =
-          entry.host === "orchestrator" && !focusGuard.isGuarded(targetId)
-            ? newTabOpenOf(
-                details,
-                committedDocumentOf(guest.id, guest.mainFrame),
-              )
-            : null;
+        // A tab-open gets a tab of its own, as a browser does, while a person
+        // rather than an agent is driving the page.
+        const newTab = focusGuard.isGuarded(targetId)
+          ? null
+          : newTabOpenOf(
+              details,
+              committedDocumentOf(guest.id, guest.mainFrame),
+            );
         if (newTab && mayOpenFromPage(newTab.url)) {
           publisher.publish("browser.open-in-new-tab", {
             ...newTab,
-            host: entry.host,
             targetId,
           });
           return response;
@@ -336,18 +328,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
     attachGuestInteractions(guest, {
       mayOpen: mayOpenFromPage,
-      ...(entry.host === "orchestrator"
-        ? {
-            openInNewTab: (url: string) => {
-              publisher.publish("browser.open-in-new-tab", {
-                background: false,
-                host: entry.host,
-                targetId,
-                url,
-              });
-            },
-          }
-        : {}),
+      openInNewTab: (url: string) => {
+        publisher.publish("browser.open-in-new-tab", {
+          background: false,
+          targetId,
+          url,
+        });
+      },
     });
 
     attachDownloadHandler({ entries, session: guest.session });
@@ -440,10 +427,11 @@ export function createBrowserViewManager(): BrowserViewManager {
     notifyDebugChange();
   }
 
-  function bindHost(host: WebContents, hostId: BrowserHost) {
-    hosts.set(hostId, host);
+  function bindHost(host: WebContents) {
+    hostContents = host;
+    // A FIFO of target ids accepted in `will-attach-webview`, drained in
+    // `did-attach-webview` (Electron pairs the two events in order).
     const pendingAttachQueue: BrowserTargetId[] = [];
-    pendingAttachQueues.set(hostId, pendingAttachQueue);
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
@@ -455,14 +443,6 @@ export function createBrowserViewManager(): BrowserViewManager {
         // No page state recorded for this id: reject the attachment.
         log.warn(
           `rejected browser webview attach (no entry) targetId=${targetId}`,
-        );
-        event.preventDefault();
-        return;
-      }
-      if (entry.host !== hostId) {
-        // Meant for another window's pool, which mounts it itself.
-        log.warn(
-          `rejected browser webview attach (wrong host) targetId=${targetId}`,
         );
         event.preventDefault();
         return;
@@ -526,7 +506,6 @@ export function createBrowserViewManager(): BrowserViewManager {
     id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
-    host: BrowserHost = "main",
   ): Promise<{ targetId: BrowserTargetId }> {
     const targetId = encodeBrowserTargetId(id, sessionId);
 
@@ -540,10 +519,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing).then(() => ({ targetId }));
     }
 
-    // A window that is not open cannot mount a guest, and a create that waited
-    // on one would time out; the main window is always there.
     const entry = createEntry({
-      host: hosts.has(host) ? host : "main",
       id,
       partitionDir,
       sessionId,
@@ -789,7 +765,6 @@ export function createBrowserViewManager(): BrowserViewManager {
           entry.webContents && !entry.webContents.isDestroyed(),
         ),
         generation: entry.generation,
-        host: entry.host,
         id: entry.targetId,
         navigated: entry.navigated,
       })),

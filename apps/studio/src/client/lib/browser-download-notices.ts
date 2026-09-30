@@ -1,4 +1,3 @@
-import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
@@ -33,9 +32,6 @@ export function initBrowserDownloadNotices(): () => void {
             signal,
           });
         for await (const download of subscription) {
-          if (download.host !== WINDOW_BROWSER_HOST) {
-            continue;
-          }
           const { folder, path } = download;
           if (!download.completed || path === null || folder === null) {
             toast.error(`Couldn't download ${download.filename}`);

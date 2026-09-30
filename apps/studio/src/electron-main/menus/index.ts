@@ -1,6 +1,5 @@
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getOrchestratorWindow } from "@/electron-main/windows/orchestrator";
+import { getAppWindow } from "@/electron-main/windows/app-window";
 import {
   app,
   BrowserWindow,
@@ -8,8 +7,7 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 
-import { createMainWindowMenu } from "./main-window";
-import { createOrchestratorWindowMenu } from "./orchestrator-window";
+import { createAppWindowMenu } from "./app-window";
 import { createOtherWindowMenu } from "./other-window";
 
 export function createApplicationMenu(): void {
@@ -31,30 +29,16 @@ export function createApplicationMenu(): void {
   });
 }
 
-function getFocusedWindowType(): "main" | "orchestrator" | "other" | null {
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-  if (!focusedWindow) {
-    return null;
-  }
-
-  if (focusedWindow === getMainWindow()) {
-    return "main";
-  }
-  if (focusedWindow === getOrchestratorWindow()) {
-    return "orchestrator";
-  }
-  return "other";
-}
-
+/**
+ * The app window's menu while it or nothing is focused: with no window
+ * focused on macOS, the menu bar still belongs to the app.
+ */
 function updateApplicationMenu(): void {
-  const focusedWindowType = getFocusedWindowType();
-
+  const focusedWindow = BrowserWindow.getFocusedWindow();
   const template: MenuItemConstructorOptions[] =
-    focusedWindowType === "other"
+    focusedWindow && focusedWindow !== getAppWindow()
       ? createOtherWindowMenu()
-      : focusedWindowType === "orchestrator"
-        ? createOrchestratorWindowMenu()
-        : createMainWindowMenu();
+      : createAppWindowMenu();
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);

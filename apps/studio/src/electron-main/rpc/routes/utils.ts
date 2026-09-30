@@ -29,17 +29,14 @@ import {
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { setAppZoom } from "@/electron-main/stores/window-state";
+import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getOrchestratorWindow } from "@/electron-main/windows/orchestrator";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
   OpenTaskInTypeSchema,
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
-  ProjectIdSchema,
-  resolveProjectDir,
   taskDir,
   TaskIdSchema,
   workspaceRouter,
@@ -701,15 +698,12 @@ const clearExceptions = base.input(z.void()).handler(() => {
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ input }) => {
-    setTrafficLightForZoom(getMainWindow(), input.zoom);
-    setTrafficLightForZoom(getOrchestratorWindow(), input.zoom);
+    setTrafficLightForZoom(getAppWindow(), input.zoom);
     setAppZoom(input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
-// Each acts on the window that asked, since more than one window draws them:
-// the 2.0 window's close button has to close the 2.0 window, and not the
-// classic one it keeps open behind it to run its tasks.
+// Each acts on the window that asked.
 const minimizeWindow = base.input(z.void()).handler(({ context }) => {
   getCallingWindow(context.webContentsId)?.minimize();
 });
@@ -802,59 +796,10 @@ function readWindowState(webContentsId: number) {
   };
 }
 
-const copyTaskPathToClipboard = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(({ input }) => {
-    const taskId = input.id;
-    clipboard.writeText(taskDir(taskId));
-  });
-
 /** Where a task's folder is on the computer, for the window to show it in its own folder view. */
 const taskFolderPath = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(({ input }) => taskDir(input.id));
-
-const copyProjectPathToClipboard = base
-  .errors({
-    PROJECT_NOT_FOUND: { message: "Project not found" },
-  })
-  .input(
-    z.object({
-      id: ProjectIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const dir = await resolveProjectDir(input.id);
-    if (!dir) {
-      throw errors.PROJECT_NOT_FOUND();
-    }
-    clipboard.writeText(dir);
-  });
-
-const showProjectInFolder = base
-  .errors({
-    PROJECT_NOT_FOUND: { message: "Project not found" },
-  })
-  .input(
-    z.object({
-      id: ProjectIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const dir = await resolveProjectDir(input.id);
-    if (!dir) {
-      throw errors.PROJECT_NOT_FOUND();
-    }
-    const errorMessage = await shell.openPath(dir);
-    if (errorMessage) {
-      captureServerException(errorMessage);
-      shell.showItemInFolder(dir);
-    }
-  });
 
 const copyFileToClipboard = base
   .errors({
@@ -947,8 +892,6 @@ export const utils = {
   closeWindow,
   computerFileBase,
   copyFileToClipboard,
-  copyProjectPathToClipboard,
-  copyTaskPathToClipboard,
   displayProtocol,
   events,
   exportZip,
@@ -971,7 +914,6 @@ export const utils = {
   showContextMenu,
   showFileInFolder,
   showFolderPicker,
-  showProjectInFolder,
   syncZoom,
   taskFolderPath,
   toggleMaximizeWindow,

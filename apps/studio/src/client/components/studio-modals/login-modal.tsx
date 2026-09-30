@@ -28,7 +28,7 @@ type Page = "success" | ProviderSetupPage;
 const FIXED_HEIGHT_PAGES = new Set<Page>(["success", "welcome"]);
 
 /**
- * App-wide login / add-provider modal, mounted once at the app-chrome root.
+ * App-wide login / add-provider modal, mounted once at the window root.
  * Reads `loginModalAtom` (opened via `openLogin`); traps tab navigation while
  * open. Finishing the flow fires the caller's `onCompleted`; dismissing does not.
  */

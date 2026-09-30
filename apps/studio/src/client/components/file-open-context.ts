@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import { type OpenOptions } from "./orchestrator/context";
+import { type OpenOptions } from "./window/context";
 
 /**
  * Where a surface other than the task page sends a file the transcript

@@ -112,7 +112,7 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 
 ## Who stopped it
 
-A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's stop button, or the conversation's `task stop`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
+A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's, or the conversation's `task stop`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
 
 ## Two Unix metaphors we sit on
 
@@ -121,9 +121,7 @@ A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's
 
 ## What the user sees
 
-**A pill beside the task title**, absent whenever nothing is running — [`task-background-processes.tsx`](../../apps/studio/src/client/components/task/task-background-processes.tsx). It says "2 running" rather than showing a bare count, because an unread badge is a number in a dot and this in that shape beside a title would be read as one. Clicking it opens a popover with the explanation, each command, how long it has been going, and a stop.
-
-The word "process" appears nowhere in it. The audience did not ask for a server and does not know they have one, so every string says *still running*. The placements that were considered and why this one won are in [wireframes-background-processes.html](../plans/active/wireframes-background-processes.html).
+**Nothing of its own, today.** The classic window had a pill beside the task title ("2 running") that opened a popover with each command, how long it had been going, and a stop; it went with that window, and the app window has no counterpart yet. The transcript still marks a step whose command is running (`useTaskBackgroundProcesses`), and a chat's task list stops a whole task. The pill's wording kept the word "process" out of sight, since the audience did not ask for a server and does not know they have one; the placements considered are in [wireframes-background-processes.html](../plans/active/wireframes-background-processes.html).
 
 One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
 

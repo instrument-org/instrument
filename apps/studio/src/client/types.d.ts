@@ -19,7 +19,7 @@ declare global {
       // computer. Absent outside Electron, which is what makes a surface stop
       // offering the drag at all.
       startFileDrag?: (files: string[]) => void;
-      windowType?: "main" | "onboarding" | "orchestrator";
+      windowType?: "app" | "onboarding";
     };
     electron: ElectronAPI;
   }

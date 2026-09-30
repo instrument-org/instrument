@@ -57,12 +57,12 @@ function RootComponent() {
   // `document.title` (the OS window title / accessible window name) would follow
   // whichever tab resolved last rather than the visible one. `useIsActiveTab`
   // defaults to true outside the tab host, so the onboarding window still
-  // renders its head. The 2.0 window names itself from its tab bar instead
+  // renders its head. The app window names itself from its tab bar instead
   // (`AppTabStrip`), since most of its screens declare no head of their own.
   const isActiveTab = useIsActiveTab();
   return (
     <Root>
-      {isActiveTab && window.api.windowType !== "orchestrator" ? (
+      {isActiveTab && window.api.windowType !== "app" ? (
         <HeadContent />
       ) : null}
       <Outlet />

@@ -16,28 +16,6 @@ import { taskFolderSlug } from "./task-folder-slug";
 // bumped rather than nested into `…-2-2`). Keeps branches grouped next to their
 // source on disk. Returns the chosen `suffix` too so the display name can share
 // the same counter.
-export async function generateBranchFolderName({
-  sourceFolderName,
-  tasksDir,
-}: {
-  sourceFolderName: string;
-  tasksDir: AbsolutePath;
-}) {
-  const base = sourceFolderName.replace(/-\d+$/, "");
-
-  const { name, renamed } = await findAvailableName({
-    isTaken: async (candidate) =>
-      recordIdTaken(candidate) ||
-      (await pathExists(absolutePathJoin(tasksDir, candidate))),
-    name: base,
-  });
-  // Recover the appended counter for the display name; bare base = suffix 1.
-  // `base` had any prior `-N` stripped, so the trailing number is unambiguous.
-  const suffix = renamed ? Number(name.slice(base.length + 1)) : 1;
-
-  return { name: SubdomainPartSchema.parse(name), suffix };
-}
-
 // Sortable, human-readable name used as the on-disk task id (e.g.
 // "2026-06-23-add-a-dark-mode-toggle"). Falls back to "task" when the prompt
 // yields no usable slug, and appends a numeric suffix on collision.

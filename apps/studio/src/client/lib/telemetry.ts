@@ -142,7 +142,7 @@ export function capturePageView(path?: string) {
       telemetry?.capture("$pageview");
       return;
     }
-    // The main window's per-tab routers use in-memory history, so
+    // The app window's per-tab routers use in-memory history, so
     // window.location never reflects the active route. Report the tab's route
     // as a canonical URL directly; before_send derives $pathname from it.
     telemetry?.capture("$pageview", {

@@ -3,7 +3,6 @@ import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,
 } from "@/electron-main/stores/preferences";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   FILES_FENCE,
@@ -26,28 +25,26 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
 
-type Chat = InferRouterOutputs<
-  typeof workspaceRouter
->["orchestrator"]["chats"]["list"][number];
+type Chat = InferRouterOutputs<typeof workspaceRouter>["chats"]["list"][number];
 type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 
 export function shouldShowAgentCompletionNotification({
+  appWindowAvailable,
   isAppWindowFocused,
   isRootSession,
   isSupported,
-  mainWindowAvailable,
   mode,
 }: {
+  appWindowAvailable: boolean;
   isAppWindowFocused: boolean;
   isRootSession: boolean;
   isSupported: boolean;
-  mainWindowAvailable: boolean;
   mode: AgentCompletionNotificationMode;
 }) {
   if (mode === "never") {
     return false;
   }
-  if (!isRootSession || !isSupported || !mainWindowAvailable) {
+  if (!isRootSession || !isSupported || !appWindowAvailable) {
     return false;
   }
   return mode === "always" || !isAppWindowFocused;
@@ -68,17 +65,19 @@ export function showAgentCompletionTestNotification() {
 }
 
 export function startAgentCompletionNotifications({
+  hasAppWindow,
   revealTask,
   workspaceConfig,
   workspaceRef,
 }: {
+  /** Whether there is a window for a click to bring forward. */
+  hasAppWindow: () => boolean;
   /**
    * What a click on a notification does. Supplied by the caller: which window
    * a task is shown in is the app's business, and reaching the modules that
    * answer that from here would pull every window's machinery in behind them.
    */
   revealTask: (task: {
-    id: TaskId;
     /** A chat of the conversation, which the inbox lists by its session. */
     isChat: boolean;
     sessionId: StoreId.Session;
@@ -96,7 +95,7 @@ export function startAgentCompletionNotifications({
     sessionId: StoreId.Session;
   }) {
     const isRootSession = parentSessionId === undefined;
-    if (!canShowAgentCompletionNotification({ isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
       return;
     }
 
@@ -152,14 +151,14 @@ export function startAgentCompletionNotifications({
 
     // Reading the task is asynchronous, so the window may have regained
     // focus while it was in flight.
-    if (!canShowAgentCompletionNotification({ isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
       return;
     }
 
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ id, isChat, sessionId });
+        revealTask({ isChat, sessionId });
       },
       title: taskTitle,
     });
@@ -181,11 +180,9 @@ export function startAgentCompletionNotifications({
     sessionId: StoreId.Session;
   }): Promise<Chat | undefined> {
     try {
-      const chats = await call(
-        workspaceRouter.orchestrator.chats.list,
-        undefined,
-        { context },
-      );
+      const chats = await call(workspaceRouter.chats.list, undefined, {
+        context,
+      });
       return chats.find((chat) => chat.id === sessionId);
     } catch (error) {
       logger
@@ -242,16 +239,17 @@ function bodyOf(messages: Messages): string | undefined {
 }
 
 function canShowAgentCompletionNotification({
+  hasAppWindow,
   isRootSession,
 }: {
+  hasAppWindow: () => boolean;
   isRootSession: boolean;
 }) {
-  const mainWindow = getMainWindow();
   return shouldShowAgentCompletionNotification({
+    appWindowAvailable: hasAppWindow(),
     isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
     isRootSession,
     isSupported: Notification.isSupported(),
-    mainWindowAvailable: Boolean(mainWindow && !mainWindow.isDestroyed()),
     mode: getPreferencesStore().get("agentCompletionNotifications"),
   });
 }

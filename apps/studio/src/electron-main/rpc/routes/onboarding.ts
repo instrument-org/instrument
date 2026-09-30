@@ -1,30 +1,11 @@
-import { sendAppCommand } from "@/electron-main/app-command";
 import { base } from "@/electron-main/rpc/base";
-import { createMainWindow } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { openAppWindow } from "@/electron-main/windows/app-window";
 import { closeOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
 
-const complete = base.handler(async () => {
-  const existingMainWindow = getMainWindow();
-
-  if (!existingMainWindow || existingMainWindow.isDestroyed()) {
-    const mainWindow = await createMainWindow();
-    mainWindow.focus();
-  } else if (existingMainWindow.isVisible()) {
-    // Already-visible window means a real re-completion; open a fresh tab.
-    sendAppCommand({
-      newTab: true,
-      to: PRIVATE_BETA_LAUNCH.initialPath,
-      type: "navigate",
-    });
-    existingMainWindow.focus();
-  } else {
-    // Window was prepared hidden during onboarding; just reveal it.
-    existingMainWindow.show();
-    existingMainWindow.focus();
-  }
-
+const complete = base.handler(() => {
+  // Opened before the onboarding window closes, which quits the app when it
+  // leaves no window behind.
+  openAppWindow();
   closeOnboardingWindow();
 });
 

@@ -1,6 +1,6 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import { PageOpenContext } from "@/client/components/page-open-context";
+import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { useOpenInTaskBrowser } from "@/client/hooks/use-open-in-task-browser";
 import { useTaskSession } from "@/client/hooks/use-task-session";
@@ -136,7 +136,7 @@ function useDestinationsFor(): (
   target: OpenTarget,
   options?: { addReferral?: boolean },
 ) => OpenDestination[] {
-  const orchestrator = useContext(OrchestratorContext);
+  const appWindow = useContext(WindowContext);
   const openPageOnSurface = useContext(PageOpenContext);
   const openPathOnSurface = useContext(FileOpenContext);
   const session = useTaskSession();
@@ -194,13 +194,13 @@ function useDestinationsFor(): (
               },
             ]
           : []),
-        ...(orchestrator
+        ...(appWindow
           ? [
               {
                 id: "openNewTab" as const,
                 label: "Open in New Tab",
                 run: () => {
-                  orchestrator.openPage(url, { newTab: true });
+                  appWindow.openPage(url, { newTab: true });
                 },
               },
             ]
@@ -229,7 +229,7 @@ function useDestinationsFor(): (
             openPathOnSurface(path);
           },
         },
-        ...(orchestrator
+        ...(appWindow
           ? [
               {
                 id: "openNewTab" as const,
@@ -245,7 +245,7 @@ function useDestinationsFor(): (
     }
 
     const { href } = target;
-    if (!orchestrator) {
+    if (!appWindow) {
       return copy;
     }
     return [
@@ -253,14 +253,14 @@ function useDestinationsFor(): (
         id: "open",
         label: "Open",
         run: () => {
-          orchestrator.openScreen(href);
+          appWindow.openScreen(href);
         },
       },
       {
         id: "openNewTab",
         label: "Open in New Tab",
         run: () => {
-          orchestrator.openScreen(href, { newTab: true });
+          appWindow.openScreen(href, { newTab: true });
         },
       },
       ...copy,

@@ -1,14 +1,10 @@
 import { openLogin } from "@/client/atoms/login-modal";
-import { openCreateProject } from "@/client/atoms/project-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
-import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { openCreateSkill } from "@/client/atoms/skill-modal";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
-import { tabsAtom } from "@/client/atoms/tabs";
-import { openWelcome } from "@/client/atoms/welcome-modal";
-import { openTab } from "@/client/lib/tab-actions";
+import { appTabsAtom } from "@/client/components/window/app-tabs";
+import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
-import { type TabId } from "@/shared/tabs";
+import { reopenClosed } from "@/client/lib/tabs-model";
 import { getDefaultStore } from "jotai";
 
 declare global {
@@ -18,27 +14,33 @@ declare global {
 }
 
 const MODAL_OPENERS = {
-  "create-project": () => {
-    openCreateProject();
-  },
-  "create-skill": openCreateSkill,
   login: () => {
     openLogin();
   },
   settings: () => {
     openSettings();
   },
-  "shortcut-guide": openShortcutGuide,
-  welcome: openWelcome,
 } satisfies Record<string, () => void>;
 
+/**
+ * What a driving script reaches in the app window: its tabs are routers of
+ * their own, so an address goes to the tab up, or to a new tab, rather than
+ * to the page's URL; and the app-wide modals, by name.
+ */
 interface StudioDrive {
   closeModal: () => void;
-  goto: (path: string, options?: { newTab?: boolean }) => void;
+  goto: (href: string, options?: { newTab?: boolean }) => void;
   load: () => StudioDriveLoad;
   modals: () => StudioModalName[];
   openModal: (name: StudioModalName) => void;
-  state: () => StudioDriveState;
+  /** The tab closed last, back with its history, as Shift+Cmd+T brings it. */
+  reopen: () => void;
+  state: () => {
+    /** The open dialog's accessible title, or null when none is open. */
+    dialog: null | string;
+    path: null | string;
+    tabs: { isSelected: boolean; pathname: string }[];
+  };
 }
 
 interface StudioDriveLoad {
@@ -48,46 +50,23 @@ interface StudioDriveLoad {
   updates: number;
 }
 
-interface StudioDriveState {
-  /** The open dialog's accessible title, or null when none is open. */
-  dialog: null | string;
-  /** The active tab's pathname. The window URL does not carry it. */
-  path: null | string;
-  tabs: { id: TabId; pathname: string; selected: boolean }[];
-}
-
 type StudioModalName = keyof typeof MODAL_OPENERS;
 
 /**
- * Dev-only imperative handle for putting the main window into a given state:
- * the dev panel's menu items, minus the menu.
- *
- * It exists because nothing else can do this from outside. The renderer keeps
- * the current route out of the window URL, and the main window restores its
- * persisted tab session on load, so navigating the web contents to a route URL
- * loads it and then paints the restored tabs over it. Without a handle, a
- * script driving Studio (smoke tests, screenshot capture, a repro) has to reach
- * every surface by the same click chain a person would, and has no way to read
- * back where it actually landed.
- *
- * Attached under `import.meta.env.DEV`, so the whole module drops out of a
- * packaged build rather than shipping a remote control gated at call time.
- * Compare {@link initDebugRpcBridge}, which ships but refuses to run without
- * the Developer Mode preference, because invoking arbitrary RPC is a different
- * blast radius than navigating.
+ * Hands the app window's tabs and modals to `studio-drive`, for as long as
+ * the renderer lives. Attached under `import.meta.env.DEV`, so a packaged
+ * build ships no remote control.
  */
 export function initStudioDrive() {
   if (!import.meta.env.DEV) {
     return;
   }
-
   const store = getDefaultStore();
 
   // A driving script has no other way to tell that the app moved under it: an
   // edit anywhere in the checkout relaunches the main process or hot-updates
-  // the renderer, and the result reads as a click that stopped working or a
-  // screenshot of a route nobody navigated away from. The id changes on a
-  // reload, the count on every hot update in between.
+  // the renderer, and the result reads as a click that stopped working. The
+  // id changes on a reload, the count on every hot update in between.
   const load: StudioDriveLoad = { id: crypto.randomUUID(), updates: 0 };
   import.meta.hot?.on("vite:afterUpdate", () => {
     load.updates++;
@@ -95,59 +74,36 @@ export function initStudioDrive() {
 
   window.__studioDrive = {
     closeModal: resetStudioModals,
-
-    goto: (path, options) => {
+    goto: (href, options) => {
       if (options?.newTab) {
-        store.set(tabsAtom, (model) =>
-          openTab(model, { pathname: path, select: true }),
+        store.set(appTabsAtom, (model) =>
+          openTab(model, { pathname: href, select: true }),
         );
         return;
       }
-      const router = getTabRouter(store.get(tabsAtom).selectedId);
-      const destination = parseStudioDrivePath(path);
-      // `path` arrives as a plain string from a driving script, where the
-      // router's typed route union is not available. Same shape the app-command
-      // bus uses for navigation coming over IPC.
-      void router?.navigate(
-        destination as Parameters<typeof router.navigate>[0],
-      );
+      getTabRouter(store.get(appTabsAtom).selectedId)?.history.push(href);
     },
-
     load: () => ({ ...load }),
-
     modals: () => Object.keys(MODAL_OPENERS) as StudioModalName[],
-
     openModal: (name) => {
       MODAL_OPENERS[name]();
     },
-
+    reopen: () => {
+      store.set(appTabsAtom, (model) =>
+        reopenClosed(model, { id: freshTabId() }),
+      );
+    },
     state: () => {
-      const model = store.get(tabsAtom);
+      const model = store.get(appTabsAtom);
       return {
         dialog: readOpenDialogTitle(),
-        path: getTabRouter(model.selectedId)?.state.location.pathname ?? null,
+        path: getTabRouter(model.selectedId)?.history.location.href ?? null,
         tabs: model.tabs.map((tab) => ({
-          id: tab.id,
+          isSelected: tab.id === model.selectedId,
           pathname: tab.pathname,
-          selected: tab.id === model.selectedId,
         })),
       };
     },
-  };
-}
-
-export function parseStudioDrivePath(path: string): {
-  search?: Record<string, string>;
-  to: string;
-} {
-  const queryStart = path.indexOf("?");
-  if (queryStart === -1) {
-    return { to: path };
-  }
-
-  return {
-    search: Object.fromEntries(new URLSearchParams(path.slice(queryStart + 1))),
-    to: path.slice(0, queryStart),
   };
 }
 
@@ -157,10 +113,7 @@ export function parseStudioDrivePath(path: string): {
  * that never go through it.
  */
 function readOpenDialogTitle(): null | string {
-  // Confirms are `alertdialog`, not `dialog`. Reading only the latter reports
-  // `null` for every destructive confirmation in the app while one is open on
-  // screen, which reads as "no dialog" rather than as "a role this did not ask
-  // for".
+  // Confirms are `alertdialog`, not `dialog`.
   const dialog = document.querySelector(
     '[role="dialog"], [role="alertdialog"]',
   );

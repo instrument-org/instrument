@@ -31,13 +31,13 @@ type InstrumentLinkKind =
  * are still in transcripts.
  */
 const HOSTS = {
-  app: { kind: "app", prefix: "/orchestrator/apps" },
-  chat: { kind: "chat", prefix: "/orchestrator/chats" },
-  discover: { kind: "idea", prefix: "/orchestrator/ideas" },
-  memory: { kind: "memory", prefix: "/orchestrator/memory" },
-  skill: { kind: "skill", prefix: "/orchestrator/skills" },
-  task: { kind: "task", prefix: "/orchestrator/tasks" },
-  thread: { kind: "chat", prefix: "/orchestrator/chats" },
+  app: { kind: "app", prefix: "/apps" },
+  chat: { kind: "chat", prefix: "/chats" },
+  discover: { kind: "idea", prefix: "/discover" },
+  memory: { kind: "memory", prefix: "/memory" },
+  skill: { kind: "skill", prefix: "/skills" },
+  task: { kind: "task", prefix: "/tasks" },
+  thread: { kind: "chat", prefix: "/chats" },
 } as const satisfies Record<
   string,
   { kind: InstrumentLinkKind; prefix: string }

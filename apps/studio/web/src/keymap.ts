@@ -2,10 +2,11 @@
  * Stands in for the native application menu.
  *
  * Every app-wide shortcut in Studio is a menu accelerator: the main process
- * turns it into an `AppCommand` and publishes it on `appCommands.events.command`
- * (see `shared/app-command.ts`). A browser has no menu, so nothing produces
- * those commands and the shortcuts appear dead. This listens for the same
- * chords and pushes the same commands onto that stream.
+ * turns it into a command and publishes it on `window.events.command`, or
+ * for zoom on `appCommands.events.command` (see `shared/app-command.ts`). A
+ * browser has no menu, so nothing produces those commands and the shortcuts
+ * appear dead. This listens for the same chords and pushes the same commands
+ * onto those streams.
  *
  * Combinations the browser reserves for itself (Cmd+T, Cmd+W, Cmd+N) cannot be
  * intercepted from a page, so tab lifecycle stays mouse-driven here.
@@ -14,19 +15,28 @@ import { type AppCommand } from "@/shared/app-command";
 
 import { pushLive } from "./mock-rpc";
 
-const COMMAND_PATH = "appCommands.events.command";
+type WindowCommand =
+  | "back"
+  | "findInPage"
+  | "forward"
+  | "openSettings"
+  | "search"
+  | "toggleInbox";
 
-const CHORDS: Record<string, AppCommand> = {
+const APP_COMMAND_PATH = "appCommands.events.command";
+const WINDOW_COMMAND_PATH = "window.events.command";
+
+const APP_CHORDS: Record<string, AppCommand> = {
   "mod+0": { type: "zoomReset" },
-  "mod+,": { type: "openSettings" },
-  "mod+/": { type: "openShortcutGuide" },
-  "mod+[": { type: "navigateBack" },
-  "mod+]": { type: "navigateForward" },
-  "mod+b": { type: "toggleSidebar" },
-  "mod+f": { type: "findInPage" },
-  "mod+k": { type: "toggleCommandMenu" },
-  "mod+shift+[": { type: "selectPrevious" },
-  "mod+shift+]": { type: "selectNext" },
+};
+
+const WINDOW_CHORDS: Record<string, WindowCommand> = {
+  "mod+,": "openSettings",
+  "mod+[": "back",
+  "mod+]": "forward",
+  "mod+b": "toggleInbox",
+  "mod+f": "findInPage",
+  "mod+l": "search",
 };
 
 export function installKeymap() {
@@ -34,12 +44,19 @@ export function installKeymap() {
     "keydown",
     (event) => {
       const chord = chordFor(event);
-      const command = chord ? CHORDS[chord] : undefined;
-      if (!command) {
+      if (!chord) {
+        return;
+      }
+      const appCommand = APP_CHORDS[chord];
+      const windowCommand = WINDOW_CHORDS[chord];
+      if (appCommand) {
+        pushLive(APP_COMMAND_PATH, appCommand);
+      } else if (windowCommand) {
+        pushLive(WINDOW_COMMAND_PATH, windowCommand);
+      } else {
         return;
       }
       event.preventDefault();
-      pushLive(COMMAND_PATH, command);
     },
     { capture: true },
   );

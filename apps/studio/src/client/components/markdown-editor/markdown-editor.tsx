@@ -9,11 +9,11 @@ import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
 import { MessageActions, MessageCard } from "@/client/components/message-card";
 import { messageKindOf } from "@/client/components/message-kind";
-import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
-import { linesLabel } from "@/client/components/orchestrator/staged-asks";
-import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
+import { useAskMarks } from "@/client/components/window/ask-marks";
+import { WindowContext } from "@/client/components/window/context";
+import { linesLabel } from "@/client/components/window/staged-asks";
+import { useAskCard } from "@/client/components/window/use-ask-card";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
@@ -184,9 +184,9 @@ function FenceView({
 }) {
   // A files fence names paths as the conversation's task sees them; the
   // window's own task is the one that can place them on this computer.
-  const orchestrator = useContext(OrchestratorContext);
+  const appWindow = useContext(WindowContext);
   return (
-    <MarkdownTaskContext value={{ taskId: orchestrator?.taskId }}>
+    <MarkdownTaskContext value={{ taskId: appWindow?.taskId }}>
       <div className="group/fence relative">
         {language === AGENT_MESSAGE_LANGUAGE ? (
           <MessageCard message={parseMessage(content)} />

@@ -1,4 +1,3 @@
-import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -710,12 +709,7 @@ function placeGuest(targetId: BrowserTargetId) {
 
 /** Bring the pool in line with the desired target set: create any missing
  * guests, dispose any that are no longer wanted, and mirror the attached set. */
-function reconcile(allTargets: BrowserGuestTarget[]) {
-  // Every window hears about every target; each mounts only its own, since a
-  // guest can attach to one host renderer.
-  const targets = allTargets.filter(
-    (target) => target.host === WINDOW_BROWSER_HOST,
-  );
+function reconcile(targets: BrowserGuestTarget[]) {
   const desired = new Set(targets.map((target) => target.id));
   for (const target of targets) {
     // A destroy+recreate of the same id (new generation) may reach us as a

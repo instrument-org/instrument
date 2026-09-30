@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { ProjectIdSchema } from "./project-id";
 import { TaskIdSchema } from "./task-id";
-import { TaskIndicatorSchema } from "./task-indicator";
 import { TaskKindSchema } from "./task-kind";
 
 // The loaded representation of a task: id + metadata read from disk. This is
@@ -19,13 +18,9 @@ export const TaskSchema = z.object({
   parentTaskId: TaskIdSchema.optional(),
   // The level chosen for this task, absent when nobody chose one and the
   // model's own catalog default stands. See TaskSettingsSchema.
-  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
-  // Set when the task is pinned; the timestamp is when it was pinned.
-  pinnedAt: z.date().optional(),
   projectId: ProjectIdSchema.optional(),
+  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
   title: z.string(),
-  // Set when the task is unread (agent finished, or user marked it unread).
-  unreadIndicator: TaskIndicatorSchema.optional(),
   updatedAt: z.date(),
 });
 

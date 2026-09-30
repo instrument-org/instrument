@@ -1,4 +1,3 @@
-import { InternalLink } from "@/client/components/internal-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -11,9 +10,8 @@ export function ProjectContextNote({
   data: SessionMessageDataPart.ProjectContextDataPart;
   folders: SessionMessageDataPart.FolderAttachmentDataPart[];
 }) {
-  // Shared cache key with the breadcrumb's query. A projectId can dangle after
-  // its project is deleted; when it no longer resolves we drop the jump-back
-  // link and show the snapshot name as plain text.
+  // The project's name as it is now; a projectId can dangle after its
+  // project is deleted, and then the snapshot name stands in.
   const { data: project } = useQuery(
     rpcClient.workspace.project.byId.queryOptions({
       input: { id: data.projectId },
@@ -37,18 +35,9 @@ export function ProjectContextNote({
       <div className="flex max-w-[80%] items-center gap-x-1.5 px-2 py-1 text-xs text-muted-foreground/70">
         <CardsThreeIcon className="size-3.5 shrink-0" />
         <span className="truncate">Included {added.join(" and ")} from</span>
-        {project ? (
-          <InternalLink
-            className="shrink-0 font-medium text-muted-foreground hover:text-foreground hover:underline"
-            openInCurrentTab
-            params={{ id: data.projectId }}
-            to="/projects/$id"
-          >
-            {project.name}
-          </InternalLink>
-        ) : (
-          <span className="shrink-0 font-medium">{data.projectName}</span>
-        )}
+        <span className="shrink-0 font-medium">
+          {project?.name ?? data.projectName}
+        </span>
       </div>
     </div>
   );

@@ -35,7 +35,7 @@ let stopAnswering: () => void;
  */
 function answeringWindow() {
   const known = "tab-known";
-  return publisher.subscribe("orchestrator.tab", (ask) => {
+  return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
       ...(ask.sessionId ? { sessionId: ask.sessionId } : {}),
@@ -47,7 +47,7 @@ function answeringWindow() {
         : action.tabId === known
           ? { tabId: known }
           : { error: `no tab ${action.tabId} is open in this chat.` };
-    publisher.publish("orchestrator.tabDone", {
+    publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
       ...answer,

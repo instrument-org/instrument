@@ -123,7 +123,7 @@ export function ZoomLevelMenu({
 }
 
 /**
- * Full stepper for the main-window UI zoom ({@link zoomAtom}), driving the atom
+ * Full stepper for the window UI zoom ({@link zoomAtom}), driving the atom
  * directly. Meant for a settings row.
  */
 export function ZoomStepper() {
@@ -166,7 +166,7 @@ export function ZoomStepper() {
 }
 
 /**
- * Presentational `-` / `%` / `+` stepper shell. Shared by the main-window UI
+ * Presentational `-` / `%` / `+` stepper shell. Shared by the window UI
  * zoom ({@link ZoomStepper}), the browser guest's per-page zoom, and the
  * document viewers' per-document zoom, which drive distinct mechanisms (CSS
  * `zoom` on the window, the guest's `setZoomFactor`, each engine's own scale)
@@ -253,7 +253,7 @@ export function ZoomStepperControl({
 }
 
 /**
- * Transient readout of the main-window UI zoom ({@link zoomAtom}): a corner pill
+ * Transient readout of the window UI zoom ({@link zoomAtom}): a corner pill
  * that appears on any zoom change (keyboard, wheel/pinch, or the settings
  * stepper) and fades out shortly after the last change, so the user gets
  * feedback that something changed without persistent chrome. Includes a reset

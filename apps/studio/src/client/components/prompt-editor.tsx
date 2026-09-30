@@ -211,7 +211,7 @@ export function PromptEditor({
   disabled: boolean;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
-  onSubmit: (openInNewTab: boolean) => void;
+  onSubmit: () => void;
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
   skills: ComposerSkill[];
@@ -384,7 +384,7 @@ export function PromptEditor({
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
-          onSubmitRef.current(event.metaKey || event.ctrlKey);
+          onSubmitRef.current();
           return true;
         }
         return false;

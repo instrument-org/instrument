@@ -1,11 +1,11 @@
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import { WindowContext } from "@/client/components/window/context";
 import {
   linesLabel,
   numbered,
   useAskRevealer,
   useFileAsks,
-} from "@/client/components/orchestrator/staged-asks";
-import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
+} from "@/client/components/window/staged-asks";
+import { useAskCard } from "@/client/components/window/use-ask-card";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import {
   AGENT_FLASH_MS,
@@ -347,7 +347,7 @@ function LiveTable({
   const [flashed, setFlashed] = useState<ReadonlySet<string>>(NO_FLASH);
   const [session, setSession] = useState<CsvSession | null>(null);
   const readOnly = useMemo(() => readOnlyReason(doc), [doc]);
-  const orchestrator = useContext(OrchestratorContext);
+  const appWindow = useContext(WindowContext);
   const { begin, card } = useAskCard(hostPath);
   // The asks staged on this file, each marked at the cell it starts at.
   const asks = useFileAsks(hostPath);
@@ -523,7 +523,7 @@ function LiveTable({
         editing={editing}
         marks={marks}
         note={readOnly ?? undefined}
-        onAsk={orchestrator ? ask : undefined}
+        onAsk={appWindow ? ask : undefined}
         revealRef={revealRef}
         rows={rows}
       />

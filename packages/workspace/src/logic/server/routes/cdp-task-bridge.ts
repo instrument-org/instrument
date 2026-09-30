@@ -297,7 +297,6 @@ export function handleTaskCdpClient(
       await windowTaskId(),
       tabId,
       getBrowserSessionDir(),
-      "orchestrator",
     );
     // Whichever of the two asks made the guest, it is sent to the page here,
     // and the answer waits for the page's load, the way a navigation's does on

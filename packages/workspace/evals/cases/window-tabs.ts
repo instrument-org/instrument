@@ -136,11 +136,8 @@ function homeWith(
 ): SessionMessageDataPart.ViewContextDataPart {
   return {
     screen: "home",
-    tabs: [
-      { at: "/orchestrator/home", id: HOME_TAB, title: "New tab" },
-      ...tabs,
-    ],
-    url: "/orchestrator/home",
+    tabs: [{ at: "/new-tab", id: HOME_TAB, title: "New tab" }, ...tabs],
+    url: "/new-tab",
   };
 }
 

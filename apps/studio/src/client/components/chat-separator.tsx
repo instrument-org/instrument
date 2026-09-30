@@ -4,7 +4,7 @@ import {
   separatorTimeLabel,
 } from "../lib/chat-separators";
 import { ModelUsageChip } from "./model-usage-chip";
-import { useNow } from "./orchestrator/use-now";
+import { useNow } from "./window/use-now";
 
 /**
  * A centered line above a message the person sent: the day, the time, and the

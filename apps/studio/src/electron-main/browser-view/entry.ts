@@ -2,7 +2,6 @@ import type { WebContents } from "electron";
 
 import {
   type AbsolutePath,
-  type BrowserHost,
   type BrowserTargetId,
   type StoreId,
   type TaskId,
@@ -41,8 +40,6 @@ export interface BrowserEntry {
   // (even when the two events coalesce into one stream snapshot) and remount a
   // fresh guest instead of stranding the destroyed one.
   generation: number;
-  // The window whose renderer mounts the guest; see BrowserGuestTarget.host.
-  host: BrowserHost;
   id: TaskId;
   // Whether a main-frame navigation to a real URL has started on this guest.
   // False for the whole life of a target that only ever held `about:blank` --
@@ -84,13 +81,11 @@ interface AttachSignal {
 }
 
 export function createEntry({
-  host = "main",
   id,
   partitionDir,
   sessionId,
   targetId,
 }: {
-  host?: BrowserHost;
   id: TaskId;
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
@@ -105,7 +100,6 @@ export function createEntry({
     disposers: new Set(),
     eventListeners: new Set(),
     generation: ++generationCounter,
-    host,
     id,
     navigated: false,
     partitionDir,

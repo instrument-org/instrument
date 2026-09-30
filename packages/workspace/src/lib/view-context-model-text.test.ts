@@ -33,7 +33,7 @@ describe("viewContextModelNote", () => {
       viewContextModelNote({
         screen: "home",
         tabs: [
-          { at: "/orchestrator/home", id: "screen-1", title: "New tab" },
+          { at: "/new-tab", id: "screen-1", title: "New tab" },
           {
             at: "https://example.com/",
             heldBy: { id: "read-the-page", title: "Read the page" },
@@ -47,7 +47,7 @@ describe("viewContextModelNote", () => {
       <instrument-system-note>
       When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       </instrument-system-note>
-      Tabs open in the window: "New tab" at /orchestrator/home (tab screen-1); "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
+      Tabs open in the window: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
     `);
   });
 

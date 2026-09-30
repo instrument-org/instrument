@@ -27,7 +27,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
 
 interface MessageErrorProps {
@@ -38,7 +37,6 @@ interface MessageErrorProps {
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRunAgain: () => void;
-  onStartNewTask?: () => void;
 }
 
 export function MessageError({
@@ -49,7 +47,6 @@ export function MessageError({
   onContinue,
   onModelChange,
   onRunAgain,
-  onStartNewTask,
 }: MessageErrorProps) {
   const error = message.metadata.error;
   const showActions = isLastMessage && !isAgentRunning;
@@ -187,26 +184,8 @@ export function MessageError({
         <CollapsibleContent>
           <CollapsiblePartMainContent
             footer={
-              showActions && onStartNewTask ? (
+              showActions ? (
                 <div className="mt-2 flex gap-2">
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={onStartNewTask}
-                        size="sm"
-                        variant="outline"
-                      >
-                        Start new task
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        Opens a blank task. Nothing carries over, but this one
-                        stays in your list, so you can copy over anything you
-                        still need.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
                   <Button onClick={onRunAgain} size="sm">
                     Try again
                   </Button>

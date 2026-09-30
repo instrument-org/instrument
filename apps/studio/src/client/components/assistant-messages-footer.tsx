@@ -2,10 +2,8 @@ import {
   getUsageSummaryFromMessages,
   type SessionMessage,
   type SessionMessagePart,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { GitBranchIcon } from "@phosphor-icons/react/GitBranch";
 import { useMemo, useState } from "react";
 
 import { useDeveloperMode } from "../hooks/use-developer-mode";
@@ -18,7 +16,6 @@ import { Favicon } from "./favicon";
 import { ModelUsageChip, TooltipRow } from "./model-usage-chip";
 import { RelativeTime } from "./relative-time";
 import { SourceLink } from "./source-link";
-import { BranchTaskModal } from "./task/branch-modal";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Button } from "./ui/button";
 import {
@@ -36,7 +33,6 @@ interface AssistantMessagesFooterProps {
    * is a band of blank whose height is real and whose contents are not.
    */
   alwaysVisible?: boolean;
-  id: TaskId;
   /**
    * The turn this footer belongs to is still being produced, so the row holds
    * its space and shows nothing.
@@ -53,18 +49,12 @@ interface AssistantMessagesFooterProps {
 
 export function AssistantMessagesFooter({
   alwaysVisible = false,
-  id,
   isTurnLive = false,
   messages,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isBranchOpen, setIsBranchOpen] = useState(false);
   const isDeveloperMode = useDeveloperMode();
   const releaseAutoScroll = useReleaseAutoScroll();
-
-  // Branch from the last message of this assistant turn: the new task keeps the
-  // conversation through here and drops everything after.
-  const branchFrom = messages.at(-1);
 
   // Compute the summary from the messages this footer already holds -- no need
   // to reload them from the store via RPC.
@@ -135,19 +125,6 @@ export function AssistantMessagesFooter({
 
   return (
     <>
-      {branchFrom && (
-        <BranchTaskModal
-          branchPoint={{
-            messageId: branchFrom.id,
-            sessionId: branchFrom.metadata.sessionId,
-          }}
-          isOpen={isBranchOpen}
-          onClose={() => {
-            setIsBranchOpen(false);
-          }}
-          sourceTaskId={id}
-        />
-      )}
       <Collapsible
         className="mt-2 flex flex-col gap-2"
         onOpenChange={(open) => {
@@ -182,23 +159,6 @@ export function AssistantMessagesFooter({
               </TooltipTrigger>
               <TooltipContent>Copy message</TooltipContent>
             </Tooltip>
-            {branchFrom && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    aria-label="Branch from here"
-                    className={SHARED.messageFooterButton}
-                    onClick={() => {
-                      setIsBranchOpen(true);
-                    }}
-                    type="button"
-                  >
-                    <GitBranchIcon size={MESSAGE_FOOTER_ICON_SIZE} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Branch from here</TooltipContent>
-              </Tooltip>
-            )}
           </div>
           {generationDuration > 0 && (
             <Tooltip>

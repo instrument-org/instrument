@@ -1,12 +1,4 @@
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { Button } from "@/client/components/ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/client/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -18,20 +10,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
-import { displayPath, folderLabel } from "@/client/lib/path-utils";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
 import { type Icon } from "@phosphor-icons/react";
 import { LockIcon } from "@phosphor-icons/react/Lock";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
-import { XIcon } from "@phosphor-icons/react/X";
-import { AnimatePresence, motion } from "motion/react";
 import { Fragment } from "react";
-import { toast } from "sonner";
 
 export interface FolderAccess {
   access: FolderAttachment.Access;
@@ -150,103 +135,6 @@ export function FolderAccessControl({
   );
 }
 
-/** States the access for a folder the user cannot currently change. */
-export function FolderAccessLabel({
-  access,
-  className,
-  iconOnly = false,
-}: {
-  access: FolderAttachment.Access;
-  className?: string;
-  iconOnly?: boolean;
-}) {
-  const label = (
-    <span
-      aria-label={iconOnly ? ACCESS_LABELS[access] : undefined}
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground",
-        iconOnly && "gap-0 hover:text-muted-foreground",
-        className,
-      )}
-      // A bare span is generic, and a generic element cannot take a name, so
-      // without a role the icon-only form states the access to sighted readers
-      // only. The word is the accessible name when it is written out.
-      role={iconOnly ? "img" : undefined}
-    >
-      <FolderAccessIcon
-        access={access}
-        className={iconOnly ? "size-3.5" : undefined}
-      />
-      {iconOnly ? null : ACCESS_LABELS[access]}
-    </span>
-  );
-
-  if (access !== "read-write") {
-    return label;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{label}</TooltipTrigger>
-      <TooltipContent>{FULL_ACCESS_WARNING}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-/**
- * The folders a task will work in, each with the access it was granted.
- *
- * The full-size arrangement, for a panel with room for it. The composer keeps
- * its own row layout, tight enough to sit under the prompt.
- */
-export function FolderAccessList({
-  className,
-  folders,
-  onAccessChange,
-  onRemove,
-}: {
-  className?: string;
-  folders: FolderAccess[];
-  onAccessChange: (path: string, access: FolderAttachment.Access) => void;
-  onRemove: (path: string) => void;
-}) {
-  if (folders.length === 0) {
-    return null;
-  }
-
-  return (
-    <ul className={cn("flex flex-col", className)}>
-      {/* A folder granted here is granted from a panel the user is reading
-          rather than a dialog that answers them, so the row it takes opens
-          instead of appearing. `initial={false}`: the ones a project already
-          had are not arriving. */}
-      <AnimatePresence initial={false}>
-        {folders.map((folder) => (
-          <motion.li
-            animate={{ height: "auto", opacity: 1 }}
-            className="overflow-hidden"
-            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-            initial={{ height: 0, opacity: 0 }}
-            key={folder.path}
-            transition={BLOCK_OPEN}
-          >
-            <FolderAccessRow
-              access={folder.access}
-              onAccessChange={(access) => {
-                onAccessChange(folder.path, access);
-              }}
-              onRemove={() => {
-                onRemove(folder.path);
-              }}
-              path={folder.path}
-            />
-          </motion.li>
-        ))}
-      </AnimatePresence>
-    </ul>
-  );
-}
-
 /** The shield or the lock, at the size every surface shows it. */
 function FolderAccessIcon({
   access,
@@ -258,69 +146,4 @@ function FolderAccessIcon({
   const Icon = ACCESS_ICONS[access];
 
   return <Icon className={cn("size-4", className)} />;
-}
-
-function FolderAccessRow({
-  access,
-  onAccessChange,
-  onRemove,
-  path,
-}: {
-  access: FolderAttachment.Access;
-  onAccessChange: (access: FolderAttachment.Access) => void;
-  onRemove: () => void;
-  path: string;
-}) {
-  const handleReveal = async () => {
-    const [error] = await safe(
-      rpcClient.utils.showFileInFolder.call({ filepath: path }),
-    );
-    if (error) {
-      toast.error(`Failed to ${getRevealInFolderLabel().toLowerCase()}`, {
-        description: error.message,
-      });
-    }
-  };
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div className="group flex items-center gap-x-2.5 px-3 py-1.5">
-          <MacFolderIcon className="size-8 shrink-0" />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-xs font-medium">
-              {folderLabel(path)}
-            </span>
-            <span
-              className="truncate text-xs font-medium text-muted-foreground"
-              title={path}
-            >
-              {displayPath(path)}
-            </span>
-          </div>
-          <div className="flex items-center gap-x-1.5">
-            <FolderAccessControl
-              access={access}
-              folderName={folderLabel(path)}
-              onChange={onAccessChange}
-            />
-            <button
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
-              onClick={onRemove}
-              type="button"
-            >
-              <XIcon className="size-3" />
-              <span className="sr-only">Remove {folderLabel(path)}</span>
-            </button>
-          </div>
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={() => void handleReveal()}>
-          <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
 }

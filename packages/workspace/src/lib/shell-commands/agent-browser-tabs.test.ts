@@ -42,7 +42,7 @@ const ctx = createCommandContext({
 
 /** A window: answers each page it is asked for with a tab of its own. */
 function answeringWindow() {
-  return publisher.subscribe("orchestrator.tab", (ask) => {
+  return publisher.subscribe("window.tab", (ask) => {
     if (ask.action.kind !== "open" || ask.action.target.kind !== "page") {
       return;
     }
@@ -50,7 +50,7 @@ function answeringWindow() {
       show: ask.action.show,
       ...(ask.sessionId ? { group: ask.sessionId } : {}),
     });
-    publisher.publish("orchestrator.tabDone", {
+    publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
       tabId: StoreId.newSessionId(),

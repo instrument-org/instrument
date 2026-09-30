@@ -9,80 +9,80 @@ const cases: {
   {
     expected: true,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: false,
       isRootSession: true,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "unfocused",
     },
   },
   {
     expected: true,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: true,
       isRootSession: true,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "always",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: true,
       isRootSession: true,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "unfocused",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: false,
       isRootSession: true,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "never",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: false,
       isRootSession: false,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "unfocused",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: false,
       isAppWindowFocused: false,
       isRootSession: true,
       isSupported: true,
-      mainWindowAvailable: false,
       mode: "unfocused",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: false,
       isRootSession: true,
       isSupported: false,
-      mainWindowAvailable: true,
       mode: "unfocused",
     },
   },
   {
     expected: false,
     input: {
+      appWindowAvailable: true,
       isAppWindowFocused: true,
       isRootSession: false,
       isSupported: true,
-      mainWindowAvailable: true,
       mode: "always",
     },
   },

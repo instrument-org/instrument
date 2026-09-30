@@ -144,7 +144,6 @@ function SkillChangeRow({
         "group/skill select-none hover:bg-muted/40 dark:hover:bg-muted/40",
       )}
       name={addressableName}
-      openInCurrentTab
     >
       {body}
       <CaretRightIcon className="size-4 shrink-0 text-muted-foreground/40 group-hover/skill:text-muted-foreground" />

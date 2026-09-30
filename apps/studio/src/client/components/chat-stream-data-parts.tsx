@@ -17,12 +17,12 @@ import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import { SentAsksNote } from "./orchestrator/ask-pills";
-import { OutputFormatNote } from "./orchestrator/output-format-note";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
 import { TaskAppChangesNote } from "./task-app-changes-note";
 import { TaskEventNote } from "./task-event-note";
+import { SentAsksNote } from "./window/ask-pills";
+import { OutputFormatNote } from "./window/output-format-note";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
 
@@ -138,12 +138,12 @@ export function renderDataPart({
   }
 
   // The narrow transcript draws a developer note as one line.
-  const compact = ctx.presentation === "orchestrator";
+  const compact = ctx.presentation === "chat";
   const noteClassName = compact ? "mt-1" : "mt-2";
 
   switch (part.type) {
     case "data-appEvent": {
-      if (ctx.presentation === "orchestrator") {
+      if (ctx.presentation === "chat") {
         return null;
       }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
@@ -356,7 +356,7 @@ export function renderDataPart({
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.
-      if (ctx.presentation === "orchestrator") {
+      if (ctx.presentation === "chat") {
         return null;
       }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;

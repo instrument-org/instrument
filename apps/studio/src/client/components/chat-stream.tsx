@@ -146,12 +146,11 @@ interface ChatStreamProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onRunAgain: () => void;
-  onStartNewTask: () => void;
   /**
    * The orchestrator's conversation is the one thing the user talks to, so
    * it opens no turn with the wordmark: there is nobody else it could be.
    */
-  presentation?: "orchestrator";
+  presentation?: "chat";
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
@@ -179,7 +178,6 @@ export function ChatStream({
   onModelChange,
   onRetry,
   onRunAgain,
-  onStartNewTask,
   presentation,
   renderAsItems = false,
   task,
@@ -258,9 +256,7 @@ export function ChatStream({
   // The conversation reads as a text chat, so it marks when it started and on
   // what, a return after a quiet spell, and a switch of model.
   const separators =
-    presentation === "orchestrator"
-      ? chatSeparators(regularMessages)
-      : undefined;
+    presentation === "chat" ? chatSeparators(regularMessages) : undefined;
 
   const lastMessageId = regularMessages.at(-1)?.id;
   const lastRegularMessage = regularMessages.at(-1);
@@ -295,7 +291,7 @@ export function ChatStream({
   // not shown, and what is shown of them stands on its own as a row. A group
   // headed by a copy of a hidden call would have no head line to shut it with.
   const layout: TranscriptLayout =
-    presentation === "orchestrator"
+    presentation === "chat"
       ? {
           groups: new Map(),
           rows: new Map(),
@@ -510,7 +506,7 @@ export function ChatStream({
       // in, so what the user reads is what was sent, never what is being typed.
       // A reply that was superseded before it finished is never shown.
       const isComposing =
-        presentation === "orchestrator" &&
+        presentation === "chat" &&
         message.role === "assistant" &&
         ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
           message.metadata.error?.kind === "aborted");
@@ -523,7 +519,7 @@ export function ChatStream({
           continue;
         }
         if (
-          presentation === "orchestrator" &&
+          presentation === "chat" &&
           message.role === "assistant" &&
           part.type === "text"
         ) {
@@ -644,10 +640,7 @@ export function ChatStream({
 
       // --- Per-message chrome ---
 
-      if (
-        presentation !== "orchestrator" &&
-        wordmarkMessageIds.has(message.id)
-      ) {
+      if (presentation !== "chat" && wordmarkMessageIds.has(message.id)) {
         messageElements.unshift(
           <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
@@ -731,7 +724,7 @@ export function ChatStream({
       // A reply the conversation superseded is not an error to anyone; it
       // is simply not shown, in developer mode too.
       const superseded =
-        presentation === "orchestrator" &&
+        presentation === "chat" &&
         message.role === "assistant" &&
         message.metadata.error?.kind === "aborted";
       if (
@@ -749,7 +742,6 @@ export function ChatStream({
             onContinue={onContinue}
             onModelChange={onModelChange}
             onRunAgain={onRunAgain}
-            onStartNewTask={onStartNewTask}
           />,
         );
       }
@@ -773,12 +765,11 @@ export function ChatStream({
 
         if (
           hasFooter && // The conversation's replies stand on their own: no footer of times and tokens under each.
-          presentation !== "orchestrator"
+          presentation !== "chat"
         ) {
           messageElements.push(
             <AssistantMessagesFooter
               alwaysVisible={alwaysShowFooter}
-              id={task.id}
               isTurnLive={
                 isLastMessage &&
                 (isAgentRunning || !lastAssistantMessageHasVisibleParts)
@@ -834,7 +825,7 @@ export function ChatStream({
               messageId={message.id}
               // The conversation keeps to its end, the way a chat does; a
               // turn brought to the top is for reading work back.
-              scrollAnchor={presentation !== "orchestrator"}
+              scrollAnchor={presentation !== "chat"}
             >
               {messageElements}
             </MessageScrollerItem>
@@ -852,7 +843,7 @@ export function ChatStream({
     // so the window outlasts it. Drawn at the tail they keep one identity across
     // that whole window, and the first real row replaces the planning line in a
     // single step rather than fading a second copy in beneath it.
-    if (isAwaitingFirstRow && presentation !== "orchestrator") {
+    if (isAwaitingFirstRow && presentation !== "chat") {
       const initialRows = [
         <TurnWordmark key={TURN_WORDMARK_ID} />,
         <AwaitingFirstRow key={PLANNING_ROW_ID} />,
@@ -876,10 +867,7 @@ export function ChatStream({
     // dots stand at its end, since that is where the next thing comes out.
     // One row under one key for the whole run, so going from one of those to
     // the next never takes the dots away and fades a new copy in.
-    if (
-      presentation === "orchestrator" &&
-      (isAgentRunning || isAwaitingFirstRow)
-    ) {
+    if (presentation === "chat" && (isAgentRunning || isAwaitingFirstRow)) {
       elements.push(
         renderAsItems ? (
           <MessageScrollerItem key={TYPING_TAIL_ID}>

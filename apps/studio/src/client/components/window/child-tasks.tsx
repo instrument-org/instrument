@@ -1,0 +1,304 @@
+import { type WindowTab, windowTabsAtom } from "@/client/atoms/window";
+import { ChatStream } from "@/client/components/chat-stream";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
+import {
+  MessageScroller,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/client/components/ui/message-scroller";
+import { Spinner } from "@/client/components/ui/spinner";
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { rpcClient } from "@/client/rpc/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
+import { catalogEffort } from "@instrument-org/ai-gateway/client";
+import {
+  decodeBrowserTargetId,
+  isFolderPath,
+  type Task,
+} from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
+import { type ReactNode } from "react";
+import { toast } from "sonner";
+
+import { TabIcon } from "./browser-tabs";
+import { useWindow } from "./context";
+import { useNewestSessionId } from "./newest-session";
+import { useIsTaskWorking } from "./task-working";
+
+const noop = () => {
+  // A transcript with nothing to type into has nothing to retry or continue.
+};
+
+/**
+ * A task's transcript, on its own screen, read the way it unfolded and kept
+ * at its end while the task works. Nothing to type into: the user talks to
+ * the orchestrator, which talks to the task, so this is how they look over
+ * its shoulder and not a second conversation.
+ */
+export function ChildTranscript({ task }: { task: Task }) {
+  const sessionId = useNewestSessionId(task.id);
+  const messages = useQuery(
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
+      input: sessionId ? { id: task.id, sessionId } : skipToken,
+    }),
+  );
+  const isWorking = useIsTaskWorking(task.id);
+
+  const openFile = useOpenFileNamedByTask(task.id);
+
+  if (!sessionId || !messages.data) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-5" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <TaskBrief task={task} />
+      <MessageScrollerProvider
+        autoScroll={isWorking}
+        defaultScrollPosition="end"
+        key={sessionId}
+      >
+        {/* The rest of the column, not the whole of it: with the brief above,
+            a full-height scroller ran past the bottom and its end was never
+            on screen. */}
+        <MessageScroller className="min-h-0 flex-1">
+          <MessageScrollerViewport
+            className="@container/transcript"
+            data-transcript
+          >
+            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
+              {/* Names the task and session for the links inside, so a page
+                  the task names offers its browser as well as the user's. */}
+              <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
+                {/* Task paths are placed on the computer through the task's own layout before navigation. */}
+                <FileOpenContext value={openFile}>
+                  <ChatStream
+                    isAgentRunning={isWorking}
+                    isDeveloperMode={false}
+                    messages={messages.data}
+                    onContinue={noop}
+                    onModelChange={noop}
+                    onRetry={noop}
+                    onRunAgain={noop}
+                    renderAsItems
+                    task={task}
+                  />
+                </FileOpenContext>
+              </TaskSessionProvider>
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </div>
+  );
+}
+
+/**
+ * The apps this task may reach. Three states worth telling apart: a list it
+ * was handed, none at all, and the absent setting a person's own task carries,
+ * which reaches everything connected.
+ */
+function AppsChip({ apps }: { apps: string[] | undefined }) {
+  if (!apps) {
+    return (
+      <Chip label="Apps" title="This task can use every connected app">
+        every connected app
+      </Chip>
+    );
+  }
+  if (apps.length === 0) {
+    return (
+      <Chip label="Apps" title="No app was handed to this task">
+        none
+      </Chip>
+    );
+  }
+  return (
+    <Chip label="Apps" title={apps.join(", ")}>
+      {apps.join(", ")}
+    </Chip>
+  );
+}
+
+/**
+ * One fact about the task: a label in muted type, the value beside it, and an
+ * optional note for where the value came from when that is not the task's own
+ * doing.
+ */
+function Chip({
+  children,
+  label,
+  note,
+  title,
+}: {
+  children: ReactNode;
+  label: string;
+  note?: string;
+  title?: string;
+}) {
+  return (
+    <span
+      className="flex h-6 max-w-64 items-center gap-1 rounded-md bg-foreground/5 px-1.5"
+      title={title}
+    >
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-medium">{children}</span>
+      {note ? <span className="text-muted-foreground">{note}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * The level this task's model thinks at, and where that level came from.
+ *
+ * Absent settings do not mean no level: the request falls back to the model's
+ * own catalog default, so the chip resolves it the same way the request does
+ * rather than reading as though nothing were set.
+ */
+function EffortChip({ task }: { task: Task }) {
+  const models = useQuery(rpcClient.gateway.models.list.queryOptions());
+  const state = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
+  );
+  const model = models.data?.models.find(
+    (entry) => entry.uri === state.data?.selectedModelURI,
+  );
+  const fromModel = model ? catalogEffort(model) : undefined;
+  const effort = task.reasoningEffort ?? fromModel;
+  if (!effort) {
+    return (
+      <Chip label="Effort" title="No level chosen; the model's default applies">
+        provider default
+      </Chip>
+    );
+  }
+  return (
+    <Chip
+      label="Effort"
+      title={
+        task.reasoningEffort
+          ? "The level this task was created with"
+          : "No level chosen; this model reasons by default"
+      }
+      {...(task.reasoningEffort ? {} : { note: "model default" })}
+    >
+      {effort}
+    </Chip>
+  );
+}
+
+/** The window's tab the task was handed, drawn as the strip draws it: its icon and name, the address on hover. */
+function HeldTabChip({ sessionId }: { sessionId: string }) {
+  const { tabs } = useAtomValue(windowTabsAtom);
+  const tab = tabs.find(
+    (entry): entry is Extract<WindowTab, { kind: "page" }> =>
+      entry.kind === "page" && entry.id === sessionId,
+  );
+  return (
+    <span
+      className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
+      title={tab?.url ?? "A tab of this window"}
+    >
+      <span className="text-muted-foreground">Tab</span>
+      <TabIcon favicon={tab?.favicon} url={tab?.url} />
+      <span className="truncate font-medium">
+        {tab?.title || tab?.url || "closed"}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Everything that constrains the task, along the top, for whoever is checking
+ * its work: the model it runs on and the level it thinks at, the folders it
+ * reaches and whether it may write to them, the apps it may reach, and the
+ * tabs it drives. One chip per thing something enforces, and nothing else -- what
+ * the brief asked of the task is the first message below, in the words it was
+ * asked in, where it cannot be mistaken for a rule. Chips open to their full
+ * value on hover.
+ */
+function TaskBrief({ task }: { task: Task }) {
+  const taskId = task.id;
+  const state = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
+  );
+  const folders = Object.values(state.data?.attachedFolders ?? {});
+  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
+    const decoded = decodeBrowserTargetId(held.id);
+    return decoded ? [decoded.sessionId] : [];
+  });
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
+      <span
+        className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5"
+        title="The model the task runs on"
+      >
+        <ModelPreview id={taskId} />
+      </span>
+      <EffortChip task={task} />
+      {folders.length === 0 ? (
+        <Chip label="Folders">none</Chip>
+      ) : (
+        folders.map((folder) => (
+          <span
+            className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
+            key={folder.id}
+            title={`${folder.path} · ${folder.access}`}
+          >
+            <MacFolderIcon className="size-4 shrink-0" />
+            <span className="truncate font-medium">{folder.mountName}</span>
+            <span className="text-muted-foreground">
+              {folder.access === "read-write" ? "read, write" : "read"}
+            </span>
+          </span>
+        ))
+      )}
+      <AppsChip apps={task.apps} />
+      {heldTabs.map((sessionId) => (
+        <HeldTabChip key={sessionId} sessionId={sessionId} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Opens a file the task named, in the window's own terms.
+ *
+ * A reply writes the paths the task works in, which is the whole of what it
+ * knows: `work/report.md` is its own folder, and a folder it was handed
+ * wears the name it was mounted under there. The window addresses a tab by
+ * where the file is on the computer, so the path is placed there through the
+ * task's own layout before a tab is asked for it. A path the task cannot
+ * reach opens nothing, and says so.
+ */
+function useOpenFileNamedByTask(taskId: Task["id"]) {
+  const { openScreen } = useWindow();
+  return (filePath: string, options?: { newTab?: boolean }) => {
+    const isFolder = isFolderPath(filePath);
+    const bare = isFolder ? filePath.slice(0, -1) : filePath;
+    void (async () => {
+      const [error, hostPaths] = await safe(
+        rpcClient.workspace.task.files.hostPaths.call({
+          filePaths: [bare],
+          taskId,
+        }),
+      );
+      const hostPath = hostPaths?.[bare];
+      if (error || !hostPath) {
+        toast(`Nothing at “${filePath}”`, {
+          description: "Not a path the task can reach.",
+        });
+        return;
+      }
+      openScreen(isFolder ? folderHref(hostPath) : fileHref(hostPath), options);
+    })();
+  };
+}

@@ -1,6 +1,5 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
-import { useTaskPane } from "@/client/hooks/use-task-pane";
 import {
   type FileType,
   getFileType,
@@ -11,8 +10,7 @@ import {
   isRootTaskFile,
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
-import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
-import { useParams } from "@tanstack/react-router";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { fork } from "radashi";
 
 import { FilePreviewCard } from "./file-preview-card";
@@ -64,15 +62,7 @@ export function FilesGrid({
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  // Absent outside the task route -- a previewed conversation, the debug
-  // scenarios -- where a card is still worth drawing and clicking it has
-  // nowhere to go.
-  const taskId = useParams({
-    from: "/_app/tasks/$id/",
-    shouldThrow: false,
-  })?.id;
-  const pane = useTaskPane(taskId);
-  const showTaskFile = useShowTaskFile(taskId);
+  const showTaskFile = useShowTaskFile(undefined);
 
   // A card here always came from a task's transcript, so the task's own path
   // is what the pane and the conversation address it by.
@@ -141,7 +131,6 @@ export function FilesGrid({
               >
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, pane)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -177,7 +166,6 @@ export function FilesGrid({
               <div data-slot="files-grid-card" key={file.hostPath}>
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, pane)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -199,7 +187,6 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.hostPath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isPaneFileSelected(file, pane)}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -278,24 +265,6 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
 
 function hasRowCardPreview(file: ViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];
-}
-
-// Which card the pane is showing. The path decides it: an mtime in the
-// comparison meant a card lost its own highlight the moment the file it points
-// at changed underneath it.
-//
-// A closed pane shows nothing, so nothing is highlighted -- its selection is
-// kept for the reopen, not a claim about what the user is looking at.
-//
-// Against the stored key rather than `selectedTab`, whose fallback to the last
-// tab is right for deciding what to render and wrong for deciding what looks
-// chosen: with the browser selected it names a file tab, and a card would sit
-// highlighted while the pane showed a web page.
-function isPaneFileSelected(file: ViewerFile, pane: TaskPane.Type) {
-  return (
-    pane.open &&
-    pane.selected === TaskPane.tabKey(TaskPane.fileTab(taskPathOf(file)))
-  );
 }
 
 function sortByRichPreview(files: ViewerFile[]) {

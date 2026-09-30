@@ -38,12 +38,12 @@ Pin shapes to the contracts rather than hand-rolling them, so a fixture that dri
 
 ## Keyboard shortcuts
 
-Every app-wide shortcut in Studio is a **native menu accelerator**: the main process turns it into an `AppCommand` and publishes it on `appCommands.events.command` ([`shared/app-command.ts`](../../apps/studio/src/shared/app-command.ts)). A browser has no menu, so `web/src/keymap.ts` listens for the same chords and pushes the same commands. Combinations the browser reserves (Cmd+T, Cmd+W, Cmd+N) cannot be intercepted from a page, so tab lifecycle stays mouse-driven.
+Every app-wide shortcut in Studio is a **native menu accelerator**: the main process turns it into a command and publishes it on `window.events.command`, or for zoom on `appCommands.events.command` ([`shared/app-command.ts`](../../apps/studio/src/shared/app-command.ts)). A browser has no menu, so `web/src/keymap.ts` listens for the same chords and pushes the same commands. Combinations the browser reserves (Cmd+T, Cmd+W, Cmd+N) cannot be intercepted from a page, so tab lifecycle stays mouse-driven.
 
 ## Known gaps
 
-- **The task detail pane is empty.** It renders and does not crash, but the session transcript, files, and output artifacts have no fixtures. The debug Transcript page (`/debug/components/transcript`) covers the same components with better-maintained sample data, so a transcript fixture here would be duplicated surface that rots.
+- **The app window has no fixtures yet.** The fixtures were written for the window it replaced, so the app window stops at "Could not open the conversation": `workspace.window.ensure`, `apps.catalog` and `workspace.topics.list` answer `undefined`, and the browser pool's event streams (`browser.events.*`) are handed `null` where they expect an event. The next fixtures to write are those.
 - **The model picker is disabled**, so prompts cannot be submitted. `gateway.models.live.list` never has its query function invoked, while structurally identical live queries succeed; the query sits pending in the router-scoped cache. Note there are two `QueryClient`s ([`router.tsx`](../../apps/studio/src/client/router.tsx) and `sharedQueryClient` in [`lib/tab-router.ts`](../../apps/studio/src/client/lib/tab-router.ts)), which is where to start.
-- **The browser panel is a hole**, since a `<webview>` cannot exist here.
-- **The URL does not drive tab content.** Each tab owns its router history, so deep-linking a screen does not work; navigate with Cmd+K.
+- **Pages are a hole**, since a `<webview>` cannot exist here.
+- **The URL does not drive tab content.** Each tab owns its router history, so deep-linking a screen does not work.
 - **Window chrome differs**: no drag regions, no native frame.

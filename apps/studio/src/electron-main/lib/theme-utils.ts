@@ -8,10 +8,6 @@ export function getBackgroundColor() {
   return shouldUseDarkMode() ? "#1c1917" : "#fafaf9";
 }
 
-export function getMainWindowBackgroundColor() {
-  return getBackgroundColor();
-}
-
 /**
  * Answers the preload's synchronous request for the resolved theme. The app's
  * stylesheet is render-blocking, so it paints `body { background:

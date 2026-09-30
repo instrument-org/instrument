@@ -528,7 +528,7 @@ describe("SessionMessage.toModelMessages", () => {
   // thing a message carries.
   it("does not repeat an unchanged screen note", async () => {
     const viewing = (metadata: ReturnType<typeof baseMetadata>) => ({
-      data: { screen: "home" as const, url: "/orchestrator/home" },
+      data: { screen: "home" as const, url: "/new-tab" },
       metadata: { ...metadata.partMetadata, id: StoreId.newPartId() },
       type: "data-viewContext" as const,
     });

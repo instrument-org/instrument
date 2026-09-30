@@ -1,5 +1,4 @@
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -12,10 +11,6 @@ import {
 } from "@/electron-main/stores/preferences";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
-import {
-  TaskIdSchema,
-  workspaceRouter,
-} from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
 import { app, shell } from "electron";
 import { z } from "zod";
@@ -146,35 +141,6 @@ const getRecentUpdate = base
     return consumeRecentVersionBump();
   });
 
-const ensureTaskDefaultModelURI = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
-  .handler(async ({ context, input }) => {
-    const taskState = await call(workspaceRouter.task.state.get, input, {
-      context,
-    });
-
-    if (taskState.selectedModelURI) {
-      return { modelURI: taskState.selectedModelURI };
-    }
-
-    await setDefaultModel({ onlyIfUnset: true });
-    const modelURI = getDefaultModelURI();
-
-    if (modelURI) {
-      await call(
-        workspaceRouter.task.state.set,
-        {
-          id: input.id,
-          state: { selectedModelURI: modelURI },
-        },
-        { context },
-      );
-    }
-
-    return { modelURI };
-  });
-
 const setDefaultModelURI = base
   .input(z.object({ modelURI: AIGatewayModelURI.Schema }))
   .handler(({ input }) => {
@@ -211,7 +177,6 @@ const live = {
 
 export const preferences = {
   checkForUpdates,
-  ensureTaskDefaultModelURI,
   get,
   getAppVersion,
   getRecentUpdate,

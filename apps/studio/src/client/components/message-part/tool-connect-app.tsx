@@ -1,6 +1,6 @@
-import { AppIcon } from "@/client/components/orchestrator/app-icon";
-import { thisComputer } from "@/client/components/orchestrator/computer-name";
-import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
+import { AppIcon } from "@/client/components/window/app-icon";
+import { thisComputer } from "@/client/components/window/computer-name";
+import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";

@@ -11,7 +11,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 
-/** What the orchestrator window opens on. */
+/** What the app window opens on. */
 const ORCHESTRATOR_FOLDER_NAME = SubdomainPartSchema.parse("instrument");
 export const ORCHESTRATOR_TITLE = "Instrument";
 

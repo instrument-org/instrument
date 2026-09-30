@@ -6,20 +6,20 @@ How Studio decides what "narrow" means. The short version: a viewport media quer
 
 Two things sit between the window and a page, and neither moves a viewport breakpoint:
 
-- **UI zoom.** The whole main window scales with CSS `zoom` on `ZoomRoot` (`apps/studio/src/client/components/zoom-root.tsx`), user-adjustable 0.5x-2x. `zoom` divides every layout length below it, but media queries are evaluated against the viewport and ignore it entirely. At 2x on a 1440px window a page has 720 layout px while `matchMedia("(min-width: 1024px)")` still reports `true`.
-- **The sidebar rail.** It opens, closes, and is dragged between 200px and 480px (`apps/studio/src/client/atoms/sidebar.ts`), all of which change what a page gets and none of which the window knows about.
+- **UI zoom.** The whole window scales with CSS `zoom` on `ZoomRoot` (`apps/studio/src/client/components/zoom-root.tsx`), user-adjustable 0.5x-2x. `zoom` divides every layout length below it, but media queries are evaluated against the viewport and ignore it entirely. At 2x on a 1440px window a page has 720 layout px while `matchMedia("(min-width: 1024px)")` still reports `true`.
+- **The rail and the inbox column.** The rail down the window's left folds between 120px and 56px, and the inbox column opens, closes, and is dragged between 320px and 1200px, capped at the row less the 560px the conversation keeps (`inboxBounds` in `apps/studio/src/client/routes/_app/route.tsx`). All of it changes what a page gets and none of it moves the window.
 
-They compound. A zoomed-in window with a wide sidebar open can leave a page a few hundred layout px while every viewport breakpoint still reads as desktop.
+They compound. A zoomed-in window with a wide inbox open can leave a page a few hundred layout px while every viewport breakpoint still reads as desktop.
 
 ## The shell container
 
-`TabView` names the box a page actually occupies (`apps/studio/src/client/components/main-window.tsx`):
+`AppTabView` names the box a page actually occupies (`apps/studio/src/client/components/window/app-window.tsx`):
 
 ```
 @container/app-content
 ```
 
-It is a per-tab `absolute inset-0` box inside the portal container, itself inside the flex child `AppChrome` puts between the sidebar rail and the window edge, inside the zoom root — so its inline size already accounts for both distortions above. A page adapts to it by prefixing utilities with the container instead of a viewport breakpoint:
+It is a per-tab flex box inside the portal container, itself inside the window's card beside the rail, inside the zoom root — so its inline size already accounts for both distortions above. A page adapts to it by prefixing utilities with the container instead of a viewport breakpoint:
 
 ```
 lg:px-8   ->  @5xl/app-content:px-8
@@ -37,17 +37,9 @@ The container wraps the route content only. It deliberately sits _below_ the por
 | How big is the OS window / what device is this?                                | viewport media query |
 | Does responsive state need to leave CSS (close a panel, tell another process)? | JS measurement       |
 
-Reach for JS last. A layout that merely _looks_ different is a container query; JS is for when a width has to change application state. Note that a structural switch is usually not a real exception -- see the project page below.
+Reach for JS last. A layout that merely _looks_ different is a container query; JS is for when a width has to change application state. Note that a structural switch is usually not a real exception: when a responsive change looks structural, check whether grid placement can express it before reaching for a boolean in JS. Reparenting is the only thing CSS genuinely cannot do, and a grid usually makes reparenting unnecessary.
 
 Portalled dialogs are a legitimate media-query case: they are sized against the window, not against the page behind them.
-
-## Worked example: the project page
-
-`apps/studio/src/client/routes/_app/projects/$id/index.tsx` puts a details panel beside the main column when there's room and stacks it inline when there isn't. The panel holds live editing state and a debounced file write, so rendering two copies and hiding one would have two textareas racing to save the same file -- the usual CSS answer of duplicating markup is unavailable.
-
-It resolves with a single instance and no JS. The page is one grid; only the panel is placed explicitly, into column two spanning every row. The heading, composer and task list carry no placement classes at all and auto-flow down column one, which is also the order they read in when the grid collapses to a single column at `@6xl/app-content`. The panel is `sticky` only while the grid has two columns.
-
-The general shape: when a responsive change looks structural, check whether grid placement can express it before reaching for a boolean in JS. Reparenting is the only thing CSS genuinely cannot do, and a grid usually makes reparenting unnecessary.
 
 ## Sizing portalled content under zoom
 
@@ -75,7 +67,7 @@ A viewport unit written anywhere else in the renderer is the same bug wearing di
 
 ## Gotchas
 
-- **Never put a container above portalled floating UI.** floating-ui treats any element whose `container-type` isn't `normal` as a containing block for fixed-position content (`isContainingBlock` in `@floating-ui/utils/dom`) and subtracts that element's rect from every position it computes. Chrome does _not_ actually make one, so the correction is pure error: every menu, popover, tooltip and context menu shifts by the container's offset, scaled by the zoom factor. It is silent, it grows with distance from the container's origin, and near the top-left it is small enough to look plausible. A context menu landing under the cursor also puts a destructive item where the click lands. This is why `@container/app-content` wraps the route content instead of the app-chrome content column: the portal target is the route's sibling, so the container must stay below it. Verifying that Chrome doesn't create a containing block is _not_ sufficient -- what matters is what the positioning library believes.
+- **Never put a container above portalled floating UI.** floating-ui treats any element whose `container-type` isn't `normal` as a containing block for fixed-position content (`isContainingBlock` in `@floating-ui/utils/dom`) and subtracts that element's rect from every position it computes. Chrome does _not_ actually make one, so the correction is pure error: every menu, popover, tooltip and context menu shifts by the container's offset, scaled by the zoom factor. It is silent, it grows with distance from the container's origin, and near the top-left it is small enough to look plausible. A context menu landing under the cursor also puts a destructive item where the click lands. This is why `@container/app-content` wraps the route content instead of the window's content column: the portal target is the route's sibling, so the container must stay below it. Verifying that Chrome doesn't create a containing block is _not_ sufficient -- what matters is what the positioning library believes.
 - **A container query naming a container that has no matching ancestor does not match, silently.** There is no warning and no fallback. This is why the breakpoint variants are not globally redefined as container queries: dialogs portal outside `app-content`, and every `sm:max-w-*` on them would quietly stop applying.
 - **`getBoundingClientRect()` returns on-screen px; `offsetWidth`/`offsetHeight`, `scrollTop`/`scrollHeight`/`clientHeight`, and `ResizeObserver` return layout px.** Under zoom these differ by the zoom factor, so any code that measures with one and positions or scrolls with the other is broken at zoom != 1. Two shapes recur: a virtualizer that measures rows with the rect and positions them with `transform: translateY()` (measure with `offsetHeight`), and a scroll container whose distance-to-bottom is a rect-derived content edge minus `scrollTop`/`clientHeight` -- the mismatch strands a scroll-to-bottom affordance and defeats stick-to-bottom (compute the gap from `scrollHeight`/`scrollTop`/`clientHeight` alone). See [`docs/findings/css-zoom-rect-vs-layout-px.md`](../findings/css-zoom-rect-vs-layout-px.md).
-- **The main window has `minWidth: 720`** (`apps/studio/src/electron-main/windows/main/index.ts`), so `sm:` (640px) is always true and `md:` (768px) only varies in a 48px band. Existing `sm:` utilities are effectively unconditional, not responsive.
+- **The app window has `minWidth: 900`** (`apps/studio/src/electron-main/windows/app-window.ts`), so `sm:` (640px) and `md:` (768px) are always true. Existing `sm:` and `md:` utilities are effectively unconditional, not responsive.

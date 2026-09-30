@@ -4,7 +4,7 @@ Core AI agents, workflow logic, RPC, and tools.
 
 ## Structure
 
-- **RPC**: Router in `src/rpc/index.ts` (browser, computer, debug, message, orchestrator, pin, project, replay, server, session, skill, storage, task). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
+- **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, project, replay, session, skill, storage, systemOne, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs an orchestrator's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/orchestrator/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
@@ -127,7 +127,7 @@ differ from an ordinary case:
   results back is 1.5s behind them. The harness waits for the whole tree to go
   quiet, so `usage` is the conversation alone and `treeUsage` is what the run
   actually cost.
-- The conversation is created with the two folders `orchestrator.ensure` gives
+- The conversation is created with the two folders `window.ensure` gives
   it in the app. Without them it cannot read back what its own tasks wrote:
   measured, that is ten tool calls and 240K tokens hunting a file, against two
   and 96K when it can see it.

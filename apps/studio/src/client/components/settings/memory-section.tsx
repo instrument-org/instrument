@@ -1,9 +1,7 @@
-import { CHATS_HREF } from "@/client/atoms/orchestrator";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { CHATS_HREF } from "@/client/atoms/window";
 import { Favicon } from "@/client/components/favicon";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
-import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { RelativeTime } from "@/client/components/relative-time";
 import {
   AlertDialog,
@@ -18,6 +16,8 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { Input } from "@/client/components/ui/input";
+import { WindowContext } from "@/client/components/window/context";
+import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
@@ -31,7 +31,7 @@ import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type Memory =
-  RPCOutput["workspace"]["orchestrator"]["memory"]["list"]["memories"][number];
+  RPCOutput["workspace"]["memory"]["list"]["memories"][number];
 /** How tall a memory is allowed to stand before it is folded. */
 const COLLAPSED_MAX_HEIGHT_PX = 60;
 
@@ -59,7 +59,7 @@ const WEB_SOURCES = [
  */
 export function MemorySection() {
   const { data } = useQuery(
-    rpcClient.workspace.orchestrator.memory.live.list.experimental_liveOptions(),
+    rpcClient.workspace.memory.live.list.experimental_liveOptions(),
   );
   const memories = data?.memories ?? [];
   // The memory a link asked for, which the row for it brings into view. A
@@ -201,17 +201,17 @@ function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
  * and a conversation with another product to get there.
  */
 function Import() {
-  const orchestrator = useContext(OrchestratorContext);
+  const appWindow = useContext(WindowContext);
   const closeSettings = useSetAtom(settingsModalAtom);
   const { data: sources } = useQuery(
-    rpcClient.workspace.orchestrator.memory.sources.queryOptions(),
+    rpcClient.workspace.memory.sources.queryOptions(),
   );
 
-  if (!orchestrator) {
+  if (!appWindow) {
     return null;
   }
   const start = (prompt: string) => {
-    orchestrator.ask(prompt);
+    appWindow.ask(prompt);
     closeSettings(null);
   };
 
@@ -317,7 +317,7 @@ function Memories({
   };
   const [isConfirming, setIsConfirming] = useState(false);
   const forgetMutation = useMutation(
-    rpcClient.workspace.orchestrator.memory.forget.mutationOptions({
+    rpcClient.workspace.memory.forget.mutationOptions({
       onError: () => {
         toast.error("Couldn't forget those memories");
       },

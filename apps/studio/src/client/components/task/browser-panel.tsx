@@ -1,7 +1,5 @@
-import { bookmarksAtom } from "@/client/atoms/orchestrator";
+import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
-import { TabRowControl } from "@/client/components/orchestrator/tab-location-row";
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -26,6 +24,8 @@ import {
 } from "@/client/components/ui/input-group";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
+import { WindowContext } from "@/client/components/window/context";
+import { TabRowControl } from "@/client/components/window/tab-location-row";
 import {
   ZoomLevelMenu,
   ZoomStepperControl,
@@ -35,7 +35,6 @@ import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
-import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
@@ -237,7 +236,7 @@ export function TaskBrowserPanel({
       return;
     }
     autoOpenedRef.current.add(targetId);
-    openBrowser({ host: WINDOW_BROWSER_HOST, id: taskId, sessionId });
+    openBrowser({ id: taskId, sessionId });
   }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
@@ -408,7 +407,7 @@ export function TaskBrowserPanel({
 
   // Bookmarks are the window's, shown on its browser's starting view; a
   // task's own browser has no such view to keep them on.
-  const inWindow = useContext(OrchestratorContext) !== null;
+  const inWindow = useContext(WindowContext) !== null;
   const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
@@ -630,16 +629,16 @@ export function TaskBrowserPanel({
         );
         const rowReload = (
           <TabRowControl
+            chord="reloadPage"
             disabled={!active}
             icon={<ArrowClockwiseIcon className="size-4" />}
             label="Reload"
             onClick={() => webviewFor()?.reload()}
-            shortcut="reloadPage"
           />
         );
         const bar = (
           <>
-            <ToolbarTooltip shortcut="reloadPage">
+            <ToolbarTooltip chord="reloadPage">
               <Button
                 disabled={!active}
                 onClick={() => webviewFor()?.reload()}
@@ -714,7 +713,7 @@ export function TaskBrowserPanel({
         }
         return chrome ? (
           <div className="flex items-center gap-1 border-b p-1.5">
-            <ToolbarTooltip shortcut="goBack">
+            <ToolbarTooltip chord="back">
               <Button
                 disabled={!active || !nav.back}
                 onClick={() => webviewFor()?.goBack()}
@@ -724,7 +723,7 @@ export function TaskBrowserPanel({
                 <ArrowLeftIcon className="size-4" />
               </Button>
             </ToolbarTooltip>
-            <ToolbarTooltip shortcut="goForward">
+            <ToolbarTooltip chord="forward">
               <Button
                 disabled={!active || !nav.forward}
                 onClick={() => webviewFor()?.goForward()}
@@ -790,7 +789,6 @@ export function TaskBrowserPanel({
               <Button
                 onClick={() => {
                   openBrowser({
-                    host: WINDOW_BROWSER_HOST,
                     id: taskId,
                     sessionId,
                   });
@@ -805,7 +803,6 @@ export function TaskBrowserPanel({
             <Button
               onClick={() => {
                 openBrowser({
-                  host: WINDOW_BROWSER_HOST,
                   id: taskId,
                   sessionId,
                 });

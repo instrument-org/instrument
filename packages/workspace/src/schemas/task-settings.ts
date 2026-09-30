@@ -4,7 +4,6 @@ import { z } from "zod";
 import { ProjectIdSchema } from "./project-id";
 import { StoreId } from "./store-id";
 import { TaskIdSchema } from "./task-id";
-import { TaskIndicatorSchema } from "./task-indicator";
 import { TaskKindSchema } from "./task-kind";
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
@@ -38,31 +37,19 @@ export const TaskSettingsSchema = z.object({
   // lists its own work and how a finished task finds its way back to it.
   // Absent on a task a person created.
   parentTaskId: TaskIdSchema.optional(),
-  // Presence marks the task as pinned; the timestamp orders the pin list. Lives
-  // in the folder so it travels with a rename and can't collide with a reused
-  // folder name.
-  pinnedAt: z.coerce.date().optional(),
   projectId: ProjectIdSchema.optional(),
   // How hard this task's model is asked to think, on every turn it takes. Sits
   // beside the task rather than on a message because a task runs on one model
   // for its whole life and the level is part of that choice. Absent leaves the
   // provider's own default, which is what every task took before this existed.
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
-  // Presence marks the task as unread. Lives in the folder for the same reasons
-  // as pinnedAt, so listing unread tasks is just a scan of task settings.
-  unreadIndicator: TaskIndicatorSchema.optional(),
 });
 
 export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().trim().min(1).optional(),
-  // `null` explicitly clears (unpins); omit to leave unchanged.
-  pinnedAt: z.coerce.date().nullable().optional(),
   // `null` explicitly clears the project association; omit to leave unchanged.
   projectId: ProjectIdSchema.nullable().optional(),
-  // `null` explicitly clears the unread indicator (marks read); omit to leave
-  // unchanged.
-  unreadIndicator: TaskIndicatorSchema.nullable().optional(),
 });
 
 export type TaskSettings = z.output<typeof TaskSettingsSchema>;

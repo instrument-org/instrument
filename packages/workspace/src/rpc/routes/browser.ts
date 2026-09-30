@@ -5,16 +5,11 @@ import { z } from "zod";
 import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
-import { browserHostForTask } from "../../lib/orchestrator/browser-host";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
-import {
-  BrowserHostSchema,
-  BrowserTargetIdSchema,
-  encodeBrowserTargetId,
-} from "../../types";
+import { BrowserTargetIdSchema, encodeBrowserTargetId } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -40,8 +35,6 @@ const open = base
   })
   .input(
     z.object({
-      /** Which window shows the guest; the main window unless said. */
-      host: BrowserHostSchema.optional(),
       id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
       url: z.string().min(1).optional(),
@@ -51,12 +44,8 @@ const open = base
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
-    // Unsaid, the window is the task's own: an orchestrator's task browses in
-    // the orchestrator's window, any other on its task page.
-    const host = input.host ?? (await browserHostForTask(id));
-
     const target = await context.workspaceConfig.browser
-      .createTarget(id, sessionId, partitionDir, host)
+      .createTarget(id, sessionId, partitionDir)
       .catch((error: unknown) => {
         throw errors.BROWSER_OPEN_FAILED({
           message: error instanceof Error ? error.message : "Unknown error",

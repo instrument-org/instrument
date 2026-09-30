@@ -70,6 +70,34 @@ export async function getTasks(
   return sortTasks(tasks, options);
 }
 
+async function readTask({ dir }: { dir: TaskDir }) {
+  const rawFolderName = path.basename(dir);
+  const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
+
+  if (!taskIdResult.success) {
+    return err(
+      new TypedError.Parse("Invalid folder name", {
+        cause: taskIdResult.error,
+      }),
+    );
+  }
+
+  const id = taskIdResult.data;
+  const settings = await getTaskSettings(dir);
+
+  const task: Task = {
+    ...(await taskTimestamps(dir, settings)),
+    apps: settings?.apps,
+    id,
+    kind: settings?.kind,
+    parentTaskId: settings?.parentTaskId,
+    projectId: settings?.projectId,
+    reasoningEffort: settings?.reasoningEffort,
+    title: settings?.name ?? rawFolderName,
+  };
+  return ok(task);
+}
+
 /**
  * The order and window the task list asks for, over a set already read.
  *
@@ -77,7 +105,7 @@ export async function getTasks(
  * read and applies this per subscriber, so a list patched from one event and a
  * list from a full scan cannot order the same tasks differently.
  */
-export function sortTasks(
+function sortTasks(
   tasks: Task[],
   options: TaskListOptions = {},
 ): { tasks: Task[]; total: number } {
@@ -105,36 +133,6 @@ export function sortTasks(
   }
 
   return { tasks: sortedTasks, total };
-}
-
-async function readTask({ dir }: { dir: TaskDir }) {
-  const rawFolderName = path.basename(dir);
-  const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
-
-  if (!taskIdResult.success) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: taskIdResult.error,
-      }),
-    );
-  }
-
-  const id = taskIdResult.data;
-  const settings = await getTaskSettings(dir);
-
-  const task: Task = {
-    ...(await taskTimestamps(dir, settings)),
-    apps: settings?.apps,
-    id,
-    kind: settings?.kind,
-    parentTaskId: settings?.parentTaskId,
-    pinnedAt: settings?.pinnedAt,
-    projectId: settings?.projectId,
-    reasoningEffort: settings?.reasoningEffort,
-    title: settings?.name ?? rawFolderName,
-    unreadIndicator: settings?.unreadIndicator,
-  };
-  return ok(task);
 }
 
 async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {

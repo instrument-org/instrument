@@ -34,7 +34,6 @@ import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { browserHostForTask } from "../orchestrator/browser-host";
 import { windowTaskId } from "../orchestrator/ensure";
 import { chatSessionOfTask, liveHeldTabs } from "../orchestrator/window-tab";
 import { isAtOrUnder } from "../path-containment";
@@ -1106,7 +1105,6 @@ async function resolveBrowserTarget({
       id,
       sessionId,
       getBrowserSessionDir(),
-      await browserHostForTask(id),
     );
     await recordBrowserUseBestEffort({ sessionId, taskId: id });
     return { isOwnGuest: true, kind: "page", targetId: target.targetId };

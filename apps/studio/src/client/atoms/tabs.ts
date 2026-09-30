@@ -1,4 +1,4 @@
-import { freshTabId, NEW_TAB_PATH } from "@/client/lib/tab-actions";
+import { freshTabId } from "@/client/lib/tab-actions";
 import {
   addTab,
   emptyTabsModel,
@@ -48,9 +48,7 @@ export function tabsAtomOf(
  * instead of replaying the pending call, so the pending value is tracked here
  * rather than through it.
  */
-function tabsStorage(
-  repair: (model: TabsModel) => TabsModel,
-): typeof json {
+function tabsStorage(repair: (model: TabsModel) => TabsModel): typeof json {
   let pendingWrite: null | { key: string; value: TabsModel } = null;
   const flushWrite = () => {
     if (!pendingWrite) {
@@ -87,5 +85,3 @@ function tabsStorage(
     },
   };
 }
-
-export const tabsAtom = tabsAtomOf("studio.tabs.v1", NEW_TAB_PATH);

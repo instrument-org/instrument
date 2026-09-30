@@ -3,7 +3,7 @@ import {
   INLINE_CHIP_CLASS_NAME,
   INLINE_CHIP_ICON_CLASS_NAME,
 } from "@/client/components/inline-link";
-import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { AppIcon } from "@/client/components/window/app-icon";
 import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";

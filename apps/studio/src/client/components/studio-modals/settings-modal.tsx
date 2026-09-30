@@ -46,7 +46,7 @@ interface NavItem {
 }
 
 /**
- * App-wide settings modal, mounted once at the app-chrome root. Reads
+ * App-wide settings modal, mounted once at the window root. Reads
  * `settingsModalAtom` (opened via `openSettings`). The visible section is the
  * atom's `tab`, so a second `openSettings({ tab })` while open retargets the
  * modal instead of no-oping. Providers can deep-link straight to the

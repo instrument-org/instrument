@@ -8,10 +8,7 @@ import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExternalLink } from "./external-link";
-import {
-  OrchestratorContext,
-  type OrchestratorWindow,
-} from "./orchestrator/context";
+import { WindowContext, type WindowContextValue } from "./window/context";
 
 const openInTaskBrowser = vi.fn();
 const openExternalLink = vi.fn();
@@ -27,10 +24,15 @@ vi.mock("@/client/hooks/use-open-external-link", () => ({
 const TASK_ID = TaskIdSchema.parse("a-task");
 const SESSION_ID = StoreId.newSessionId();
 
-function inOrchestrator(
-  children: ReactNode,
-  surface?: Partial<OrchestratorWindow>,
-) {
+function inTask(children: ReactNode) {
+  return (
+    <TaskSessionProvider sessionId={SESSION_ID} taskId={TASK_ID}>
+      {children}
+    </TaskSessionProvider>
+  );
+}
+
+function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
   const openPage = vi.fn();
   const browserOpen = vi.fn();
   const context = {
@@ -56,24 +58,12 @@ function inOrchestrator(
     sessionId: SESSION_ID,
     taskId: TASK_ID,
     ...surface,
-  } satisfies OrchestratorWindow;
+  } satisfies WindowContextValue;
   return {
     browserOpen,
-    element: (
-      <OrchestratorContext value={context}>
-        {inTask(children)}
-      </OrchestratorContext>
-    ),
+    element: <WindowContext value={context}>{inTask(children)}</WindowContext>,
     openPage,
   };
-}
-
-function inTask(children: ReactNode) {
-  return (
-    <TaskSessionProvider sessionId={SESSION_ID} taskId={TASK_ID}>
-      {children}
-    </TaskSessionProvider>
-  );
 }
 
 /** The platform the link reads its modifier off, for the length of one test. */
@@ -96,7 +86,7 @@ describe("ExternalLink", () => {
   // No question in between: the click is the answer, and the app's own place
   // for the page is the one it gives.
   it("opens the page through the surface's opener on a plain click", () => {
-    const { browserOpen, element } = inOrchestrator(
+    const { browserOpen, element } = inWindow(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
     renderWithProviders(element);
@@ -113,7 +103,7 @@ describe("ExternalLink", () => {
     { modifier: "ctrlKey", platform: "win32" },
   ])("opens a separate tab on $modifier click on $platform", (each) => {
     onPlatform(each.platform);
-    const { element, openPage } = inOrchestrator(
+    const { element, openPage } = inWindow(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
     renderWithProviders(element);
@@ -127,7 +117,7 @@ describe("ExternalLink", () => {
   // On macOS that chord is the secondary click, so it is not asking for a tab.
   it("opens no tab on a ctrl click on macOS", () => {
     onPlatform("darwin");
-    const { element, openPage } = inOrchestrator(
+    const { element, openPage } = inWindow(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
     renderWithProviders(element);
@@ -138,7 +128,7 @@ describe("ExternalLink", () => {
   // Left alone, Chromium answers this one by handing the address to the
   // window, which sends it out to the OS browser.
   it("opens a separate tab on a middle click", () => {
-    const { element, openPage } = inOrchestrator(
+    const { element, openPage } = inWindow(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
     renderWithProviders(element);

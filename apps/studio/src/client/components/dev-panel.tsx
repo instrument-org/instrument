@@ -2,7 +2,6 @@ import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
-import { openWelcome } from "@/client/atoms/welcome-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { useTheme } from "@/client/components/theme-provider";
@@ -39,8 +38,8 @@ import {
   componentPages,
   debugNavigationRoutes,
   onboardingScreens,
-} from "@/client/routes/_app/debug/-debug-routes";
-import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
+} from "@/client/routes/debug/-debug-routes";
+import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
@@ -71,12 +70,9 @@ import { toast } from "sonner";
 type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
 
 const PAGES = [
-  { label: "/tasks", to: "/tasks" },
-  { label: "/tutorial-task", to: "/tutorial-task" },
-  { label: "/subscribe", to: "/subscribe" },
   { label: "/release-notes", to: "/release-notes" },
-  // No skill can answer to this, so it exercises the redirect a deleted skill
-  // takes: a toast, then the skills list.
+  // No skill can answer to this, so it exercises what a deleted skill's page
+  // shows.
   {
     label: "/skills/<missing>",
     params: { name: "no-such-skill" },
@@ -108,8 +104,6 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",
-  instrument_2: "2",
-  prompt_queue: "q",
   skills: "s",
 };
 
@@ -593,14 +587,6 @@ export function DevPanel() {
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      openWelcome();
-                    }}
-                  >
-                    Welcome
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
                       openSettings();
                     }}
                   >
@@ -612,7 +598,7 @@ export function DevPanel() {
               <MenubarItem
                 className="font-mono text-xs text-destructive focus:text-destructive"
                 onSelect={() => {
-                  // Trip the top-level ErrorBoundary in main-window.tsx by
+                  // Trip the top-level ErrorBoundary in app-window.tsx by
                   // throwing during render (event-handler throws aren't caught
                   // by boundaries), verifying the shell-crash fallback + report.
                   setCrash(true);
@@ -705,15 +691,6 @@ export function DevPanel() {
                       key={feature}
                       onCheckedChange={(enabled) => {
                         setFeatureEnabled({ enabled, feature });
-                        if (feature === "instrument_2") {
-                          // Which window the app opens is decided at launch,
-                          // so nothing happens here until it is relaunched.
-                          toast(
-                            enabled
-                              ? "Restart to open in Instrument 2.0"
-                              : "Restart to open in the classic window",
-                          );
-                        }
                       }}
                       title={FEATURE_METADATA[feature].description}
                     >

@@ -38,7 +38,7 @@ const task: Task = {
 function footerOpacities() {
   return [
     ...document.querySelectorAll<HTMLElement>(
-      '[aria-label="Branch from here"]',
+      String.raw`.group\/assistant-turn [aria-label="Copy"]`,
     ),
   ].map((button) => {
     const row = button.closest<HTMLElement>(".flex.min-w-0");
@@ -99,7 +99,6 @@ async function renderTranscript() {
                 onModelChange={vi.fn()}
                 onRetry={vi.fn()}
                 onRunAgain={vi.fn()}
-                onStartNewTask={vi.fn()}
                 renderAsItems
                 task={task}
               />

@@ -180,7 +180,7 @@ if (paidModels.length > 0 && !values.paid) {
 const adHocEval = values.prompt
   ? defineEval({
       // `--orchestrator` runs the prompt through the agent the user talks to
-      // in the orchestrator window, which delegates to tasks of its own.
+      // in the app window, which delegates to tasks of its own.
       kind: values.orchestrator ? "orchestrator" : undefined,
       name: values.name ?? "ad-hoc",
       prompt: values.prompt,

@@ -68,7 +68,7 @@ interface RenderOptions {
   alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
-  presentation?: "orchestrator";
+  presentation?: "chat";
   releaseAutoScroll?: () => void;
   renderAsItems?: boolean;
 }
@@ -149,7 +149,6 @@ function chatStream(
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
-        onStartNewTask={vi.fn()}
         {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
         task={task}
@@ -830,8 +829,7 @@ describe("ChatStream and the space around what the agent said", () => {
 // a band of blank it cannot fill in reads as the transcript having gone wrong.
 describe("ChatStream and the footer of a finished turn", () => {
   const footerRow = (container: HTMLElement) =>
-    screen.getByLabelText("Branch from here").closest(".flex.min-w-0") ??
-    container;
+    screen.getByLabelText("Copy").closest(".flex.min-w-0") ?? container;
 
   it("leaves the footer to hover by default", () => {
     const { container } = renderSteps([
@@ -1157,7 +1155,7 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
           finishedAt: new Date(3),
         }),
       ],
-      { presentation: "orchestrator" },
+      { presentation: "chat" },
     );
 
     expect(screen.getAllByText("Rechecking the listing now.")).toHaveLength(2);
@@ -1178,7 +1176,7 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
           { finishedAt: new Date(2) },
         ),
       ],
-      { presentation: "orchestrator" },
+      { presentation: "chat" },
     );
 
     expect(screen.getAllByText("It is out of stock.")).toHaveLength(1);
@@ -1198,7 +1196,7 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
           finishedAt: new Date(2),
         }),
       ],
-      { presentation: "orchestrator" },
+      { presentation: "chat" },
     );
 
     expect(screen.getByText("Rechecking the listing now.")).toBeTruthy();
@@ -1228,7 +1226,7 @@ describe("ChatStream in the conversation, and a reply", () => {
           ],
         },
       ],
-      { presentation: "orchestrator" },
+      { presentation: "chat" },
     );
 
     const quote = screen.getByRole("button", {
@@ -1248,7 +1246,7 @@ describe("ChatStream in the conversation, and a reply", () => {
         {chatStream(
           [assistantMessage([replied], { finishedAt: new Date(1) })],
           {
-            presentation: "orchestrator",
+            presentation: "chat",
           },
         )}
       </ReplyContext>,

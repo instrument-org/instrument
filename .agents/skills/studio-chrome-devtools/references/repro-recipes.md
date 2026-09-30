@@ -6,10 +6,14 @@ Learnings from driving Studio live to reproduce and verify a browser-panel layou
 
 If the bug involves a specific task/session that already ran (an agent tool call sequence, not a fresh scenario), **replay it** instead of re-typing a prompt and waiting for a live LLM turn. Replay re-executes the same tool calls (via `workspace.debug.replaySession`, a `replay-stub` model -- no real LLM call) deterministically, in seconds, for free.
 
-1. Turn on **Developer Mode** first (Settings -> General). The task actions menu only shows "Replay chat" when `useDeveloperMode()` is true (`actions-menu.tsx`).
-2. Open the task, click the `...` actions menu -> **Replay chat**.
-3. Choose **New task** (isolates the repro from the original) or **New session** (same task), and a playback speed (**Instant** for repro work).
-4. The replay lands you on the new task/session automatically.
+Nothing in the app window offers replay, so call the route through the drive script's `rpc`, which needs **Developer Mode** on (Settings -> General):
+
+```bash
+node $DRIVE rpc workspace.debug.replaySession '{"id":"<task-id>","sessionId":"<session-id>","mode":"new-task"}'
+node $DRIVE goto /tasks/<new-task-id>
+```
+
+`mode` is `new-task` (isolates the repro from the original) or `new-session` (same task), and `delayMs` paces the playback (0, the default, is instant). The route answers with the new task and session.
 
 Only fall back to live-driving the chat (typing a prompt and waiting for a real agent turn) when the bug needs fresh, non-deterministic agent behavior -- e.g. testing whether an agent _chooses_ a different workaround now that a path is blocked, which is not something a replay of an old transcript can show.
 

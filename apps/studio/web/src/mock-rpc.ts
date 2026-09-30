@@ -82,6 +82,7 @@ export function pushLive(path: string, value: unknown) {
 const OPEN_STREAM_PATHS = new Set([
   "appCommands.events.command",
   "preferences.live.get",
+  "window.events.command",
 ]);
 
 /** The two router segments that mark an oRPC event iterator. */

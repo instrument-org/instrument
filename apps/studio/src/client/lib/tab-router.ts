@@ -13,7 +13,7 @@ import { routerEntries } from "./tab-router-history";
 import { captureException } from "./telemetry";
 
 /**
- * One QueryClient shared by every per-tab router in the main window so tabs
+ * One QueryClient shared by every per-tab router in the app window so tabs
  * share the local RPC cache. Each tab still gets its own router (own memory
  * history, own route state) so switching tabs preserves scroll/selection and
  * gives each tab independent back/forward, like browser tabs.

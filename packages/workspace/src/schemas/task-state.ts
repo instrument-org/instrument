@@ -92,7 +92,6 @@ export const StoredTaskStateSchema = z
     projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
-    showTutorial: z.boolean().optional(),
     /**
      * The one-conversation layout's map of the chat each task was filed
      * from, by task id, under the name that layout gave it. Nothing writes
@@ -126,7 +125,6 @@ export const TaskStateSchema = z.object({
   pane: TaskPane.Schema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
-  showTutorial: z.boolean().optional(),
 });
 
 export type TaskState = z.output<typeof StoredTaskStateSchema>;

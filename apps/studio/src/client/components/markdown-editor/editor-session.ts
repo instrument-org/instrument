@@ -1,7 +1,7 @@
 import {
   type AskMark,
   stepAskMarks,
-} from "@/client/components/orchestrator/ask-marks";
+} from "@/client/components/window/ask-marks";
 // One Markdown file open in the Milkdown editor: the editor itself, and the
 // disk I/O around it. Saves are debounced and flushed on demand; a write that
 // finds the file changed underneath it merges the disk text and tries again;

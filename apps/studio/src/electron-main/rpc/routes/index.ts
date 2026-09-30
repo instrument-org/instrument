@@ -10,7 +10,6 @@ import { files } from "./files";
 import { gateway } from "./gateway";
 import { ideas } from "./ideas";
 import { onboarding } from "./onboarding";
-import { orchestrator } from "./orchestrator";
 import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
@@ -23,6 +22,7 @@ import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
+import { window } from "./window";
 
 export const router = {
   appCommands,
@@ -35,7 +35,6 @@ export const router = {
   gateway,
   ideas,
   onboarding,
-  orchestrator,
   pageEditor,
   plans,
   preferences,
@@ -48,5 +47,6 @@ export const router = {
   updates,
   user,
   utils,
+  window,
   workspace: workspaceRouter,
 };

@@ -33,7 +33,7 @@ export interface RenderPartContext {
    * and nothing of its machinery: no reasoning, no command rows, no cards
    * for the tasks it started, no notes from the harness.
    */
-  presentation?: "orchestrator";
+  presentation?: "chat";
   task: Task;
 }
 
@@ -74,7 +74,7 @@ export function renderChatPart({
           <AssistantMessage
             // The conversation reads as messages: each reply in a bubble at
             // the left, facing the user's at the right.
-            bubble={ctx.presentation === "orchestrator"}
+            bubble={ctx.presentation === "chat"}
             key={part.metadata.id}
             part={part}
             taskId={ctx.task.id}
@@ -84,7 +84,7 @@ export function renderChatPart({
       case "user": {
         return (
           <UserMessage
-            compact={ctx.presentation === "orchestrator"}
+            compact={ctx.presentation === "chat"}
             key={part.metadata.id}
             part={part}
           />
@@ -122,7 +122,7 @@ export function renderChatPart({
     // started included, since the tasks at work stand over the composer
     // rather than in the transcript.
     if (
-      ctx.presentation === "orchestrator" &&
+      ctx.presentation === "chat" &&
       part.type !== "tool-choose" &&
       part.type !== "tool-connect_app" &&
       part.type !== "tool-request_folder"
@@ -132,7 +132,7 @@ export function renderChatPart({
     // A connect the tool refused never put a card up: what it said is the
     // agent's to fix before asking again, not the user's to read.
     if (
-      ctx.presentation === "orchestrator" &&
+      ctx.presentation === "chat" &&
       part.type === "tool-connect_app" &&
       part.state === "output-available" &&
       part.output.state === "failure"
@@ -170,7 +170,7 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
-    if (ctx.presentation === "orchestrator") {
+    if (ctx.presentation === "chat") {
       return null;
     }
     // Whether the run is still writing into this block. Anything after it means

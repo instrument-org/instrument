@@ -165,7 +165,6 @@
     "@tailwindcss/browser": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-form": "^1.32.0",
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-query-devtools": "^5.90.12",
     "@tanstack/react-router": "^1.170.16",

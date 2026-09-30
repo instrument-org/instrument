@@ -1,8 +1,5 @@
-import { isFeatureEnabled } from "@/electron-main/stores/features";
+import { openAppWindow } from "@/electron-main/windows/app-window";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import { ensureMainWindowVisible } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { openOrchestratorWindow } from "@/electron-main/windows/orchestrator";
 
 /**
  * Put the foreground window ({@link getForegroundWindow}) on screen, making one
@@ -10,27 +7,18 @@ import { openOrchestratorWindow } from "@/electron-main/windows/orchestrator";
  * canceled quit, a deep link that arrived with every window closed. Outside
  * macOS a process with no window can't be reached again at all, so none of them
  * may end with nothing shown.
- *
- * The classic window is not that somewhere under Instrument 2.0. It is open
- * only to hold the tasks' machinery, and revealing it answers the user with a
- * window they never asked for; the 2.0 window is opened again instead.
  */
-export async function ensureForegroundWindowVisible() {
+export function ensureForegroundWindowVisible() {
   const target = getForegroundWindow();
-  if (target && target !== getMainWindow()) {
-    if (target.isMinimized()) {
-      target.restore();
-    }
-    if (!target.isVisible()) {
-      target.show();
-    }
-    target.focus();
+  if (!target) {
+    openAppWindow();
     return;
   }
-
-  if (isFeatureEnabled("instrument_2")) {
-    openOrchestratorWindow();
-    return;
+  if (target.isMinimized()) {
+    target.restore();
   }
-  await ensureMainWindowVisible();
+  if (!target.isVisible()) {
+    target.show();
+  }
+  target.focus();
 }

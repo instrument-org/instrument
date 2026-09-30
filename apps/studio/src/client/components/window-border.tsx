@@ -6,7 +6,7 @@ import { useAtomValue } from "jotai";
 import { useSyncExternalStore } from "react";
 
 /**
- * A hairline outline around the main window on an X11 session, where the window
+ * A hairline outline around the app window on an X11 session, where the window
  * is frameless and nothing else draws an edge for it. Without this the light
  * theme is hard to pick out from a light window behind it. Windows gets its edge
  * from DWM, and macOS keeps its native frame, so neither needs one.

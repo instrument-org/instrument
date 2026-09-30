@@ -248,7 +248,6 @@ function saveForPerson(entry: BrowserEntry, item: DownloadItem) {
       completed,
       filename: saved ? path.basename(saved.savePath) : filename,
       folder: saved ? displayFolder(saved.dir) : null,
-      host: entry.host,
       path: saved?.savePath ?? null,
       targetId: entry.targetId,
     });

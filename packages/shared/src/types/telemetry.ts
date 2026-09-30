@@ -72,8 +72,6 @@ export interface AnalyticsEvents {
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "pin.added": never;
-  "pin.removed": never;
   "project.created": never;
   "project.invalid_folder_trashed": never;
   "project.removed": never;

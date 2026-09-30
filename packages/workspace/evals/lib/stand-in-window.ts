@@ -122,9 +122,9 @@ export function createStandInWindow() {
     },
     /** Answers the run's asks of the window until the returned function is called. */
     listen(): () => void {
-      return publisher.subscribe("orchestrator.tab", (ask) => {
+      return publisher.subscribe("window.tab", (ask) => {
         const answer = act(ask.action);
-        publisher.publish("orchestrator.tabDone", {
+        publisher.publish("window.tabDone", {
           id: ask.id,
           requestId: ask.requestId,
           ...answer,

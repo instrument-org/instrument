@@ -11,10 +11,7 @@ import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Markdown } from "./markdown";
-import {
-  OrchestratorContext,
-  type OrchestratorWindow,
-} from "./orchestrator/context";
+import { WindowContext, type WindowContextValue } from "./window/context";
 
 // The chip navigates on click and the file grid reads the task it is drawn in
 // from the route; the route tree itself is not what these tests are about.
@@ -271,19 +268,19 @@ describe("Markdown links", () => {
       openPath: vi.fn(),
       openScreen,
       taskId: TASK_ID,
-    } satisfies OrchestratorWindow;
+    } satisfies WindowContextValue;
     renderWithProviders(
-      <OrchestratorContext value={context}>
+      <WindowContext value={context}>
         <Markdown
           markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
           taskId={TASK_ID}
         />
-      </OrchestratorContext>,
+      </WindowContext>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "the hotel search" }));
 
-    expect(openScreen).toHaveBeenCalledWith("/orchestrator/tasks/lisbon-hotel");
+    expect(openScreen).toHaveBeenCalledWith("/tasks/lisbon-hotel");
   });
 });
 

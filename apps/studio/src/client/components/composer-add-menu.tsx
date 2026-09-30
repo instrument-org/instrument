@@ -1,4 +1,3 @@
-import { openCreateProject } from "@/client/atoms/project-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import {
   type ComposerSkill,
@@ -7,7 +6,6 @@ import {
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -16,8 +14,6 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import { type ProjectId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -27,10 +23,9 @@ import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
-import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
-import { AppIcon } from "./orchestrator/app-icon";
+import { AppIcon } from "./window/app-icon";
 
 /**
  * Something the composer can be given, offered by name in the menu that adds
@@ -59,11 +54,10 @@ export interface ComposerAction {
 }
 
 /**
- * Which face the menu is wearing, or `null` for closed. Picking a project
- * replaces the menu rather than opening a second one beside it, so the caller
- * owns this: a slash-typed "Work in a project" opens the menu already turned.
+ * Which face the menu is wearing, or `null` for closed. A list replaces the
+ * menu rather than opening a second one beside it, and the caller owns this.
  */
-export type ComposerMenuView = "apps" | "projects" | "root" | "skills";
+export type ComposerMenuView = "apps" | "root" | "skills";
 
 /**
  * What a chat's plus opens beside the chat, where the composer is a chat's:
@@ -101,11 +95,9 @@ export function ComposerAddMenu({
   disabled,
   label,
   onReturnFocus,
-  onSelectProject,
   onSelectSkill,
   onViewChange,
   places,
-  projectId,
   skills,
   triggerClassName,
   view,
@@ -118,13 +110,10 @@ export function ComposerAddMenu({
   label?: string;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
-  /** Omitted where a task's project is not the composer's to choose. */
-  onSelectProject?: (projectId: null | ProjectId) => void;
   onSelectSkill: (skill: ComposerSkill) => void;
   onViewChange: (view: ComposerMenuView | null) => void;
   /** A chat's places, which turn the menu into tiles over its rows. */
   places?: ComposerPlaces;
-  projectId?: null | ProjectId;
   skills: ComposerSkill[];
   /** The trigger's shape where the composer draws it differently: a pill's round button. */
   triggerClassName?: string;
@@ -207,8 +196,8 @@ export function ComposerAddMenu({
         className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
-        // opened this -- including out of the project picker, which is a
-        // second menu deep and would otherwise leave the caret nowhere.
+        // opened this -- including out of a list, which is a second menu deep
+        // and would otherwise leave the caret nowhere.
         onCloseAutoFocus={(event) => {
           const after = chose.current;
           const opensNext = handOff.current;
@@ -233,16 +222,7 @@ export function ComposerAddMenu({
         style={places ? { width: "16rem" } : { width }}
       >
         <MenuScrollArea>
-          {view === "projects" && onSelectProject ? (
-            <ProjectItems
-              onSelect={(id) => {
-                chose.current = "prompt";
-                onSelectProject(id);
-                onViewChange(null);
-              }}
-              projectId={projectId ?? null}
-            />
-          ) : view === "apps" && places ? (
+          {view === "apps" && places ? (
             <>
               <BackItem
                 label="Apps"
@@ -454,56 +434,6 @@ function BackItem({ label, onBack }: { label: string; onBack: () => void }) {
       <ArrowLeftIcon className="size-4" />
       {label}
     </DropdownMenuItem>
-  );
-}
-
-// Cancelling is an entry rather than a way out of the menu, because arriving
-// here is a choice the user may want to take back without also losing the menu
-// they made it in.
-function ProjectItems({
-  onSelect,
-  projectId,
-}: {
-  onSelect: (projectId: null | ProjectId) => void;
-  projectId: null | ProjectId;
-}) {
-  const { data: projects } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions(),
-  );
-
-  return (
-    <>
-      <DropdownMenuCheckboxItem
-        checked={projectId === null}
-        className="data-[state=checked]:text-foreground"
-        onSelect={() => {
-          onSelect(null);
-        }}
-      >
-        Don&apos;t work in a project
-      </DropdownMenuCheckboxItem>
-      {projects?.map((project) => (
-        <DropdownMenuCheckboxItem
-          checked={project.id === projectId}
-          className="data-[state=checked]:text-foreground"
-          key={project.id}
-          onSelect={() => {
-            onSelect(project.id);
-          }}
-        >
-          <span className="min-w-0 flex-1 truncate">{project.name}</span>
-        </DropdownMenuCheckboxItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onSelect={() => {
-          openCreateProject();
-        }}
-      >
-        <PlusIcon className="size-4" />
-        New project
-      </DropdownMenuItem>
-    </>
   );
 }
 

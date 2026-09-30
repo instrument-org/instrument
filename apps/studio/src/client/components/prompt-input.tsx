@@ -16,7 +16,7 @@ import {
 } from "@/client/components/folder-access-list";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
-import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
   type DroppedFolder,
   useFileDropRegion,
@@ -28,7 +28,7 @@ import { folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { captureException } from "@/client/lib/telemetry";
 import { splitTransferItems } from "@/client/lib/transfer-items";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
@@ -40,19 +40,16 @@ import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
   type FolderAttachment,
-  type ProjectId,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -74,11 +71,8 @@ import {
   promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
-  promptFocusSignalAtom,
-  promptNudgeSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
-import { PromptProjectChip } from "./project/prompt-project-chip";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -115,7 +109,6 @@ const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 /** Everything a submit clears, so a rejected one can put it back, and everything a surface keeps of a composer it puts away. */
 export interface PromptInputDraft {
   items: AttachedItem[];
-  projectId: null | ProjectId;
   prompt: string;
 }
 
@@ -141,11 +134,6 @@ interface PromptInputProps {
   actionsInto?: HTMLElement | null;
   /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
   addMenu?: boolean;
-  allowOpenInNewTab?: boolean;
-  // Whether the plus menu offers to work in a project, and a chosen one shows
-  // beside it. Off where the project is not the composer's to decide -- a task's
-  // is fixed when it is created.
-  allowWorkInProject?: boolean;
   /**
    * Keep the row open whether or not the caret is in it. For a composer that
    * sits beside the work rather than under it: switching to another tab would
@@ -168,25 +156,14 @@ interface PromptInputProps {
   hasAttachmentsLead?: boolean;
   id?: TaskId;
   isLoading: boolean;
-  isStoppable?: boolean;
-  isSubmittable?: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
-  // Whether a navigation that landed on the page this composer is already on is
-  // answered here. On where the composer is what the page is for, so pressing
-  // "New task" from the new task page has something to point at; off where the
-  // page is about something else and its composer is a place to reply.
-  nudgeOnReentry?: boolean;
-  onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onStop?: () => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
     folders?: { access: FolderAttachment.Access; path: string }[];
     modelURI: AIGatewayModelURI.Type;
-    openInNewTab?: boolean;
-    projectId?: null | ProjectId;
     prompt: string;
   }) => void;
   placeholder?: string;
@@ -255,8 +232,6 @@ function describeModelProblem({
 export const PromptInput = ({
   actionsInto,
   addMenu = true,
-  allowOpenInNewTab = false,
-  allowWorkInProject = false,
   alwaysOpen,
   attachmentsLead,
   autoFocus = false,
@@ -268,14 +243,9 @@ export const PromptInput = ({
   hasAttachmentsLead = false,
   id,
   isLoading,
-  isStoppable = false,
-  isSubmittable = true,
   lead,
   modelURI,
-  nudgeOnReentry = false,
-  onFolderCountChange,
   onModelChange,
-  onStop,
   onSubmit,
   placeholder,
   places,
@@ -286,19 +256,7 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
-  const tabId = useTabId();
-  const focusSignal = useAtomValue(promptFocusSignalAtom(tabId));
-  const nudgeSignal = useAtomValue(promptNudgeSignalAtom(tabId));
-  // The signal only counts up, and a composer arriving on a tab that was nudged
-  // before is not the one being nudged now, so what it mounted at is the floor.
-  const [nudgeFloor] = useState(nudgeSignal);
-  // Keys the ring, so each bump is its own element and its own play of the
-  // animation rather than one that has already finished.
-  const nudgeKey = nudgeOnReentry && nudgeSignal > nudgeFloor ? nudgeSignal : 0;
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
-    null,
-  );
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   // A pill is one row until it is written in, then opens a row for the rest.
   const [pillFocused, setPillFocused] = useState(false);
@@ -387,7 +345,7 @@ export const PromptInput = ({
     }
     promptEditorRef.current?.focus();
     promptEditorRef.current?.moveCaretToEnd();
-  }, [autoFocus, isActiveTab, focusSignal]);
+  }, [autoFocus, isActiveTab]);
 
   const processFiles = (files: File[] | FileList) => {
     for (const file of files) {
@@ -498,8 +456,6 @@ export const PromptInput = ({
 
   useFileDropRegion({
     enabled: isActiveTab,
-    // The message, not the task: this composer is also a new tab, a project
-    // page and a skill page, and the file lands in the message on all of them.
     note: "Drop to attach to your message",
     onFilesDropped: processFiles,
     onFoldersDropped: attachFolders,
@@ -568,7 +524,6 @@ export const PromptInput = ({
     clear: () => {
       promptEditorRef.current?.clear();
       setAttachedItems([]);
-      setSelectedProjectId(null);
     },
     focus: () => {
       promptEditorRef.current?.focus();
@@ -593,11 +548,9 @@ export const PromptInput = ({
       }
       promptEditorRef.current?.setValue(draft.prompt);
       setAttachedItems(draft.items);
-      setSelectedProjectId(draft.projectId);
     },
     snapshot: () => ({
       items: attachedItems,
-      projectId: selectedProjectId,
       prompt: promptEditorRef.current?.getValue() ?? "",
     }),
   }));
@@ -631,14 +584,6 @@ export const PromptInput = ({
   }));
   const showFolderTray = showWorkInFolder || folderAccessList.length > 0;
 
-  // A host may lay itself out around what this prompt has been given -- the
-  // tutorial task folds its own card away rather than wrapping a wrapper -- so
-  // the count is reported as it changes rather than only on submit.
-  const folderCount = folderAccessList.length;
-  useEffect(() => {
-    onFolderCountChange?.(folderCount);
-  }, [folderCount, onFolderCountChange]);
-
   const actions: ComposerAction[] = [
     {
       icon: PaperclipIcon,
@@ -656,19 +601,6 @@ export const PromptInput = ({
         void handleFolderPick();
       },
     },
-    ...(allowWorkInProject
-      ? [
-          {
-            icon: CardsThreeIcon,
-            id: "work-in-project",
-            keepMenuOpen: true,
-            label: "Work in a project",
-            onSelect: () => {
-              setMenuView("projects");
-            },
-          },
-        ]
-      : []),
     // A pill has no room for the model beside the words, so the menu offers
     // it, and the picker opens where the menu was.
     ...(variant === "pill"
@@ -826,15 +758,10 @@ export const PromptInput = ({
       return false;
     }
 
-    if (!isSubmittable) {
-      toast.error("Agent is still running. Wait for it to finish or stop it.");
-      return false;
-    }
-
     return true;
   };
 
-  const handleSubmit = (openInNewTab = false) => {
+  const handleSubmit = () => {
     if (!validateSubmission() || !modelURI) {
       return;
     }
@@ -869,14 +796,8 @@ export const PromptInput = ({
             }))
           : undefined,
       modelURI,
-      openInNewTab,
-      projectId: selectedProjectId,
       prompt,
     });
-  };
-
-  const handleStop = () => {
-    onStop?.();
   };
 
   const handlePaste = (e: ClipboardEvent) => {
@@ -1003,9 +924,6 @@ export const PromptInput = ({
                   onReturnFocus={() => {
                     promptEditorRef.current?.focus();
                   }}
-                  onSelectProject={
-                    allowWorkInProject ? setSelectedProjectId : undefined
-                  }
                   onSelectSkill={(skill) => {
                     promptEditorRef.current?.insertText(
                       skillMentionToken(skill.id),
@@ -1013,22 +931,8 @@ export const PromptInput = ({
                   }}
                   onViewChange={setMenuView}
                   places={composerPlaces}
-                  projectId={selectedProjectId}
                   skills={userInvocableSkills}
                   view={menuView}
-                />
-              )}
-
-              {allowWorkInProject && selectedProjectId && (
-                <PromptProjectChip
-                  disabled={disabled || isLoading}
-                  onOpenPicker={() => {
-                    setMenuView("projects");
-                  }}
-                  onRemove={() => {
-                    setSelectedProjectId(null);
-                  }}
-                  projectId={selectedProjectId}
                 />
               )}
             </div>
@@ -1071,23 +975,13 @@ export const PromptInput = ({
               />
 
               <Button
-                aria-label={isStoppable ? "Stop" : "Send"}
+                aria-label="Send"
                 className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={isStoppable ? false : !canSubmit}
-                onClick={(e) => {
-                  if (isStoppable) {
-                    handleStop();
-                  } else {
-                    const openInNewTab =
-                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                    handleSubmit(openInNewTab);
-                  }
-                }}
+                disabled={!canSubmit}
+                onClick={handleSubmit}
                 variant="brand"
               >
-                {isStoppable ? (
-                  <StopIcon className="size-5" weight="fill" />
-                ) : isLoading ? (
+                {isLoading ? (
                   <Spinner className="size-5" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-5" />
@@ -1161,18 +1055,6 @@ export const PromptInput = ({
                   <span className="truncate">{modelProblem}</span>
                 </button>
               )}
-              {allowWorkInProject && selectedProjectId && (
-                <PromptProjectChip
-                  disabled={disabled || isLoading}
-                  onOpenPicker={() => {
-                    setMenuView("projects");
-                  }}
-                  onRemove={() => {
-                    setSelectedProjectId(null);
-                  }}
-                  projectId={selectedProjectId}
-                />
-              )}
               {lead}
             </>
           ) : undefined
@@ -1191,9 +1073,6 @@ export const PromptInput = ({
                 onReturnFocus={() => {
                   promptEditorRef.current?.focus();
                 }}
-                onSelectProject={
-                  allowWorkInProject ? setSelectedProjectId : undefined
-                }
                 onSelectSkill={(skill) => {
                   promptEditorRef.current?.insertText(
                     skillMentionToken(skill.id),
@@ -1201,7 +1080,6 @@ export const PromptInput = ({
                 }}
                 onViewChange={setMenuView}
                 places={composerPlaces}
-                projectId={selectedProjectId}
                 skills={userInvocableSkills}
                 triggerClassName="size-7 rounded-full [&_svg]:size-4"
                 view={menuView}
@@ -1261,20 +1139,6 @@ export const PromptInput = ({
               }
             : undefined
         }
-        overlay={
-          <>
-            {/* Just outside the box rather than on it, so the ring reads as
-                something arriving around the composer and never crowds what is
-                written in it. */}
-            {nudgeKey > 0 && (
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -inset-0.5 z-10 composer-nudge rounded-[22px]"
-                key={nudgeKey}
-              />
-            )}
-          </>
-        }
         ref={setComposerBounds}
         trailing={
           variant === "pill" ? (
@@ -1287,23 +1151,13 @@ export const PromptInput = ({
                 />
               )}
               <Button
-                aria-label={isStoppable ? "Stop" : "Send"}
+                aria-label="Send"
                 className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={isStoppable ? false : !canSubmit}
-                onClick={(e) => {
-                  if (isStoppable) {
-                    handleStop();
-                  } else {
-                    const openInNewTab =
-                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                    handleSubmit(openInNewTab);
-                  }
-                }}
+                disabled={!canSubmit}
+                onClick={handleSubmit}
                 variant="brand"
               >
-                {isStoppable ? (
-                  <StopIcon className="size-4" weight="fill" />
-                ) : isLoading ? (
+                {isLoading ? (
                   <Spinner className="size-4" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-4" />
@@ -1326,9 +1180,7 @@ export const PromptInput = ({
           key={draftKeyString(draftKey)}
           onChange={setValue}
           onPaste={handlePaste}
-          onSubmit={(modifierPressed) => {
-            handleSubmit(allowOpenInNewTab && modifierPressed);
-          }}
+          onSubmit={handleSubmit}
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}

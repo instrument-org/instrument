@@ -17,7 +17,7 @@ interface LoginModalState {
 
 /**
  * Drives the app-wide login / add-provider modal. `<LoginModal />` at the
- * app-chrome root reads it; `openLogin` sets it. Opening it replaces any other
+ * window root reads it; `openLogin` sets it. Opening it replaces any other
  * studio modal (e.g. settings, whose account/provider sections trigger it).
  */
 export const loginModalAtom = studioModalAtom<LoginModalState>();

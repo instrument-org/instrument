@@ -86,7 +86,6 @@ import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
-import { OrchestratorContext } from "./orchestrator/context";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -96,6 +95,7 @@ import {
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { WindowContext } from "./window/context";
 
 interface MarkdownProps {
   // Which bytes this text's file references are about; see
@@ -417,7 +417,7 @@ const TaskFileLink = ({
   const showTaskFile = useShowTaskFile(taskId);
   // A window with tabs gives the file a tab of its own on a middle or
   // modified click, and offers one in the menu.
-  const hasTabs = useContext(OrchestratorContext) !== null;
+  const hasTabs = useContext(WindowContext) !== null;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file

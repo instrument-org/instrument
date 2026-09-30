@@ -66,7 +66,6 @@ export { TaskPane } from "./schemas/task-pane";
 export type { WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {
-  type BrowserHost,
   type BrowserTargetId,
   BrowserTargetIdSchema,
   decodeBrowserTargetId,

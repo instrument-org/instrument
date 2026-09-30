@@ -5,7 +5,7 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { getAppWindow } from "@/electron-main/windows/app-window";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
@@ -62,15 +62,8 @@ export function openOnboardingWindow(): BrowserWindow {
   onboardingWindow.on("closed", () => {
     onboardingWindow = null;
     publisher.publish("window.focus-changed", null);
-    // If the main window hasn't been created yet (i.e. onboarding was
-    // dismissed without completing), quit the app on all platforms.
-    const mainWindow = getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      app.quit();
-      return;
-    }
-    if (!mainWindow.isVisible()) {
-      mainWindow.close();
+    // Onboarding dismissed without completing leaves no window, and quits.
+    if (!getAppWindow()) {
       app.quit();
     }
   });

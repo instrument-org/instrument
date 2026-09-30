@@ -209,30 +209,13 @@ export async function resolvePort({ port, workspace } = {}) {
 // --- CDP ----------------------------------------------------------------
 
 /**
- * Which window a target belongs to, told apart by the route in its URL.
- *
- * The classic app is one web contents holding the chrome and every tab. The
- * 2.0 window is a second one, serving the same renderer bundle under
- * `#/orchestrator`, so both answer to `/renderer/` and the first match is
- * whichever the debug endpoint happens to list first. Picking that one is the
- * worst failure available here: the run drives a window nobody asked about, and
- * every observation after it is confidently about the wrong one.
+ * The app window's page. The onboarding window serves the same renderer
+ * bundle under `#/onboarding`, so both answer to `/renderer/`; the app window
+ * is the other one.
  */
-const WINDOWS = {
-  main: (target) => !target.url.includes("#/orchestrator"),
-  orchestrator: (target) => target.url.includes("#/orchestrator"),
-};
+const isAppWindow = (target) => !target.url.includes("#/onboarding");
 
-export const WINDOW_NAMES = Object.keys(WINDOWS);
-
-async function pickTarget(origin, windowName) {
-  const match = WINDOWS[windowName];
-  if (!match) {
-    fail(
-      `Unknown window ${JSON.stringify(windowName)}. Use ${WINDOW_NAMES.join(" or ")}.`,
-    );
-  }
-
+async function pickTarget(origin) {
   let list;
   try {
     const response = await fetch(`${origin}/json/list`);
@@ -246,7 +229,7 @@ async function pickTarget(origin, windowName) {
   const pages = list.filter(
     (t) => t.type === "page" && t.url.includes("/renderer/"),
   );
-  const page = pages.find((target) => match(target));
+  const page = pages.find((target) => isAppWindow(target));
   if (!page) {
     if (pages.length === 0) {
       fail(
@@ -254,20 +237,15 @@ async function pickTarget(origin, windowName) {
       );
     }
     fail(
-      windowName === "orchestrator"
-        ? `No 2.0 window among ${pages.length} Studio page(s). It opens at launch ` +
-            `behind a feature flag, so turning the flag on is not enough on its own:\n` +
-            `  studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'\n` +
-            `  studio-drive.mjs stop && studio-drive.mjs boot --purpose <purpose>`
-        : `Only the 2.0 window is open. Pass \`--window orchestrator\` to drive it.`,
+      `No app window among ${pages.length} Studio page(s). Onboarding may still be up.`,
     );
   }
   return page;
 }
 
 /** A raw CDP connection. {@link connect} is what a caller usually wants. */
-export async function openCdp(origin, windowName = "main") {
-  const target = await pickTarget(origin, windowName);
+export async function openCdp(origin) {
+  const target = await pickTarget(origin);
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
@@ -374,7 +352,7 @@ export const waitForDriveHandle = (cdp) =>
   waitForHandle(
     cdp,
     "__studioDrive",
-    "window.__studioDrive never appeared. Expected on the main window of a dev build " +
+    "window.__studioDrive never appeared. Expected on the app window of a dev build " +
       "(client/lib/studio-drive.ts); a packaged build drops it.",
   );
 
@@ -542,17 +520,10 @@ const WAIT_POLL_MS = 100;
  * that way than a single command is, so the default is to stop at the step where
  * it happened and say so. Pass `{ allowReload: true }` when the sequence is
  * meant to survive one, or is testing one.
- *
- * `window` picks which of the app's windows to drive; see {@link WINDOWS}.
  */
-export async function connect({
-  allowReload = false,
-  port,
-  window: windowName = "main",
-  workspace,
-} = {}) {
+export async function connect({ allowReload = false, port, workspace } = {}) {
   const resolved = await resolvePort({ port, workspace });
-  const cdp = await openCdp(`http://127.0.0.1:${resolved}`, windowName);
+  const cdp = await openCdp(`http://127.0.0.1:${resolved}`);
 
   const trace = [];
   const app = {
@@ -561,7 +532,6 @@ export async function connect({
     port: resolved,
     /** Every call, in order: what it was, how long it took, how it ended. */
     trace,
-    window: windowName,
     workspace,
   };
 
@@ -626,52 +596,6 @@ export async function connect({
     return evaluate(cdp, `window.__studioDrive.${call}`);
   };
 
-  const isOrchestrator = windowName === "orchestrator";
-
-  /**
-   * `window.__studioDrive` does not exist in the 2.0 window at all: the
-   * renderer entry gates it on `isMainWindow`, because tabs and app-wide modals
-   * are classic-window things (client/main.tsx). So every verb routed through
-   * the handle fails there, and the failure it gives on its own -- "the handle
-   * never appeared" -- reads as a broken dev build rather than as the wrong
-   * window for the verb.
-   *
-   * The 2.0 window routes through the URL hash instead, which is the one thing
-   * about it that can be relied on from out here. No tab list: its tabs are its
-   * own channel-keyed model, and the storage key behind them has already moved
-   * once, so reproducing it here would rot silently. Read them with `snapshot`
-   * or `eval` when a run needs them.
-   *
-   * The absent handle also means reload detection is off for this window: the
-   * load id every step compares against is the handle's. A run here does not
-   * get told when the renderer reloaded under it.
-   */
-  const orchestratorState = () =>
-    evaluate(
-      cdp,
-      `(() => {
-        const dialog = document.querySelector('[role=dialog]');
-        return {
-          dialog:
-            dialog?.getAttribute("aria-label") ??
-            dialog?.querySelector("h1, h2, [data-slot=dialog-title]")?.textContent?.trim() ??
-            null,
-          path:
-            window.__orchestratorDrive?.state().path ??
-            (location.hash.replace(/^#/, "") || null),
-          tabs: window.__orchestratorDrive?.state().tabs ?? null,
-          window: "orchestrator",
-        };
-      })()`,
-    );
-
-  /** Refuse a verb the 2.0 window has no counterpart for, rather than no-op. */
-  const classicOnly = (verb, instead) => {
-    if (isOrchestrator) {
-      fail(`\`${verb}\` is a classic-window verb. ${instead}`);
-    }
-  };
-
   Object.assign(app, {
     /**
      * Real mouse input rather than `element.click()`, which reaches a plain
@@ -708,7 +632,6 @@ export async function connect({
 
     closeModal: (label = "close modal") =>
       step(label, async () => {
-        classicOnly("closeModal", "Press Escape in the 2.0 window instead.");
         await drive("closeModal()");
         await settle();
         return drive("state()");
@@ -743,18 +666,10 @@ export async function connect({
 
     goto: (route, { label, newTab = false } = {}) =>
       step(label ?? `goto ${route}`, async () => {
-        if (isOrchestrator) {
-          // Each of the window's tabs is a router of its own: the address
-          // goes to the tab up, or to a tab of its own.
-          await evaluate(
-            cdp,
-            `window.__orchestratorDrive.goto(${JSON.stringify(route.replace(/^#/, ""))}, ${JSON.stringify({ newTab })})`,
-          );
-          await settle();
-          return orchestratorState();
-        }
+        // Each of the window's tabs is a router of its own: the address goes
+        // to the tab up, or to a tab of its own.
         await drive(
-          `goto(${JSON.stringify(route)}, ${JSON.stringify({ newTab })})`,
+          `goto(${JSON.stringify(route.replace(/^#/, ""))}, ${JSON.stringify({ newTab })})`,
         );
         await settle();
         return drive("state()");
@@ -764,10 +679,6 @@ export async function connect({
 
     openModal: (name, label) =>
       step(label ?? `open ${name}`, async () => {
-        classicOnly(
-          "openModal",
-          "The 2.0 window has no modal registry; click the control that opens it.",
-        );
         await drive(`openModal(${JSON.stringify(name)})`);
         await settle();
         return drive("state()");
@@ -811,15 +722,8 @@ export async function connect({
         (value) => ({ nodes: value.nodes }),
       ),
 
-    /**
-     * Route, tabs, and any open dialog. `path` is authoritative. The 2.0
-     * window reports its route and dialog but carries no tab list; see
-     * {@link orchestratorState}.
-     */
-    state: (label = "state") =>
-      step(label, () =>
-        isOrchestrator ? orchestratorState() : drive("state()"),
-      ),
+    /** Route, tabs, and any open dialog. `path` is authoritative. */
+    state: (label = "state") => step(label, () => drive("state()")),
 
     // --- waiting ------------------------------------------------------
 

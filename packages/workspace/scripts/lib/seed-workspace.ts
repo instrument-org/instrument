@@ -26,7 +26,6 @@ import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { taskDir } from "../../src/lib/task-dir-utils";
-import { updateTaskSettings } from "../../src/lib/task-settings";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
 import {
   AbsolutePathSchema,
@@ -218,10 +217,6 @@ async function seedTask({
     yield* Store.saveSession(rebased.session, id);
     for (const message of rebased.messages) {
       yield* Store.saveMessageWithParts(message, id);
-    }
-
-    if (task.pinned) {
-      yield* updateTaskSettings(id, { pinnedAt: rebased.session.createdAt });
     }
 
     return ok(undefined);

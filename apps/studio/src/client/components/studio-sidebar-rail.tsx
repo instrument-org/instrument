@@ -1,18 +1,10 @@
-import {
-  SIDEBAR_COLLAPSE_THRESHOLD,
-  SIDEBAR_WIDTH_MAX,
-  SIDEBAR_WIDTH_MIN,
-  sidebarWidthAtom,
-} from "@/client/atoms/sidebar";
 import { ResizeHandle } from "@/client/components/resize-handle";
-import { StudioSidebar } from "@/client/components/studio-sidebar";
 import {
   RAIL_FADE_TRANSITION,
   RAIL_SLIDE_TRANSITION,
 } from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
-import { SIDEBAR_WIDTH } from "@/shared/constants";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, type WritableAtom } from "jotai";
 import {
   animate,
   type AnimationPlaybackControls,
@@ -44,15 +36,8 @@ export interface RailBounds {
   min: number;
 }
 
-const SIDEBAR_BOUNDS: RailBounds = {
-  collapse: SIDEBAR_COLLAPSE_THRESHOLD,
-  initial: SIDEBAR_WIDTH,
-  max: SIDEBAR_WIDTH_MAX,
-  min: SIDEBAR_WIDTH_MIN,
-};
-
 export function StudioSidebarRail({
-  bounds = SIDEBAR_BOUNDS,
+  bounds,
   children,
   isAtOnce = false,
   isOpen,
@@ -61,11 +46,10 @@ export function StudioSidebarRail({
   onCover,
   panelClassName,
   side = "left",
-  widthAtom = sidebarWidthAtom,
+  widthAtom,
 }: {
-  bounds?: RailBounds;
-  /** What the rail holds; the Studio sidebar unless a window brings its own. */
-  children?: ReactNode;
+  bounds: RailBounds;
+  children: ReactNode;
   /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
   isAtOnce?: boolean;
   isOpen: boolean;
@@ -76,8 +60,8 @@ export function StudioSidebarRail({
   panelClassName?: string;
   /** Which edge of the window it hangs from; the handle is on the other. */
   side?: "left" | "right";
-  /** Where its width is kept; Studio's sidebar's unless a rail brings its own. */
-  widthAtom?: typeof sidebarWidthAtom;
+  /** Where its width is kept. */
+  widthAtom: WritableAtom<number, [number], void>;
 }) {
   const storedWidth = useAtomValue(widthAtom);
   const setStoredWidth = useSetAtom(widthAtom);
@@ -206,7 +190,7 @@ export function StudioSidebarRail({
           inert={!isOpen}
           style={{ width: panelWidth, x: panelX }}
         >
-          {children ?? <StudioSidebar className="min-h-0 w-full flex-1" />}
+          {children}
         </motion.div>
       </div>
       {isOpen && (

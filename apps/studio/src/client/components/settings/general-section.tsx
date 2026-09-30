@@ -30,9 +30,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -103,11 +103,11 @@ function About() {
 
   const developerMode = useDeveloperMode();
 
-  const { addTab } = useTabActions();
+  const appTabs = useAppTabs();
   const closeSettings = useSetAtom(settingsModalAtom);
 
   const handleOpenReleaseNotes = () => {
-    void addTab({ to: "/release-notes" });
+    appTabs.open("/release-notes");
     closeSettings(null);
   };
 

@@ -1,5 +1,5 @@
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
-import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
+import { WindowContext } from "@/client/components/window/context";
+import { useAskCard } from "@/client/components/window/use-ask-card";
 import {
   autoUpdate,
   computePosition,
@@ -123,13 +123,13 @@ export function AskSelection({
   children: ReactNode;
   path: string;
 }) {
-  const orchestrator = useContext(OrchestratorContext);
+  const appWindow = useContext(WindowContext);
   const { begin, card } = useAskCard(path);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [target, setTarget] = useState<AskTarget | null>(null);
 
   useEffect(() => {
-    if (!root || !orchestrator) {
+    if (!root || !appWindow) {
       return;
     }
     let pressed = false;
@@ -217,12 +217,12 @@ export function AskSelection({
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("selectionchange", onChange);
     };
-  }, [orchestrator, root]);
+  }, [appWindow, root]);
 
   // Stable, since viewers subscribe to their engine's selection events with it.
   const value = useMemo(
-    () => (orchestrator ? { present: setTarget } : null),
-    [orchestrator],
+    () => (appWindow ? { present: setTarget } : null),
+    [appWindow],
   );
 
   return (

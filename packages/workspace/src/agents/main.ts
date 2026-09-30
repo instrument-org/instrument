@@ -274,7 +274,8 @@ export const mainAgent = setupAgent({
     // assistant started reports to that assistant, which reads its last
     // message and its files; a task the user opened themselves is read by
     // the user, as it is written, and shows them files and sources in the
-    // reply. The record says which, and the classic window sets no parent.
+    // reply. The record says which: a task the user opened is one from before
+    // chats, which has no parent.
     const settings = await getTaskSettings(taskDir(taskId));
     const audience =
       settings?.parentTaskId === undefined ? readByUser : readByAssistant;

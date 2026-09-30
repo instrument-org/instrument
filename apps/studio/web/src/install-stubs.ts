@@ -6,7 +6,7 @@
 export function installStubs() {
   const params = new URLSearchParams(window.location.search);
   const windowType =
-    params.get("windowType") === "onboarding" ? "onboarding" : "main";
+    params.get("windowType") === "onboarding" ? "onboarding" : "app";
 
   window.api = {
     // The real one maps a dropped File to an absolute host path via webUtils.

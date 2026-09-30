@@ -9,10 +9,10 @@ Read `.agents/skills/studio-chrome-devtools/SKILL.md` for the general picture. T
 ```bash
 DRIVE=".agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs"
 
-node $DRIVE boot                                     # your own instance, on its own port
+node $DRIVE boot --purpose "ui review"              # your own instance, on its own port
 node $DRIVE goto /skills
-node $DRIVE click --text "New skill"
-node $DRIVE shot shots/skills.png --selector '[role=dialog]' --pad 8
+node $DRIVE modal settings
+node $DRIVE shot shots/settings.png --selector '[role=dialog]' --pad 8
 node $DRIVE stop
 ```
 

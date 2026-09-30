@@ -9,7 +9,7 @@ import type { BrowserWindow } from "electron";
  * surface that is not mapped is never given a frame, so the renderer never
  * paints, the event never comes, and the window stays hidden with a live page
  * behind it. The window's `backgroundColor` stands in for the first paint
- * there, as it does for the main window, which is shown on creation.
+ * there.
  */
 export function showWhenReady(window: BrowserWindow, show: () => void) {
   if (process.platform === "linux") {

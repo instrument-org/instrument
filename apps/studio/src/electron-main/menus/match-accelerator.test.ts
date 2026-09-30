@@ -293,37 +293,17 @@ describe("matchesAccelerator", () => {
 
 describe("the shortcut table", () => {
   // A chord the binder can't parse silently never fires, which is exactly the
-  // failure this matcher exists to end. Fail here instead. Renderer-owned
-  // chords are excluded: the page binds those, and `?` is not an accelerator.
-  const owned = SHORTCUT_ENTRIES.filter(
-    ({ descriptor }) => descriptor.owner !== "renderer",
-  );
-
-  it.each(owned)(
-    "$id answers to at least one readable chord",
-    ({ descriptor }) => {
-      for (const isMac of [true, false]) {
-        const chords = [
+  // failure this matcher exists to end. Fail here instead.
+  it.each(SHORTCUT_ENTRIES)("$id is a readable chord", ({ descriptor }) => {
+    for (const isMac of [true, false]) {
+      expect(
+        parseAccelerator(
           resolveAccelerator(descriptor.accelerator, { isMac }),
-          ...(descriptor.alternates ?? []),
-        ];
-        expect(
-          chords.filter((chord) => parseAccelerator(chord, { isMac })),
-        ).not.toHaveLength(0);
-      }
-    },
-  );
-
-  // An alternate is never shown, so a typo in one is invisible until someone
-  // presses the key it was meant to be.
-  it.each(owned.filter(({ descriptor }) => descriptor.alternates))(
-    "$id declares readable alternates",
-    ({ descriptor }) => {
-      for (const isMac of [true, false]) {
-        for (const chord of descriptor.alternates ?? []) {
-          expect(parseAccelerator(chord, { isMac })).not.toBeNull();
-        }
-      }
-    },
-  );
+          {
+            isMac,
+          },
+        ),
+      ).not.toBeNull();
+    }
+  });
 });

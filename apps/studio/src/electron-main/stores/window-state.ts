@@ -13,14 +13,16 @@ export interface WindowBounds {
  * record: they are different windows of different shapes, open at the same
  * time, and one record between them is each window resizing the other.
  */
-export type WindowStateName = "main" | "orchestrator";
+export type WindowStateName = "app";
 
 interface StoredWindowState {
+  /**
+   * By window. Keyed by name as the build that wrote it named the window, so
+   * a record under a name no window has any more is still read: the app
+   * window's was `orchestrator` before it was `app`.
+   */
   windows?: Partial<
-    Record<
-      WindowStateName,
-      { bounds?: Partial<WindowBounds>; isMaximized?: boolean }
-    >
+    Record<string, { bounds?: Partial<WindowBounds>; isMaximized?: boolean }>
   >;
   zoom?: number;
 }
@@ -44,6 +46,9 @@ const MIN_VISIBLE_PX = 100;
 // ratio, which lands back over the line whenever the window is proportionally
 // taller than the work area. Restore just under it instead.
 const MAX_UNMAXIMIZED_WORK_AREA_FRACTION = 0.8;
+
+/** What each window's record was called before, read when its own is not there yet. */
+const FORMER_NAMES: Record<WindowStateName, string> = { app: "orchestrator" };
 
 const store = new Store<StoredWindowState>({
   name: "window-state",
@@ -75,7 +80,8 @@ export function getWindowState(
   name: WindowStateName,
   size?: { height: number; width: number },
 ) {
-  const stored = store.store.windows?.[name];
+  const stored =
+    store.store.windows?.[name] ?? store.store.windows?.[FORMER_NAMES[name]];
   const defaults = getDefaultState(size);
 
   // Merge stored state with defaults to handle partial/corrupted data

@@ -7,27 +7,20 @@ import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
+import {
+  getAppWindow,
+  openAppFile,
+  openAppScreen,
+  openAppWindow,
+  updateAppWindowBackgroundColor,
+} from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import {
-  createMainWindow,
-  updateMainWindowBackgroundColor,
-} from "@/electron-main/windows/main";
-import { focusMainContents } from "@/electron-main/windows/main/controls";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import {
-  getOrchestratorWindow,
-  openOrchestratorFile,
-  openOrchestratorScreen,
-  openOrchestratorWindow,
-  updateOrchestratorWindowBackgroundColor,
-} from "@/electron-main/windows/orchestrator";
 import { revealTask } from "@/electron-main/windows/reveal-task";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
@@ -101,7 +94,7 @@ if (gotTheLock) {
     for (const filePath of filesInArgv(commandLine, {
       defaultApp: process.defaultApp,
     })) {
-      openOrchestratorFile(filePath);
+      openAppFile(filePath);
     }
   });
 
@@ -110,14 +103,14 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openOrchestratorFile(filePath);
+    openAppFile(filePath);
   });
 
   // The same hand-over on Windows and Linux, for a launch that starts the app.
   for (const filePath of filesInArgv(process.argv, {
     defaultApp: process.defaultApp,
   })) {
-    openOrchestratorFile(filePath);
+    openAppFile(filePath);
   }
 
   // eslint-disable-next-line unicorn/prefer-top-level-await
@@ -232,6 +225,7 @@ async function bootstrapPrimaryInstance() {
   );
 
   startAgentCompletionNotifications({
+    hasAppWindow: () => getAppWindow() !== null,
     revealTask,
     workspaceConfig,
     workspaceRef,
@@ -258,17 +252,8 @@ async function bootstrapPrimaryInstance() {
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
-    void createMainWindow({ reveal: false });
-  } else if (isFeatureEnabled("instrument_2")) {
-    // The classic window is made and kept out of sight: the tasks' machinery
-    // and the browser host for a task page live in it. Its File menu brings
-    // it back.
-    await timeBootStep("createMainWindow", () =>
-      createMainWindow({ reveal: false }),
-    );
-    openOrchestratorWindow();
   } else {
-    await timeBootStep("createMainWindow", () => createMainWindow());
+    openAppWindow();
   }
 
   // Let the initial window render before running the best-effort cache warmup.
@@ -290,16 +275,8 @@ async function bootstrapPrimaryInstance() {
       if (shouldShowOnboarding()) {
         openOnboardingWindow();
       } else {
-        void createMainWindow();
+        openAppWindow();
       }
-    } else if (
-      isFeatureEnabled("instrument_2") &&
-      getOrchestratorWindow() === null &&
-      !getMainWindow()?.isVisible()
-    ) {
-      // The hidden classic window counts as a window, so with the 2.0 window
-      // closed the dock click would otherwise open nothing.
-      openOrchestratorWindow();
     }
   });
   app.on("open-url", (event, url) => {
@@ -309,9 +286,7 @@ async function bootstrapPrimaryInstance() {
 }
 
 /**
- * Bring the active foreground window forward. A window that is not on screen is
- * not that window: the main window is prepared hidden during onboarding, and
- * stays hidden for as long as Instrument 2.0 is on.
+ * Bring the active foreground window forward.
  *
  * With no window to come forward this opens one. Relaunching the app is how a
  * user asks for a window back, and the single-instance lock routes that launch
@@ -324,9 +299,6 @@ function focusForegroundWindow() {
       target.restore();
     }
     target.focus();
-    if (target === getMainWindow()) {
-      focusMainContents();
-    }
     return;
   }
 
@@ -339,20 +311,19 @@ function focusForegroundWindow() {
     openOnboardingWindow();
     return;
   }
-  void ensureForegroundWindowVisible();
+  ensureForegroundWindowVisible();
 }
 
 /**
  * A link from outside the app: the website's "Try in Instrument", a reply's
- * address pasted somewhere else. What it names is a screen of the 2.0
- * window, read the way a reply's link is; with that window off, the link has
- * brought the app forward, which is all the classic window can do.
+ * address pasted somewhere else. What it names is a screen of the window,
+ * read the way a reply's link is.
  */
 function handleDeepLink(url: string) {
   focusForegroundWindow();
   const link = instrumentLinkOf(url);
-  if (link && isFeatureEnabled("instrument_2")) {
-    openOrchestratorScreen(link.href);
+  if (link) {
+    openAppScreen(link.href);
   }
 }
 
@@ -374,7 +345,6 @@ app.on("window-all-closed", () => {
 });
 
 function applyThemeToWindows() {
-  updateMainWindowBackgroundColor();
   updateOnboardingWindowBackgroundColor();
-  updateOrchestratorWindowBackgroundColor();
+  updateAppWindowBackgroundColor();
 }

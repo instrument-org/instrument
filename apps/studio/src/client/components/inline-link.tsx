@@ -27,9 +27,9 @@ import { type ReactNode, useState } from "react";
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
 import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
-import { AppIcon } from "./orchestrator/app-icon";
-import { useAppsBySlug } from "./orchestrator/apps-by-slug";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { AppIcon } from "./window/app-icon";
+import { useAppsBySlug } from "./window/apps-by-slug";
 import { InstrumentGlyph } from "./wordmark";
 
 /**

@@ -2,10 +2,6 @@ import type React from "react";
 
 import { useEffect, useRef, useState } from "react";
 
-export type InlineRenameInputProps = ReturnType<
-  typeof useInlineRename
->["inputProps"];
-
 // Waits after save for live query to update before closing, preventing old→new flicker.
 export function useInlineRename({
   onSave,

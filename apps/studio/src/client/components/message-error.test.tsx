@@ -79,7 +79,6 @@ function renderError({
         onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRunAgain={vi.fn()}
-        onStartNewTask={vi.fn()}
       />
     </TooltipProvider>,
   );

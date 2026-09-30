@@ -294,9 +294,7 @@ export function createWorkspaceActor({
 
     // Parent the dialog on the window that is being closed so it is
     // window-modal, rather than a detached app-modal box that can end up behind
-    // the window it is asking about. A window that is not on screen is not that
-    // window: a sheet parented to the hidden classic window is a prompt nobody
-    // can answer, and the quit reads as a hang.
+    // the window it is asking about.
     const parentWindow = getForegroundWindow();
     const { response } = await (parentWindow
       ? dialog.showMessageBox(parentWindow, options)
@@ -336,7 +334,7 @@ export function createWorkspaceActor({
           // Canceling has to leave the user somewhere. This quit may have
           // started from a window close, and outside macOS a process whose last
           // window is gone can't be reached again at all.
-          void ensureForegroundWindowVisible();
+          ensureForegroundWindowVisible();
           return;
         }
 

@@ -275,7 +275,6 @@ describe("attachDownloadHandler", () => {
         completed: false,
         filename: "report.pdf",
         folder: null,
-        host: "main",
         path: null,
         targetId: TARGET_ID,
       });
@@ -303,7 +302,6 @@ describe("attachDownloadHandler", () => {
           completed,
           filename: "report.pdf",
           folder: "~/Downloads",
-          host: "main",
           path: path.join(home.downloads, "report.pdf"),
           targetId: TARGET_ID,
         });

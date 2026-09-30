@@ -1,10 +1,15 @@
-import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 // The one place TanStack Router's Link belongs: this is the tab-aware wrapper
 // every other call site is pointed at.
 // eslint-disable-next-line no-restricted-syntax
-import { Link, type LinkProps, useNavigate } from "@tanstack/react-router";
+import { Link, type LinkProps, useRouter } from "@tanstack/react-router";
 import { type MouseEvent } from "react";
 
+/**
+ * A link to a route: a click moves the tab it is in, and a middle click or a
+ * Cmd/Ctrl click opens the route in a tab of its own, behind the one up for
+ * a middle click.
+ */
 export function InternalLink(
   props: LinkProps & {
     allowOpenNewTab?: boolean;
@@ -13,27 +18,34 @@ export function InternalLink(
     onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
     onDoubleClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
     onMouseDown?: (e: MouseEvent<HTMLAnchorElement>) => void;
-    openInCurrentTab?: boolean;
-    openInNewTab?: boolean;
     tabIndex?: number;
   },
 ) {
-  const { addTab, navigateTab } = useTabActions();
+  const appTabs = useAppTabs();
+  const router = useRouter();
   const {
     allowOpenNewTab = true,
     onAuxClick,
     onClick,
     onDoubleClick,
     onMouseDown,
-    openInCurrentTab = false,
-    openInNewTab = false,
     params,
     search,
     target,
     to,
     ...rest
   } = props;
-  const navigate = useNavigate();
+
+  const openInNewTab = (select: boolean) => {
+    // Cast because `LinkProps` leaves its route unresolved, which the
+    // location builder's generics cannot take back.
+    const { href } = router.buildLocation({
+      params,
+      search,
+      to,
+    } as Parameters<typeof router.buildLocation>[0]);
+    appTabs.open(href, { select });
+  };
 
   const handleMouseDown = (e: MouseEvent<HTMLAnchorElement>) => {
     // Prevent default for middle clicks to avoid opening in system browser
@@ -45,42 +57,24 @@ export function InternalLink(
     }
   };
 
-  const performNavigation = (shouldOpenNewTab: boolean, selectTab = true) => {
-    if (shouldOpenNewTab && allowOpenNewTab) {
-      void addTab({ params, search, to }, { select: selectTab });
-    } else if (openInCurrentTab) {
-      void navigateTab({ params, search, to });
-    } else {
-      void navigate({ params, search, to });
-    }
-  };
-
   const handleAuxClick = (e: MouseEvent<HTMLAnchorElement>) => {
     // Handle middle click via auxclick event (more reliable for some browsers)
     if (e.button === 1) {
       e.preventDefault();
-      performNavigation(true, false);
+      if (allowOpenNewTab) {
+        openInNewTab(false);
+      }
     }
     if (onAuxClick) {
       onAuxClick(e);
     }
   };
 
-  const handleDoubleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (onDoubleClick) {
-      onDoubleClick(e);
-    }
-  };
-
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-
-    if (e.button === 0) {
-      const shouldOpenNewTab = e.ctrlKey || e.metaKey || openInNewTab;
-      const selectTab = openInNewTab || !shouldOpenNewTab;
-      performNavigation(shouldOpenNewTab, selectTab);
+    if (e.button === 0 && (e.ctrlKey || e.metaKey) && allowOpenNewTab) {
+      e.preventDefault();
+      openInNewTab(true);
     }
-
     if (onClick) {
       onClick(e);
     }
@@ -92,7 +86,7 @@ export function InternalLink(
       draggable={false}
       onAuxClick={handleAuxClick}
       onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={onDoubleClick}
       onMouseDown={handleMouseDown}
       params={params}
       search={search}

@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { useTabId } from "@/client/hooks/use-active-tab";
-import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { useRouter } from "@tanstack/react-router";
 
 export function NotFoundRouteComponent() {
@@ -18,10 +18,10 @@ function NotFoundComponent({
   title?: string;
 }) {
   const tabId = useTabId();
-  const { closeTab } = useTabsController();
+  const appTabs = useAppTabs();
 
   const handleClose = () => {
-    closeTab({ id: tabId });
+    appTabs.close(tabId);
   };
 
   return (

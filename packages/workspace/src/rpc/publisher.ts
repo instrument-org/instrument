@@ -71,19 +71,6 @@ export const publisher = new EventPublisher<{
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
   };
-  /**
-   * An agent asking the window to act on its tabs: open one (on screen, or
-   * behind whatever is up), point one at something else, close one, or bring
-   * one forward. Each ask carries a request id, which the window's answer
-   * comes back under.
-   */
-  "orchestrator.tab": WindowTabRequest & { id: TaskId };
-  /**
-   * The window answering an ask: the tab it acted on or made, by the id the
-   * conversation names it with and a task can be handed, or why it did
-   * nothing.
-   */
-  "orchestrator.tabDone": WindowTabAnswer & { id: TaskId };
   "part.updated": {
     id: TaskId;
     part: SessionMessagePart.Type;
@@ -140,6 +127,19 @@ export const publisher = new EventPublisher<{
   "task.updated": {
     id: TaskId;
   };
+  /**
+   * An agent asking the window to act on its tabs: open one (on screen, or
+   * behind whatever is up), point one at something else, close one, or bring
+   * one forward. Each ask carries a request id, which the window's answer
+   * comes back under.
+   */
+  "window.tab": WindowTabRequest & { id: TaskId };
+  /**
+   * The window answering an ask: the tab it acted on or made, by the id the
+   * conversation names it with and a task can be handed, or why it did
+   * nothing.
+   */
+  "window.tabDone": WindowTabAnswer & { id: TaskId };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({
   maxBufferedEvents: 1, // Holds only last event in memory

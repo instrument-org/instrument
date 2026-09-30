@@ -1,24 +1,9 @@
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type TaskId, TaskPane } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 type TaskState = RPCOutput["workspace"]["task"]["state"]["get"];
-
-/**
- * What the pane is showing, from the task state the route already subscribes
- * to. Extra observers share that one query, so a component reading this adds a
- * subscriber rather than a subscription.
- */
-export function useTaskPane(taskId: TaskId | undefined): TaskPane.Type {
-  const { data } = useQuery(
-    rpcClient.workspace.task.state.live.get.experimental_liveOptions({
-      input: taskId ? { id: taskId } : skipToken,
-    }),
-  );
-
-  return data?.pane ?? TaskPane.EMPTY;
-}
 
 /**
  * The ways the user opens, closes, and switches tabs.

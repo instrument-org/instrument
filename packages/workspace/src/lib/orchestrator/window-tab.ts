@@ -45,13 +45,13 @@ export async function askWindow({
 }): Promise<undefined | WindowTabAnswer> {
   const requestId = ulid();
   const controller = new AbortController();
-  const answers = publisher.subscribe("orchestrator.tabDone", {
+  const answers = publisher.subscribe("window.tabDone", {
     signal: controller.signal,
   });
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
-  publisher.publish("orchestrator.tab", {
+  publisher.publish("window.tab", {
     action,
     id: askedBy,
     requestId,
@@ -127,7 +127,6 @@ export async function liveHeldTabs(
       decoded.id,
       decoded.sessionId,
       getBrowserSessionDir(),
-      "orchestrator",
     );
     live.push(held);
   }

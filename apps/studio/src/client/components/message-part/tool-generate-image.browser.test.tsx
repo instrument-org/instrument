@@ -26,7 +26,7 @@ const TASK_ID = "quarterly-numbers" as TaskId;
 /**
  * What the card takes, which the two fixtures below are written against.
  *
- * They go through `unknown` for the reason [frames.ts](../../routes/_app/debug/-transcript/frames.ts)
+ * They go through `unknown` for the reason [frames.ts](../../routes/debug/-transcript/frames.ts)
  * gives: a tool part is a union of per-tool shapes assembled from several
  * intersections, and narrowing a literal back into one of them takes more
  * scaffolding than the fixture is worth. What the fields have to be is settled

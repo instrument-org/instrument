@@ -11,18 +11,15 @@ import { type ReactNode, useEffect } from "react";
 const RECONNECT_DELAY_MS = 500;
 
 /**
- * Drives the onboarding window's zoom. Onboarding runs its own web contents (the
- * single-router {@link App}, not MainWindow), so it doesn't get MainWindow's
- * `useAppCommands`. This subscribes to the same main-process command stream and
- * handles only the zoom commands the onboarding menu emits (ignoring
- * tab/navigation commands), then renders the shared {@link ZoomRoot} so
- * onboarding zoom uses the identical CSS-`zoom` mechanism as the main window
- * (clamped range, portalled-popover compensation via `useAppZoomStyle`) rather
- * than Electron's native page zoom, and reports the level back for the window's
- * macOS traffic lights the way MainWindow does. `zoomAtom` is
- * `localStorage`-backed at the same origin, so a zoom set here is already
- * applied when the main window mounts (and syncs live via storage events while
- * both are open).
+ * Drives a window's zoom: the onboarding window's and the app window's. This
+ * subscribes to the main-process command stream the View menu's zoom items
+ * publish on, then renders the shared {@link ZoomRoot} so zoom uses the CSS
+ * `zoom` mechanism (clamped range, portalled-popover compensation via
+ * `useAppZoomStyle`) rather than Electron's native page zoom, and reports the
+ * level back for the window's macOS traffic lights. `zoomAtom` is
+ * `localStorage`-backed at the same origin, so a zoom set in one window is
+ * already applied when the other mounts (and syncs live via storage events
+ * while both are open).
  */
 export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
   const setZoom = useSetAtom(zoomAtom);
@@ -66,9 +63,6 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
               }
               case "zoomReset": {
                 setZoom(1);
-                break;
-              }
-              default: {
                 break;
               }
             }

@@ -97,17 +97,16 @@ cat sequence.mjs | node $DRIVE run -          # or on stdin, no quoting to get w
 
 ```javascript
 export default async (app, args) => {
-  await app.goto("/skills");
-  await app.click("New skill");
+  await app.openModal("settings");
   await app.waitFor('document.querySelector("[role=dialog]")');
   await app.expect(
-    'window.__studioDrive.state().dialog === "New skill"',
+    'window.__studioDrive.state().dialog === "Settings"',
     "the dialog to open",
   );
 
   // branch on what you found, which a shell chain cannot do
   const { tasks } = await app.rpc("workspace.task.list", {});
-  if (tasks.length === 0) await app.click("New task");
+  if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}`);
 
   return { taskCount: tasks.length };
 };
@@ -183,50 +182,19 @@ A **replay** is not an agent turn and none of this sees it: it runs its own loop
 
 ## Page model
 
-The classic window is one web contents: `AppChrome` and every open tab mount in the same page. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The app root carries `data-testid="app-page"`.
+The app window is one web contents: its chrome and every open tab mount in the same page, each tab a router of its own across the bar. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The onboarding window, on a first run, is a second page under `/renderer/`; commands drive the app window's.
 
-The renderer keeps the current route out of the window URL, and the main window restores its persisted tab session on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it — the restored tabs paint over it. Use `state` to read where you are and `goto` to move.
+The renderer keeps the current route out of the window URL, and the window restores its persisted tabs on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it. Use `state` to read where you are and `goto` to move: `goto` sends the tab up to the route, or a new tab with `--new-tab`, and `state` reports the tab up's `path`, the `tabs`, and `dialog`. A chat's own tabs (its browsers and files down its rail) are not routes; read them with `snapshot` or `eval`.
 
 In `state`, `path` is authoritative; `tabs[].pathname` mirrors it a moment later.
 
-### The 2.0 window
-
-Instrument 2.0 is a **second** window with its own web contents, serving the same renderer bundle under the `#/orchestrator` route. It opens at launch behind the `instrument_2` feature flag, which also keeps the classic window loaded but hidden — the tasks' machinery and a task page's browser host live in it. There is no route that opens it on demand, so setting the flag is not enough on its own:
-
-```bash
-studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'
-studio-drive.mjs stop && studio-drive.mjs boot --purpose "2.0"
-```
-
-The dev panel's **Start in Instrument 2.0** checkbox sets the same flag, and the 2.0 window's File menu has "Switch to Classic Instrument" to turn it off.
-
-With the flag on, one instance serves both windows on one debug port, and both are pages under `/renderer/` — the 2.0 one is often listed _first_. So every command takes `--window`:
-
-```bash
-studio-drive.mjs state --window orchestrator
-studio-drive.mjs click "This Mac" --window orchestrator
-studio-drive.mjs shot two-oh.png --window orchestrator
-```
-
-It defaults to `main`, and it belongs on every command meant for the 2.0 window — a missing flag drives whichever window the debug endpoint listed first, and answers confidently about the wrong one.
-
-`window.__studioDrive` does not exist in this window: the renderer entry gates it on `isMainWindow`, because app-wide modals are classic-window things. This window has `window.__orchestratorDrive` instead, for its tabs, which are each a router of their own across its bar. Three consequences:
-
-- `goto` sends the tab up to the route, or a new tab with `--new-tab`. `state` reports the tab up's `path`, the `tabs`, and `dialog`. A chat's own tabs (its browsers and files down its rail) are not routes; read them with `snapshot` or `eval`.
-- `modal` / `openModal` / `closeModal` refuse, rather than reporting the absent handle as a broken dev build. Click the control that opens one, or `press Escape` to close it.
-- **Reload detection is off here.** The load id every step compares against is the handle's, so a run against this window is not told when the renderer reloaded under it. Re-read `state` after anything that might have triggered HMR.
-
-Everything else — `click`, `type`, `press`, `wait`, `rpc`, `shot`, `snapshot`, `wait --idle` — behaves identically, because it works on the DOM and the RPC bridge rather than on the classic window's atoms.
-
-A task spawned by the orchestrator opens its browser as a page tab **inside this window**, so its guests are `<webview>`s here rather than in the classic window.
-
 ### Sweeping its screens for errors
 
-`scripts/sweep-orchestrator-screens.mjs` walks every 2.0 screen and reports the console errors, warnings and uncaught exceptions each one produced, named by screen:
+`scripts/sweep-screens.mjs` walks every screen of the app window and reports the console errors, warnings and uncaught exceptions each one produced, named by screen:
 
 ```bash
-node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orchestrator
-node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orchestrator --args '{"reload":true}'
+node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs
+node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs --args '{"reload":true}'
 ```
 
 It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it _mounts_; it costs the wait, so it is off by default.
@@ -248,9 +216,9 @@ The quit prompt is a native `showMessageBox`, outside the web contents. CDP cann
 
 - `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.
 - A control scrolled out of a long list is brought into view and then clicked, and the step reports `scrolledIntoView` so a capture taken afterward is not read as the same viewport. One still clipped after that (inside a collapsed pane, behind an overlay) fails saying so, with the coordinate, rather than dispatching at a point the window does not cover.
-- `press` takes combinations: `press 'Meta+k'`, `press 'Control+Shift+R'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+k` fires the shortcut without also typing a `k`.
+- `press` takes combinations: `press 'Meta+a'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+a` does not also type an `a`.
+- A chord the main process binds (Cmd+T, Cmd+W, Cmd+R, Cmd+,, the Developer chords) does nothing over CDP: injected keys never pass through `before-input-event` or the native menu. Drive what the chord does instead (`goto`, `modal`, `rpc`), and check the chord itself by hand.
 - `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately, and UI that only appears when scrolled off the live edge stays unreachable.
-- `?` opens the shortcut guide only when focus is outside an editable and nothing is blocking. Pressing it while the composer has focus does nothing and reads as the tool failing.
 - After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.
 - Studio sets Chromium's `allow-pre-commit-input` so CDP mouse input works against `<webview>` guests.
 

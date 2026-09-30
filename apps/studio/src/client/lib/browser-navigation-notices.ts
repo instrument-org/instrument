@@ -1,4 +1,3 @@
-import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
 import { sleep } from "radashi";
@@ -30,10 +29,7 @@ export function initBrowserNavigationNotices(): () => void {
           await rpcClient.browser.events.navigationRefused.call(undefined, {
             signal,
           });
-        for await (const refused of subscription) {
-          if (refused.host !== WINDOW_BROWSER_HOST) {
-            continue;
-          }
+        for await (const _refused of subscription) {
           toast("That file is outside the folders Instrument can use here", {
             description: "Open it from Files, or from the address bar.",
           });

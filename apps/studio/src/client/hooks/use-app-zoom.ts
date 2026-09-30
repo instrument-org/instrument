@@ -4,9 +4,9 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { useAtomValue } from "jotai";
 
 /**
- * Merges the current main-window zoom into a style object, for a Radix portal's own
+ * Merges the current window zoom into a style object, for a Radix portal's own
  * Content element. Radix portals to `document.body`, outside the zoomed
- * MainWindow root, so floating content (Dialog/Popover/DropdownMenu/etc.)
+ * window root, so floating content (Dialog/Popover/DropdownMenu/etc.)
  * doesn't inherit CSS `zoom` from an ancestor. Each of those primitives
  * applies this directly to its own positioned Content instead:
  * `top`/`left`/`transform` resolve against the (unzoomed) containing block, so
@@ -17,9 +17,9 @@ import { useAtomValue } from "jotai";
  * Interim: floating-ui doesn't yet correct positioning for CSS `zoom` on an
  * ancestor (https://github.com/floating-ui/floating-ui/issues/3032, fix
  * https://github.com/floating-ui/floating-ui/pull/3463 unmerged), so we can't
- * just zoom the MainWindow root and let portals inherit it. Once that lands and
+ * just zoom the window root and let portals inherit it. Once that lands and
  * Radix bumps to it, drop this hook and the per-content `zoom` and zoom only the
- * MainWindow root.
+ * window root.
  *
  * Also exposes `--content-zoom` for sizing the zoomed element, which needs one
  * distinction held firmly:

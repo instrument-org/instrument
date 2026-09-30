@@ -6,15 +6,14 @@ import {
 } from "@/client/components/ui/tooltip";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import {
-  ORCHESTRATOR_SHORTCUTS,
-  type OrchestratorShortcutId,
-} from "@/shared/orchestrator-shortcuts";
-import { type ShortcutId, SHORTCUTS } from "@/shared/shortcuts";
+  WINDOW_SHORTCUTS,
+  type WindowShortcutId,
+} from "@/shared/window-shortcuts";
 
 /**
- * Tooltip for the toolbar's icon controls: the shortcut table's own label and
- * chord, so a control reads the same here as it does in the native menu, the
- * command menu, and the shortcut guide. The label doubles as the button's
+ * Tooltip for the toolbar's icon controls: the window's shortcut table's own
+ * label and chord, so a control reads the same here as it does in the native
+ * menu. The label doubles as the button's
  * accessible name, since these are unlabeled icons.
  *
  * `label` covers a control the shortcut table has no entry for, so a toolbar
@@ -24,9 +23,6 @@ import { type ShortcutId, SHORTCUTS } from "@/shared/shortcuts";
  * control has for its state ("Hide the inbox") while the chord stays the
  * table's.
  *
- * `chord` is the 2.0 window's table, whose chords the classic window's has
- * no entry for.
- *
  * Opens faster than the app default; the whole row is on the path to everything
  * else.
  */
@@ -34,18 +30,12 @@ export function ToolbarTooltip({
   children,
   chord,
   label,
-  shortcut,
 }: {
   children: React.ReactNode;
-  chord?: OrchestratorShortcutId;
+  chord?: WindowShortcutId;
   label?: string;
-  shortcut?: ShortcutId;
 }) {
-  const entry = shortcut
-    ? SHORTCUTS[shortcut]
-    : chord
-      ? ORCHESTRATOR_SHORTCUTS[chord]
-      : undefined;
+  const entry = chord ? WINDOW_SHORTCUTS[chord] : undefined;
   const text = label ?? entry?.label ?? "";
 
   return (

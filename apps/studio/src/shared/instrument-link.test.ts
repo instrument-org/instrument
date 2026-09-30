@@ -11,7 +11,7 @@ describe("instrumentLinkOf", () => {
     [
       "instrument://task/lisbon-hotel",
       {
-        href: "/orchestrator/tasks/lisbon-hotel",
+        href: "/tasks/lisbon-hotel",
         kind: "task",
         name: "lisbon-hotel",
       },
@@ -19,7 +19,7 @@ describe("instrumentLinkOf", () => {
     [
       "instrument://chat/ses_01J9",
       {
-        href: "/orchestrator/chats/ses_01J9",
+        href: "/chats/ses_01J9",
         kind: "chat",
         name: "ses_01J9",
       },
@@ -27,7 +27,7 @@ describe("instrumentLinkOf", () => {
     [
       "instrument://thread/ses_01J9",
       {
-        href: "/orchestrator/chats/ses_01J9",
+        href: "/chats/ses_01J9",
         kind: "chat",
         name: "ses_01J9",
       },
@@ -35,19 +35,19 @@ describe("instrumentLinkOf", () => {
     [
       "instrument://memory/no-stevia",
       {
-        href: "/orchestrator/memory/no-stevia",
+        href: "/memory/no-stevia",
         kind: "memory",
         name: "no-stevia",
       },
     ],
     [
       "instrument://app/linear",
-      { href: "/orchestrator/apps/linear", kind: "app", name: "linear" },
+      { href: "/apps/linear", kind: "app", name: "linear" },
     ],
     [
       "instrument://skill/create-page",
       {
-        href: "/orchestrator/skills/create-page",
+        href: "/skills/create-page",
         kind: "skill",
         name: "create-page",
       },
@@ -55,27 +55,21 @@ describe("instrumentLinkOf", () => {
     [
       "instrument://skill/instrument:create-page",
       {
-        href: "/orchestrator/skills/instrument:create-page",
+        href: "/skills/instrument:create-page",
         kind: "skill",
         name: "instrument:create-page",
       },
     ],
     [
       "instrument://discover/timeline",
-      { href: "/orchestrator/ideas/timeline", kind: "idea", name: "timeline" },
+      { href: "/discover/timeline", kind: "idea", name: "timeline" },
     ],
-    [
-      "instrument://discover",
-      { href: "/orchestrator/ideas", kind: "ideas", name: "" },
-    ],
-    [
-      "instrument://discover/",
-      { href: "/orchestrator/ideas", kind: "ideas", name: "" },
-    ],
+    ["instrument://discover", { href: "/discover", kind: "ideas", name: "" }],
+    ["instrument://discover/", { href: "/discover", kind: "ideas", name: "" }],
     [
       "INSTRUMENT://Task/lisbon-hotel",
       {
-        href: "/orchestrator/tasks/lisbon-hotel",
+        href: "/tasks/lisbon-hotel",
         kind: "task",
         name: "lisbon-hotel",
       },
@@ -100,34 +94,34 @@ describe("instrumentLinkOf", () => {
 
 describe("instrumentUrlOf", () => {
   it.each([
-    ["/orchestrator/tasks/lisbon-hotel", "instrument://task/lisbon-hotel"],
-    ["/orchestrator/chats/ses_01J9", "instrument://chat/ses_01J9"],
-    ["/orchestrator/memory/no-stevia", "instrument://memory/no-stevia"],
-    ["/orchestrator/apps/linear", "instrument://app/linear"],
-    ["/orchestrator/skills/create-page", "instrument://skill/create-page"],
+    ["/tasks/lisbon-hotel", "instrument://task/lisbon-hotel"],
+    ["/chats/ses_01J9", "instrument://chat/ses_01J9"],
+    ["/memory/no-stevia", "instrument://memory/no-stevia"],
+    ["/apps/linear", "instrument://app/linear"],
+    ["/skills/create-page", "instrument://skill/create-page"],
     [
-      "/orchestrator/skills/instrument%3Acreate-page",
+      "/skills/instrument%3Acreate-page",
       "instrument://skill/instrument:create-page",
     ],
-    ["/orchestrator/ideas/timeline", "instrument://discover/timeline"],
-    ["/orchestrator/ideas", "instrument://discover"],
-    ["/orchestrator/chats/ses_01J9?tab=1", "instrument://chat/ses_01J9"],
+    ["/discover/timeline", "instrument://discover/timeline"],
+    ["/discover", "instrument://discover"],
+    ["/chats/ses_01J9?tab=1", "instrument://chat/ses_01J9"],
   ])("writes %s as %s", (href, url) => {
     expect(instrumentUrlOf(href)).toBe(url);
   });
 
   it.each([
-    ["the tasks as a whole", "/orchestrator/tasks"],
-    ["the apps as a whole", "/orchestrator/apps"],
-    ["a screen with no noun", "/orchestrator/activity"],
-    ["the new tab", "/orchestrator/home"],
-    ["a thing under a thing", "/orchestrator/tasks/lisbon-hotel/files"],
+    ["the tasks as a whole", "/tasks"],
+    ["the apps as a whole", "/apps"],
+    ["a screen with no noun", "/activity"],
+    ["the new tab", "/new-tab"],
+    ["a thing under a thing", "/tasks/lisbon-hotel/files"],
   ])("writes nothing for %s", (_case, href) => {
     expect(instrumentUrlOf(href)).toBeUndefined();
   });
 
   it("reads back what it wrote", () => {
-    const href = "/orchestrator/skills/create-page";
+    const href = "/skills/create-page";
     expect(instrumentLinkOf(instrumentUrlOf(href) ?? "")?.href).toBe(href);
   });
 });

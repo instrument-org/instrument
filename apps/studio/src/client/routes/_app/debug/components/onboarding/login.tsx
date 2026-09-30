@@ -7,11 +7,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 import { useState } from "react";
 
+import { getOnboardingScreen } from "../../-debug-routes";
 import { OnboardingWindowFrame } from "../onboarding";
 
 export const Route = createFileRoute("/_app/debug/components/onboarding/login")(
   {
     component: RouteComponent,
+    head: () => ({
+      meta: [{ title: getOnboardingScreen("login").label }],
+    }),
   },
 );
 

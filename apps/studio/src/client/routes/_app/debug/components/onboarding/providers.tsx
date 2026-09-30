@@ -3,12 +3,16 @@ import { OnboardingLayout } from "@/client/components/onboarding/layout";
 import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 
+import { getOnboardingScreen } from "../../-debug-routes";
 import { OnboardingWindowFrame } from "../onboarding";
 
 export const Route = createFileRoute(
   "/_app/debug/components/onboarding/providers",
 )({
   component: RouteComponent,
+  head: () => ({
+    meta: [{ title: getOnboardingScreen("providers").label }],
+  }),
 });
 
 function RouteComponent() {

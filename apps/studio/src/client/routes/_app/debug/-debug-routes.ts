@@ -154,6 +154,7 @@ export const debugPages: { label: string; to: string }[] = [
 
 type ComponentPageId = (typeof componentPages)[number]["id"];
 type DebugRouteId = (typeof debugRoutes)[number]["id"];
+type OnboardingScreenId = (typeof onboardingScreens)[number]["id"];
 
 export function getComponentPage(id: ComponentPageId) {
   const page = componentPages.find((item) => item.id === id);
@@ -169,4 +170,12 @@ export function getDebugRoute(id: DebugRouteId) {
     throw new Error(`Unknown debug route: ${id}`);
   }
   return route;
+}
+
+export function getOnboardingScreen(id: OnboardingScreenId) {
+  const screen = onboardingScreens.find((item) => item.id === id);
+  if (!screen) {
+    throw new Error(`Unknown onboarding screen: ${id}`);
+  }
+  return screen;
 }

@@ -3,12 +3,16 @@ import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-
 import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 
+import { getOnboardingScreen } from "../../-debug-routes";
 import { OnboardingWindowFrame } from "../onboarding";
 
 export const Route = createFileRoute(
   "/_app/debug/components/onboarding/complete",
 )({
   component: RouteComponent,
+  head: () => ({
+    meta: [{ title: getOnboardingScreen("complete").label }],
+  }),
 });
 
 function RouteComponent() {

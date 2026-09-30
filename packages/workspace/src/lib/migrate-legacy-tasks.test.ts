@@ -262,7 +262,7 @@ const ONE_ASK: { messages: FixtureMessage[] }[] = [
         metadata: { modelId: "auto", providerId: "instrument" },
         parts: [
           {
-            text: "Done! I've made it.\n\n```files\noutput/square.mp4\n```",
+            text: "Done! [Open it](output/square.mp4), or see [the docs](https://example.com).\n\n```files\noutput/square.mp4\n```",
             type: "text",
           },
           {
@@ -350,7 +350,7 @@ describe("migrateLegacyTasks", () => {
       [
         "user text: Use FFmpeg to make me a short video of a rotating red square.",
         "user data-adoptedTask: {"files":["/tasks/2026-06-23-use-ffmpeg/output/square.mp4"],"taskId":"2026-06-23-use-ffmpeg"}",
-        "assistant text: Done! I've made it.
+        "assistant text: Done! [Open it](/tasks/2026-06-23-use-ffmpeg/output/square.mp4), or see [the docs](https://example.com).
 
       \`\`\`files
       /tasks/2026-06-23-use-ffmpeg/output/square.mp4
@@ -383,6 +383,31 @@ describe("migrateLegacyTasks", () => {
     expect(seen.chatSeen[unread]).toBe(
       messageIds("2026-06-23-unread-one").at(-2),
     );
+  });
+
+  it("makes the window's record when there is none, so the marks have a home", () => {
+    fs.rmSync(path.join(root, "tasks", "instrument"), {
+      force: true,
+      recursive: true,
+    });
+    legacyTask("2026-06-23-read", { sessions: ONE_ASK });
+
+    migrateLegacyTasks(root);
+
+    const window = readJson(
+      "tasks",
+      "instrument",
+      ".instrument",
+      "settings.json",
+    );
+    expect(window).toMatchObject({ kind: "orchestrator", name: "Instrument" });
+    expect(
+      (window.state as { chatSeen: Record<string, string> }).chatSeen,
+    ).toEqual({
+      [sessionOf("2026-06-23-rotating-red-square").id as string]: messageIds(
+        "2026-06-23-rotating-red-square",
+      ).at(-1),
+    });
   });
 
   it("stars a pinned task's chat", () => {

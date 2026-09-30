@@ -4,6 +4,7 @@ import { CopyButton } from "@/client/components/copy-button";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import {
   AppInspector,
+  AppInspectorPreview,
   type InspectorReading,
 } from "@/client/components/orchestrator/app-inspector";
 import { visitsWithin } from "@/client/components/orchestrator/app-visits";
@@ -67,13 +68,20 @@ export function AppFront({
   const site = app?.site ?? (entry ? `https://${entry.domain}` : undefined);
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
-  const canBrowse =
+  // The inspector reads the app's server, which for a local app starts it on
+  // this computer, so it loads when asked rather than with the page.
+  const [isBrowsing, setIsBrowsing] = useState(false);
+  const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
+  const runsHere =
+    isBrowsable &&
+    (app.type === "mcp-local" ||
+      /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint));
   const [reading, setReading] = useState<InspectorReading>();
   const screen = {
     app: {
       name,
-      ...(reading && canBrowse
+      ...(reading && isBrowsable
         ? {
             reading: {
               args: JSON.stringify(reading.args),
@@ -173,7 +181,7 @@ export function AppFront({
       <div
         className={cn(
           "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          canBrowse ? "max-w-6xl" : "max-w-3xl",
+          isBrowsable ? "max-w-6xl" : "max-w-3xl",
         )}
       >
         {/* No way back up to Apps here: the row above says where this is. */}
@@ -232,7 +240,7 @@ export function AppFront({
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="block max-w-2xl truncate text-left text-xs leading-5 text-muted-foreground hover:text-foreground"
+                    className="block w-full max-w-2xl truncate text-left text-xs leading-5 text-muted-foreground hover:text-foreground"
                     type="button"
                   >
                     {description}
@@ -246,7 +254,7 @@ export function AppFront({
                 </PopoverContent>
               </Popover>
             ) : (
-              <p className="text-xs leading-5 text-muted-foreground">
+              <p className="truncate text-xs leading-5 text-muted-foreground">
                 {domain ?? (app ? app.endpoint : "")}
               </p>
             )}
@@ -287,7 +295,7 @@ export function AppFront({
         {/* Where you have been in the app, one row under the head: the
           quick way back in belongs to the page, not to the browser below. */}
         {visits.length > 0 ? (
-          canBrowse ? (
+          isBrowsable ? (
             <section className="mt-4 flex items-center gap-3">
               <p className="shrink-0 text-[13px] font-medium text-muted-foreground">
                 Recent pages
@@ -313,16 +321,26 @@ export function AppFront({
           )
         ) : null}
 
-        {canBrowse ? (
-          <AppInspector
-            name={name}
-            onReading={setReading}
-            runsHere={
-              app.type === "mcp-local" ||
-              /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint)
-            }
-            slug={slug}
-          />
+        {isBrowsable ? (
+          isBrowsing ? (
+            <AppInspector
+              name={name}
+              onHide={() => {
+                setIsBrowsing(false);
+                setReading(undefined);
+              }}
+              onReading={setReading}
+              runsHere={runsHere}
+              slug={slug}
+            />
+          ) : (
+            <AppInspectorPreview
+              name={name}
+              onLoad={() => {
+                setIsBrowsing(true);
+              }}
+            />
+          )
         ) : null}
 
         {/* While the app is still being set up, the one thing that

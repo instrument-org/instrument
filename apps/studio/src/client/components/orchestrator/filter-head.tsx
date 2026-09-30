@@ -8,6 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { ChatsOutlineIcon } from "@/client/components/icons/chats-outline-icon";
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
@@ -335,7 +336,10 @@ function ViewPicker({
             onClick={chats.choose}
             type="button"
           >
-            <ChatsCircleIcon className="size-7" />
+            {/* Phosphor's bubbles drawn a stroke between its light and
+              regular weights: two outlines overlapping read heavier than
+              the single shapes beside them at regular, thinner at light. */}
+            <ChatsOutlineIcon className="size-7" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Chats</TooltipContent>
@@ -395,15 +399,13 @@ function ViewPicker({
             )
           }
         >
-          <ChatsCircleIcon
-            className={cn(
-              "size-7 shrink-0",
-              // Filled in the row's green while chosen, an outline in grey
-              // while not: the same two states a place's mark takes.
-              !chats.isOn && "text-muted-foreground",
-            )}
-            weight={chats.isOn ? "fill" : "regular"}
-          />
+          {/* Filled in the row's green while chosen, the head's outline in
+            grey while not: the same two states a place's mark takes. */}
+          {chats.isOn ? (
+            <ChatsCircleIcon className="size-7 shrink-0" weight="fill" />
+          ) : (
+            <ChatsOutlineIcon className="size-7 shrink-0 text-muted-foreground" />
+          )}
           <span className="truncate">Chats</span>
         </PickerRow>
         {topics.length > 0 && <div className="mx-2 my-1 h-px bg-border" />}

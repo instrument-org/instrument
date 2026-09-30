@@ -54,7 +54,6 @@ import {
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { instrumentFolderHref } from "@/shared/computer-href";
-import { APP_NAME } from "@instrument-org/shared";
 import {
   encodeBrowserTargetId,
   StoreId,
@@ -93,7 +92,6 @@ const ROOM_MARGIN = 48;
 
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorTab,
-  head: () => ({ meta: [{ title: APP_NAME }] }),
 });
 
 /**

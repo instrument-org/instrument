@@ -1,6 +1,7 @@
 import { windowTabsAtom } from "@/client/atoms/orchestrator";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type TabId } from "@/shared/tabs";
+import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useAtomValue } from "jotai";
@@ -84,6 +85,18 @@ export function AppTabStrip({
     });
   };
 
+  const presented = tabs.map((tab) => ({
+    key: tab.id,
+    ...presentationOf(tab.pathname || CHAT_HREF),
+  }));
+  // The window is called what its tab up is, alone, as a document window is:
+  // the OS already names the app beside it in the Dock, the switcher and
+  // Mission Control.
+  const selectedTitle = presented.find((tab) => tab.key === selectedId)?.title;
+  useEffect(() => {
+    document.title = selectedTitle ?? APP_NAME;
+  }, [selectedTitle]);
+
   return (
     <>
       <TabStrip
@@ -117,10 +130,7 @@ export function AppTabStrip({
           }
         }}
         selectedKey={selectedId ?? undefined}
-        tabs={tabs.map((tab) => ({
-          key: tab.id,
-          ...presentationOf(tab.pathname || CHAT_HREF),
-        }))}
+        tabs={presented}
       />
       {menu && (
         <div

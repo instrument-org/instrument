@@ -673,7 +673,7 @@ export namespace SessionMessageDataPart {
         display: z.string(),
         /** The virtual path the agent reaches it by; absent means it cannot read it. */
         mount: z.string().optional(),
-        /** The names selected in it. */
+        /** The names selected in it, a folder's with a trailing slash. */
         selected: z.array(z.string()).default([]),
       })
       .optional(),

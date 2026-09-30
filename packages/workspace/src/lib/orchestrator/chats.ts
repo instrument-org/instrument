@@ -827,8 +827,15 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
       if (viewed.file?.mount) {
         files.push(viewed.file.mount);
       }
+      // What is selected in a folder stands for it, the way the draft's
+      // chip names the selection rather than the folder.
       if (viewed.folder?.mount) {
-        files.push(asFolder(viewed.folder.mount));
+        const { mount, selected } = viewed.folder;
+        files.push(
+          ...(selected.length > 0
+            ? selected.map((name) => `${asFolder(mount)}${name}`)
+            : [asFolder(mount)]),
+        );
       }
       for (const chosen of viewed.chosen ?? []) {
         if (chosen.mount) {

@@ -145,7 +145,7 @@ export interface FolderOnScreen {
   hostPath: string;
   /** How the agent reaches it, when a granted folder covers it. */
   mount?: string;
-  /** Names selected in it. */
+  /** Names selected in it, a folder's with a trailing slash. */
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
@@ -807,7 +807,11 @@ export function ComputerPage({
       display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
-      selected: selectedName ? [selectedName] : [],
+      // A folder's name ends in a slash, so a reader of the name alone can
+      // tell it from a file's.
+      selected: selectedName
+        ? [selectedKind === "folder" ? `${selectedName}/` : selectedName]
+        : [],
       selectedItems:
         selectedHostPath && selectedKind
           ? [{ kind: selectedKind, path: selectedHostPath }]

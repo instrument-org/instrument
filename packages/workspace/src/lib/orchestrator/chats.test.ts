@@ -730,6 +730,29 @@ describe("listChats", () => {
     });
   });
 
+  it("holds what was selected in a folder the user sent from, in place of the folder", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Recipes");
+    await userSays(taskId, sessionId, "tidy these", 1, {
+      viewing: {
+        folder: {
+          display: "~/Recipes",
+          mount: "/mnt/Home/Recipes",
+          selected: ["soup.md", "Old/"],
+        },
+        screen: "computer",
+        url: "/orchestrator/computer?path=&root=~%2FRecipes",
+      },
+    });
+
+    const [chat] = await listChats();
+
+    expect(chat?.holds.files).toEqual([
+      "/mnt/Home/Recipes/soup.md",
+      "/mnt/Home/Recipes/Old/",
+    ]);
+  });
+
   it("holds what the user sent behind what the chat made, and none of the tabs merely open", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");

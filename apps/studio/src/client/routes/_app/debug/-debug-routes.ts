@@ -179,3 +179,21 @@ export function getOnboardingScreen(id: OnboardingScreenId) {
   }
   return screen;
 }
+
+/**
+ * What a tab standing on a debug page is called, read off its path alone so
+ * every place that names a tab from its address names this one too. A page
+ * this file does not list is still "Debug", never an unnamed tab.
+ */
+export function debugPageTitle(pathname: string): string {
+  const path = pathname.replace(/\/$/, "");
+  if (path.startsWith("/debug/browser-view/")) {
+    return getDebugRoute("browserView").title;
+  }
+  const page = [
+    ...debugNavigationRoutes,
+    ...componentPages,
+    ...onboardingScreens,
+  ].find((item) => item.to === path);
+  return page?.label ?? "Debug";
+}

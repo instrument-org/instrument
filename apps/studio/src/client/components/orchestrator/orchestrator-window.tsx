@@ -40,8 +40,7 @@ import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
-import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
-import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
+import { setTabPathname } from "@/client/lib/tabs-model";
 import { captureComponentError } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -174,9 +173,7 @@ export function OrchestratorWindow() {
  * One of the window's tabs: kept mounted and live behind the one on screen,
  * hidden rather than taken down, so a tab come back to is as it was. Its
  * router's every step is written back to the tab, with the whole history,
- * so the tab comes back after a launch where it stood, and with the title and
- * icon its route declares, which name it in the bar where the window has no
- * name of its own for the screen.
+ * so the tab comes back after a launch where it stood.
  */
 function AppTabView({
   isActive,
@@ -190,16 +187,12 @@ function AppTabView({
   const setModel = useSetAtom(appTabsAtom);
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {
-      const meta = readRouterTabMeta(router);
       setModel((model) =>
-        setTabMeta(
-          setTabPathname(model, {
-            history: getRouterHistory(router),
-            id: tab.id,
-            pathname: router.state.location.href,
-          }),
-          { iconName: meta.iconName, id: tab.id, title: meta.title },
-        ),
+        setTabPathname(model, {
+          history: getRouterHistory(router),
+          id: tab.id,
+          pathname: router.state.location.href,
+        }),
       );
     });
     return () => {

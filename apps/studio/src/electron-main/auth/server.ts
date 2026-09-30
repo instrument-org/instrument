@@ -15,6 +15,10 @@ import {
 } from "@/electron-main/lib/apps";
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import {
+  CHATGPT_CALLBACK_PATH,
+  receiveChatGPTCallback,
+} from "@/electron-main/lib/chatgpt-plan";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
@@ -308,6 +312,29 @@ async function start() {
       return c.redirect(home);
     }
     return c.html(renderAuthPage({ signedInTo: name }));
+  });
+
+  // Sign in with ChatGPT lands here. The sign-in is finished before the page
+  // renders, so it says whether the plan is ready, and the window comes back
+  // to the front because the browser it ran in is the user's own.
+  app.get(CHATGPT_CALLBACK_PATH, async (c) => {
+    const finished = receiveChatGPTCallback(
+      new URL(c.req.url).searchParams,
+    );
+    if (!finished) {
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    const status = await finished.catch((error: unknown) => {
+      captureServerException(
+        new Error("ChatGPT sign-in failed", { cause: error }),
+        { scopes: ["auth"] },
+      );
+      return;
+    });
+    focusAppWindow();
+    return status?.state === "signed-in"
+      ? c.html(renderAuthPage({ signedInTo: "Your ChatGPT plan" }))
+      : c.html(renderAuthPage({ isError: true }), 400);
   });
 
   app.get("/test", (c) =>

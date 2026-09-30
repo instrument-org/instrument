@@ -18,11 +18,6 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
-  // A download a person started in a task's browser panel has ended, in their
-  // Downloads folder or not at all. The window hosting the guest says so; the
-  // agent's own downloads report through agent-browser instead. `folder` is
-  // the directory as the person should read it, home collapsed; both it and
-  // `path` are null when no folder would take the file.
   "browser.download-finished": {
     completed: boolean;
     filename: string;
@@ -66,6 +61,14 @@ interface PublisherEvents {
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;
+  // A download a person started in a task's browser panel has ended, in their
+  // Downloads folder or not at all. The window hosting the guest says so; the
+  // agent's own downloads report through agent-browser instead. `folder` is
+  // the directory as the person should read it, home collapsed; both it and
+  // `path` are null when no folder would take the file.
+  // The ChatGPT plan's sign-in state changed: signed in or out, a sign-in
+  // started or ended, or a token was refreshed.
+  "chatgpt-plan.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   // Asked of the orchestrator window by a swipe, a thumb button, a menu

@@ -171,11 +171,28 @@ function restoreHostFocus() {
   }
 }
 
-// The slot currently showing each guest. Two panels can be mounted for the same
-// target (e.g. the task open in two tabs), and both drive show/park as tabs
-// switch; only the slot that showed a guest may park it, so a backgrounded panel
-// can't park the guest the foreground one is showing (last-writer-wins otherwise).
+// The slot currently showing each guest.
 const paintOwners = new Map<BrowserTargetId, symbol>();
+
+interface SlotClaim {
+  bottomRadius: string;
+  bounds: Bounds;
+  layer: number;
+  renderedSize: null | undefined | { height: number; width: number };
+  // Order the slot first asked in, which breaks a tie between two slots on one
+  // layer in favor of the newer; re-measuring keeps a slot's place.
+  since: number;
+}
+
+// Every slot asking to show each guest, by the slot. Several can be on screen
+// for one page at once (a chat inline in the pane and grown in a window over
+// it, the task open in two tabs), and the guest can stand in only one: the
+// frontmost slot has it, the newer on a tie, and when that slot lets go it
+// passes to the next still asking. Without the record, whichever slot measured
+// last would take the page, and a slot under a window could pull it out from
+// under the window that draws it.
+const slotClaims = new Map<BrowserTargetId, Map<symbol, SlotClaim>>();
+let nextClaimOrder = 0;
 
 // Agent-requested guest sizes, kept beside the pool rather than only on the
 // pooled entry: main replays them when this stream subscribes, which can happen
@@ -360,21 +377,18 @@ export function onPageThumb(
 }
 
 /**
- * Park the guest in paint-host (laid out + painted, but not shown). No-ops if
- * another slot currently owns the guest's visibility, so a backgrounded panel
- * can't hide the guest the foreground panel is showing.
+ * Withdraw a slot's claim on the guest. The guest passes to the frontmost slot
+ * still asking for it, or parks in paint-host (laid out + painted, but not
+ * shown) when none is, so a backgrounded panel can't hide the guest another
+ * panel is showing.
  */
 export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
-  const currentOwner = paintOwners.get(targetId);
-  if (currentOwner && currentOwner !== owner) {
-    return;
+  const claims = slotClaims.get(targetId);
+  claims?.delete(owner);
+  if (claims?.size === 0) {
+    slotClaims.delete(targetId);
   }
-  paintOwners.delete(targetId);
-  const pooled = pool.get(targetId);
-  if (pooled) {
-    releaseGuestFocus(pooled);
-    applyPaintHost(pooled);
-  }
+  placeGuest(targetId);
 }
 
 /**
@@ -382,7 +396,8 @@ export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
  * fills dynamically (no letterbox). Resizing/moving a painted guest keeps it
  * alive, so this can fire freely on every resize. No-ops if the guest doesn't
  * exist (the main process owns creation via the desired-targets stream).
- * Claims visibility ownership for `owner` so only this slot can later park it.
+ * Records `owner`'s claim on the guest, which holds until setPaintHost
+ * withdraws it; the guest stands in whichever claiming slot is frontmost.
  *
  * `renderedSize`, when given, shrinks and centers the webview element within
  * `bounds` to that size instead of filling it -- purely a visual/compositing
@@ -409,62 +424,19 @@ export function showOverSlot(
   // one length for both, or two, the bottom left's and then the bottom right's.
   bottomRadius = VISIBLE_BOTTOM_RADIUS,
 ) {
-  const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
-    .trim()
-    .split(/\s+/);
-  const corners = `0 0 ${bottomRight} ${bottomLeft}`;
-  const pooled = pool.get(targetId);
-  if (!pooled) {
+  if (!pool.has(targetId)) {
     return;
   }
-  paintOwners.set(targetId, owner);
-  pooled.lastVisibleBounds = bounds;
-  reportEffectiveSurface(pooled, {
-    height: bounds.height,
-    width: bounds.width,
+  const claims = slotClaims.get(targetId) ?? new Map<symbol, SlotClaim>();
+  slotClaims.set(targetId, claims);
+  claims.set(owner, {
+    bottomRadius,
+    bounds,
+    layer,
+    renderedSize,
+    since: claims.get(owner)?.since ?? nextClaimOrder++,
   });
-  const { container, webview } = pooled;
-
-  Object.assign(container.style, {
-    borderRadius: corners,
-    contain: "layout paint size style",
-    height: `${bounds.height}px`,
-    left: `${bounds.x}px`,
-    opacity: "1",
-    overflow: "hidden",
-    pointerEvents: "auto",
-    position: "fixed",
-    top: `${bounds.y}px`,
-    transform: "",
-    visibility: "visible",
-    width: `${bounds.width}px`,
-    willChange: "",
-    zIndex: String(layer),
-  } satisfies Partial<CSSStyleDeclaration>);
-
-  if (renderedSize) {
-    Object.assign(webview.style, {
-      borderRadius: "",
-      height: `${renderedSize.height}px`,
-      left: `${(bounds.width - renderedSize.width) / 2}px`,
-      position: "absolute",
-      top: `${(bounds.height - renderedSize.height) / 2}px`,
-      transform: "",
-      transformOrigin: "",
-      width: `${renderedSize.width}px`,
-    } satisfies Partial<CSSStyleDeclaration>);
-  } else {
-    Object.assign(webview.style, {
-      borderRadius: corners,
-      height: `${bounds.height}px`,
-      left: "",
-      position: "",
-      top: "",
-      transform: "",
-      transformOrigin: "",
-      width: `${bounds.width}px`,
-    } satisfies Partial<CSSStyleDeclaration>);
-  }
+  placeGuest(targetId);
 }
 
 /** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
@@ -549,6 +521,7 @@ function disposeWebview(targetId: BrowserTargetId) {
   pooled.container.remove();
   pool.delete(targetId);
   paintOwners.delete(targetId);
+  slotClaims.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -654,6 +627,84 @@ function onWindowResize() {
     if (!paintOwners.has(targetId)) {
       applyPaintHost(pooled);
     }
+  }
+}
+
+/** Puts the guest in the frontmost slot asking for it, or parks it when none is. */
+function placeGuest(targetId: BrowserTargetId) {
+  const pooled = pool.get(targetId);
+  if (!pooled) {
+    return;
+  }
+  let winner: [symbol, SlotClaim] | undefined;
+  for (const entry of slotClaims.get(targetId) ?? []) {
+    const [, claim] = entry;
+    if (
+      !winner ||
+      claim.layer > winner[1].layer ||
+      (claim.layer === winner[1].layer && claim.since > winner[1].since)
+    ) {
+      winner = entry;
+    }
+  }
+  if (!winner) {
+    paintOwners.delete(targetId);
+    releaseGuestFocus(pooled);
+    applyPaintHost(pooled);
+    return;
+  }
+  const [owner, { bottomRadius, bounds, layer, renderedSize }] = winner;
+  const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
+    .trim()
+    .split(/\s+/);
+  const corners = `0 0 ${bottomRight} ${bottomLeft}`;
+  paintOwners.set(targetId, owner);
+  pooled.lastVisibleBounds = bounds;
+  reportEffectiveSurface(pooled, {
+    height: bounds.height,
+    width: bounds.width,
+  });
+  const { container, webview } = pooled;
+
+  Object.assign(container.style, {
+    borderRadius: corners,
+    contain: "layout paint size style",
+    height: `${bounds.height}px`,
+    left: `${bounds.x}px`,
+    opacity: "1",
+    overflow: "hidden",
+    pointerEvents: "auto",
+    position: "fixed",
+    top: `${bounds.y}px`,
+    transform: "",
+    visibility: "visible",
+    width: `${bounds.width}px`,
+    willChange: "",
+    zIndex: String(layer),
+  } satisfies Partial<CSSStyleDeclaration>);
+
+  if (renderedSize) {
+    Object.assign(webview.style, {
+      borderRadius: "",
+      height: `${renderedSize.height}px`,
+      left: `${(bounds.width - renderedSize.width) / 2}px`,
+      position: "absolute",
+      top: `${(bounds.height - renderedSize.height) / 2}px`,
+      transform: "",
+      transformOrigin: "",
+      width: `${renderedSize.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
+  } else {
+    Object.assign(webview.style, {
+      borderRadius: corners,
+      height: `${bounds.height}px`,
+      left: "",
+      position: "",
+      top: "",
+      transform: "",
+      transformOrigin: "",
+      width: `${bounds.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
   }
 }
 

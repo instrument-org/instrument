@@ -94,6 +94,16 @@ export function createWorkspaceActor({
         `Gave ${migration.chats.chatCount} chat(s) folders of their own, moved ${migration.chats.movedTaskCount} task(s) into them, and wrote ${migration.chats.topicCount} topic(s) as files`,
       );
     }
+    if (migration.legacyTasks.adoptedCount > 0) {
+      logger.info(
+        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.topicCount} topic(s) from projects`,
+      );
+    }
+    if (migration.legacyTasks.leftOver > 0) {
+      logger.warn(
+        `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
+      );
+    }
     if (migration.removedBrowserProfileCloneCount > 0) {
       logger.info(
         `Deleted ${migration.removedBrowserProfileCloneCount} leftover browser profile clone(s)`,

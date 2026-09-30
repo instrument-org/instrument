@@ -1,9 +1,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateWorkspaceLayout } from "./migrate-workspace-layout";
+
+// The tasks here are 1.x-shaped on purpose, which is what the adoption into
+// chats looks for; it has tests of its own, and would move them out from under
+// the normalization these check.
+vi.mock("./migrate-legacy-tasks", () => ({
+  migrateLegacyTasks: () => ({
+    adoptedCount: 0,
+    emptyCount: 0,
+    leftOver: 0,
+    topicCount: 0,
+  }),
+}));
 
 let rootDir: string;
 
@@ -67,6 +79,12 @@ describe("migrateWorkspaceLayout", () => {
       chats: { chatCount: 0, leftOver: 0, movedTaskCount: 0, topicCount: 0 },
       conflictedTaskIds: [],
       convertedTopicCount: 0,
+      legacyTasks: {
+        adoptedCount: 0,
+        emptyCount: 0,
+        leftOver: 0,
+        topicCount: 0,
+      },
       movedTaskCount: 0,
       removedBrowserProfileCloneCount: 0,
     });

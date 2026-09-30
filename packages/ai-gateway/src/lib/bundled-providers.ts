@@ -48,6 +48,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createCerebras",
     package: "@ai-sdk/cerebras",
   },
+  chatgpt: {
+    envVars: {
+      apiKey: "CHATGPT_ACCESS_TOKEN",
+      baseURL: "CHATGPT_BASE_URL",
+    },
+    exportName: "createOpenAI",
+    package: "@ai-sdk/openai",
+  },
   deepinfra: {
     envVars: {
       apiKey: "DEEPINFRA_API_KEY",

@@ -768,22 +768,28 @@ describe("listChats", () => {
       "Priced.\n\n```files\n/mnt/Instrument/groceries/prices.csv\n```",
       { commands: ["tab open https://www.costco.com/"], minute: 2 },
     );
-    await userSays(taskId, sessionId, "and this one", 3, {
-      viewing: {
-        file: {
-          mount: "/mnt/Instrument/groceries/prices.csv",
-          name: "prices.csv",
-          path: "/Users/someone/Documents/Instrument/groceries/prices.csv",
+    await userSays(
+      taskId,
+      sessionId,
+      "and this one, then file it in [Linear](instrument://app/linear)",
+      3,
+      {
+        viewing: {
+          file: {
+            mount: "/mnt/Instrument/groceries/prices.csv",
+            name: "prices.csv",
+            path: "/Users/someone/Documents/Instrument/groceries/prices.csv",
+          },
+          screen: "file",
+          url: "file:///Users/someone/Documents/Instrument/groceries/prices.csv",
         },
-        screen: "file",
-        url: "file:///Users/someone/Documents/Instrument/groceries/prices.csv",
       },
-    });
+    );
 
     const [chat] = await listChats();
 
     expect(chat?.holds).toEqual({
-      apps: [],
+      apps: ["linear"],
       files: [
         "/mnt/Home/Recipes/",
         "attachments/receipt.png",

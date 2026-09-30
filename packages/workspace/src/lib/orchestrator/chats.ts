@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -388,6 +389,18 @@ function appSlugsIn(command: string): string[] {
   return [
     ...command.matchAll(
       /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
+    ),
+  ].flatMap((match) => (match[1] ? [match[1]] : []));
+}
+
+/**
+ * The app slugs a message's words name: the composer writes an app picked
+ * from its menu as a link into the app, `[Notion](instrument://app/notion)`.
+ */
+function appsMentionedIn(text: string): string[] {
+  return [
+    ...text.matchAll(
+      new RegExp(`\\]\\(${APP_NAME_SLUG}://app/([\\w.:-]+)\\)`, "g"),
     ),
   ].flatMap((match) => (match[1] ? [match[1]] : []));
 }
@@ -783,8 +796,8 @@ async function saveMark(
 
 /**
  * What the user sent with their messages: the page, file, folder, or app
- * that went with each as the thing in view, what they picked by name, and
- * what they dropped in. The rest of the window's tabs go with a message too,
+ * that went with each as the thing in view, what they picked by name, what
+ * they dropped in, and the apps they named in their words. The rest of the window's tabs go with a message too,
  * for the agent to name, but only as a list, and a tab someone opened and
  * left is nothing they sent. Files and folders are by the path the chat
  * reaches them through, so one outside its folders is left out.
@@ -798,6 +811,9 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
       continue;
     }
     for (const part of message.parts) {
+      if (part.type === "text") {
+        apps.push(...appsMentionedIn(part.text));
+      }
       if (part.type === "data-attachments") {
         files.push(...part.data.files.map((file) => file.filePath));
       }

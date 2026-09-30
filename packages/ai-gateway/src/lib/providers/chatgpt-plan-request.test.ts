@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   collapseResponsesStream,
   rewriteChatGPTPlanResponsesBody,
+  withoutRetryOnSpentLimit,
 } from "./chatgpt-plan-request";
 
 describe("rewriteChatGPTPlanResponsesBody", () => {
@@ -98,5 +99,18 @@ describe("collapseResponsesStream", () => {
     })}\n\n`;
     const response = await collapseResponsesStream(new Response(stream));
     expect(response.status).toBe(429);
+  });
+});
+
+describe("withoutRetryOnSpentLimit", () => {
+  it.each([
+    ["subscription_sharing_usage_limit_exceeded", 403],
+    ["rate_limit_exceeded", 429],
+  ])("answers a 429 carrying %s with %i", async (code, status) => {
+    const body = JSON.stringify({ error: { code } });
+    const answered = await withoutRetryOnSpentLimit(
+      new Response(body, { status: 429 }),
+    );
+    expect([answered.status, await answered.text()]).toEqual([status, body]);
   });
 });

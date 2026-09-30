@@ -106,6 +106,27 @@ export function rewriteChatGPTPlanResponsesBody(
   return { body: next, streamed };
 }
 
+/**
+ * A spent plan allowance refused before the stream opens comes back as a
+ * 429, which the SDK retries on its own. Waiting does not end it, so it is
+ * passed on as the refusal it is, body untouched: the code in it is what
+ * the error is classified by.
+ */
+export async function withoutRetryOnSpentLimit(
+  upstream: Response,
+): Promise<Response> {
+  if (upstream.status !== 429) {
+    return upstream;
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    headers: upstream.headers,
+    status: text.includes("subscription_sharing_usage_limit_exceeded")
+      ? 403
+      : 429,
+  });
+}
+
 function isSystemMessage(
   item: unknown,
 ): item is Record<string, unknown> & { role: "system" } {

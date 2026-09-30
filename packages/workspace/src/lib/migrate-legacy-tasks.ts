@@ -45,6 +45,15 @@ const EMPTY_TASKS_DIR_NAME = "empty-tasks";
 // The model the tutorial's replay ran on, which marks a task as the tutorial.
 const TUTORIAL_MODEL = "tutorial-task-replay";
 
+// The app window's record, as `ensureOrchestrator` names and titles it.
+const WINDOW_RECORD_NAME = "instrument";
+const WINDOW_RECORD_TITLE = "Instrument";
+
+// A Markdown link or image whose target is a path relative to the task, which
+// in a chat has to name the task's folder: not a URL, an anchor, or a path
+// from the root.
+const RELATIVE_LINK = /(\]\(\s*<?)(?![a-z][\w+.-]*:|[/#?])([^)\s>]+)/gi;
+
 const TOPIC_FILE_NAME = "topic.md";
 const TOPIC_ID_PREFIX = "top_";
 
@@ -591,20 +600,50 @@ function markSeen(
   if (seen.size === 0) {
     return;
   }
-  for (const name of readDirs(tasksDir)) {
+  const windows = readDirs(tasksDir).filter((name) => {
+    const settings = readJson(
+      path.join(
+        tasksDir,
+        name,
+        TASK_PRIVATE_FOLDER_NAME,
+        TASK_SETTINGS_FILE_NAME,
+      ),
+    );
+    return (
+      settings?.kind === "orchestrator" && settings.chatSessionId === undefined
+    );
+  });
+  // A 1.x user who never opened the app window has no record for it yet, and
+  // the marks would have nowhere to go. It is made the way the app would first
+  // make it, and the app takes it as the window's.
+  if (
+    windows.length === 0 &&
+    !present(path.join(tasksDir, WINDOW_RECORD_NAME))
+  ) {
+    const windowPrivateDir = path.join(
+      tasksDir,
+      WINDOW_RECORD_NAME,
+      TASK_PRIVATE_FOLDER_NAME,
+    );
+    fs.mkdirSync(windowPrivateDir, { recursive: true });
+    writeJsonFileSync(
+      path.join(windowPrivateDir, TASK_SETTINGS_FILE_NAME),
+      {
+        createdAt: new Date().toISOString(),
+        kind: "orchestrator",
+        name: WINDOW_RECORD_TITLE,
+      },
+    );
+    windows.push(WINDOW_RECORD_NAME);
+  }
+  for (const name of windows) {
     const settingsPath = path.join(
       tasksDir,
       name,
       TASK_PRIVATE_FOLDER_NAME,
       TASK_SETTINGS_FILE_NAME,
     );
-    const settings = readJson(settingsPath);
-    if (
-      settings?.kind !== "orchestrator" ||
-      settings.chatSessionId !== undefined
-    ) {
-      continue;
-    }
+    const settings = readJson(settingsPath) ?? {};
     const state = isRecord(settings.state) ? settings.state : {};
     const marks = new Map<string, unknown>(
       Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
@@ -1070,7 +1109,11 @@ function writeChatRows({
       state: "done",
       text:
         message.role === "assistant"
-          ? translateTaskFolderPaths(part.text, taskId)
+          ? translateTaskFolderPaths(part.text, taskId).replaceAll(
+              RELATIVE_LINK,
+              (_match, open: string, target: string) =>
+                `${open}${MOUNT.tasks}/${taskId}/${target.replace(/^\.\//, "")}`,
+            )
           : part.text,
       type: "text",
     }));

@@ -35,6 +35,9 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   "anthropic",
   "x-ai",
   "vercel",
+  // Last, so a search from a chat on another provider spends the user's
+  // plan only when nothing else can search.
+  "chatgpt",
 ];
 
 export interface AISDKWebSearchModelResult {
@@ -74,6 +77,18 @@ export async function getAISDKWebSearchModel({
           : sdk("claude-sonnet-5"),
         tools: {
           web_search: sdk.tools.webSearch_20250305({ maxUses: 2 }),
+        },
+      };
+      break;
+    }
+    case "chatgpt": {
+      const sdk = await createOpenAISDK(config, workspaceServerURL);
+      result = {
+        model: isCallingModelSameProvider
+          ? sdk(callingModel.providerId)
+          : sdk("gpt-5.6-luna"),
+        tools: {
+          web_search: sdk.tools.webSearch(),
         },
       };
       break;

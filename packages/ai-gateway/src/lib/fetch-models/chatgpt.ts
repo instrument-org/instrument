@@ -20,8 +20,13 @@ import { fetchOpenAIModels } from "./openai";
 const ChatGPTPlanModelsSchema = z.object({
   models: z.array(
     z.object({
+      context_window: z.number().int().positive().optional(),
+      default_reasoning_level: z.string().optional(),
       display_name: z.string().optional(),
       slug: z.string(),
+      supported_reasoning_levels: z
+        .array(z.object({ effort: z.string() }))
+        .optional(),
       visibility: z.string().optional(),
     }),
   ),
@@ -59,6 +64,7 @@ export function fetchAndParseChatGPTPlanModels(
           {
             author,
             canonicalId,
+            contextLength: model.context_window,
             features: getModelFeatures(canonicalId),
             name: model.display_name
               ? spaceBeforeFamily(model.display_name)
@@ -66,6 +72,19 @@ export function fetchAndParseChatGPTPlanModels(
             params,
             providerId,
             providerName: config.displayName ?? metadata.name,
+            // The plan's own levels, so the effort picker offers what the
+            // plan accepts. Every model it lists reasons, and cannot be told
+            // not to.
+            reasoning: model.supported_reasoning_levels?.length
+              ? {
+                  defaultEffort: model.default_reasoning_level,
+                  efforts: model.supported_reasoning_levels.map(
+                    (level) => level.effort,
+                  ),
+                  enabledByDefault: true,
+                  mandatory: true,
+                }
+              : undefined,
             tags: [],
             uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),
           },

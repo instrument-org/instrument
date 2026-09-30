@@ -97,6 +97,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
   "data-chatTopics": "dev",
+  // Which earlier version's task a chat was made from. Context for the
+  // model; the user sees the conversation it carried on.
+  "data-adoptedTask": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -142,6 +145,16 @@ export function renderDataPart({
   const noteClassName = compact ? "mt-1" : "mt-2";
 
   switch (part.type) {
+    case "data-adoptedTask": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={`Made from task ${part.data.taskId}`}
+        />
+      );
+    }
     case "data-appEvent": {
       if (ctx.presentation === "chat") {
         return null;

@@ -104,21 +104,46 @@ export function spaceBeforeFamily(label: string): string {
 }
 
 /**
- * The plan's everyday tier, most preferred first. Terra is left out: it costs
- * more than Sol and is not the line to point a new user at.
+ * The plan's tiers a sign-in defaults to, most preferred first. Terra is left
+ * out: it costs more than Sol and is not the line to point a new user at.
  */
 const DEFAULT_TIERS = ["sol", "luna"];
 
 /**
- * The model a ChatGPT sign-in makes the default: the newest release of the
- * most preferred tier the account lists, so a plan that gains `gpt-6-sol`
- * gets it over `gpt-5.6-sol` without a change here. The first model listed
- * when none of the tiers is.
+ * The tiers a web search runs on: the lightest first, since a search is a
+ * lookup and the plan's hosted search is slow at any depth.
+ */
+const SEARCH_TIERS = ["luna", "sol", "terra"];
+
+/**
+ * The model a ChatGPT sign-in makes the default: the newest Sol the account
+ * lists, then Luna, then the first model it lists at all.
  */
 export function chatGPTPlanDefaultModel<Model extends { canonicalId: string }>(
   models: Model[],
 ): Model | undefined {
-  for (const tier of DEFAULT_TIERS) {
+  return newestOfTiers(models, DEFAULT_TIERS) ?? models[0];
+}
+
+/**
+ * The model a web search on the plan runs: the newest Luna the account
+ * lists, then Sol, then Terra. Undefined when it lists none of them.
+ */
+export function chatGPTPlanSearchModel<Model extends { canonicalId: string }>(
+  models: Model[],
+): Model | undefined {
+  return newestOfTiers(models, SEARCH_TIERS);
+}
+
+/**
+ * The newest release of the most preferred tier the list has, so a plan that
+ * gains `gpt-6-luna` gets it over `gpt-5.6-luna` without a change here.
+ */
+function newestOfTiers<Model extends { canonicalId: string }>(
+  models: Model[],
+  tiers: string[],
+): Model | undefined {
+  for (const tier of tiers) {
     let newest: Model | undefined;
     let newestRelease: ReturnType<typeof readModelRelease>;
     for (const model of models) {
@@ -138,5 +163,5 @@ export function chatGPTPlanDefaultModel<Model extends { canonicalId: string }>(
       return newest;
     }
   }
-  return models[0];
+  return undefined;
 }

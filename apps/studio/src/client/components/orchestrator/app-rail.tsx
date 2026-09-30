@@ -1,5 +1,6 @@
 import { type AppPlace } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { FinderIcon } from "@/client/components/icons/finder-icon";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   Avatar,
@@ -9,23 +10,20 @@ import {
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
-import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
-import { useQuery } from "@tanstack/react-query";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ReactNode } from "react";
-
-import { AppIcon } from "./app-icon";
 
 /**
  * The places, in the order the rail draws them, each drawn filled while it
- * is the place stood in; Apps draws its own mark from the apps the
- * workspace reaches.
+ * is the place stood in.
  */
 const PLACES: {
   icon: (isOn: boolean) => ReactNode;
@@ -34,48 +32,44 @@ const PLACES: {
 }[] = [
   {
     icon: (isOn) => (
-      <ChatCircleIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <ChatCircleIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "chat",
     label: "Chat",
   },
   {
-    icon: (isOn) => (
-      <FileTextIcon className="size-7" weight={isOn ? "fill" : "regular"} />
-    ),
+    // The Finder's face on the Mac, where the place is the Finder's own
+    // ground; a folder everywhere else.
+    icon: (isOn) =>
+      isMacOS() ? (
+        <FinderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      ) : (
+        <FolderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      ),
     id: "files",
     label: "Files",
   },
   {
     icon: (isOn) => (
-      <GlobeIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <GlobeIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "browser",
     label: "Browser",
   },
-  { icon: () => <AppFan />, id: "apps", label: "Apps" },
   {
     icon: (isOn) => (
-      <MapTrifoldIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <ShapesIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+    ),
+    id: "apps",
+    label: "Apps",
+  },
+  {
+    icon: (isOn) => (
+      <MapTrifoldIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "discover",
     label: "Discover",
   },
-];
-
-/** How many of the workspace's apps the Apps mark fans out. */
-const FAN_SHOWN = 3;
-
-/**
- * What the Apps mark fans out before the workspace reaches any app: three
- * services most people know, so the mark hints at what the place holds.
- * The first takes the front of the fan, so Notion stands in the middle
- * between Slack and Linear.
- */
-const SAMPLE_APPS = [
-  { name: "Notion", site: "https://notion.so", slug: "notion" },
-  { name: "Slack", site: "https://slack.com", slug: "slack" },
-  { name: "Linear", site: "https://linear.app", slug: "linear" },
 ];
 
 /**
@@ -110,7 +104,7 @@ export function AppRail({
         word under it is the label and the tile needs none of its own. */}
       <ToolbarTooltip chord="newChat" label="New">
         <button
-          className="group flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5"
+          className="group flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5"
           onClick={onNew}
           type="button"
         >
@@ -146,6 +140,10 @@ export function AppRail({
 /** The middle button, which asks for a tab of its own. */
 const MIDDLE_BUTTON = 1;
 
+function openGeneralSettings() {
+  openSettings({ tab: "General" });
+}
+
 /**
  * One entry of the rail: its mark in a slot of one height, and its word
  * close under it, the two together in a well that fills while it is the
@@ -170,7 +168,7 @@ function RailEntry({
     <button
       aria-current={isOn ? "page" : undefined}
       className={cn(
-        "flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5",
+        "flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5",
         isOn
           ? "bg-foreground/8 text-brand-600 dark:text-brand-400"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -207,72 +205,12 @@ function RailEntry({
       }}
       type="button"
     >
-      <span className="grid h-7 place-items-center">{children}</span>
+      <span className="grid h-6 place-items-center">{children}</span>
       <span className={cn("text-[11px] leading-4", isOn && "font-medium")}>
         {label}
       </span>
     </button>
   );
-}
-
-/** The front card of the fan: upright, in the middle, over the rest. */
-const FRONT_CARD = "top-0 left-1/2 z-10 -translate-x-1/2";
-
-/** The cards leaning out behind the front one, a little lower and turned out to each side. */
-const LEFT_CARD = "top-0.5 left-0 -rotate-12";
-const RIGHT_CARD = "top-0.5 right-0 rotate-12";
-
-/** Where each card of the fan stands, by how many there are, in the order the apps come: the first app takes the front. */
-const FAN_CARDS: Record<number, string[]> = {
-  1: [FRONT_CARD],
-  2: [FRONT_CARD, RIGHT_CARD],
-  3: [FRONT_CARD, LEFT_CARD, RIGHT_CARD],
-};
-
-/**
- * The Apps mark: the workspace's own apps, each on a small white card, fanned
- * out like a hand of cards with the front one upright. Connected apps go in
- * front of ones still being set up, since theirs are the icons worth
- * showing. With no apps yet, the sample hand, so the mark says what the
- * place is for rather than that it is empty.
- */
-function AppFan() {
-  const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const apps = list.data?.apps ?? [];
-  const own = [
-    ...apps.filter((app) => app.standing === "connected"),
-    ...apps.filter((app) => app.standing !== "connected"),
-  ].slice(0, FAN_SHOWN);
-  const shown = own.length === 0 ? SAMPLE_APPS : own;
-  const cards = FAN_CARDS[shown.length] ?? [];
-  return (
-    <span aria-hidden className="relative block h-7 w-11">
-      {shown.map((app, index) => (
-        <span
-          className={cn(
-            // An opaque edge, and the shadow ramp without its own hairline:
-            // the cards overlap, and a see-through edge lying over the card
-            // behind it composites into a brighter line exactly where they
-            // cross. Opaque, a card in front simply covers the one behind.
-            "absolute grid size-6 place-items-center rounded-md bg-card p-1 shadow-sm-soft ring-1 ring-gray-200 dark:ring-gray-600",
-            cards[index],
-          )}
-          key={app.slug}
-        >
-          <AppIcon
-            className="size-full bg-transparent p-0 shadow-none ring-0"
-            name={app.name}
-            site={app.site}
-            size="sm"
-          />
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function openGeneralSettings() {
-  openSettings({ tab: "General" });
 }
 
 /**
@@ -288,11 +226,14 @@ function RailUser() {
     return (
       <ToolbarTooltip label="Settings">
         <button
-          className="rounded-[10px] hover:opacity-85"
+          // The same well the signed-out Settings entry stands in, so the
+          // foot holds the rail's 8px gutter either way, with the picture
+          // centered in it: 16px from either side and from the bottom.
+          className="grid w-15 place-items-center rounded-xl p-2 hover:bg-foreground/5"
           onClick={openGeneralSettings}
           type="button"
         >
-          <Avatar className="size-9">
+          <Avatar className="size-11 rounded-xl">
             <AvatarImage alt="" src={user.image ?? undefined} />
             <AvatarFallback className="text-xs">
               {getInitials(user.name)}
@@ -304,12 +245,12 @@ function RailUser() {
   }
   return (
     <button
-      className="flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+      className="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
       onClick={openGeneralSettings}
       type="button"
     >
-      <span className="grid h-7 place-items-center">
-        <FadersHorizontalIcon className="size-7" />
+      <span className="grid h-6 place-items-center">
+        <FadersHorizontalIcon className="size-6" />
       </span>
       <span className="text-[11px] leading-4">Settings</span>
     </button>

@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
+import { useChatGPTPlanSignedOut } from "@/client/hooks/use-chatgpt-plan-signed-out";
 import {
   getGroupedModelsEntries,
   groupAndFilterModels,
@@ -215,6 +216,7 @@ export function ModelPicker({
   // A selection outlives the list it came from, so a model the list no longer
   // resolves still gets named and flagged rather than silently reading as an
   // empty picker.
+  const chatGPTSignedOut = useChatGPTPlanSignedOut();
   const unresolvedName =
     !selectedModel && modelURI ? modelNameFromURI(modelURI) : null;
   const isUnavailable = isInvalidOurModel || !!unresolvedName;
@@ -222,6 +224,7 @@ export function ModelPicker({
   // A restriction carries its own explanation; anything else unavailable is a
   // model no connected provider serves.
   const needsChatGPTSignIn =
+    chatGPTSignedOut &&
     !!unresolvedName &&
     !!modelURI &&
     providerTypeFromURI(modelURI) === "chatgpt";

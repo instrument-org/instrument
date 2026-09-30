@@ -18,6 +18,7 @@ import {
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { useChatGPTPlanSignedOut } from "@/client/hooks/use-chatgpt-plan-signed-out";
 import {
   type DroppedFolder,
   useFileDropRegion,
@@ -220,12 +221,14 @@ interface PromptInputProps {
  * problem, and a chip that flashed on every mount would be noise.
  */
 function describeModelProblem({
+  chatGPTSignedOut,
   models,
   modelsIsError,
   modelsIsLoading,
   modelURI,
   selectedModel,
 }: {
+  chatGPTSignedOut: boolean;
   models?: AIGatewayModel.Type[];
   modelsIsError: boolean;
   modelsIsLoading: boolean;
@@ -250,9 +253,11 @@ function describeModelProblem({
   // picked it, and "choose a model" would read as though they never had.
   if (modelURI) {
     const name = modelNameFromURI(modelURI) ?? modelURI;
-    return providerTypeFromURI(modelURI) === "chatgpt"
-      ? `${name} needs ChatGPT sign-in`
-      : `${name} is unavailable`;
+    if (providerTypeFromURI(modelURI) !== "chatgpt") {
+      return `${name} is unavailable`;
+    }
+    // Signed in, the plan's catalog is on its way back; nothing to fix.
+    return chatGPTSignedOut ? `${name} needs ChatGPT sign-in` : null;
   }
   return models?.length ? "Choose a model" : "No models available";
 }
@@ -356,6 +361,7 @@ export const PromptInput = ({
     slug: app.slug,
   }));
 
+  const chatGPTSignedOut = useChatGPTPlanSignedOut();
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
@@ -751,6 +757,7 @@ export const PromptInput = ({
   const modelProblem =
     variant === "pill"
       ? describeModelProblem({
+          chatGPTSignedOut,
           models,
           modelsIsError,
           modelsIsLoading,
@@ -761,6 +768,12 @@ export const PromptInput = ({
 
   const validateSubmission = () => {
     if (isUnavailableModel && providerTypeFromURI(modelURI) === "chatgpt") {
+      if (!chatGPTSignedOut) {
+        // Still signed in: the catalog is reloading, and the send can wait
+        // for it rather than being told to sign in.
+        toast.info("Your ChatGPT plan's models are still loading");
+        return false;
+      }
       toast.error(
         `${modelNameFromURI(modelURI) ?? "This model"} needs ChatGPT sign-in`,
         {

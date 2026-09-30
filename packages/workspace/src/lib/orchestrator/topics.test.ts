@@ -144,8 +144,16 @@ describe("topic folders", () => {
   });
 
   it.each([
-    ["a name another topic has", "home", "There is already a topic called “Home”"],
-    ["a character no folder can hold", "Deals: big", "Topic name can't contain any of: < > : \" / \\ | ? *"],
+    [
+      "a name another topic has",
+      "home",
+      "There is already a topic called “Home”",
+    ],
+    [
+      "a character no folder can hold",
+      "Deals: big",
+      "Topic name can't contain any of: < > : \" / \\ | ? *",
+    ],
     ["a leading period", ".hidden", "Topic name can't start with a period"],
   ])("refuses %s", async (_case, name, message) => {
     await createTopic({ name: "Home" });
@@ -228,15 +236,23 @@ describe("convertTopicFiles", () => {
     `);
     expect(convertTopicFiles(root)).toBe(0);
   });
+
+  it("removes an old folder whose topic a stopped boot already moved, rather than copying it again", async () => {
+    const root = getWorkspaceConfig().rootDir;
+    await writeLegacy("top_01", `---\nname: "Trips"\n---\n`);
+    convertTopicFiles(root);
+    await writeLegacy("top_01", `---\nname: "Trips"\n---\n`);
+
+    expect(convertTopicFiles(root)).toBe(0);
+    expect(tree(topicsDir())).toEqual(["Trips/.instrument/settings.json"]);
+  });
 });
 
 function tree(dir: string): string[] {
   return fsSync
     .readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) =>
-      path.relative(dir, path.join(entry.parentPath, entry.name)),
-    )
+    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .sort();
 }
 

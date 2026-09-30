@@ -709,6 +709,17 @@ describe("migrateLegacyTasks", () => {
     `);
   });
 
+  it("keeps a file the user left beside the projects, and the folder holding it", () => {
+    writeProject("Shopping", { id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1" });
+    fs.writeFileSync(path.join(root, "projects", "notes.txt"), "mine");
+
+    migrateLegacyTasks(root);
+
+    expect(
+      fs.readFileSync(path.join(root, "projects", "notes.txt"), "utf8"),
+    ).toBe("mine");
+  });
+
   it("sets aside a task the user never said anything in, and the tutorial", () => {
     legacyTask("2026-06-23-empty", { sessions: [] });
     legacyTask("2026-06-23-tutorial", {

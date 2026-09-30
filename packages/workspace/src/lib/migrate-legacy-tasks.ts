@@ -246,8 +246,10 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
       migration.leftOver += 1;
     }
   }
-  if (fs.existsSync(projectsDir) && readDirs(projectsDir).length === 0) {
-    fs.rmSync(projectsDir, { force: true, recursive: true });
+  // Only an empty folder goes: a file the user left beside the projects is
+  // theirs, and keeps the folder where it was.
+  if (fs.existsSync(projectsDir) && fs.readdirSync(projectsDir).length === 0) {
+    fs.rmdirSync(projectsDir);
   }
 
   forgetRecordFolders();
@@ -1024,6 +1026,7 @@ function topicForProject(
       ? topics.findIndex(
           (topic) =>
             topic.projectId === undefined &&
+            !topic.retired &&
             nameKey(topic.name) === nameKey(project.name),
         )
       : own;

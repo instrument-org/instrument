@@ -105,6 +105,12 @@ export function convertTopicFiles(rootDir: string): number {
       if (!topic) {
         continue;
       }
+      // Moved already, by a boot that stopped before it removed the old
+      // folder: the new one stands, and a second copy would share its id.
+      if (readTopicsSync(rootDir).some((entry) => entry.id === topic.id)) {
+        fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
+        continue;
+      }
       // Its own id-named folder is not yet a topic, so not a name taken.
       const taken = [
         ...readTopicsSync(rootDir).map((entry) => entry.name),

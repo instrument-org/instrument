@@ -464,6 +464,8 @@ describe("migrateLegacyTasks", () => {
         attachedFolders: Record<string, { path: string; source: string }>;
       }
     ).attachedFolders;
+    // The chat's own name for the home folder, whatever this machine calls it.
+    const home = Object.keys(folders)[0] ?? "";
     expect(
       Object.fromEntries(
         Object.entries(folders).map(([mount, folder]) => [
@@ -472,10 +474,9 @@ describe("migrateLegacyTasks", () => {
         ]),
       ),
     ).toEqual({
-      "/Users/someone": `${Object.keys(folders)[0]} (user)`,
+      "/Users/someone": `${home} (user)`,
       "/Users/someone/Documents/bikes": "My bikes (user)",
     });
-    const home = Object.keys(folders)[0];
     expect(conversationIn(chat).at(-1)).toBe(
       `assistant text: Saved.\n\n\`\`\`files\n/mnt/My bikes/bike.png\n/mnt/${home}/notes.md\n\`\`\``,
     );

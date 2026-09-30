@@ -1,3 +1,6 @@
+// Before this module's stored atoms read their values, whatever chunk the
+// bundler puts either in.
+import "@/client/lib/rename-chat-storage";
 import {
   type AppPlace,
   APPS_HREF,

@@ -1,6 +1,4 @@
 import "./styles/globals.css";
-// Before anything that defines an atom reading its stored value on load.
-import "./lib/rename-chat-storage";
 
 import ReactDOM, { type Root } from "react-dom/client";
 

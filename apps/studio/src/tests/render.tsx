@@ -20,6 +20,28 @@ interface RenderWithProvidersResult {
 }
 
 /**
+ * Render the way the app itself runs: with no Jotai `Provider` at all, so
+ * `useStore()` resolves to the default store.
+ *
+ * Use this whenever the code under test writes through `getDefaultStore()`
+ * rather than through a hook, as every `openX()` modal setter does. Under
+ * {@link renderWithProviders} those writes land in a store the returned one
+ * knows nothing about, so an assertion that the modal opened fails for a reason
+ * that has nothing to do with the code, and an assertion that it *didn't* open
+ * passes no matter what.
+ *
+ * The default store is global, so it carries values between tests. The dom
+ * setup clears the app-wide modal slot after each one; anything else this test
+ * writes there, it resets itself.
+ */
+export function renderWithDefaultStore(
+  ui: ReactElement,
+  options?: Omit<RenderOptions, "wrapper">,
+): RenderWithProvidersResult {
+  return renderWith({ options, store: null, ui });
+}
+
+/**
  * Render a component with the providers it can expect to find in the app.
  *
  * Each call gets a fresh Jotai store and query cache, so module-level atom

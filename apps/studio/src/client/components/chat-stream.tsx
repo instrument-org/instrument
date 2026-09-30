@@ -727,10 +727,16 @@ export function ChatStream({
         presentation === "chat" &&
         message.role === "assistant" &&
         message.metadata.error?.kind === "aborted";
+      // A run of the same refusal, one per retry, reads as one: only the
+      // latest is shown, outside developer mode.
+      const repeatedBelow =
+        !isDeveloperMode &&
+        isSameRefusal(message, regularMessages[messageIndex + 1]);
       if (
         message.role === "assistant" &&
         message.metadata.error &&
-        !superseded
+        !superseded &&
+        !repeatedBelow
       ) {
         messageElements.push(
           <MessageError
@@ -1143,6 +1149,25 @@ function hasVisibleAssistantParts({
       })
     );
   });
+}
+
+function isSameRefusal(
+  message: SessionMessage.WithParts,
+  next: SessionMessage.WithParts | undefined,
+): boolean {
+  if (message.role !== "assistant" || next?.role !== "assistant") {
+    return false;
+  }
+  const error = message.metadata.error;
+  const nextError = next.metadata.error;
+  if (!error || !nextError || error.kind !== nextError.kind) {
+    return false;
+  }
+  const classification =
+    "classification" in error ? error.classification : undefined;
+  const nextClassification =
+    "classification" in nextError ? nextError.classification : undefined;
+  return classification !== undefined && classification === nextClassification;
 }
 
 /**

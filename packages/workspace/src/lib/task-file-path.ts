@@ -2,7 +2,8 @@ import { MOUNT } from "../mount-points";
 
 /**
  * Whether a path is one this app can address at all: somewhere inside the task,
- * or inside a folder the user shared.
+ * inside a folder the user shared, or, from a chat, inside one of the tasks it
+ * started, each mounted at `/tasks/<id>`.
  *
  * A question about the string rather than about disk, which is what makes it
  * safe to ask while rendering. Every surface that draws a file reference asks
@@ -25,7 +26,8 @@ export function isAddressableTaskFilePath(path: string): boolean {
   return (
     !path.startsWith("/") ||
     path.startsWith(`${MOUNT.attachedFolders}/`) ||
-    path.startsWith(`${MOUNT.skills}/`)
+    path.startsWith(`${MOUNT.skills}/`) ||
+    path.startsWith(`${MOUNT.tasks}/`)
   );
 }
 

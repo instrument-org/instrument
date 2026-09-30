@@ -1,5 +1,6 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import {
@@ -34,6 +35,7 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
   modelNameFromURI,
+  providerTypeFromURI,
 } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
@@ -224,7 +226,10 @@ function describeModelProblem({
   // A selection the list no longer resolves is still worth naming: the user
   // picked it, and "choose a model" would read as though they never had.
   if (modelURI) {
-    return `${modelNameFromURI(modelURI) ?? modelURI} is unavailable`;
+    const name = modelNameFromURI(modelURI) ?? modelURI;
+    return providerTypeFromURI(modelURI) === "chatgpt"
+      ? `${name} needs ChatGPT sign-in`
+      : `${name} is unavailable`;
   }
   return models?.length ? "Choose a model" : "No models available";
 }
@@ -687,6 +692,30 @@ export const PromptInput = ({
       : null;
 
   const validateSubmission = () => {
+    if (isUnavailableModel && providerTypeFromURI(modelURI) === "chatgpt") {
+      toast.error(
+        `${modelNameFromURI(modelURI) ?? "This model"} needs ChatGPT sign-in`,
+        {
+          action: {
+            label: "Sign in",
+            onClick: () => {
+              openSettings({ tab: "Providers" });
+            },
+          },
+          cancel: {
+            label: "Use Auto",
+            onClick: () => {
+              onModelChange(autoModel.uri);
+            },
+          },
+          description:
+            "It comes from your ChatGPT plan, and you're signed out.",
+          duration: 7000,
+        },
+      );
+      return false;
+    }
+
     if (isUnavailableModel) {
       toast.error("Selected model is not available", {
         action: {

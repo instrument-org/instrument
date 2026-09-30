@@ -1,5 +1,8 @@
 export { isRouterModel } from "./lib/is-router-model";
-export { modelNameFromURI } from "./lib/model-name-from-uri";
+export {
+  modelNameFromURI,
+  providerTypeFromURI,
+} from "./lib/model-name-from-uri";
 export { namesSameModel } from "./lib/names-same-model";
 export { catalogEffort, type ReasoningEffort } from "./lib/reasoning-effort";
 export type { AIGatewayModel } from "./schemas/model";

@@ -978,6 +978,7 @@ describe("prepareModelMessages", () => {
             contextLength: 1000,
             modelId: "mock-model-id",
             name: "Mock Model",
+            providerName: "Test Provider",
           },
         });
       });

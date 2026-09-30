@@ -7,6 +7,7 @@ import {
 } from "@/electron-main/lib/chatgpt-plan";
 import { setChatGPTPlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
+import { getAppStateStore } from "@/electron-main/stores/app-state";
 
 import { publisher } from "../publisher";
 
@@ -30,6 +31,9 @@ const signIn = base.handler(async ({ context, errors }) => {
     }
     const status = await signInWithChatGPT({ callbackPort: server.port });
     if (status.state === "signed-in") {
+      // A plan is a way to run models like a provider or an account, so the
+      // app opens on the window from now on, as it does after either of those.
+      getAppStateStore().set("hasCompletedProviderSetup", true);
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: "chatgpt",
       });

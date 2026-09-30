@@ -91,6 +91,14 @@ export function groupOfHref(href: string): string | undefined {
     : undefined;
 }
 
+/** Where one of the window's tabs stands: its router's address once it has one, the address it opened at until then. */
+export function hrefOfAppTab(model: TabsModel, id: TabId): string | undefined {
+  return (
+    getTabRouter(id)?.history.location.href ??
+    model.tabs.find((tab) => tab.id === id)?.pathname
+  );
+}
+
 /** Whether an address is the chat: the inbox alone, or beside a chat. */
 export function isChatHref(href: string): boolean {
   const { pathname } = parseHref(href);

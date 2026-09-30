@@ -4,35 +4,34 @@ import {
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { type TabId } from "@/shared/tabs";
 import { StoreId } from "@instrument-org/workspace/client";
 
+import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
 import { isFreshTab, parseHref } from "./window-tabs";
 
 /**
  * What stands behind a draft now, when it is something other than what the
- * draft was opened over and the person has not left it out: the tab the
- * window has up, while it is in view. It goes with the message as well, so
- * a draft written while looking at something else carries both.
+ * draft was opened over and the person has not left it out: what the window
+ * has in view. It goes with the message as well, so a draft written while
+ * looking at something else carries both.
  */
 export function behindTabOf(
   draft: Draft,
-  active: undefined | WindowTab,
-  isShown: boolean,
+  inView: undefined | WindowTab,
 ): undefined | WindowTab {
-  if (!active || !isShown || !isIncludable(active)) {
+  if (!inView || !isIncludable(inView)) {
     return;
   }
   if (
-    (draft.included !== undefined &&
-      "tabId" in draft.included &&
-      draft.included.tabId === active.id) ||
-    draft.leftBehind?.includes(active.id)
+    includedIdOf(draft) === inView.id ||
+    draft.leftBehind?.includes(inView.id)
   ) {
     return;
   }
-  return active;
+  return inView;
 }
 
 /**
@@ -79,19 +78,24 @@ export function includedItemsOf(
 
 /**
  * The thing a draft was opened over, while it is still there to point at:
- * a tab of the place the window stood in, while it is among the window's
- * tabs, or a screen the window's own tab stood on, as the address it had.
+ * a tab of a chat's or a site's, while it is among the window's tabs, or
+ * one of the window's own tabs, at wherever it stands now while that is a
+ * screen of its own rather than a chat or a site.
  */
 export function includedTabOf(
   draft: Draft,
   allTabs: WindowTab[],
+  hrefOfAppTab: (id: TabId) => string | undefined,
 ): undefined | WindowTab {
   const { included } = draft;
   if (!included) {
     return;
   }
-  if ("href" in included) {
-    return screenTabAt(included.href);
+  if ("appTabId" in included) {
+    const href = hrefOfAppTab(included.appTabId);
+    return href === undefined || groupOfHref(href) !== undefined
+      ? undefined
+      : screenTabAt(href, included.appTabId);
   }
   return allTabs.find(
     (tab) => tab.id === included.tabId && tab.group === included.group,
@@ -136,14 +140,46 @@ export function isIncludable(tab: WindowTab): boolean {
 }
 
 /**
- * A screen of the window's own, standing on no place's tab, as a tab for the
- * chips and the readers that take one: a folder or file on the computer, or
- * an app's front.
+ * What the window has in view: the tab up in the group the window's tab
+ * stands on, while that group shows it, or else the screen the window's own
+ * tab stands on, as a tab by that tab's id.
  */
-export function screenTabAt(
+export function tabInView({
+  activeHref,
+  appTabId,
+  groupTab,
+  isGroupTabShown,
+}: {
+  activeHref: string;
+  appTabId: TabId;
+  groupTab: undefined | WindowTab;
+  isGroupTabShown: boolean;
+}): undefined | WindowTab {
+  if (groupOfHref(activeHref) !== undefined) {
+    return isGroupTabShown ? groupTab : undefined;
+  }
+  return screenTabAt(activeHref, appTabId);
+}
+
+/** The id of the tab the draft was opened over, whichever kind of tab it is. */
+function includedIdOf(draft: Draft): string | undefined {
+  const { included } = draft;
+  if (!included) {
+    return;
+  }
+  return "appTabId" in included ? included.appTabId : included.tabId;
+}
+
+/**
+ * One of the window's own tabs standing on a screen of its own, as a tab for
+ * the chips and the readers that take one: a folder or file on the computer,
+ * or an app's front.
+ */
+function screenTabAt(
   href: string,
+  id: string,
 ): Extract<WindowTab, { kind: "screen" }> {
-  return { href, id: `screen:${href}`, kind: "screen" };
+  return { href, id, kind: "screen" };
 }
 
 function withoutSlash(path: string) {

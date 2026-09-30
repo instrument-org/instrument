@@ -11,6 +11,7 @@ import {
   NO_FILTERS,
 } from "@/client/components/orchestrator/chats";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
+import { type TabId } from "@/shared/tabs";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -69,15 +70,18 @@ export interface ChosenItem {
   path: string;
 }
 
-/**
- * The folder the Finder on screen stands in and what is selected in it, by
- * host path, so a draft opened over it can name them as the chat will be
- * told them and leave out what it already holds by name.
- */
-export const finderOnScreenAtom = atom<null | {
+/** A Finder's folder and what is selected in it, by host path. */
+export interface FinderShown {
   folder: string;
   selected: ChosenItem[];
-}>(null);
+}
+
+/**
+ * What each of the window's own Files tabs has in its Finder, by the tab's
+ * id, so a draft opened over one, or with one up behind it, names them as
+ * the chat will be told them, whichever tab is up by the time it is sent.
+ */
+export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
 
 /**
  * A chat not yet started: its words and the topic it will be filed under.
@@ -98,12 +102,11 @@ export interface Draft {
    * The thing the draft was opened over, when the window stood in a place
    * with a tab up: that tab, by its group and id. A pointer rather than a
    * copy or a tab of the draft's own, so the draft says what the screen
-   * already gives it and the chat is told about it as it starts. An app's
-   * front the window's own tab stood on is kept by its address instead,
-   * since no place holds it; a folder or file there goes to `chosen`.
-   * Cleared when the person leaves it out.
+   * already gives it and the chat is told about it as it starts. A folder,
+   * file, or app's front on one of the window's own tabs is that tab, by its
+   * id. Cleared when the person leaves it out.
    */
-  included?: { group: string; tabId: string } | { href: string };
+  included?: { appTabId: TabId } | { group: string; tabId: string };
   /** Tabs the window had up behind the draft that the person left out of it, by id. */
   leftBehind?: string[];
   /** The kind of page the response should come back as: a page-skill template, by its folder's name. */

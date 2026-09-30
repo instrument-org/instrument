@@ -2,7 +2,7 @@ import {
   type FileTab,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
-  finderOnScreenAtom,
+  findersByTabAtom,
   pageSlotsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -365,10 +365,11 @@ export function FilesScreen({
           // is never a screen or a folder the user has left.
           { screen: "computer" },
   );
-  // The same folder and selection by host path, for a draft's chip. The
-  // folder is only replaced when it changes, so it stands for its own value.
-  const setFinderOnScreen = useSetAtom(finderOnScreenAtom);
-  // Only for the window's own Finder: a draft's chip reads the one on screen.
+  // The same folder and selection by host path, for a draft's chip, under
+  // this tab's id. The folder is only replaced when it changes, so it
+  // stands for its own value.
+  const setFinders = useSetAtom(findersByTabAtom);
+  // Only for the window's own tabs: a draft's band has a Finder of its own.
   const finderFolder = activeFile || screenTab ? null : folder;
   useEffect(() => {
     if (finderFolder === null) {
@@ -378,11 +379,17 @@ export function FilesScreen({
       folder: finderFolder.hostPath,
       selected: finderFolder.selectedItems,
     };
-    setFinderOnScreen(shown);
+    setFinders((current) => ({ ...current, [appTabId]: shown }));
     return () => {
-      setFinderOnScreen((current) => (current === shown ? null : current));
+      setFinders((current) => {
+        if (current[appTabId] !== shown) {
+          return current;
+        }
+        const { [appTabId]: _gone, ...rest } = current;
+        return rest;
+      });
     };
-  }, [finderFolder, setFinderOnScreen]);
+  }, [appTabId, finderFolder, setFinders]);
 
   // A missing file returns to the preceding visit, or closes its dedicated tab.
   useEffect(() => {

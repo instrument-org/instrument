@@ -5,7 +5,7 @@ import {
   type Draft,
   draftGroupOf,
   draftSnapshotsAtom,
-  finderOnScreenAtom,
+  findersByTabAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
   type ScreenView,
@@ -51,6 +51,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
 import { motion } from "motion/react";
@@ -63,6 +64,7 @@ import {
 } from "react";
 
 import { AppFront } from "./app-front";
+import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AppsHome } from "./apps-home";
 import { AskPills } from "./ask-pills";
@@ -87,6 +89,7 @@ import {
   includedItemsOf,
   includedTabOf,
   isGroupShown,
+  tabInView,
 } from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { FilesScreen } from "./files-screen";
@@ -147,6 +150,9 @@ const COMPOSE_HEIGHT = 640;
 const WORDS_BASE_HEIGHT = 72;
 
 const NO_TITLES = new Map<never, never>();
+
+/** What a chip of the draft's is, as its tooltip says it. */
+const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -301,20 +307,33 @@ export function ComposeWindow({
   const { moveTo: moveAsks } = useStagedAskActions();
   const up = windowTabs.tabUpIn(group);
   const isExpanded = placement === "expanded";
-  // The thing the draft was opened over, while it is still there to point at.
-  const included = includedTabOf(draft, windowTabs.allTabs);
+  // What the window has in view, and the thing the draft was opened over,
+  // while it is still there to point at, wherever its tab stands now.
+  const appTabs = useAtomValue(appTabsAtom);
+  const activeHref = useRouterState({
+    select: (routerState) => routerState.location.href,
+  });
+  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
+  const inView =
+    appTabs.selectedId === null
+      ? undefined
+      : tabInView({
+          activeHref,
+          appTabId: appTabs.selectedId,
+          groupTab: windowTabs.active,
+          isGroupTabShown: isGroupShown(windowTabs.group, paneOpenByGroup),
+        });
+  const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
+    id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
+  );
 
   // What the thing the draft was opened over points at on this computer,
   // with what the draft already holds by name left out, so each is said
-  // once. The Finder's own answer is only for the tab that is up.
-  const finderOnScreen = useAtomValue(finderOnScreenAtom);
+  // once, with what each of the window's own Files tabs has in its Finder.
+  const finders = useAtomValue(findersByTabAtom);
   const chosen = draft.chosen ?? [];
   const includedItems = included
-    ? includedItemsOf(
-        included,
-        windowTabs.active?.id === included.id ? finderOnScreen : null,
-        chosen,
-      )
+    ? includedItemsOf(included, finders[included.id] ?? null, chosen)
     : undefined;
   const showsIncluded =
     included !== undefined &&
@@ -323,14 +342,9 @@ export function ComposeWindow({
   // What the window has up behind the draft now, when that is something
   // else: it goes with the message too, in a pill of its own the person can
   // leave out, so the draft says everything the chat will be told.
-  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
-  const behind = behindTabOf(
-    draft,
-    windowTabs.active,
-    isGroupShown(windowTabs.group, paneOpenByGroup),
-  );
+  const behind = behindTabOf(draft, inView);
   const behindItems = behind
-    ? includedItemsOf(behind, finderOnScreen, [
+    ? includedItemsOf(behind, finders[behind.id] ?? null, [
         ...chosen,
         ...(includedItems ?? []),
       ])
@@ -844,11 +858,6 @@ export function ComposeWindow({
                                 return rest;
                               });
                             }}
-                            {...(draft.included && "href" in draft.included
-                              ? {
-                                  said: "On screen when you started this draft, so it goes to Instrument with your message.",
-                                }
-                              : {})}
                             tab={included}
                           />
                         )}
@@ -865,7 +874,6 @@ export function ComposeWindow({
                                 ],
                               }));
                             }}
-                            said="In view behind the draft now, so it goes to Instrument with your message too."
                             tab={behind}
                           />
                         )}
@@ -1324,7 +1332,7 @@ export function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
-  said = "On screen now, so it goes to Instrument with your message. It follows what you look at next.",
+  said = SENT_WITH_MESSAGE,
   tab,
 }: {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
@@ -1434,12 +1442,7 @@ function ChosenChip({
 }) {
   return (
     <ContextChip
-      label={
-        <ChipLabel
-          paths={[item.path]}
-          said="Stays with this draft wherever you go, and goes to Instrument with your message."
-        />
-      }
+      label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
       mark={<ItemMark item={item} />}
       name={nameOfPath(item.path)}
       onLeaveOut={onLeaveOut}

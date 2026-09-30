@@ -7,6 +7,7 @@ import {
 } from "@/client/atoms/orchestrator";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { TabIdSchema } from "@/shared/tabs";
 import {
   FolderAttachment,
   type SessionMessageDataPart,
@@ -63,6 +64,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     appsBySlug: new Map([
       ["notion", { name: "Notion", site: "https://notion.so" }],
     ]),
+    appTabId: null,
     browser: {
       readPage: (tabId) =>
         Promise.resolve({
@@ -77,7 +79,9 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
+    finders: {},
     href: "/orchestrator/browser",
+    hrefOfAppTab: () => {},
     paneOpenByGroup: {},
     screenView: null,
     state: { attachedFolders: { home: HOME } },
@@ -489,24 +493,92 @@ describe("draftContext", () => {
     },
   );
 
-  it("describes the app's front the draft was opened over by its address, with no place holding it", async () => {
-    const { draftContext } = contextReaders(
-      windowOf({
-        drafts: [{ ...DRAFT, included: { href: APP } }],
-        viewsById: { [GROUP]: { screen: "home" } },
-        windowTabs: tabsOf([HOME_TAB]),
-      }),
-    );
-    await expect(draftContext(DRAFT.id)).resolves.toEqual({
-      app: {
-        name: "Notion",
-        site: "https://notion.so",
-        slug: "notion",
-        standing: "unknown",
-      },
-      screen: "apps",
-      tabs: [NEW_TAB, { at: APP, title: "Notion" }],
-      url: APP,
+  describe("over the window's own tabs", () => {
+    const FILES_TAB = TabIdSchema.parse("files");
+    const APPS_TAB = TabIdSchema.parse("apps");
+    const NOTES = "/Users/casey/Documents/notes.md";
+    const drafted = (draft: Partial<Draft>, over: Partial<SendContextWindow>) =>
+      contextReaders(
+        windowOf({
+          drafts: [{ ...DRAFT, ...draft }],
+          hrefOfAppTab: (id) => ({ [APPS_TAB]: APP, [FILES_TAB]: FOLDER })[id],
+          viewsById: { [GROUP]: { screen: "home" } },
+          windowTabs: tabsOf([HOME_TAB]),
+          ...over,
+        }),
+      ).draftContext(DRAFT.id);
+
+    it("describes the app's front its tab stands on now", async () => {
+      await expect(
+        drafted(
+          { included: { appTabId: APPS_TAB } },
+          { appTabId: FILES_TAB, href: FOLDER },
+        ),
+      ).resolves.toMatchObject({
+        app: { name: "Notion", slug: "notion" },
+        screen: "apps",
+        url: APP,
+      });
+    });
+
+    it("sends what is selected in the Finder of the tab it was opened over as picked", async () => {
+      await expect(
+        drafted(
+          { included: { appTabId: FILES_TAB } },
+          {
+            appTabId: FILES_TAB,
+            finders: {
+              [FILES_TAB]: {
+                folder: "/Users/casey/Documents",
+                selected: [{ kind: "file", path: NOTES }],
+              },
+            },
+            href: FOLDER,
+          },
+        ),
+      ).resolves.toMatchObject({
+        chosen: [
+          {
+            kind: "file",
+            mount: "/mnt/Home/Documents/notes.md",
+            name: "notes.md",
+            path: NOTES,
+          },
+        ],
+        folder: { display: "/Users/casey/Documents" },
+      });
+    });
+
+    it("sends the Finder up behind the draft by what is selected in it, in place of its folder", async () => {
+      const context = await drafted(
+        { included: { appTabId: APPS_TAB } },
+        {
+          appTabId: FILES_TAB,
+          finders: {
+            [FILES_TAB]: {
+              folder: "/Users/casey/Documents",
+              selected: [{ kind: "file", path: NOTES }],
+            },
+          },
+          href: FOLDER,
+        },
+      );
+      expect(context?.chosen).toEqual([
+        {
+          kind: "file",
+          mount: "/mnt/Home/Documents/notes.md",
+          name: "notes.md",
+          path: NOTES,
+        },
+      ]);
+    });
+
+    it("leaves out the tab the person left out", async () => {
+      const context = await drafted(
+        { included: { appTabId: APPS_TAB }, leftBehind: [FILES_TAB] },
+        { appTabId: FILES_TAB, href: FOLDER },
+      );
+      expect(context?.chosen).toBeUndefined();
     });
   });
 

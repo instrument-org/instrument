@@ -4,6 +4,7 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
+  findersByTabAtom,
   inboxOpenAtom,
   pageSlotsAtom,
   paneOpenByGroupAtom,
@@ -72,6 +73,7 @@ import {
   appTabsAtom,
   CHAT_HREF,
   groupOfHref,
+  hrefOfAppTab,
   isChatHref,
   isSiteGroup,
   placeOfHref,
@@ -598,12 +600,19 @@ function WindowShell({
   });
 
   // What goes with a message, read at the moment of sending.
+  const finders = useAtomValue(findersByTabAtom);
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
+    appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
     drafts,
+    finders,
     href: activeHref,
+    hrefOfAppTab: (id) =>
+      id === appTabs.model.selectedId
+        ? activeHref
+        : hrefOfAppTab(appTabs.model, id),
     paneOpenByGroup,
     screenView,
     state: state.data,

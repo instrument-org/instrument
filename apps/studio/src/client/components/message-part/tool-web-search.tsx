@@ -3,20 +3,21 @@ import {
   readWebSearchResults,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 
+import { formatDuration } from "../../lib/format-time";
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
 import { getToolLabel } from "../../lib/tool-display";
+import { AIProviderIcon } from "../ai-provider-icon";
 import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { isActiveToolPart } from "../transcript-layout";
-import { useToolCallSession } from "./tool-call-session";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
   ToolCardEmpty,
   ToolCardHeader,
-  ToolCardSection,
   ToolChip,
 } from "./tool-card";
 
@@ -46,7 +47,6 @@ export function ToolWebSearch({
   onRetry: (prompt: string) => void;
   part: WebSearchPart;
 }) {
-  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return <ToolCardEmpty message="The query has not arrived yet." />;
   }
@@ -59,33 +59,25 @@ export function ToolWebSearch({
     part.state === "output-available" && part.output.state === "failure"
       ? part.output
       : null;
+  const searching =
+    isActiveToolPart(part) ||
+    (part.state === "output-available" && part.preliminary === true);
   const hasSearchContent =
     results !== null &&
     (results.sources.length > 0 ||
       (results.kind === "summary" && results.text.trim().length > 0));
-
-  // A search that has not come back is not a search that came back empty. The
-  // backend serving our own models returns its results in one piece rather than
-  // streaming them, so there is nothing to draw for the whole of the search;
-  // the row stays shut until then (`hasOpenableBody`), and this is what it
-  // would open onto if it were forced.
-  if (!failureOutput && !hasSearchContent) {
-    return isActiveToolPart(part) ? null : (
-      <ToolCardEmpty message="The search returned nothing." />
-    );
-  }
-
-  const label = failureOutput
-    ? "Web search unavailable"
-    : isStreaming
-      ? "Searching the web"
-      : getToolLabel("web_search");
   const query = typeof part.input.query === "string" ? part.input.query : "";
 
   return (
     <ToolCard>
-      <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <ToolCardHeader className="flex flex-col gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <p className="min-w-0 truncate text-xs font-medium text-foreground/80">
+            {query || getToolLabel("web_search")}
+          </p>
+        </div>
+        <SearchFacts part={part} results={results} searching={searching} />
       </ToolCardHeader>
 
       {failureOutput && (
@@ -99,14 +91,22 @@ export function ToolWebSearch({
         />
       )}
 
+      {!failureOutput && !hasSearchContent && !searching && (
+        <p className="px-4 py-3 text-sm text-muted-foreground italic">
+          The search returned nothing.
+        </p>
+      )}
+
       {/* A summary and an excerpt are both somebody else's page, so their
           markdown gets embedded images only: an `<img>` naming a host is
           fetched the moment the card renders. `hideImages` drops the rest
           outright rather than standing chips in for them; a scraped page
           carries logos and tracker pixels by the dozen, and the page itself
-          is a click away through its source link. */}
+          is a click away through its source link. Drawn whole: the row this
+          card sits behind is already the disclosure, so a second one inside
+          it only asks for another click. */}
       {results && hasSearchContent && (
-        <ToolCardSection collapsedHeight={448}>
+        <div className="px-4 py-3">
           {results.kind === "summary" ? (
             <>
               <SessionMarkdown
@@ -116,7 +116,7 @@ export function ToolWebSearch({
                 markdown={results.text}
               />
 
-              {!isStreaming && results.sources.length > 0 && (
+              {!searching && results.sources.length > 0 && (
                 <div className="mt-4 space-y-2 border-t border-border pt-3">
                   {results.sources.map((source, index) => (
                     <SourceLink
@@ -143,7 +143,7 @@ export function ToolWebSearch({
               ))}
             </div>
           )}
-        </ToolCardSection>
+        </div>
       )}
     </ToolCard>
   );
@@ -192,5 +192,65 @@ export function WebSearchChip({ part }: { part: SessionMessagePart.ToolPart }) {
         ))}
       </span>
     </ToolChip>
+  );
+}
+
+function partEndedAt(part: WebSearchPart): number | undefined {
+  const endedAt: unknown = (part.metadata as { endedAt?: unknown }).endedAt;
+  return endedAt instanceof Date ? endedAt.getTime() : undefined;
+}
+
+/**
+ * What the search was, in the terms the image card already uses: the model
+ * that ran it where a model did, then how many pages it came back with and
+ * how long it took. Nothing from the backend's own accounting, which is
+ * ours to watch and not the reader's.
+ */
+function SearchFacts({
+  part,
+  results,
+  searching,
+}: {
+  part: WebSearchPart;
+  results: null | ReturnType<typeof readWebSearchResults>;
+  searching: boolean;
+}) {
+  const facts: string[] = [];
+  if (results && results.sources.length > 0) {
+    facts.push(
+      `${String(results.sources.length)} ${results.sources.length === 1 ? "source" : "sources"}`,
+    );
+  }
+  const endedAt = partEndedAt(part);
+  if (!searching && endedAt) {
+    facts.push(formatDuration(endedAt - part.metadata.createdAt.getTime()));
+  }
+  const summary = results?.kind === "summary" ? results : undefined;
+  const modelName = summary?.modelIdServed ?? summary?.modelId;
+
+  if (!searching && !modelName && facts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      {searching && <span>Searching the web…</span>}
+      {modelName && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
+          {summary?.provider && (
+            <AIProviderIcon
+              className="size-3 shrink-0 opacity-70"
+              displayName={summary.provider.displayName}
+              showTooltip
+              type={summary.provider.type}
+            />
+          )}
+          <span className="font-medium text-foreground/80">{modelName}</span>
+        </span>
+      )}
+      {facts.map((fact) => (
+        <span key={fact}>{fact}</span>
+      ))}
+    </div>
   );
 }

@@ -40,6 +40,18 @@ const PROVIDER_METADATA = {
     type: "cerebras",
     url: addRef("https://www.cerebras.ai"),
   },
+  chatgpt: {
+    api: {
+      defaultBaseURL: "https://api.openai.com",
+    },
+    // Added by signing in with ChatGPT, never with a key.
+    canAddManually: false,
+    description: "GPT models on your ChatGPT Plus or Pro plan",
+    name: "ChatGPT",
+    quirks: { supportsMultipartToolResults: true },
+    type: "chatgpt",
+    url: addRef("https://chatgpt.com"),
+  },
   deepinfra: {
     api: {
       defaultBaseURL: "https://api.deepinfra.com/v1",

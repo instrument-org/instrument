@@ -19,6 +19,12 @@ export function apiURL({
       const finalPath = path.startsWith("/v1") ? path : `/v1${path}`;
       return `${baseURL}${finalPath}`;
     }
+    case "chatgpt":
+    case "openai":
+    case "openrouter":
+    case OUR_PROVIDER_CONFIG.type: {
+      return `${baseURL}/v1${path}`;
+    }
     case "google": {
       let adjustedPath = path;
       // Google's SDK adds a /v1beta prefix to the path, Vercel's SDK does not.
@@ -28,11 +34,6 @@ export function apiURL({
         );
       }
       return `${baseURL}${adjustedPath}`;
-    }
-    case "openai":
-    case "openrouter":
-    case OUR_PROVIDER_CONFIG.type: {
-      return `${baseURL}/v1${path}`;
     }
 
     case "vercel": {

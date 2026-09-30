@@ -11,6 +11,7 @@ import { demoteSupersededModels } from "./demote-superseded-models";
 import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 import { TypedError } from "./errors";
 import { fetchAndParseAnthropicModels } from "./fetch-models/anthropic";
+import { fetchAndParseChatGPTPlanModels } from "./fetch-models/chatgpt";
 import { fetchAndParseGoogleModels } from "./fetch-models/google";
 import { fetchAndParseOpenAIModels } from "./fetch-models/openai";
 import { fetchAndParseOpenAICompatibleModels } from "./fetch-models/openai-compatible";
@@ -36,6 +37,9 @@ export function fetchModelsForProvider(
       switch (config.type) {
         case "anthropic": {
           return fetchAndParseAnthropicModels(config);
+        }
+        case "chatgpt": {
+          return fetchAndParseChatGPTPlanModels(config);
         }
         case "google": {
           return fetchAndParseGoogleModels(config);

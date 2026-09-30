@@ -1,11 +1,11 @@
 ---
 name: session-transcript
-description: Export a task's session as a markdown transcript from a task directory or an exported task .zip. Use when asked to dump, export, or read a session/task as markdown, review an agent run offline, or inspect the transcript inside a shared task zip.
+description: Export a task's session as a markdown transcript from a task directory, or from a task .zip an older build exported. Use when asked to dump, export, or read a session/task as markdown, review an agent run offline, or inspect the transcript inside a shared task zip.
 ---
 
 # Session Transcript
 
-`script:dump-session-transcript` renders a task's or a chat's `.instrument/task.db` into a markdown transcript. It accepts either a task directory or an exported task `.zip` (the same artifact Studio's export/import flow produces), so you can read a session a teammate shared without importing it first.
+`script:dump-session-transcript` renders a task's or a chat's `.instrument/task.db` into a markdown transcript. It accepts either a task directory or a task `.zip` exported by an older build, which had an export flow the app no longer offers.
 
 The script lives in `packages/workspace`; the filter runs it from anywhere in the monorepo:
 

@@ -38,7 +38,8 @@ interface MessageErrorProps {
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
   onContinue: () => void;
-  onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Switches the chat to another model; the card offers no switch without it. */
+  onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
   onRunAgain?: () => void;
 }
@@ -295,7 +296,7 @@ function errorActions({
   autoModelURI: AIGatewayModelURI.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
-  onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
   openLink: ReturnType<typeof useOpenExternalLink>;
   provider: string | undefined;
@@ -310,7 +311,7 @@ function errorActions({
     },
   };
 
-  if (autoModelURI) {
+  if (autoModelURI && onModelChange) {
     return [
       {
         label: "Switch to Auto",

@@ -85,7 +85,6 @@ export function ChildTranscript({ task }: { task: Task }) {
                     isDeveloperMode={false}
                     messages={messages.data}
                     onContinue={noop}
-                    onModelChange={noop}
                     onRetry={noop}
                     renderAsItems
                     task={task}

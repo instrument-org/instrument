@@ -143,7 +143,8 @@ interface ChatStreamProps {
   isDeveloperMode: boolean;
   messages: SessionMessage.WithParts[];
   onContinue: () => void;
-  onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Switches the chat to another model, where the reader can. */
+  onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   /** Sends the last message again, where there is somewhere to send it. */
   onRunAgain?: () => void;

@@ -251,7 +251,7 @@ const PROMISES_A_TASK =
   /\b(?:hand|send|start|creat|kick|spin|delegat|goes to|go to|off to)\w*\s+(?:\w+[,']?\s+){0,4}(?:a|an|the|one|new|another)\s+(?:\w+\s+)?task\b/i;
 
 /** How `task new` says a task it made waits on the user before it starts. */
-const HELD_ON_USER = /the task starts once they answer/;
+const HELD_ON_USER = "the task starts once they answer";
 
 /**
  * The turn ends once a task has been created or steered, or the user has been
@@ -297,7 +297,7 @@ export async function shouldContinueAfterHandingOff({
         /^(?:Created|Sent to) /m.test(part.output.output) &&
         // A task held until the user answers something (the system's folder
         // ask) is waiting on them, and the turn stays open to say so.
-        !HELD_ON_USER.test(part.output.output)) ||
+        !part.output.output.includes(HELD_ON_USER)) ||
       // The same hand-off made through the tool rather than the shell.
       (part.type === "tool-task" &&
         part.state === "output-available" &&

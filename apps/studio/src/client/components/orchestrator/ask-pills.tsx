@@ -89,9 +89,10 @@ export function SentAsksNote({
 }
 
 /**
- * One ask as a chip on the surface the transcript's attached files sit on:
- * its number and where it is, short, with the rest in its tooltip, so a
- * message with many asks still takes a line or two.
+ * One ask as a chip in the shape of the draft's other chips, its number
+ * where they carry an icon: its number and where it is, short, with the
+ * rest in its tooltip, so a message with many asks still takes a line or
+ * two.
  */
 function AskChip({
   children,
@@ -110,7 +111,7 @@ function AskChip({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex h-7 max-w-52 min-w-0 items-center gap-1.5 rounded-lg bg-background pr-1 pl-1.5 text-xs text-foreground shadow-xs ring-1 ring-border/60"
+          className="inline-flex h-6 max-w-52 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-1 text-xs text-muted-foreground ring-1 ring-border/70"
           data-slot="ask-chip"
         >
           <AskNumber n={n} />
@@ -185,7 +186,7 @@ function AskPill({
         }
         label={
           <button
-            className="min-w-0 truncate pr-0.5 text-left hover:underline"
+            className="min-w-0 truncate pr-0.5 text-left hover:text-foreground"
             onClick={(event) => {
               revealAsk(ask);
               setAnchor(event.currentTarget);
@@ -199,7 +200,7 @@ function AskPill({
       >
         <button
           aria-label={`Remove comment ${n}`}
-          className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+          className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
           onClick={() => {
             remove([ask.id]);
           }}

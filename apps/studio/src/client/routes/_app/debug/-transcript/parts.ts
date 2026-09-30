@@ -40,6 +40,19 @@ export const OUR_MODEL: AIGatewayModel.Type = {
   uri: `anthropic/claude-sonnet-5?provider=${OUR_PROVIDER_CONFIG.type}&providerConfigId=${OUR_PROVIDER_CONFIG.id}` as AIGatewayModelURI.Type,
 };
 
+/** A model on the user's ChatGPT plan, for the errors only that plan sends. */
+export const CHATGPT_PLAN_MODEL: AIGatewayModel.Type = {
+  author: "openai",
+  canonicalId: "gpt-5.6-sol" as AIGatewayModel.CanonicalId,
+  features: ["inputText", "outputText", "tools"],
+  name: "GPT-5.6 Sol",
+  params: { provider: "chatgpt", providerConfigId: "chatgpt-plan" },
+  providerId: "gpt-5.6-sol" as AIGatewayModel.ProviderId,
+  providerName: "ChatGPT plan",
+  tags: [],
+  uri: "openai/gpt-5.6-sol?provider=chatgpt&providerConfigId=chatgpt-plan" as AIGatewayModelURI.Type,
+};
+
 /** A file the turn touched, for the grid of what changed. */
 export function file({
   filePath,

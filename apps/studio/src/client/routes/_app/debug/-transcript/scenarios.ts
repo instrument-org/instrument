@@ -1,6 +1,13 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
-import { file, folder, OUR_MODEL, platformFailure, PROJECT_ID } from "./parts";
+import {
+  CHATGPT_PLAN_MODEL,
+  file,
+  folder,
+  OUR_MODEL,
+  platformFailure,
+  PROJECT_ID,
+} from "./parts";
 import {
   type Act,
   batch,
@@ -1436,6 +1443,60 @@ done`,
           statusCode: 402,
         }),
         OUR_MODEL,
+      ),
+    ],
+  },
+  {
+    id: "chatgpt-plan-errors",
+    name: "ChatGPT plan refusals",
+    script: [
+      user("Summarize this thread for me."),
+      // Recorded after the app was disconnected in ChatGPT's settings.
+      fail(
+        {
+          classification: "auth",
+          kind: "api-call",
+          message: "Encountered invalidated oauth token for user, failing request",
+          name: "AI_APICallError",
+          responseBody: JSON.stringify({
+            error: {
+              code: "token_revoked",
+              message:
+                "Encountered invalidated oauth token for user, failing request",
+              param: null,
+              type: null,
+            },
+            status: 401,
+          }),
+          statusCode: 401,
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+        },
+        CHATGPT_PLAN_MODEL,
+      ),
+      user("Try that again."),
+      // Recorded with the app switched off in ChatGPT's usage settings.
+      fail(
+        {
+          classification: "usage-limit",
+          kind: "api-call",
+          message:
+            "The ChatGPT user has reached their Subscription Sharing usage limit. Ask the user to try again after their usage limit resets or use an API key instead.",
+          name: "AI_APICallError",
+          responseBody: JSON.stringify({
+            error: {
+              code: "subscription_sharing_usage_limit_exceeded",
+              message:
+                "The ChatGPT user has reached their Subscription Sharing usage limit. Ask the user to try again after their usage limit resets or use an API key instead.",
+              param: null,
+              type: "invalid_request_error",
+            },
+            sequence_number: 2,
+            type: "error",
+          }),
+          statusCode: 400,
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+        },
+        CHATGPT_PLAN_MODEL,
       ),
     ],
   },

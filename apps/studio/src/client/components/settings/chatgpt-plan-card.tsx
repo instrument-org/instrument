@@ -92,7 +92,7 @@ export function ChatGPTPlanCard() {
                 ? (email ?? "Signed in")
                 : state === "plan-disabled"
                   ? `${APP_NAME} isn't allowed to use your plan yet`
-                  : `Use GPT in ${APP_NAME} with the usage your ChatGPT Plus or Pro plan already includes.`}
+                  : `${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
             </p>
           </div>
         </div>

@@ -46,7 +46,7 @@ import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
@@ -430,7 +430,18 @@ const LOG_LEVEL_CLASS: Record<LogLevel, string> = {
 const MAX_VIEWED_LINES = 4000;
 
 function DiagnosticLog() {
-  const [viewerOpen, setViewerOpen] = useState(false);
+  // Settings opened by a link to the log arrives with the viewer already up.
+  // Compared by identity, so a second such link while Settings is open opens
+  // the viewer again after it was closed.
+  const request = useAtomValue(settingsModalAtom);
+  const [viewerOpen, setViewerOpen] = useState(request?.diagnosticLog === true);
+  const [trackedRequest, setTrackedRequest] = useState(request);
+  if (request !== trackedRequest) {
+    setTrackedRequest(request);
+    if (request?.diagnosticLog === true) {
+      setViewerOpen(true);
+    }
+  }
   // Wrapped by default: the first thing anyone does here is read, and a stack
   // trace that runs off the right edge has to be scrolled to before it can be.
   const [wrapLines, setWrapLines] = useState(true);

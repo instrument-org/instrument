@@ -11,6 +11,8 @@ export type SettingsTab =
   | "Storage";
 
 interface SettingsModalState {
+  /** Open the General tab's diagnostic log viewer over Settings. */
+  diagnosticLog?: boolean;
   /** The memory to bring into view on the Memory tab, by its name, for a link to one. */
   memory?: string;
   // Deep-link the Providers tab straight to the add-provider dialog.

@@ -5,6 +5,8 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { lazy, type ReactNode, Suspense } from "react";
 
+import { ServerExceptionsIndicator } from "./server-exceptions";
+
 // The developer panel: loaded only where developer mode already put it.
 const DevPanel = lazy(() =>
   import("@/client/components/dev-panel").then((m) => ({
@@ -77,6 +79,9 @@ export function WindowCorner() {
   const isDeveloperMode = useDeveloperMode();
   return (
     <>
+      {/* What the main process threw, beside the panel a developer would
+        reach for next; developer mode only, like the panel. */}
+      {isDeveloperMode && <ServerExceptionsIndicator />}
       {isDeveloperMode && (
         <Suspense fallback={null}>
           <DevPanel />

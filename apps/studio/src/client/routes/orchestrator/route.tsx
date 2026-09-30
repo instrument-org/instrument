@@ -472,27 +472,33 @@ function RouteScreen({ href }: { href: string }) {
     fromHref.kind === "folder" && screenView?.folder
       ? { ...fromHref, path: screenView.folder.display }
       : fromHref;
+  // The catalogs (the apps and Discover's ideas) are places you arrive at
+  // from the rail, with nothing above them to walk back up to and nothing to
+  // type an address for: a row there would only offer to leave for the web.
+  const hasLocationRow = location.kind !== "apps" && location.kind !== "ideas";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TabLocationRow
-        {...(isFileScreen
-          ? {
-              leading: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setRowLead}
-                />
-              ),
-              trailing: (
-                <div
-                  className="flex shrink-0 items-center gap-0.5"
-                  ref={setRowTail}
-                />
-              ),
-            }
-          : {})}
-        location={location}
-      />
+      {hasLocationRow && (
+        <TabLocationRow
+          {...(isFileScreen
+            ? {
+                leading: (
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setRowLead}
+                  />
+                ),
+                trailing: (
+                  <div
+                    className="flex shrink-0 items-center gap-0.5"
+                    ref={setRowTail}
+                  />
+                ),
+              }
+            : {})}
+          location={location}
+        />
+      )}
       <OrchestratorContext value={{ ...orchestrator, rowLead, rowTail }}>
         <FileOpenContext
           value={(path, options) => {

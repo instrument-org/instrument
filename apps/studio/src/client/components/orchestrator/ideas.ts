@@ -14,19 +14,18 @@ export function ideaHref(name: string) {
 
 /**
  * The groups the index reads the ideas in, by the first tag each carries. A
- * heading names what the reader arrives with rather than what they mean to do
- * with it, since the thing somebody can answer on the way in is what is
- * already on their desk. The same list the website's Discover section uses;
- * a tag with no heading here lands its idea under More.
+ * heading names what the reader is here to do, in a few words that read as a
+ * shelf label. A group can take more than one tag: drawing a layout and
+ * drawing a thing are both brainstorming and design. A tag with no heading
+ * here lands its idea under More.
  */
-const IDEA_GROUPS: { label: string; tag: string }[] = [
-  { label: "A decision to make", tag: "decide" },
-  { label: "A topic to explain", tag: "explain" },
-  { label: "A case to make", tag: "persuade" },
-  { label: "Steps to follow", tag: "steps" },
-  { label: "Numbers to work with", tag: "data" },
-  { label: "A layout to draw", tag: "layout" },
-  { label: "A thing to draw", tag: "draw" },
+const IDEA_GROUPS: { label: string; tags: string[] }[] = [
+  { label: "Make decisions", tags: ["decide"] },
+  { label: "Explain topics", tags: ["explain"] },
+  { label: "Make a case", tags: ["persuade"] },
+  { label: "Plan and prioritize", tags: ["steps"] },
+  { label: "Work with data", tags: ["data"] },
+  { label: "Brainstorm and design", tags: ["layout", "draw"] },
 ];
 
 /** What the example shows of the shape, falling back to its subject. */
@@ -41,12 +40,16 @@ export function exampleSubject(example: IdeaExample) {
 
 /** The ideas as groups, each with the ideas whose first tag it names, in the catalog's order. */
 export function groupIdeas(ideas: Idea[]) {
+  const isIn = (group: (typeof IDEA_GROUPS)[number], idea: Idea) =>
+    group.tags.includes(idea.tags[0] ?? "");
   const grouped = IDEA_GROUPS.map((group) => ({
-    ...group,
-    ideas: ideas.filter((idea) => idea.tags[0] === group.tag),
+    ideas: ideas.filter((idea) => isIn(group, idea)),
+    label: group.label,
+    // The group's first tag keys it, which is all the index needs a tag for.
+    tag: group.tags[0] ?? group.label,
   })).filter((group) => group.ideas.length > 0);
   const ungrouped = ideas.filter(
-    (idea) => !IDEA_GROUPS.some((group) => group.tag === idea.tags[0]),
+    (idea) => !IDEA_GROUPS.some((group) => isIn(group, idea)),
   );
   if (ungrouped.length > 0) {
     grouped.push({ ideas: ungrouped, label: "More", tag: "more" });

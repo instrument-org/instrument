@@ -3,7 +3,6 @@ import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { visitsWithin } from "@/client/components/orchestrator/app-visits";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
-import { PageSection } from "@/client/components/orchestrator/page-section";
 import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
@@ -14,7 +13,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
@@ -109,24 +108,44 @@ export function AppsHome({
   const openApp = onOpenApp;
 
   return (
-    <div className="@container/apps flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
-      <div className="mx-auto w-full max-w-3xl space-y-8">
+    <div className="@container/apps h-full min-h-0 overflow-y-auto">
+      {/* As a page, Discover's column and head: centered, with room around
+        it. Inside a draft, the narrower column the draft's frame allows. */}
+      <div
+        className={cn(
+          "mx-auto w-full",
+          showsConnect
+            ? "max-w-5xl space-y-12 px-10 pt-14 pb-20"
+            : "max-w-3xl space-y-8 px-8 pt-7 pb-10",
+        )}
+      >
+        {showsConnect ? (
+          <header className="max-w-xl">
+            <h1 className="font-serif text-3xl leading-tight font-normal tracking-tight text-brand-600 dark:text-brand-300">
+              Apps
+            </h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+              Connect the services you already use. Instrument does the setup,
+              then works in them from your chats.
+            </p>
+          </header>
+        ) : null}
         {/* Where the person was lately comes first, as a browser's new tab
             puts it; the apps themselves under it. */}
         {visits.length > 0 ? (
-          <PageSection title="Recent pages">
+          <Shelf title="Recent pages">
             <div className="-mx-2">
               <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
             </div>
-          </PageSection>
+          </Shelf>
         ) : null}
 
         {list.data === undefined ? (
-          <PageSection title="Your apps">
+          <Shelf title="Your apps">
             <MarkSkeletons />
-          </PageSection>
+          </Shelf>
         ) : own.length > 0 ? (
-          <PageSection title="Your apps">
+          <Shelf title="Your apps">
             {/* Pulled in by the gap between a mark's box and its icon, so
                 the icons line up under the heading. */}
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
@@ -140,7 +159,7 @@ export function AppsHome({
                 />
               ))}
             </div>
-          </PageSection>
+          </Shelf>
         ) : null}
 
         {!showsConnect &&
@@ -158,11 +177,11 @@ export function AppsHome({
             Every Connect is a message to the conversation, since Instrument
             does the connecting. */}
         {showsConnect && (
-          <PageSection
+          <Shelf
             title={own.length > 0 ? "Connect more apps" : "Connect an app"}
           >
             <form
-              className="relative mb-3"
+              className="group/search relative mb-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (typed !== "" && matches.length === 0) {
@@ -170,10 +189,12 @@ export function AppsHome({
                 }
               }}
             >
-              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground group-focus-within/search:text-foreground" />
+              {/* The cards' surface and edge, a size up since it leads the
+                shelf, with the brand's green as its focus. */}
               <input
                 aria-label="Search apps"
-                className="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
                 onChange={(event) => {
                   setQuery(event.target.value);
                 }}
@@ -184,7 +205,7 @@ export function AppsHome({
             {catalog.data === undefined ? (
               <TileSkeletons />
             ) : shown.length > 0 || typed !== "" ? (
-              <div className="grid grid-cols-1 gap-3 @lg/apps:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
                 {shown.map((entry) => (
                   <CatalogTile
                     entry={entry}
@@ -208,7 +229,7 @@ export function AppsHome({
             ) : null}
             {typed === "" && more.length > MORE_SHOWN ? (
               <button
-                className="mt-3 text-[13px] text-muted-foreground hover:text-foreground"
+                className="mt-4 text-[13px] font-medium text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setShowsAll(!showsAll);
                 }}
@@ -217,17 +238,14 @@ export function AppsHome({
                 {showsAll ? "Show fewer" : `Show all ${more.length}`}
               </button>
             ) : null}
-          </PageSection>
+          </Shelf>
         )}
 
         {showsConnect && list.data && list.data.invalid.length > 0 ? (
-          <PageSection title="Broken">
-            <div className="divide-y divide-border rounded-2xl border border-border bg-card shadow-xs">
+          <Shelf title="Broken">
+            <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
               {list.data.invalid.map((entry) => (
-                <div
-                  className="flex items-center gap-3 px-3 py-2"
-                  key={entry.slug}
-                >
+                <div className="flex items-center gap-3 p-4" key={entry.slug}>
                   <AppIcon />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
@@ -248,7 +266,7 @@ export function AppsHome({
                 </div>
               ))}
             </div>
-          </PageSection>
+          </Shelf>
         ) : null}
       </div>
     </div>
@@ -318,7 +336,11 @@ function CatalogTile({
     kind: "screen",
   });
   return (
-    <div className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card pr-2 pl-3 shadow-xs hover:bg-accent/40">
+    // Discover's card, chunkier: the shadow's hairline as the edge, lifting
+    // under the pointer. 72px tall around a 32px button, so the button sits
+    // 20px from the top, the bottom and the end, the inset the icon keeps at
+    // the start.
+    <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onAuxClick={onAuxClick}
@@ -328,15 +350,15 @@ function CatalogTile({
       >
         {/* No plate of its own: the tile is the box it sits in. */}
         <AppIcon
-          className="size-8 rounded-md bg-transparent p-0 shadow-none ring-0"
+          className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
           name={entry.name}
           site={`https://${entry.domain}`}
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-medium">
+          <span className="block truncate text-[15px] leading-snug font-medium">
             {entry.name}
           </span>
-          <span className="block truncate text-xs text-muted-foreground">
+          <span className="block truncate text-[13px] leading-snug text-muted-foreground">
             {entry.tagline}
           </span>
         </span>
@@ -392,13 +414,31 @@ function matchesWords(entry: CatalogEntry, typed: string): boolean {
     .every((word) => haystack.includes(word));
 }
 
+/**
+ * A shelf of the page, labeled the way Discover labels its own: a quiet name
+ * on a hairline that runs out to the column's edge.
+ */
+function Shelf({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <section>
+      <div className="flex items-center gap-3">
+        <h2 className="shrink-0 text-[13px] font-medium text-muted-foreground">
+          {title}
+        </h2>
+        <span aria-hidden className="h-px flex-1 bg-border" />
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
 /** Tiles holding the directory's place while it is still on its way. */
 function TileSkeletons() {
   return (
-    <div className="grid grid-cols-1 gap-3 @lg/apps:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
       {Array.from({ length: MORE_SHOWN }, (_, index) => (
         <div
-          className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card px-3 shadow-xs"
+          className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
           key={index}
         >
           <Skeleton className="size-9 rounded-lg" />
@@ -431,18 +471,18 @@ function UnlistedTile({
   return (
     <div
       className={cn(
-        "flex h-16 items-center gap-3 rounded-2xl border border-dashed border-border pr-2 pl-3 hover:bg-accent/40",
+        "flex h-18 items-center gap-3 rounded-2xl border border-dashed border-border px-5 hover:bg-accent/40",
         isOnlyOne && "@lg/apps:col-span-2",
       )}
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
         <PlusIcon className="size-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium">
+        <span className="block truncate text-[15px] leading-snug font-medium">
           {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
         </span>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="block truncate text-[13px] leading-snug text-muted-foreground">
           Instrument finds how it connects and sets it up.
         </span>
       </span>

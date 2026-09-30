@@ -17,7 +17,7 @@ export function GlyphButton({
   return (
     <button
       className={cn(
-        "inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card font-medium text-foreground shadow-xs hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card font-medium text-foreground shadow-xs-soft hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
         size === "sm" ? "h-8 px-2.5 text-xs" : "h-9 px-3 text-sm",
         className,
       )}

@@ -17,6 +17,7 @@ import {
   type FileSystemItem,
   type FileSystemSortKey,
   type FileSystemSortState,
+  TOOLBAR_CONTROL_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -1227,7 +1228,7 @@ export function ComputerPage({
                           ).at(-1) ?? "this folder";
                         return (
                           <GlyphButton
-                            className="ml-1 h-7"
+                            className={TOOLBAR_CONTROL_CLASSNAME}
                             onClick={() => {
                               draftAbout(selectedItem);
                             }}

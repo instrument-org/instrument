@@ -24,7 +24,7 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
@@ -113,7 +113,7 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      className="@container/tabrow flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
       data-tab-location=""
       ref={ref}
     >
@@ -144,7 +144,7 @@ export function TabLocationRow({
         // address bar does.
         <div
           className={cn(
-            "group/field relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-sm focus-within:border-foreground/30",
+            "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
             // The app's icon sits in the field's round end, with room to
             // breathe inside the curve.
             openIn && "pr-2",
@@ -347,9 +347,14 @@ function Field({ location }: { location: TabLocation }) {
           // never narrower than the mark saying a name was cut. So the short
           // names stay whole while the long ones shorten, which is the shape a
           // folder window's path takes and the one a person reads a path by.
+          // A name no longer than the mark (`~`, `/`) has nothing to give up,
+          // and held to the mark's width it would stand in a gap wider than
+          // itself: it keeps its own width instead.
           const size = isHere
             ? "max-w-full shrink-0 truncate"
-            : "min-w-6 max-w-max flex-1 truncate";
+            : crumb.label.length <= 2
+              ? "shrink-0"
+              : "min-w-6 max-w-max flex-1 truncate";
           return (
             <Fragment key={`${index}:${crumb.label}`}>
               {index > 0 ? (
@@ -412,7 +417,7 @@ function locationMark(location: TabLocation): ReactNode {
     }
     case "chat": {
       return (
-        <ChatTeardropTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <ChatCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
     case "file": {

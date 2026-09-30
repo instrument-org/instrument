@@ -9,7 +9,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -135,9 +135,10 @@ export function screenPresentation(
       title: folderTitle(search),
     };
   }
+  // The plain bubble the Chats list wears: one chat is one of those.
   if (pathname.startsWith(`${CHATS_HREF}/`)) {
     return {
-      icon: <ChatTeardropTextIcon className="size-3.5" />,
+      icon: <ChatCircleIcon className="size-3.5" />,
       title: chatTitleOf(pathname, chatTitles),
     };
   }

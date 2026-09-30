@@ -2294,7 +2294,7 @@ export function FileSystem({
     >
       <FileSystemIconSpriteSheet />
       <div
-        className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2"
+        className="relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
         // The toolbar is not the folder, and nothing is made or acted on here.
         onContextMenu={(event) => {
           event.preventDefault();
@@ -2316,8 +2316,11 @@ export function FileSystem({
             <SelectTrigger
               aria-label="View"
               // Icon-only like the sort select: sheds the base min-width to
-              // hug icon + chevron at the filter button's 28px height.
-              className="h-7 min-h-7 w-auto min-w-0 [&_svg]:size-4"
+              // hug icon + chevron at the toolbar's 32px height.
+              className={cn(
+                TOOLBAR_CONTROL_CLASSNAME,
+                "min-h-8 w-auto min-w-0 bg-none dark:border-0 [&_svg]:size-4",
+              )}
               size="sm"
             >
               <SelectValue>
@@ -2343,7 +2346,9 @@ export function FileSystem({
             onValueChange={(value) => setView(value as FileSystemView)}
             value={view}
           >
-            <TabsList className="h-8 p-0.5">
+            {/* A track a shade darker than the muted one, so it reads as a
+              well the choices sit in against the toolbar's own tint. */}
+            <TabsList className="h-8 bg-foreground/8 p-0.5">
               {VIEW_OPTIONS.map((option) => (
                 <TabsTrigger
                   aria-label={`${option.label} view`}
@@ -2358,7 +2363,7 @@ export function FileSystem({
             </TabsList>
           </Tabs>
         )}
-        <div className="flex min-w-0 items-center justify-end gap-1">
+        <div className="flex min-w-0 items-center justify-end gap-1.5">
           <FileSystemSortSelect
             layout={headerLayout}
             onKeyChange={applySortKey}
@@ -2564,11 +2569,20 @@ export function FileSystem({
 // no shadow -- which is what every other icon that holds a state here wears.
 // Both `dark:` and the bare variant are restated because the trigger declares
 // each separately, and only a rule of the same specificity replaces one.
+// The chosen view stands on the track as a white pill with its own edge, the
+// tabs primitive's selected state, so the three read as one control with one
+// choice made rather than three loose buttons.
 const VIEW_TAB_CLASSNAME =
-  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:h-7 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-accent dark:data-[state=active]:text-accent-foreground";
+  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7";
+// The surface every framed control on the toolbar stands on: 32px tall, the
+// track's height, 8px corners, and the shadow's own hairline as the edge, so
+// the sort, the filter, the search and whatever the host adds after them are
+// one family.
+export const TOOLBAR_CONTROL_CLASSNAME =
+  "h-8 rounded-lg border-0 bg-card shadow-xs dark:bg-input/30";
 // Shared style for the ghost icon buttons in the toolbar.
 const TOOLBAR_ICON_BUTTON_CLASSNAME =
-  "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
+  "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
 // Searchable file-type list (cmdk) rendered inside a menu popup, so the
 // long MIME list can be filtered by typing. Selection toggles stay open for
 // multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
@@ -2673,7 +2687,7 @@ function FileSystemFilterMenu({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label="Filter"
-          className="relative size-7 sm:size-7"
+          className={cn(TOOLBAR_CONTROL_CLASSNAME, "relative size-8 sm:size-8")}
           size="icon-sm"
           title="Filter"
           type="button"
@@ -2766,7 +2780,8 @@ function FileSystemSearchField({
   const input = (
     <div
       className={cn(
-        "relative flex h-7 min-w-0 flex-1 items-center rounded-lg border border-input bg-popover text-sm text-foreground shadow-xs/5 transition-shadow outline-none not-dark:bg-clip-padding before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-focus-within:before:shadow-[0_1px_--theme(--color-black/4%)] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background dark:bg-input/32 dark:not-focus-within:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+        TOOLBAR_CONTROL_CLASSNAME,
+        "relative flex min-w-0 flex-1 items-center text-sm text-foreground transition-shadow outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background",
         isInline && "max-w-56",
       )}
     >
@@ -2855,7 +2870,10 @@ function FileSystemSortSelect({
     >
       <SelectTrigger
         aria-label="Sort by"
-        className="h-7 min-h-7 w-auto min-w-0 shrink-0 [&_svg]:size-4"
+        className={cn(
+          TOOLBAR_CONTROL_CLASSNAME,
+          "min-h-8 w-auto min-w-0 shrink-0 bg-none dark:border-0 [&_svg]:size-4",
+        )}
         size="sm"
         title="Sort by"
       >

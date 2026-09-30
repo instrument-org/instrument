@@ -26,6 +26,9 @@ import {
 } from "./providers/metadata";
 import { selectProviderConfigs } from "./select-provider-configs";
 
+/** The model a ChatGPT plan searches with, whatever the chat runs on. */
+const CHATGPT_PLAN_SEARCH_MODEL = "gpt-5.6-luna";
+
 const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Ordered by quality/reliability as of 2026-02-06
   OUR_MODELS.providerType,
@@ -83,12 +86,17 @@ export async function getAISDKWebSearchModel({
     }
     case "chatgpt": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
+      // Always the plan's lightest model, thinking little and reading little:
+      // a search is a lookup, and on the plan every search model's own
+      // searching counts against the user's limits and takes minutes at the
+      // chat model's depth.
       result = {
-        model: isCallingModelSameProvider
-          ? sdk(callingModel.providerId)
-          : sdk("gpt-5.6-luna"),
+        model: sdk(CHATGPT_PLAN_SEARCH_MODEL),
+        providerOptions: {
+          openai: { reasoningEffort: "low" },
+        },
         tools: {
-          web_search: sdk.tools.webSearch(),
+          web_search: sdk.tools.webSearch({ searchContextSize: "low" }),
         },
       };
       break;

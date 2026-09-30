@@ -81,6 +81,7 @@ export async function collapseResponsesStream(
 
 export function rewriteChatGPTPlanResponsesBody(
   body: Record<string, unknown>,
+  { sessionId }: { sessionId?: null | string } = {},
 ): { body: Record<string, unknown>; streamed: boolean } {
   const streamed = body.stream === true;
   const next = Object.fromEntries(
@@ -88,6 +89,12 @@ export function rewriteChatGPTPlanResponsesBody(
   );
   next.store = false;
   next.stream = true;
+  // Nothing is stored, so the cache is what saves a long session from being
+  // read in full every step. Without a key the route caches nothing across
+  // requests; one per session keeps a session's steps on one prefix.
+  if (sessionId && next.prompt_cache_key === undefined) {
+    next.prompt_cache_key = sessionId;
+  }
   if (Array.isArray(next.input)) {
     // A system message item is refused; a developer one says the same thing.
     // The SDK writes `system` for a model id it does not recognize as a

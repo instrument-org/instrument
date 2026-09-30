@@ -190,23 +190,6 @@ export async function topicByName(name: string): Promise<Topic | undefined> {
   );
 }
 
-/**
- * A name as a folder can hold it, for names that come from somewhere other
- * than the person typing one (an older topic, a 1.x project): the characters
- * a folder name cannot have become a dash, and a name left with nothing
- * becomes "Topic".
- */
-export function topicFolderName(raw: string): string {
-  const name = topicName(
-    raw
-      // eslint-disable-next-line no-control-regex
-      .replaceAll(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
-      .replace(/^\.+/, "")
-      .replace(/[. ]+$/, ""),
-  ).replace(/[. ]+$/, "");
-  return validateFolderName(name, "Topic").isOk() ? name : "Topic";
-}
-
 /** What a name becomes: no hash, one space between words, bounded. */
 export function topicName(raw: string): string {
   return raw
@@ -442,6 +425,23 @@ function retireTopicNow(topicId: string): void {
   if (topic) {
     writeTopicSync(rootDir, { ...topic, retired: true });
   }
+}
+
+/**
+ * A name as a folder can hold it, for names that come from somewhere other
+ * than the person typing one (an older topic, a 1.x project): the characters
+ * a folder name cannot have become a dash, and a name left with nothing
+ * becomes "Topic".
+ */
+function topicFolderName(raw: string): string {
+  const name = topicName(
+    raw
+      // eslint-disable-next-line no-control-regex
+      .replaceAll(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+      .replace(/^\.+/, "")
+      .replace(/[. ]+$/, ""),
+  ).replace(/[. ]+$/, "");
+  return validateFolderName(name, "Topic").isOk() ? name : "Topic";
 }
 
 function updateTopicNow(topicId: string, change: TopicChange): void {

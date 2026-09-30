@@ -79,7 +79,6 @@ vi.mock("@/client/rpc/client", () => {
           }),
         },
         openExternalLink: routeOf(vi.fn()),
-        openTaskIn: routeOf(vi.fn()),
         showFileInFolder: routeOf(vi.fn()),
       },
       workspace: {

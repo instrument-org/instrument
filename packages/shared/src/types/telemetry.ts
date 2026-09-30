@@ -114,9 +114,6 @@ export interface AnalyticsEvents {
   }>;
   "task.forked": never;
   "task.invalid_folder_trashed": never;
-  "task.opened_in": {
-    app_name: string;
-  };
   "task.restored_version": never;
   "task.share_menu_opened": never;
   "task.trashed": never;

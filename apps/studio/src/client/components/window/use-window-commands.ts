@@ -12,6 +12,9 @@ import { useRouter } from "@tanstack/react-router";
 import { getDefaultStore } from "jotai";
 import { useEffect, useRef } from "react";
 
+/** How long the window waits before listening again to a stream that dropped. */
+const RECONNECT_DELAY_MS = 1000;
+
 /**
  * The chords that still run while a dialog is open: they change what the
  * window shows around the dialog, never which tab is up, so they cannot move
@@ -127,7 +130,7 @@ export function useWindowCommands(
       window.addEventListener("auxclick", swallow, { capture: true });
     }
     const controller = new AbortController();
-    void (async () => {
+    const listen = async () => {
       try {
         const commands = await rpcClient.window.events.command.call(undefined, {
           signal: controller.signal,
@@ -223,9 +226,20 @@ export function useWindowCommands(
           }
         }
       } catch {
-        // The window is closing, which is the only way the stream ends.
+        // Ended below: a window closing and a dropped transport look alike.
       }
-    })();
+      // The stream ends for good only when the window goes, which aborts it.
+      // Anything else (a hot reload, a transport reset) is listened to again
+      // after a pause, so the chords never stay unwired.
+      if (!controller.signal.aborted) {
+        setTimeout(() => {
+          if (!controller.signal.aborted) {
+            void listen();
+          }
+        }, RECONNECT_DELAY_MS);
+      }
+    };
+    void listen();
     return () => {
       controller.abort();
       window.removeEventListener("keydown", onKeyDown, { capture: true });

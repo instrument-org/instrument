@@ -2,6 +2,7 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { scheduleRefresh as scheduleChatGPTPlanRefresh } from "@/electron-main/lib/chatgpt-plan";
 import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
@@ -223,6 +224,9 @@ async function bootstrapPrimaryInstance() {
         appUpdater?.getStatus()?.type === "installing",
     }),
   );
+
+  // A signed-in ChatGPT plan's access token lasts an hour.
+  scheduleChatGPTPlanRefresh();
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,

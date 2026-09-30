@@ -60,6 +60,9 @@ interface PublisherEvents {
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;
+  // The ChatGPT plan's sign-in state changed: signed in or out, a sign-in
+  // started or ended, or a token was refreshed.
+  "chatgpt-plan.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   "preferences.updated": null;

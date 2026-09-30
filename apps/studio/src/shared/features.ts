@@ -38,7 +38,7 @@ export const FEATURE_METADATA: Record<
   },
   skills: {
     description:
-      "Offer installed agent skills in the composer, from its plus menu or by typing / in the prompt.",
+      "Offer installed agent skills in the composer, from its plus menu or by typing / in the prompt, and list them in Settings, where a skill can be made, changed or deleted.",
     title: "Skills",
   },
 };

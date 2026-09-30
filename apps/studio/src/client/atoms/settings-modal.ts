@@ -7,6 +7,7 @@ export type SettingsTab =
   | "General"
   | "Memory"
   | "Providers"
+  | "Skills"
   | "Storage";
 
 interface SettingsModalState {

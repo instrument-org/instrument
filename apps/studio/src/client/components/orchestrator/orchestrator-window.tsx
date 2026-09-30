@@ -621,6 +621,7 @@ function WindowShell({
     startChat,
     startingIds,
   } = useDrafts({
+    activeHref,
     attachedFolders: state.data?.attachedFolders ?? {},
     compose,
     draftContext,

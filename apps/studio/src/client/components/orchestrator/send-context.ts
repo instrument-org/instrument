@@ -14,7 +14,7 @@ import ms from "ms";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle } from "./browser-tabs";
-import { behindTabOf, isGroupShown } from "./draft-context";
+import { behindTabOf, includedTabOf, isGroupShown } from "./draft-context";
 import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
@@ -384,18 +384,4 @@ function hostPathOf(
   return computer.file === undefined
     ? { kind: "folder", path: joinHostPath(computer.root, computer.path) }
     : { kind: "file", path: computer.file };
-}
-
-/** The tab a draft was opened over, while it is still among the window's. */
-function includedTabOf(
-  draft: Draft,
-  allTabs: WindowTab[],
-): undefined | WindowTab {
-  const { included } = draft;
-  if (!included) {
-    return;
-  }
-  return allTabs.find(
-    (tab) => tab.id === included.tabId && tab.group === included.group,
-  );
 }

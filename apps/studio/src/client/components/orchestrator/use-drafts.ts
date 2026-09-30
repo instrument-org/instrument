@@ -5,6 +5,7 @@ import {
   draftGroupOf,
   draftsAtom,
   draftSnapshotsAtom,
+  finderOnScreenAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
 } from "@/client/atoms/orchestrator";
@@ -16,15 +17,21 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
+import { groupOfHref } from "./app-tabs";
 import { type Topic } from "./chats";
 import { type DraftSend } from "./compose-window";
-import { isGroupShown, isIncludable } from "./draft-context";
+import {
+  includedItemsOf,
+  isGroupShown,
+  isIncludable,
+  screenTabAt,
+} from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab, type useWindowTabs } from "./window-tabs";
@@ -40,6 +47,7 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
  * of one.
  */
 export function useDrafts({
+  activeHref,
   attachedFolders,
   compose,
   draftContext,
@@ -49,6 +57,8 @@ export function useDrafts({
   topics,
   windowTabs,
 }: {
+  /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
+  activeHref: string;
   /** The orchestrator's granted folders, for how the agent reaches a file an ask is on. */
   attachedFolders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
@@ -71,6 +81,7 @@ export function useDrafts({
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const chatFilters = useAtomValue(chatFiltersAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
+  const store = useStore();
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -130,12 +141,31 @@ export function useDrafts({
       overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
         ? windowTabs.tabUpIn(overGroup)
         : undefined;
-    const included =
+    const inPlace =
       overGroup !== undefined && over !== undefined && isIncludable(over)
         ? { group: overGroup, tabId: over.id }
         : undefined;
+    // Or the screen the window's own tab stands on, when no place holds it
+    // and the draft was not opened on things by name: a folder or file there
+    // is named by path, as chips the person can leave out, what is selected
+    // in its Finder before the folder itself; an app's front is kept by its
+    // address.
+    const onScreen =
+      inPlace === undefined &&
+      chosen.length === 0 &&
+      groupOfHref(activeHref) === undefined
+        ? screenTabAt(activeHref)
+        : undefined;
+    const shown = onScreen && isIncludable(onScreen) ? onScreen : undefined;
+    const inView = shown
+      ? includedItemsOf(shown, store.get(finderOnScreenAtom), chosen)
+      : undefined;
+    const included =
+      inPlace ??
+      (shown && inView === undefined ? { href: shown.href } : undefined);
+    const held = [...chosen, ...(inView ?? [])];
     const draft: Draft = {
-      ...(chosen.length > 0 ? { chosen } : {}),
+      ...(held.length > 0 ? { chosen: held } : {}),
       createdAt: now,
       id: ulid(),
       ...(included ? { included } : {}),

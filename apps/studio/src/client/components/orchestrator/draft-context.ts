@@ -1,7 +1,13 @@
-import { type Draft, type WindowTab } from "@/client/atoms/orchestrator";
+import {
+  type ChosenItem,
+  type Draft,
+  type WindowTab,
+} from "@/client/atoms/orchestrator";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
+import { joinHostPath } from "./host-path";
 import { isFreshTab, parseHref } from "./window-tabs";
 
 /**
@@ -19,12 +25,77 @@ export function behindTabOf(
     return;
   }
   if (
-    draft.included?.tabId === active.id ||
+    (draft.included !== undefined &&
+      "tabId" in draft.included &&
+      draft.included.tabId === active.id) ||
     draft.leftBehind?.includes(active.id)
   ) {
     return;
   }
   return active;
+}
+
+/**
+ * What a tab a draft was opened over points at on this computer, less what
+ * the draft already holds by name: what is selected in the Finder on screen,
+ * or its folder when nothing else is; a file tab's file; a folder tab's
+ * folder. Nothing on this computer, for a web page or an app, which the chip
+ * names as itself; empty when everything it points at is already held.
+ */
+export function includedItemsOf(
+  tab: WindowTab,
+  finder: null | { folder: string; selected: ChosenItem[] },
+  chosen: ChosenItem[],
+): ChosenItem[] | undefined {
+  const held = new Set(chosen.map((item) => withoutSlash(item.path)));
+  const unheld = (items: ChosenItem[]) =>
+    items.filter((item) => !held.has(withoutSlash(item.path)));
+  if (tab.kind === "page") {
+    const file = hostPathOfFileUrl(tab.url);
+    return file === undefined
+      ? undefined
+      : unheld([{ kind: "file", path: file }]);
+  }
+  const computer = computerTabOf(tab.href);
+  if (!computer) {
+    return;
+  }
+  if (computer.file !== undefined) {
+    return unheld([{ kind: "file", path: computer.file }]);
+  }
+  if (finder) {
+    const selected = unheld(finder.selected);
+    return selected.length > 0
+      ? selected
+      : unheld([{ kind: "folder", path: finder.folder }]);
+  }
+  // A root the address names by a word (home, the recents) is not a path.
+  return /^(?:\/|[A-Z]:)/i.test(computer.root)
+    ? unheld([
+        { kind: "folder", path: joinHostPath(computer.root, computer.path) },
+      ])
+    : undefined;
+}
+
+/**
+ * The thing a draft was opened over, while it is still there to point at:
+ * a tab of the place the window stood in, while it is among the window's
+ * tabs, or a screen the window's own tab stood on, as the address it had.
+ */
+export function includedTabOf(
+  draft: Draft,
+  allTabs: WindowTab[],
+): undefined | WindowTab {
+  const { included } = draft;
+  if (!included) {
+    return;
+  }
+  if ("href" in included) {
+    return screenTabAt(included.href);
+  }
+  return allTabs.find(
+    (tab) => tab.id === included.tabId && tab.group === included.group,
+  );
 }
 
 /**
@@ -62,4 +133,19 @@ export function isIncludable(tab: WindowTab): boolean {
     computerTabOf(tab.href) !== undefined ||
     parseHref(tab.href).pathname.startsWith("/orchestrator/apps/")
   );
+}
+
+/**
+ * A screen of the window's own, standing on no place's tab, as a tab for the
+ * chips and the readers that take one: a folder or file on the computer, or
+ * an app's front.
+ */
+export function screenTabAt(
+  href: string,
+): Extract<WindowTab, { kind: "screen" }> {
+  return { href, id: `screen:${href}`, kind: "screen" };
+}
+
+function withoutSlash(path: string) {
+  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
 }

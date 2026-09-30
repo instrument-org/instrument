@@ -98,10 +98,12 @@ export interface Draft {
    * The thing the draft was opened over, when the window stood in a place
    * with a tab up: that tab, by its group and id. A pointer rather than a
    * copy or a tab of the draft's own, so the draft says what the screen
-   * already gives it and the chat is told about it as it starts. Cleared
-   * when the person leaves it out.
+   * already gives it and the chat is told about it as it starts. An app's
+   * front the window's own tab stood on is kept by its address instead,
+   * since no place holds it; a folder or file there goes to `chosen`.
+   * Cleared when the person leaves it out.
    */
-  included?: { group: string; tabId: string };
+  included?: { group: string; tabId: string } | { href: string };
   /** Tabs the window had up behind the draft that the person left out of it, by id. */
   leftBehind?: string[];
   /** The kind of page the response should come back as: a page-skill template, by its folder's name. */

@@ -82,10 +82,15 @@ import {
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
-import { behindTabOf, isGroupShown } from "./draft-context";
+import {
+  behindTabOf,
+  includedItemsOf,
+  includedTabOf,
+  isGroupShown,
+} from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { FilesScreen } from "./files-screen";
-import { joinHostPath, segmentsOf } from "./host-path";
+import { segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
 import { type Idea } from "./ideas";
 import { LinkSurface } from "./link-surface";
@@ -297,13 +302,7 @@ export function ComposeWindow({
   const up = windowTabs.tabUpIn(group);
   const isExpanded = placement === "expanded";
   // The thing the draft was opened over, while it is still there to point at.
-  const included = draft.included
-    ? windowTabs.allTabs.find(
-        (tab) =>
-          tab.id === draft.included?.tabId &&
-          tab.group === draft.included.group,
-      )
-    : undefined;
+  const included = includedTabOf(draft, windowTabs.allTabs);
 
   // What the thing the draft was opened over points at on this computer,
   // with what the draft already holds by name left out, so each is said
@@ -845,6 +844,11 @@ export function ComposeWindow({
                                 return rest;
                               });
                             }}
+                            {...(draft.included && "href" in draft.included
+                              ? {
+                                  said: "On screen when you started this draft, so it goes to Instrument with your message.",
+                                }
+                              : {})}
                             tab={included}
                           />
                         )}
@@ -1508,48 +1512,6 @@ function HeldMark({
   return screenPresentation(tab.href, { appsBySlug }).icon;
 }
 
-/**
- * What a tab a draft was opened over points at on this computer, less what
- * the draft already holds by name: what is selected in the Finder on screen,
- * or its folder when nothing else is; a file tab's file; a folder tab's
- * folder. Nothing on this computer, for a web page or an app, which the chip
- * names as itself; empty when everything it points at is already held.
- */
-function includedItemsOf(
-  tab: WindowTab,
-  finder: null | { folder: string; selected: ChosenItem[] },
-  chosen: ChosenItem[],
-): ChosenItem[] | undefined {
-  const held = new Set(chosen.map((item) => withoutSlash(item.path)));
-  const unheld = (items: ChosenItem[]) =>
-    items.filter((item) => !held.has(withoutSlash(item.path)));
-  if (tab.kind === "page") {
-    const file = hostPathOfFileUrl(tab.url);
-    return file === undefined
-      ? undefined
-      : unheld([{ kind: "file", path: file }]);
-  }
-  const computer = computerTabOf(tab.href);
-  if (!computer) {
-    return;
-  }
-  if (computer.file !== undefined) {
-    return unheld([{ kind: "file", path: computer.file }]);
-  }
-  if (finder) {
-    const selected = unheld(finder.selected);
-    return selected.length > 0
-      ? selected
-      : unheld([{ kind: "folder", path: finder.folder }]);
-  }
-  // A root the address names by a word (home, the recents) is not a path.
-  return /^(?:\/|[A-Z]:)/i.test(computer.root)
-    ? unheld([
-        { kind: "folder", path: joinHostPath(computer.root, computer.path) },
-      ])
-    : undefined;
-}
-
 /** A file's type icon, or the folder glyph for a folder. */
 function ItemMark({ item }: { item: ChosenItem }) {
   return item.kind === "folder" ? (
@@ -1740,8 +1702,4 @@ function useGuestSteps(targetId: BrowserTargetId | undefined) {
     };
   }, [targetId, isAttached]);
   return steps;
-}
-
-function withoutSlash(path: string) {
-  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
 }

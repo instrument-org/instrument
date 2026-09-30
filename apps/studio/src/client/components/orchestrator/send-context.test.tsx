@@ -489,6 +489,27 @@ describe("draftContext", () => {
     },
   );
 
+  it("describes the app's front the draft was opened over by its address, with no place holding it", async () => {
+    const { draftContext } = contextReaders(
+      windowOf({
+        drafts: [{ ...DRAFT, included: { href: APP } }],
+        viewsById: { [GROUP]: { screen: "home" } },
+        windowTabs: tabsOf([HOME_TAB]),
+      }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toEqual({
+      app: {
+        name: "Notion",
+        site: "https://notion.so",
+        slug: "notion",
+        standing: "unknown",
+      },
+      screen: "apps",
+      tabs: [NEW_TAB, { at: APP, title: "Notion" }],
+      url: APP,
+    });
+  });
+
   it("sends the band's own screen when nothing was included", async () => {
     const { draftContext } = contextReaders(
       windowOf({

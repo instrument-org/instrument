@@ -195,8 +195,14 @@ function getStore(): Store<StoreShape> {
         if (is.dev) {
           return json;
         }
+        // Where there is no keyring to encrypt with (a Linux desktop without
+        // one, or CI), nothing is written, as the session and provider stores
+        // do: the store is made, and writes its defaults, on the first read at
+        // boot, so throwing here kept the app from opening at all. A sign-in
+        // then lasts until the app quits.
         if (!safeStorage.isEncryptionAvailable()) {
-          throw new Error("Encryption is not available");
+          log.error("Encryption is not available");
+          return "";
         }
         return safeStorage.encryptString(json).toString("base64");
       },

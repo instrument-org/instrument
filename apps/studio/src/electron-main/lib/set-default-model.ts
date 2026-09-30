@@ -13,6 +13,36 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { captureServerException } from "./capture-server-exception";
 import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
+/**
+ * Signing in with ChatGPT is asked for to use the plan, so it makes the plan's
+ * everyday model the default: Sol, the plan's middle tier, ahead of Terra,
+ * then whatever the account lists first. The plan's catalog is its own order
+ * of what the account may use, so a family it leaves out is skipped.
+ */
+export async function setChatGPTPlanDefaultModel(): Promise<void> {
+  const config = getAIProviderConfigs().find(
+    (candidate) => candidate.type === "chatgpt",
+  );
+  if (!config) {
+    return;
+  }
+  const [result] = await fetchModelResultsForProviders([config], {
+    captureException: captureServerException,
+    modelCache: diskModelCache,
+  });
+  if (!result?.ok) {
+    return;
+  }
+  const models = result.value;
+  const chosen =
+    models.find((model) => model.canonicalId.endsWith("-sol")) ??
+    models.find((model) => model.canonicalId.endsWith("-terra")) ??
+    models[0];
+  if (chosen) {
+    setDefaultModelURI(chosen.uri);
+  }
+}
+
 export async function setDefaultModel(options?: {
   onlyIfOurModel?: boolean;
   onlyIfUnset?: boolean;

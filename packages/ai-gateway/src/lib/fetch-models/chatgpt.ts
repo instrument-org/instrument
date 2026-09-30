@@ -59,8 +59,9 @@ export function fetchAndParseChatGPTPlanModels(
             author,
             canonicalId,
             features: getModelFeatures(canonicalId),
-            // ChatGPT's own label, as ChatGPT shows it.
-            name: model.display_name ?? generateModelName(canonicalId),
+            name: model.display_name
+              ? spaceBeforeFamily(model.display_name)
+              : generateModelName(canonicalId),
             params,
             providerId,
             providerName: config.displayName ?? metadata.name,
@@ -71,4 +72,13 @@ export function fetchAndParseChatGPTPlanModels(
         );
       });
   });
+}
+
+/**
+ * ChatGPT's label with a space, not a dash, between the version and the
+ * model family: "GPT-5.6-Luna" reads as "GPT-5.6 Luna", the way the model is
+ * named everywhere else. The dash after "GPT" stays.
+ */
+export function spaceBeforeFamily(label: string): string {
+  return label.replace(/^(GPT-\d+(?:\.\d+)?)-(?=\p{L})/u, "$1 ");
 }

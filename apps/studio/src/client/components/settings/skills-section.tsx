@@ -106,22 +106,6 @@ export function SkillsSection() {
   );
 }
 
-/**
- * Opens a draft with the words in it and closes Settings, or `undefined`
- * outside the app window, where there is no draft to open.
- */
-function useAsk() {
-  const appWindow = useContext(WindowContext);
-  const closeSettings = useSetAtom(settingsModalAtom);
-  if (!appWindow) {
-    return undefined;
-  }
-  return (words: string) => {
-    closeSettings(null);
-    appWindow.ask(words);
-  };
-}
-
 /** Edit and Delete, for a skill of the workspace's own. */
 function SkillActions({
   onDeleted,
@@ -197,4 +181,20 @@ function SkillActions({
       </AlertDialog>
     </div>
   );
+}
+
+/**
+ * Opens a draft with the words in it and closes Settings, or `undefined`
+ * outside the app window, where there is no draft to open.
+ */
+function useAsk() {
+  const appWindow = useContext(WindowContext);
+  const closeSettings = useSetAtom(settingsModalAtom);
+  if (!appWindow) {
+    return;
+  }
+  return (words: string) => {
+    closeSettings(null);
+    appWindow.ask(words);
+  };
 }

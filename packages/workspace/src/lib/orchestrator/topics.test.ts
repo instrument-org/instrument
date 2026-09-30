@@ -160,7 +160,8 @@ describe("topic folders", () => {
     const made = await createTopic({ name: "Trips" });
     await updateTopic(made.id, { instructions: "Aisle seats." });
 
-    expect((await createTopic({ name: "trips" })).id).toBe(made.id);
+    const again = await createTopic({ name: "trips" });
+    expect(again.id).toBe(made.id);
     await retireTopic(made.id);
     const revived = await createTopic({ emoji: "✈️", name: "Trips" });
     expect(revived).toEqual({
@@ -168,7 +169,8 @@ describe("topic folders", () => {
       emoji: "✈️",
       instructions: "Aisle seats.",
     });
-    expect((await listTopics())[0]?.retired).toBeUndefined();
+    const [listed] = await listTopics();
+    expect(listed?.retired).toBeUndefined();
   });
 });
 
@@ -196,8 +198,9 @@ describe("convertTopicFiles", () => {
         "Topic/instructions.md",
       ]
     `);
+    const converted = await listTopics();
     expect(
-      (await listTopics()).map((topic) =>
+      converted.map((topic) =>
         topic.id === "top_02" ? { ...topic, createdAt: "<mtime>" } : topic,
       ),
     ).toMatchInlineSnapshot(`
@@ -227,11 +230,6 @@ describe("convertTopicFiles", () => {
   });
 });
 
-async function writeLegacy(id: string, content: string) {
-  await fs.mkdir(path.join(topicsDir(), id), { recursive: true });
-  await fs.writeFile(path.join(topicsDir(), id, "topic.md"), content);
-}
-
 function tree(dir: string): string[] {
   return fsSync
     .readdirSync(dir, { recursive: true, withFileTypes: true })
@@ -240,4 +238,9 @@ function tree(dir: string): string[] {
       path.relative(dir, path.join(entry.parentPath, entry.name)),
     )
     .sort();
+}
+
+async function writeLegacy(id: string, content: string) {
+  await fs.mkdir(path.join(topicsDir(), id), { recursive: true });
+  await fs.writeFile(path.join(topicsDir(), id, "topic.md"), content);
 }

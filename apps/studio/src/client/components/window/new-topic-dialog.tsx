@@ -1,3 +1,4 @@
+import { RevealPath } from "@/client/components/reveal-path";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { RevealPath } from "@/client/components/reveal-path";
 import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import {
@@ -31,8 +31,8 @@ import {
   ColorRow,
   TopicMarkPicker,
 } from "@/client/components/window/topic-mark-picker";
-import { APP_NAME } from "@instrument-org/shared";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -66,26 +66,9 @@ const TOPIC_NAME_MAX = 24;
 // eslint-disable-next-line no-control-regex
 const NOT_IN_A_FOLDER_NAME = /[<>:"/\\|?*\u0000-\u001F]/;
 
-/**
- * Why a name cannot be a topic's, said under the field, or nothing: a topic's
- * name is its folder's, so it cannot hold what a folder name cannot, and no
- * two topics share one. The workspace checks the same again.
- */
-function nameProblem(name: string, otherNames: readonly string[]) {
-  const trimmed = name.trim();
-  if (NOT_IN_A_FOLDER_NAME.test(trimmed)) {
-    return `A topic name can't contain any of: < > : " / \\ | ? *`;
-  }
-  if (trimmed.startsWith(".") || trimmed.endsWith(".")) {
-    return "A topic name can't start or end with a period";
-  }
-  const taken = otherNames.find(
-    (other) => other.toLowerCase() === trimmed.toLowerCase(),
-  );
-  return taken ? `There is already a topic called “${taken}”` : undefined;
+interface TopicFolder {
+  path: string;
 }
-
-type TopicFolder = { path: string };
 
 /**
  * A topic as it stands, in the shape the dialog that made it used: its name,
@@ -136,7 +119,9 @@ export function EditTopicDialog({
         onCommit={(chosen) => {
           onChange({
             ...(chosen.color === topic.color ? {} : { color: chosen.color }),
-            ...(chosen.emoji === (topic.emoji ?? "") ? {} : { emoji: chosen.emoji }),
+            ...(chosen.emoji === (topic.emoji ?? "")
+              ? {}
+              : { emoji: chosen.emoji }),
             ...(chosen.folders === undefined ||
             samePaths(chosen.folders, topic.folders ?? [])
               ? {}
@@ -203,6 +188,25 @@ export function NewTopicDialog({
       />
     </Dialog>
   );
+}
+
+/**
+ * Why a name cannot be a topic's, said under the field, or nothing: a topic's
+ * name is its folder's, so it cannot hold what a folder name cannot, and no
+ * two topics share one. The workspace checks the same again.
+ */
+function nameProblem(name: string, otherNames: readonly string[]) {
+  const trimmed = name.trim();
+  if (NOT_IN_A_FOLDER_NAME.test(trimmed)) {
+    return `A topic name can't contain any of: < > : " / \\ | ? *`;
+  }
+  if (trimmed.startsWith(".") || trimmed.endsWith(".")) {
+    return "A topic name can't start or end with a period";
+  }
+  const taken = otherNames.find(
+    (other) => other.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return taken ? `There is already a topic called “${taken}”` : undefined;
 }
 
 /** Whether two folder lists name the same paths in the same order. */
@@ -588,7 +592,10 @@ function TopicForm({
           >
             Cancel
           </Button>
-          <Button disabled={!name.trim() || problem !== undefined} onClick={commit}>
+          <Button
+            disabled={!name.trim() || problem !== undefined}
+            onClick={commit}
+          >
             {action}
           </Button>
         </div>

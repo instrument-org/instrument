@@ -79,50 +79,51 @@ export interface TopicChange {
 export class TopicNameError extends Error {}
 
 /**
+ * Moves every topic kept the earlier way, one `topics/top_…/topic.md` with
+ * its settings in front matter, into a folder by its name. Keeps the id, so
+ * the chats filed under it keep their tag. Runs on every boot and decides
+ * from the data; returns how many it moved.
+ */
+export function convertTopicFiles(rootDir: string): number {
+  const dir = path.join(rootDir, TOPICS_DIR_NAME);
+  const legacy = readDirNames(dir).filter(
+    (name) =>
+      name.startsWith(TOPIC_ID_PREFIX) &&
+      fs.existsSync(path.join(dir, name, LEGACY_TOPIC_FILE_NAME)),
+  );
+  let converted = 0;
+  for (const folder of legacy) {
+    const topic = readLegacyTopic(path.join(dir, folder), folder);
+    if (!topic) {
+      continue;
+    }
+    // Its own id-named folder is not yet a topic, so not a name taken.
+    const taken = [
+      ...readTopicsSync(rootDir).map((entry) => entry.name),
+      ...legacy,
+    ];
+    writeTopicSync(rootDir, {
+      ...topic,
+      name: unusedTopicName(topic.name, taken),
+    });
+    fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
+    converted += 1;
+  }
+  return converted;
+}
+
+/**
  * Makes a topic and returns it. A name already in use returns that topic
  * instead, since its folder is its name; one retired under that name comes
  * back, with the instructions and folders it had.
  */
-export async function createTopic({
-  about,
-  color,
-  emoji,
-  name,
-}: {
+export function createTopic(topic: {
   about?: string;
   color?: string;
   emoji?: string;
   name: string;
 }): Promise<Topic> {
-  const rootDir = getWorkspaceConfig().rootDir;
-  const wanted = checkedTopicName(name);
-  const existing = readTopicsSync(rootDir).find(
-    (topic) => nameKey(topic.name) === nameKey(wanted),
-  );
-  if (existing) {
-    if (!existing.retired) {
-      return existing;
-    }
-    const { retired: _retired, ...revived } = existing;
-    const topic = {
-      ...revived,
-      ...(about ? { about } : {}),
-      ...(color ? { color } : {}),
-      ...(emoji ? { emoji } : {}),
-    };
-    writeTopicSync(rootDir, topic);
-    return topic;
-  }
-  const topic: Topic = {
-    ...(about ? { about } : {}),
-    ...(color ? { color } : {}),
-    createdAt: Date.now(),
-    ...(emoji ? { emoji } : {}),
-    id: newTopicId(),
-    name: wanted,
-  };
-  writeTopicSync(rootDir, topic);
-  return topic;
+  return Promise.resolve().then(() => createTopicNow(topic));
 }
 
 /**
@@ -130,8 +131,10 @@ export async function createTopic({
  * retired ones after, so a menu can stop at the first retired entry and a row
  * can still name a topic the chat was tagged with before it was retired.
  */
-export async function listTopics(): Promise<Topic[]> {
-  return readTopicsSync(getWorkspaceConfig().rootDir);
+export function listTopics(): Promise<Topic[]> {
+  return Promise.resolve().then(() =>
+    readTopicsSync(getWorkspaceConfig().rootDir),
+  );
 }
 
 /** A new topic's id: stable across renames, which move its folder. */
@@ -169,12 +172,10 @@ export function readTopicsSync(rootDir: string): Topic[] {
  * Takes a topic out of the menus. The chats that carry it keep it, since
  * they were about that subject when they were filed and still are.
  */
-export async function retireTopic(topicId: string): Promise<void> {
-  const rootDir = getWorkspaceConfig().rootDir;
-  const topic = readTopicsSync(rootDir).find((entry) => entry.id === topicId);
-  if (topic) {
-    writeTopicSync(rootDir, { ...topic, retired: true });
-  }
+export function retireTopic(topicId: string): Promise<void> {
+  return Promise.resolve().then(() => {
+    retireTopicNow(topicId);
+  });
 }
 
 /** A topic in use by name, however the caller cased or hashed it. */
@@ -246,82 +247,13 @@ export function unusedTopicName(raw: string, taken: readonly string[]): string {
  * folder, and one another topic has, or one no folder can take, is refused
  * with a `TopicNameError`; anything left out is left alone.
  */
-export async function updateTopic(
+export function updateTopic(
   topicId: string,
   change: TopicChange,
 ): Promise<void> {
-  const rootDir = getWorkspaceConfig().rootDir;
-  const topics = readTopicsSync(rootDir);
-  const topic = topics.find((entry) => entry.id === topicId);
-  if (!topic) {
-    return;
-  }
-  let name = topic.name;
-  if (change.name !== undefined) {
-    name = checkedTopicName(change.name);
-    const clash = topics.find(
-      (entry) => entry.id !== topicId && nameKey(entry.name) === nameKey(name),
-    );
-    if (clash) {
-      throw new TopicNameError(
-        `There is already a topic called “${clash.name}”`,
-      );
-    }
-    if (name !== topic.name) {
-      fs.renameSync(
-        path.join(rootDir, TOPICS_DIR_NAME, topic.name),
-        path.join(rootDir, TOPICS_DIR_NAME, name),
-      );
-    }
-  }
-  const { instructions, ...rest } = topic;
-  const nextInstructions =
-    change.instructions === undefined
-      ? instructions
-      : change.instructions.trim();
-  writeTopicSync(rootDir, {
-    ...rest,
-    ...(change.about === undefined ? {} : { about: change.about }),
-    ...(change.color === undefined ? {} : { color: change.color }),
-    ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
-    ...(change.folders === undefined ? {} : { folders: change.folders }),
-    ...(nextInstructions ? { instructions: nextInstructions } : {}),
-    name,
+  return Promise.resolve().then(() => {
+    updateTopicNow(topicId, change);
   });
-}
-
-/**
- * Moves every topic kept the earlier way, one `topics/top_…/topic.md` with
- * its settings in front matter, into a folder by its name. Keeps the id, so
- * the chats filed under it keep their tag. Runs on every boot and decides
- * from the data; returns how many it moved.
- */
-export function convertTopicFiles(rootDir: string): number {
-  const dir = path.join(rootDir, TOPICS_DIR_NAME);
-  const legacy = readDirNames(dir).filter(
-    (name) =>
-      name.startsWith(TOPIC_ID_PREFIX) &&
-      fs.existsSync(path.join(dir, name, LEGACY_TOPIC_FILE_NAME)),
-  );
-  let converted = 0;
-  for (const folder of legacy) {
-    const topic = readLegacyTopic(path.join(dir, folder), folder);
-    if (!topic) {
-      continue;
-    }
-    // Its own id-named folder is not yet a topic, so not a name taken.
-    const taken = [
-      ...readTopicsSync(rootDir).map((entry) => entry.name),
-      ...legacy,
-    ];
-    writeTopicSync(rootDir, {
-      ...topic,
-      name: unusedTopicName(topic.name, taken),
-    });
-    fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
-    converted += 1;
-  }
-  return converted;
 }
 
 /**
@@ -359,6 +291,48 @@ function checkedTopicName(raw: string): string {
     throw new TopicNameError(checked.error.message);
   }
   return checked.value;
+}
+
+function createTopicNow({
+  about,
+  color,
+  emoji,
+  name,
+}: {
+  about?: string;
+  color?: string;
+  emoji?: string;
+  name: string;
+}): Topic {
+  const rootDir = getWorkspaceConfig().rootDir;
+  const wanted = checkedTopicName(name);
+  const existing = readTopicsSync(rootDir).find(
+    (topic) => nameKey(topic.name) === nameKey(wanted),
+  );
+  if (existing) {
+    if (!existing.retired) {
+      return existing;
+    }
+    const { retired: _retired, ...revived } = existing;
+    const topic = {
+      ...revived,
+      ...(about ? { about } : {}),
+      ...(color ? { color } : {}),
+      ...(emoji ? { emoji } : {}),
+    };
+    writeTopicSync(rootDir, topic);
+    return topic;
+  }
+  const topic: Topic = {
+    ...(about ? { about } : {}),
+    ...(color ? { color } : {}),
+    createdAt: Date.now(),
+    ...(emoji ? { emoji } : {}),
+    id: newTopicId(),
+    name: wanted,
+  };
+  writeTopicSync(rootDir, topic);
+  return topic;
 }
 
 function nameKey(name: string): string {
@@ -460,4 +434,53 @@ function readTopicFolder(folderPath: string): Topic | undefined {
     ...(instructions ? { instructions } : {}),
     name: path.basename(folderPath),
   };
+}
+
+function retireTopicNow(topicId: string): void {
+  const rootDir = getWorkspaceConfig().rootDir;
+  const topic = readTopicsSync(rootDir).find((entry) => entry.id === topicId);
+  if (topic) {
+    writeTopicSync(rootDir, { ...topic, retired: true });
+  }
+}
+
+function updateTopicNow(topicId: string, change: TopicChange): void {
+  const rootDir = getWorkspaceConfig().rootDir;
+  const topics = readTopicsSync(rootDir);
+  const topic = topics.find((entry) => entry.id === topicId);
+  if (!topic) {
+    return;
+  }
+  let name = topic.name;
+  if (change.name !== undefined) {
+    name = checkedTopicName(change.name);
+    const clash = topics.find(
+      (entry) => entry.id !== topicId && nameKey(entry.name) === nameKey(name),
+    );
+    if (clash) {
+      throw new TopicNameError(
+        `There is already a topic called “${clash.name}”`,
+      );
+    }
+    if (name !== topic.name) {
+      fs.renameSync(
+        path.join(rootDir, TOPICS_DIR_NAME, topic.name),
+        path.join(rootDir, TOPICS_DIR_NAME, name),
+      );
+    }
+  }
+  const { instructions, ...rest } = topic;
+  const nextInstructions =
+    change.instructions === undefined
+      ? instructions
+      : change.instructions.trim();
+  writeTopicSync(rootDir, {
+    ...rest,
+    ...(change.about === undefined ? {} : { about: change.about }),
+    ...(change.color === undefined ? {} : { color: change.color }),
+    ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+    ...(change.folders === undefined ? {} : { folders: change.folders }),
+    ...(nextInstructions ? { instructions: nextInstructions } : {}),
+    name,
+  });
 }

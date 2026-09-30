@@ -53,7 +53,7 @@ export function chatTopicsModelNote(
 function topicInstructions(instructions: string | undefined) {
   const trimmed = instructions?.trim();
   if (!trimmed) {
-    return undefined;
+    return;
   }
   if (trimmed.length <= TOPIC_INSTRUCTIONS_MAX) {
     return trimmed;

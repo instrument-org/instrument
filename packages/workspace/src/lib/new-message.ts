@@ -5,13 +5,16 @@ import {
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { ok } from "neverthrow";
 
+import { MOUNT } from "../mount-points";
 import { type FileUpload } from "../schemas/file-upload";
 import { type FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { attachFolder } from "./attach-folder";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
@@ -23,13 +26,10 @@ import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
 import { listTopics, type TopicFolder } from "./orchestrator/topics";
 import { tabHolders } from "./orchestrator/window-tab";
+import { pathExists } from "./path-exists";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
-import { attachFolder } from "./attach-folder";
-import { pathExists } from "./path-exists";
-import { MOUNT } from "../mount-points";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { getTaskState, setTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -398,6 +398,37 @@ export async function newMessage({
 }
 
 /**
+ * Attaches a topic's folders to the chat, the ones it does not have yet, and
+ * returns where each is mounted. A folder no longer on disk is left out, so
+ * the agent is not pointed at nothing; attaching one the chat already has
+ * would reset the access it was given, so that one is only named.
+ */
+async function attachTopicFolders(
+  chatId: TaskId,
+  folders: TopicFolder[],
+): Promise<string[]> {
+  const mounts: string[] = [];
+  for (const folder of folders) {
+    const onDisk = AbsolutePathSchema.safeParse(folder.path);
+    if (!onDisk.success || !(await pathExists(onDisk.data))) {
+      continue;
+    }
+    const state = await getTaskState(taskDir(chatId));
+    const attached =
+      Object.values(state.attachedFolders ?? {}).find(
+        (entry) => entry.path === folder.path,
+      ) ??
+      (await attachFolder({
+        access: "read-write",
+        path: folder.path,
+        taskId: chatId,
+      }));
+    mounts.push(`${MOUNT.attachedFolders}/${attached.mountName}`);
+  }
+  return mounts;
+}
+
+/**
  * The topics the chat carries, named for the model. None when it carries
  * none and never has: a chat untagged since its last message gets an empty
  * part, so the note can say the topics are gone.
@@ -450,37 +481,6 @@ async function createChatTopicsPart({
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-chatTopics",
   };
-}
-
-/**
- * Attaches a topic's folders to the chat, the ones it does not have yet, and
- * returns where each is mounted. A folder no longer on disk is left out, so
- * the agent is not pointed at nothing; attaching one the chat already has
- * would reset the access it was given, so that one is only named.
- */
-async function attachTopicFolders(
-  chatId: TaskId,
-  folders: TopicFolder[],
-): Promise<string[]> {
-  const mounts: string[] = [];
-  for (const folder of folders) {
-    const onDisk = AbsolutePathSchema.safeParse(folder.path);
-    if (!onDisk.success || !(await pathExists(onDisk.data))) {
-      continue;
-    }
-    const state = await getTaskState(taskDir(chatId));
-    const attached =
-      Object.values(state.attachedFolders ?? {}).find(
-        (entry) => entry.path === folder.path,
-      ) ??
-      (await attachFolder({
-        access: "read-write",
-        path: folder.path,
-        taskId: chatId,
-      }));
-    mounts.push(`${MOUNT.attachedFolders}/${attached.mountName}`);
-  }
-  return mounts;
 }
 
 /**

@@ -2,9 +2,9 @@ import { chatFiltersAtom, type Draft } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";

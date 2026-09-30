@@ -9,12 +9,6 @@ const ILLEGAL_CHARS = new RegExp('[<>:"/\\\\|?*\\u0000-\\u001f]');
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const MAX_LENGTH = 200;
 
-export function validateProjectName(
-  raw: string,
-): Result<string, TypedError.InvalidInput> {
-  return validateFolderName(raw, "Project");
-}
-
 /**
  * A name that is also the name of its folder on disk, for anything kept that
  * way: rejected rather than transformed, so what the user typed is what they
@@ -66,4 +60,10 @@ export function validateFolderName(
   }
 
   return ok(name);
+}
+
+export function validateProjectName(
+  raw: string,
+): Result<string, TypedError.InvalidInput> {
+  return validateFolderName(raw, "Project");
 }

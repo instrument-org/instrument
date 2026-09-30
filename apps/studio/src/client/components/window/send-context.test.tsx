@@ -81,7 +81,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     drafts: [],
     finders: {},
     href: "/browser",
-    hrefOfAppTab: () => {},
+    hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
     state: { attachedFolders: { home: HOME } },

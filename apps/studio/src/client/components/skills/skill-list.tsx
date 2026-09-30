@@ -37,6 +37,115 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
   workspace: 0,
 };
 
+/**
+ * Every skill a task can load, searchable and grouped by where it comes
+ * from, each a row that `onOpen` takes to the skill's page.
+ */
+export function SkillList({
+  onOpen,
+}: {
+  onOpen: (skill: Skill) => void;
+}) {
+  const { data: skills = [], isLoading } = useQuery(
+    rpcClient.workspace.skill.list.queryOptions(),
+  );
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const matches = matchSkills(skills, deferredQuery, {
+    scope: "name-and-description",
+  });
+  const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
+  const groups = groupSkills(matches.map((match) => match.skill));
+
+  if (isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">Finding installed skills…</p>
+    );
+  }
+  if (skills.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed p-10 text-center">
+        <p className="font-medium">No skills yet</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {`Add a skill folder to a directory ${APP_NAME} reads, or ask for one.`}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="relative mb-8 max-w-md">
+        <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          placeholder="Search skills"
+          type="search"
+          value={query}
+        />
+        {query ? (
+          <button
+            aria-label="Clear search"
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            onClick={() => {
+              setQuery("");
+            }}
+            type="button"
+          >
+            <XIcon className="size-4" />
+          </button>
+        ) : null}
+      </div>
+
+      {groups.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {`No skills match “${deferredQuery}”.`}
+        </p>
+      ) : (
+        <div className="grid gap-10">
+          {groups.map((group) => {
+            const sourcePaths = showsSourcePaths(group.source)
+              ? group.dirs
+              : [];
+
+            return (
+              <section className="min-w-0" key={group.key}>
+                <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <h2 className="text-lg font-medium text-muted-foreground">
+                    {group.label}
+                  </h2>
+                  {sourcePaths.map((dir) => (
+                    <RevealPath
+                      className="max-w-full min-w-0"
+                      hideIcon
+                      key={dir}
+                      path={dir}
+                    />
+                  ))}
+                </div>
+                <ul className="divide-y overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                  {group.skills.map((skill) => (
+                    <li className="min-w-0" key={skill.id}>
+                      <SkillRow
+                        onOpen={onOpen}
+                        ranges={matchBySkill.get(skill)}
+                        skill={skill}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
 // Every skill has a SKILL.md, so a count of one says nothing; what is worth
 // knowing at a glance is that a skill brings scripts and references with it.
 function fileCountLabel({ fileCount, filesTruncated }: Skill) {
@@ -158,114 +267,5 @@ function SkillRow({
         </span>
       ) : null}
     </button>
-  );
-}
-
-/**
- * Every skill a task can load, searchable and grouped by where it comes
- * from, each a row that `onOpen` takes to the skill's page.
- */
-export function SkillList({
-  onOpen,
-}: {
-  onOpen: (skill: Skill) => void;
-}) {
-  const { data: skills = [], isLoading } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions(),
-  );
-  const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const matches = matchSkills(skills, deferredQuery, {
-    scope: "name-and-description",
-  });
-  const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
-  const groups = groupSkills(matches.map((match) => match.skill));
-
-  if (isLoading) {
-    return (
-      <p className="text-sm text-muted-foreground">Finding installed skills…</p>
-    );
-  }
-  if (skills.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed p-10 text-center">
-        <p className="font-medium">No skills yet</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {`Add a skill folder to a directory ${APP_NAME} reads, or ask for one.`}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="relative mb-8 max-w-md">
-        <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
-          onChange={(event) => {
-            setQuery(event.target.value);
-          }}
-          placeholder="Search skills"
-          type="search"
-          value={query}
-        />
-        {query ? (
-          <button
-            aria-label="Clear search"
-            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-            onClick={() => {
-              setQuery("");
-            }}
-            type="button"
-          >
-            <XIcon className="size-4" />
-          </button>
-        ) : null}
-      </div>
-
-      {groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {`No skills match “${deferredQuery}”.`}
-        </p>
-      ) : (
-        <div className="grid gap-10">
-          {groups.map((group) => {
-            const sourcePaths = showsSourcePaths(group.source)
-              ? group.dirs
-              : [];
-
-            return (
-              <section className="min-w-0" key={group.key}>
-                <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  <h2 className="text-lg font-medium text-muted-foreground">
-                    {group.label}
-                  </h2>
-                  {sourcePaths.map((dir) => (
-                    <RevealPath
-                      className="max-w-full min-w-0"
-                      hideIcon
-                      key={dir}
-                      path={dir}
-                    />
-                  ))}
-                </div>
-                <ul className="divide-y overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-                  {group.skills.map((skill) => (
-                    <li className="min-w-0" key={skill.id}>
-                      <SkillRow
-                        onOpen={onOpen}
-                        ranges={matchBySkill.get(skill)}
-                        skill={skill}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
-      )}
-    </>
   );
 }

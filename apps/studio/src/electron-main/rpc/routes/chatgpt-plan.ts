@@ -5,7 +5,7 @@ import {
   signOutOfChatGPT,
   verifyActiveAccount,
 } from "@/electron-main/lib/chatgpt-plan";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import { setChatGPTPlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 
 import { publisher } from "../publisher";
@@ -33,7 +33,7 @@ const signIn = base.handler(async ({ context, errors }) => {
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: "chatgpt",
       });
-      void setDefaultModel({ onlyIfUnset: true });
+      await setChatGPTPlanDefaultModel();
     }
     return status;
   } catch (error) {

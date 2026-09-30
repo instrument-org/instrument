@@ -77,6 +77,24 @@ describe("screenPresentation", () => {
   ])("names a skill tab by %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
+
+  it("names a screen it has no words for by what its route declares", () => {
+    const href = "/debug/components/colors";
+    expect(
+      screenPresentation(href, {
+        ...CONTEXT,
+        route: { iconName: "code", title: "Colors" },
+      }).title,
+    ).toBe("Colors");
+    expect(screenPresentation(href, CONTEXT).title).toBe("Tab");
+  });
+
+  it("keeps its own name for a screen it knows over the route's", () => {
+    expect(
+      screenPresentation(CHAT_HREF, { ...CONTEXT, route: { title: "Debug" } })
+        .title,
+    ).toBe("Chat");
+  });
 });
 
 describe("screenLocation", () => {

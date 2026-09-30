@@ -1,6 +1,6 @@
 import { windowTabsAtom } from "@/client/atoms/orchestrator";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
-import { type TabId } from "@/shared/tabs";
+import { type Tab, type TabId } from "@/shared/tabs";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useAtomValue } from "jotai";
@@ -37,7 +37,7 @@ export function AppTabStrip({
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
-  tabs: { id: TabId; pathname: string }[];
+  tabs: Pick<Tab, "iconName" | "id" | "pathname" | "title">[];
 }) {
   const appsBySlug = useAppsBySlug();
   const { activeByGroup, tabs: groupTabs } = useAtomValue(windowTabsAtom);
@@ -61,7 +61,10 @@ export function AppTabStrip({
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
   /** A site's tab is named for the page its group has up. */
-  const presentationOf = (href: string): { icon: ReactNode; title: string } => {
+  const presentationOf = (
+    href: string,
+    route: Pick<Tab, "iconName" | "title">,
+  ): { icon: ReactNode; title: string } => {
     if (parseHref(href).pathname === PAGE_HREF) {
       const group = groupOfHref(href);
       const own = groupTabs.filter((tab) => tab.group === group);
@@ -80,6 +83,7 @@ export function AppTabStrip({
     return screenPresentation(href, {
       appsBySlug,
       chatTitles,
+      route,
       taskTitles: childTitles,
     });
   };
@@ -119,7 +123,7 @@ export function AppTabStrip({
         selectedKey={selectedId ?? undefined}
         tabs={tabs.map((tab) => ({
           key: tab.id,
-          ...presentationOf(tab.pathname || CHAT_HREF),
+          ...presentationOf(tab.pathname || CHAT_HREF, tab),
         }))}
       />
       {menu && (

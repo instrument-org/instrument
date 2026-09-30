@@ -7,6 +7,8 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { IconMap } from "@/client/components/tab-icons";
+import { type Tab } from "@/shared/tabs";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -34,6 +36,12 @@ interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
   /** Each chat's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<StoreId.Session, string>;
+  /**
+   * What the route a tab stands on says of itself, in its `head()` title and
+   * `staticData.tabIcon`: the name and mark for a screen this table has no
+   * words for, such as the debug pages.
+   */
+  route?: Pick<Tab, "iconName" | "title">;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<TaskId, string>;
 }
@@ -109,7 +117,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, chatTitles, taskTitles }: ScreenNames,
+  { appsBySlug, chatTitles, route, taskTitles }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -189,7 +197,15 @@ export function screenPresentation(
   if (tasks) {
     return { icon: <ListChecksIcon className="size-3.5" />, title: "Tasks" };
   }
-  return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
+  const RouteIcon = route?.iconName ? IconMap[route.iconName] : undefined;
+  return {
+    icon: RouteIcon ? (
+      <RouteIcon className="size-3.5" />
+    ) : (
+      <MagnifyingGlassIcon className="size-3.5" />
+    ),
+    title: route?.title || "Tab",
+  };
 }
 
 /** The chat a screen address stands on, by the title the window has for it. */

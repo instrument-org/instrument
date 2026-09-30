@@ -1,6 +1,6 @@
 # Plan: bringing 1.x tasks and projects into chats
 
-Status: proposal, not started. Phase 2 of two; it builds on [chat-folders.md](../completed/chat-folders.md).
+Status: migration built (`lib/migrate-legacy-tasks.ts`); site backfill and the eval not done. Phase 2 of two; it builds on [chat-folders.md](../completed/chat-folders.md).
 
 ## Goal
 
@@ -91,6 +91,22 @@ This is the layout version after [chat-folders.md](../completed/chat-folders.md)
    This also covers any parentless task a 2.0 build made, such as the tutorial task.
 4. Tasks with more than one session (7 on the real workspace) copy every session's words in order, into the one chat session.
 5. Write the marker.
+
+## As built
+
+Where `migrate-legacy-tasks.ts` differs from the above, or adds to it:
+
+- **Runs after the move to chats**, from `migrateWorkspaceLayout`, data-gated like it: a parentless task under `tasks/` that is not a window record, or a project under `projects/`, is work to do. A boot with neither costs one `readdir` and a settings read per task.
+- **Staged chats.** A chat is written as `chats/.<name>.partial`, its task moved in and pointed at it, and only then renamed, so no chat is listed without its task. A boot cut short finishes a staged chat that holds its task and discards one that does not.
+- **Unread and pins carry over.** Each chat's `chatSeen` mark goes on the window record before any chat is listed: read up to its newest message, or one short of its newest reply where 1.x had `unreadIndicator`. `pinnedAt` becomes the session's `starredAt`.
+- **Set aside, not trashed.** Tasks with no user message, and the tutorial replay (its assistant turns name the `tutorial-task-replay` model), move to `.pre-chats/empty-tasks/`. A task with a database and no settings file counts as a task.
+- **Project folders stay on the tasks that had them.** Clearing `projectId` stops project reconciliation, so an adopted task keeps the folders it already mounted rather than losing them.
+- **Replies keep their steps.** Each 1.x assistant message with words stays its own message, marked finished so it counts as a reply. Tool-only steps are dropped. Paths in `files` fences and under `/task/` are rewritten to `/tasks/<id>/`; bare relative paths in prose are left as written.
+- **Files the row lists** come from `data-fileChanges` under `output/` or `work/`, less deletions, skills, dot folders, `tmp/` and `node_modules/`, and only if still on disk. The note names the first 20.
+- **Attachments are cloned** (`COPYFILE_FICLONE`), so they cost no disk on APFS.
+- **Rows are written as text.** The store refuses a row it reads back as bytes.
+- **Not done:** the `visitedHosts` backfill for sites, and the eval.
+- **Left in place:** task folders whose names are not valid task ids (seen only in a dev workspace, all empty), and settings files that do not parse.
 
 ## Checks
 

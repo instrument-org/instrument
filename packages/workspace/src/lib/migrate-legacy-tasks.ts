@@ -1015,9 +1015,18 @@ function topicForProject(
   project: LegacyProject,
   topics: Topic[],
 ): { id: string; made: boolean } {
-  const index = topics.findIndex(
-    (topic) => nameKey(topic.name) === nameKey(project.name),
-  );
+  // Its own topic first, from an earlier boot. Otherwise one of the user's of
+  // the same name, never another project's: names are cut to a topic's
+  // length, so two long project names can meet.
+  const own = topics.findIndex((topic) => topic.projectId === project.id);
+  const index =
+    own === -1
+      ? topics.findIndex(
+          (topic) =>
+            topic.projectId === undefined &&
+            nameKey(topic.name) === nameKey(project.name),
+        )
+      : own;
   const existing = topics[index];
   if (existing) {
     const held = new Set((existing.folders ?? []).map((folder) => folder.path));
@@ -1025,9 +1034,10 @@ function topicForProject(
     const body = existing.instructions?.trim() ?? "";
     const addsInstructions =
       project.instructions !== "" && !body.includes(project.instructions);
-    if (added.length > 0 || addsInstructions) {
+    if (added.length > 0 || addsInstructions || own === -1) {
       const next: Topic = {
         ...existing,
+        projectId: existing.projectId ?? project.id,
         ...(added.length > 0
           ? { folders: [...(existing.folders ?? []), ...added] }
           : {}),
@@ -1054,6 +1064,7 @@ function topicForProject(
       project.name,
       topics.map((known) => known.name),
     ),
+    projectId: project.id,
   };
   writeTopicSync(rootDir, topic);
   topics.push(topic);

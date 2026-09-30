@@ -47,6 +47,11 @@ const TopicSettingsSchema = z.object({
   /** The user's folders the work under it uses, attached to each chat it is on. */
   folders: z.array(TopicFolderSchema).optional(),
   id: z.string(),
+  /**
+   * The 1.x project the migration made it from, or joined to it, so a later
+   * boot finds it again by that rather than by a name two projects can share.
+   */
+  projectId: z.string().optional(),
   /** Out of the menus, with the chats that carry it left alone. */
   retired: z.boolean().optional(),
 });

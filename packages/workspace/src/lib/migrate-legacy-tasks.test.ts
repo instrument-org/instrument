@@ -661,6 +661,54 @@ describe("migrateLegacyTasks", () => {
     ).toEqual(["Shopping", "🐛 Bug tasks"]);
   });
 
+  it("keeps two projects whose names meet at a topic's length apart, on every boot", () => {
+    writeProject("Marketing campaign spring 2025", {
+      folders: ["/Users/someone/2025"],
+      id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
+    });
+    writeProject("Marketing campaign spring 2026", {
+      folders: ["/Users/someone/2026"],
+      id: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
+    });
+    legacyTask("2026-06-23-spring", {
+      sessions: ONE_ASK,
+      settings: { name: "Plan", projectId: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ" },
+    });
+
+    expect(migrateLegacyTasks(root).topicCount).toBe(2);
+    legacyTask("2026-06-24-later", { sessions: ONE_ASK });
+    migrateLegacyTasks(root);
+
+    expect(
+      readTopicsSync(root).map(({ folders, name, projectId }) => ({
+        folders,
+        name,
+        projectId,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "folders": [
+            {
+              "path": "/Users/someone/2025",
+            },
+          ],
+          "name": "Marketing campaign sprin",
+          "projectId": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
+        },
+        {
+          "folders": [
+            {
+              "path": "/Users/someone/2026",
+            },
+          ],
+          "name": "Marketing campaign spr 2",
+          "projectId": "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
+        },
+      ]
+    `);
+  });
+
   it("sets aside a task the user never said anything in, and the tutorial", () => {
     legacyTask("2026-06-23-empty", { sessions: [] });
     legacyTask("2026-06-23-tutorial", {

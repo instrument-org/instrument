@@ -49,6 +49,9 @@ const PROVIDER_METADATA = {
     description: "GPT models on your ChatGPT Plus or Pro plan",
     name: "ChatGPT",
     quirks: { supportsMultipartToolResults: true },
+    // The plan's route takes OpenAI's hosted `web_search` tool; it refuses
+    // image generation.
+    tags: ["webSearch"],
     type: "chatgpt",
     url: addRef("https://chatgpt.com"),
   },

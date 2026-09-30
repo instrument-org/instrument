@@ -165,11 +165,6 @@ describe("matchesFilters", () => {
       chat({ state: "waiting" }),
     ],
     [
-      "a topic",
-      { ...NO_FILTERS, topics: ["house"] },
-      chat({ topics: ["house"] }),
-    ],
-    [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
       chat({ holds: { apps: ["gmail"] } }),
@@ -182,6 +177,16 @@ describe("matchesFilters", () => {
   ])("leaves a chat put away out of %s", (_, filters, kept) => {
     expect(matchesFilters(kept, filters)).toBe(true);
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
+  });
+
+  it("keeps a chat put away in a topic it is filed under, as a label does", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, topics: ["house"] };
+    expect(
+      matchesFilters(chat({ archived: true, topics: ["house"] }), filters),
+    ).toBe(true);
+    expect(
+      matchesFilters(chat({ archived: true, topics: ["garden"] }), filters),
+    ).toBe(false);
   });
 
   it("holds every chat in All, put away or not, narrowed by the search", () => {

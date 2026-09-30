@@ -100,7 +100,7 @@ export function matchesFilters(
   topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
 ) {
   return (
-    matchesPlace(chat, filters.place) &&
+    matchesPlace(chat, filters) &&
     anyOf(filters.topics, chat.topics) &&
     anyOf(filters.apps, chat.holds.apps) &&
     matchesSearch(chat, filters.search, topicNames)
@@ -143,11 +143,12 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
  * Whether a chat is in the place the column stands in. A chat put away
  * is in All and nowhere else, the way mail keeps what was archived out of
  * the inbox but in the whole of it, so the inbox is every other chat and
- * Needs you those of them waiting on the user. Drafts are not chats at all
- * yet, so that place holds none.
+ * Needs you those of them waiting on the user. A topic is a label rather
+ * than a place, so one chosen shows what is filed under it, put away or
+ * not. Drafts are not chats at all yet, so that place holds none.
  */
-function matchesPlace(chat: Filterable, place: ChatPlace | undefined) {
-  switch (place) {
+function matchesPlace(chat: Filterable, filters: ChatFilters) {
+  switch (filters.place) {
     case "all": {
       return true;
     }
@@ -162,7 +163,7 @@ function matchesPlace(chat: Filterable, place: ChatPlace | undefined) {
       return chat.starred;
     }
     case undefined: {
-      return !chat.archived;
+      return !chat.archived || filters.topics.length > 0;
     }
   }
 }

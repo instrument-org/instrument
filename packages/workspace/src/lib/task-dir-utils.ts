@@ -25,8 +25,8 @@ export function getDownloadsDir(dir: TaskDir): AbsolutePath {
 // clone the user's real Chrome profile -- cookies, login data, the full
 // browsing history -- into the temp dir. A task is the one place that clone
 // must not land: everything task-scoped picks it up, from the file index and
-// the task layout in the system prompt through the per-turn change list, the
-// export zip, and the agent's own reads.
+// the task layout in the system prompt through the per-turn change list and
+// the agent's own reads.
 export function getExternalBrowserTmpDir(
   rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
 ): AbsolutePath {

@@ -3,7 +3,7 @@ import path from "node:path";
 /**
  * Resolve a name a predicate reports as free, appending `-2`, `-3`, ... to the
  * stem until one is available. Shared collision-safe naming for copied files,
- * uploaded attachments, task/branch folders, exported zips, and images.
+ * uploaded attachments, task/branch folders, and images.
  *
  * `isTaken` decides availability (disk existence, a directory listing, a
  * reserved set); it may be sync or async.

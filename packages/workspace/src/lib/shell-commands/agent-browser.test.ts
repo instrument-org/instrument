@@ -469,8 +469,8 @@ describe("agent-browser routing", () => {
     ]);
 
     // The CLI clones the user's real profile into TMPDIR. Inside the task that
-    // clone is indexed, reported back to the model as changed files, packed
-    // into an export zip, and readable by the agent.
+    // clone is indexed, reported back to the model as changed files, and
+    // readable by the agent.
     for (const key of ["TEMP", "TMP", "TMPDIR"]) {
       expect(env[key]).toBeTruthy();
       expect(env[key]).not.toContain(taskDirPath);

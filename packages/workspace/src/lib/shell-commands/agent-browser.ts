@@ -771,8 +771,8 @@ export function createAgentBrowserCommand({
     // Task-local temp (resolveCommandContext) is the wrong sink for that: it is
     // inside the task tree, so the clone's cookies, login data, and browsing
     // history would be indexed, listed back to the model as changed files,
-    // written into the next system prompt's task layout, packed into an
-    // exported task zip, and readable by the agent. Redirect it out of the task.
+    // written into the next system prompt's task layout, and readable by the
+    // agent. Redirect it out of the task.
     const externalTmpDir = isExternal ? getExternalBrowserTmpDir() : undefined;
     if (externalTmpDir) {
       await fs.mkdir(externalTmpDir, { recursive: true });

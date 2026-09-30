@@ -45,7 +45,7 @@ Nothing has been removed. Both PostHog SDKs are live and default-on.
 
 [user-chosen-working-folder.md](user-chosen-working-folder.md) and [conversation-storage.md](conversation-storage.md) change the payload this plan uploads. Four consequences:
 
-1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table. [export-task-zip.ts](../../../packages/workspace/src/lib/export-task-zip.ts) is not the primitive for this after all; it becomes an export feature, not a reporting one.
+1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table.
 2. **A conversation becomes one append-only file.** Under option D that file plus a byte range from the index _is_ the report payload. No archive walk, no multi-artifact manifest, and the zip-bomb and traversal surface drops out of the common case.
 3. **The superset risk sharpens.** The transcript already contains every file the agent read, every screenshot, every browser page, every command's output. With a writable user-chosen folder those are the user's real documents rather than sandbox copies. "Thumbs up sends the thread" reads to a user like sending a chat and behaves like sending a working folder.
 4. **The journal should match the conversation format.** Append-only plain text in application data, same delete story, same inspect story, rebuildable index. Do not introduce a second storage idiom for diagnostics.

@@ -150,8 +150,8 @@ const save = base
     return { filepath };
   });
 
-// Names the file after the task it came from, the way the zip export does, so a
-// Downloads folder holding a few of these still says which is which.
+// Names the file after the task it came from, so a Downloads folder holding a
+// few of these still says which is which.
 function transcriptFilenameStem(taskName: string) {
   const stem = taskName
     .toLowerCase()

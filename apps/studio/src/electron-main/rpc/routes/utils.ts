@@ -36,12 +36,8 @@ import {
   OpenTaskInTypeSchema,
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
-import {
-  taskDir,
-  TaskIdSchema,
-  workspaceRouter,
-} from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
+import { taskDir, TaskIdSchema } from "@instrument-org/workspace/electron";
+import { eventIterator } from "@orpc/server";
 import {
   app,
   BrowserWindow,
@@ -583,28 +579,6 @@ const openFolder = base
     }
   });
 
-const exportZip = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      includeChat: z.boolean().default(false),
-    }),
-  )
-  .output(
-    z.object({
-      filename: z.string(),
-      filepath: z.string(),
-    }),
-  )
-  .handler(async ({ context, input, signal }) => {
-    const outputPath = app.getPath("downloads");
-    return call(
-      workspaceRouter.task.exportZip,
-      { ...input, outputPath },
-      { context, signal },
-    );
-  });
-
 const getSupportedEditors = base
   .output(z.array(SupportedEditorSchema))
   .handler(async () => {
@@ -894,7 +868,6 @@ export const utils = {
   copyFileToClipboard,
   displayProtocol,
   events,
-  exportZip,
   fileManagerApp,
   fileOpenCandidates,
   fileOpenTarget,

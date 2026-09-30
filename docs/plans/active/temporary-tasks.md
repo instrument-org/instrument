@@ -80,7 +80,7 @@ An Electron partition name without a `persist:` prefix is an in-memory session, 
 
 This replaces [`session.fromPath`](../../../apps/studio/src/electron-main/browser-view/manager.ts) for temporary tasks. The `partitionDir` field threaded through the browser view entry, manager, debug snapshot, and tests becomes a directory-or-name union. That is the one place this feature touches typed plumbing.
 
-If some Chromium capability turns out to require a real profile directory, the fallback is a per-task directory at `<task>/.instrument/browser-session/`, which is masked from the agent's filesystem and which [`export-task-zip`](../../../packages/workspace/src/lib/export-task-zip.ts) already excludes by that exact task-relative path. Taking the fallback moves tier 3 into tier 2 and reintroduces cleanup, so prefer the in-memory form.
+If some Chromium capability turns out to require a real profile directory, the fallback is a per-task directory at `<task>/.instrument/browser-session/`, which is masked from the agent's filesystem. Taking the fallback moves tier 3 into tier 2 and reintroduces cleanup, so prefer the in-memory form.
 
 ### Deletion: rename first, reap after
 

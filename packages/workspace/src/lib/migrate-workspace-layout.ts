@@ -45,19 +45,17 @@ const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 // count, and it is a no-op for every task a current build touched). Bump the
 // version when a normalization step is added, so existing workspaces run the
 // sweep once more. Between bumps, tasks must enter the workspace only through
-// code that leaves them in the current shape: initializeTask writes it, and
-// importTask runs normalizeTask on the one task it extracts. A task folder
-// hand-copied into tasks/ stays as copied until the next version bump.
+// code that leaves them in the current shape, as initializeTask does. A task
+// folder hand-copied into tasks/ stays as copied until the next version bump.
 const WORKSPACE_LAYOUT_VERSION = 2;
 const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
 // inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
-// login data, browsing history -- and inside the task it is indexed, packed
-// into an export zip, and readable by the agent, so these are deleted rather
-// than moved. Current builds clone outside the task entirely
-// (getExternalBrowserTmpDir); a task restored from an old export can still
-// carry one, which is why importTask runs the full normalizeTask on it.
+// login data, browsing history -- and inside the task it is indexed and
+// readable by the agent, so these are deleted rather than moved. Current
+// builds clone outside the task entirely (getExternalBrowserTmpDir); a task
+// written by an older build can still carry one.
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
 
 export interface WorkspaceLayoutMigration {
@@ -111,28 +109,6 @@ export function migrateWorkspaceLayout({
     convertedTopicCount,
     legacyTasks: migrateLegacyTasks(rootDir),
   };
-}
-
-// Normalizes one task folder to the current layout. Each step is idempotent
-// and no-ops on a task already in the current shape. Called for every task by
-// the marker-gated boot sweep, and by importTask for the task it extracts,
-// which may come from a zip written before any of these steps existed. Returns
-// the number of browser profile clones deleted.
-export function normalizeTask(taskFolder: string): number {
-  normalizeTaskPrivateFiles(taskFolder);
-  normalizeTaskSettingsFile(taskFolder);
-  // After both, so `state.json` is under its current name and the settings
-  // file it folds into is in the private dir.
-  foldTaskStateFile(taskFolder);
-  // After the fold, so the stamp is written to the file that survives it.
-  stampTaskTimestamps(taskFolder);
-  normalizeTaskAttachments(taskFolder);
-  // Before the work/ fold, so a clone is found at the path the build that
-  // wrote it used rather than the one the fold is about to move it to.
-  const removedBrowserProfileCloneCount =
-    removeBrowserProfileClones(taskFolder);
-  foldTaskWorkDir(taskFolder);
-  return removedBrowserProfileCloneCount;
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -198,9 +174,15 @@ function mergeDirInto(source: string, destination: string) {
 
 function migrateLegacyProjectsDir(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount" | "legacyTasks"> {
+): Omit<
+  WorkspaceLayoutMigration,
+  "chats" | "convertedTopicCount" | "legacyTasks"
+> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
-  const migration: Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount" | "legacyTasks"> = {
+  const migration: Omit<
+    WorkspaceLayoutMigration,
+    "chats" | "convertedTopicCount" | "legacyTasks"
+  > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -248,8 +230,14 @@ function migrateLegacyProjectsDir(
 
 function migrateTaskLayout(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount" | "legacyTasks"> {
-  let migration: Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount" | "legacyTasks"> = {
+): Omit<
+  WorkspaceLayoutMigration,
+  "chats" | "convertedTopicCount" | "legacyTasks"
+> {
+  let migration: Omit<
+    WorkspaceLayoutMigration,
+    "chats" | "convertedTopicCount" | "legacyTasks"
+  > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -280,6 +268,27 @@ function moveIfMissingTarget(source: string, destination: string) {
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.renameSync(source, destination);
   }
+}
+
+// Normalizes one task folder to the current layout. Each step is idempotent
+// and no-ops on a task already in the current shape. Called for every task by
+// the marker-gated boot sweep. Returns the number of browser profile clones
+// deleted.
+function normalizeTask(taskFolder: string): number {
+  normalizeTaskPrivateFiles(taskFolder);
+  normalizeTaskSettingsFile(taskFolder);
+  // After both, so `state.json` is under its current name and the settings
+  // file it folds into is in the private dir.
+  foldTaskStateFile(taskFolder);
+  // After the fold, so the stamp is written to the file that survives it.
+  stampTaskTimestamps(taskFolder);
+  normalizeTaskAttachments(taskFolder);
+  // Before the work/ fold, so a clone is found at the path the build that
+  // wrote it used rather than the one the fold is about to move it to.
+  const removedBrowserProfileCloneCount =
+    removeBrowserProfileClones(taskFolder);
+  foldTaskWorkDir(taskFolder);
+  return removedBrowserProfileCloneCount;
 }
 
 // Folds legacy user-input dirs (user-provided/, agent-retrieved/) into a single

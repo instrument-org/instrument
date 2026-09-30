@@ -113,16 +113,12 @@ export interface AnalyticsEvents {
     files_count: number;
   }>;
   "task.forked": never;
-  "task.imported": never;
   "task.invalid_folder_trashed": never;
   "task.opened_in": {
     app_name: string;
   };
   "task.restored_version": never;
   "task.share_menu_opened": never;
-  "task.shared": {
-    share_type: "copied_screenshot" | "exported_zip" | "saved_screenshot";
-  };
   "task.trashed": never;
   "task.updated": never;
   "upgrade.clicked": {

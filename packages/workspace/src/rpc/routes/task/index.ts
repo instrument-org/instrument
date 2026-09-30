@@ -8,25 +8,18 @@ import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { type TypedError } from "../../../lib/errors";
-import { exportTaskZip } from "../../../lib/export-task-zip";
-import { findAvailableName } from "../../../lib/find-available-name";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask, getTasks } from "../../../lib/get-tasks";
-import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { ensureChat } from "../../../lib/orchestrator/chat-records";
-import { pathExists } from "../../../lib/path-exists";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import { setTaskState } from "../../../lib/task-record";
-import {
-  getTaskSettings,
-  updateTaskSettings,
-} from "../../../lib/task-settings";
+import { updateTaskSettings } from "../../../lib/task-settings";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getTaskUsageSummary,
@@ -34,7 +27,6 @@ import {
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
 import { SessionMessageDataPart } from "../../../schemas/session/message-data-part";
@@ -351,103 +343,6 @@ const create = base
     },
   );
 
-const importTask = base
-  .input(
-    z.object({
-      zipFileData: z.string(),
-    }),
-  )
-  .output(
-    z.object({
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(async ({ context, errors, input: { zipFileData }, signal }) => {
-    const result = await importTaskLib(
-      {
-        workspaceConfig: context.workspaceConfig,
-        zipFileData,
-      },
-      { signal },
-    );
-
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-
-    publisher.publish("task.updated", {
-      id: result.value.taskId,
-    });
-
-    context.workspaceConfig.captureEvent("task.imported");
-
-    return { id: result.value.taskId };
-  });
-
-const exportZip = base
-  .errors({
-    EXPORT_FAILED: {
-      message: "Failed to export task",
-    },
-  })
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      outputPath: z.string(),
-    }),
-  )
-  .output(
-    z.object({
-      filename: z.string(),
-      filepath: z.string(),
-    }),
-  )
-  .handler(async ({ context, errors, input }) => {
-    try {
-      const taskId = input.id;
-
-      const settings = await getTaskSettings(taskDir(taskId));
-      const taskName = settings?.name ?? input.id;
-
-      const safeName = taskName
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9-]/g, "-")
-        .replaceAll(/-+/g, "-")
-        .replaceAll(/^-|-$/g, "")
-        .slice(0, 50);
-
-      const { name: filename } = await findAvailableName({
-        isTaken: (candidate) =>
-          pathExists(
-            AbsolutePathSchema.parse(`${input.outputPath}/${candidate}`),
-          ),
-        name: `${safeName}.zip`,
-        splitExtension: true,
-      });
-      const filepath = `${input.outputPath}/${filename}`;
-
-      const result = await exportTaskZip({
-        dir: taskDir(taskId),
-        outputPath: filepath,
-      });
-
-      if (result.isErr()) {
-        throw errors.EXPORT_FAILED({ message: result.error.message });
-      }
-
-      context.workspaceConfig.captureEvent("task.shared", {
-        share_type: "exported_zip",
-      });
-
-      return { filename, filepath };
-    } catch (error) {
-      throw errors.EXPORT_FAILED({
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  });
-
 const live = {
   byId: base
     .input(z.object({ id: TaskIdSchema }))
@@ -497,9 +392,7 @@ export const task = {
   backgroundProcesses: taskBackgroundProcesses,
   byId,
   create,
-  exportZip,
   files: taskFiles,
-  import: importTask,
   list,
   live: {
     ...live,

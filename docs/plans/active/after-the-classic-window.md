@@ -13,7 +13,7 @@ The app window lists the tasks its chats started (`workspace.chats.tasks`), and 
 ## Features without a counterpart
 
 - **Subscribe page.** Plan picker and checkout. Kept: `plans.get`, `stripe.createCheckoutSession`, `stripe.getInvoicePreview`, `useLiveSubscriptionStatus`. Settings still has the account card and "Manage subscription" (`stripe.createPortalSession`), so a subscriber can manage a plan but nobody can start one from the app. The page itself was only reachable from the dev panel.
-- **Export and import a task as a zip.** Kept: `utils.exportZip` (main, writes to Downloads), `workspace.task.exportZip`, `workspace.task.import`. A chat's menu offers "Save transcript" and nothing that takes the files with it.
+- **Export and import a task as a zip.** Deleted: `utils.exportZip`, `workspace.task.exportZip`, `workspace.task.import`, `lib/export-task-zip.ts`, `lib/import-task.ts`. A chat's menu offers "Save transcript" and nothing that takes the files with it. `lib/extract-task-zip.ts` stays for the scripts that read a zip exported by an older build.
 - **Open a task in an editor or terminal** (VS Code, Cursor, iTerm and the rest, developer mode). Kept: `utils.openTaskIn`, `utils.getSupportedEditors`, `shared/schemas/editors.ts`. The app icons for them were deleted.
 - **Server exceptions banner.** Main-process exceptions listed in the window with copy and clear. Kept: `utils.live.serverExceptions`, `utils.clearExceptions`. Nothing in the app window shows them.
 - **Per-task usage summary** (tokens and cost across the task). Kept: `workspace.task.usageSummary` and its live twin. A turn's footer still shows the turn's own usage.

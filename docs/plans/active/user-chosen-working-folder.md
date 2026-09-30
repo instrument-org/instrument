@@ -215,7 +215,6 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 
 ## What breaks, and what to do about it
 
-- **`export-task-zip`** assumes a task is one self-contained directory. When the work lives in the user's folder, exporting means transcript plus references, not a folder. Decide whether export means "the conversation" or "the conversation and a copy of the files."
 - **The `output/` preview convention.** Files written to `output/` automatically become previews ([main.ts:234](../../../packages/workspace/src/agents/main.ts#L234)). That rule dies with the magic directory. Its replacement is [Rich file presentation](#rich-file-presentation) above.
 - **Two folder concepts need two names.** Sources (read-only, many) and the working folder (writable, singular) are deliberately distinct, so the risk is not blurred semantics but two affordances that look alike. This is a vocabulary problem before it is a code problem. Flagged for design.
 - **Concurrency: accepted, with a narrower residual risk.** Two tasks sharing a working folder is allowed. Scratch is per-task and created on demand, so the tooling never collides; what remains is two agents editing the same file, which is the same hazard as a person editing alongside an agent and wants the same answer (a visible change record) rather than a lock. Not worth serializing tasks over.

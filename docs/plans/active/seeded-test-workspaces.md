@@ -19,7 +19,6 @@ Most of the plumbing is there. This is mostly a corpus and a seeder, not new app
 | --- | --- | --- |
 | Point the app at an arbitrary workspace | `ELECTRON_USER_DATA_DIR`, handled in `electron-main/setup-environment.ts` | Redirects `userData` wholesale, and the workspace lives at `userData/workspace`. Everything follows: tasks, preferences, tabs, providers, browser session |
 | Skip the provider-setup gate | `SKIP_ONBOARDING=true`, checked in `shouldShowOnboarding` in `electron-main/index.ts` | Without this a fresh workspace opens the onboarding window and the main window never reveals, which in CI reads as a hang |
-| Whole-task round trip | `task.exportZip` and `task.importTask` (`packages/workspace/src/rpc/routes/task/index.ts`, `lib/export-task-zip.ts`) | Import takes base64 zip data, so a seeder can drive it without the file picker |
 | Call any route from a script | `window.__studioDebug.rpc(path, input)` | Gated on the Developer Mode preference at call time |
 | Drive the app | `.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs` | Already spawns Studio with a controlled environment |
 

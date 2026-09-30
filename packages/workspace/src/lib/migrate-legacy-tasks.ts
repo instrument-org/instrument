@@ -345,6 +345,12 @@ function adoptTask({
       ...(topicId ? { topics: [topicId] } : {}),
       updatedAt: lastActivityAt,
     };
+    // The task's own folders too, so a reply naming `/mnt/<folder>/…` reaches
+    // the same file from the chat that it did from the task.
+    const chatFolders = withTaskFolders(
+      folders,
+      isRecord(settings.state) ? settings.state.attachedFolders : undefined,
+    );
     const privateDir = path.join(stagingDir, TASK_PRIVATE_FOLDER_NAME);
     fs.mkdirSync(privateDir, { recursive: true });
     fs.mkdirSync(path.join(stagingDir, TASK_FOLDER_NAMES.attachments), {
@@ -360,7 +366,7 @@ function adoptTask({
       lastActivityAt: lastActivityAt.toISOString(),
       name: title,
       state: {
-        attachedFolders: folders,
+        attachedFolders: chatFolders.folders,
         ...(isRecord(settings.state) &&
         typeof settings.state.selectedModelURI === "string"
           ? { selectedModelURI: settings.state.selectedModelURI }
@@ -372,6 +378,7 @@ function adoptTask({
       dbPath: path.join(privateDir, TASK_DB_FILE_NAME),
       files: heldFiles(taskDir, taskId, conversation.changedFiles),
       messages: conversation.messages,
+      mountRenames: chatFolders.renames,
       session,
       taskId,
     });
@@ -626,14 +633,11 @@ function markSeen(
       TASK_PRIVATE_FOLDER_NAME,
     );
     fs.mkdirSync(windowPrivateDir, { recursive: true });
-    writeJsonFileSync(
-      path.join(windowPrivateDir, TASK_SETTINGS_FILE_NAME),
-      {
-        createdAt: new Date().toISOString(),
-        kind: "orchestrator",
-        name: WINDOW_RECORD_TITLE,
-      },
-    );
+    writeJsonFileSync(path.join(windowPrivateDir, TASK_SETTINGS_FILE_NAME), {
+      createdAt: new Date().toISOString(),
+      kind: "orchestrator",
+      name: WINDOW_RECORD_TITLE,
+    });
     windows.push(WINDOW_RECORD_NAME);
   }
   for (const name of windows) {
@@ -964,6 +968,18 @@ function readTopicFiles(rootDir: string): TopicFile[] {
   });
 }
 
+/** The text with each `/mnt/<old>/` a chat knows by another name spelled that way. */
+function renameMounts(text: string, renames: Map<string, string>): string {
+  let renamed = text;
+  for (const [from, to] of renames) {
+    renamed = renamed.replaceAll(
+      `${MOUNT.attachedFolders}/${from}/`,
+      `${MOUNT.attachedFolders}/${to}/`,
+    );
+  }
+  return renamed;
+}
+
 /**
  * Where a chat was last read: its newest message for a task the user had
  * seen, or the message before its newest reply for one marked unread, so
@@ -1052,6 +1068,49 @@ function validDate(value: unknown): Date | undefined {
 }
 
 /**
+ * The chat's folders with the task's added: a folder the chat already has by
+ * path is kept under the chat's name for it, and a new one takes the task's
+ * name, or the next free one when the chat already uses that name for another
+ * folder. Returns the names that differ, so the copied replies can be spelled
+ * the way the chat reaches them. A folder a project lent the task is the
+ * chat's own from here, since the project it came from is gone.
+ */
+function withTaskFolders(
+  chatFolders: Record<string, unknown>,
+  taskFolders: unknown,
+): { folders: Record<string, unknown>; renames: Map<string, string> } {
+  const folders: Record<string, unknown> = { ...chatFolders };
+  const renames = new Map<string, string>();
+  for (const [key, folder] of Object.entries(
+    isRecord(taskFolders) ? taskFolders : {},
+  )) {
+    if (!isRecord(folder) || typeof folder.path !== "string") {
+      continue;
+    }
+    const taskName =
+      typeof folder.mountName === "string" ? folder.mountName : key;
+    const known = Object.entries(folders).find(
+      ([, existing]) => isRecord(existing) && existing.path === folder.path,
+    );
+    if (known) {
+      if (known[0] !== taskName) {
+        renames.set(taskName, known[0]);
+      }
+      continue;
+    }
+    let name = taskName;
+    for (let suffix = 2; name in folders; suffix += 1) {
+      name = `${taskName}-${suffix}`;
+    }
+    folders[name] = { ...folder, mountName: name, source: "user" };
+    if (name !== taskName) {
+      renames.set(taskName, name);
+    }
+  }
+  return { folders, renames };
+}
+
+/**
  * The chat's database: its session, then each message and its parts, in one
  * transaction. The replies' task paths are rewritten to where the chat reaches
  * the task's folder, and the first message carries the note on the task.
@@ -1060,12 +1119,15 @@ function writeChatRows({
   dbPath,
   files,
   messages,
+  mountRenames,
   session,
   taskId,
 }: {
   dbPath: string;
   files: string[];
   messages: ConversationMessage[];
+  /** Mount names the chat knows a task's folder by, where they differ from the task's. */
+  mountRenames: Map<string, string>;
   session: Session.Type;
   taskId: ReturnType<typeof TaskIdSchema.parse>;
 }) {
@@ -1109,7 +1171,10 @@ function writeChatRows({
       state: "done",
       text:
         message.role === "assistant"
-          ? translateTaskFolderPaths(part.text, taskId).replaceAll(
+          ? renameMounts(
+              translateTaskFolderPaths(part.text, taskId),
+              mountRenames,
+            ).replaceAll(
               RELATIVE_LINK,
               (_match, open: string, target: string) =>
                 `${open}${MOUNT.tasks}/${taskId}/${target.replace(/^\.\//, "")}`,

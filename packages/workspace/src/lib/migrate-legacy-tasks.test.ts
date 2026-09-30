@@ -410,6 +410,77 @@ describe("migrateLegacyTasks", () => {
     });
   });
 
+  it("gives the chat the task's folders, so a reply's /mnt paths reach the same files", () => {
+    legacyTask("2026-06-23-make-me-a-bike", {
+      sessions: [
+        {
+          messages: [
+            { parts: [{ text: "make me a bike", type: "text" }], role: "user" },
+            {
+              metadata: { modelId: "m", providerId: "p" },
+              parts: [
+                {
+                  text: "Saved.\n\n```files\n/mnt/My bikes/bike.png\n/mnt/Me/notes.md\n```",
+                  type: "text",
+                },
+              ],
+              role: "assistant",
+            },
+          ],
+        },
+      ],
+      settings: {
+        name: "Bike",
+        state: {
+          attachedFolders: {
+            // Lent by a project, which is gone once the task is a chat's.
+            "My bikes": {
+              access: "read-write",
+              createdAt: 2,
+              id: "01M0TK69A9HZTK4A32J3VC7R9R",
+              mountName: "My bikes",
+              path: "/Users/someone/Documents/bikes",
+              source: "project",
+            },
+            // The chat already has this folder, as Home.
+            Me: {
+              access: "read-write",
+              createdAt: 3,
+              id: "01M0TK69A9HZTK4A32J3VC7R9S",
+              mountName: "Me",
+              path: "/Users/someone",
+              source: "user",
+            },
+          },
+        },
+      },
+    });
+
+    migrateLegacyTasks(root);
+
+    const chat = "2026-06-23-bike";
+    const folders = (
+      readJson("chats", chat, ".instrument", "settings.json").state as {
+        attachedFolders: Record<string, { path: string; source: string }>;
+      }
+    ).attachedFolders;
+    expect(
+      Object.fromEntries(
+        Object.entries(folders).map(([mount, folder]) => [
+          folder.path,
+          `${mount} (${folder.source})`,
+        ]),
+      ),
+    ).toEqual({
+      "/Users/someone": `${Object.keys(folders)[0]} (user)`,
+      "/Users/someone/Documents/bikes": "My bikes (user)",
+    });
+    const home = Object.keys(folders)[0];
+    expect(conversationIn(chat).at(-1)).toBe(
+      `assistant text: Saved.\n\n\`\`\`files\n/mnt/My bikes/bike.png\n/mnt/${home}/notes.md\n\`\`\``,
+    );
+  });
+
   it("stars a pinned task's chat", () => {
     legacyTask("2026-06-23-pinned", {
       sessions: ONE_ASK,

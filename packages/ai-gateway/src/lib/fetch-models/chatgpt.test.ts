@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { chatGPTPlanDefaultModel, spaceBeforeFamily } from "./chatgpt";
+import {
+  chatGPTPlanDefaultModel,
+  chatGPTPlanSearchModel,
+  spaceBeforeFamily,
+} from "./chatgpt";
 
 describe("spaceBeforeFamily", () => {
   it.each([
@@ -24,5 +28,18 @@ describe("chatGPTPlanDefaultModel", () => {
     [["gpt-6-astra", "gpt-5.6-terra"], "gpt-6-astra"],
   ])("from %j picks %s", (listed, expected) => {
     expect(chatGPTPlanDefaultModel(ids(...listed))?.canonicalId).toBe(expected);
+  });
+});
+
+describe("chatGPTPlanSearchModel", () => {
+  const ids = (...canonicalIds: string[]) =>
+    canonicalIds.map((canonicalId) => ({ canonicalId }));
+
+  it.each([
+    [["gpt-5.6-sol", "gpt-5.6-luna", "gpt-6-luna"], "gpt-6-luna"],
+    [["gpt-6-astra", "gpt-5.6-sol"], "gpt-5.6-sol"],
+    [["gpt-6-astra"], undefined],
+  ])("from %j picks %s", (listed, expected) => {
+    expect(chatGPTPlanSearchModel(ids(...listed))?.canonicalId).toBe(expected);
   });
 });

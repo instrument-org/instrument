@@ -274,6 +274,7 @@ async function* searchWithProviderModel({
   const modelResult = await getWebSearchModel({
     callingModel,
     configs,
+    modelCache: workspaceConfig.modelCache,
     workspaceServerURL,
   });
 

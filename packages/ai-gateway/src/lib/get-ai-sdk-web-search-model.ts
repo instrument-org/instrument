@@ -20,14 +20,13 @@ import {
   createXAISDK,
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
+import { chatGPTPlanSearchModel } from "./fetch-models/chatgpt";
+import { type ModelCache } from "./model-cache";
 import {
   filterWebSearchConfigs,
   type WebSearchProviderType,
 } from "./providers/metadata";
 import { selectProviderConfigs } from "./select-provider-configs";
-
-/** The model a ChatGPT plan searches with, whatever the chat runs on. */
-const CHATGPT_PLAN_SEARCH_MODEL = "gpt-5.6-luna";
 
 const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Ordered by quality/reliability as of 2026-02-06
@@ -52,10 +51,13 @@ export interface AISDKWebSearchModelResult {
 export async function getAISDKWebSearchModel({
   callingModel,
   config,
+  modelCache,
   workspaceServerURL,
 }: {
   callingModel: AIGatewayModel.Type;
   config: AIGatewayProviderConfig.Type & { type: WebSearchProviderType };
+  /** Where a provider's listed models are read from, for picking one by tier. */
+  modelCache?: ModelCache;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const testOverride = (
@@ -91,7 +93,13 @@ export async function getAISDKWebSearchModel({
       // searching counts against the user's limits and takes minutes at the
       // chat model's depth.
       result = {
-        model: sdk(CHATGPT_PLAN_SEARCH_MODEL),
+        model: sdk(
+          // The account's own catalog decides, so a newer Luna is used the
+          // day the plan lists it. The chat's model stands in only when the
+          // catalog was never read.
+          chatGPTPlanSearchModel(modelCache?.read(config.cacheIdentifier) ?? [])
+            ?.providerId ?? callingModel.providerId,
+        ),
         providerOptions: {
           openai: { reasoningEffort: "low" },
         },
@@ -181,10 +189,12 @@ export async function getAISDKWebSearchModel({
 export async function getWebSearchModel({
   callingModel,
   configs,
+  modelCache,
   workspaceServerURL,
 }: {
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
+  modelCache?: ModelCache;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const preferredProviderConfig = configs.find(
@@ -215,6 +225,7 @@ export async function getWebSearchModel({
     const result = await getAISDKWebSearchModel({
       callingModel,
       config,
+      modelCache,
       workspaceServerURL,
     });
     if (result.ok) {

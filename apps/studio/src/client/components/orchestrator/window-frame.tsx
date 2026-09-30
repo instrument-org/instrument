@@ -83,7 +83,14 @@ export function WindowFrame({
             <LazyFilePreviewModal />
           </Suspense>
         )}
-        <Toaster position="bottom-right" />
+        {/* Top right, clear of the drafts at the foot, and below the bar on
+          every platform: the bar holds the traffic lights or the window
+          controls, and a toast over it covers the window's own chrome. */}
+        <Toaster
+          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
+          offset={{ top: TOOLBAR_HEIGHT + 16 }}
+          position="top-right"
+        />
         {/* No action beside it: the release notes are a screen this window has
           not got, and the version it is now on is the part worth saying. */}
         <UpdatedToast />

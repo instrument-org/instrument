@@ -19,6 +19,7 @@ import { fetchOpenAIModels } from "./openai";
 const ChatGPTPlanModelsSchema = z.object({
   models: z.array(
     z.object({
+      display_name: z.string().optional(),
       slug: z.string(),
       visibility: z.string().optional(),
     }),
@@ -58,10 +59,8 @@ export function fetchAndParseChatGPTPlanModels(
             author,
             canonicalId,
             features: getModelFeatures(canonicalId),
-            // The slugs are the ids the API and OpenRouter use, so the name
-            // comes from the same place theirs do rather than from ChatGPT's
-            // own label, which spells them differently.
-            name: generateModelName(canonicalId),
+            // ChatGPT's own label, as ChatGPT shows it.
+            name: model.display_name ?? generateModelName(canonicalId),
             params,
             providerId,
             providerName: config.displayName ?? metadata.name,

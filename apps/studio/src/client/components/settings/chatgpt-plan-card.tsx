@@ -2,6 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { SiOpenai } from "react-icons/si";
@@ -26,14 +27,11 @@ export function ChatGPTPlanCard() {
         if (result.state === "signed-in") {
           toast.success("You're using your ChatGPT plan", {
             description:
-              "Eligible AI requests in Instrument now use your ChatGPT plan. Manage usage in ChatGPT settings.",
+              "Your plan's models are in the model picker. You can manage usage in ChatGPT settings.",
           });
         }
       },
     }),
-  );
-  const cancelSignIn = useMutation(
-    rpcClient.chatgptPlan.cancelSignIn.mutationOptions(),
   );
   const signOut = useMutation(
     rpcClient.chatgptPlan.signOut.mutationOptions({
@@ -51,8 +49,7 @@ export function ChatGPTPlanCard() {
                 openLink(LINKED_APPS_URL, { addReferral: false });
               },
             },
-            description:
-              "To remove Instrument from your ChatGPT account, disconnect it in ChatGPT settings.",
+            description: `To remove ${APP_NAME} from your ChatGPT account, disconnect it in ChatGPT settings.`,
           },
         );
       },
@@ -60,8 +57,29 @@ export function ChatGPTPlanCard() {
   );
 
   const state = status?.state ?? "signed-out";
-  const email =
-    status && "email" in status && status.email ? status.email : undefined;
+  const account =
+    status && "email" in status && status.email
+      ? status.email
+      : "your ChatGPT account";
+
+  const title =
+    state === "signed-in" ? "Using your ChatGPT plan" : "Use your ChatGPT plan";
+  const description = (() => {
+    switch (state) {
+      case "plan-disabled": {
+        return `Signed in as ${account}, but ${APP_NAME} isn't allowed to use your plan yet.`;
+      }
+      case "signed-in": {
+        return `Signed in as ${account}. Your plan's models are in the model picker.`;
+      }
+      case "signed-out": {
+        return "Use GPT models with your ChatGPT Plus or Pro plan. Usage counts toward your plan's limits.";
+      }
+      case "signing-in": {
+        return "Finish signing in in your browser. If nothing opened, continue again.";
+      }
+    }
+  })();
 
   return (
     <Card className="gap-0 p-4">
@@ -71,18 +89,8 @@ export function ChatGPTPlanCard() {
             <SiOpenai className="size-5" />
           </div>
           <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="truncate font-medium text-foreground">
-              {state === "signed-in"
-                ? "Using ChatGPT plan"
-                : "Use your ChatGPT plan"}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {state === "signed-in"
-                ? `Signed in as ${email ?? "your ChatGPT account"}. Eligible AI requests use your Plus or Pro plan.`
-                : state === "plan-disabled"
-                  ? `Signed in as ${email ?? "your ChatGPT account"}, but plan use wasn't allowed.`
-                  : "Complete eligible AI requests with usage included in your ChatGPT Plus or Pro plan. No API key needed."}
-            </p>
+            <h3 className="truncate font-medium text-foreground">{title}</h3>
+            <p className="text-sm text-muted-foreground">{description}</p>
             {state === "signed-in" && (
               <button
                 className="text-sm text-foreground underline underline-offset-2"
@@ -106,16 +114,6 @@ export function ChatGPTPlanCard() {
             variant="outline"
           >
             Sign out
-          </Button>
-        ) : state === "signing-in" ? (
-          <Button
-            className="shrink-0"
-            onClick={() => {
-              cancelSignIn.mutate({});
-            }}
-            variant="outline"
-          >
-            Cancel
           </Button>
         ) : (
           <Button

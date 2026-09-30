@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { RelativePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -206,14 +207,41 @@ async function userSays(
   sessionId: StoreId.Session,
   text: string,
   minute = 0,
+  sent: {
+    attachments?: string[];
+    viewing?: SessionMessageDataPart.ViewContextDataPart;
+  } = {},
 ) {
   const messageId = StoreId.newMessageId();
+  const parts: SessionMessage.UserWithParts["parts"] = [
+    { metadata: partMetadata({ messageId, sessionId }), text, type: "text" },
+  ];
+  if (sent.viewing) {
+    parts.push({
+      data: sent.viewing,
+      metadata: partMetadata({ messageId, sessionId }),
+      type: "data-viewContext",
+    });
+  }
+  if (sent.attachments) {
+    parts.push({
+      data: {
+        files: sent.attachments.map((filePath) => ({
+          filename: path.basename(filePath),
+          filePath: RelativePathSchema.parse(filePath),
+          mimeType: "application/octet-stream",
+          modifiedAt: 0,
+          size: 1,
+        })),
+      },
+      metadata: partMetadata({ messageId, sessionId }),
+      type: "data-attachments",
+    });
+  }
   const message: SessionMessage.UserWithParts = {
     id: messageId,
     metadata: { createdAt: at(minute), sessionId },
-    parts: [
-      { metadata: partMetadata({ messageId, sessionId }), text, type: "text" },
-    ],
+    parts,
     role: "user",
   };
   const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
@@ -699,6 +727,69 @@ describe("listChats", () => {
         "/mnt/Instrument/groceries/prices.csv",
       ],
       sites: ["www.instacart.com"],
+    });
+  });
+
+  it("holds what the user sent behind what the chat made, and none of the tabs merely open", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "price out this cart", 1, {
+      attachments: ["attachments/receipt.png"],
+      viewing: {
+        chosen: [
+          {
+            kind: "folder",
+            mount: "/mnt/Home/Recipes",
+            name: "Recipes",
+            path: "/Users/someone/Recipes",
+          },
+          // Outside every folder the chat reaches, so it has no path to hold.
+          { kind: "file", name: "notes.txt", path: "/Volumes/Stick/notes.txt" },
+        ],
+        page: {
+          title: "Cart",
+          url: "https://www.instacart.com/store/cart",
+        },
+        screen: "browser",
+        tabs: [
+          { at: "https://www.amazon.com/", id: "t1", title: "Amazon" },
+          {
+            at: "https://www.instacart.com/store/cart",
+            id: "t2",
+            title: "Cart",
+          },
+        ],
+        url: "https://www.instacart.com/store/cart",
+      },
+    });
+    await agentSays(
+      taskId,
+      sessionId,
+      "Priced.\n\n```files\n/mnt/Instrument/groceries/prices.csv\n```",
+      { commands: ["tab open https://www.costco.com/"], minute: 2 },
+    );
+    await userSays(taskId, sessionId, "and this one", 3, {
+      viewing: {
+        file: {
+          mount: "/mnt/Instrument/groceries/prices.csv",
+          name: "prices.csv",
+          path: "/Users/someone/Documents/Instrument/groceries/prices.csv",
+        },
+        screen: "file",
+        url: "file:///Users/someone/Documents/Instrument/groceries/prices.csv",
+      },
+    });
+
+    const [chat] = await listChats();
+
+    expect(chat?.holds).toEqual({
+      apps: [],
+      files: [
+        "/mnt/Home/Recipes/",
+        "attachments/receipt.png",
+        "/mnt/Instrument/groceries/prices.csv",
+      ],
+      sites: ["www.instacart.com", "www.costco.com"],
     });
   });
 });

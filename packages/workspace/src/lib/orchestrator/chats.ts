@@ -56,11 +56,15 @@ export const ChatSchema = z.object({
    * to read may leave its list empty.
    */
   holds: z.object({
-    /** App slugs the chat called or handed to a task. */
+    /** App slugs the chat called or handed to a task, then those the user sent from. */
     apps: z.array(z.string()),
-    /** Paths the replies handed over in files fences, deduped, newest last. */
+    /**
+     * Paths the user sent (a folder's with a trailing slash), then those the
+     * replies handed over in files fences, each once, newest last: what the
+     * chat made outranks what it was given, so it is what a row shows first.
+     */
     files: z.array(z.string()),
-    /** Hostnames the chat opened for the user. */
+    /** Hostnames of pages the user sent, then those the chat and its tasks opened, each once, newest last. */
     sites: z.array(z.string()),
   }),
   id: StoreId.SessionSchema,
@@ -388,6 +392,11 @@ function appSlugsIn(command: string): string[] {
   ].flatMap((match) => (match[1] ? [match[1]] : []));
 }
 
+/** A folder's path the way a hold names one, with a trailing slash. */
+function asFolder(path: string): string {
+  return path.endsWith("/") ? path : `${path}/`;
+}
+
 /**
  * What the chat has stopped for, and when: a task filed from it that is
  * paused on an ask comes first, since that is what the user can answer, then
@@ -433,6 +442,14 @@ function bashCommandsIn(messages: SessionMessage.WithParts[]): string[] {
         })
       : [],
   );
+}
+
+/**
+ * `given` with what is also in `made` taken out, ahead of `made`: in a list
+ * read newest last, what the chat was given sits behind what it made.
+ */
+function behind(given: string[], made: string[]): string[] {
+  return [...given.filter((item) => !made.includes(item)), ...made];
 }
 
 async function chatFor(
@@ -495,6 +512,13 @@ async function chatFor(
     state,
   });
 
+  const sent = sentHeld(messages);
+  const made = {
+    apps: await appsHeld(messages, filedTasks, shared.knownApps),
+    files: filesHeld(messages),
+    sites: await sitesHeld(messages, filedTasks),
+  };
+
   const newestSettledMessageId = newestSettledIn(messages);
   const replies = messages.filter(
     (message): message is SessionMessage.AssistantWithParts =>
@@ -507,9 +531,14 @@ async function chatFor(
     archived: session.archivedAt !== undefined,
     createdAt: (root?.metadata.createdAt ?? session.createdAt).getTime(),
     holds: {
-      apps: await appsHeld(messages, filedTasks, shared.knownApps),
-      files: filesHeld(messages),
-      sites: await sitesHeld(messages, filedTasks),
+      apps: [
+        ...made.apps,
+        ...knownAmong(sent.apps, shared.knownApps).filter(
+          (slug) => !made.apps.includes(slug),
+        ),
+      ],
+      files: behind(sent.files, made.files),
+      sites: behind(sent.sites, made.sites),
     },
     id: session.id,
     starred: session.starredAt !== undefined,
@@ -677,6 +706,16 @@ async function loadShared(): Promise<Shared> {
   };
 }
 
+/** Each item once, where it last appeared. */
+function newestLast(items: string[]): string[] {
+  const seen = new Set<string>();
+  for (const item of items) {
+    seen.delete(item);
+    seen.add(item);
+  }
+  return [...seen];
+}
+
 /**
  * The newest message that is done: the user's own, or a reply that has
  * finished. A reply still being written is not seen by being on screen when
@@ -743,6 +782,62 @@ async function saveMark(
 }
 
 /**
+ * What the user sent with their messages: the page, file, folder, or app
+ * that went with each as the thing in view, what they picked by name, and
+ * what they dropped in. The rest of the window's tabs go with a message too,
+ * for the agent to name, but only as a list, and a tab someone opened and
+ * left is nothing they sent. Files and folders are by the path the chat
+ * reaches them through, so one outside its folders is left out.
+ */
+function sentHeld(messages: SessionMessage.WithParts[]) {
+  const apps: string[] = [];
+  const files: string[] = [];
+  const sites: string[] = [];
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    for (const part of message.parts) {
+      if (part.type === "data-attachments") {
+        files.push(...part.data.files.map((file) => file.filePath));
+      }
+      if (part.type !== "data-viewContext") {
+        continue;
+      }
+      const viewed = part.data;
+      if (viewed.app) {
+        apps.push(viewed.app.slug);
+      }
+      if (viewed.file?.mount) {
+        files.push(viewed.file.mount);
+      }
+      if (viewed.folder?.mount) {
+        files.push(asFolder(viewed.folder.mount));
+      }
+      for (const chosen of viewed.chosen ?? []) {
+        if (chosen.mount) {
+          files.push(
+            chosen.kind === "folder" ? asFolder(chosen.mount) : chosen.mount,
+          );
+        }
+      }
+      const page =
+        viewed.page?.url ??
+        (viewed.screen === "browser" ? viewed.url : undefined);
+      const host = page === undefined ? "" : webHostOf(page);
+      if (host !== "") {
+        sites.push(host);
+      }
+    }
+  }
+  return {
+    apps: unique(apps),
+    files: newestLast(files),
+    sites: newestLast(sites),
+  };
+}
+
+/**
  * The hostnames the chat's work touched: what its agent opened for the user
  * with `tab open <url>`, then every host the browsers of the tasks it filed have
  * been on, each task's newest last. A task's hosts come from its browser
@@ -770,6 +865,18 @@ function textOf(message: SessionMessage.WithParts): string {
   return message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
+}
+
+/** The host of a web page's address; empty for a blank page, a file, or no address at all. */
+function webHostOf(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.hostname
+      : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Whether the chat's own agent is at work this moment. */

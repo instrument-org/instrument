@@ -1,5 +1,6 @@
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import {
   Popover,
   PopoverContent,
@@ -76,7 +77,11 @@ export function HoldMarks({
     // The newest first, so what the chat made last is what shows before
     // the count folds the rest away.
     ...holds.files.toReversed().map((path) => ({
-      icon: <FileTypeIcon className="size-4" fileName={basename(path)} />,
+      icon: path.endsWith("/") ? (
+        <MacFolderIcon className="size-4" />
+      ) : (
+        <FileTypeIcon className="size-4" fileName={basename(path)} />
+      ),
       key: `file:${path}`,
       name: basename(path),
       named: namedFiles,

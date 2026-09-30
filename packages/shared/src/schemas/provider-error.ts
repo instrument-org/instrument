@@ -31,6 +31,8 @@ export type ProviderErrorEvidence = z.output<
  * `context-overflow` is too much content, `unsendable-content` is content the
  * provider will not accept at any size. `rate-limit` and `transient` are the
  * two that waiting alone resolves, so they are the two worth retrying.
+ * `usage-limit` is an allowance the user spent or switched off on a plan of
+ * their own, which waiting may or may not end and only they can raise.
  */
 export const ProviderErrorKindSchema = z.enum([
   "auth",
@@ -39,5 +41,6 @@ export const ProviderErrorKindSchema = z.enum([
   "transient",
   "unknown",
   "unsendable-content",
+  "usage-limit",
 ]);
 export type ProviderErrorKind = z.output<typeof ProviderErrorKindSchema>;

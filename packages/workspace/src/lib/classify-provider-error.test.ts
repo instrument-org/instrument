@@ -37,6 +37,20 @@ const cases: {
     name: "an error the SDK did not raise",
   },
   {
+    // Recorded from a ChatGPT plan with the app switched off in ChatGPT's
+    // usage settings: the stream opened, then carried this, and the SDK
+    // raised it under a 400.
+    error: apiCallError({
+      message:
+        "The ChatGPT user has reached their Subscription Sharing usage limit. Ask the user to try again after their usage limit resets or use an API key instead.",
+      responseBody:
+        '{"type":"error","sequence_number":2,"error":{"type":"invalid_request_error","code":"subscription_sharing_usage_limit_exceeded","message":"The ChatGPT user has reached their Subscription Sharing usage limit. Ask the user to try again after their usage limit resets or use an API key instead.","param":null}}',
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" },
+    name: "a ChatGPT plan's usage limit inside a stream",
+  },
+  {
     error: apiCallError({ message: "Unauthorized", statusCode: 401 }),
     expected: { evidence: "status", kind: "auth" },
     name: "401",

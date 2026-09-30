@@ -64,6 +64,13 @@ export function describeMessageError(
         summary: "Content the model refused",
       };
     }
+    case "usage-limit": {
+      return {
+        detail:
+          "You've reached the usage limit your plan allows this app. Review it in the provider's usage settings, or switch to another model.",
+        summary: "Usage limit reached",
+      };
+    }
     default: {
       break;
     }

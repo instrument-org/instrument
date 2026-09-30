@@ -51,6 +51,11 @@ describe("readWebSearchResults", () => {
     ).toMatchInlineSnapshot(`
       {
         "kind": "summary",
+        "modelId": "sonar",
+        "provider": {
+          "displayName": "Test",
+          "type": "openai",
+        },
         "sources": [
           {
             "title": "One",

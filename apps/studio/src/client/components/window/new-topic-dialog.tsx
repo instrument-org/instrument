@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
+import { RevealPath } from "@/client/components/reveal-path";
 import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import {
@@ -31,8 +32,12 @@ import {
   TopicMarkPicker,
 } from "@/client/components/window/topic-mark-picker";
 import { APP_NAME } from "@instrument-org/shared";
+import { rpcClient } from "@/client/rpc/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
@@ -44,10 +49,12 @@ import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
  */
 const CONFIDENT = 0.3;
 
-/** What the user chooses about a topic: its name, its mark, its tint, and for one that exists, its instructions. */
+/** What the user chooses about a topic: its name, its mark, its tint, and for one that exists, its instructions and folders. */
 export interface TopicChoice {
   color: string;
   emoji: string;
+  /** The user's folders the work under it uses, attached to each chat filed there. */
+  folders?: TopicFolder[];
   /** What every chat filed under it is given; empty takes them away. */
   instructions?: string;
   name: string;
@@ -56,16 +63,42 @@ export interface TopicChoice {
 /** How long a topic's name may run: a row's worth, since that is where it is read. */
 const TOPIC_NAME_MAX = 24;
 
+// eslint-disable-next-line no-control-regex
+const NOT_IN_A_FOLDER_NAME = /[<>:"/\\|?*\u0000-\u001F]/;
+
+/**
+ * Why a name cannot be a topic's, said under the field, or nothing: a topic's
+ * name is its folder's, so it cannot hold what a folder name cannot, and no
+ * two topics share one. The workspace checks the same again.
+ */
+function nameProblem(name: string, otherNames: readonly string[]) {
+  const trimmed = name.trim();
+  if (NOT_IN_A_FOLDER_NAME.test(trimmed)) {
+    return `A topic name can't contain any of: < > : " / \\ | ? *`;
+  }
+  if (trimmed.startsWith(".") || trimmed.endsWith(".")) {
+    return "A topic name can't start or end with a period";
+  }
+  const taken = otherNames.find(
+    (other) => other.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return taken ? `There is already a topic called “${taken}”` : undefined;
+}
+
+type TopicFolder = { path: string };
+
 /**
  * A topic as it stands, in the shape the dialog that made it used: its name,
- * its mark, its tint, and its instructions, for changing any of them, and at
- * its foot the way to delete it. Only what changed is handed back.
+ * its mark, its tint, its instructions and its folders, for changing any of
+ * them, and at its foot the way to delete it. Only what changed is handed
+ * back.
  */
 export function EditTopicDialog({
   onChange,
   onDelete,
   onOpenChange,
   open,
+  otherNames,
   topic,
 }: {
   onChange: (edits: Partial<TopicChoice>) => void;
@@ -73,9 +106,12 @@ export function EditTopicDialog({
   onDelete: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  /** Every other topic's name, none of which this one can take. */
+  otherNames: readonly string[];
   topic: {
     color?: string;
     emoji?: string;
+    folders?: TopicFolder[];
     id: string;
     instructions?: string;
     name: string;
@@ -92,6 +128,7 @@ export function EditTopicDialog({
         initial={{
           color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
           emoji: topic.emoji ?? "",
+          folders: topic.folders ?? [],
           instructions: topic.instructions ?? "",
           name: topic.name,
         }}
@@ -99,7 +136,11 @@ export function EditTopicDialog({
         onCommit={(chosen) => {
           onChange({
             ...(chosen.color === topic.color ? {} : { color: chosen.color }),
-            ...(chosen.emoji === topic.emoji ? {} : { emoji: chosen.emoji }),
+            ...(chosen.emoji === (topic.emoji ?? "") ? {} : { emoji: chosen.emoji }),
+            ...(chosen.folders === undefined ||
+            samePaths(chosen.folders, topic.folders ?? [])
+              ? {}
+              : { folders: chosen.folders }),
             ...(chosen.instructions === undefined ||
             chosen.instructions.trim() === (topic.instructions ?? "").trim()
               ? {}
@@ -109,6 +150,7 @@ export function EditTopicDialog({
         }}
         onOpenChange={onOpenChange}
         open={open}
+        otherNames={otherNames}
         title="Topic details"
       />
     </Dialog>
@@ -160,6 +202,82 @@ export function NewTopicDialog({
         title="New topic"
       />
     </Dialog>
+  );
+}
+
+/** Whether two folder lists name the same paths in the same order. */
+function samePaths(a: TopicFolder[], b: TopicFolder[]) {
+  return (
+    a.length === b.length &&
+    a.every((folder, index) => folder.path === b[index]?.path)
+  );
+}
+
+/**
+ * The folders the work under a topic uses: each one's place, a way to take
+ * it off, and a way to add another from the system's own picker. Every chat
+ * filed under the topic has them attached, so a task can be handed one.
+ */
+function TopicFolders({
+  folders,
+  onChange,
+}: {
+  folders: TopicFolder[];
+  onChange: (folders: TopicFolder[]) => void;
+}) {
+  const add = async () => {
+    const picked = await rpcClient.utils.showFolderPicker
+      .call({ buttonLabel: "Add" })
+      .catch(() => {
+        toast.error("Could not open the folder picker");
+        return null;
+      });
+    if (picked && !folders.some((folder) => folder.path === picked.path)) {
+      onChange([...folders, { path: picked.path }]);
+    }
+  };
+  return (
+    <div>
+      <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        Folders
+      </p>
+      {folders.length > 0 && (
+        <ul className="mb-2 grid gap-1">
+          {folders.map((folder) => (
+            <li
+              className="flex min-w-0 items-center gap-2 rounded-md bg-muted/60 py-1 pr-1 pl-2.5"
+              key={folder.path}
+            >
+              <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+              <RevealPath
+                className="min-w-0 flex-1 text-sm"
+                hideIcon
+                path={folder.path}
+              />
+              <button
+                aria-label={`Remove ${folder.path}`}
+                className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                onClick={() => {
+                  onChange(folders.filter((entry) => entry !== folder));
+                }}
+                type="button"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button
+        onClick={() => {
+          void add();
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Add folder
+      </Button>
+    </div>
   );
 }
 
@@ -268,6 +386,7 @@ function TopicForm({
   onCommit,
   onOpenChange,
   open,
+  otherNames = [],
   title,
 }: {
   action: string;
@@ -282,12 +401,14 @@ function TopicForm({
   onCommit: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  otherNames?: readonly string[];
   title: string;
 }) {
   const [name, setName] = useState(initial.name);
   const [emoji, setEmoji] = useState(initial.emoji);
   const [color, setColor] = useState(initial.color);
   const [instructions, setInstructions] = useState(initial.instructions);
+  const [folders, setFolders] = useState(initial.folders);
   const [isPicking, setPicking] = useState(false);
   // A new topic's mark follows the best fit for its name until one is chosen
   // by hand; an existing topic's mark stays what its owner picked.
@@ -303,6 +424,7 @@ function TopicForm({
       setEmoji(initial.emoji);
       setColor(initial.color);
       setInstructions(initial.instructions);
+      setFolders(initial.folders);
       setPicking(false);
       setFollows(isNew);
       setFilingFits(false);
@@ -334,15 +456,17 @@ function TopicForm({
   };
   const nameField = useRef<HTMLInputElement>(null);
 
+  const problem = nameProblem(name, otherNames);
   const commit = () => {
     const trimmed = name.trim();
-    if (!trimmed) {
+    if (!trimmed || problem) {
       return;
     }
     onCommit(
       {
         color,
         emoji,
+        ...(folders === undefined ? {} : { folders }),
         ...(instructions === undefined ? {} : { instructions }),
         name: trimmed,
       },
@@ -404,6 +528,7 @@ function TopicForm({
           value={name}
         />
       </div>
+      {problem && <p className="-mt-2 text-xs text-destructive">{problem}</p>}
       {fits.length > 0 && (
         <FitsLine
           checked={isFilingFits}
@@ -439,6 +564,9 @@ function TopicForm({
           />
         </div>
       )}
+      {folders !== undefined && (
+        <TopicFolders folders={folders} onChange={setFolders} />
+      )}
       <DialogFooter className="sm:justify-between">
         {deleting ? (
           <DeleteTopicButton
@@ -460,7 +588,7 @@ function TopicForm({
           >
             Cancel
           </Button>
-          <Button disabled={!name.trim()} onClick={commit}>
+          <Button disabled={!name.trim() || problem !== undefined} onClick={commit}>
             {action}
           </Button>
         </div>

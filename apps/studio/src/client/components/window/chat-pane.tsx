@@ -2,6 +2,7 @@ import { chatFiltersAtom, type Draft } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
@@ -65,7 +66,12 @@ export function ChatPane({
   );
   const chats: Chat[] = chatsQuery.data ?? [];
   const topics: Topic[] = topicsQuery.data ?? [];
-  const afterTopicChange = { onSuccess: () => void topicsQuery.refetch() };
+  const afterTopicChange = {
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+    onSuccess: () => void topicsQuery.refetch(),
+  };
   const createTopic = useMutation(
     rpcClient.workspace.topics.create.mutationOptions(
       afterTopicChange,
@@ -288,6 +294,9 @@ export function ChatPane({
             }
           }}
           open
+          otherNames={topics.flatMap((topic) =>
+            topic.id === editingTopic.id ? [] : [topic.name],
+          )}
           topic={editingTopic}
         />
       )}

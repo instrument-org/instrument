@@ -38,8 +38,9 @@ export const APPS_DIR_NAME = "apps";
 // agent keeps about the user across every chat, readable and editable in a
 // file manager.
 export const MEMORY_DIR_NAME = "memory";
-// One folder per topic at the workspace root, holding its `topic.md`: the mark
-// the window draws in front matter, and the topic's instructions as the body.
+// One folder per topic at the workspace root, named for the topic: its
+// settings in `.instrument/settings.json` and its instructions in
+// `instructions.md`.
 export const TOPICS_DIR_NAME = "topics";
 // Projects are real folders at the workspace root, named by the (sanitized)
 // project name. Their identity + instructions live inside each folder.

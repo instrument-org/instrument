@@ -68,7 +68,12 @@ export function WindowFrame({
       {/* `h-full` rather than the viewport: this is drawn inside `ZoomRoot`,
         which is already the real window scaled to the zoom the UI is laid out
         at, so a viewport height would apply that zoom a second time. */}
-      <div className="relative flex h-full flex-col bg-ground">
+      {/* Marked once the window is up, which is when it has its bar: the
+        packaged-app smoke test waits for this rather than a loading frame. */}
+      <div
+        className="relative flex h-full flex-col bg-ground"
+        data-testid={bar ? "app-page" : undefined}
+      >
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}
         {bar ?? (

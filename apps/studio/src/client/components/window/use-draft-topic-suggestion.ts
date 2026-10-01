@@ -59,7 +59,7 @@ export function useDraftTopicSuggestion({
   const { data } = useQuery({
     queryFn: asking
       ? ({ signal }) =>
-          rpcClient.workspace.systemOne.ask.call(
+          rpcClient.workspace.decision.ask.call(
             {
               questions: {
                 topic: {

@@ -5,6 +5,7 @@ import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { askDecisionModel } from "../decision-model";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import {
   generateTitleFromUserMessage,
@@ -12,7 +13,6 @@ import {
 } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
-import { askDecisionModel } from "../system-one";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";

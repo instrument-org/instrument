@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type askDecisionModel } from "../system-one";
+import { type askDecisionModel } from "../decision-model";
 import { titleStillFits } from "./retitle";
 
 function answering(moved: number | undefined) {

@@ -18,21 +18,21 @@ import { internalAPIKey } from "./key-for-provider";
  * model answers to it; the pinned Jev id is the fallback for an API that does
  * not know that id yet.
  */
-const SYSTEM_ONE_MODELS = new Map<string, readonly string[]>([
+const DECISION_MODELS = new Map<string, readonly string[]>([
   // Providers that can reach the decision model, best first.
   ["openrouter", ["~typesafe/jev-latest", "typesafe/jev-1.13"]],
   [OUR_PROVIDER_CONFIG.type, ["instrument/decision", "typesafe/jev-1.13"]],
 ]);
-const SYSTEM_ONE_PROVIDER_TYPES = [...SYSTEM_ONE_MODELS.keys()];
+const DECISION_PROVIDER_TYPES = [...DECISION_MODELS.keys()];
 
 /**
- * One System One request through the gateway's provider proxy, which swaps
+ * One decision request through the gateway's provider proxy, which swaps
  * the internal key for the provider's own. `body` is passed through as the
  * contract defines it (`state` and `questions`); the model is filled in here,
  * moving to the next of the provider's models only when one is refused as
  * unknown.
  */
-export async function askSystemOne({
+export async function requestDecision({
   body,
   config,
   signal,
@@ -43,8 +43,8 @@ export async function askSystemOne({
   signal?: AbortSignal;
   workspaceServerURL: WorkspaceServerURL;
 }): Promise<unknown> {
-  const models = SYSTEM_ONE_MODELS.get(config.type) ?? [];
-  let failure = `System One is not available via ${config.type}`;
+  const models = DECISION_MODELS.get(config.type) ?? [];
+  let failure = `The decision model is not available via ${config.type}`;
   for (const model of models) {
     const response = await fetch(
       `${internalURL({ config, workspaceServerURL })}/systemone`,
@@ -62,7 +62,7 @@ export async function askSystemOne({
       return response.json();
     }
     const detail = await response.text();
-    failure = `System One request for ${model} via ${config.type} failed (${response.status}): ${detail.slice(0, 300)}`;
+    failure = `Decision request for ${model} via ${config.type} failed (${response.status}): ${detail.slice(0, 300)}`;
     // An unknown model is worth another id; anything else would fail the same.
     if (response.status !== 400 && response.status !== 404) {
       break;
@@ -71,14 +71,12 @@ export async function askSystemOne({
   throw new Error(failure);
 }
 
-export function selectSystemOneConfigs(
-  configs: AIGatewayProviderConfig.Type[],
-) {
+export function selectDecisionConfigs(configs: AIGatewayProviderConfig.Type[]) {
   return configs
-    .filter((config) => SYSTEM_ONE_PROVIDER_TYPES.includes(config.type))
+    .filter((config) => DECISION_PROVIDER_TYPES.includes(config.type))
     .toSorted(
       (a, b) =>
-        SYSTEM_ONE_PROVIDER_TYPES.indexOf(a.type) -
-        SYSTEM_ONE_PROVIDER_TYPES.indexOf(b.type),
+        DECISION_PROVIDER_TYPES.indexOf(a.type) -
+        DECISION_PROVIDER_TYPES.indexOf(b.type),
     );
 }

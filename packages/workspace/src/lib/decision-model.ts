@@ -1,7 +1,7 @@
 import {
   type AIGatewayProviderConfig,
-  askSystemOne,
-  selectSystemOneConfigs,
+  requestDecision,
+  selectDecisionConfigs,
 } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
@@ -16,7 +16,7 @@ const AnswerSchema = z.object({
   type: z.enum(["choice", "noul", "score"]),
 });
 
-export const SystemOneResponseSchema = z.object({
+export const DecisionResponseSchema = z.object({
   answers: z.record(z.string(), AnswerSchema),
   model: z.string(),
   usage: z
@@ -25,7 +25,7 @@ export const SystemOneResponseSchema = z.object({
     .optional(),
 });
 
-export const SystemOneQuestionSchema = z.object({
+export const DecisionQuestionSchema = z.object({
   criteria: z.unknown().optional(),
   instructions: z.unknown(),
   type: z.enum(["choice", "noul", "score"]),
@@ -44,7 +44,7 @@ export async function askDecisionModel({
   signal,
 }: {
   body: {
-    questions: Record<string, z.output<typeof SystemOneQuestionSchema>>;
+    questions: Record<string, z.output<typeof DecisionQuestionSchema>>;
     state: unknown;
   };
   configs: AIGatewayProviderConfig.Type[];
@@ -54,10 +54,10 @@ export async function askDecisionModel({
   | {
       ms: number;
       provider: string;
-      response: z.output<typeof SystemOneResponseSchema>;
+      response: z.output<typeof DecisionResponseSchema>;
     }
 > {
-  const reachable = selectSystemOneConfigs(configs);
+  const reachable = selectDecisionConfigs(configs);
   if (reachable.length === 0) {
     return undefined;
   }
@@ -65,7 +65,7 @@ export async function askDecisionModel({
   for (const config of reachable) {
     const started = performance.now();
     try {
-      const response = await askSystemOne({
+      const response = await requestDecision({
         body,
         config,
         signal,
@@ -74,7 +74,7 @@ export async function askDecisionModel({
       return {
         ms: Math.round(performance.now() - started),
         provider: config.type,
-        response: SystemOneResponseSchema.parse(response),
+        response: DecisionResponseSchema.parse(response),
       };
     } catch (error) {
       if (signal?.aborted) {

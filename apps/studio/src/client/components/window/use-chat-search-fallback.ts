@@ -54,7 +54,7 @@ export function useChatSearchFallback({
   const { data, isFetching } = useQuery({
     queryFn: asking
       ? ({ signal }) =>
-          rpcClient.workspace.systemOne.ask.call(
+          rpcClient.workspace.decision.ask.call(
             { questions: questionsFor(candidates, topicNames), state: settled },
             { signal },
           )

@@ -2,6 +2,7 @@ export type { AIGatewayApp } from "./app";
 export { aiGatewayApp } from "./app";
 export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
+export * from "./lib/decision-model";
 export type { TypedError as AIGatewayTypedError } from "./lib/errors";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
@@ -28,7 +29,6 @@ export {
 } from "./lib/reasoning-effort";
 export * from "./lib/select-provider-configs";
 export * from "./lib/stream-image";
-export * from "./lib/system-one";
 export { verifyAPIKey } from "./lib/verify-api-key";
 export * from "./schemas/model";
 export * from "./schemas/model-uri";

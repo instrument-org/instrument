@@ -11,7 +11,7 @@ import { type Emoji } from "./emoji-set";
  */
 const CHUNK = 250;
 
-type Answer = RPCOutput["workspace"]["systemOne"]["ask"];
+type Answer = RPCOutput["workspace"]["decision"]["ask"];
 const NONE = "none";
 
 /** Below this an emoji is the model shrugging, not suggesting. */
@@ -77,7 +77,7 @@ export function useEmojiSuggestions(
     // The question set is the same for every call, so the text alone keys it.
     queryFn: asking
       ? ({ signal }) =>
-          rpcClient.workspace.systemOne.ask.call(
+          rpcClient.workspace.decision.ask.call(
             { questions, state: settled },
             { signal },
           )

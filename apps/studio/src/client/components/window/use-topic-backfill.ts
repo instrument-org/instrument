@@ -11,7 +11,7 @@ export interface BackfillCandidate {
   title: string;
 }
 
-type Answer = RPCOutput["workspace"]["systemOne"]["ask"];
+type Answer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
  * How sure the decision model has to be that a chat belongs. Measured, chats
@@ -87,7 +87,7 @@ export function useTopicBackfill({
     },
     queryFn: asking
       ? ({ signal }) =>
-          rpcClient.workspace.systemOne.ask.call(
+          rpcClient.workspace.decision.ask.call(
             {
               questions: Object.fromEntries(
                 candidates.map((chat, index) => [

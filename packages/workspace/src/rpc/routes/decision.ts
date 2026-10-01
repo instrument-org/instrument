@@ -2,9 +2,9 @@ import { z } from "zod";
 
 import {
   askDecisionModel,
-  SystemOneQuestionSchema,
-  SystemOneResponseSchema,
-} from "../../lib/system-one";
+  DecisionQuestionSchema,
+  DecisionResponseSchema,
+} from "../../lib/decision-model";
 import { base } from "../base";
 
 /**
@@ -16,12 +16,12 @@ import { base } from "../base";
 const ask = base
   .input(
     z.object({
-      questions: z.record(z.string(), SystemOneQuestionSchema),
+      questions: z.record(z.string(), DecisionQuestionSchema),
       state: z.unknown(),
     }),
   )
   .output(
-    SystemOneResponseSchema.extend({ ms: z.number(), provider: z.string() }),
+    DecisionResponseSchema.extend({ ms: z.number(), provider: z.string() }),
   )
   .handler(async ({ context, errors, input, signal }) => {
     let asked: Awaited<ReturnType<typeof askDecisionModel>>;
@@ -47,4 +47,4 @@ const ask = base
     return { ...asked.response, ms: asked.ms, provider: asked.provider };
   });
 
-export const systemOne = { ask };
+export const decision = { ask };

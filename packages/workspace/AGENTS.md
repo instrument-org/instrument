@@ -4,7 +4,7 @@ Core AI agents, workflow logic, RPC, and tools.
 
 ## Structure
 
-- **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, project, session, skill, storage, systemOne, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
+- **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, project, session, skill, storage, decision, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs an orchestrator's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/orchestrator/wake.ts`). `agent-name-for-task.ts` says which answers in a task.

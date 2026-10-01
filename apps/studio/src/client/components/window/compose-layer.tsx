@@ -40,7 +40,6 @@ export function ComposeLayer({
   onCloseChat,
   onCloseDraft,
   onCloseTab,
-  onExpandChat,
   onModelChange,
   onNewChatTopic,
   onNewTopic,
@@ -65,8 +64,6 @@ export function ComposeLayer({
   onCloseDraft: (id: string, words: string) => void;
   /** A tab closed from a chat window's rail: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
-  /** A chat's small view grown to fill the row: the chat is no longer the one selected in Chats, since a page shows in one place. */
-  onExpandChat: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
@@ -199,9 +196,6 @@ export function ComposeLayer({
                   compose.setHost(sessionId, element);
                 }}
                 onPlacementChange={(placement) => {
-                  if (placement === "expanded") {
-                    onExpandChat(sessionId);
-                  }
                   compose.setPlacement(sessionId, placement);
                 }}
                 onSetTopics={(next) => {

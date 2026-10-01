@@ -74,7 +74,6 @@ import {
   appTabsAtom,
   groupOfHref,
   hrefOfAppTab,
-  INBOX_HREF,
   isChatHref,
   isSiteGroup,
   placeOfHref,
@@ -819,13 +818,6 @@ function WindowShell({
                 }}
                 onCloseDraft={closeDraft}
                 onCloseTab={requestClose}
-                onExpandChat={(sessionId) => {
-                  // A page shows in one place: the grown window draws the
-                  // chat's, so the tab up lets the chat go.
-                  if (windowTabs.group === sessionId) {
-                    appTabs.navigate(INBOX_HREF);
-                  }
-                }}
                 onModelChange={setDefaultModelURI}
                 onNewChatTopic={(chatSessionId, name) => {
                   setNewTopic({ chatSessionId, ...(name ? { name } : {}) });

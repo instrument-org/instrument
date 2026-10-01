@@ -33,6 +33,7 @@ import { motion, Reorder } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
+import { useComputerVolumes } from "./computer-volumes";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
@@ -432,11 +433,16 @@ function RailTile({
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
   taskTitles: Parameters<typeof screenPresentation>[1]["taskTitles"];
 }) {
+  const volumes = useComputerVolumes();
   const title =
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
-      : screenPresentation(tab.href, { appsBySlug, chatTitles, taskTitles })
-          .title;
+      : screenPresentation(tab.href, {
+          appsBySlug,
+          chatTitles,
+          taskTitles,
+          ...(volumes ? { volumes } : {}),
+        }).title;
   // What the tile is by its mark: a page's site, a file's type, a folder,
   // an app. Beside the name in a wide rail; the whole tile in a narrow one.
   const mark =

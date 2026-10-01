@@ -4,7 +4,7 @@ import {
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
-import { folderNameFromPath } from "@instrument-org/shared";
+import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -23,7 +23,13 @@ import { computerName } from "./computer-name";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { DISCOVER_HREF, ideaTitleOf } from "./ideas";
-import { SKILLS_HREF, type TabLocation, tasksOfHref } from "./tab-location";
+import {
+  locationCrumbs,
+  SKILLS_HREF,
+  type TabLocation,
+  tasksOfHref,
+  type Volume,
+} from "./tab-location";
 import { parseHref } from "./window-tabs";
 
 /**
@@ -34,8 +40,15 @@ interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
   /** Each chat's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<StoreId.Session, string>;
+  /**
+   * What the home folder is called where it is not called by its own name,
+   * which is to the model: the folder's name is the account name.
+   */
+  homeLabel?: string;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<TaskId, string>;
+  /** The disks the sidebar lists, which name a folder tab at the top of one. */
+  volumes?: Volume[];
 }
 
 /** Where a screen tab is, in the terms the row above it says a place in. */
@@ -109,7 +122,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, chatTitles, taskTitles }: ScreenNames,
+  { appsBySlug, chatTitles, homeLabel, taskTitles, volumes }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -132,7 +145,7 @@ export function screenPresentation(
     }
     return {
       icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
-      title: folderTitle(search),
+      title: folderTitle(search, { homeLabel, volumes }),
     };
   }
   // The plain bubble the Chats list wears: one chat is one of those.
@@ -225,23 +238,27 @@ function folderPathOf(search: URLSearchParams) {
 }
 
 /**
- * What a folder tab is called: the last name along the walk below the root,
- * and with no walk, the root itself, named the way the place that opened it
- * is. The top of the disk has no name along its path, so it is the computer.
+ * What a folder tab is called: the last name the location bar says for it, so
+ * the tab and the bar never name the place two ways. The top of a disk is the
+ * disk's name once the disks are known, and the computer until then.
  */
-function folderTitle(search: URLSearchParams) {
-  const below = segmentsOf(search.get("path") ?? "").at(-1);
-  if (below) {
-    return below;
-  }
-  const root = search.get("root") ?? "~";
-  if (root === "~") {
-    return folderNameFromPath(window.api.homeDir);
-  }
-  if (root === RECENTS_ROOT) {
+function folderTitle(
+  search: URLSearchParams,
+  { homeLabel, volumes }: Pick<ScreenNames, "homeLabel" | "volumes">,
+) {
+  if (search.get("root") === RECENTS_ROOT) {
     return "Recents";
   }
-  return segmentsOf(root).at(-1) ?? computerName();
+  const home = window.api.homeDir;
+  const path = folderPathOf(search);
+  if (homeLabel !== undefined && isHomeDir(expandHomePath(path, home), home)) {
+    return homeLabel;
+  }
+  const crumbs = locationCrumbs(
+    { kind: "folder", path },
+    { home, ...(volumes ? { volumes } : {}) },
+  );
+  return crumbs.at(-1)?.label ?? computerName();
 }
 
 /**

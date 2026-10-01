@@ -8,6 +8,7 @@ import {
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type TabId } from "@/shared/tabs";
+import { HOME_DIR_LABEL } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -113,7 +114,11 @@ export function contextReaders({
         return {
           at: tab.href,
           id: tab.id,
-          title: screenPresentation(tab.href, { appsBySlug, chatTitles }).title,
+          title: screenPresentation(tab.href, {
+            appsBySlug,
+            chatTitles,
+            homeLabel: HOME_DIR_LABEL,
+          }).title,
         };
       }
       const filePath = hostPathOfFileUrl(tab.url);

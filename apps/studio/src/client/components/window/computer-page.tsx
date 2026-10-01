@@ -960,7 +960,9 @@ export function ComputerPage({
     ? "Recents"
     : root === "~"
       ? folderNameFromPath(homePath)
-      : (segmentsOf(root).at(-1) ?? places.data.volumes[0]?.name ?? "Root");
+      : (places.data.volumes.find((volume) => volume.path === root)?.name ??
+        segmentsOf(root).at(-1) ??
+        "Root");
   // The folder on screen, which is the only row the sidebar marks: a place
   // walked down out of is no longer where the user is, so nothing is marked
   // until a folder is one of the places itself.

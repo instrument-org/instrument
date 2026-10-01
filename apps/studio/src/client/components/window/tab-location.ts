@@ -19,7 +19,7 @@ export interface LocationCrumb {
 }
 
 /** A disk the computer has mounted, by the name the sidebar lists it under. */
-interface Volume {
+export interface Volume {
   name: string;
   path: string;
 }

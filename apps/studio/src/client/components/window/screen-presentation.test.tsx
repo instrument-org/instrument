@@ -66,6 +66,30 @@ describe("screenPresentation", () => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
 
+  it("names the top of a disk the way the location bar does once the disks are known", () => {
+    const volumes = [
+      { name: "Macintosh HD", path: "/" },
+      { name: "Backup", path: "/Volumes/Backup" },
+    ];
+    expect(
+      screenPresentation("/files?path=&root=%2F", { ...CONTEXT, volumes })
+        .title,
+    ).toBe("Macintosh HD");
+  });
+
+  it("tells the model the home folder as Home, never by the account name", () => {
+    const forModel = { ...CONTEXT, homeLabel: "Home" };
+    expect(screenPresentation("/files?path=&root=~", forModel).title).toBe(
+      "Home",
+    );
+    expect(
+      screenPresentation("/files?path=&root=%2FUsers%2Fsam", forModel).title,
+    ).toBe("Home");
+    expect(
+      screenPresentation("/files?path=Documents%2F&root=~", forModel).title,
+    ).toBe("Documents");
+  });
+
   // The router writes a qualified name's colon as `%3A`; the tab reads the
   // name after the source's prefix.
   it.each([

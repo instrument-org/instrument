@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { useComputerVolumes } from "./computer-volumes";
 import { useWindow } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
@@ -50,6 +51,7 @@ export function WindowTabStrip({
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
+  const volumes = useComputerVolumes();
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
 
@@ -168,6 +170,7 @@ export function WindowTabStrip({
                 appsBySlug,
                 chatTitles,
                 taskTitles: childTitles,
+                ...(volumes ? { volumes } : {}),
               })),
         }))}
         trailing={trailing}

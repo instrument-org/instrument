@@ -81,6 +81,7 @@ import {
   GROWN,
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
+import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
 import {
   behindTabOf,
@@ -1341,6 +1342,7 @@ export function IncludedChip({
   said?: string;
   tab: WindowTab;
 }) {
+  const volumes = useComputerVolumes();
   const [one] = items ?? [];
   const name =
     items !== undefined && items.length > 1
@@ -1348,7 +1350,10 @@ export function IncludedChip({
       : one === undefined
         ? tab.kind === "page"
           ? pageTabTitle(tab) || "Page"
-          : screenPresentation(tab.href, { appsBySlug }).title
+          : screenPresentation(tab.href, {
+              appsBySlug,
+              ...(volumes ? { volumes } : {}),
+            }).title
         : nameOfPath(one.path);
   return (
     <ContextChip

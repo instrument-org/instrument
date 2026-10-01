@@ -3,7 +3,7 @@
 
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { openAppScreen } from "@/electron-main/windows/app-window";
 import {
   BrowserTargetIdSchema,

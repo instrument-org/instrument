@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
 import {
   type McpOAuthStore,
@@ -34,6 +35,7 @@ function getStore(): Store<AppOAuthStoreShape> {
   if (!STORE) {
     const defaults: AppOAuthStoreShape = { flows: {} };
     STORE = new Store<AppOAuthStoreShape>({
+      cwd: workspaceSettingsDir(),
       defaults,
       deserialize: (value) => {
         if (is.dev) {

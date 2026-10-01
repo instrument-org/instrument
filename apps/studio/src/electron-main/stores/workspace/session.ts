@@ -1,10 +1,10 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { safeStorage } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
-
-import { publisher } from "../rpc/publisher";
 
 const SessionStateSchema = z.object({
   apiBearerToken: z.string().nullish(),
@@ -23,6 +23,7 @@ let SESSION_STORE: null | Store<SessionState> = null;
 export const getSessionStore = (): Store<SessionState> => {
   if (SESSION_STORE === null) {
     SESSION_STORE = new Store<SessionState>({
+      cwd: workspaceSettingsDir(),
       deserialize: (value) => {
         if (is.dev) {
           const parsed = SessionStateSchema.safeParse(JSON.parse(value));

@@ -16,7 +16,7 @@ vi.mock("electron", () => ({
 vi.mock("@/electron-main/lib/open-external", () => ({
   openExternal: vi.fn(),
 }));
-vi.mock("@/electron-main/stores/preferences", () => ({
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
 }));
 

@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   type AppConnection,
   AppConnectionSchema,
@@ -27,6 +28,7 @@ function getStore(): Store<AppConnectionsStoreShape> {
   if (!STORE) {
     const defaults: AppConnectionsStoreShape = { connections: {} };
     STORE = new Store<AppConnectionsStoreShape>({
+      cwd: workspaceSettingsDir(),
       defaults,
       deserialize: (value) => {
         const parsed = AppConnectionsStoreSchema.safeParse(JSON.parse(value));

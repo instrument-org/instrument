@@ -5,7 +5,7 @@ import {
   shrinkBelowAutoMaximize,
   type WindowBounds,
   type WindowStateName,
-} from "@/electron-main/stores/window-state";
+} from "@/electron-main/stores/workspace/window-state";
 import { app, type BrowserWindow } from "electron";
 import { debounce } from "radashi";
 

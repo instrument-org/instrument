@@ -1,72 +1,59 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { app } from "electron";
 import Store from "electron-store";
 import semver from "semver";
+import { ulid } from "ulid";
 import { z } from "zod";
 
-function getDefaultEnableUsageMetrics() {
-  return process.env.ELECTRON_USE_NEW_USER_FOLDER !== "true";
+function generateTelemetryId(): string {
+  return `anon-${ulid().toLowerCase()}`;
 }
 
-// "unfocused" notifies only when Instrument is not the active window.
-export const AgentCompletionNotificationModeSchema = z.enum([
-  "always",
-  "unfocused",
-  "never",
-]);
+const DEFAULT_TELEMETRY_ID = "studio-main-default";
 
-export type AgentCompletionNotificationMode = z.output<
-  typeof AgentCompletionNotificationModeSchema
->;
-
-export const PreferencesStoreSchema = z.object({
-  agentCompletionNotifications:
-    AgentCompletionNotificationModeSchema.catch("unfocused"),
-  defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
-  developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
-  enableUsageMetrics: z.boolean().catch(getDefaultEnableUsageMetrics()),
+/* eslint-disable unicorn/prefer-top-level-await */
+/**
+ * What the app remembers about this computer, whichever workspace is open.
+ * Per-workspace state is in `workspace/state.ts`.
+ */
+const MachineStateSchema = z.object({
   lastLaunchedVersion: z.string().optional(),
+  lastMigratedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
-  preferApiKeyOverAccount: z.boolean().catch(false),
-  // Release channels are not exposed to the user and are used internally for testing
-  releaseChannel: z
-    .enum(["latest", "beta", "alpha"])
-    .optional()
-    .catch(undefined),
-  theme: z.enum(["light", "dark", "system"]).catch("system"),
+  telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });
+/* eslint-enable unicorn/prefer-top-level-await */
 
-type PreferencesStore = z.output<typeof PreferencesStoreSchema>;
+type MachineState = z.output<typeof MachineStateSchema>;
 
-let PREFERENCES_STORE: null | Store<PreferencesStore> = null;
+let STORE: null | Store<MachineState> = null;
 
-export const getPreferencesStore = (): Store<PreferencesStore> => {
-  if (PREFERENCES_STORE === null) {
-    const defaultPreferences = PreferencesStoreSchema.parse({});
-    PREFERENCES_STORE = new Store<PreferencesStore>({
-      defaults: defaultPreferences,
+export const getMachineState = (): Store<MachineState> => {
+  if (STORE === null) {
+    const defaults = MachineStateSchema.parse({});
+    STORE = new Store<MachineState>({
+      defaults,
       deserialize: (value) => {
-        const parsed = PreferencesStoreSchema.safeParse(JSON.parse(value));
+        const parsed = MachineStateSchema.safeParse(JSON.parse(value));
 
         if (parsed.success) {
           return parsed.data;
         }
 
-        logger.error("Failed to parse preferences state", parsed.error);
+        logger.error("Failed to parse machine state", parsed.error);
 
-        return defaultPreferences;
+        return defaults;
       },
-      name: "preferences",
+      name: MACHINE_STATE_NAME,
     });
 
-    PREFERENCES_STORE.onDidAnyChange(() => {
-      publisher.publish("preferences.updated", null);
-    });
+    if (STORE.get("telemetryId") === DEFAULT_TELEMETRY_ID) {
+      STORE.set("telemetryId", generateTelemetryId());
+    }
   }
 
-  return PREFERENCES_STORE;
+  return STORE;
 };
 
 interface VersionBump {
@@ -74,24 +61,8 @@ interface VersionBump {
   to: string;
 }
 
-export function getDefaultModelURI(): AIGatewayModelURI.Type | undefined {
-  const store = getPreferencesStore();
-  return store.get("defaultModelURI");
-}
-
-export function isDeveloperMode() {
-  const store = getPreferencesStore();
-  return store.get("developerMode");
-}
-
-export function setDefaultModelURI(modelURI: AIGatewayModelURI.Type): void {
-  const store = getPreferencesStore();
-  store.set("defaultModelURI", modelURI);
-}
-
 export function setLastUpdateCheck(): void {
-  const store = getPreferencesStore();
-  store.set("lastUpdateCheck", Date.now());
+  getMachineState().set("lastUpdateCheck", Date.now());
 }
 
 // Computed once at startup and consumed exactly once, so the "updated" toast
@@ -121,7 +92,7 @@ export function checkRecentVersionBump(): void {
     return;
   }
 
-  const store = getPreferencesStore();
+  const store = getMachineState();
   const previous = store.get("lastLaunchedVersion");
   const current = app.getVersion();
 

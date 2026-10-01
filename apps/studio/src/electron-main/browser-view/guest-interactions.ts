@@ -1,5 +1,5 @@
 import { openExternal } from "@/electron-main/lib/open-external";
-import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import {
   clipboard,
   type ContextMenuParams,

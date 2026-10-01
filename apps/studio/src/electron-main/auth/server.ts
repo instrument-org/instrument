@@ -21,8 +21,8 @@ import {
 } from "@/electron-main/lib/chatgpt-plan";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { getSessionStore } from "@/electron-main/stores/session";
+import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
@@ -211,7 +211,7 @@ async function start() {
           onSuccess(ctx) {
             const authToken = ctx.response.headers.get("set-auth-token");
             sessionStore.set("apiBearerToken", authToken);
-            getAppStateStore().set("hasCompletedProviderSetup", true);
+            getWorkspaceState().set("hasCompletedProviderSetup", true);
           },
         },
       );

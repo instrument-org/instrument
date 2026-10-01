@@ -1,8 +1,8 @@
-import { diskModelCache } from "@/electron-main/stores/model-cache";
+import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import {
   getDefaultModelURI,
   setDefaultModelURI,
-} from "@/electron-main/stores/preferences";
+} from "@/electron-main/stores/workspace/preferences";
 import {
   type AIGatewayModel,
   AIGatewayModelURI,

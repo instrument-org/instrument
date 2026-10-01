@@ -20,7 +20,7 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setAppZoom } from "@/electron-main/stores/window-state";
+import { setAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";

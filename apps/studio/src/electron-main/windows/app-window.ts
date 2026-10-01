@@ -12,11 +12,11 @@ import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppZoom,
   getWindowState,
-} from "@/electron-main/stores/window-state";
+} from "@/electron-main/stores/workspace/window-state";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -276,7 +276,7 @@ function askAppWindow(ask: AppWindowAsk) {
   // boot opens this one itself, and the ask waits for it. So does one made
   // before onboarding is finished: finishing it opens this window, which
   // then takes it.
-  if (app.isReady() && getAppStateStore().get("hasCompletedProviderSetup")) {
+  if (app.isReady() && getWorkspaceState().get("hasCompletedProviderSetup")) {
     openAppWindow();
   }
 }

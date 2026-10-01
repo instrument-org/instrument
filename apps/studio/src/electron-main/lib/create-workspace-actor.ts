@@ -6,8 +6,8 @@ import {
   setQuitApproval,
 } from "@/electron-main/lib/quit-guard";
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
-import { isFeatureEnabled } from "@/electron-main/stores/features";
-import { diskModelCache } from "@/electron-main/stores/model-cache";
+import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
+import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";

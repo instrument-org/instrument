@@ -1,9 +1,9 @@
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { resetZoom, zoomIn, zoomOut } from "@/electron-main/windows/controls";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type MenuItemConstructorOptions } from "electron";
 
-import { isDeveloperMode } from "../stores/preferences";
 import {
   createAppMenu,
   createDevToolsMenu,

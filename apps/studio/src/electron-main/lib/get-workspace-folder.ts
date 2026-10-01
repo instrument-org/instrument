@@ -1,6 +1,11 @@
-import { app } from "electron";
-import path from "node:path";
+import { workspaceSettingsDirOf } from "./settings-migration";
+import { getResolvedWorkspace } from "./workspaces";
 
 export function getWorkspaceFolder(): string {
-  return path.join(app.getPath("userData"), "workspace");
+  return getResolvedWorkspace().path;
+}
+
+/** Where the resolved workspace's electron-store files live. */
+export function workspaceSettingsDir(): string {
+  return workspaceSettingsDirOf(getWorkspaceFolder());
 }

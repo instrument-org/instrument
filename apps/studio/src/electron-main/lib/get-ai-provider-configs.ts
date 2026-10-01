@@ -1,6 +1,6 @@
 import { chatGPTPlanProviderConfig } from "@/electron-main/lib/chatgpt-plan";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
+import { getProviderConfigsStore } from "@/electron-main/stores/workspace/provider-configs";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 

@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
@@ -176,6 +177,7 @@ function getStore(): Store<StoreShape> {
   if (!STORE) {
     const defaults: StoreShape = { accounts: {} };
     STORE = new Store<StoreShape>({
+      cwd: workspaceSettingsDir(),
       defaults,
       deserialize: (value) => {
         try {

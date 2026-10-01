@@ -38,8 +38,10 @@ vi.mock("@/electron-main/lib/electron-logger", () => ({
   },
 }));
 
-vi.mock("@/electron-main/stores/preferences", () => ({
-  getPreferencesStore: () => ({ get: vi.fn() }),
+vi.mock("@/electron-main/stores/machine/preferences", () => ({
+  getMachinePreferences: () => ({ get: vi.fn() }),
+}));
+vi.mock("@/electron-main/stores/machine/state", () => ({
   setLastUpdateCheck: vi.fn(),
 }));
 

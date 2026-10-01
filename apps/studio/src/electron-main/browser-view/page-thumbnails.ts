@@ -1,4 +1,6 @@
-import { app, webContents } from "electron";
+import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
+import { pageThumbnailsDirOf } from "@/electron-main/lib/settings-migration";
+import { webContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -113,8 +115,9 @@ function asDataUrl(jpeg: Buffer) {
   return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
 }
 
+/** In the workspace: these are pictures of what its signed-in pages showed. */
 function folder() {
-  return path.join(app.getPath("userData"), "page-thumbnails");
+  return pageThumbnailsDirOf(getWorkspaceFolder());
 }
 
 function hold(key: string, url: string) {

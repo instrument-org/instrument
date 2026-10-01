@@ -1,10 +1,10 @@
 import { getAuthServerPort } from "@/electron-main/auth/state";
-import { appConnectionStore } from "@/electron-main/stores/app-connections";
+import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
   getAppCredential,
   removeAppCredential,
-} from "@/electron-main/stores/app-credentials";
-import { appOAuthStore, clearAppOAuth } from "@/electron-main/stores/app-oauth";
+} from "@/electron-main/stores/workspace/app-credentials";
+import { appOAuthStore, clearAppOAuth } from "@/electron-main/stores/workspace/app-oauth";
 import { PORTS } from "@instrument-org/shared";
 import {
   appHomeFor,

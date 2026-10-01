@@ -4,9 +4,9 @@ import {
 } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  getPreferencesStore,
+  getWorkspacePreferences,
   isDeveloperMode,
-} from "@/electron-main/stores/preferences";
+} from "@/electron-main/stores/workspace/preferences";
 import {
   resolveAccelerator,
   SHORTCUT_ENTRIES,
@@ -48,13 +48,13 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, ShortcutAction> = {
     publisher.publish("window.command", "openSettings");
   },
   themeDark: () => {
-    getPreferencesStore().set("theme", "dark");
+    getWorkspacePreferences().set("theme", "dark");
   },
   themeLight: () => {
-    getPreferencesStore().set("theme", "light");
+    getWorkspacePreferences().set("theme", "light");
   },
   themeSystem: () => {
-    getPreferencesStore().set("theme", "system");
+    getWorkspacePreferences().set("theme", "system");
   },
 };
 

@@ -53,6 +53,11 @@ declare namespace NodeJS {
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
       /** Dev only: gives the conversation a `task` tool beside the shell one. */
       INSTRUMENT_TASK_TOOL: string | undefined;
+      /**
+       * Pins this process to one workspace, by registered id or absolute path,
+       * without changing which one the app opens next. See lib/workspaces.ts.
+       */
+      INSTRUMENT_WORKSPACE: string | undefined;
       NODE_ENV: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */

@@ -6,7 +6,7 @@ import {
 } from "@/electron-main/lib/quit-guard";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setRecentVersionBump } from "@/electron-main/stores/preferences";
+import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { PORTS } from "@instrument-org/shared";
 import { app, shell } from "electron";

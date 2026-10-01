@@ -5,7 +5,7 @@ import {
 import { hasToken } from "@/electron-main/platform-api/utils";
 import { base } from "@/electron-main/rpc/base";
 import { createAuthenticatedLiveQuery } from "@/electron-main/rpc/lib/create-authenticated-live-query";
-import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
+import { getProviderConfigsStore } from "@/electron-main/stores/workspace/provider-configs";
 import { z } from "zod";
 
 const hasAIProviderConfig = base.handler(() => {

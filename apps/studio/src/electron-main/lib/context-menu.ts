@@ -1,7 +1,7 @@
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { type BrowserWindow, type ContextMenuParams } from "electron";
 import contextMenu from "electron-context-menu";
 
-import { isDeveloperMode } from "../stores/preferences";
 import { saveContextMenuMediaAs } from "./context-menu-download";
 
 /**

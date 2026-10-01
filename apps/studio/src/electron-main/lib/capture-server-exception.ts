@@ -1,9 +1,9 @@
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { app } from "electron";
 import { unique } from "radashi";
 
-import { getAppStateStore } from "../stores/app-state";
-import { isDeveloperMode } from "../stores/preferences";
+import { getMachineState } from "../stores/machine/state";
 import { describeCauses, describeError } from "./describe-error";
 import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
@@ -69,8 +69,7 @@ export const captureServerException: CaptureExceptionFunction = function (
   // that two reports of the same rejection group together.
   const capturedError = error instanceof Error ? error : new Error(message);
 
-  const appStateStore = getAppStateStore();
-  const telemetryId = appStateStore.get("telemetryId");
+  const telemetryId = getMachineState().get("telemetryId");
   telemetry?.captureException(capturedError, telemetryId, finalProperties);
   if (isDeveloperMode()) {
     const pathPrefix = additionalProperties?.rpc_path

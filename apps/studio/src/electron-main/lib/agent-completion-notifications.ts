@@ -1,8 +1,8 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
   type AgentCompletionNotificationMode,
-  getPreferencesStore,
-} from "@/electron-main/stores/preferences";
+  getWorkspacePreferences,
+} from "@/electron-main/stores/workspace/preferences";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   FILES_FENCE,
@@ -247,7 +247,7 @@ function canShowAgentCompletionNotification({
     isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
     isRootSession,
     isSupported: Notification.isSupported(),
-    mode: getPreferencesStore().get("agentCompletionNotifications"),
+    mode: getWorkspacePreferences().get("agentCompletionNotifications"),
   });
 }
 

@@ -1,5 +1,6 @@
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
 import {
   AIGatewayProviderConfig,
@@ -17,8 +18,7 @@ import ms from "ms";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { getAppStateStore } from "../../stores/app-state";
-import { getProviderConfigsStore } from "../../stores/provider-configs";
+import { getProviderConfigsStore } from "../../stores/workspace/provider-configs";
 import { cacheMiddleware } from "../middleware/cache";
 import { publisher } from "../publisher";
 
@@ -159,8 +159,7 @@ const create = base
 
       providersStore.set("providers", [...existingConfigs, configToSave]);
 
-      const appStateStore = getAppStateStore();
-      appStateStore.set("hasCompletedProviderSetup", true);
+      getWorkspaceState().set("hasCompletedProviderSetup", true);
 
       void setDefaultModel({ onlyIfUnset: true });
 

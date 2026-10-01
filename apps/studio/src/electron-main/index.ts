@@ -7,8 +7,8 @@ import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
+import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
   openAppFile,
@@ -334,8 +334,7 @@ function shouldShowOnboarding(): boolean {
   if (process.env.SKIP_ONBOARDING === "true") {
     return false;
   }
-  const appStateStore = getAppStateStore();
-  return !appStateStore.get("hasCompletedProviderSetup");
+  return !getWorkspaceState().get("hasCompletedProviderSetup");
 }
 
 // Closing the last window quits, on macOS too. Staying resident is the macOS

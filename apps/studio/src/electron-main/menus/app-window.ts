@@ -1,6 +1,7 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
@@ -12,7 +13,6 @@ import {
   type WebContents,
 } from "electron";
 
-import { isDeveloperMode } from "../stores/preferences";
 import { createOtherWindowViewMenu } from "./other-window";
 import {
   createAppMenu,

@@ -1,7 +1,7 @@
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { type ErrorMap, os } from "@orpc/server";
 
 import { hasToken } from "../platform-api/utils";
-import { isDeveloperMode } from "../stores/preferences";
 import { type InitialRPCContext } from "./context";
 
 const ORPC_ERRORS = {

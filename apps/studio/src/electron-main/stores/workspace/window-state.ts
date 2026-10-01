@@ -1,3 +1,4 @@
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { screen } from "electron";
 import Store from "electron-store";
 
@@ -50,9 +51,20 @@ const MAX_UNMAXIMIZED_WORK_AREA_FRACTION = 0.8;
 /** What each window's record was called before, read when its own is not there yet. */
 const FORMER_NAMES: Record<WindowStateName, string> = { app: "orchestrator" };
 
-const store = new Store<StoredWindowState>({
-  name: "window-state",
-});
+let STORE: null | Store<StoredWindowState> = null;
+
+/**
+ * Its own file rather than a key of the workspace's `state` store: a moved or
+ * resized window writes here every time it settles, and nothing should hear
+ * about that but the next launch.
+ */
+function getStore(): Store<StoredWindowState> {
+  STORE ??= new Store<StoredWindowState>({
+    cwd: workspaceSettingsDir(),
+    name: "window-state",
+  });
+  return STORE;
+}
 
 /** Work areas measured from a maximized window, by display id. */
 const learnedWorkAreas = new Map<number, { height: number; width: number }>();
@@ -65,7 +77,7 @@ const learnedWorkAreas = new Map<number, { height: number; width: number }>();
  * mount and report the zoom back.
  */
 export function getAppZoom() {
-  const zoom = store.get("zoom");
+  const zoom = getStore().get("zoom");
   return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
     ? zoom
     : 1;
@@ -81,7 +93,7 @@ export function getWindowState(
   size?: { height: number; width: number },
 ) {
   const stored =
-    store.store.windows?.[name] ?? store.store.windows?.[FORMER_NAMES[name]];
+    getStore().store.windows?.[name] ?? getStore().store.windows?.[FORMER_NAMES[name]];
   const defaults = getDefaultState(size);
 
   // Merge stored state with defaults to handle partial/corrupted data
@@ -121,11 +133,11 @@ export function rememberWorkAreaFromMaximized(bounds: WindowBounds) {
 }
 
 export function setAppZoom(zoom: number) {
-  store.set("zoom", zoom);
+  getStore().set("zoom", zoom);
 }
 
 export function setWindowState(name: WindowStateName, value: WindowState) {
-  store.set({ windows: { ...store.store.windows, [name]: value } });
+  getStore().set({ windows: { ...getStore().store.windows, [name]: value } });
 }
 
 /**

@@ -36,6 +36,7 @@
         "GLOBAL_AGENT_HTTP_PROXY",
         "HOME",
         "INSTRUMENT_OZONE_PLATFORM",
+        "INSTRUMENT_WORKSPACE",
         "NODE_ENV",
         "PATH",
         "REMOTE_DEBUGGING_PORT",

@@ -1,11 +1,11 @@
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import { base } from "@/electron-main/rpc/base";
-import { appConnectionStore } from "@/electron-main/stores/app-connections";
+import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
   hasAppCredential,
   setAppCredential,
-} from "@/electron-main/stores/app-credentials";
-import { appOAuthStore } from "@/electron-main/stores/app-oauth";
+} from "@/electron-main/stores/workspace/app-credentials";
+import { appOAuthStore } from "@/electron-main/stores/workspace/app-oauth";
 import {
   AppConnectionSchema,
   appHomeFor,

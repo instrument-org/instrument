@@ -33,6 +33,10 @@ vi.mock("electron", () => ({
   },
 }));
 
+vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
+  workspaceSettingsDir: () => "/workspace/.instrument/settings",
+}));
+
 vi.mock("electron-store", () => ({
   default: class {
     get store() {

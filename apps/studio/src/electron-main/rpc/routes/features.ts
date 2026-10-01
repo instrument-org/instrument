@@ -1,4 +1,4 @@
-import { getFeaturesStore } from "@/electron-main/stores/features";
+import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
 import { call, eventIterator } from "@orpc/server";
 import { shell } from "electron";

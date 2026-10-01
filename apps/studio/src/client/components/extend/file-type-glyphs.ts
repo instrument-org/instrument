@@ -1,6 +1,7 @@
 // File-type glyphs for the types the @pierre/trees "complete" set leaves on its
 // generic page: media, office documents, mail, calendars, contacts, links,
-// keys, 3D models, compiled binaries, and code without a brand glyph. Drawn
+// keys, 3D models, compiled binaries, spreadsheets, and code without a brand
+// glyph. Drawn
 // in that set's vocabulary (16×16, the dog-eared page at 40% behind a solid
 // mark in the same color) so they sit beside the built-ins as one family.
 // Markup is the inside of a <symbol viewBox="0 0 16 16">.
@@ -179,6 +180,13 @@ export const FILE_TYPE_GLYPHS = {
     ],
     markup: `<path fill="currentColor" d="M7.55 1.62a1 1 0 0 1 .9 0l5 2.5a.5.5 0 0 1 0 .9L8 7.75 2.55 5.02a.5.5 0 0 1 0-.9z" opacity=".4"/><path fill="currentColor" d="M2 6.06 7.5 8.6v6.1a.5.5 0 0 1-.72.45l-4.23-2.12A1 1 0 0 1 2 12.14z" opacity=".7"/><path fill="currentColor" d="M14 6.06 8.5 8.6v6.1a.5.5 0 0 0 .72.45l4.23-2.12a1 1 0 0 0 .55-.89z"/>`,
   },
+  numbers: {
+    // Built-in palette: green, as spreadsheet, but bars rather than a grid:
+    // Numbers files are as often charts and layouts as they are tables.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: ["numbers"],
+    markup: `${PAGE}<rect width="2" height="2.5" x="4.5" y="10.5" fill="currentColor" rx=".5"/><rect width="2" height="5" x="7" y="8" fill="currentColor" rx=".5"/><rect width="2" height="3.75" x="9.5" y="9.25" fill="currentColor" rx=".5"/>`,
+  },
   pdf: {
     // Built-in palette: red.
     colors: ["#d52c36", "#ff6762"],
@@ -201,6 +209,24 @@ export const FILE_TYPE_GLYPHS = {
       "pptx",
     ],
     markup: `${PAGE}<path fill="currentColor" fill-rule="evenodd" d="M4.5 8h7a.5.5 0 0 1 .5.5V12a.5.5 0 0 1-.5.5h-7A.5.5 0 0 1 4 12V8.5a.5.5 0 0 1 .5-.5M5.5 11.25h1v-1h-1zm2 0h1v-2h-1zm2 0h1V9.75h-1z"/>`,
+  },
+  spreadsheet: {
+    // Built-in palette: green, apart from the teal of the set's table glyph,
+    // which plain delimited text (csv, tsv) keeps. A solid header row over
+    // three columns of cells.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: [
+      "ods",
+      "ots",
+      "xls",
+      "xlsb",
+      "xlsm",
+      "xlsx",
+      "xlt",
+      "xltm",
+      "xltx",
+    ],
+    markup: `${PAGE}<path fill="currentColor" d="M4.5 7.5h7a.5.5 0 0 1 .5.5v1H4V8a.5.5 0 0 1 .5-.5"/><path fill="currentColor" d="M4 9.5h2.25V11H4zm2.75 0h2.5V11h-2.5zm3 0H12V11H9.75zM4 11.5h2.25V13H4.5a.5.5 0 0 1-.5-.5zm2.75 0h2.5V13h-2.5zm3 0H12v1a.5.5 0 0 1-.5.5H9.75z" opacity=".75"/>`,
   },
   video: {
     // Built-in palette: purple.
@@ -267,7 +293,7 @@ export const FILE_TYPE_ALIASES = {
   markdown: ["mdown", "mkd", "mkdn"],
   python: ["ipynb"],
   svg: ["afdesign", "ai", "eps", "fig", "sketch"],
-  table: ["arrow", "avro", "feather", "numbers", "orc", "parquet", "xlsm"],
+  table: ["arrow", "avro", "feather", "orc", "parquet"],
   text: [
     "ass",
     "bib",

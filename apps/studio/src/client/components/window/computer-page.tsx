@@ -321,6 +321,17 @@ export function ComputerPage({
           }),
         ),
   });
+  // The folders not yet read the first time, which the browser shows as
+  // loading rather than as empty: a slow disk is not an empty one.
+  const pendingFolders = new Set(
+    isRecents
+      ? recents.isPending
+        ? [""]
+        : []
+      : prefixes.filter(
+          (_prefix, index) => listings[index]?.isPending === true,
+        ),
+  );
   // A folder that has gone (thrown away here, moved in the Finder) is asked
   // for on the clock until it is let go of, which is a failing read every few
   // seconds for as long as the screen is up. Opening it again brings it back.
@@ -1127,6 +1138,7 @@ export function ComputerPage({
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
                 }}
+                pendingFolders={pendingFolders}
                 // Resting on a folder reads it ahead, so opening it in place
                 // is the listing already in hand.
                 prefetchChildren={(prefix) => {
@@ -1547,12 +1559,14 @@ function combineListings(
     data: ComputerListing | undefined;
     error: unknown;
     isError: boolean;
+    isPending: boolean;
   }[],
 ) {
   return results.map((result) => ({
     data: result.data,
     error: result.error,
     isError: result.isError,
+    isPending: result.isPending,
   }));
 }
 

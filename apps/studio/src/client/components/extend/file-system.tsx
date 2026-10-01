@@ -175,6 +175,11 @@ export type FileSystemProps = {
    * own default.
    */
   listColumnWidths?: Partial<Record<FileSystemListColumn, number>>;
+  /**
+   * Folders whose entries the caller is still reading into `items`, by path.
+   * Each reads as loading rather than empty until it leaves the set.
+   */
+  pendingFolders?: ReadonlySet<string>;
   /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
   loadChildren?: (
     args: FileSystemLoadChildrenArgs,
@@ -1498,6 +1503,7 @@ export function FileSystem({
   getFileUrl,
   getHostPath,
   items,
+  pendingFolders,
   listColumns: listColumnsProp,
   listColumnWidths: listColumnWidthsProp,
   loadChildren,
@@ -1907,8 +1913,15 @@ export function FileSystem({
     return () => observer.disconnect();
   }, []);
   const requestedFoldersRef = React.useRef(new Set<string>());
-  const [loadingFolders, setLoadingFolders] = React.useState<Set<string>>(
+  const [fetchingFolders, setFetchingFolders] = React.useState<Set<string>>(
     () => new Set(),
+  );
+  const loadingFolders = React.useMemo(
+    () =>
+      pendingFolders?.size
+        ? new Set([...fetchingFolders, ...pendingFolders])
+        : fetchingFolders,
+    [fetchingFolders, pendingFolders],
   );
   const ensureChildren = React.useCallback(
     (folderPath: string) => {
@@ -1918,7 +1931,7 @@ export function FileSystem({
       if (index.children.get(folderPath)?.length) return;
       if (requestedFoldersRef.current.has(folderPath)) return;
       requestedFoldersRef.current.add(folderPath);
-      setLoadingFolders((previous) => new Set(previous).add(folderPath));
+      setFetchingFolders((previous) => new Set(previous).add(folderPath));
       void (async () => {
         try {
           let cursor: null | string = null;
@@ -1932,7 +1945,7 @@ export function FileSystem({
         } catch {
           requestedFoldersRef.current.delete(folderPath);
         } finally {
-          setLoadingFolders((previous) => {
+          setFetchingFolders((previous) => {
             const next = new Set(previous);
             next.delete(folderPath);
             return next;

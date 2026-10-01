@@ -138,8 +138,8 @@ const SAMPLES = [
   ].map((extension) => ({ fileName: `file.${extension}`, label: extension })),
   ...[
     ...new Set([
-      ...SAMPLE_FILE_NAMES,
       ...Object.values(FILE_NAME_ALIASES).flat(),
+      ...SAMPLE_FILE_NAMES,
     ]),
   ].map((fileName) => ({ fileName, label: fileName })),
 ];

@@ -36,7 +36,7 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
-import { registerAppProtocol } from "./lib/app-protocol";
+import { configureAppSession } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
@@ -52,7 +52,6 @@ import {
   serveResolvedTheme,
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
-import { applyStandardUserAgent } from "./lib/user-agent";
 import { configurePlatformAuthenticator } from "./lib/web-authn";
 import { servePageEditorBoot } from "./page-editor/sessions";
 import { initializeRPC } from "./rpc/initialize";
@@ -128,8 +127,6 @@ async function bootstrapPrimaryInstance() {
     return;
   }
 
-  registerAppProtocol();
-
   if (
     process.platform === "darwin" &&
     !is.dev &&
@@ -169,26 +166,13 @@ async function bootstrapPrimaryInstance() {
     }
   }
 
-  // Present the identity of an ordinary Chromium-derived browser, with matching
-  // client hints, for the app's own remote requests (user avatars, embedded
-  // remote images), for compatibility with services that respond differently to
-  // the Electron UA.
-  applyStandardUserAgent(session.defaultSession);
+  // The app's windows run on the workspace's own session (getAppSession); the
+  // default one still makes the main process's own requests.
+  configureAppSession(session.defaultSession);
 
   // Let a site's passkey prompt reach an authenticator, in the task browser and
   // here. Nothing services one until this runs.
   configurePlatformAuthenticator();
-
-  session.defaultSession.setPermissionRequestHandler(
-    (_webContents, permission, callback) => {
-      // Disable fullscreen API for things like video players
-      if (permission === "fullscreen") {
-        callback(false);
-      } else {
-        callback(true);
-      }
-    },
-  );
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

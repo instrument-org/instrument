@@ -1,5 +1,11 @@
 import { APP_PROTOCOL } from "@instrument-org/shared";
-import { app, type NativeImage, nativeImage, net, protocol } from "electron";
+import {
+  app,
+  type NativeImage,
+  nativeImage,
+  net,
+  type Session,
+} from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -32,8 +38,12 @@ const VENDOR_CONTENT_TYPES: Record<string, string> = {
 };
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
-export function registerAppProtocol() {
-  protocol.handle(APP_PROTOCOL, async (request) => {
+/**
+ * Serve `app:` on a session. The default session and the workspace's app
+ * session each need it: protocol handlers belong to a session, not to the app.
+ */
+export function registerAppProtocol(ses: Session) {
+  ses.protocol.handle(APP_PROTOCOL, async (request) => {
     const url = new URL(request.url);
     switch (url.hostname) {
       case FILE_OPEN_ICON_HOST: {

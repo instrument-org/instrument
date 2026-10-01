@@ -1,3 +1,4 @@
+import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
@@ -49,6 +50,7 @@ export function openOnboardingWindow(): BrowserWindow {
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
+      session: getAppSession(),
     },
     width: ONBOARDING_WIDTH,
     x: bounds.x + Math.round((bounds.width - ONBOARDING_WIDTH) / 2),

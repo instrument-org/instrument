@@ -1,4 +1,5 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
@@ -108,6 +109,7 @@ export function openAppWindow(): BrowserWindow {
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
+      session: getAppSession(),
       // The Browser tab is a renderer-hosted `<webview>`, like a task's browser.
       webviewTag: true,
     },

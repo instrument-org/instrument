@@ -14,11 +14,12 @@ Every chat-list build derives all 353 rows of a real workspace from their transc
 
 - **One index per workspace, in the app's data folder, keyed by the workspace's id.** Multiple workspaces are coming, and some will be folders a person chose, inside iCloud Drive or another synced folder. A SQLite file and its write-ahead log in a synced folder invite conflict copies and corruption, and a derived file has no reason to travel with the workspace: a desktop notes app whose vaults commonly live in iCloud keeps its parse cache in its own application data, keyed by vault id, for the same reasons. A workspace opened on a second machine rebuilds its index there.
 - **Derived, never the source of truth.** Every row can be rebuilt from the per-chat and per-task folders. A corrupt or missing index is rebuilt, not repaired.
-- **Versioned.** The index records the version of the row shape it was built with. A build whose version differs rebuilds it on boot, so changing what a row carries never needs a hand-written cache migration.
+- **Versioned.** The index records the version it was built under: `INDEX_VERSION`, the app's version, and the stores' migration count. Any difference throws it away and rebuilds it as it is read, so a release, a store migration, or a change to a row's shape never needs a hand-written cache migration. `INDEX_VERSION` is bumped by hand when a derivation changes what it returns within one release.
+- **Only ever a speed-up.** A row that cannot be read or saved (another process holding a lock, a full disk) is derived as though absent, and a value read around a failure (a store that would not open) is answered but kept nowhere, so a failure is never served again.
 - **No digest in `settings.json`.** That file is the task's record, not a cache, and a digest there would need migrating every time the row shape moves.
-- **Per-chat folders stay the unit a person manages.** Deleting a chat folder from outside the app leaves a stale row, which boot reconciles away against the folder listing.
+- **Per-chat folders stay the unit a person manages.** Deleting a chat folder from outside the app leaves a row nothing reads again; nothing prunes such rows yet.
 - **A file's stats decide whether its row is current.** Each row records the size and modification time of its store (`task.db` and its `-wal`) when it was derived. Boot compares them with a stat of each store and re-derives only rows whose store moved, which also catches a store written while the app was not running.
-- **Unread counts are dropped** from the row for now. A row can carry its finished-reply count and newest settled message id, so the count can return as a comparison against what was seen, without reading a transcript.
+- **Unread counts stay** without reading a transcript: the digest carries the ids of the messages that count, and the row compares them with what the user has seen.
 
 ## Shape
 
@@ -74,5 +75,5 @@ What is left between skeleton and rows is reading every filed task's `settings.j
 ## Risks
 
 - **A write the stamp cannot see.** Every write this process makes moves the store's write count, and every write moves the file's modification time, so neither a write that announces nothing (the browser's visited hosts) nor one made while the app was closed is missed.
-- **Two processes on one workspace** (two dev instances sharing a data directory) would both write the index. SQLite's locking keeps the file sound; rows can still be recomputed twice, which is waste, not damage.
+- **Two processes on one workspace** (two dev instances sharing a data directory) both use the index. A save that meets the other's lock is skipped and derived again next time; the file is deleted only when SQLite reports it is not a readable database, never because it is busy. Dev worktrees of the same app version and `INDEX_VERSION` share rows, so one whose derivations differ should bump it.
 - **Stats that do not move.** A store rewritten within the clock's resolution with the same size would read as unchanged. Writes in this process are caught by the write count; the stats only stand in for writes made while it was not running, where that collision is not a practical concern.

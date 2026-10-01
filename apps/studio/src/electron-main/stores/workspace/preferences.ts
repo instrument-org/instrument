@@ -16,7 +16,6 @@ export type AgentCompletionNotificationMode = z.output<
   typeof AgentCompletionNotificationModeSchema
 >;
 
-/* eslint-disable unicorn/prefer-top-level-await */
 /** What a person chose for this workspace. Machine-wide choices are in `machine/preferences.ts`. */
 export const WorkspacePreferencesSchema = z.object({
   agentCompletionNotifications:
@@ -25,7 +24,6 @@ export const WorkspacePreferencesSchema = z.object({
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type WorkspacePreferences = z.output<typeof WorkspacePreferencesSchema>;
 

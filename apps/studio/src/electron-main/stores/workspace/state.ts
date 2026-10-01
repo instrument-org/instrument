@@ -5,12 +5,10 @@ import { z } from "zod";
 
 import { getProviderConfigsStore } from "./provider-configs";
 
-/* eslint-disable unicorn/prefer-top-level-await */
 /** What the app remembers about this workspace. Machine-wide state is in `machine/state.ts`. */
 const WorkspaceStateSchema = z.object({
   hasCompletedProviderSetup: z.boolean().catch(false),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type WorkspaceState = z.output<typeof WorkspaceStateSchema>;
 

@@ -13,7 +13,6 @@ function generateTelemetryId(): string {
 
 const DEFAULT_TELEMETRY_ID = "studio-main-default";
 
-/* eslint-disable unicorn/prefer-top-level-await */
 /**
  * What the app remembers about this computer, whichever workspace is open.
  * Per-workspace state is in `workspace/state.ts`.
@@ -24,7 +23,6 @@ const MachineStateSchema = z.object({
   lastUpdateCheck: z.number().optional(),
   telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type MachineState = z.output<typeof MachineStateSchema>;
 

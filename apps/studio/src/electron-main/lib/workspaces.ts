@@ -41,7 +41,6 @@ export const WORKSPACE_COLORS = [
 
 export const WorkspaceColorSchema = z.enum(WORKSPACE_COLORS);
 
-/* eslint-disable unicorn/prefer-top-level-await */
 const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("person") }),
   z.object({ kind: z.literal("agent"), purpose: z.string() }),
@@ -69,7 +68,6 @@ const RegistrySchema = z.object({
   active: z.string().optional().catch(undefined),
   workspaces: z.array(RegistryEntrySchema).catch([]),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 export interface ResolvedWorkspace {
   id: string;

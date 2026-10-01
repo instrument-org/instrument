@@ -4,7 +4,6 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import Store from "electron-store";
 import { z } from "zod";
 
-/* eslint-disable unicorn/prefer-top-level-await */
 /**
  * What a person chose for this computer, whichever workspace is open: whether
  * it reports usage, and which builds it updates to. Per-workspace choices are
@@ -18,7 +17,6 @@ export const MachinePreferencesSchema = z.object({
     .optional()
     .catch(undefined),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type MachinePreferences = z.output<typeof MachinePreferencesSchema>;
 

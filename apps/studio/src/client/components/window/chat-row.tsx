@@ -204,9 +204,8 @@ export function ChatRow({
         <div
           className={cn(
             rowClassName(isOpen),
-            // The chat just started from a draft arrives with a wash of
-            // the brand's tint that settles, so the eye finds the row the
-            // draft became; nothing else that lands in the list does this.
+            // The chat just started from a draft slides into its place;
+            // nothing else that lands in the list does this.
             isArriving && "chat-arrive",
           )}
           data-open={isOpen || undefined}

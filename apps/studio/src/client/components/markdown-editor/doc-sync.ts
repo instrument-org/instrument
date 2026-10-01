@@ -24,6 +24,7 @@
 //    place in the editor, narrowed to the characters that changed, out of undo
 //    history. A hunk that overlaps blocks the person changed keeps theirs.
 import { logger } from "@/client/lib/logger";
+import { splitFrontMatter } from "@/shared/front-matter";
 import { Fragment, type Node as PMNode } from "@milkdown/kit/prose/model";
 import { type Transaction } from "@milkdown/kit/prose/state";
 import { type Mappable } from "@milkdown/kit/prose/transform";
@@ -32,8 +33,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
-
-import { splitFrontMatter } from "./front-matter";
 
 export interface BodyAnalysis {
   body: string;

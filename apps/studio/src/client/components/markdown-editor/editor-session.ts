@@ -15,6 +15,7 @@ import {
   type SaveStatus,
 } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
+import { splitFrontMatter } from "@/shared/front-matter";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { Crepe } from "@milkdown/crepe";
@@ -50,7 +51,6 @@ import {
   flushDomObserver,
   mapPos,
 } from "./doc-sync";
-import { splitFrontMatter } from "./front-matter";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
 import { fitSelectionToolbar } from "./toolbar-fit";

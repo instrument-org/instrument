@@ -1,8 +1,8 @@
+import { AgentFilesBlock } from "@/client/components/agent-files-block";
 import "@milkdown/crepe/theme/common/style.css";
 
 import "./markdown-editor.css";
 
-import { AgentFilesBlock } from "@/client/components/agent-files-block";
 import { FileLoading } from "@/client/components/file-loading";
 import { MarkdownDocument } from "@/client/components/markdown-outline";
 import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
@@ -20,6 +20,7 @@ import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { splitFrontMatter } from "@/shared/front-matter";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
@@ -36,7 +37,7 @@ import {
   type EditorSession,
   type ExternalChange,
 } from "./editor-session";
-import { setFrontMatterField, splitFrontMatter } from "./front-matter";
+import { setFrontMatterField } from "./front-matter";
 import { FrontMatterCard } from "./front-matter-card";
 import { openSourcePopover } from "./html-render";
 import { scrollParentOf } from "./toolbar-fit";

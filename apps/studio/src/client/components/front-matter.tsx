@@ -1,14 +1,9 @@
+import { frontMatterTitle, isMapping } from "@/shared/front-matter";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { Fragment } from "react";
 import { parse } from "yaml";
 
 import { MarkdownCodeBlock } from "./code-block";
-
-/** The keys whose value names a document, in the order files tend to use. */
-const TITLE_KEYS = ["title", "name", "taskName", "sessionTitle"];
-
-const isMapping = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const valueText = (value: unknown): string => {
   switch (typeof value) {
@@ -68,10 +63,7 @@ export function FrontMatter({ source }: { source: string }) {
   }
 
   const entries = Object.entries(parsed);
-  const title = TITLE_KEYS.map((key) => parsed[key]).find(
-    (value): value is string =>
-      typeof value === "string" && value.trim() !== "",
-  );
+  const title = frontMatterTitle(parsed);
 
   return (
     <details

@@ -1,10 +1,6 @@
-// A Markdown file's front matter as text: found at the top of the file, taken
-// apart into its fences and what they hold, and edited a line at a time so
-// every line nobody changed keeps its bytes.
-
-/** Front matter at the very top of a file, fences and all. */
-const FRONT_MATTER =
-  /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
+// A Markdown file's front matter as text: taken apart into its fences and
+// what they hold, and edited a line at a time so every line nobody changed
+// keeps its bytes.
 
 /** Front matter by its parts: the opening fence, what it holds, and the closing fence. */
 const FENCES =
@@ -43,12 +39,4 @@ export function splitFences(fm: string) {
     nl: inner.includes("\r\n") ? "\r\n" : "\n",
     open: parts?.[1] ?? "---\n",
   };
-}
-
-/** A file's text as its front matter (empty when it has none) and the body after it. */
-export function splitFrontMatter(text: string): { body: string; fm: string } {
-  const m = FRONT_MATTER.exec(text);
-  return m
-    ? { body: text.slice(m[0].length), fm: m[0] }
-    : { body: text, fm: "" };
 }

@@ -12,6 +12,9 @@ const NETWORK_ERROR_NAMES = new Set([
   "ConnectTimeoutError",
   "HeadersTimeoutError",
   "SocketError",
+  // `AbortSignal.timeout()` rejects with a DOMException of this name: the
+  // server never answered within the deadline the caller set.
+  "TimeoutError",
 ]);
 
 const NETWORK_ERROR_CODES = new Set([

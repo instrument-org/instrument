@@ -137,6 +137,24 @@ describe("fetchModelsForProvider", () => {
     expect(result.getOrNull()).toEqual(CACHED);
   });
 
+  it("does not report a fetch that hit its timeout", async () => {
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypedError.Fetch("Failed to fetch from https://example.test/models", {
+        cause: new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        ),
+      }),
+    );
+
+    await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: createMemoryCache(CACHED),
+    });
+
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("falls back to cached models on a transient HTTP status", async () => {
     fetchAndParseAnthropicModels.mockRejectedValue(
       new TypedError.Fetch("Failed to fetch from https://example.test/models", {

@@ -5,7 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { indexedByStore } from "../workspace-index";
+import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import { listChatIds } from "./chat-records";
 
 /**
@@ -59,10 +59,10 @@ const shownByChat = indexedByStore<LinkedFile[]>("linked_files");
 async function readShownIn(
   taskId: TaskId,
   sessionId: StoreId.Session,
-): Promise<LinkedFile[]> {
+): Promise<Derived<LinkedFile[]>> {
   const ids = await Store.getMessageIds(sessionId, taskId);
   if (ids.isErr()) {
-    return [];
+    return unkept([]);
   }
   const messages = await Store.getMessagesWithParts({
     messageIds: ids.value.slice(-MESSAGES_READ),
@@ -70,16 +70,18 @@ async function readShownIn(
     taskId,
   });
   if (messages.isErr()) {
-    return [];
+    return unkept([]);
   }
-  return messages.value.flatMap((message) =>
-    message.role === "assistant"
-      ? [...pathsNamedInMessage(message)].map((path) => ({
-          at: message.metadata.createdAt.getTime(),
-          chatId: taskId,
-          path,
-        }))
-      : [],
+  return kept(
+    messages.value.flatMap((message) =>
+      message.role === "assistant"
+        ? [...pathsNamedInMessage(message)].map((path) => ({
+            at: message.metadata.createdAt.getTime(),
+            chatId: taskId,
+            path,
+          }))
+        : [],
+    ),
   );
 }
 

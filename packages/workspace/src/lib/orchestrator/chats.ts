@@ -21,7 +21,7 @@ import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
-import { indexedByStore } from "../workspace-index";
+import { indexedByStore, kept, unkept } from "../workspace-index";
 import {
   askIn,
   latestStepIn,
@@ -429,7 +429,9 @@ function filedApps(taskId: TaskId): Promise<string[]> {
     return known;
   }
   const read = appsIndex(taskId, () =>
-    getTaskSettings(taskDir(taskId)).then((settings) => settings?.apps ?? []),
+    getTaskSettings(taskDir(taskId)).then((settings) =>
+      kept(settings?.apps ?? []),
+    ),
   );
   filedAppsByTask.set(taskId, read);
   read.catch(() => {
@@ -668,12 +670,12 @@ function chatDigest(
   return chatDigests(taskId, async () => {
     const session = await Store.getSession(sessionId, taskId);
     if (session.isErr()) {
-      return;
+      return unkept(undefined);
     }
     const messages = await Store.getMessagesWithParts({ sessionId, taskId });
     return messages.isOk()
-      ? digestOf(session.value, messages.value)
-      : undefined;
+      ? kept(digestOf(session.value, messages.value))
+      : unkept(undefined);
   });
 }
 
@@ -788,11 +790,16 @@ function digestOf(
 function filedHostsOf(taskId: TaskId): Promise<string[]> {
   return filedHosts(taskId, async () => {
     const sessionId = await latestSessionId(taskId);
-    if (sessionId.isErr() || !sessionId.value) {
-      return [];
+    if (sessionId.isErr()) {
+      return unkept([]);
+    }
+    if (!sessionId.value) {
+      return kept([]);
     }
     const browser = await getBrowserState(taskId, sessionId.value);
-    return browser.isOk() ? (browser.value?.visitedHosts ?? []) : [];
+    return browser.isOk()
+      ? kept(browser.value?.visitedHosts ?? [])
+      : unkept([]);
   });
 }
 

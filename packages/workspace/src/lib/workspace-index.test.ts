@@ -13,7 +13,12 @@ import {
 } from "./session-store-storage";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { closeWorkspaceIndex, indexedByStore } from "./workspace-index";
+import {
+  closeWorkspaceIndex,
+  indexedByStore,
+  kept,
+  unkept,
+} from "./workspace-index";
 
 let root: string;
 let taskId: TaskId;
@@ -50,7 +55,7 @@ describe("indexedByStore", () => {
     let derived = 0;
     const derive = () => {
       derived += 1;
-      return Promise.resolve({ said: "done" });
+      return Promise.resolve(kept({ said: "done" }));
     };
 
     expect(await nextLaunch()(taskId, derive)).toEqual({ said: "done" });
@@ -62,7 +67,7 @@ describe("indexedByStore", () => {
     let derived = 0;
     const derive = () => {
       derived += 1;
-      return Promise.resolve({ said: `read ${derived}` });
+      return Promise.resolve(kept({ said: `read ${derived}` }));
     };
     await nextLaunch()(taskId, derive);
 
@@ -77,7 +82,7 @@ describe("indexedByStore", () => {
     let derived = 0;
     const derive = () => {
       derived += 1;
-      return Promise.resolve({ said: "done" });
+      return Promise.resolve(kept({ said: "done" }));
     };
     await nextLaunch()(taskId, derive);
     closeWorkspaceIndex();
@@ -88,6 +93,81 @@ describe("indexedByStore", () => {
     database.exec("UPDATE meta SET value = '0' WHERE key = 'version'");
     database.close();
 
+    await nextLaunch()(taskId, derive);
+    expect(derived).toBe(2);
+  });
+
+  it("keeps nothing read around a failure, in memory or across launches", async () => {
+    let derived = 0;
+    const failing = () => {
+      derived += 1;
+      return Promise.resolve(unkept({ said: "unreadable" }));
+    };
+    const cache = nextLaunch();
+    expect(await cache(taskId, failing)).toEqual({ said: "unreadable" });
+    expect(await cache(taskId, failing)).toEqual({ said: "unreadable" });
+    expect(derived).toBe(2);
+
+    const read = await nextLaunch()(taskId, () =>
+      Promise.resolve(kept({ said: "read" })),
+    );
+    expect(read).toEqual({ said: "read" });
+  });
+
+  it("answers when it cannot save to an index another process has locked", async () => {
+    let derived = 0;
+    const derive = () => {
+      derived += 1;
+      return Promise.resolve(kept({ said: `read ${derived}` }));
+    };
+    await nextLaunch()(taskId, derive);
+    const opened = await getSessionsStoreStorage(taskId);
+    const written = await opened._unsafeUnwrap().setItemRaw("note", "changed");
+    written._unsafeUnwrap();
+    closeWorkspaceIndex();
+
+    const [file] = await fs.readdir(path.join(root, "indexes"));
+    const { DatabaseSync } = await import("node:sqlite");
+    const holder = new DatabaseSync(path.join(root, "indexes", file ?? ""));
+    holder.exec("BEGIN EXCLUSIVE");
+    try {
+      expect(await nextLaunch()(taskId, derive)).toEqual({ said: "read 2" });
+    } finally {
+      holder.exec("ROLLBACK");
+      holder.close();
+    }
+    // Nothing was saved, so the next launch derives it again.
+    expect(await nextLaunch()(taskId, derive)).toEqual({ said: "read 3" });
+  });
+
+  it("rebuilds an index file SQLite cannot read", async () => {
+    await nextLaunch()(taskId, () => Promise.resolve(kept({ said: "first" })));
+    closeWorkspaceIndex();
+    const [file] = await fs.readdir(path.join(root, "indexes"));
+    const indexFile = path.join(root, "indexes", file ?? "");
+    for (const suffix of ["-wal", "-shm"]) {
+      await fs.rm(`${indexFile}${suffix}`, { force: true });
+    }
+    await fs.writeFile(indexFile, "not a database, not even close to one");
+
+    let derived = 0;
+    const derive = () => {
+      derived += 1;
+      return Promise.resolve(kept({ said: "rebuilt" }));
+    };
+    expect(await nextLaunch()(taskId, derive)).toEqual({ said: "rebuilt" });
+    expect(await nextLaunch()(taskId, derive)).toEqual({ said: "rebuilt" });
+    expect(derived).toBe(1);
+  });
+
+  it("starts over for another release", async () => {
+    let derived = 0;
+    const derive = () => {
+      derived += 1;
+      return Promise.resolve(kept({ said: "done" }));
+    };
+    await nextLaunch()(taskId, derive);
+    setWorkspaceConfig({ ...getWorkspaceConfig(), appVersion: "99.0.0" });
     await nextLaunch()(taskId, derive);
     expect(derived).toBe(2);
   });

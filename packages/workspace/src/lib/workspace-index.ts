@@ -6,14 +6,16 @@ import superjson from "superjson";
 
 import { type TaskId } from "../schemas/task-id";
 import { cacheByStoreGeneration } from "./store-generation";
+import { STORE_MIGRATION_COUNT } from "./store-migrations";
 import { sessionStorePath, taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 /**
  * The shape of what the index holds. Any change to a table, or to the value a
- * row carries, bumps this, and an index built under another version is thrown
- * away and rebuilt from the stores as it is read: the index is derived, so it
- * is never migrated.
+ * row carries, bumps this. An index built under another version, by another
+ * release, or against stores of another migration count is thrown away and
+ * rebuilt from the stores as it is read: the index is derived, so it is never
+ * migrated.
  */
 const INDEX_VERSION = 1;
 
@@ -36,6 +38,17 @@ const TABLES: IndexTable[] = [
   "task_standings",
 ];
 
+/**
+ * A derived value, and whether it may be kept. A value read around a failure
+ * (a store that would not open, a record that would not parse) is still the
+ * best answer for now, but keeping it would go on serving the failure until
+ * something next writes the store, which for an idle chat may be never.
+ */
+export interface Derived<Value> {
+  keep: boolean;
+  value: Value;
+}
+
 interface OpenIndex {
   database: DatabaseSync;
   read: Map<IndexTable, StatementSync>;
@@ -43,8 +56,21 @@ interface OpenIndex {
   write: Map<IndexTable, StatementSync>;
 }
 
+/** A value read in full, which the index may keep. */
+export function kept<Value>(value: Value): Derived<Value> {
+  return { keep: true, value };
+}
+
+/** A value read around a failure, which is answered once and kept nowhere. */
+export function unkept<Value>(value: Value): Derived<Value> {
+  return { keep: false, value };
+}
+
 /** The open index of the workspace being served, or null once opening it has failed. */
 let opened: null | OpenIndex | undefined;
+
+/** Whether a failure to read or write the index has been reported this process. */
+let reported = false;
 
 /** Closes the index, so the next read opens it again: a workspace switched, or a test done. */
 export function closeWorkspaceIndex() {
@@ -59,10 +85,14 @@ export function closeWorkspaceIndex() {
  * memory by the store's write count, which every write in this process moves,
  * and across launches in the index, by the store's files' sizes and
  * modification times, which also move for a write made while the app was
- * closed. Only a value whose store has moved is computed again.
+ * closed. Only a value whose store has moved is computed again, and one the
+ * computation marks `unkept` is kept in neither place.
  *
  * `files` names what else the value is read from besides the task's store,
  * such as its settings, so a change to them is seen across launches too.
+ *
+ * The index only ever speeds a read up: a row it cannot read or write is
+ * derived as though it were absent.
  */
 export function indexedByStore<Value>(
   table: IndexTable,
@@ -80,34 +110,74 @@ export function indexedByStore<Value>(
     inMemory?: boolean;
   } = {},
 ) {
-  const memory = cacheByStoreGeneration<Value>();
-  const read = (taskId: TaskId, compute: () => Promise<Value>) => async () => {
-    // Taken before the value is computed: a write that lands meanwhile
-    // leaves a stamp older than the store, which only costs a recompute.
-    const stamp = await stampOf([
-      sessionStorePath(taskDir(taskId)),
-      `${sessionStorePath(taskDir(taskId))}-wal`,
-      ...files(taskId),
-    ]);
-    const index = stamp === undefined ? undefined : openIndex();
-    if (index && stamp !== undefined) {
-      const row = index.read.get(table)?.get(taskId);
-      if (row?.stamp === stamp && typeof row.value === "string") {
-        try {
-          return superjson.parse<Value>(row.value);
-        } catch {
-          // A row that will not parse is derived again, like a stale one.
+  const memory = cacheByStoreGeneration<Derived<Value>>(
+    (derived) => derived.keep,
+  );
+  const read =
+    (taskId: TaskId, compute: () => Promise<Derived<Value>>) =>
+    async (): Promise<Derived<Value>> => {
+      // Taken before the value is computed: a write that lands meanwhile
+      // leaves a stamp older than the store, which only costs a recompute.
+      const stamp = await stampOf([
+        sessionStorePath(taskDir(taskId)),
+        `${sessionStorePath(taskDir(taskId))}-wal`,
+        ...files(taskId),
+      ]);
+      if (stamp !== undefined) {
+        const row = guarded(() => openIndex()?.read.get(table)?.get(taskId));
+        if (row?.stamp === stamp && typeof row.value === "string") {
+          const value = row.value;
+          const parsed = guarded(() => ({
+            value: superjson.parse<Value>(value),
+          }));
+          if (parsed) {
+            return kept(parsed.value);
+          }
         }
       }
-    }
-    const value = await compute();
-    if (index && stamp !== undefined) {
-      index.write.get(table)?.run(taskId, stamp, superjson.stringify(value));
-    }
-    return value;
+      const derived = await compute();
+      if (derived.keep && stamp !== undefined) {
+        guarded(() =>
+          openIndex()
+            ?.write.get(table)
+            ?.run(taskId, stamp, superjson.stringify(derived.value)),
+        );
+      }
+      return derived;
+    };
+  return async (
+    taskId: TaskId,
+    compute: () => Promise<Derived<Value>>,
+  ): Promise<Value> => {
+    const derived = await (inMemory
+      ? memory(taskId, read(taskId, compute))
+      : read(taskId, compute)());
+    return derived.value;
   };
-  return (taskId: TaskId, compute: () => Promise<Value>): Promise<Value> =>
-    inMemory ? memory(taskId, read(taskId, compute)) : read(taskId, compute)();
+}
+
+/** The version an index must carry to be read: this build's shape, release, and stores. */
+function expectedVersion(): string {
+  return `${INDEX_VERSION}:${getWorkspaceConfig().appVersion}:${STORE_MIGRATION_COUNT}`;
+}
+
+/**
+ * Runs an index read or write, answering undefined if it throws: another
+ * process holding a lock, a full disk, a damaged page. The first such failure
+ * is reported; the read derives as though the index had no row.
+ */
+function guarded<T>(operation: () => T): T | undefined {
+  try {
+    return operation();
+  } catch (error) {
+    if (!reported) {
+      reported = true;
+      getWorkspaceConfig().captureException(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
+    return undefined;
+  }
 }
 
 /** The index file for a workspace: one per workspace root, named by a hash of it. */
@@ -116,38 +186,58 @@ function indexPath(indexesDir: string, rootDir: string): string {
   return path.join(indexesDir, `${name}.db`);
 }
 
+/**
+ * Whether SQLite said the file is not a database it can read: the one failure
+ * deleting it fixes. Anything else (another process holding a lock, a full
+ * disk) leaves the file to whoever has it open.
+ */
+function isUnreadableFile(error: unknown): boolean {
+  if (!(error instanceof Error) || !("errcode" in error)) {
+    return false;
+  }
+  const primary = Number(error.errcode) & 0xff;
+  // SQLITE_CORRUPT and SQLITE_NOTADB.
+  return primary === 11 || primary === 26;
+}
+
 function open(file: string): DatabaseSync {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const database = new DatabaseSync(file);
-  database.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  database.exec(
-    "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
-  );
-  const version = database
-    .prepare("SELECT value FROM meta WHERE key = 'version'")
-    .get();
-  if (version?.value !== String(INDEX_VERSION)) {
-    for (const table of TABLES) {
-      database.exec(`DROP TABLE IF EXISTS ${table}`);
-    }
-    database
-      .prepare(
-        "INSERT INTO meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      )
-      .run(String(INDEX_VERSION));
-  }
-  for (const table of TABLES) {
+  try {
+    database.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     database.exec(
-      `CREATE TABLE IF NOT EXISTS ${table} (id TEXT PRIMARY KEY, stamp TEXT NOT NULL, value TEXT NOT NULL) STRICT`,
+      "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
     );
+    const version = database
+      .prepare("SELECT value FROM meta WHERE key = 'version'")
+      .get();
+    if (version?.value !== expectedVersion()) {
+      for (const table of TABLES) {
+        database.exec(`DROP TABLE IF EXISTS ${table}`);
+      }
+      database
+        .prepare(
+          "INSERT INTO meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .run(expectedVersion());
+    }
+    for (const table of TABLES) {
+      database.exec(
+        `CREATE TABLE IF NOT EXISTS ${table} (id TEXT PRIMARY KEY, stamp TEXT NOT NULL, value TEXT NOT NULL) STRICT`,
+      );
+    }
+  } catch (error) {
+    database.close();
+    throw error;
   }
   return database;
 }
 
 /**
- * The workspace's index, opened on first use. One that cannot be opened is
- * deleted and built again; one that still cannot is left off for the rest of
- * the process, and every read derives from the stores as it would without one.
+ * The workspace's index, opened on first use. One SQLite cannot read as a
+ * database is deleted and built again; one that cannot be opened for any
+ * other reason, or still cannot after that, is left off for the rest of the
+ * process, and every read derives from the stores as it would without one.
  */
 function openIndex(): OpenIndex | undefined {
   if (!hasWorkspaceConfig()) {
@@ -171,14 +261,23 @@ function openIndex(): OpenIndex | undefined {
   try {
     database = open(file);
   } catch (error) {
+    if (!isUnreadableFile(error)) {
+      getWorkspaceConfig().captureException(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      opened = null;
+      return undefined;
+    }
     try {
       for (const suffix of ["", "-wal", "-shm"]) {
         fs.rmSync(`${file}${suffix}`, { force: true });
       }
       database = open(file);
-    } catch {
+    } catch (retryError) {
       getWorkspaceConfig().captureException(
-        error instanceof Error ? error : new Error(String(error)),
+        retryError instanceof Error
+          ? retryError
+          : new Error(String(retryError)),
       );
       opened = null;
       return undefined;

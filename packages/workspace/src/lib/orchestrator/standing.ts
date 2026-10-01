@@ -7,12 +7,20 @@ import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
+import { cacheByStoreGeneration } from "../store-generation";
 import { taskHold } from "../task-hold";
 import { askIn, latestStep, runningLines } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
 /** How much of the agent's own words the list shows on a task's second line. */
 const LINE_MAX = 90;
+
+/**
+ * Where a task with no agent at work stands, read from its store alone, so it
+ * holds until something writes there. The list asks for every task it shows
+ * each time it is read, and this is a whole transcript or more per task.
+ */
+const settledStanding = cacheByStoreGeneration<TaskStanding>();
 
 /**
  * How a turn ended when it ended without words: whether a model error ended
@@ -146,25 +154,7 @@ export async function taskStanding({
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
   }
-  const waiting = await pendingAsk(taskId);
-  if (waiting) {
-    return { kind: "waiting", line: waiting };
-  }
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return { kind: "done", line: "Nothing yet" };
-  }
-  // Read whole and cut after: the line is chosen from the reply's shape, and a
-  // fence cut off mid-way is a fence the excerpt cannot read.
-  const said = await lastAssistantText({
-    sessionId: sessionId.value,
-    taskId,
-  });
-  if (said) {
-    return { kind: "done", line: excerptOf(said, LINE_MAX) };
-  }
-  const ending = await endedWithoutWords(taskId, sessionId.value);
-  return { kind: ending.failed ? "failed" : "done", line: ending.line };
+  return settledStanding(taskId, () => standingAtRest(taskId));
 }
 
 /** The last segment of a path, which is how a file is named in a line. */
@@ -205,4 +195,26 @@ async function sessionAsk(
     return undefined;
   }
   return askIn(messages.value);
+}
+
+async function standingAtRest(taskId: TaskId): Promise<TaskStanding> {
+  const waiting = await pendingAsk(taskId);
+  if (waiting) {
+    return { kind: "waiting", line: waiting };
+  }
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return { kind: "done", line: "Nothing yet" };
+  }
+  // Read whole and cut after: the line is chosen from the reply's shape, and a
+  // fence cut off mid-way is a fence the excerpt cannot read.
+  const said = await lastAssistantText({
+    sessionId: sessionId.value,
+    taskId,
+  });
+  if (said) {
+    return { kind: "done", line: excerptOf(said, LINE_MAX) };
+  }
+  const ending = await endedWithoutWords(taskId, sessionId.value);
+  return { kind: ending.failed ? "failed" : "done", line: ending.line };
 }

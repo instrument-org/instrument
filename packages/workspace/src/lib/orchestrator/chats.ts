@@ -15,6 +15,7 @@ import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { chatOfSession, chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
+import { cacheByStoreGeneration } from "../store-generation";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
@@ -136,6 +137,15 @@ const messagesBySession = new Map<
   Promise<SessionMessage.WithParts[] | undefined>
 >();
 
+/**
+ * The apps a filed task was given, as last read from its settings. Every
+ * write to them announces `task.updated`, which drops the entry.
+ */
+const filedAppsByTask = new Map<TaskId, Promise<string[]>>();
+publisher.subscribe("task.updated", ({ id }) => {
+  filedAppsByTask.delete(id);
+});
+
 function forgetSession({
   id,
   sessionId,
@@ -156,6 +166,7 @@ publisher.subscribe("part.updated", ({ id, part }) => {
   forgetSession({ id, sessionId: part.metadata.sessionId });
 });
 publisher.subscribe("task.removed", ({ id }) => {
+  filedAppsByTask.delete(id);
   for (const key of messagesBySession.keys()) {
     if (key.startsWith(`${id}\n`)) {
       messagesBySession.delete(key);
@@ -373,11 +384,31 @@ async function appsHeld(
 ): Promise<string[]> {
   const slugs = bashCommandsIn(messages).flatMap(appSlugsIn);
   for (const filed of filedTasks) {
-    const settings = await getTaskSettings(taskDir(filed));
-    slugs.push(...(settings?.apps ?? []));
+    slugs.push(...(await filedApps(filed)));
   }
   return unique(knownAmong(slugs, known));
 }
+
+function filedApps(taskId: TaskId): Promise<string[]> {
+  const known = filedAppsByTask.get(taskId);
+  if (known) {
+    return known;
+  }
+  const read = getTaskSettings(taskDir(taskId)).then(
+    (settings) => settings?.apps ?? [],
+  );
+  filedAppsByTask.set(taskId, read);
+  read.catch(() => {
+    filedAppsByTask.delete(taskId);
+  });
+  return read;
+}
+
+/**
+ * The hosts a filed task's newest session has visited, held until its store
+ * is written: the browser records a visit there and announces nothing.
+ */
+const filedHosts = cacheByStoreGeneration<string[]>();
 
 /**
  * The app slugs a shell command calls or asks the user to connect: `app call`
@@ -618,6 +649,17 @@ function countsAsUnread(message: SessionMessage.WithParts): boolean {
     message.role !== "session-context" &&
     (message.role !== "assistant" || message.metadata.finishedAt !== undefined)
   );
+}
+
+function filedHostsOf(taskId: TaskId): Promise<string[]> {
+  return filedHosts(taskId, async () => {
+    const sessionId = await latestSessionId(taskId);
+    if (sessionId.isErr() || !sessionId.value) {
+      return [];
+    }
+    const browser = await getBrowserState(taskId, sessionId.value);
+    return browser.isOk() ? (browser.value?.visitedHosts ?? []) : [];
+  });
 }
 
 /**
@@ -882,14 +924,7 @@ async function sitesHeld(
 ): Promise<string[]> {
   const hosts = bashCommandsIn(messages).flatMap(openedHostsIn);
   for (const filed of filedTasks) {
-    const sessionId = await latestSessionId(filed);
-    if (sessionId.isErr() || !sessionId.value) {
-      continue;
-    }
-    const browser = await getBrowserState(filed, sessionId.value);
-    if (browser.isOk()) {
-      hosts.push(...(browser.value?.visitedHosts ?? []));
-    }
+    hosts.push(...(await filedHostsOf(filed)));
   }
   return unique(hosts);
 }

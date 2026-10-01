@@ -1,4 +1,4 @@
-import { RevealPath } from "@/client/components/reveal-path";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +31,12 @@ import {
   ColorRow,
   TopicMarkPicker,
 } from "@/client/components/window/topic-mark-picker";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
+import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -242,45 +244,67 @@ function TopicFolders({
   };
   return (
     <div>
-      <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-        Folders
-      </p>
-      {folders.length > 0 && (
-        <ul className="mb-2 grid gap-1">
+      <div className="flex items-center justify-between pb-1">
+        <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          Folders
+        </p>
+        <Button
+          className="text-muted-foreground"
+          onClick={() => {
+            void add();
+          }}
+          size="xs"
+          variant="ghost"
+        >
+          <PlusIcon className="size-3" />
+          Add folder
+        </Button>
+      </div>
+      {folders.length === 0 ? (
+        <p className="text-xs text-muted-foreground/70">No folders yet.</p>
+      ) : (
+        <ul className="-mx-2 grid">
           {folders.map((folder) => (
             <li
-              className="flex min-w-0 items-center gap-2 rounded-md bg-muted/60 py-1 pr-1 pl-2.5"
+              className="group flex min-w-0 items-center gap-1 rounded-md pr-1.5 hover:bg-muted/50"
               key={folder.path}
             >
-              <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-              <RevealPath
-                className="min-w-0 flex-1 text-sm"
-                hideIcon
-                path={folder.path}
-              />
+              {/* The folder's own name and where it lives, which opens it. */}
               <button
-                aria-label={`Remove ${folder.path}`}
-                className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-2 text-left"
+                onClick={() => {
+                  void showInFolder(folder.path, { kind: "folder" });
+                }}
+                type="button"
+              >
+                <MacFolderIcon className="size-8 shrink-0" />
+                <span className="flex min-w-0 flex-1 flex-col text-xs">
+                  <span className="truncate font-medium">
+                    {folderLabel(folder.path)}
+                  </span>
+                  <span
+                    className="truncate text-muted-foreground"
+                    title={folder.path}
+                  >
+                    {displayPath(folder.path)}
+                  </span>
+                </span>
+              </button>
+              {/* Out of the way until the row is pointed at. */}
+              <button
+                aria-label={`Remove ${folderLabel(folder.path)}`}
+                className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100"
                 onClick={() => {
                   onChange(folders.filter((entry) => entry !== folder));
                 }}
                 type="button"
               >
-                <XIcon className="size-3.5" />
+                <XIcon className="size-3" />
               </button>
             </li>
           ))}
         </ul>
       )}
-      <Button
-        onClick={() => {
-          void add();
-        }}
-        size="sm"
-        variant="outline"
-      >
-        Add folder
-      </Button>
     </div>
   );
 }

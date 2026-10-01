@@ -19,7 +19,10 @@ import {
  * The workspace half runs only for the workspace this process resolved, so a
  * workspace nobody opens is never touched; when a later build opens it, it
  * takes the same path then. Every step skips once its target exists, so a crash
- * partway through finishes on the next boot, and nothing here throws.
+ * partway through finishes on the next boot, and nothing here throws. The one
+ * exception is a take-in that stopped partway: the stores then open at the new
+ * location and write their defaults there, so the retry overwrites targets
+ * rather than keeping those defaults over the user's legacy files.
  */
 
 export const CURRENT_SETTINGS_VERSION = 1;
@@ -78,6 +81,12 @@ const COPIED_FILES = [
  */
 const MOVED_FILES = ["chatgpt-plan.json", "chatgpt-plan.json.enc"];
 
+/**
+ * Present while the legacy take-in runs, removed once the version is written,
+ * so a boot that finds it knows the last take-in stopped partway.
+ */
+const TAKE_IN_MARKER = ".take-in-unfinished";
+
 export function appSessionDirOf(workspacePath: string): string {
   return path.join(workspacePrivateDir(workspacePath), "app-session");
 }
@@ -127,8 +136,14 @@ export function migrateWorkspaceSettings({
       return done;
     }
 
+    const marker = path.join(
+      workspaceSettingsDirOf(workspace.path),
+      TAKE_IN_MARKER,
+    );
     if (workspace.isDefault) {
-      takeInLegacyRootFiles(userDataDir, workspace.path, done);
+      const overwrite = fs.existsSync(marker);
+      writeJsonAtomic(marker, { pid: process.pid });
+      takeInLegacyRootFiles(userDataDir, workspace.path, done, overwrite);
     }
 
     writeWorkspaceIdentity(workspace.path, {
@@ -142,6 +157,7 @@ export function migrateWorkspaceSettings({
           : path.basename(workspace.path),
       settingsVersion: CURRENT_SETTINGS_VERSION,
     });
+    fs.rmSync(marker, { force: true });
     done.push(`settings at version ${CURRENT_SETTINGS_VERSION.toString()}`);
   } catch (error) {
     done.push(`workspace settings migration stopped: ${String(error)}`);
@@ -157,8 +173,28 @@ export function workspaceSettingsDirOf(workspacePath: string): string {
   return path.join(workspacePrivateDir(workspacePath), "settings");
 }
 
-function copyIfAbsent(from: string, to: string, done: string[]) {
-  if (!fs.existsSync(from) || fs.existsSync(to)) {
+/**
+ * Whether `to` stays as it is. With `overwrite`, an existing target is removed
+ * so the caller writes it again.
+ */
+function keepTarget(to: string, overwrite: boolean): boolean {
+  if (!fs.existsSync(to)) {
+    return false;
+  }
+  if (!overwrite) {
+    return true;
+  }
+  fs.rmSync(to, { force: true, recursive: true });
+  return false;
+}
+
+function copyIfAbsent(
+  from: string,
+  to: string,
+  done: string[],
+  overwrite: boolean,
+) {
+  if (!fs.existsSync(from) || keepTarget(to, overwrite)) {
     return;
   }
   fs.mkdirSync(path.dirname(to), { recursive: true });
@@ -170,8 +206,13 @@ function copyIfAbsent(from: string, to: string, done: string[]) {
   done.push(`copied ${path.basename(from)}`);
 }
 
-function moveIfAbsent(from: string, to: string, done: string[]) {
-  if (!fs.existsSync(from) || fs.existsSync(to)) {
+function moveIfAbsent(
+  from: string,
+  to: string,
+  done: string[],
+  overwrite: boolean,
+) {
+  if (!fs.existsSync(from) || keepTarget(to, overwrite)) {
     return;
   }
   fs.mkdirSync(path.dirname(to), { recursive: true });
@@ -207,6 +248,7 @@ function takeInLegacyRootFiles(
   userDataDir: string,
   workspacePath: string,
   done: string[],
+  overwrite: boolean,
 ) {
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const legacyPreferencesPath = path.join(userDataDir, LEGACY_PREFERENCES);
@@ -216,11 +258,13 @@ function takeInLegacyRootFiles(
     path.join(settingsDir, "preferences.json"),
     pick(readObject(legacyPreferencesPath), WORKSPACE_PREFERENCE_KEYS),
     done,
+    overwrite,
   );
   writeIfAbsent(
     path.join(settingsDir, "state.json"),
     pick(readObject(legacyAppStatePath), WORKSPACE_STATE_KEYS),
     done,
+    overwrite,
   );
 
   for (const name of COPIED_FILES) {
@@ -228,6 +272,7 @@ function takeInLegacyRootFiles(
       path.join(userDataDir, name),
       path.join(settingsDir, name),
       done,
+      overwrite,
     );
   }
   for (const name of MOVED_FILES) {
@@ -235,6 +280,7 @@ function takeInLegacyRootFiles(
       path.join(userDataDir, name),
       path.join(settingsDir, name),
       done,
+      overwrite,
     );
   }
 
@@ -242,6 +288,7 @@ function takeInLegacyRootFiles(
     path.join(userDataDir, "page-thumbnails"),
     pageThumbnailsDirOf(workspacePath),
     done,
+    overwrite,
   );
 
   // The app window ran on Electron's default session before it ran on the
@@ -257,7 +304,7 @@ function takeInLegacyRootFiles(
   );
   if (
     fs.existsSync(legacyLocalStorage) &&
-    !fs.existsSync(workspaceLocalStorage)
+    !keepTarget(workspaceLocalStorage, overwrite)
   ) {
     const partial = `${workspaceLocalStorage}.partial-${process.pid.toString()}`;
     fs.rmSync(partial, { force: true, recursive: true });
@@ -272,8 +319,9 @@ function writeIfAbsent(
   filePath: string,
   value: Record<string, unknown>,
   done: string[],
+  overwrite = false,
 ) {
-  if (fs.existsSync(filePath) || Object.keys(value).length === 0) {
+  if (Object.keys(value).length === 0 || keepTarget(filePath, overwrite)) {
     return;
   }
   writeJsonAtomic(filePath, value);

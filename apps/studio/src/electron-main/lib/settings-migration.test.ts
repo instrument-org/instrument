@@ -189,6 +189,25 @@ describe("settings migration", () => {
     ).toBe("newer");
   });
 
+  it("replaces the defaults stores wrote after a take-in that stopped partway", () => {
+    seedLegacy("dev");
+    const settings = workspaceSettingsDirOf(defaultWorkspacePath(userDataDir));
+    fs.mkdirSync(settings, { recursive: true });
+    fs.writeFileSync(path.join(settings, ".take-in-unfinished"), "{}");
+    fs.writeFileSync(path.join(settings, "session-dev.json"), "defaults");
+    fs.writeFileSync(path.join(settings, "preferences.json"), "{}");
+    migrateBoth();
+    expect(
+      fs.readFileSync(path.join(settings, "session-dev.json"), "utf8"),
+    ).toContain("apiBearerToken");
+    expect(read(path.join(settings, "preferences.json"))).toMatchObject({
+      theme: "dark",
+    });
+    expect(fs.existsSync(path.join(settings, ".take-in-unfinished"))).toBe(
+      false,
+    );
+  });
+
   it("leaves the legacy files for the default workspace when another opens first", () => {
     seedLegacy("dev");
     const other = path.join(userDataDir, "workspaces", "byok");

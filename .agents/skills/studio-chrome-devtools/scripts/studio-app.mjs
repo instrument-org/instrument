@@ -194,13 +194,14 @@ export async function resolvePort({ port, workspace } = {}) {
     );
   }
 
-  const target = workspace ? `workspace "${workspace}"` : "this checkout";
+  // `workspace` is the instance key: a fixture's name, or `clean-room-<name>`.
+  const target = workspace ? `instance "${workspace}"` : "this checkout";
   const hint = (await isPortLive(CONVENTIONAL_PORT))
     ? `Something is answering on ${CONVENTIONAL_PORT}, but that is the conventional port and is probably a window someone is using. ` +
       `Pass --port ${CONVENTIONAL_PORT} if you mean to drive it anyway.`
     : `Nothing is running for ${target}.`;
   fail(
-    `${hint}\nRun \`studio-drive.mjs boot --purpose <purpose>${workspace ? ` --workspace ${workspace}` : ""}\` to start an instance of your own.`,
+    `${hint}\nRun \`studio-drive.mjs boot --purpose <purpose>\`${workspace ? " with the same --workspace or --clean-room flag" : ""} to start an instance of your own.`,
   );
 }
 

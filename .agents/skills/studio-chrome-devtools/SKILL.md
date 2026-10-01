@@ -86,6 +86,15 @@ node $DRIVE goto /tasks/generated-pdf --workspace documents
 
 It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild) and reports the seeded task ids, so a script addresses a task by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
 
+`--clean-room <name>` is the other kind of isolation: a blank workspace with no chats, opened by a second process on the developer's own application data and pinned to it with `INSTRUMENT_WORKSPACE`, so the developer's instance keeps its own workspace. It shares the machine's toolchain and caches, so it boots as fast as a plain run, and `--with-sign-ins` copies the developer's sign-ins (Instrument account, keys, ChatGPT plan) into it, so it can run a real agent turn, which a fixture cannot. Like `--workspace`, it goes on every command. Clean rooms live beside the fixture caches, are reaped after 14 days unbooted, and `--fresh` empties one first.
+
+```bash
+node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
+node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
+```
+
+Reach for a fixture when the run needs known content, a clean room when it needs an empty workspace that can talk to a model, and `ELECTRON_USER_DATA_DIR=<empty dir>` when it needs a first launch on a fresh machine. Never switch the developer's instance (`workspaces.switch`) to get isolation: that restarts the window they are using.
+
 ## A sequence: `run`
 
 `run` hands a script the app from `scripts/studio-app.mjs` over one held connection. The script default-exports `(app, args)` and returns whatever is worth reporting:

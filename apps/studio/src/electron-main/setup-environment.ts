@@ -94,7 +94,9 @@ function openWorkspace() {
   }
 
   markWorkspaceOpen(workspace.path);
-  app.on("will-quit", () => {
+  // On process exit rather than `will-quit`: the quit teardown ends in
+  // `app.exit`, which skips `will-quit`.
+  process.on("exit", () => {
     releaseOpenMark(workspace.path);
   });
 }

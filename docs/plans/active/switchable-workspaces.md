@@ -73,6 +73,7 @@ Plus outside `settings/`: `page-thumbnails/` (pictures of pages viewed in the in
 | `machine-state.json` | `telemetryId`, `lastMigratedVersion`, `lastLaunchedVersion`, `lastUpdateCheck` |
 | `workspaces.json` | The registry |
 | `model-cache.json`, `file-open-targets.json`, `site-icons/`, `file-open-icons/`, `file-thumbnails/` | Caches of the computer, keyed by provider, app, origin, or file path |
+| `indexes/` | The chat list index (`packages/workspace/src/lib/workspace-index.ts`): one database per workspace, named by a hash of its root, so each workspace already has its own |
 | `bin/`, `uv/`, prepared `skills/`, logs, crash and update logs, `app.lock` | Toolchain and diagnostics |
 
 The `machine-` prefix on the root files keeps them distinct from the legacy `preferences.json` and `app-state.json`, which step 3 reads and leaves in place for older builds. `register-telemetry.ts` subscribes to `enableUsageMetrics` changes; that subscription moves with the key.

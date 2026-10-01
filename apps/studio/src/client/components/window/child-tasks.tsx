@@ -11,6 +11,7 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { isWorkspaceFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
@@ -228,7 +229,11 @@ function TaskBrief({ task }: { task: Task }) {
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
   );
-  const folders = Object.values(state.data?.attachedFolders ?? {});
+  // The workspace folder is every task's, so only the ones it was handed
+  // besides are worth a chip.
+  const folders = Object.values(state.data?.attachedFolders ?? {}).filter(
+    (folder) => !isWorkspaceFolder(folder.path),
+  );
   const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
     const decoded = decodeBrowserTargetId(held.id);
     return decoded ? [decoded.sessionId] : [];
@@ -242,10 +247,7 @@ function TaskBrief({ task }: { task: Task }) {
         <ModelPreview id={taskId} />
       </span>
       <EffortChip task={task} />
-      {folders.length === 0 ? (
-        <Chip label="Folders">none</Chip>
-      ) : (
-        folders.map((folder) => (
+      {folders.map((folder) => (
           <span
             className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
             key={folder.id}
@@ -257,8 +259,7 @@ function TaskBrief({ task }: { task: Task }) {
               {folder.access === "read-write" ? "read, write" : "read"}
             </span>
           </span>
-        ))
-      )}
+        ))}
       <AppsChip apps={task.apps} />
       {heldTabs.map((sessionId) => (
         <HeldTabChip key={sessionId} sessionId={sessionId} />

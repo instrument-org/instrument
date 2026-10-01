@@ -1,4 +1,3 @@
-import { noop } from "radashi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { addServerException, captureException, logger } = vi.hoisted(() => ({
@@ -31,8 +30,6 @@ const STREAMED_THROTTLE = {
 describe("captureServerException", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "groupCollapsed").mockImplementation(noop);
-    vi.spyOn(console, "groupEnd").mockImplementation(noop);
   });
 
   it("gives the exception list a sentence when the throw is not an Error", () => {

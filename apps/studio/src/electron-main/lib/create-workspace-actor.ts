@@ -182,59 +182,6 @@ export function createWorkspaceActor({
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },
-    inspect(event) {
-      if (!is.dev) {
-        return;
-      }
-      switch (event.type) {
-        case "@xstate.action": {
-          if (
-            !event.action.type.startsWith("xstate.") &&
-            event.action.type !== "actions" &&
-            event.action.type !== "publishLogs"
-          ) {
-            console.groupCollapsed(
-              `%c[XState Action] ${event.action.type}`,
-              "color: #4caf50",
-            );
-            if (event.action.params) {
-              console.log("params:", event.action.params);
-            }
-            console.groupEnd();
-          }
-
-          break;
-        }
-        case "@xstate.event": {
-          if (!event.event.type.startsWith("xstate.")) {
-            if (
-              event.event.type === "llmRequest.chunkReceived" ||
-              event.event.type.toLowerCase().includes("heartbeat") ||
-              event.event.type === "spawnRuntime.log"
-            ) {
-              return;
-            }
-
-            const eventValue: unknown =
-              "value" in event.event ? event.event.value : undefined;
-            const hasDetails = eventValue !== undefined;
-
-            if (hasDetails) {
-              console.groupCollapsed(
-                `%c[XState Event] ${event.event.type}`,
-                "color: #9e9e9e",
-              );
-              console.log("value:", eventValue);
-              console.groupEnd();
-            } else {
-              console.log(`%c[Event] ${event.event.type}`, "color: #9e9e9e");
-            }
-          }
-
-          break;
-        }
-      }
-    },
   });
   attachOrchestrator(actor);
   actor.start();

@@ -1,5 +1,9 @@
 import { app, ipcMain } from "electron";
-import log, { type Transport } from "electron-log";
+import log, {
+  type LevelOption,
+  type LogLevel,
+  type Transport,
+} from "electron-log";
 import path from "node:path";
 
 import {
@@ -10,8 +14,33 @@ import {
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
-const ENABLE_CONSOLE_LOGGING =
-  IS_DEV || process.env.ELECTRON_ENABLE_CONSOLE_LOGGING === "true";
+const LOG_LEVELS = [
+  "error",
+  "warn",
+  "info",
+  "verbose",
+  "debug",
+  "silly",
+] as const satisfies readonly LogLevel[];
+
+/**
+ * How much reaches the terminal.
+ *
+ * Development shows warnings and errors only: everything else still lands in
+ * the dev log file, which is where it gets read. `STUDIO_LOG_LEVEL` picks any
+ * electron-log level for a session that wants the terminal noisier.
+ */
+function getConsoleLevel(): LevelOption {
+  const requested = process.env.STUDIO_LOG_LEVEL;
+  const level = LOG_LEVELS.find((candidate) => candidate === requested);
+  if (level) {
+    return level;
+  }
+  if (process.env.ELECTRON_ENABLE_CONSOLE_LOGGING === "true") {
+    return "silly";
+  }
+  return IS_DEV ? "warn" : false;
+}
 
 // Rotation keeps exactly one archive (`main.old.log`), so retained history is
 // twice this. Sized so that a session logging far more than boot timings and
@@ -40,8 +69,7 @@ log.transports.file.maxSize = MAX_LOG_FILE_BYTES;
 // the trade is that lines still queued when the process dies are lost.
 log.transports.file.sync = false;
 
-// Enable console logging in development or when explicitly requested
-log.transports.console.level = ENABLE_CONSOLE_LOGGING ? "silly" : false;
+log.transports.console.level = getConsoleLevel();
 
 export { default as logger } from "electron-log";
 
@@ -55,8 +83,12 @@ export function initializeElectronLogging() {
   if (IS_DEV) {
     // Register a custom transport so every message flowing through electron-log
     // is also written to the NDJSON dev log file — no console swizzling needed.
-    const devFileTransport = (message: { data: unknown[]; level: string }) => {
-      writeDevLogEntry(message.level, message.data);
+    const devFileTransport = (message: {
+      data: unknown[];
+      level: string;
+      scope?: string;
+    }) => {
+      writeDevLogEntry(message.level, message.data, { scope: message.scope });
     };
     // Cast required: Transport interface mandates `transforms` but custom
     // transports that do their own serialization don't need it.
@@ -78,13 +110,13 @@ export function initializeElectronLogging() {
         typeof entry.level === "string" &&
         Array.isArray(entry.args)
       ) {
-        writeDevLogEntry(entry.level, entry.args, "renderer");
+        writeDevLogEntry(entry.level, entry.args, { source: "renderer" });
       }
     });
 
     // Write directly to stdout so this banner never enters the log file itself.
     process.stdout.write(
-      `[dev-log] Writing to ${getDevLogFilePath() ?? "unknown"}\n`,
+      `[dev-log] Writing to ${getDevLogFilePath() ?? "unknown"}; the terminal shows warnings and errors (STUDIO_LOG_LEVEL=info for more)\n`,
     );
   }
 }

@@ -1,6 +1,9 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
-import { applyCommandLineToolsEnv } from "@instrument-org/workspace/electron";
+import {
+  applyCommandLineToolsEnv,
+  installAISDKWarningLogger,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fixPath from "fix-path";
 import path from "node:path";
@@ -61,6 +64,7 @@ function configureUserDataDirectory() {
 configureUserDataDirectory();
 
 initializeElectronLogging();
+installAISDKWarningLogger();
 
 // Suppress Unstorage dB0 experimental warning
 // Remove when stable https://github.com/unjs/unstorage/blob/main/src/drivers/db0.ts

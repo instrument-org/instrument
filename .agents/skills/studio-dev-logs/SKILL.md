@@ -5,7 +5,7 @@ description: Read Studio main-process logs written during local development. Use
 
 # Studio Dev Logs
 
-When Studio runs in development (`NODE_ENV=development`), the Electron main process writes every `console.debug/info/warn/error` call to a newline-delimited JSON file under `apps/studio/.logs/`.
+When Studio runs in development (`NODE_ENV=development`), the Electron main process writes every `console.debug/info/warn/error` call to a newline-delimited JSON file under `apps/studio/.logs/`. The terminal running `pnpm dev` shows only warnings and errors; `STUDIO_LOG_LEVEL=info` (or any electron-log level) shows more there. The file always gets everything.
 
 ## File layout
 
@@ -41,6 +41,7 @@ Fields:
 
 - `level` — `debug` | `info` | `warn` | `error`
 - `time` — ISO 8601 timestamp
+- `scope`: the scoped logger's name (`boot`, `BrowserViewManager`, `CrashDiagnostics`, ...). Absent for plain `console.*` calls.
 - `source` — present only on entries forwarded from the **renderer** process (value `"renderer"`). Absent on main-process entries.
 - `msg` — string for plain messages; object for `Error` instances (`name`, `message`, `stack`, optional `cause`); array when multiple arguments were passed
 
@@ -68,4 +69,4 @@ tail -f apps/studio/.logs/current.jsonl | jq .
 
 - Logs are only written when `NODE_ENV=development`. No log files are created in production builds.
 - The `.logs/` directory is gitignored.
-- Old boot files accumulate; delete them manually if they grow large.
+- Each boot keeps the 50 most recent earlier boot files and deletes the rest.

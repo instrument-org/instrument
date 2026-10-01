@@ -80,27 +80,18 @@ export const captureServerException: CaptureExceptionFunction = function (
       ? `${pathPrefix}[${errorCode}] ${message}`
       : `${pathPrefix}${message}`;
 
-    console.groupCollapsed(`%c[Exception] ${displayMessage}`, "color: #b71c1c");
-
-    if (details) {
-      logger.error(details);
-    }
-
-    if (error instanceof Error && error.cause) {
-      const cause = describeError(error.cause);
-      console.groupCollapsed("%c▶︎ Cause: " + cause.message, "color: #f44336");
-      logger.error(cause.details ?? cause.message);
-      console.groupEnd();
-    }
-
-    // Log additional error data if present (e.g., validation issues)
-    if (errorData) {
-      console.groupCollapsed("%c▶︎ Error Data", "color: #ff9800");
-      logger.error(errorData);
-      console.groupEnd();
-    }
-
-    console.groupEnd();
+    // One entry, so the dev log keeps the heading, cause, and data together.
+    const cause =
+      error instanceof Error && error.cause
+        ? describeError(error.cause)
+        : undefined;
+    logger.error(
+      `[Exception] ${displayMessage}`,
+      ...(details ? [details] : []),
+      ...(cause ? [`Cause: ${cause.details ?? cause.message}`] : []),
+      // e.g. validation issues
+      ...(errorData ? [errorData] : []),
+    );
 
     addServerException({
       code: errorCode,

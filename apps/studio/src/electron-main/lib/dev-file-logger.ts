@@ -8,6 +8,11 @@ const LOG_DIR = path.join(import.meta.dirname, "..", "..", ".logs");
 
 const CURRENT_SYMLINK = path.join(LOG_DIR, "current.jsonl");
 
+// Earlier boots kept on disk beside the current one. Each boot is one file, and
+// a dev session relaunches on every main-process save, so an unpruned directory
+// grows by thousands.
+const KEPT_LOG_FILES = 50;
+
 function getLogFilePath() {
   const stamp = new Date()
     .toISOString()
@@ -30,6 +35,7 @@ export function openDevLog() {
   }
 
   fs.mkdirSync(LOG_DIR, { recursive: true });
+  pruneOldLogs();
 
   logFilePath = getLogFilePath();
   logStream = fs.createWriteStream(logFilePath, { flags: "a" });
@@ -42,16 +48,27 @@ export function openDevLog() {
   }
 }
 
+/** Deletes all but the newest {@link KEPT_LOG_FILES} earlier boot files. */
+function pruneOldLogs() {
+  // Boot files are named by their start time, so name order is age order.
+  const bootFiles = fs
+    .readdirSync(LOG_DIR)
+    .filter((name) => /^\d{4}-.*\.jsonl$/.test(name))
+    .toSorted();
+  for (const name of bootFiles.slice(0, -KEPT_LOG_FILES)) {
+    fs.rmSync(path.join(LOG_DIR, name), { force: true });
+  }
+}
+
 export function writeDevLogEntry(
   level: string,
   args: unknown[],
-  source?: string,
+  { scope, source }: { scope?: string; source?: string } = {},
 ) {
   if (!logStream) {
     return;
   }
 
-  const cleaned = stripConsoleStyleArgs(args);
   const entry: Record<string, unknown> = {
     level,
     time: new Date().toISOString(),
@@ -61,11 +78,15 @@ export function writeDevLogEntry(
     entry.source = source;
   }
 
-  if (cleaned.length === 1) {
-    const [first] = cleaned;
+  if (scope) {
+    entry.scope = scope;
+  }
+
+  if (args.length === 1) {
+    const [first] = args;
     entry.msg = typeof first === "string" ? first : serializeArg(first);
   } else {
-    entry.msg = cleaned.map(serializeArg);
+    entry.msg = args.map(serializeArg);
   }
 
   let line: string;
@@ -80,6 +101,7 @@ export function writeDevLogEntry(
       msg: `[dev-log serialization failed: ${detail}]`,
       time: entry.time,
       ...(source ? { source } : {}),
+      ...(scope ? { scope } : {}),
     });
   }
   logStream.write(line + "\n");
@@ -100,25 +122,4 @@ function serializeArg(arg: unknown): unknown {
     name: arg.name,
     stack: arg.stack,
   };
-}
-
-/**
- * Strips trailing CSS style arguments injected by console %c formatting.
- * e.g. ["%c[XState] foo", "color: #9e9e9e"] → ["%c[XState] foo"]
- * The %c prefix is preserved so the message text is still readable.
- */
-function stripConsoleStyleArgs(args: unknown[]): unknown[] {
-  if (
-    args.length < 2 ||
-    typeof args[0] !== "string" ||
-    !args[0].includes("%c")
-  ) {
-    return args;
-  }
-  return args.filter((arg) => {
-    if (typeof arg !== "string") {
-      return true;
-    }
-    return !arg.startsWith("color:") && !arg.startsWith("background:");
-  });
 }

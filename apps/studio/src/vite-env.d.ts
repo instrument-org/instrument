@@ -62,6 +62,8 @@ declare namespace NodeJS {
       SKIP_ONBOARDING: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
+      /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
+      STUDIO_LOG_LEVEL: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

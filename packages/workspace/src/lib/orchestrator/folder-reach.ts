@@ -27,8 +27,7 @@ import { listTopics } from "./topics";
  *
  * Names are assigned in a fixed order (the two standing folders, then the
  * sent ones by when they were sent, then the topics' folders), so a folder
- * keeps its name while a later one comes and goes. A folder on the record
- * under the same path as a standing one is that one.
+ * keeps its name while a later one comes and goes.
  */
 export async function folderReach(
   taskId: TaskId,
@@ -40,17 +39,21 @@ export async function folderReach(
     return held ?? {};
   }
 
+  // A folder on the record keeps the name it arrived under, which is the one
+  // the chat's messages already use for it, including a standing folder an
+  // older chat holds on its record.
+  const onRecord = new Map(
+    Object.values(held ?? {}).map((folder) => [folder.path, folder]),
+  );
   const folders: FolderAttachment.Type[] = [];
-  const seen = new Set<string>();
   const add = (folder: FolderAttachment.Type) => {
-    if (!seen.has(folder.path)) {
-      seen.add(folder.path);
-      folders.push(folder);
+    if (!folders.some((known) => known.path === folder.path)) {
+      folders.push(onRecord.get(folder.path) ?? folder);
     }
   };
   add(standingFolder(os.homedir()));
   add(standingFolder(outputFolderPath()));
-  for (const folder of Object.values(held ?? {}).toSorted(
+  for (const folder of [...onRecord.values()].toSorted(
     (a, b) => a.createdAt - b.createdAt,
   )) {
     add(folder);
@@ -59,20 +62,38 @@ export async function folderReach(
     add(standingFolder(folderPath));
   }
 
-  // A sent folder keeps the name it was given when it arrived, which is the
-  // one the chat's messages already use for it; the rest take today's rule.
+  // Names on the record first, so one is never taken by a folder that came
+  // later; the rest by today's rule around them.
   const assigned = assignMountNames(folders);
+  const names = new Map<FolderAttachment.Type, string>();
   const used = new Set<string>();
+  for (const folder of folders) {
+    if (folder.mountName && !used.has(folder.mountName)) {
+      names.set(folder, folder.mountName);
+      used.add(folder.mountName);
+    }
+  }
+  for (const folder of folders) {
+    if (names.has(folder)) {
+      continue;
+    }
+    const preferred = assigned.get(folder.id) ?? folder.id;
+    let mountName = preferred;
+    for (let suffix = 2; used.has(mountName); suffix += 1) {
+      mountName = `${preferred}-${suffix}`;
+    }
+    names.set(folder, mountName);
+    used.add(mountName);
+  }
+  // Every folder a chat reaches is its to read and write: what a task it
+  // starts may do there is the chat's to say when it hands the folder over.
   return Object.fromEntries(
     folders.map((folder) => {
-      const preferred =
-        folder.mountName || (assigned.get(folder.id) ?? folder.id);
-      let mountName = preferred;
-      for (let suffix = 2; used.has(mountName); suffix += 1) {
-        mountName = `${preferred}-${suffix}`;
-      }
-      used.add(mountName);
-      return [mountName, { ...folder, mountName }];
+      const mountName = names.get(folder) ?? folder.mountName;
+      return [
+        mountName,
+        { ...folder, access: "read-write" as const, mountName },
+      ];
     }),
   );
 }

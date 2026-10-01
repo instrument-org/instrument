@@ -44,7 +44,12 @@ const workspace = path.join(home, "Documents", "Instrument");
 const elsewhere = path.resolve(path.sep, "Volumes", "Archive");
 
 function held(
-  ...folders: { createdAt: number; mountName?: string; path: string }[]
+  ...folders: {
+    access?: FolderAttachment.Access;
+    createdAt: number;
+    mountName?: string;
+    path: string;
+  }[]
 ): TaskState {
   return {
     attachedFolders: Object.fromEntries(
@@ -53,7 +58,7 @@ function held(
         return [
           mountName,
           {
-            access: "read-write",
+            access: folder.access ?? "read-write",
             createdAt: folder.createdAt,
             id: FolderAttachment.IdSchema.parse(`held-${mountName}`),
             mountName,
@@ -151,6 +156,26 @@ describe("folderReach", () => {
     );
 
     expect(mounts.slice(2)).toEqual([`My archive ${elsewhere}`]);
+  });
+
+  // An older chat may hold another folder under a standing folder's name;
+  // its messages mean that folder by it.
+  it("lets a folder on the record keep a name a standing folder would take", async () => {
+    const mounts = await reach(
+      held({ createdAt: 1, mountName: "Instrument", path: elsewhere }),
+    );
+
+    expect(mounts).toContain(`Instrument ${elsewhere}`);
+    expect(mounts).toContain(`Instrument-2 ${workspace}`);
+  });
+
+  it("reaches a folder sent read-only to read and write", async () => {
+    const folders = await folderReach(
+      chatId,
+      held({ access: "read-only", createdAt: 1, path: elsewhere }),
+    );
+
+    expect(folders.Archive?.access).toBe("read-write");
   });
 
   it("drops a topic's folders once the chat is no longer filed under it", async () => {

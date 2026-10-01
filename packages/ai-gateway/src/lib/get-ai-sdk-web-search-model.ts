@@ -127,7 +127,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("gpt-5.6-luna"),
+          : sdk("gpt-6-luna"),
         tools: {
           web_search: sdk.tools.webSearch(),
         },

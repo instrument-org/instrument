@@ -46,17 +46,23 @@ export function ChatGPTPlanCard() {
           description: isDefinedError(error) ? error.message : undefined,
         });
       },
-      onSuccess: (result) => {
+      onSuccess: async (result) => {
         if (result.state !== "signed-in") {
           return;
         }
-        // Said because the change lands in the model picker, which may not
-        // be on screen, and the settings window may already be closed.
+        // Said as soon as the sign-in lands; the model it picks follows in
+        // the same toast once the plan's catalog is read. The model is said
+        // because the change lands in the model picker, which may not be on
+        // screen, and the settings window may already be closed.
+        const id = toast.success("Signed in with ChatGPT");
+        const { name } = await rpcClient.chatgptPlan.chooseDefaultModel
+          .call({})
+          .catch(() => ({ name: undefined }));
         toast.success("Signed in with ChatGPT", {
-          description:
-            "defaultModel" in result && result.defaultModel
-              ? `New chats use ${result.defaultModel} from your plan.`
-              : "Your plan's models are in the model picker.",
+          description: name
+            ? `New chats use ${name} from your plan.`
+            : "Your plan's models are in the model picker.",
+          id,
         });
       },
     }),

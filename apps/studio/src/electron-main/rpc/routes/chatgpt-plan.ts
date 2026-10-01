@@ -37,7 +37,6 @@ const signIn = base.handler(async ({ context, errors }) => {
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: "chatgpt",
       });
-      return { ...status, defaultModel: await setChatGPTPlanDefaultModel() };
     }
     return status;
   } catch (error) {
@@ -48,9 +47,19 @@ const signIn = base.handler(async ({ context, errors }) => {
   }
 });
 
+/**
+ * Makes the plan's everyday model the default and answers with its name. Apart
+ * from `signIn` because it reads the plan's catalog, which can take seconds,
+ * and the sign-in itself is done before that.
+ */
+const chooseDefaultModel = base.handler(async () => ({
+  name: await setChatGPTPlanDefaultModel(),
+}));
+
 const signOut = base.handler(() => signOutOfChatGPT());
 
 export const chatgptPlan = {
+  chooseDefaultModel,
   live,
   signIn,
   signOut,

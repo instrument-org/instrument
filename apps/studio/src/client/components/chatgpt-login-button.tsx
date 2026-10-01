@@ -39,8 +39,13 @@ export function ChatGPTLoginButton({
           description: isDefinedError(error) ? error.message : undefined,
         });
       },
-      onSuccess: (result) => {
+      onSuccess: async (result) => {
         if (result.state === "signed-in") {
+          // The app opens on a chat next, so it waits for the plan's model
+          // to be the default rather than open on the one before it.
+          await rpcClient.chatgptPlan.chooseDefaultModel
+            .call({})
+            .catch(() => {});
           onSuccess();
         } else if (result.state === "plan-disabled") {
           // Signed in, but the plan was not shared with the app, so there is

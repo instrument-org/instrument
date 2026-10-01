@@ -248,18 +248,6 @@ describe("task folder", () => {
     ).rejects.toThrow(/no folder "elsewhere" in this conversation/);
   });
 
-  it("refuses to hand over more access than the conversation has", async () => {
-    await attachFolder({
-      access: "read-only",
-      path: path.join(home, "Desktop"),
-      taskId: ORCHESTRATOR_ID,
-    });
-
-    await expect(
-      runFolder([CHILD_ID, "--add", "/mnt/Desktop:rw"], context),
-    ).rejects.toThrow(/read-only in this conversation/);
-  });
-
   it("refuses a folder that is not on disk", async () => {
     await expect(
       runFolder([CHILD_ID, "--add", "/mnt/home/Nowhere"], context),

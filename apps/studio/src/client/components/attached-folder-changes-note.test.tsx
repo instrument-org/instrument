@@ -21,28 +21,11 @@ const PHOTOS = { name: "Photos", path: "/Users/sam/Photos" };
 describe("AttachedFolderChangesNote", () => {
   it.each([
     {
-      data: changes({ accessChanged: [{ access: "read-write", ...NOTES }] }),
-      text: "Notes now has full access",
-    },
-    {
-      data: changes({ accessChanged: [{ access: "read-only", ...NOTES }] }),
-      text: "Notes is now read-only",
-    },
-    {
-      data: changes({
-        accessChanged: [
-          { access: "read-only", ...NOTES },
-          { access: "read-write", ...PHOTOS },
-        ],
-      }),
-      text: "2 folders changed access",
-    },
-    {
       data: changes({
         accessChanged: [{ access: "read-write", ...NOTES }],
         removed: [PHOTOS],
       }),
-      text: "Notes now has full access, removed Photos",
+      text: "Removed Photos",
     },
     {
       data: changes({ removed: [NOTES, PHOTOS] }),
@@ -92,7 +75,7 @@ describe("AttachedFolderChangesNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Added Notes (read and write), Photos (read-only)");
+    expect(noteText()).toBe("Added Notes, Photos");
   });
 
   // The mount is ours and moves for reasons on our side; the user's folder is

@@ -140,7 +140,7 @@ What does not follow is the app window itself, which runs on Electron's default 
 
 All in the dev panel, backed by debug RPC routes. Plain rows, nothing designed: this is a tool for us.
 
-- **List**: every registered workspace with color dot, name, size on disk, last opened, and an agent badge with its purpose when an agent made it. The resolved one is marked, and a pinned process says so.
+- **List**: the dev panel's Workspace menu names every registered workspace with a checkmark on the right of the open one; picking another asks to confirm, since it restarts the app. Manage workspaces adds size on disk (its own call, since `du` over a large workspace takes seconds), last opened, and an agent badge with its purpose when an agent made it. A pinned process says so.
 - **Create**: name, color from a fixed palette, and a starting point: blank (runs onboarding) or copy sign-ins from the current workspace (the session and providers stores plus `hasCompletedProviderSetup`; not the ChatGPT plan, for the rotating refresh token above, and not connected apps, whose tokens belong to apps in the workspace they came from). Developer mode is mirrored from the workspace doing the creating, so one made from the dev panel can reach the dev panel and one made any other way later does not inherit it by accident. In dev the stores are plaintext; in a packaged build the ciphertext uses the same safeStorage key, so a byte copy works there too. Create does not switch.
 - **Delete**: moves the folder to the system Trash with `shell.trashItem` and drops its registry entry. Default has no Delete control at all. The resolved workspace's is disabled until you switch away. A workspace another process has open is refused; each process writes its pid to `.instrument/open.pid` at boot (unless a live process already holds it) and removes its own on exit, and a pid that is no longer running counts as closed. The pid file is advisory only and does not stop two processes opening the same workspace. Which entries are Default or open is decided by folder, not by id, and Delete matches the folder by resolved path, since the folder is what it removes.
 - **Strays**: folders under `<userData>/workspaces/` with a `workspace.json` but no registry entry are listed as unregistered, with Delete and Add back, so a damaged registry cannot hide anything on disk. Add back accepts only a folder the listing offers as a stray, never an arbitrary path from the renderer.
@@ -148,7 +148,7 @@ All in the dev panel, backed by debug RPC routes. Plain rows, nothing designed: 
 
 ### 7. Window identity
 
-When the resolved workspace is not Default, the dev panel's badge in the window bar shows its color dot and name beside the instance label, so a screenshot or a driven instance's capture shows which scenario it came from. Deliberately the dev panel and nothing more: how workspaces would be shown to people is a product decision for later.
+When the resolved workspace is not Default, the dev panel's badge in the window bar shows its name as a pill tinted in its color, apart from the instance label, so a screenshot or a driven instance's capture shows which scenario it came from. Deliberately the dev panel and nothing more: how workspaces would be shown to people is a product decision for later.
 
 ### 8. Agents get a clean room through studio-drive
 

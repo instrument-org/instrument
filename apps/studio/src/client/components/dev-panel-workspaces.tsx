@@ -1,3 +1,12 @@
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
@@ -12,8 +21,6 @@ import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import {
   MenubarItem,
-  MenubarRadioGroup,
-  MenubarRadioItem,
   MenubarSeparator,
   MenubarSub,
   MenubarSubContent,
@@ -24,6 +31,7 @@ import { TOPIC_COLORS } from "@/client/components/window/topic-colors";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -110,7 +118,6 @@ export function ManageWorkspacesDialog({
         <ul className="min-w-0 divide-y divide-border">
           {data?.workspaces.map((row) => (
             <li className="flex min-w-0 items-center gap-3 py-2" key={row.path}>
-              <WorkspaceDot className="size-2" color={row.identity.color} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-baseline gap-2 text-sm">
                   <span className="truncate font-medium">
@@ -128,10 +135,7 @@ export function ManageWorkspacesDialog({
                   )}
                 </div>
                 <div className="truncate font-mono text-[10px] text-muted-foreground">
-                  {[
-                    formatSize(sizes?.[row.path]),
-                    lastOpened(row),
-                  ]
+                  {[formatSize(sizes?.[row.path]), lastOpened(row)]
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
@@ -329,33 +333,21 @@ export function NewWorkspaceDialog({
   );
 }
 
-export function WorkspaceDot({
-  className,
-  color,
-}: {
-  className?: string;
-  color: WorkspaceColor;
-}) {
-  return (
-    <span
-      className={cn("inline-block size-1.5 shrink-0 rounded-full", className)}
-      style={{ backgroundColor: WORKSPACE_COLOR_HEX[color] }}
-    />
-  );
-}
-
-/** Switch from the dev panel's menu; restarts the app. */
+/**
+ * The dev panel's Workspace submenu. Picking another workspace asks first
+ * (`SwitchWorkspaceDialog`), since switching restarts the app.
+ */
 export function WorkspaceMenu({
   onCreate,
   onManage,
+  onSwitch,
 }: {
   onCreate: () => void;
   onManage: () => void;
+  onSwitch: (target: SwitchTarget) => void;
 }) {
   const { data } = useQuery(rpcClient.workspaces.list.queryOptions());
-  const { mutate: switchTo } = useSwitchWorkspace();
   const registered = data?.workspaces.filter((row) => row.isRegistered) ?? [];
-  const current = registered.find((row) => row.isResolved);
 
   return (
     <MenubarSub>
@@ -363,27 +355,27 @@ export function WorkspaceMenu({
         Workspace
       </MenubarSubTrigger>
       <MenubarSubContent>
-        <MenubarRadioGroup
-          onValueChange={(id) => {
-            const row = registered.find((candidate) => candidate.id === id);
-            if (row) {
-              switchTo({ id, name: row.identity.name });
-            }
-          }}
-          value={current?.id}
-        >
-          {registered.map((row) => (
-            <MenubarRadioItem
-              className="font-mono text-xs"
-              disabled={data?.pinned === true && !row.isResolved}
-              key={row.id}
-              value={row.id}
-            >
-              <WorkspaceDot color={row.identity.color} />
-              {row.identity.name}
-            </MenubarRadioItem>
-          ))}
-        </MenubarRadioGroup>
+        {registered.map((row) => (
+          <MenubarItem
+            className="font-mono text-xs"
+            disabled={data?.pinned === true && !row.isResolved}
+            key={row.id}
+            onSelect={() => {
+              if (!row.isResolved) {
+                onSwitch({ id: row.id, name: row.identity.name });
+              }
+            }}
+          >
+            {row.identity.name}
+            <CheckIcon
+              className={cn(
+                "ml-auto size-3 shrink-0",
+                row.isResolved ? "opacity-100" : "opacity-0",
+              )}
+              weight="bold"
+            />
+          </MenubarItem>
+        ))}
         {data?.pinned === true && (
           <MenubarItem className="font-mono text-[10px]" disabled>
             Pinned by INSTRUMENT_WORKSPACE
@@ -398,6 +390,70 @@ export function WorkspaceMenu({
         </MenubarItem>
       </MenubarSubContent>
     </MenubarSub>
+  );
+}
+
+export interface SwitchTarget {
+  id: string;
+  name: string;
+}
+
+/**
+ * Confirms a switch, since it restarts the app, and holds through the restart
+ * with a spinner: the running-agent prompt and the quit teardown come first,
+ * seconds in which a closed dialog would read as nothing happening.
+ */
+export function SwitchWorkspaceDialog({
+  onOpenChange,
+  target,
+}: {
+  onOpenChange: (open: boolean) => void;
+  target: null | SwitchTarget;
+}) {
+  const [restarting, setRestarting] = useState(false);
+  const { mutate: switchTo } = useSwitchWorkspace();
+
+  return (
+    <AlertDialog
+      onOpenChange={(next) => {
+        if (!restarting) {
+          onOpenChange(next);
+        }
+      }}
+      open={target !== null}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Switch to {target?.name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The app restarts into it.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={restarting}>Cancel</AlertDialogCancel>
+          <Button
+            disabled={restarting}
+            onClick={() => {
+              if (!target) {
+                return;
+              }
+              setRestarting(true);
+              switchTo(target, {
+                onSettled: (result) => {
+                  if (result?.outcome !== "relaunching") {
+                    setRestarting(false);
+                    onOpenChange(false);
+                  }
+                },
+              });
+            }}
+          >
+            {restarting && <Spinner />}
+            {restarting ? "Restarting" : "Restart"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -416,9 +472,8 @@ function lastOpened(row: WorkspaceRow) {
 }
 
 /**
- * Switch and restart, saying so while it happens: between the click and the
- * window closing the app asks about running agents and tears down, which is
- * seconds of an unchanged window otherwise.
+ * Switch and restart. The callers show the wait; this says what happened
+ * when the app did not restart after all.
  */
 function useSwitchWorkspace() {
   const { mutate, ...rest } = useMutation(
@@ -428,22 +483,20 @@ function useSwitchWorkspace() {
     { id, name }: { id: string; name: string },
     options?: Parameters<typeof mutate>[1],
   ) => {
-    const toastId = toast.loading(`Restarting into ${name}`);
     mutate(
       { id },
       {
         ...options,
         onError: (error, ...more) => {
-          toast.error(error.message, { id: toastId });
+          toast.error(error.message);
           options?.onError?.(error, ...more);
         },
         onSuccess: (result, ...more) => {
           if (result.outcome === "canceled") {
-            toast("Switch canceled", { id: toastId });
+            toast("Switch canceled");
           } else if (result.outcome === "unsupported") {
             toast(
               `${name} opens the next time the app starts: this run cannot restart itself`,
-              { id: toastId },
             );
           }
           options?.onSuccess?.(result, ...more);

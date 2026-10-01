@@ -7,8 +7,9 @@ import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import {
   ManageWorkspacesDialog,
   NewWorkspaceDialog,
+  SwitchWorkspaceDialog,
+  type SwitchTarget,
   WORKSPACE_COLOR_HEX,
-  WorkspaceDot,
   WorkspaceMenu,
 } from "@/client/components/dev-panel-workspaces";
 import { useTheme } from "@/client/components/theme-provider";
@@ -189,6 +190,7 @@ export function DevPanel() {
     rpcClient.debug.openWorkspaceFolder.mutationOptions(),
   );
 
+  const [switchTarget, setSwitchTarget] = useState<null | SwitchTarget>(null);
   const [workspaceDialog, setWorkspaceDialog] = useState<
     "manage" | "new" | null
   >(null);
@@ -239,7 +241,6 @@ export function DevPanel() {
             }}
             title={`Workspace: ${currentWorkspace.name}`}
           >
-            <WorkspaceDot color={currentWorkspace.color} />
             {currentWorkspace.name}
           </span>
         )}
@@ -602,6 +603,7 @@ export function DevPanel() {
                 onManage={() => {
                   setWorkspaceDialog("manage");
                 }}
+                onSwitch={setSwitchTarget}
               />
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
@@ -789,6 +791,14 @@ export function DevPanel() {
           setWorkspaceDialog(open ? "new" : null);
         }}
         open={workspaceDialog === "new"}
+      />
+      <SwitchWorkspaceDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSwitchTarget(null);
+          }
+        }}
+        target={switchTarget}
       />
       <ManageWorkspacesDialog
         onOpenChange={(open) => {

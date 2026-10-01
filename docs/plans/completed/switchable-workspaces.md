@@ -1,6 +1,6 @@
 # Plan: switchable workspaces
 
-Status: implemented; awaiting review before it lands.
+Status: landed.
 
 ## Why
 

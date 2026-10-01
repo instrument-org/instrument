@@ -1,6 +1,7 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 import { AGENT_FILES_LANGUAGE } from "../../constants";
+import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { asClause } from "../as-clause";
@@ -10,7 +11,7 @@ import { Store } from "../store";
 import { cacheByStoreGeneration } from "../store-generation";
 import { taskHold } from "../task-hold";
 import { askIn, latestStep, runningLines } from "./activity";
-import { lastAssistantText, latestSessionId } from "./latest-session";
+import { lastAssistantTextIn, latestSessionId } from "./latest-session";
 
 /** How much of the agent's own words the list shows on a task's second line. */
 const LINE_MAX = 90;
@@ -58,29 +59,7 @@ export async function endedWithoutWords(
   sessionId: StoreId.Session,
 ): Promise<TaskEnding> {
   const messages = await Store.getMessagesWithParts({ sessionId, taskId });
-  const last = messages.isOk()
-    ? messages.value.findLast((message) => message.role === "assistant")
-    : undefined;
-  if (last?.metadata.finishReason === "max-steps") {
-    for (const part of last.parts) {
-      if (part.type === "data-maxSteps") {
-        return {
-          failed: false,
-          line: `Stopped at the ${part.data.maxStepCount}-step limit`,
-        };
-      }
-    }
-    return { failed: false, line: "Stopped at its step limit" };
-  }
-  const error = last?.metadata.error;
-  if (error && error.kind !== "aborted") {
-    return { failed: true, line: describeMessageError(error).summary };
-  }
-  const step = await latestStep(taskId);
-  return {
-    failed: false,
-    line: step ? `Stopped while ${asClause(step)}` : "Stopped",
-  };
+  return endingIn(taskId, messages.isOk() ? messages.value : []);
 }
 
 /**
@@ -166,55 +145,57 @@ function cut(line: string, maxLength: number): string {
   return line.length > maxLength ? `${line.slice(0, maxLength)}…` : line;
 }
 
-/**
- * What the task asked the user for and has not been answered, when its last
- * turn ended on an ask rather than on words.
- */
-async function pendingAsk(taskId: TaskId): Promise<string | undefined> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return undefined;
-  }
-  return sessionAsk(taskId, sessionId.value);
-}
-
-/**
- * What a conversation is waiting on the user for, when its last turn ended on
- * an ask rather than on words. A chat is a session, so this is also how a
- * chat says it has stopped and needs an answer.
- */
-async function sessionAsk(
+/** The same ending, read from a transcript already in hand. */
+async function endingIn(
   taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId,
-    taskId,
-  });
-  if (messages.isErr()) {
-    return undefined;
+  messages: SessionMessage.WithParts[],
+): Promise<TaskEnding> {
+  const last = messages.findLast((message) => message.role === "assistant");
+  if (last?.metadata.finishReason === "max-steps") {
+    for (const part of last.parts) {
+      if (part.type === "data-maxSteps") {
+        return {
+          failed: false,
+          line: `Stopped at the ${part.data.maxStepCount}-step limit`,
+        };
+      }
+    }
+    return { failed: false, line: "Stopped at its step limit" };
   }
-  return askIn(messages.value);
+  const error = last?.metadata.error;
+  if (error && error.kind !== "aborted") {
+    return { failed: true, line: describeMessageError(error).summary };
+  }
+  const step = await latestStep(taskId);
+  return {
+    failed: false,
+    line: step ? `Stopped while ${asClause(step)}` : "Stopped",
+  };
 }
 
 async function standingAtRest(taskId: TaskId): Promise<TaskStanding> {
-  const waiting = await pendingAsk(taskId);
-  if (waiting) {
-    return { kind: "waiting", line: waiting };
-  }
   const sessionId = await latestSessionId(taskId);
   if (sessionId.isErr() || !sessionId.value) {
     return { kind: "done", line: "Nothing yet" };
   }
-  // Read whole and cut after: the line is chosen from the reply's shape, and a
-  // fence cut off mid-way is a fence the excerpt cannot read.
-  const said = await lastAssistantText({
+  // One read answers all three: what it is asking, what it last said, and
+  // how it ended when it said nothing.
+  const messages = await Store.getMessagesWithParts({
     sessionId: sessionId.value,
     taskId,
   });
+  const transcript = messages.isOk() ? messages.value : [];
+  // A turn that ended on an ask rather than on words is waiting on the user.
+  const waiting = askIn(transcript);
+  if (waiting) {
+    return { kind: "waiting", line: waiting };
+  }
+  // Read whole and cut after: the line is chosen from the reply's shape, and a
+  // fence cut off mid-way is a fence the excerpt cannot read.
+  const said = lastAssistantTextIn(transcript);
   if (said) {
     return { kind: "done", line: excerptOf(said, LINE_MAX) };
   }
-  const ending = await endedWithoutWords(taskId, sessionId.value);
+  const ending = await endingIn(taskId, transcript);
   return { kind: ending.failed ? "failed" : "done", line: ending.line };
 }

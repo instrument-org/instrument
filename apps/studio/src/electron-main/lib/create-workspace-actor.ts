@@ -156,6 +156,9 @@ export function createWorkspaceActor({
       ensureOutputFolderIcon,
       getAIProviderConfigs,
       getUser: getSignedInUser,
+      // Beside the other per-machine state rather than in the workspace: the
+      // index is derived, and a workspace may sit in a synced folder.
+      indexesDir: path.join(app.getPath("userData"), "indexes"),
       isActivityHeadingsEnabled: () => isFeatureEnabled("activity_headings"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,

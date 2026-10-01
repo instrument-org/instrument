@@ -168,6 +168,14 @@ export interface WorkspaceConfig {
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
+   * Where each workspace's index of its chats and tasks is kept: derived,
+   * rebuilt from the workspace whenever it is missing or out of date, and
+   * outside the workspace so a workspace in a synced folder never carries a
+   * live database. Absent where nothing should persist (tests, scripts), and
+   * then every read derives from the stores.
+   */
+  indexesDir?: AbsolutePath;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * name and email, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

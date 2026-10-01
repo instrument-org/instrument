@@ -5,6 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
+import { indexedByStore } from "../workspace-index";
 import { listChatIds } from "./chat-records";
 
 /**
@@ -52,8 +53,10 @@ export async function linkedFiles(): Promise<LinkedFile[]> {
   );
 }
 
-/** What one chat's replies showed. */
-async function shownIn(
+/** What each chat's replies showed, kept until its store changes. */
+const shownByChat = indexedByStore<LinkedFile[]>("linked_files");
+
+async function readShownIn(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<LinkedFile[]> {
@@ -78,4 +81,12 @@ async function shownIn(
         }))
       : [],
   );
+}
+
+/** What one chat's replies showed. */
+function shownIn(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<LinkedFile[]> {
+  return shownByChat(taskId, () => readShownIn(taskId, sessionId));
 }

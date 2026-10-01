@@ -8,8 +8,8 @@ import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
-import { cacheByStoreGeneration } from "../store-generation";
 import { taskHold } from "../task-hold";
+import { indexedByStore } from "../workspace-index";
 import { askIn, latestStep, runningLines } from "./activity";
 import { lastAssistantTextIn, latestSessionId } from "./latest-session";
 
@@ -21,7 +21,7 @@ const LINE_MAX = 90;
  * holds until something writes there. The list asks for every task it shows
  * each time it is read, and this is a whole transcript or more per task.
  */
-const settledStanding = cacheByStoreGeneration<TaskStanding>();
+const settledStanding = indexedByStore<TaskStanding>("task_standings");
 
 /**
  * How a turn ended when it ended without words: whether a model error ended

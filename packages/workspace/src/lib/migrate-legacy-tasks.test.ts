@@ -104,7 +104,7 @@ function legacyTask(
     sessions = [],
     settings = {},
   }: {
-    sessions?: { messages: FixtureMessage[]; title?: string }[];
+    sessions?: { at?: number; messages: FixtureMessage[]; title?: string }[];
     settings?: Record<string, unknown>;
   },
 ) {
@@ -123,6 +123,7 @@ function legacyTask(
   const insert = db.prepare("insert into sessions (key, blob) values (?, ?)");
   let at = JUNE_23;
   for (const session of sessions) {
+    at = session.at ?? at;
     const sessionId = `ses_${ulid(at)}`;
     insert.run(
       `sessions:${sessionId}`,
@@ -387,6 +388,34 @@ describe("migrateLegacyTasks", () => {
     // One short of the newest reply, so that reply alone counts.
     expect(seen.chatSeen[unread]).toBe(
       messageIds("2026-06-23-unread-one").at(-2),
+    );
+  });
+
+  it("marks a chat read up to its newest reply when the task's sessions overlapped", () => {
+    const reply = {
+      metadata: { modelId: "m", providerId: "p" },
+      parts: [{ text: "done", type: "text" }],
+      role: "assistant",
+    } satisfies FixtureMessage;
+    const ask = {
+      parts: [{ text: "go", type: "text" }],
+      role: "user",
+    } satisfies FixtureMessage;
+    legacyTask("2026-06-23-overlap", {
+      sessions: [
+        { messages: [ask, reply, reply] },
+        // Started while the first was still answering, so it finished first.
+        { at: JUNE_23 + 500, messages: [ask, reply] },
+      ],
+    });
+
+    migrateLegacyTasks(root);
+
+    const chat = "2026-06-23-rotating-red-square";
+    const seen = readJson("tasks", "instrument", ".instrument", "settings.json")
+      .state as { chatSeen: Record<string, string> };
+    expect(seen.chatSeen[sessionOf(chat).id as string]).toBe(
+      messageIds(chat).at(-1),
     );
   });
 

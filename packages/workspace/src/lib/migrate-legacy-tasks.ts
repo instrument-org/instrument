@@ -771,13 +771,11 @@ function readConversation(dbPath: string): {
     .map((session) => session.id);
   const sessionOf = (message: Record<string, unknown>) =>
     isRecord(message.metadata) ? message.metadata.sessionId : undefined;
+  // By id alone, the order the chat reads its messages in, so sessions that
+  // overlapped in time interleave rather than one following the other.
   const ordered = [...messageRows.entries()]
     .filter(([, message]) => sessionOrder.includes(String(sessionOf(message))))
-    .toSorted(
-      ([a, left], [b, right]) =>
-        sessionOrder.indexOf(String(sessionOf(left))) -
-          sessionOrder.indexOf(String(sessionOf(right))) || a.localeCompare(b),
-    );
+    .toSorted(([a], [b]) => a.localeCompare(b));
 
   let tutorial = false;
   for (const [messageId, message] of ordered) {

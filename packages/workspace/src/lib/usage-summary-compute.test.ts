@@ -164,6 +164,23 @@ describe("getUsageSummaryFromMessages", () => {
     ).toMatchInlineSnapshot(`4000`);
   });
 
+  it("times a search from when it ran, not from when it was asked for", () => {
+    // Asked for at 10:00:00, ran from 10:00:01.5 behind another call, done at
+    // 10:00:02: half a second of searching, not two.
+    const message = assistantMessage([
+      { sources: [], state: "success", text: "results", usage: tokens },
+    ]);
+    const [part] = message.parts;
+    if (part) {
+      part.metadata = {
+        ...part.metadata,
+        startedAt: new Date("2024-01-01T10:00:01.500Z"),
+      };
+    }
+
+    expect(getUsageSummaryFromMessages([message]).msToFinish).toBe(500);
+  });
+
   it("counts a tool part with no end timestamp as taking no time", () => {
     const message = assistantMessage([
       { sources: [], state: "success", text: "results", usage: tokens },

@@ -35,6 +35,12 @@ interface MessageRenderInfo {
   assistantMetadata?: SessionMessage.Assistant["metadata"];
   contextMetadata?: SessionMessage.Context["metadata"];
   endedAt?: Date;
+  /**
+   * When a tool call began executing, which can be well after the model began
+   * writing it: its arguments take time to arrive, and it can wait behind the
+   * calls ahead of it.
+   */
+  ranAt?: Date;
   sourceMessage: SessionMessage.WithParts;
   startedAt: Date;
 }
@@ -434,6 +440,7 @@ function buildToolCallTimestampMap(
       const endedAt = getEndedAt(part.metadata);
       map.set(part.toolCallId, {
         endedAt,
+        ranAt: part.metadata.startedAt,
         sourceMessage: message,
         startedAt: part.metadata.createdAt,
       });
@@ -486,7 +493,16 @@ function formatTimestampRange(timestamps: MessageRenderInfo | undefined) {
 
   const durationMs =
     timestamps.endedAt.getTime() - timestamps.startedAt.getTime();
-  return ` @ ${start} +${formatDuration(durationMs)}`;
+  // The span runs from when the model began writing the call, so it also holds
+  // the time spent writing its arguments and waiting behind other calls. When
+  // that is a second or more, the part the call itself ran is said apart, or
+  // all of it reads as the call's own running time.
+  const beforeRunMs = timestamps.ranAt
+    ? timestamps.ranAt.getTime() - timestamps.startedAt.getTime()
+    : 0;
+  return beforeRunMs >= 1000
+    ? ` @ ${start} +${formatDuration(durationMs)} (ran for the last ${formatDuration(durationMs - beforeRunMs)})`
+    : ` @ ${start} +${formatDuration(durationMs)}`;
 }
 
 function getEndedAt(metadata: Record<string, unknown>) {

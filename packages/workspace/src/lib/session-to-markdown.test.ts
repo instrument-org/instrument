@@ -267,6 +267,44 @@ describe("session diagnostics", () => {
     expect(markdown).toContain('"rawInput": "{"');
   });
 
+  it("says how much of a tool call's span it spent running", async () => {
+    const waited = Session.WithMessagesAndPartsSchema.parse({
+      ...session,
+      messages: session.messages.map((message) =>
+        message.id === assistantMessageId
+          ? {
+              ...message,
+              parts: message.parts.map((part) =>
+                part.metadata.id === toolPartId
+                  ? {
+                      errorText: "Command failed",
+                      input: { command: "ls", explanation: "Listing" },
+                      metadata: {
+                        ...part.metadata,
+                        endedAt: new Date("2026-07-24T10:00:30.000Z"),
+                        startedAt: new Date("2026-07-24T10:00:25.000Z"),
+                      },
+                      state: "output-error",
+                      toolCallId: "tool-call-1",
+                      type: "tool-bash",
+                    }
+                  : part,
+              ),
+            }
+          : message,
+      ),
+    });
+
+    const markdown = await sessionToMarkdown(waited);
+    expect(
+      markdown.split("\n").filter((line) => line.startsWith("### Tool Call")),
+    ).toMatchInlineSnapshot(`
+      [
+        "### Tool Call 1: bash @ 2026-07-24T10:00:05.000Z +25.0s (ran for the last 5.000s)",
+      ]
+    `);
+  });
+
   // A user turn is the model's own message, XML wrapper and all, and a reader
   // that took the wrapper for markup would lose it. The wrapper and the words
   // reach the model as separate parts, and read as one fence.

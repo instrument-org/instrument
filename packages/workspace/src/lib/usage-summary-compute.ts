@@ -54,9 +54,20 @@ const ToolPartUsageSchema = z
 
 const EPOCH = new Date(0);
 
+// A call is timed from when it began executing, since one that waited behind
+// others was not generating anything meanwhile. Parts written before
+// `startedAt` existed fall back to when the model asked for them.
 const ToolPartTimingSchema = z
-  .object({ createdAt: z.date(), endedAt: z.date() })
-  .catch({ createdAt: EPOCH, endedAt: EPOCH });
+  .object({
+    createdAt: z.date(),
+    endedAt: z.date(),
+    startedAt: z.date().optional(),
+  })
+  .transform(({ createdAt, endedAt, startedAt }) => ({
+    endedAt,
+    startedAt: startedAt ?? createdAt,
+  }))
+  .catch({ endedAt: EPOCH, startedAt: EPOCH });
 
 export function emptyUsageSummary(): UsageSummary {
   return {
@@ -126,7 +137,7 @@ export function getUsageSummaryFromMessages(
       sum(assistantMessages, (m) => finite(m.metadata.msToFinish)) +
       sum(
         toolParts,
-        (p) => p.metadata.endedAt.getTime() - p.metadata.createdAt.getTime(),
+        (p) => p.metadata.endedAt.getTime() - p.metadata.startedAt.getTime(),
       ),
     outputTokenDetails: {
       reasoningTokens: sum(assistantMessages, (m) =>

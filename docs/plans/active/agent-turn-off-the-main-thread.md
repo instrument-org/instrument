@@ -1,6 +1,6 @@
 # Move the agent turn off the Electron main thread
 
-Status: **active.** The interpreter runs in a worker thread (below); the utility process is not started. The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
+Status: **active.** The interpreter runs in a worker thread (below); the utility process is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
 
 ## Problem
 
@@ -77,6 +77,12 @@ A smaller move than the utility process takes the part of the stall the finding 
 The commands that act on state only main holds (`MAIN_THREAD_COMMANDS` in `create-bash-env.ts`: `task`, `chat`, `memory`, `open`, `app`, `agent-browser`, `jobs`, `fg`, `kill`) are stand-ins in the worker that send their argv, cwd, environment and stdin back to main, which runs the real command in the async context the tool call was made in. Three other pieces of main-owned state are reached the same way: a skill written through the shell is credited to the turn that wrote it, each task's venv has one creator, and the process trees the worker starts are reported so main can end them if the worker dies.
 
 Measured in Studio against a 60,000-file task folder, three concurrent `find` scans moved a renderer's RPC round trip to main from 154 ms at the median and 291 ms at worst to 2 ms and 26 ms. It does not move anything else on this page: the store writes, the model stream and the message yields stay on main, and one worker serves every task, so one task's long synchronous walk still delays the others' shells.
+
+## What a dropped paste measured
+
+A dictation tool that pastes and then restores the clipboard 60 ms later loses text in the 2.0 window, because the keystroke and the paste's clipboard read both wait on main. That looked like the argument for this plan, and it is not: the stalls came from a two-second status poll reading every filed task's whole transcript, and a live agent turn with that poll paused, shell commands included, held main at an event-loop p99 of 11 to 14 ms and lost no pastes. [The finding](../../findings/dictated-paste-lost-to-a-status-poll.md) has the measurements and the fix.
+
+Two consequences for this plan. The poll's cost follows the workspace into a utility process and half of it is on the renderer anyway, so the fix belongs in the reads, not the process split. And the stall sampler in step 2 is worth more than it looked: a `KeyboardEvent.timeStamp` probe cannot see this class of stall, since in Electron it is the renderer's receive time, so input latency has to be measured from outside the page or inferred from main's event-loop delay.
 
 ## Migration order
 

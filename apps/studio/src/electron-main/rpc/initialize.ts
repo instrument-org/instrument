@@ -63,6 +63,14 @@ function isHandledOpenError(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "ERROR_OPENING_FILE";
 }
 
+// UNAUTHORIZED means signed out, developer mode off, or a provider refusing the
+// key or URL the person typed in. The UI shows it, and a rejected provider key
+// is already counted as a `provider.verification_failed` event; rethrow, skip
+// the capture.
+function isHandledUnauthorized(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "UNAUTHORIZED";
+}
+
 // Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
 // errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
 // still rethrow them to the client so the UI can show a retry, but skip the
@@ -70,6 +78,7 @@ function isHandledOpenError(error: unknown): boolean {
 function shouldSkipCapture(error: unknown): boolean {
   return (
     isHandledNotFound(error) ||
+    isHandledUnauthorized(error) ||
     isHandledFolderAnswer(error) ||
     isHandledOpenError(error) ||
     isHandledInvalidUrl(error) ||

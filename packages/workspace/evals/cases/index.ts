@@ -13,6 +13,7 @@ import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PROJECT_FOLDER_DISCIPLINE_EVALS } from "./project-folder-discipline";
 import { PROJECT_INSTRUCTIONS_EVALS } from "./project-instructions";
 import { QUESTIONS_EVALS } from "./questions";
+import { REACH_EVALS } from "./reach";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_TABS_EVALS } from "./task-tabs";
@@ -37,6 +38,7 @@ export const EVALS = [
   ...PROJECT_FOLDER_DISCIPLINE_EVALS,
   ...PROJECT_INSTRUCTIONS_EVALS,
   ...QUESTIONS_EVALS,
+  ...REACH_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_TABS_EVALS,

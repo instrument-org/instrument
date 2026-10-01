@@ -297,6 +297,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                                 sessionId: chat,
                               })
                             }
+                            sentPrompt={shell.sentWords.get(chat)}
                             sessionId={chat}
                           />
                         </div>

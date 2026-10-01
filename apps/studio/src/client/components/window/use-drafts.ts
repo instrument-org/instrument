@@ -48,6 +48,7 @@ export function useDrafts({
   draftContext,
   ids,
   isChat,
+  openChat,
   saveDefaultModelURI,
   topics,
   windowTabs,
@@ -64,8 +65,10 @@ export function useDrafts({
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The orchestrator, once it exists; no chat starts before it does. */
   ids: RPCOutput["workspace"]["window"]["ensure"] | undefined;
-  /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under. */
+  /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
+  /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
+  openChat: (sessionId: StoreId.Session) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The orchestrator's topics, for the one the inbox stands in. */
@@ -83,13 +86,12 @@ export function useDrafts({
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
-  // The drafts whose first messages are on their way, by id, with the words
-  // each sent: the chat's window shows them from the press, and keeps
-  // showing them until the chat's own transcript has them, a moment past
-  // the call's answer.
-  const [sentWords, setSentWords] = useState<ReadonlyMap<string, string>>(
-    () => new Map(),
-  );
+  // The chats whose first messages are on their way, by session, with the
+  // words each sent: the chat shows them from the press, and keeps showing
+  // them until its own transcript has them, a moment past the call's answer.
+  const [sentWords, setSentWords] = useState<
+    ReadonlyMap<StoreId.Session, string>
+  >(() => new Map());
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -105,7 +107,7 @@ export function useDrafts({
     }
     const timer = setTimeout(() => {
       setArrived(undefined);
-      setSentWords((current) => withoutKey(current, arrived.draftId));
+      setSentWords((current) => withoutKey(current, arrived.sessionId));
     }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
@@ -226,11 +228,13 @@ export function useDrafts({
    * Starts the chat the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
    * with what its band shows as the context; then what the draft gathered
-   * becomes the chat's tabs exactly as they are. The window becomes the
-   * chat's small view in the same corner at the press, with the words
-   * sent standing in its transcript, and the place under it is left as it
-   * is; the chat's row arrives in the inbox marked. A send that fails
-   * turns the window back into the draft, with what it held.
+   * becomes the chat's tabs exactly as they are. Sent from the chat, the
+   * window goes and the tab up opens the chat whole; sent from anywhere
+   * else, the window becomes the chat's small view in the same corner and
+   * the place under it is left as it is. Either way the words sent stand
+   * in its transcript from the press, and the chat's row arrives in the
+   * inbox marked. A send that fails brings the draft back up with what it
+   * held.
    */
   const startChat = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
@@ -243,11 +247,14 @@ export function useDrafts({
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
+    // Read at the press too: where the draft was sent from is where its
+    // chat opens.
+    const opensWhole = isChat;
     // The window becomes the chat before this message has left, so anything
     // sent from it waits for this one to land first.
     const opened = holdSendsUntilOpened(sessionId);
     setStartingIds((current) => new Set(current).add(id));
-    setSentWords((current) => new Map(current).set(id, send.prompt));
+    setSentWords((current) => new Map(current).set(sessionId, send.prompt));
     // The model chosen for the chat is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
     // What was marked in files and moved to this draft goes as its asks.
@@ -276,13 +283,18 @@ export function useDrafts({
       } catch (error) {
         opened();
         setStartingIds((current) => withoutId(current, id));
-        setSentWords((current) => withoutKey(current, id));
+        setSentWords((current) => withoutKey(current, sessionId));
         toast.error("Failed to start the chat", {
           description: error instanceof Error ? error.message : String(error),
         });
         return;
       }
-      compose.becomeChat(id, sessionId);
+      if (opensWhole) {
+        compose.remove(draftGroupOf(id));
+        openChat(sessionId);
+      } else {
+        compose.becomeChat(id, sessionId);
+      }
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
       // while another was still on its way.
@@ -302,8 +314,12 @@ export function useDrafts({
           viewing: await viewing,
         });
       } catch (error) {
-        compose.becomeDraft(sessionId, id);
-        setSentWords((current) => withoutKey(current, id));
+        if (opensWhole) {
+          showDraft(id);
+        } else {
+          compose.becomeDraft(sessionId, id);
+        }
+        setSentWords((current) => withoutKey(current, sessionId));
         toast.error("Failed to start the chat", {
           description: error instanceof Error ? error.message : String(error),
         });
@@ -351,10 +367,7 @@ function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {
   return next;
 }
 
-function withoutKey<T>(
-  map: ReadonlyMap<string, T>,
-  key: string,
-): ReadonlyMap<string, T> {
+function withoutKey<K, T>(map: ReadonlyMap<K, T>, key: K): ReadonlyMap<K, T> {
   const next = new Map(map);
   next.delete(key);
   return next;

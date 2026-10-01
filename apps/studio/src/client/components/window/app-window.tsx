@@ -620,6 +620,9 @@ function WindowShell({
     draftContext,
     ids,
     isChat,
+    openChat: (sessionId) => {
+      appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
+    },
     saveDefaultModelURI,
     topics,
     windowTabs,
@@ -753,6 +756,7 @@ function WindowShell({
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
+    sentWords,
     setChatTopics,
     setPaneOpen,
     showDraft,

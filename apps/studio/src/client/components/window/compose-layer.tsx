@@ -77,8 +77,8 @@ export function ComposeLayer({
     isViewOpen: boolean;
     sessionId: StoreId.Session;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** What each draft being started sent, by the draft: its chat's window shows the words until its transcript has them. */
-  sentWords: ReadonlyMap<string, string>;
+  /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
+  sentWords: ReadonlyMap<StoreId.Session, string>;
   topics: Topic[];
 }) {
   // A window whose draft is gone (thrown away from the Drafts place, or a
@@ -202,11 +202,7 @@ export function ComposeLayer({
                 sendContext={(options) =>
                   sendContext({ ...options, sessionId })
                 }
-                sentWords={
-                  entry.fromDraft === undefined
-                    ? undefined
-                    : sentWords.get(entry.fromDraft)
-                }
+                sentWords={sentWords.get(sessionId)}
                 sessionId={sessionId}
                 topics={topics}
                 width={entry.width}

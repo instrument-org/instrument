@@ -162,7 +162,7 @@ function pick(
 ): Record<string, unknown> {
   return Object.fromEntries(
     keys.flatMap((key) =>
-      source && source[key] !== undefined ? [[key, source[key]]] : [],
+      source?.[key] === undefined ? [] : [[key, source[key]]],
     ),
   );
 }

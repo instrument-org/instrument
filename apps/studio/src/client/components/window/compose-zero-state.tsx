@@ -28,7 +28,9 @@ const RECENT_SHOWN = 12;
  * beside it (the web, this Mac, apps), each a picture of the kind of thing
  * rather than of anything in it, and under them, apart, a slim strip for
  * attaching, which is also where files are dropped. The words keep the room
- * above; the strip sits at the band's foot.
+ * above; the strip sits at the band's foot. Held to a docked window's width
+ * and centered, so a grown window's band shows the same tiles rather than
+ * tiles stretched to fill it, standing in the middle of the room it has.
  *
  * The web opens as a tab of the draft's own, at the browser's starting view;
  * This Mac opens the Finder at the Instrument folder the same way; Apps goes
@@ -52,8 +54,8 @@ export function ComposeZeroState({
   onOpenFolder: (hostPath: string) => void;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-4 pt-4 pb-4">
-      <div className="grid shrink-0 grid-cols-3 gap-3">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-150 flex-col gap-4 overflow-y-auto p-4">
+      <div className="my-auto grid shrink-0 grid-cols-3 gap-3">
         <Tile icon={GlobeIcon} name="Browser" onOpen={onOpenBrowser} />
         <Tile
           icon={DesktopIcon}
@@ -64,7 +66,7 @@ export function ComposeZeroState({
         />
         <Tile icon={SquaresFourIcon} name="Apps" onOpen={onOpenApps} />
       </div>
-      <div className="mt-auto flex h-10 shrink-0 items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
+      <div className="flex h-10 shrink-0 items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
         <span className="min-w-0 flex-1 truncate">Drop files here</span>
         <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
           Attach files

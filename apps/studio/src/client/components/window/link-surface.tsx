@@ -124,9 +124,10 @@ export function LinkSurface({
     if (!anchor) {
       return;
     }
-    const target = linkTargetOf(anchor.getAttribute("href") ?? "", {
-      ...(base === undefined ? {} : { base }),
-    });
+    const target = linkTargetOf(
+      anchor.getAttribute("href") ?? "",
+      base === undefined ? {} : { base },
+    );
     const isEditing = anchor.closest("[contenteditable=true]") !== null;
     if (isEditing && gesture === "menu") {
       // The editor's menu is the native one, which offers the link's rows

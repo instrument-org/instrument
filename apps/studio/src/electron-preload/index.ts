@@ -85,7 +85,6 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld("electron", electronAPI);
     contextBridge.exposeInMainWorld("api", api);
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("Failed to expose Electron APIs to renderer", error);
   }
 } else {
@@ -109,7 +108,6 @@ window.addEventListener("message", (event) => {
     const [serverPort] = event.ports;
 
     if (!serverPort) {
-      // eslint-disable-next-line no-console
       console.error("No server port found for ORPC client");
       return;
     }

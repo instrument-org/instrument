@@ -34,9 +34,6 @@ agent-reference.local.json
 # Electron Builder
 /apps/studio/dist
 
-# ESLint
-.eslintcache
-
 # Wrangler, for Knip
 .wrangler/
 

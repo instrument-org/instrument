@@ -129,7 +129,6 @@ export function captureException(
   error: unknown,
   properties?: Record<string, unknown>,
 ) {
-  // eslint-disable-next-line no-console -- foundational failures should be loud in dev too
   console.error(error);
   void getTelemetry().then((telemetry) => {
     telemetry?.captureException(error, properties);

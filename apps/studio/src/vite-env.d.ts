@@ -7,9 +7,7 @@ interface ImportMetaEnv extends ImportMetaEnvAugmented {
 }
 
 type ImportMetaEnvAugmented =
-  // oxlint-disable-next-line typescript/consistent-type-imports
   import("@julr/vite-plugin-validate-env").ImportMetaEnvAugmented<
-    // oxlint-disable-next-line typescript/consistent-type-imports
     typeof import("../validate-env").default
   >;
 

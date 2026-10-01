@@ -339,7 +339,6 @@ export async function runEvals(
         return;
       },
       captureException: (...args: unknown[]) => {
-        // eslint-disable-next-line no-console
         console.error("captureException", ...args);
       },
       defaultTaskTemplateDir: path.resolve(

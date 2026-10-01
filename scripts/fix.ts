@@ -7,9 +7,9 @@
 // nothing downstream catches it either. This closes that gap in a couple of
 // seconds over the whole tree.
 //
-// Lint fixing sits behind `--lint` because it costs a minute at full CPU: an
-// ESLint and a type-aware oxlint per package, on a checkout that usually has
-// other agents working in it. The hook already lint-fixes a session's own edits
+// Lint fixing sits behind `--lint` because it runs a type-aware oxlint per
+// package at full CPU, on a checkout that usually has other agents working in
+// it. The hook already lint-fixes a session's own edits
 // and `check:lint` catches whatever it missed, so the sweep is worth paying for
 // deliberately, not by default.
 
@@ -50,7 +50,6 @@ if (unresolved.length > 0) {
   console.error(
     `\nStill reporting problems after fixing: ${unresolved.join(", ")}. Resolve what is printed above by hand.`,
   );
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }
 

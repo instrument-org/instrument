@@ -134,7 +134,6 @@ describe("Studio Smoke Test", () => {
           retryDelay: 200,
         });
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.warn(`Could not remove ${dir}:`, error);
       }
     }
@@ -365,17 +364,14 @@ describe("Studio Smoke Test", () => {
     const childProcess = electronApp.process();
 
     childProcess.stdout?.on("data", (data: Buffer | string) => {
-      // eslint-disable-next-line no-console
       console.log(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
     childProcess.stderr?.on("data", (data: Buffer | string) => {
-      // eslint-disable-next-line no-console
       console.error(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
     electronApp.on("console", (msg) => {
-      // eslint-disable-next-line no-console
       console.log(msg.text());
     });
 

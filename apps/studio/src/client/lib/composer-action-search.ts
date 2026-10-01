@@ -29,7 +29,6 @@ export function matchComposerActions<T extends { label: string }>(
   }
 
   const haystack = actions.map((action) => action.label);
-  // eslint-disable-next-line unicorn/no-array-method-this-argument
   const indexes = fuzzy.filter(haystack, query);
   if (!indexes || indexes.length === 0) {
     return [];

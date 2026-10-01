@@ -68,7 +68,6 @@ export function SourceImagesChip({
     part.type === "tool-generate_image"
       ? part.state === "output-available" && part.output.state === "success"
         ? // `sourceImages` was added after initial release; old persisted outputs lack it
-          // oxlint-disable-next-line typescript/no-unnecessary-condition
           (part.output.sourceImages ?? [])
         : Array.isArray(part.input?.sourceImages)
           ? part.input.sourceImages.flatMap((p) =>

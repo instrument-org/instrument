@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "categories": {
-    "correctness": "off"
+    "correctness": "error"
   },
   "ignorePatterns": [
     "**/node_modules",
@@ -28,6 +28,7 @@
     {
       "files": ["**/*.test.*"],
       "rules": {
+        "no-unsafe-optional-chaining": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off"
       }
@@ -42,26 +43,15 @@
       "rules": {
         "import/no-nodejs-modules": ["error"]
       }
-    },
-    {
-      "files": ["**/machines/session.test.ts"],
-      "rules": {
-        "typescript/no-unnecessary-type-assertion": "off"
-      }
     }
   ],
-  "plugins": ["unicorn", "typescript", "oxc", "import", "react"],
+  "plugins": ["unicorn", "typescript", "oxc", "import", "react", "vitest"],
   "rules": {
     "import/no-cycle": ["error"],
     "import/no-named-as-default": ["error"],
 
-    // Syntactic (non-type-aware) rules, mirroring typescript-eslint's `strict`
-    // + `stylistic` configs and the explicit rules in
-    // packages/eslint-config/base.ts. eslint-plugin-oxlint reads this file to
-    // turn off the matching ESLint copies -- keep options in sync with base.ts.
-    "no-array-constructor": ["error"],
-    "no-empty-function": ["error"],
-    "no-redeclare": ["error"],
+    // Rules that catch code that is wrong rather than code spelled another
+    // way. Ordering, naming and idiom preferences are deliberately absent.
     "no-shadow": ["error"],
     "no-unused-expressions": ["error"],
     "no-unused-vars": [
@@ -72,40 +62,31 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "no-use-before-define": [
-      "error",
-      {
-        "allowNamedExports": false,
-        "classes": true,
-        "enums": true,
-        "functions": false,
-        "ignoreTypeReferences": true,
-        "typedefs": true,
-        "variables": true
-      }
-    ],
-    "no-useless-constructor": ["error"],
-    "typescript/adjacent-overload-signatures": ["error"],
+    "vitest/no-focused-tests": ["error"],
+
+    // In the correctness category, but they ask for a spelling rather than
+    // catch a mistake, or misread vite's `?raw` / `?nodeWorker` imports and
+    // `expect` inside `vi.waitFor`.
+    "import/default": "off",
+    "typescript/require-array-sort-compare": "off",
+    "vitest/no-conditional-expect": "off",
+    "vitest/no-standalone-expect": "off",
+    "vitest/require-mock-type-parameters": "off",
+    "vitest/require-to-throw-message": "off",
+
     "typescript/await-thenable": ["error"],
-    "typescript/consistent-type-exports": ["error"],
-    "typescript/dot-notation": [
-      "error",
-      {
-        "allowIndexSignaturePropertyAccess": false,
-        "allowKeywords": true,
-        "allowPattern": "",
-        "allowPrivateClassPropertyAccess": false,
-        "allowProtectedClassPropertyAccess": false
-      }
-    ],
+    "typescript/ban-ts-comment": ["error", { "minimumDescriptionLength": 10 }],
     "typescript/no-array-delete": ["error"],
     "typescript/no-base-to-string": ["error"],
-    "typescript/no-confusing-void-expression": ["error"],
-    "typescript/no-duplicate-type-constituents": ["error"],
+    "typescript/no-confusing-non-null-assertion": ["error"],
+    "typescript/no-duplicate-enum-values": ["error"],
+    "typescript/no-empty-object-type": ["error"],
+    "typescript/no-explicit-any": ["error"],
+    "typescript/no-extra-non-null-assertion": ["error"],
     "typescript/no-floating-promises": ["error"],
     "typescript/no-for-in-array": ["error"],
     "typescript/no-implied-eval": ["error"],
-    "typescript/no-meaningless-void-operator": ["error"],
+    "typescript/no-misused-new": ["error"],
     "typescript/no-misused-promises": [
       "error",
       {
@@ -117,44 +98,26 @@
     ],
     "typescript/no-misused-spread": ["error"],
     "typescript/no-mixed-enums": ["error"],
-    "typescript/no-redundant-type-constituents": ["error"],
-    "typescript/no-unnecessary-boolean-literal-compare": ["error"],
-    "typescript/no-unnecessary-condition": [
-      "error",
-      {
-        "allowConstantLoopConditions": true
-      }
-    ],
-    "typescript/no-unnecessary-template-expression": ["error"],
-    "typescript/no-unnecessary-type-arguments": ["error"],
-    "typescript/no-unnecessary-type-assertion": ["error"],
-    "typescript/no-unnecessary-type-conversion": ["error"],
-    "typescript/no-unnecessary-type-parameters": ["error"],
+    "typescript/no-non-null-asserted-nullish-coalescing": ["error"],
+    "typescript/no-non-null-asserted-optional-chain": ["error"],
+    "typescript/no-non-null-assertion": ["error"],
+    "typescript/no-require-imports": ["error"],
+    "typescript/no-this-alias": ["error"],
+    "typescript/no-unnecessary-type-constraint": ["error"],
     "typescript/no-unsafe-argument": ["error"],
     "typescript/no-unsafe-assignment": ["error"],
     "typescript/no-unsafe-call": ["error"],
+    "typescript/no-unsafe-declaration-merging": ["error"],
     "typescript/no-unsafe-enum-comparison": ["error"],
+    "typescript/no-unsafe-function-type": ["error"],
     "typescript/no-unsafe-member-access": ["error"],
     "typescript/no-unsafe-return": ["error"],
     "typescript/no-unsafe-unary-minus": ["error"],
-    "typescript/non-nullable-type-assertion-style": ["error"],
+    "typescript/no-wrapper-object-types": ["error"],
     "typescript/only-throw-error": ["error"],
-    "typescript/prefer-find": ["error"],
-    "typescript/prefer-includes": ["error"],
-    "typescript/prefer-nullish-coalescing": [
-      "error",
-      {
-        "ignorePrimitives": true
-      }
-    ],
-    "typescript/prefer-optional-chain": ["error"],
+    "typescript/prefer-as-const": ["error"],
+    "typescript/prefer-literal-enum-member": ["error"],
     "typescript/prefer-promise-reject-errors": ["error"],
-    "typescript/prefer-reduce-type-parameter": ["error"],
-    "typescript/prefer-regexp-exec": ["error"],
-    "typescript/prefer-return-this-type": ["error"],
-    "typescript/prefer-string-starts-ends-with": ["error"],
-    "typescript/related-getter-setter-pairs": ["error"],
-    "typescript/require-await": ["error"],
     "typescript/restrict-plus-operands": [
       "error",
       {
@@ -183,45 +146,8 @@
       }
     ],
     "typescript/return-await": ["error", "error-handling-correctness-only"],
-    "typescript/unbound-method": ["error"],
-    "typescript/use-unknown-in-catch-callback-variable": ["error"],
-    "typescript/array-type": ["error"],
-    "typescript/ban-ts-comment": ["error", { "minimumDescriptionLength": 10 }],
-    "typescript/ban-tslint-comment": ["error"],
-    "typescript/class-literal-property-style": ["error"],
-    "typescript/consistent-generic-constructors": ["error"],
-    "typescript/consistent-indexed-object-style": ["error"],
-    "typescript/consistent-type-assertions": ["error"],
-    "typescript/consistent-type-definitions": ["error"],
-    "typescript/consistent-type-imports": [
-      "error",
-      { "fixStyle": "inline-type-imports" }
-    ],
-    "typescript/no-confusing-non-null-assertion": ["error"],
-    "typescript/no-duplicate-enum-values": ["error"],
-    "typescript/no-dynamic-delete": ["error"],
-    "typescript/no-empty-object-type": ["error"],
-    "typescript/no-explicit-any": ["error"],
-    "typescript/no-extra-non-null-assertion": ["error"],
-    "typescript/no-extraneous-class": ["error"],
-    "typescript/no-inferrable-types": ["error"],
-    "typescript/no-invalid-void-type": ["error"],
-    "typescript/no-misused-new": ["error"],
-    "typescript/no-non-null-asserted-nullish-coalescing": ["error"],
-    "typescript/no-non-null-asserted-optional-chain": ["error"],
-    "typescript/no-non-null-assertion": ["error"],
-    "typescript/no-require-imports": ["error"],
-    "typescript/no-this-alias": ["error"],
-    "typescript/no-unnecessary-type-constraint": ["error"],
-    "typescript/no-unsafe-declaration-merging": ["error"],
-    "typescript/no-unsafe-function-type": ["error"],
-    "typescript/no-wrapper-object-types": ["error"],
-    "typescript/prefer-as-const": ["error"],
-    "typescript/prefer-for-of": ["error"],
-    "typescript/prefer-function-type": ["error"],
-    "typescript/prefer-literal-enum-member": ["error"],
-    "typescript/prefer-namespace-keyword": ["error"],
     "typescript/triple-slash-reference": ["error"],
-    "typescript/unified-signatures": ["error"]
+    "typescript/unbound-method": ["error"],
+    "typescript/use-unknown-in-catch-callback-variable": ["error"]
   }
 }

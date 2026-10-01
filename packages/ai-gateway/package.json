@@ -16,9 +16,9 @@
     "./schemas": "./src/schemas/index.ts"
   },
   "scripts": {
-    "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",
+    "check:lint": "oxlint --type-aware",
     "check:types": "tsgo --noEmit",
-    "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",
+    "fix:lint": "oxlint --type-aware --fix",
     "test": "vitest",
     "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
     "turbo:check": "turbo run check:types check:lint"
@@ -53,7 +53,6 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^4.0.17",
-    "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",

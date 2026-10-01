@@ -26,7 +26,6 @@ if (process.env.CI !== "true") {
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
   endpoint: process.env.BUILDER_PUBLISH_S3_ENDPOINT,
   provider: "s3",
   region: "auto",
@@ -219,16 +218,13 @@ const config: Configuration = {
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
     icon: "icon.icon",
-    // eslint-disable-next-line turbo/no-undeclared-env-vars
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     // Grants the team-scoped entitlements in entitlements.mac.plist. Without
     // it the system refuses them and the app is killed on exec.
     provisioningProfile: "build/Instrument_Developer_ID.provisionprofile",
     publish: {
       ...publishConfig,
-      channel:
-        // eslint-disable-next-line turbo/no-undeclared-env-vars
-        process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
+      channel: process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
     },
     target: ["dmg", "zip"],
   },

@@ -506,7 +506,6 @@ export const llmRequestLogic = fromPromise<
             };
             await scopedStore.savePart(updatedPart);
             pendingDeltaSaves.delete(updatedPart.metadata.id);
-            // oxlint-disable-next-line typescript/no-dynamic-delete
             delete reasoningMap[part.id];
           }
           break;
@@ -542,7 +541,6 @@ export const llmRequestLogic = fromPromise<
         }
 
         case "source": {
-          // eslint-disable-next-line unicorn/prefer-ternary
           if (part.sourceType === "url") {
             await scopedStore.savePart({
               metadata: {

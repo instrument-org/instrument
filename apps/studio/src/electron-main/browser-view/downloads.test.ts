@@ -106,7 +106,6 @@ function makeFakeItem({
   filename = "report.pdf",
   url = "https://example.com/report.pdf",
 }: { filename?: string; url?: string } = {}): FakeItem {
-  // eslint-disable-next-line unicorn/prefer-event-target
   const emitter = new EventEmitter();
   return Object.assign(emitter, {
     cancel: vi.fn(),

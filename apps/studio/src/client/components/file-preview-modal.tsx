@@ -80,7 +80,6 @@ export function FilePreviewModal() {
                   fileName={file.filename}
                 />
                 <span className="truncate text-xs">{file.filename}</span>
-                {/* eslint-disable-next-line unicorn/explicit-length-check */}
                 {file.size && (
                   <span className="text-xs text-white/60">
                     {formatBytes(file.size)}

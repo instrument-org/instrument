@@ -92,7 +92,6 @@ export function matchSkills<
     ),
   );
   const haystack = fields.map((field) => field.haystack);
-  // eslint-disable-next-line unicorn/no-array-method-this-argument
   const indexes = fuzzy.filter(haystack, query);
   if (!indexes || indexes.length === 0) {
     return [];

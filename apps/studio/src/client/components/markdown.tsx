@@ -636,7 +636,7 @@ const MarkdownLink = ({
 
   if (href.startsWith("#")) {
     return (
-      // eslint-disable-next-line no-restricted-syntax
+      // oxlint-disable-next-line studio/no-raw-anchor
       <a
         {...props}
         className={cn("cursor-pointer!", className)}
@@ -657,7 +657,7 @@ const MarkdownLink = ({
       resolved === undefined ? undefined : hostPathOfComputerFileUrl(resolved);
     if (hostPath !== undefined) {
       return (
-        // eslint-disable-next-line no-restricted-syntax
+        // oxlint-disable-next-line studio/no-raw-anchor
         <a
           {...props}
           className={cn("cursor-pointer!", className)}

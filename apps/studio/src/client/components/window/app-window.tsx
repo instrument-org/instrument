@@ -141,7 +141,7 @@ export function AppWindow() {
       <ThemeProvider>
         {/* The window's one TooltipProvider for its own chrome; each tab's
           root route keeps its own for what the tab draws. */}
-        {/* eslint-disable-next-line no-restricted-syntax */}
+        {/* oxlint-disable-next-line studio/one-tooltip-provider */}
         <TooltipProvider>
           <CatchBoundary
             errorComponent={AppErrorFallback}

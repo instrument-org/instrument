@@ -43,7 +43,6 @@ vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
 vi.mock(import("../lib/get-current-date"));
 
-// eslint-disable-next-line turbo/no-undeclared-env-vars -- set by hand for a one-off capture, never through turbo
 const captureDir = process.env.WIRE_CAPTURE_DIR;
 
 interface Target {

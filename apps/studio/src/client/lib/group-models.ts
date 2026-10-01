@@ -46,7 +46,6 @@ export function groupAndFilterModels({
     model.tags.includes("legacy"),
   );
 
-  /* eslint-disable perfectionist/sort-objects */
   const result: GroupedModels = {
     Recommended: prioritizeOurModels(availableRecommended),
     "Requires a paid plan": prioritizeOurModels(restricted),
@@ -54,7 +53,6 @@ export function groupAndFilterModels({
     Other: prioritizeOurModels(notLegacy),
     Legacy: prioritizeOurModels(legacy),
   };
-  /* eslint-enable perfectionist/sort-objects */
 
   return result;
 }

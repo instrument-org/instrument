@@ -39,7 +39,6 @@ export function ToolCallSessionProvider({
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useToolCallSession(): ToolCallSessionValue {
   const value = useContext(ToolCallSessionContext);
   if (!value) {

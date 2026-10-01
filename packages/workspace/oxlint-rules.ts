@@ -1,6 +1,6 @@
-import { type Rule } from "eslint";
+import { definePlugin, defineRule, type Node } from "@oxlint/plugins";
 
-import { MOUNT } from "./src/mount-points";
+import { MOUNT } from "./src/mount-points.ts";
 
 /**
  * Each mount, with the pattern that finds it written out as text.
@@ -35,12 +35,12 @@ const MOUNTS = Object.entries(MOUNT).map(([key, path]) => ({
  * an expression spliced into it, and a regex that matches a mount cannot
  * interpolate one without becoming a `new RegExp` call.
  */
-const noBareMountPath: Rule.RuleModule = {
+export const noBareMountPath = defineRule({
   create(context) {
-    const report = (loc: Rule.Node["loc"], text: string) => {
+    const report = (node: Node, text: string) => {
       // Nothing without a slash can hold a mount path, which is nearly every
       // string in the package.
-      if (loc == null || !text.includes("/")) {
+      if (!text.includes("/")) {
         return;
       }
       const hits = MOUNTS.filter(({ pattern }) => pattern.test(text));
@@ -52,8 +52,8 @@ const noBareMountPath: Rule.RuleModule = {
           paths: hits.map(({ path }) => `\`${path}\``).join(", "),
           replacements: hits.map(({ key }) => `MOUNT.${key}`).join(", "),
         },
-        loc,
         messageId: "bareMountPath",
+        node,
       });
     };
 
@@ -73,10 +73,10 @@ const noBareMountPath: Rule.RuleModule = {
         ) {
           return;
         }
-        report(node.loc, node.value);
+        report(node, node.value);
       },
       TemplateElement(node) {
-        report(node.loc, node.value.raw);
+        report(node, node.value.raw);
       },
     };
   },
@@ -92,8 +92,9 @@ const noBareMountPath: Rule.RuleModule = {
     schema: [],
     type: "problem",
   },
-};
+});
 
-export const instrumentPlugin = {
+export default definePlugin({
+  meta: { name: "instrument" },
   rules: { "no-bare-mount-path": noBareMountPath },
-};
+});

@@ -7,7 +7,6 @@ import { z } from "zod";
 // live in the app-global provider-configs store, not the workspace folder), so
 // this cache is app-global too. It survives restarts to serve stale model lists
 // when a provider is slow or unreachable on startup.
-/* eslint-disable unicorn/prefer-top-level-await */
 const ModelCacheStoreSchema = z.object({
   // Keyed by provider `cacheIdentifier`. A single corrupt or schema-drifted
   // provider entry falls back to [] (which read() treats as cold) instead of
@@ -17,7 +16,6 @@ const ModelCacheStoreSchema = z.object({
     .record(z.string(), AIGatewayModel.Schema.array().catch([]))
     .default({}),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type ModelCacheStore = z.output<typeof ModelCacheStoreSchema>;
 

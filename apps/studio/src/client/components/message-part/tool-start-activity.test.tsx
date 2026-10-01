@@ -23,7 +23,6 @@ function activityPart(input: undefined | { title?: string }) {
     toolCallId: StoreId.ToolCallSchema.parse("call-1"),
     type: "tool-start_activity",
   };
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
   if (part.type !== "tool-start_activity") {
     throw new TypeError("Expected a start_activity part");
   }

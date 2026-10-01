@@ -40,7 +40,7 @@ Neither category recorded a judgment worth keeping. The file was not a curated v
 
 ### It checked the wrong half of the tree
 
-`docs/` was in `ignorePaths`, and it is also excluded from [markdownlint](../../.markdownlint-cli2.jsonc) and [eslint](../../eslint.config.ts). The knowledge base, the one surface where a misspelling reaches a reader instead of a compiler, was the least-checked text in the repo: 64 real issues were sitting in it.
+`docs/` was in `ignorePaths`, and it was also excluded from markdownlint and ESLint. The knowledge base, the one surface where a misspelling reaches a reader instead of a compiler, was the least-checked text in the repo: 64 real issues were sitting in it.
 
 Meanwhile the code it did check is where typos already fail loudly. A misspelled identifier fails typechecking; a misspelled key in a literal fails a test or a schema parse.
 

@@ -32,8 +32,6 @@
 // Every call appends to `app.trace`, so a run that stops halfway reports what it
 // did and where it stopped, rather than leaving the caller to reconstruct it.
 
-/* eslint-disable perfectionist/sort-modules */
-
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -1195,5 +1193,3 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
     await sleep(IDLE_POLL_MS);
   }
 }
-
-/* eslint-enable perfectionist/sort-modules */

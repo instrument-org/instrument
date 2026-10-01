@@ -40,12 +40,10 @@ export function TabIdProvider({
 }
 
 // Defaults to true outside the tab host so non-tab contexts behave as active.
-// eslint-disable-next-line react-refresh/only-export-components
 export function useIsActiveTab() {
   return useContext(ActiveTabContext);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useTabId() {
   return useContext(TabIdContext);
 }

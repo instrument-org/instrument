@@ -109,7 +109,6 @@ const executeToolLogic = fromPromise<
 export const executeToolCallMachine = setup({
   actors: {
     cancelToolCallLogic: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         part: SessionMessagePart.ToolPartInputAvailable;

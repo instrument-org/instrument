@@ -40,7 +40,6 @@ export async function resolveLinuxTarget(
 function dataDirs() {
   return [
     path.join(os.homedir(), ".local/share"),
-    // eslint-disable-next-line turbo/no-undeclared-env-vars
     ...(process.env.XDG_DATA_DIRS ?? "/usr/local/share:/usr/share").split(":"),
   ].filter(Boolean);
 }

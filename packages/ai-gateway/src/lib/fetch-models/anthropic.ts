@@ -53,7 +53,6 @@ export function fetchAndParseAnthropicModels(
     );
 
     if (modelsResult.has_more) {
-      // eslint-disable-next-line no-console
       console.warn(
         "Anthropic models response indicates pagination (has_more: true), but pagination is not supported",
       );

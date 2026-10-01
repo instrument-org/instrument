@@ -186,7 +186,6 @@ export function createWorkspaceActor({
       if (!is.dev) {
         return;
       }
-      /* eslint-disable no-console */
       switch (event.type) {
         case "@xstate.action": {
           if (
@@ -235,7 +234,6 @@ export function createWorkspaceActor({
           break;
         }
       }
-      /* eslint-enable no-console */
     },
   });
   attachOrchestrator(actor);

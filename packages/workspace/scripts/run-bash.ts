@@ -197,7 +197,6 @@ process.stderr.write(
 // once both pipes (asynchronous on macOS) have drained.
 function exit(exitCode: number) {
   process.stdout.write("", () => {
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.stderr.write("", () => process.exit(exitCode));
   });
 }

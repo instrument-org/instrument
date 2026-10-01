@@ -70,7 +70,6 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
   },
 };
 
-/* eslint-disable unicorn/no-await-expression-member */
 describe("ReadFile", () => {
   describe("main agent", () => {
     const baseInput = {
@@ -958,8 +957,6 @@ describe("ReadFile", () => {
   });
 });
 
-/* eslint-enable unicorn/no-await-expression-member */
-
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
   let taskRoot: string;
@@ -993,9 +990,7 @@ describe("ReadFile Unicode path fallbacks", () => {
         taskId: tmpTaskConfig,
         taskState: {},
       })
-    )
-      // eslint-disable-next-line unicorn/no-await-expression-member
-      ._unsafeUnwrap();
+    )._unsafeUnwrap();
 
     expect(value.state).not.toBe("does-not-exist");
   });

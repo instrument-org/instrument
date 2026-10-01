@@ -24,7 +24,6 @@ import { setupDBusEnvironment } from "./lib/setup-dbus-env";
  */
 function configureUserDataDirectory() {
   if (process.env.ELECTRON_USER_DATA_DIR) {
-    // eslint-disable-next-line no-console
     console.log(
       `Using custom user data dir: ${process.env.ELECTRON_USER_DATA_DIR}`,
     );
@@ -35,7 +34,6 @@ function configureUserDataDirectory() {
   if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
     const folderName = `${APP_NAME} (${Date.now().toString()})`;
     const newDir = path.join(app.getPath("userData"), "..", folderName);
-    // eslint-disable-next-line no-console
     console.log(`Using new user folder: ${newDir}`);
     app.setPath("userData", newDir);
     app.setName(folderName);
@@ -49,7 +47,6 @@ function configureUserDataDirectory() {
     }
     const DEV_APP_NAME = `${APP_NAME} (Dev${suffix})`;
     if (suffix) {
-      // eslint-disable-next-line no-console
       console.log(`Using user folder ${DEV_APP_NAME}`);
     }
     // Must be done as soon as possible because it's stateful

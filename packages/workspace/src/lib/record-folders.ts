@@ -201,7 +201,6 @@ function read() {
       : undefined;
     if (!id.success || !sessionId) {
       // Unreachable as a chat until its settings name a session again.
-      // eslint-disable-next-line no-console
       console.warn(`Skipping chat folder with no session: ${name}`);
       continue;
     }

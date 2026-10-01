@@ -116,7 +116,6 @@ export function createMockTaskConfig(
       // No-op
     },
     captureException: (...args: unknown[]) => {
-      // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
     defaultTaskTemplateDir: AbsolutePathSchema.parse(

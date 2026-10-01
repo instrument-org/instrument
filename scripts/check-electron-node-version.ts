@@ -262,7 +262,6 @@ try {
     console.error(
       `\nPlease update the mismatched files to match Electron's Node.js version (${electronNodeVersion}).`,
     );
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(1);
   }
 
@@ -271,6 +270,5 @@ try {
   const message =
     error instanceof Error ? error.message : "Unknown error occurred";
   console.error("Error checking Electron Node.js version:", message);
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }

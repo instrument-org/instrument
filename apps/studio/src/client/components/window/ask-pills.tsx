@@ -75,7 +75,6 @@ export function SentAsksNote({
             key={index}
             label={
               // Focusable, so the tooltip reaches a keyboard too.
-              // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               <span className="min-w-0 truncate pr-1" tabIndex={0}>
                 {showFile ? `${ask.file.name} · ${ask.target}` : ask.target}
               </span>

@@ -1,7 +1,7 @@
 import { useAppTabs } from "@/client/components/window/app-tabs";
 // The one place TanStack Router's Link belongs: this is the tab-aware wrapper
 // every other call site is pointed at.
-// eslint-disable-next-line no-restricted-syntax
+// oxlint-disable-next-line studio/no-router-link
 import { Link, type LinkProps, useRouter } from "@tanstack/react-router";
 import { type MouseEvent } from "react";
 

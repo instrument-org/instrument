@@ -9,7 +9,6 @@ const bridge = window.__instrumentPageEditor;
 if (bridge) {
   const start = () => {
     startEditor(bridge).catch((error: unknown) => {
-      // eslint-disable-next-line no-console -- the guest's console is the only place the failure is seen whole.
       console.error("[page editor]", error);
       bridge.send({
         kind: "error",

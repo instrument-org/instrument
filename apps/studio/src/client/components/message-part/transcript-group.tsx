@@ -129,7 +129,6 @@ export function TranscriptGroupHead({ children }: { children: ReactNode }) {
  * Null outside a group, which is how a row knows it is on its own in the
  * transcript rather than one of a run something else is heading.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export function useTranscriptGroup(): null | TranscriptGroupValue {
   return useContext(TranscriptGroupContext);
 }

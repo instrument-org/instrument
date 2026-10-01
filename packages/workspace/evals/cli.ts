@@ -145,7 +145,6 @@ if (subcommand === "run" && models.length === 0) {
   write(
     `Workers AI carries this project's credits, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
   );
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }
 
@@ -168,7 +167,6 @@ if (paidModels.length > 0 && !values.paid) {
   write(
     `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
   );
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }
 
@@ -379,7 +377,6 @@ switch (subcommand) {
 
     if (filtered.length === 0) {
       process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(1);
     }
 
@@ -401,7 +398,6 @@ switch (subcommand) {
           ? `No models matched pattern: "${patternLabel}"\n`
           : "No models. Check the provider keys in packages/workspace/.env\n",
       );
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(1);
     }
     // Split by what running one costs, since that is the first thing the choice
@@ -466,7 +462,6 @@ switch (subcommand) {
     if (values.json) {
       emitReport(`${JSON.stringify(rollup)}\n`);
     }
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(exitCodeFor(rollup));
     break;
   }
@@ -524,7 +519,6 @@ switch (subcommand) {
       rl.close();
       if (answer.toLowerCase() !== "y") {
         write("Aborted.\n");
-        // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
         process.exit(0);
       }
       write("\n");
@@ -560,7 +554,6 @@ switch (subcommand) {
       if (values.json) {
         emitReport(`${JSON.stringify(rollup)}\n`);
       }
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(exitCodeFor(rollup));
     }
   }

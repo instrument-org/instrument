@@ -33,7 +33,6 @@ export type UsageSummary = z.output<typeof UsageSummarySchema>;
 // build whose schema differed can be missing fields this one marks required.
 // Totals are a reporting detail, so read them back through a schema and count
 // whatever doesn't fit as zero instead of throwing out of the UI rendering it.
-// eslint-disable-next-line unicorn/prefer-top-level-await
 const TokenCountSchema = z.number().catch(0);
 
 const TokenTotalsSchema = z.object({
@@ -51,14 +50,12 @@ const ToolPartUsageSchema = z
       .transform((output) => ({ usage: output.results.usage })),
     z.object({ usage: TokenTotalsSchema }),
   ])
-  // eslint-disable-next-line unicorn/prefer-top-level-await
   .catch({ usage: NO_TOKENS });
 
 const EPOCH = new Date(0);
 
 const ToolPartTimingSchema = z
   .object({ createdAt: z.date(), endedAt: z.date() })
-  // eslint-disable-next-line unicorn/prefer-top-level-await
   .catch({ createdAt: EPOCH, endedAt: EPOCH });
 
 export function emptyUsageSummary(): UsageSummary {

@@ -1,9 +1,0 @@
-{
-  "extends": "@instrument-org/typescript-config/base.json",
-  "include": ["*.ts"],
-  "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "types": ["node"]
-  }
-}

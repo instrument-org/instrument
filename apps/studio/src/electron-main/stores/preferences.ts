@@ -21,7 +21,6 @@ export type AgentCompletionNotificationMode = z.output<
   typeof AgentCompletionNotificationModeSchema
 >;
 
-/* eslint-disable unicorn/prefer-top-level-await */
 export const PreferencesStoreSchema = z.object({
   agentCompletionNotifications:
     AgentCompletionNotificationModeSchema.catch("unfocused"),
@@ -38,7 +37,6 @@ export const PreferencesStoreSchema = z.object({
     .catch(undefined),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type PreferencesStore = z.output<typeof PreferencesStoreSchema>;
 

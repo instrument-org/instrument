@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "ignorePatterns": ["coverage", "fixtures", "templates"],
+  "jsPlugins": ["./oxlint-rules.ts"],
+  "overrides": [
+    {
+      // Tests and evals are exempt: an assertion should pin the literal value
+      // it expects rather than restate the constant it is checking and agree
+      // with itself, and an eval's prompt stands in for a user, who types real
+      // paths.
+      "excludeFiles": ["**/*.test.ts", "src/mount-points.ts"],
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "instrument/no-bare-mount-path": "error"
+      }
+    }
+  ]
+}

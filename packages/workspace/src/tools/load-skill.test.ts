@@ -112,7 +112,6 @@ function createTaskConfigWithDirs() {
   return id;
 }
 
-/* eslint-disable unicorn/no-await-expression-member */
 describe("LoadSkill", () => {
   // The catalog this tool used to render lives in the session's context message
   // now, so installing or editing a skill mid-session cannot rewrite a tool
@@ -1027,4 +1026,3 @@ describe("LoadSkill", () => {
     expect(LoadSkill.timeoutMs).toBe(7 * 60 * 1000 + 10 * 1000);
   });
 });
-/* eslint-enable unicorn/no-await-expression-member */

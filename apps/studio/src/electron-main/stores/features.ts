@@ -4,15 +4,10 @@ import { type FeatureName, FeatureNameSchema } from "@/shared/features";
 import Store from "electron-store";
 import { z } from "zod";
 
-const PermissiveFeaturesSchema = z.record(
-  z.string(),
-  // eslint-disable-next-line unicorn/prefer-top-level-await
-  z.boolean().catch(false),
-);
+const PermissiveFeaturesSchema = z.record(z.string(), z.boolean().catch(false));
 
 const FeaturesStoreSchema = z.record(
   FeatureNameSchema,
-  // eslint-disable-next-line unicorn/prefer-top-level-await
   z.boolean().catch(false),
 );
 

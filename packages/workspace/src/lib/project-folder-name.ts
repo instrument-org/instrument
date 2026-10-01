@@ -4,7 +4,7 @@ import { TypedError } from "./errors";
 
 // Folder name = display name, so we reject invalid chars rather than transform:
 // what the user types lands on disk verbatim. Cross-OS illegal set + controls.
-// eslint-disable-next-line no-control-regex, prefer-regex-literals
+// eslint-disable-next-line no-control-regex
 const ILLEGAL_CHARS = new RegExp('[<>:"/\\\\|?*\\u0000-\\u001f]');
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const MAX_LENGTH = 200;

@@ -31,7 +31,6 @@ const config: KnipConfig = {
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
         "tailwindcss", // Runtime dependency of oxlint-tailwindcss
-        "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
         "chrome-devtools-mcp", // Used in .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh
       ],
     },
@@ -75,9 +74,6 @@ const config: KnipConfig = {
     },
     "packages/ai-gateway": {
       project: [projectFiles, "!src/test/**!"],
-    },
-    "packages/eslint-config": {
-      ignore: ["ignore.ts"],
     },
     "packages/typescript-config": {},
     "packages/workspace": {

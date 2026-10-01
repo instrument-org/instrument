@@ -118,7 +118,6 @@ class PageEditor implements Editor {
 
   serial(fn: () => unknown) {
     this.chain = this.chain.then(fn, fn).catch((error: unknown) => {
-      // eslint-disable-next-line no-console -- the guest's console is the only place a failed step is seen whole.
       console.error(error);
       this.status(
         `Error: ${error instanceof Error ? error.message : String(error)}`,

@@ -41,7 +41,6 @@ export function ChromeInsetProvider({
  * layout px are scaled by the zoom the window is drawn at -- the same product
  * the main process positions the traffic lights by.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export function useChromeCollisionPadding() {
   const top = useContext(ChromeInsetContext);
   const zoom = useAtomValue(zoomAtom);

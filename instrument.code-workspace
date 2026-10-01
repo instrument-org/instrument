@@ -8,7 +8,6 @@
     // folder settings when a repo is opened via a .code-workspace.
     "cSpell.autoFormatConfigFile": true,
     "editor.codeActionsOnSave": {
-      "source.fixAll.eslint": "explicit",
       "source.fixAll.oxc": "explicit",
     },
     "editor.formatOnSave": true,

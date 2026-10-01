@@ -23,7 +23,7 @@ export function ExternalLink(
   );
 
   return (
-    // eslint-disable-next-line no-restricted-syntax
+    // oxlint-disable-next-line studio/no-raw-anchor
     <a
       {...rest}
       className={cn("cursor-pointer!", className)}

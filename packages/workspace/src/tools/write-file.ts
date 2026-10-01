@@ -26,7 +26,6 @@ const INPUT_PARAMS = {
 
 export const WriteFile = setupTool({
   inputSchema: BaseInputSchema.extend({
-    /* eslint-disable perfectionist/sort-objects */
     // Sorting the file path first to attempt to get model to generate it first
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `The path of the file to write. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
@@ -34,7 +33,6 @@ export const WriteFile = setupTool({
     [INPUT_PARAMS.content]: z
       .string()
       .meta({ description: "The content to write to the file" }),
-    /* eslint-enable perfectionist/sort-objects */
   }),
   name: "write_file",
   outputSchema: z.object({

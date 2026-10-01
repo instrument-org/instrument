@@ -264,7 +264,6 @@ describe("sessionMachine", () => {
   }) {
     let currentChunkIndex = 0;
     const mockLanguageModel = new MockLanguageModelV4({
-      // oxlint-disable-next-line typescript/require-await
       doStream: async () => {
         const currentChunks = chunkSets[currentChunkIndex];
         if (!currentChunks) {
@@ -376,7 +375,6 @@ describe("sessionMachine", () => {
                   });
                 })();
               } else if (event.value.error) {
-                // eslint-disable-next-line no-console
                 console.error("session.done error", event.value.error);
               }
             }),
@@ -1852,7 +1850,6 @@ describe("sessionMachine", () => {
       const prompts: LanguageModelV4CallOptions["prompt"][] = [];
       const result = await createActorAndTask({
         aiSDKModel: new MockLanguageModelV4({
-          // oxlint-disable-next-line typescript/require-await
           doStream: async ({ prompt }) => {
             prompts.push(prompt);
             return {

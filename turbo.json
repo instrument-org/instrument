@@ -148,24 +148,6 @@
       "dependsOn": ["transit"]
     },
     "//#check:spelling": {},
-    "check:md": {
-      "dependsOn": ["transit"]
-    },
-    "//#check:md": {
-      "inputs": [
-        "**/*.md",
-        "!**/node_modules/**",
-        "!**/out/**",
-        "!**/dist/**",
-        "!registry/**",
-        "!**/*.local/**",
-        "!.cursor/plans/**",
-        "!.claude/worktrees/**",
-        "!docs/**",
-        ".markdownlint.json",
-        ".markdownlint-cli2.jsonc"
-      ]
-    },
     "check:format": {
       "dependsOn": ["transit"]
     },

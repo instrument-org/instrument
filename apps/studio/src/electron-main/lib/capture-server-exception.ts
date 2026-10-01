@@ -73,7 +73,6 @@ export const captureServerException: CaptureExceptionFunction = function (
   const telemetryId = appStateStore.get("telemetryId");
   telemetry?.captureException(capturedError, telemetryId, finalProperties);
   if (isDeveloperMode()) {
-    /* eslint-disable no-console */
     const pathPrefix = additionalProperties?.rpc_path
       ? `[${additionalProperties.rpc_path.join(".")}] `
       : "";
@@ -111,7 +110,6 @@ export const captureServerException: CaptureExceptionFunction = function (
         ? additionalProperties.rpc_path.join(".")
         : undefined,
     });
-    /* eslint-enable no-console */
   } else {
     logger.error(error);
   }

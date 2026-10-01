@@ -913,7 +913,6 @@ export namespace SessionMessageDataPart {
           return parsed.success ? [parsed.data] : [];
         }),
       )
-      // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
       .catch([]),
   });
 
@@ -963,7 +962,6 @@ export namespace SessionMessageDataPart {
 
   export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
 
-  // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.adoptedTask]: AdoptedTaskDataPartSchema,
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,

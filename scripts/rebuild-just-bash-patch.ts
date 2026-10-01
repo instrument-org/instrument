@@ -156,7 +156,6 @@ function changedFiles(manifest: Manifest, publishedPackage: string) {
 
 function fail(message: string): never {
   console.error(`\n✗ ${message}`);
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }
 

@@ -11,13 +11,11 @@ function generateTelemetryId(): string {
 
 const DEFAULT_TELEMETRY_ID = "studio-main-default";
 
-/* eslint-disable unicorn/prefer-top-level-await */
 const AppStateSchema = z.object({
   hasCompletedProviderSetup: z.boolean().catch(false),
   lastMigratedVersion: z.string().optional(),
   telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });
-/* eslint-enable unicorn/prefer-top-level-await */
 
 type AppState = z.output<typeof AppStateSchema>;
 

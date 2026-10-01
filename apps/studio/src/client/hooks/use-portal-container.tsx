@@ -35,7 +35,6 @@ export function PortalContainerProvider({ children }: { children: ReactNode }) {
 // already has an explicit container (e.g. a Radix `container` prop). Defaults to
 // `body` outside scoped containers, matching Radix's native Portal behavior for
 // chrome and app-wide overlays.
-// eslint-disable-next-line react-refresh/only-export-components
 export function usePortalContainer(
   override?: DocumentFragment | Element | null,
 ) {

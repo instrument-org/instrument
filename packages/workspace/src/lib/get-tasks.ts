@@ -152,7 +152,6 @@ async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
     });
     return entries.map((dir) => TaskDirSchema.parse(dir));
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("Error reading apps folder", error);
     return [];
   }

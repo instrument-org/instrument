@@ -171,7 +171,6 @@ export namespace SessionMessage {
         "max-steps", // stopped because of max steps
       ])
       // AI SDK v6 still returns undefined sometimes, e.g. with the Vercel Gateway provider
-      // eslint-disable-next-line unicorn/prefer-top-level-await
       .catch("unknown"),
     modelId: z.custom<(string & {}) | SyntheticModelId>(
       // Custom string type to allow for TypeScript auto-completion
@@ -201,7 +200,6 @@ export namespace SessionMessage {
     msToFirstChunk: z.number().optional(),
     providerId: z.string(),
     synthetic: z.boolean().optional(), // When created by the workspace
-    // eslint-disable-next-line unicorn/prefer-top-level-await
     usage: UsageSchema.optional().catch(undefined),
   });
 

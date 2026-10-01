@@ -3,7 +3,6 @@
 // Kept as a single file for now so we can easily merge changes from upstream.
 import { createTwoFilesPatch } from "diff";
 import ms from "ms";
-/* eslint-disable unicorn/prefer-string-slice */
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import { dedent } from "radashi";
@@ -384,7 +383,6 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
 };
 
 const WhitespaceNormalizedReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const normalizeWhitespace = (text: string) =>
     text.replaceAll(/\s+/g, " ").trim();
   const normalizedFind = normalizeWhitespace(find);
@@ -431,7 +429,6 @@ const WhitespaceNormalizedReplacer: Replacer = function* (content, find) {
 };
 
 const IndentationFlexibleReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const removeIndentation = (text: string) => {
     const lines = text.split("\n");
     const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
@@ -464,7 +461,6 @@ const IndentationFlexibleReplacer: Replacer = function* (content, find) {
 };
 
 const EscapeNormalizedReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const unescapeString = (str: string): string => {
     return str.replaceAll(/\\([ntr'"`\\\n$])/g, (match, capturedChar) => {
       switch (capturedChar) {
@@ -882,5 +878,3 @@ export const EditFile = setupTool({
     };
   },
 });
-
-/* eslint-enable unicorn/prefer-string-slice */

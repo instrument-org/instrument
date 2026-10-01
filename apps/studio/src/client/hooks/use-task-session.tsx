@@ -38,7 +38,6 @@ export function TaskSessionProvider({
  * one guest per task and session, so a task without a session names no browser
  * to open anything in.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export function useTaskSession(): TaskSession {
   return useContext(TaskSessionContext);
 }

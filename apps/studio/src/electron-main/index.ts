@@ -114,7 +114,6 @@ if (gotTheLock) {
     openAppFile(filePath);
   }
 
-  // eslint-disable-next-line unicorn/prefer-top-level-await
   void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
 } else {
   // A lock loser has no application state to tear down. Exit synchronously so

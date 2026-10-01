@@ -53,7 +53,6 @@ function resolveUv(): string | undefined {
 }
 
 const uvBin = resolveUv();
-// eslint-disable-next-line turbo/no-undeclared-env-vars
 const runSmoke = process.env.RUN_UV_SMOKE === "1" && uvBin !== undefined;
 
 describe.skipIf(!runSmoke)("uv python/pip integration", () => {

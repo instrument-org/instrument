@@ -1306,7 +1306,6 @@ export function flushDomObserver(v: EditorView) {
  * position sticks to, not the `this` an array's `map` takes.
  */
 export function mapPos(mapping: Mappable, pos: number, assoc: -1 | 1) {
-  // eslint-disable-next-line unicorn/no-array-method-this-argument -- a ProseMirror mapping, not an array
   return mapping.map(pos, assoc);
 }
 

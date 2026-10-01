@@ -239,7 +239,6 @@ export function useDrafts({
     }
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
-    // eslint-disable-next-line unicorn/no-useless-undefined -- the send's `viewing` takes undefined, not void
     const viewing = draftContext(id).catch(() => undefined);
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.

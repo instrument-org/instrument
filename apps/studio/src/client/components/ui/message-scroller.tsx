@@ -6,13 +6,11 @@ import * as React from "react";
 import { Button } from "./button";
 import { Spinner } from "./spinner";
 
-/* eslint-disable react-refresh/only-export-components -- re-export scroller hooks from the primitive */
 export {
   useMessageScroller,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
-/* eslint-enable react-refresh/only-export-components */
 
 function MessageScroller({
   className,

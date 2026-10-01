@@ -44,7 +44,6 @@ let nextRoutingId = 1;
  */
 function guest() {
   // Electron's WebContents is a Node EventEmitter.
-  // eslint-disable-next-line unicorn/prefer-event-target
   const contents = Object.assign(new EventEmitter(), { id: nextContentsId++ });
   trackFrameDocuments(contents as unknown as WebContents);
 

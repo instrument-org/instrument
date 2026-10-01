@@ -124,7 +124,6 @@ export function rebase(theirs: ChangeSet, ours: ChangeSet) {
     /** The agent's edits, over the document on screen. */
     theirsOnScreen: theirs.map(ours),
     /** The person's edits, over the new version on disk. */
-    // eslint-disable-next-line unicorn/no-array-method-this-argument -- a ChangeSet, not an array
     unsaved: ours.map(theirs, true),
   };
 }
@@ -187,7 +186,6 @@ function lineChanges(from: string, to: string, lineBreak: string): ChangeSet {
         let id = ids.get(line);
         if (id === undefined) {
           // One UTF-16 unit per line, which is what the diff counts.
-          // eslint-disable-next-line unicorn/prefer-code-point
           id = String.fromCharCode(ids.size + 1);
           ids.set(line, id);
         }

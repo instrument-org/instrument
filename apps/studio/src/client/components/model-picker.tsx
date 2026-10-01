@@ -155,7 +155,6 @@ export function ModelPicker({
         joinFuzzyFields([m.providerName, m.name]),
       );
       const haystack = joined.map((j) => j.haystack);
-      // eslint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, searchQuery);
 
       if (!indexes || indexes.length === 0) {

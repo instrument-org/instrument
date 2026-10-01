@@ -190,7 +190,6 @@ export const sessionMachine = setup({
     }),
 
     updateSession: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         parentSessionId?: StoreId.Session;

@@ -86,9 +86,6 @@
 // variables belong to a standalone CLI rather than a turbo task; and `dir` is
 // how a path is named everywhere this script reaches, from `taskDir` through
 // `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
-/* eslint-disable perfectionist/sort-modules */
-/* eslint-disable turbo/no-undeclared-env-vars */
-/* eslint-disable unicorn/prevent-abbreviations */
 
 import { execFileSync, spawn } from "node:child_process";
 import {
@@ -919,7 +916,3 @@ async function resolveTaskId(app, explicit) {
   }
   return match[1];
 }
-
-/* eslint-enable perfectionist/sort-modules */
-/* eslint-enable turbo/no-undeclared-env-vars */
-/* eslint-enable unicorn/prevent-abbreviations */

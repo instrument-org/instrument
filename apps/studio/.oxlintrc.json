@@ -13,13 +13,120 @@
     "**/coverage",
     "**/components/extend"
   ],
-  "jsPlugins": ["oxlint-tailwindcss"],
+  "jsPlugins": ["oxlint-tailwindcss", "./oxlint-rules.ts"],
+  "overrides": [
+    {
+      // The syntax bans describe the shape of the running app: one
+      // TooltipProvider at its root, links that know about tabs, no bare
+      // anchors. A test mounts a component without that shell and supplies the
+      // pieces itself, and `src/tests` is where that shell comes from.
+      "files": ["**/*.test.*", "src/tests/**"],
+      "rules": {
+        "studio/no-raw-anchor": "off",
+        "studio/no-router-link": "off",
+        "studio/one-tooltip-provider": "off"
+      }
+    },
+    {
+      "files": ["src/client/**", "src/shared/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "message": "@instrument-org/merge-generators cannot run on the client",
+                "name": "@instrument-org/merge-generators"
+              },
+              {
+                "message": "@instrument-org/workspace/electron cannot run on the client",
+                "name": "@instrument-org/workspace/electron"
+              },
+              {
+                "message": "@instrument-org/workspace/for-shim is not intended for the Studio",
+                "name": "@instrument-org/workspace/for-shim"
+              },
+              {
+                "message": "@instrument-org/ai-gateway cannot run on the client",
+                "name": "@instrument-org/ai-gateway"
+              }
+            ],
+            "patterns": [
+              {
+                "allowTypeImports": true,
+                "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
+                "regex": "^@phosphor-icons/react$"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/electron-main/**", "src/electron-preload/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "message": "@instrument-org/workspace/client is only intended for the client",
+                "name": "@instrument-org/workspace/client"
+              },
+              {
+                "message": "@instrument-org/ai-gateway/client is only intended for the client",
+                "name": "@instrument-org/ai-gateway/client"
+              }
+            ],
+            "patterns": [
+              {
+                "allowTypeImports": true,
+                "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
+                "regex": "^@phosphor-icons/react$"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
   "settings": {
     "tailwindcss": {
       "entryPoint": "src/client/styles/globals.css"
     }
   },
   "rules": {
+    // The phosphor root re-exports every icon module, and importing it
+    // evaluates all of them: ~900ms per test file, since each gets its own
+    // module registry. A subpath is a leaf. Type-only imports are erased, so
+    // they may point anywhere. Repeated in the overrides above, because an
+    // override's options replace these rather than merging with them.
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "allowTypeImports": true,
+            "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
+            "regex": "^@phosphor-icons/react$"
+          }
+        ]
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "message": "window.open is not allowed in the Electron app. Use shell.openExternal or ExternalLink component instead.",
+        "object": "window",
+        "property": "open"
+      }
+    ],
+    "react/exhaustive-deps": "warn",
+    "react/rules-of-hooks": "error",
+    "studio/no-raw-anchor": "error",
+    "studio/no-router-link": "error",
+    "studio/no-transition-colors": "error",
+    "studio/one-tooltip-provider": "error",
     "react/error-boundaries": "warn",
     "react/globals": "warn",
     "react/immutability": "warn",

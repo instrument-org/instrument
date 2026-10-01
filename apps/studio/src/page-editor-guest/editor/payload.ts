@@ -99,7 +99,6 @@ const lineText = (A: Analysis, off: number) => {
 
 /** The text a person sees in an element, or its text content where layout gives none. */
 const visibleText = (el: Element) =>
-  // eslint-disable-next-line unicorn/prefer-dom-node-text-content -- the rendered text, without hidden parts, is what the person saw.
   el instanceof HTMLElement ? el.innerText : el.textContent;
 
 /**

@@ -37,7 +37,6 @@ export interface Agent<T extends AgentTools> {
   }) => Promise<boolean>;
 }
 
-// oxlint-disable-next-line no-unused-vars
 const AGENT_NAMES = ["main", "instrument"] as const;
 
 export type AgentName = (typeof AGENT_NAMES)[number];

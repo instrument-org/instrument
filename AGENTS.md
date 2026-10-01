@@ -6,7 +6,7 @@ pnpm monorepo for the Instrument desktop app platform.
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
 - `packages/ai-gateway`: Model proxy (Hono app the workspace server mounts) plus the model discovery/identity library
 - `packages/shared`: Types, constants, and utilities used everywhere
-- `packages/eslint-config`, `packages/typescript-config`: Shared tool config
+- `packages/typescript-config`: Shared tool config
 
 ## Product terminology
 
@@ -49,15 +49,15 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 - `pnpm exec turbo run check:types check:lint` — all packages, or `--filter=@instrument-org/{workspace,studio}` for one
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
-- `pnpm check-and-test:ci` — what CI runs (drops format/spelling/markdown, adds `check:packages:dedupe`, so it is not a strict subset). Formatting is deliberately not a merge gate: `pnpm fix` applies it unattended, so holding types, lint, build, and tests red behind a blank line costs more than the blank line does
+- `pnpm check-and-test:ci` — what CI runs (drops format/spelling, adds `check:packages:dedupe`, so it is not a strict subset). Formatting is deliberately not a merge gate: `pnpm fix` applies it unattended, so holding types, lint, build, and tests red behind a blank line costs more than the blank line does
 - `pnpm turbo:fix:lint` — fix lint
-- `pnpm fix` — spelling + format over the whole repo in ~5s, which is how a file the hook never saw gets formatted. `pnpm fix --lint` adds the lint fixers on top, a minute at full CPU across every package, so run that one deliberately rather than in a checkout other agents are working in
+- `pnpm fix` — spelling + format over the whole repo in ~5s, which is how a file the hook never saw gets formatted. `pnpm fix --lint` adds a type-aware oxlint fix across every package at full CPU, so run that one deliberately rather than in a checkout other agents are working in
 
-`check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-hooks, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, the React Compiler analysis via `react/react-compiler`, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
+`check:lint` / `fix:lint` run `oxlint --type-aware` alone, with no ESLint. The rules are deliberately few: oxlint's correctness category, the type-aware rules that catch real bugs (floating and misused promises, the `no-unsafe-*` family that keeps `any` out), import cycles, the React hook and React Compiler checks, Tailwind's unknown and conflicting classes, and the repo's own guardrails as local plugins (`apps/studio/oxlint-rules.ts`, `packages/workspace/oxlint-rules.ts`). Nothing checks ordering or naming style; do not add rules that only ask for a different spelling of working code.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --fix` + `eslint --fix` on Stop over the files that session edited. Anything ESLint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited. Any error oxlint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
 
-What the hook does not cover: type errors, `oxlint --type-aware` problems that `--fix` can't resolve, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
+What the hook does not cover: type errors, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions
 

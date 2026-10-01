@@ -275,7 +275,6 @@ function startOpen(taskId: TaskId): Promise<OpenStore> {
               } else {
                 // A script reading a task outside the app has nowhere else
                 // to report to.
-                // eslint-disable-next-line no-console
                 console.error("Failed to sweep interrupted tool calls", error);
               }
               return ok(undefined);

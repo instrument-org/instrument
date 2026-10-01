@@ -93,10 +93,8 @@ export function registerTelemetry(app: Electron.App) {
     }
     const { event } = parsed.data;
     if (event === "$exception") {
-      // eslint-disable-next-line no-console
       console.groupCollapsed("[Telemetry] Exception captured");
       logger.error(JSON.stringify(payload, null, 2));
-      // eslint-disable-next-line no-console
       console.groupEnd();
     }
   });

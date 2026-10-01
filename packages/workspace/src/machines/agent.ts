@@ -113,7 +113,6 @@ export const agentMachine = setup({
      * leaves parts exactly as they were without it.
      */
     finalizeDanglingToolCalls: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         parentMessageId: StoreId.Message;
@@ -186,7 +185,6 @@ export const agentMachine = setup({
     llmRequestLogic,
 
     onFinish: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         agent: AnyAgent;
@@ -206,7 +204,6 @@ export const agentMachine = setup({
     }),
 
     onStart: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         agent: AnyAgent;
@@ -222,7 +219,6 @@ export const agentMachine = setup({
     }),
 
     saveMaxStepsMessage: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         maxStepCount: number;

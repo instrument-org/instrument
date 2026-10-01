@@ -77,7 +77,6 @@ if (values.chat) {
     chatKey: values.chat,
     fixture: values.fixture,
   });
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(0);
 }
 const taskKey = values.task ?? "";

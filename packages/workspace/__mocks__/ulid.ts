@@ -24,5 +24,4 @@ export const ulid = () => {
   return ulidGenerator(currentTaskSeedTime);
 };
 
-// eslint-disable-next-line unicorn/consistent-function-scoping
 export const monotonicFactory = () => () => ulidGenerator(currentTaskSeedTime);

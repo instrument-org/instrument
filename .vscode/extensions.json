@@ -1,7 +1,5 @@
 {
   "recommendations": [
-    "DavidAnson.vscode-markdownlint",
-    "dbaeumer.vscode-eslint",
     "oxc.oxc-vscode",
     "vitest.explorer",
     "redhat.vscode-yaml",

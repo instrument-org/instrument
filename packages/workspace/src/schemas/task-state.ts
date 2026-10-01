@@ -75,7 +75,6 @@ export const StoredTaskStateSchema = z
     chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
-    // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
     pane: TaskPane.Schema.optional().catch(undefined),
     // The project's folders, path to access, as this task last saw them. What
     // makes a task's own edit to an inherited folder survive the next message:

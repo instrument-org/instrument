@@ -8,8 +8,8 @@ import {
   describeViewerError,
   ViewerErrorContext,
 } from "./document-viewers/viewer-error";
+import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { Button } from "./ui/button";
 import {
@@ -40,10 +40,10 @@ export function FilePreviewFallback({
   const content = (
     <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
       <div className="flex h-20 w-16 items-center justify-center rounded-lg bg-accent text-muted-foreground">
-        <FileIcon
+        <FileTypeIcon
           className="size-5"
           fallbackExtension={fallbackExtension}
-          filename={filename}
+          fileName={filename}
         />
       </div>
       <div>

@@ -1,7 +1,7 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { IconWithFallback } from "./icon-with-fallback";
 
 // Icon of the default app for the file, with a file-type fallback when the
@@ -19,7 +19,7 @@ export function OpenTargetIcon({
   return (
     <IconWithFallback
       className={className}
-      fallback={<FileIcon className={className} filename={filename} />}
+      fallback={<FileTypeIcon className={className} fileName={filename} />}
       src={iconUrl}
     />
   );

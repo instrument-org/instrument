@@ -5,7 +5,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { useState } from "react";
 
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 
 export function ImageWithFallback({
   alt,
@@ -52,9 +52,9 @@ export function ImageWithFallback({
       <div
         className={cn("flex items-center justify-center", fallbackClassName)}
       >
-        <FileIcon
+        <FileTypeIcon
           className="size-6 text-muted-foreground"
-          filename={filename}
+          fileName={filename}
         />
       </div>
     );

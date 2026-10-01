@@ -10,7 +10,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { ImageViewer } from "./image-viewer";
 import { Button } from "./ui/button";
@@ -75,9 +75,9 @@ export function FilePreviewModal() {
           >
             <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-center gap-2 text-white">
               <div className="flex items-center gap-2 rounded-sm bg-black/50 px-3 py-1.5">
-                <FileIcon
+                <FileTypeIcon
                   className="size-4 shrink-0"
-                  filename={file.filename}
+                  fileName={file.filename}
                 />
                 <span className="truncate text-xs">{file.filename}</span>
                 {/* eslint-disable-next-line unicorn/explicit-length-check */}

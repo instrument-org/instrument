@@ -6,7 +6,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
 import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { filenameFromFilePath } from "../../lib/path-utils";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
@@ -190,9 +190,9 @@ function ReadFileCard({
     <div className="relative mt-2 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <FileIcon
+          <FileTypeIcon
             className="size-3 shrink-0 text-muted-foreground"
-            filename={filename}
+            fileName={filename}
           />
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}

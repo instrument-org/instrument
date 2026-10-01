@@ -22,7 +22,7 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import { AIProviderIcon } from "../ai-provider-icon";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { isActiveToolPart } from "../transcript-layout";
@@ -181,9 +181,9 @@ export function ToolGenerateImage({
           </p>
         ) : (
           <div className="flex min-w-0 items-center gap-2">
-            <FileIcon
+            <FileTypeIcon
               className="size-3 shrink-0 text-muted-foreground"
-              filename={filename}
+              fileName={filename}
             />
             <span className="truncate text-xs font-medium text-muted-foreground">
               {filename}

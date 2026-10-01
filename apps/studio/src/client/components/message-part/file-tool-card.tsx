@@ -5,7 +5,7 @@ import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { CodeBlock } from "../code-block";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { useToolCallSession } from "./tool-call-session";
 import {
@@ -59,9 +59,9 @@ export function FileToolCard({
     <ToolCard>
       <ToolCardHeader className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <FileIcon
+          <FileTypeIcon
             className="size-3 shrink-0 text-muted-foreground"
-            filename={filename}
+            fileName={filename}
           />
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}

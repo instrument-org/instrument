@@ -1105,14 +1105,30 @@ export function FileSystemIconSpriteSheet() {
     </>
   );
 }
+/**
+ * The sprite symbol drawing a file of this name. `fallbackExtension` covers a
+ * file whose name carries no extension the set knows (a download named by its
+ * URL, an attachment named by the user) but whose type is known from
+ * elsewhere.
+ */
+export function resolveFileTypeIcon(
+  fileName: string,
+  fallbackExtension?: string,
+) {
+  const icon = resolveFileIcon("file-tree-icon-file", fileName);
+  if (icon.token !== "default" || !fallbackExtension) return icon;
+  return resolveFileIcon("file-tree-icon-file", `file.${fallbackExtension}`);
+}
 export function FileTypeIcon({
   className,
+  fallbackExtension,
   fileName,
 }: {
   className?: string;
+  fallbackExtension?: string;
   fileName: string;
 }) {
-  const icon = resolveFileIcon("file-tree-icon-file", fileName);
+  const icon = resolveFileTypeIcon(fileName, fallbackExtension);
   return (
     <svg
       aria-hidden="true"

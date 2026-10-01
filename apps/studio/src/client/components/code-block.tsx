@@ -9,7 +9,7 @@ import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getLanguageDisplayName } from "../lib/file-extension-to-language";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -230,7 +230,7 @@ export const MarkdownCodeBlock = ({
         {label && (
           <span className="flex min-w-0 items-center gap-1.5 px-1.5 py-0.5 text-xs text-muted-foreground">
             {filename && (
-              <FileIcon className="size-3.5 shrink-0" filename={filename} />
+              <FileTypeIcon className="size-3.5 shrink-0" fileName={filename} />
             )}
             <span className="truncate">{label}</span>
           </span>

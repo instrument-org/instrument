@@ -2,7 +2,7 @@ import { formatBytes } from "@instrument-org/workspace/client";
 
 import { AttachedItemPreview } from "./attached-item-preview";
 import { AttachmentRemoveButton } from "./attachment-remove-button";
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { ImageWithFallback } from "./image-with-fallback";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -70,9 +70,9 @@ export function AttachedFilePreview({
   return (
     <AttachedItemPreview
       icon={
-        <FileIcon
+        <FileTypeIcon
           className="size-5 shrink-0 text-muted-foreground"
-          filename={filename}
+          fileName={filename}
         />
       }
       label={filename}

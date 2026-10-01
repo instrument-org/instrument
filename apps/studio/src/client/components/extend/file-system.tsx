@@ -957,7 +957,8 @@ export function FileSystemFolderGlyph({
   );
 }
 // Per-token light/dark colors for the file-type icons. Tokens without an
-// entry (font, nextjs, stylelint) stay muted-foreground.
+// entry (font, nextjs, stylelint) take the default token's gray, which the
+// paper surface swaps along with the rest of the palette.
 const FILE_ICON_COLORS: Record<string, [light: string, dark: string]> = {
   astro: ["#a631be", "#d568ea"],
   babel: ["#d5a910", "#ffd452"],
@@ -1164,7 +1165,7 @@ export function FileTypeGlyph({
       style={
         icon.token
           ? {
-              color: `var(--fs-file-icon-${icon.token}, var(--color-muted-foreground))`,
+              color: `var(--fs-file-icon-${icon.token}, var(--fs-file-icon-default))`,
             }
           : undefined
       }

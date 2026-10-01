@@ -90,6 +90,9 @@ const config: KnipConfig = {
         "taskkill",
         "xcode-select",
       ],
+      ignoreDependencies: [
+        "@types/json-schema", // Types the ai package's JSONSchema7 re-export, never imported by name
+      ],
       project: [projectFiles, "!src/test/**!"],
     },
   },

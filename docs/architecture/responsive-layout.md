@@ -7,7 +7,7 @@ How Studio decides what "narrow" means. The short version: a viewport media quer
 Two things sit between the window and a page, and neither moves a viewport breakpoint:
 
 - **UI zoom.** The whole window scales with CSS `zoom` on `ZoomRoot` (`apps/studio/src/client/components/zoom-root.tsx`), user-adjustable 0.5x-2x. `zoom` divides every layout length below it, but media queries are evaluated against the viewport and ignore it entirely. At 2x on a 1440px window a page has 720 layout px while `matchMedia("(min-width: 1024px)")` still reports `true`.
-- **The rail and the inbox column.** The rail down the window's left folds between 120px and 56px, and the inbox column opens, closes, and is dragged between 320px and 1200px, capped at the row less the 560px the conversation keeps (`inboxBounds` in `apps/studio/src/client/routes/_app/route.tsx`). All of it changes what a page gets and none of it moves the window.
+- **The rail and the inbox column.** The rail down the window's left folds between 120px and 56px, and the inbox column opens, closes, and is dragged between 320px and 440px, capped at the row less the 560px the conversation keeps (`inboxBounds` in `apps/studio/src/client/routes/_app/route.tsx`). With no chat open it keeps its width beside an empty side and does not close, since the toggle that brings it back is in a chat's head. All of it changes what a page gets and none of it moves the window.
 
 They compound. A zoomed-in window with a wide inbox open can leave a page a few hundred layout px while every viewport breakpoint still reads as desktop.
 

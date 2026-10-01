@@ -1565,7 +1565,7 @@ describe("sessionMachine", () => {
         if (!agentRef) {
           return;
         }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
       });
 
       result.actor.send({ type: "stop" });
@@ -1612,7 +1612,7 @@ describe("sessionMachine", () => {
         if (!agentRef) {
           return;
         }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
       });
 
       result.actor.send({ reason: "superseded", type: "stop" });
@@ -1640,7 +1640,7 @@ describe("sessionMachine", () => {
       if (!agentRef) {
         throw new Error("The agent never started");
       }
-      await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
 
       const messageId = StoreId.newMessageId();
       const message: SessionMessage.UserWithParts = {
@@ -1716,7 +1716,7 @@ describe("sessionMachine", () => {
         if (!agentRef) {
           throw new Error("The agent never started");
         }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
 
         const steerId = StoreId.newMessageId();
         const steer: SessionMessage.UserWithParts = {

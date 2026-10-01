@@ -371,10 +371,10 @@ Everything in section A is fixed, and the search tools are gone. What is left, w
 **Closed by other work**
 
 - **C1** (`web_fetch`) -- shipped (`tools/web-fetch.ts`).
+- **E5** (parallel tool execution) -- shipped as the middle path: `ExecutingToolCalls` in `machines/agent.ts` runs a run of consecutive `readOnly` calls at once and every other call alone, in order. Serial execution had turned a task's eight parallel `web_search` calls on a ChatGPT plan into 184 s end to end, where the slowest of them took about 25 s.
 - **B6** (bash timeout, backgrounding) -- the `spike/background-shell` branch replaces the timeout with a yield-and-promote model plus `bash_output` and `bash_kill`, which is close to codex's `exec_command`/`write_stdin` design.
 - **B1, B2** -- moot; both tools are gone and `rg` has the full flag set.
 
 **Decided against**
 
 - **B5** (read-before-write staleness) -- agents do not reliably re-read in practice, so the check would mostly fire on writes that were fine.
-- **E5** (parallel tool execution) -- serial execution is deliberate, for consistent ordering and replay. The prompt language about batching is about fewer assistant turns, not concurrent execution, and is accurate as written.

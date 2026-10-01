@@ -7,9 +7,11 @@ import {
   type ActorRefFrom,
   type AnyMachineSnapshot,
   assign,
+  type DoneActorEvent,
+  enqueueActions,
+  type ErrorActorEvent,
   fromPromise,
   raise,
-  sendTo,
   setup,
 } from "xstate";
 
@@ -65,7 +67,14 @@ export type ToolCallUpdate =
       value: ToolOutputByName;
     };
 
+/** A running tool call's child id, one per call so a batch can run at once. */
+type ToolCallActorId = `toolCall:${string}`;
+
 type AgentMachineEvent =
+  // What a tool call's child sends as it finishes, listed here because the
+  // children are spawned under ids made at runtime.
+  | DoneActorEvent<unknown, ToolCallActorId>
+  | ErrorActorEvent<unknown, ToolCallActorId>
   | { error: Error; type: "error" }
   /**
    * A message that arrived while this turn runs. Held until the next point
@@ -336,7 +345,6 @@ export const agentMachine = setup({
   },
 
   types: {
-    children: {} as { toolCall: "executeToolCallMachine" },
     context: {} as {
       agent: AnyAgent;
       baseLLMRetryDelayMs: number;
@@ -351,6 +359,8 @@ export const agentMachine = setup({
       parentRef: ParentActorRef;
       pendingToolCalls: SessionMessagePart.ToolPartInputAvailable[];
       retryCount: number;
+      /** Children of `ExecutingToolCalls` that have not finished yet. */
+      runningToolCallActorIds: ToolCallActorId[];
       /** Steering messages the sender wrote to the store on arrival. */
       savedSteerIds: StoreId.Message[];
       sessionId: StoreId.Session;
@@ -398,6 +408,7 @@ export const agentMachine = setup({
     parentRef: input.parentRef,
     pendingToolCalls: [],
     retryCount: 0,
+    runningToolCallActorIds: [],
     savedSteerIds: [],
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
@@ -483,58 +494,78 @@ export const agentMachine = setup({
       },
     },
 
-    ExecutingToolCall: {
-      invoke: {
-        id: "toolCall",
-        input: ({ context }) => {
-          const [nextToolCall] = context.toolCallQueue;
-          invariant(nextToolCall, "No tool call to execute");
-          const tool = getToolByType(nextToolCall.type);
-          context.parentRef.send({
-            type: "agent.usingTool",
-            value: tool,
-          });
-          return {
-            agentName: context.agent.name,
-            model: context.model,
-            part: nextToolCall,
-            sessionId: context.sessionId,
-            spawnAgent: context.spawnAgent,
-            taskId: context.taskId,
-          };
-        },
-        onDone: {
-          actions: assign({
-            // Note: If we ever allow parallel tool calls, we'll need to filter
-            // by id instead of just removing the first item.
-            toolCallQueue: ({ context }) => {
-              const [_, ...remainingQueue] = context.toolCallQueue;
-              return remainingQueue;
-            },
-          }),
-          target: "MaybeExecutingToolCalls",
-        },
-        onError: {
-          actions: "assignEventError",
-          target: "MaybeExecutingToolCalls",
-        },
-        src: "executeToolCallMachine",
+    /**
+     * Runs the batch at the head of the queue: a run of consecutive read-only
+     * calls all at once, or the single call there that can change something.
+     * Read-only calls cannot affect each other, so the model's eight searches
+     * take as long as the slowest one rather than all eight end to end, while
+     * a write still runs alone, after everything the model asked for before
+     * it and before everything after.
+     *
+     * Each call is a child of its own, so a stop or a timeout reaches every
+     * call in flight and each writes its own stopped part.
+     */
+    ExecutingToolCalls: {
+      always: {
+        guard: ({ context }) => context.runningToolCallActorIds.length === 0,
+        target: "MaybeExecutingToolCalls",
       },
+      entry: enqueueActions(({ context, enqueue }) => {
+        const batch = nextToolCallBatch(context.toolCallQueue);
+        for (const part of batch) {
+          const tool = getToolByType(part.type);
+          enqueue(() => {
+            context.parentRef.send({ type: "agent.usingTool", value: tool });
+          });
+          enqueue.spawnChild("executeToolCallMachine", {
+            id: toolCallActorId(part),
+            input: {
+              agentName: context.agent.name,
+              model: context.model,
+              part,
+              sessionId: context.sessionId,
+              spawnAgent: context.spawnAgent,
+              taskId: context.taskId,
+            },
+          });
+        }
+        enqueue.assign({
+          runningToolCallActorIds: batch.map(toolCallActorId),
+        });
+      }),
+      // Only a machine-level transition (an error) leaves with calls still
+      // running; a stop waits here for every call to write its own record.
+      exit: enqueueActions(({ context, enqueue }) => {
+        for (const id of context.runningToolCallActorIds) {
+          enqueue.stopChild(id);
+        }
+        enqueue.assign({ runningToolCallActorIds: [] });
+      }),
       on: {
         // Handled here instead of falling through to the machine-level `stop`:
-        // leaving this state hard-stops the invoked child, which skips its own
-        // `stop` handler and leaves the tool part stuck in `input-available`.
-        // Staying put lets the child write its own stopped part first, and
-        // `MaybeExecutingToolCalls` routes to `Finishing` once it is done.
+        // leaving this state hard-stops the children, which skips their own
+        // `stop` handlers and leaves the tool parts stuck in `input-available`.
+        // Staying put lets each child write its own stopped part first, and
+        // `MaybeExecutingToolCalls` routes to `Finishing` once they are done.
         stop: {
+          actions: enqueueActions(({ context, enqueue, event }) => {
+            enqueue.assign({ stopReason: event.reason ?? "manual" });
+            for (const id of context.runningToolCallActorIds) {
+              enqueue.sendTo(id, { reason: event.reason, type: "stop" });
+            }
+          }),
+        },
+        "xstate.done.actor.*": {
+          actions: assign(({ context, event }) =>
+            withoutFinishedToolCall(context, event.actorId),
+          ),
+        },
+        "xstate.error.actor.*": {
           actions: [
-            assign({
-              stopReason: ({ event }) => event.reason ?? "manual",
-            }),
-            sendTo("toolCall", ({ event }) => ({
-              reason: event.reason,
-              type: "stop" as const,
-            })),
+            "assignEventError",
+            assign(({ context, event }) =>
+              withoutFinishedToolCall(context, event.actorId),
+            ),
           ],
         },
       },
@@ -650,7 +681,6 @@ export const agentMachine = setup({
                   continue;
                 }
 
-                // Add to queue for sequential execution
                 toolCallQueue.push(part);
               }
 
@@ -754,7 +784,7 @@ export const agentMachine = setup({
         },
         {
           guard: ({ context }) => context.toolCallQueue.length > 0,
-          target: "ExecutingToolCall",
+          target: "ExecutingToolCalls",
         },
         {
           target: "MaybeWaitingForPendingToolCalls",
@@ -894,6 +924,67 @@ export const agentMachine = setup({
 });
 
 export type AgentMachineActorRef = ActorRefFrom<typeof agentMachine>;
+
+/**
+ * How many read-only calls run at once. A step asking for more runs them in
+ * batches of this size, so twenty searches are not twenty provider requests
+ * opened together, each a model call on a plan with its own limits, and twenty
+ * image reads are not twenty decodes in memory at once. Eight is the batch
+ * that showed the cost of running them one at a time, and a plan served
+ * sixteen concurrent searches without refusing any.
+ */
+const MAX_CONCURRENT_TOOL_CALLS = 8;
+
+/**
+ * The calls to run together next: the read-only calls at the head of the queue
+ * up to the first one that is not, at most `MAX_CONCURRENT_TOOL_CALLS` of
+ * them, or that one alone when it is at the head.
+ */
+function nextToolCallBatch(
+  queue: SessionMessagePart.ToolPartInputAvailable[],
+): SessionMessagePart.ToolPartInputAvailable[] {
+  const [first] = queue;
+  invariant(first, "No tool call to execute");
+  if (!getToolByType(first.type).readOnly) {
+    return [first];
+  }
+  const firstWrite = queue.findIndex(
+    (part) => !getToolByType(part.type).readOnly,
+  );
+  return (firstWrite === -1 ? queue : queue.slice(0, firstWrite)).slice(
+    0,
+    MAX_CONCURRENT_TOOL_CALLS,
+  );
+}
+
+/**
+ * Keyed by the part's own id rather than the provider's `toolCallId`: a
+ * provider that repeats a call id within a step would otherwise spawn two
+ * children under one id, the second replacing the first, and the first to
+ * finish would take both off the queue.
+ */
+function toolCallActorId(
+  part: SessionMessagePart.ToolPartInputAvailable,
+): ToolCallActorId {
+  return `toolCall:${part.metadata.id}`;
+}
+
+function withoutFinishedToolCall(
+  context: {
+    runningToolCallActorIds: ToolCallActorId[];
+    toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
+  },
+  actorId: string,
+) {
+  return {
+    runningToolCallActorIds: context.runningToolCallActorIds.filter(
+      (id) => id !== actorId,
+    ),
+    toolCallQueue: context.toolCallQueue.filter(
+      (part) => toolCallActorId(part) !== actorId,
+    ),
+  };
+}
 
 /** Write the user's answer (or the error that stands for one) onto the call's part. */
 function saveToolCallUpdate(

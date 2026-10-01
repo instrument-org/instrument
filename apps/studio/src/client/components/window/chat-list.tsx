@@ -1,7 +1,16 @@
 import { type Draft } from "@/client/atoms/window";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { cn } from "@/client/lib/utils";
-import { memo, type RefObject, useLayoutEffect, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  Fragment,
+  memo,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
@@ -52,6 +61,9 @@ const ListedChat = memo(function ListedChat({
     />
   );
 });
+
+/** A row's height before it is measured: a chat with a line under its title. */
+const ROW_ESTIMATE = 88;
 
 /**
  * The title's and the latest line's widths of each placeholder row, varied so
@@ -130,34 +142,71 @@ export function ChatList({
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
-  const rows = drafts
-    ? byActivity(drafts).map((draft) => (
-        <DraftRow
-          draft={draft}
-          key={draft.id}
-          now={now}
-          onDelete={() => {
-            onDeleteDraft(draft.id);
-          }}
-          onOpen={() => {
-            onOpenDraft(draft.id);
-          }}
-          topics={topics}
-        />
-      ))
-    : byActivity(chats).map((chat) => (
-        <ListedChat
-          actionsFor={actionsFor}
-          appsBySlug={appsBySlug}
-          chat={chat}
-          handlers={handlers}
-          isArriving={chat.id === arrivedId}
-          isOpen={chat.id === openId}
-          key={chat.id}
-          now={now}
-          topics={topics}
-        />
-      ));
+  const rows: { key: string; node: () => ReactNode }[] = drafts
+    ? byActivity(drafts).map((draft) => ({
+        key: draft.id,
+        node: () => (
+          <DraftRow
+            draft={draft}
+            now={now}
+            onDelete={() => {
+              onDeleteDraft(draft.id);
+            }}
+            onOpen={() => {
+              onOpenDraft(draft.id);
+            }}
+            topics={topics}
+          />
+        ),
+      }))
+    : byActivity(chats).map((chat) => ({
+        key: chat.id,
+        node: () => (
+          <ListedChat
+            actionsFor={actionsFor}
+            appsBySlug={appsBySlug}
+            chat={chat}
+            handlers={handlers}
+            isArriving={chat.id === arrivedId}
+            isOpen={chat.id === openId}
+            now={now}
+            topics={topics}
+          />
+        ),
+      }));
+  // Only the rows in view and a screen's worth either side are mounted: a
+  // workspace holds hundreds of chats, and every mounted row carries its
+  // menus and chips. Rows differ in height, so each is measured as it mounts.
+  // oxlint-disable-next-line react/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    estimateSize: () => ROW_ESTIMATE,
+    getItemKey: (index) => rows[index]?.key ?? index,
+    getScrollElement: () => ref.current,
+    overscan: 8,
+  });
+  // The mounted rows stay siblings in the flow, with the height of the rows
+  // above and below them standing in as spacers: a row draws its hairline
+  // against the row before it, drops it as the first, and hides it beside a
+  // hovered or open row, all through sibling selectors a wrapper per row
+  // would break.
+  const listRef = useRef<HTMLDivElement>(null);
+  const items = virtualizer.getVirtualItems();
+  const before = items[0]?.start ?? 0;
+  const after = virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0);
+  useLayoutEffect(() => {
+    const mounted = [...(listRef.current?.children ?? [])].filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element.dataset.spacer === undefined,
+    );
+    for (const [position, element] of mounted.entries()) {
+      const item = items[position];
+      if (item) {
+        element.dataset.index = String(item.index);
+        virtualizer.measureElement(element);
+      }
+    }
+  });
   const isScrollable = useIsScrollable(ref, rows.length);
   return (
     // Fading into the search over it once there is anything scrolled under
@@ -186,7 +235,17 @@ export function ChatList({
         // Edge to edge, as the open row's bar and the hover tint are: each
         // row pads its words in by 12px, a step inside the 8px line the
         // search and the filters stand on.
-        <div>{rows}</div>
+        <div ref={listRef}>
+          {before > 0 && (
+            <div aria-hidden data-spacer style={{ height: before }} />
+          )}
+          {items.map((item) => (
+            <Fragment key={item.key}>{rows[item.index]?.node()}</Fragment>
+          ))}
+          {after > 0 && (
+            <div aria-hidden data-spacer style={{ height: after }} />
+          )}
+        </div>
       )}
       {/* The search reads inside the place the column stands in, so what it
         finds elsewhere is said at the list's end, whether or not anything

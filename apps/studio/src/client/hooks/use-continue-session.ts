@@ -1,4 +1,4 @@
-import { rpcClient } from "@/client/rpc/client";
+import { createMessageOptions } from "@/client/lib/message-sends";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
@@ -14,9 +14,7 @@ export function useContinueSession({
   onSuccess?: () => void;
   sessionId: StoreId.Session | undefined;
 }) {
-  const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions(),
-  );
+  const createMessage = useMutation(createMessageOptions());
 
   const handleContinue = () => {
     if (!sessionId || !modelURI) {

@@ -7,6 +7,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
@@ -123,9 +124,7 @@ function ChatScreenOfRecord({
     !isAgentRunning;
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
-  const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions(),
-  );
+  const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
   const groupAsks = useComposerAsks({ kind: "chat", sessionId });

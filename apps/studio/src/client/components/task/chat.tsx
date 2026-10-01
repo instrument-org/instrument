@@ -9,6 +9,7 @@ import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
+import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
@@ -158,7 +159,7 @@ export function TaskChat({
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
   const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions({
+    createMessageOptions({
       onError: (error) => {
         toast.error("Failed to create message", { description: error.message });
       },

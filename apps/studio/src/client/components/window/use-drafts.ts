@@ -9,6 +9,7 @@ import {
   paneOpenByGroupAtom,
 } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
@@ -243,6 +244,9 @@ export function useDrafts({
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
+    // The window becomes the chat before this message has left, so anything
+    // sent from it waits for this one to land first.
+    const opened = holdSendsUntilOpened(sessionId);
     setStartingIds((current) => new Set(current).add(id));
     setSentWords((current) => new Map(current).set(id, send.prompt));
     // The model chosen for the chat is the one the next draft opens with.
@@ -271,6 +275,7 @@ export function useDrafts({
           { taskId: chatId },
         );
       } catch (error) {
+        opened();
         setStartingIds((current) => withoutId(current, id));
         setSentWords((current) => withoutKey(current, id));
         toast.error("Failed to start the chat", {
@@ -305,6 +310,7 @@ export function useDrafts({
         });
         return;
       } finally {
+        opened();
         setStartingIds((current) => withoutId(current, id));
       }
       setDrafts((current) => current.filter((entry) => entry.id !== id));

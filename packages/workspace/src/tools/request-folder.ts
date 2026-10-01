@@ -42,7 +42,7 @@ export const RequestFolder = setupTool({
     type: "text",
     value:
       output.status === "granted"
-        ? `The user attached the folder. It is mounted at ${output.mountPoint}; pass it to a task as --folder ${output.mountPoint}, with :rw when the task will change files in it.`
+        ? `The user attached the folder. It is mounted at ${output.mountPoint}; pass it to a task as --folder ${output.mountPoint}, with :ro when the task should only read it.`
         : "The user declined. Say what you cannot do without the folder and carry on with what you can.",
   }),
 });

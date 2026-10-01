@@ -216,7 +216,7 @@ ${
               };
             }),
             intro:
-              "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder, read-only or with :rw as the work needs:",
+              "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder, which it can write in unless you add :ro:",
             writes: "through-tasks",
           })
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;

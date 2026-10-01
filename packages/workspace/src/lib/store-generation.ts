@@ -21,9 +21,11 @@ export function bumpStoreGeneration(id: TaskId) {
 /**
  * A value derived from a task's store, kept until that store is written.
  * The value is computed against the generation it started at, and kept only
- * if no write landed while it was computed.
+ * if no write landed while it was computed and `keepWhen` accepts it.
  */
-export function cacheByStoreGeneration<Value>() {
+export function cacheByStoreGeneration<Value>(
+  keepWhen: (value: Value) => boolean = () => true,
+) {
   const entries = new Map<
     TaskId,
     { generation: string; value: Promise<Value> }
@@ -41,8 +43,8 @@ export function cacheByStoreGeneration<Value>() {
         entries.delete(taskId);
       }
     };
-    void value.then(() => {
-      if (storeGeneration(taskId) !== generation) {
+    void value.then((settled) => {
+      if (storeGeneration(taskId) !== generation || !keepWhen(settled)) {
         forget();
       }
     }, forget);

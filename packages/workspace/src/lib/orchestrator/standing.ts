@@ -9,7 +9,7 @@ import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
 import { taskHold } from "../task-hold";
-import { indexedByStore } from "../workspace-index";
+import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import { askIn, latestStep, runningLines } from "./activity";
 import { lastAssistantTextIn, latestSessionId } from "./latest-session";
 
@@ -173,10 +173,13 @@ async function endingIn(
   };
 }
 
-async function standingAtRest(taskId: TaskId): Promise<TaskStanding> {
+async function standingAtRest(taskId: TaskId): Promise<Derived<TaskStanding>> {
   const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return { kind: "done", line: "Nothing yet" };
+  if (sessionId.isErr()) {
+    return unkept({ kind: "done", line: "Nothing yet" });
+  }
+  if (!sessionId.value) {
+    return kept({ kind: "done", line: "Nothing yet" });
   }
   // One read answers all three: what it is asking, what it last said, and
   // how it ended when it said nothing.
@@ -185,17 +188,18 @@ async function standingAtRest(taskId: TaskId): Promise<TaskStanding> {
     taskId,
   });
   const transcript = messages.isOk() ? messages.value : [];
+  const settle = messages.isOk() ? kept : unkept;
   // A turn that ended on an ask rather than on words is waiting on the user.
   const waiting = askIn(transcript);
   if (waiting) {
-    return { kind: "waiting", line: waiting };
+    return settle({ kind: "waiting", line: waiting });
   }
   // Read whole and cut after: the line is chosen from the reply's shape, and a
   // fence cut off mid-way is a fence the excerpt cannot read.
   const said = lastAssistantTextIn(transcript);
   if (said) {
-    return { kind: "done", line: excerptOf(said, LINE_MAX) };
+    return settle({ kind: "done", line: excerptOf(said, LINE_MAX) });
   }
   const ending = await endingIn(taskId, transcript);
-  return { kind: ending.failed ? "failed" : "done", line: ending.line };
+  return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
 }

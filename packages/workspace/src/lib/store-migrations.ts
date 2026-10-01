@@ -125,6 +125,9 @@ const MIGRATIONS: StoreMigration[] = [
   },
 ];
 
+/** How many migrations this build applies, which is the shape its stores are read in. */
+export const STORE_MIGRATION_COUNT = MIGRATIONS.length;
+
 /**
  * Brings a task's database up to date, if it is behind.
  *

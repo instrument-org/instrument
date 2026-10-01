@@ -12,6 +12,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { cn } from "@/client/lib/utils";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -335,30 +336,36 @@ export function ChatRow({
             <TagIcon className="size-4" />
             Topics
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="max-h-80 overflow-y-auto">
-            {topics
-              .filter((entry) => !entry.retired)
-              .map((entry) => (
-                <ContextMenuCheckboxItem
-                  checked={chat.topics.includes(entry.id)}
-                  key={entry.id}
-                  onSelect={() => {
-                    toggleTopic(entry.id);
-                  }}
-                >
-                  <TopicMark topic={entry} />
-                  {entry.name}
-                </ContextMenuCheckboxItem>
-              ))}
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={() => {
-                onNewTopic();
-              }}
-            >
-              <PlusIcon className="size-4" />
-              New topic…
-            </ContextMenuItem>
+          <ContextMenuSubContent className="flex w-56 flex-col p-0">
+            <MenuScrollArea className="max-h-80">
+              {topics
+                .filter((entry) => !entry.retired)
+                .map((entry) => (
+                  <ContextMenuCheckboxItem
+                    checked={chat.topics.includes(entry.id)}
+                    key={entry.id}
+                    // A chat can be under several topics, so a pick leaves
+                    // the list up for the next.
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      toggleTopic(entry.id);
+                    }}
+                  >
+                    <TopicMark topic={entry} />
+                    <span className="truncate">{entry.name}</span>
+                  </ContextMenuCheckboxItem>
+                ))}
+            </MenuScrollArea>
+            <div className="shrink-0 border-t border-border p-1">
+              <ContextMenuItem
+                onSelect={() => {
+                  onNewTopic();
+                }}
+              >
+                <PlusIcon className="size-4" />
+                New topic…
+              </ContextMenuItem>
+            </div>
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSeparator />

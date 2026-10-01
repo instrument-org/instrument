@@ -3,10 +3,15 @@ import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
@@ -14,6 +19,7 @@ import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOut
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
@@ -24,6 +30,7 @@ import { ChatTitle } from "./chat-title";
 import { type Chat, type Topic } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
+import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 
@@ -157,7 +164,13 @@ export function ChatHeading({
     return topic ? [topic] : [];
   });
   const rename = useChatRename(chat);
-  const [topicsOpen, setTopicsOpen] = useState(false);
+  const toggleTopic = (id: string) => {
+    onSetTopics(
+      chat.topics.includes(id)
+        ? chat.topics.filter((entry) => entry !== id)
+        : [...chat.topics, id],
+    );
+  };
   return (
     <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
       <h2 className="flex min-w-0">
@@ -167,27 +180,16 @@ export function ChatHeading({
           title={chat.title}
         />
       </h2>
-      {/* Pressing them, or the slot while there are none, opens the topic
-          picker every filing shares. */}
-      <TopicPicker
-        chosen={new Set(chat.topics)}
-        isOpen={topicsOpen}
-        onNew={onNewTopic}
-        onOpenChange={setTopicsOpen}
-        onToggle={(id) => {
-          onSetTopics(
-            chat.topics.includes(id)
-              ? chat.topics.filter((entry) => entry !== id)
-              : [...chat.topics, id],
-          );
-        }}
-        topics={topics}
-      >
-        {filed.length === 0 ? (
-          // No dashed slot in the head: a chat with no topics is filed from
-          // the menu, and this is only the picker's anchor then.
-          <span aria-hidden className="h-4 w-0 shrink-0" />
-        ) : (
+      {/* Pressing them opens the topic picker every filing shares. No
+          dashed slot in the head: a chat with no topics is filed from the
+          menu. */}
+      {filed.length > 0 && (
+        <TopicPicker
+          chosen={new Set(chat.topics)}
+          onNew={onNewTopic}
+          onToggle={toggleTopic}
+          topics={topics}
+        >
           <button
             aria-label="Topics"
             className="flex shrink-0 items-center gap-1"
@@ -201,16 +203,14 @@ export function ChatHeading({
               />
             ))}
           </button>
-        )}
-      </TopicPicker>
+        </TopicPicker>
+      )}
       <ChatMenu
         {...menu}
         chat={chat}
         onDelete={onDelete}
-        onEditTopics={() => {
-          setTopicsOpen(true);
-        }}
         rename={rename}
+        topicsMenu={{ onNew: onNewTopic, onToggle: toggleTopic, topics }}
       />
     </div>
   );
@@ -226,22 +226,26 @@ export function ChatMenu({
   chat,
   onArchived,
   onDelete,
-  onEditTopics,
   onOpenInChats,
   onViewTasks,
   rename,
+  topicsMenu,
 }: {
   chat: Chat;
   /** After the chat is archived from this menu, for a head that should go with it. */
   onArchived?: () => void;
   onDelete: () => void;
-  /** Opens the topic picker, when the head that owns the menu has one. */
-  onEditTopics?: () => void;
   /** Opens the chat in Chats, for a head that is not already there. */
   onOpenInChats?: () => void;
   /** Opens the chat's tasks, when the head can reach them. */
   onViewTasks?: () => void;
   rename: ChatRename;
+  /** The topics to file the chat under, as a submenu, when the head that owns the menu files it. */
+  topicsMenu?: {
+    onNew: (name?: string) => void;
+    onToggle: (id: string) => void;
+    topics: Topic[];
+  };
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
   const item = (action: RowAction) => (
@@ -253,9 +257,6 @@ export function ChatMenu({
   // The menu hands focus back to its trigger as it closes, which would land
   // after the field took it and blur the rename shut.
   const renaming = useRef(false);
-  // What opens once the menu has gone, for a picker that would otherwise be
-  // dismissed by the focus the menu hands back as it closes.
-  const handOff = useRef<(() => void) | null>(null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -282,12 +283,6 @@ export function ChatMenu({
             renaming.current = false;
             event.preventDefault();
           }
-          const opensNext = handOff.current;
-          if (opensNext) {
-            handOff.current = null;
-            event.preventDefault();
-            opensNext();
-          }
         }}
       >
         {onOpenInChats && (
@@ -310,15 +305,44 @@ export function ChatMenu({
           <PencilSimpleIcon className="size-3.5" />
           Rename
         </DropdownMenuItem>
-        {onEditTopics && (
-          <DropdownMenuItem
-            onSelect={() => {
-              handOff.current = onEditTopics;
-            }}
-          >
-            <TagIcon className="size-3.5" />
-            Topics
-          </DropdownMenuItem>
+        {topicsMenu && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <TagIcon className="size-3.5" />
+              Topics
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="flex w-56 flex-col p-0">
+              <MenuScrollArea className="max-h-80">
+                {topicsMenu.topics
+                  .filter((entry) => !entry.retired)
+                  .map((entry) => (
+                    <DropdownMenuCheckboxItem
+                      checked={chat.topics.includes(entry.id)}
+                      key={entry.id}
+                      // A chat can be under several topics, so a pick
+                      // leaves the list up for the next.
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        topicsMenu.onToggle(entry.id);
+                      }}
+                    >
+                      <TopicMark topic={entry} />
+                      <span className="truncate">{entry.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+              </MenuScrollArea>
+              <div className="shrink-0 border-t border-border p-1">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    topicsMenu.onNew();
+                  }}
+                >
+                  <PlusIcon className="size-3.5" />
+                  New topic…
+                </DropdownMenuItem>
+              </div>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {onViewTasks && (
           <DropdownMenuItem

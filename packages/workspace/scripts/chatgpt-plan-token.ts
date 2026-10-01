@@ -17,7 +17,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { execFileSync } from "node:child_process";
 import { createDecipheriv, pbkdf2Sync } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -45,12 +45,26 @@ const userData = path.join(
   values.dev ? `${APP_NAME} (Dev)` : APP_NAME,
 );
 
+// The default workspace's settings hold the plan; the userData root held it
+// before workspaces, and an install not yet migrated still does.
+const storeDir = [
+  path.join(userData, "workspace", ".instrument", "settings"),
+  userData,
+].find((dir) =>
+  existsSync(
+    path.join(dir, values.dev ? "chatgpt-plan.json" : "chatgpt-plan.json.enc"),
+  ),
+);
+if (!storeDir) {
+  throw new Error(`No ChatGPT plan under ${userData}`);
+}
+
 const store = StoreSchema.parse(
   JSON.parse(
     values.dev
-      ? readFileSync(path.join(userData, "chatgpt-plan.json"), "utf8")
+      ? readFileSync(path.join(storeDir, "chatgpt-plan.json"), "utf8")
       : decryptSafeStorage(
-          readFileSync(path.join(userData, "chatgpt-plan.json.enc"), "utf8"),
+          readFileSync(path.join(storeDir, "chatgpt-plan.json.enc"), "utf8"),
         ),
   ),
 );

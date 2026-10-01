@@ -10,7 +10,6 @@ import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { PORTS } from "@instrument-org/shared";
 import { app, shell } from "electron";
-import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -235,19 +234,6 @@ const getAppEnvironment = devOnly
     worktree: worktreeName(),
   }));
 
-const relaunchWithNewUserFolder = devOnly.input(z.void()).handler(() => {
-  // app.relaunch() has no env option and the spawned child inherits the
-  // parent's environment snapshot, so mutations to process.env here don't
-  // carry over. Spawn the new instance directly with the env var set.
-  const child = spawn(process.execPath, process.argv.slice(1), {
-    detached: true,
-    env: { ...process.env, ELECTRON_USE_NEW_USER_FOLDER: "true" },
-    stdio: "ignore",
-  });
-  child.unref();
-  app.quit();
-});
-
 async function openFolder(folderPath: string) {
   const errorMessage = await shell.openPath(folderPath);
   if (errorMessage) {
@@ -284,7 +270,6 @@ export const debug = {
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,
-  relaunchWithNewUserFolder,
   setQuitGuardForced,
   systemInfo,
   throwError,

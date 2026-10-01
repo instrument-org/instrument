@@ -12,16 +12,6 @@ import {
 } from "@/client/components/dev-panel-workspaces";
 import { useTheme } from "@/client/components/theme-provider";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
-import {
   Menubar,
   MenubarCheckboxItem,
   MenubarContent,
@@ -198,11 +188,6 @@ export function DevPanel() {
     rpcClient.debug.openWorkspaceFolder.mutationOptions(),
   );
 
-  const { mutate: relaunchWithNewUserFolder } = useMutation(
-    rpcClient.debug.relaunchWithNewUserFolder.mutationOptions(),
-  );
-
-  const [relaunchDialogOpen, setRelaunchDialogOpen] = useState(false);
   const [workspaceDialog, setWorkspaceDialog] = useState<
     "manage" | "new" | null
   >(null);
@@ -637,23 +622,6 @@ export function DevPanel() {
                 <WarningOctagonIcon className="size-3" />
                 Simulate crash
               </MenubarItem>
-              {isPackaged && (
-                <MenubarSub>
-                  <MenubarSubTrigger className="font-mono text-xs">
-                    Relaunch
-                  </MenubarSubTrigger>
-                  <MenubarSubContent>
-                    <MenubarItem
-                      className="font-mono text-xs text-warning-700 dark:text-warning-300"
-                      onSelect={() => {
-                        setRelaunchDialogOpen(true);
-                      }}
-                    >
-                      With new user folder...
-                    </MenubarItem>
-                  </MenubarSubContent>
-                </MenubarSub>
-              )}
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Zoom
@@ -788,31 +756,6 @@ export function DevPanel() {
         }}
         open={workspaceDialog === "manage"}
       />
-
-      <AlertDialog
-        onOpenChange={setRelaunchDialogOpen}
-        open={isPackaged && relaunchDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Relaunch with new user folder?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The app will quit and restart using a fresh user data folder. Your
-              current session and preferences will not carry over.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                relaunchWithNewUserFolder();
-              }}
-            >
-              Relaunch
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

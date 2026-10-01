@@ -31,7 +31,6 @@
     "check:types": "tsgo --noEmit",
     "cleanup:releases": "node scripts/cleanup-releases.ts",
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps node scripts/dev-supervisor.ts dev --sourcemap",
-    "dev:fresh": "cross-env ELECTRON_USE_NEW_USER_FOLDER=true NODE_OPTIONS=--enable-source-maps electron-vite dev --sourcemap",
     "fix:lint": "oxlint --type-aware --fix",
     "icons:check": "node scripts/generate-icons.ts --check",
     "icons:generate": "node scripts/generate-icons.ts",

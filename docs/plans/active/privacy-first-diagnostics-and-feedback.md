@@ -26,11 +26,11 @@ Two carve-outs to state before someone else finds them:
 
 Nothing has been removed. Both PostHog SDKs are live and default-on.
 
-- [preferences.ts:9-11](../../../apps/studio/src/electron-main/stores/preferences.ts#L9-L11) defaults `enableUsageMetrics` to on for every install except when `ELECTRON_USE_NEW_USER_FOLDER=true`, a dev flag.
+- [machine/preferences.ts](../../../apps/studio/src/electron-main/stores/machine/preferences.ts) defaults `enableUsageMetrics` to on for every install. It is machine-wide, so every workspace on a computer reports under the same choice.
 - [telemetry.ts](../../../apps/studio/src/client/lib/telemetry.ts) calls `posthog.init` and subscribes to the opt-out preference afterward. [main-window.tsx](../../../apps/studio/src/client/components/main-window.tsx) calls `capturePageView` on mount, so init happens at window open for opted-out users. Init fetches remote config from the PostHog host, and `capture_exceptions: true` loads the autocapture extension from a PostHog asset URL.
 - [telemetry.ts](../../../apps/studio/src/electron-main/lib/telemetry.ts) constructs the Node client at module load with `enableExceptionAutocapture: true`, before any preference is read.
 - [index.html:8-15](../../../apps/studio/src/index.html#L8-L15) permits `https://*.posthog.com` in `connect-src`, `script-src`, and `style-src`.
-- [app-state.ts:18](../../../apps/studio/src/electron-main/stores/app-state.ts#L18) persists a stable `telemetryId` sent as `distinctId` on every server event.
+- [machine/state.ts](../../../apps/studio/src/electron-main/stores/machine/state.ts) persists a stable `telemetryId`, one per computer whichever workspace is open, sent as `distinctId` on every server event.
 - [telemetry.ts](../../../packages/shared/src/types/telemetry.ts) permits raw model-search queries and external URLs, and an exception property bag carrying `rpc_path`, `session_id`, `message_id`, `tool_call_id`, `machine_state`.
 
 **Removal is a four-file change.** There are 38 event and 54 exception call sites, but none touch PostHog. `CaptureEventFunction` and `CaptureExceptionFunction` are already injected into workspace ([types.ts:111-112](../../../packages/workspace/src/types.ts#L111-L112)) and ai-gateway ([types.ts:7](../../../packages/ai-gateway/src/types.ts#L7)). Only Studio binds them to PostHog. Swapping the sink is a constructor argument, so there is no reason to delete the event catalog on the way out.

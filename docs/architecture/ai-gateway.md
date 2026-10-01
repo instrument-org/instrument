@@ -53,4 +53,4 @@ The same rule covers images and web search. Our image alias (`OUR_MODELS.image.i
 ## Consumers
 
 - **workspace** — mounts the app into its server, and points every in-process model and image call at it (`internalURL`), which is where a provider's credentials are added.
-- **studio** — persists the model cache (`stores/model-cache`), supplies provider configs, and drives model-picker / model-badge UI from the model library and schemas.
+- **studio** — persists the model cache (`stores/machine/model-cache`), supplies provider configs, and drives model-picker / model-badge UI from the model library and schemas.

@@ -44,15 +44,6 @@ function configureUserDataDirectory() {
     return;
   }
 
-  if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
-    const folderName = `${APP_NAME} (${Date.now().toString()})`;
-    const newDir = path.join(app.getPath("userData"), "..", folderName);
-    console.log(`Using new user folder: ${newDir}`);
-    app.setPath("userData", newDir);
-    app.setName(folderName);
-    return;
-  }
-
   if (is.dev) {
     let suffix = "";
     if (process.env.ELECTRON_DEV_USER_FOLDER_SUFFIX) {

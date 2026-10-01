@@ -87,6 +87,7 @@ import {
 } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
+import { childTasksOptions } from "./child-tasks-query";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
@@ -112,7 +113,6 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
 import { chatOfHref, useWindowTabs } from "./window-tabs";
-import { childTasksOptions } from "./child-tasks-query";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.

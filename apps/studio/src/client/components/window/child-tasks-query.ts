@@ -1,9 +1,7 @@
-import { type TaskId } from "@instrument-org/workspace/client";
-
-import { skipToken } from "@tanstack/react-query";
-
 import { shareEqualDeep } from "@/client/lib/share-equal-deep";
 import { rpcClient } from "@/client/rpc/client";
+import { type TaskId } from "@instrument-org/workspace/client";
+import { skipToken } from "@tanstack/react-query";
 
 /**
  * The tasks the window has filed, kept current by the workspace as any of

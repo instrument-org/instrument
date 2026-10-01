@@ -6,8 +6,8 @@ import { toast } from "sonner";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
-import { useWindow } from "./context";
 import { childTasksOptions } from "./child-tasks-query";
+import { useWindow } from "./context";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
 const TASKS_NAMED = 5;

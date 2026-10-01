@@ -10,8 +10,8 @@ import { type MouseEvent } from "react";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { StopProcessButton } from "../task/stop-process-button";
-import { useWindow } from "./context";
 import { childTasksOptions } from "./child-tasks-query";
+import { useWindow } from "./context";
 
 /** How often the row re-reads where the task stands while it works. */
 const REFRESH_MS = ms("2 seconds");

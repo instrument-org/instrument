@@ -1,8 +1,8 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
-import { useWindow } from "./context";
 import { childTasksOptions } from "./child-tasks-query";
+import { useWindow } from "./context";
 
 /** Each task's title by its id, for a tab standing on one, read from the same list the tasks screens keep fresh. */
 export function useTaskTitles(): Map<TaskId, string> {

@@ -17,8 +17,8 @@ import {
 } from "@/client/hooks/use-open-in-app";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
+import { expandHomePath } from "@instrument-org/shared";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -31,7 +31,6 @@ import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {
   Fragment,
@@ -255,19 +254,8 @@ export function TabRowControl({
 
 /** The mark and the words, which is all that changes between page types. */
 function Field({ location }: { location: TabLocation }) {
-  // The home folder, which is what a path says `~` for and the one part of one
-  // that is not a name the computer has. Asked for only where a path is on
-  // screen, and answered from the same cache the folder browser reads.
-  const places = useQuery(
-    rpcClient.workspace.computer.places.queryOptions({
-      enabled: location.kind === "file" || location.kind === "folder",
-    }),
-  );
-  const home = places.data?.favorites.find(
-    (place) => place.name === "Home",
-  )?.path;
   const gesturesFor = useGesturesFor();
-  const crumbs = locationCrumbs(location, { home });
+  const crumbs = locationCrumbs(location, { home: window.api.homeDir });
   const path = useRef<HTMLSpanElement>(null);
   // Past the point where even shortened names fit, the end of the path is
   // what stays in view and its head scrolls off to the left: the place you
@@ -478,9 +466,11 @@ function locationText(location: TabLocation) {
     case "chat": {
       return location.title;
     }
+    // Written out in full, since a path from the home folder's name is not
+    // one the field can open.
     case "file":
     case "folder": {
-      return location.path;
+      return expandHomePath(location.path, window.api.homeDir);
     }
     case "idea": {
       return location.title;

@@ -13,8 +13,8 @@ const CHAT = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 const HOME = "/Users/casey";
 
 /** What each part says, and where it goes, as one line per part. */
-function readable(location: TabLocation, home: null | string = HOME) {
-  return locationCrumbs(location, { home: home ?? undefined }).map((crumb) =>
+function readable(location: TabLocation, home = HOME) {
+  return locationCrumbs(location, { home }).map((crumb) =>
     crumb.to?.kind === "screen"
       ? `${crumb.label} -> ${crumb.to.href}`
       : crumb.label,
@@ -25,20 +25,24 @@ describe("locationCrumbs", () => {
   it("walks a folder up from the home folder, written out", () => {
     expect(readable({ kind: "folder", path: "~/Documents/Instrument" }))
       .toMatchInlineSnapshot(`
-      [
-        "~ -> /files?path=&root=%2FUsers%2Fcasey",
-        "Documents -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments",
-        "Instrument",
-      ]
-    `);
+        [
+          "casey -> /files?path=&root=%2FUsers%2Fcasey",
+          "Documents -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments",
+          "Instrument",
+        ]
+      `);
   });
 
-  it("keeps `~` where the window has not been told where home is", () => {
-    expect(readable({ kind: "folder", path: "~/Documents" }, null))
-      .toMatchInlineSnapshot(`
+  it("walks a Windows folder up from the home folder", () => {
+    expect(
+      readable(
+        { kind: "folder", path: "C:\\Users\\casey\\Downloads" },
+        "C:\\Users\\casey",
+      ),
+    ).toMatchInlineSnapshot(`
       [
-        "~ -> /files?path=&root=~",
-        "Documents",
+        "casey -> /files?path=&root=C%3A%5CUsers%5Ccasey",
+        "Downloads",
       ]
     `);
   });
@@ -54,16 +58,15 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("walks a Windows folder up from its volume", () => {
-    expect(readable({ kind: "folder", path: "C:\\Users\\casey\\Downloads" }))
+  it("walks a Windows folder outside home up from its volume", () => {
+    expect(readable({ kind: "folder", path: "D:\\Photos\\2024" }))
       .toMatchInlineSnapshot(`
-      [
-        "C: -> /files?path=&root=C%3A%5C",
-        "Users -> /files?path=&root=C%3A%5CUsers",
-        "casey -> /files?path=&root=C%3A%5CUsers%5Ccasey",
-        "Downloads",
-      ]
-    `);
+        [
+          "D: -> /files?path=&root=D%3A%5C",
+          "Photos -> /files?path=&root=D%3A%5CPhotos",
+          "2024",
+        ]
+      `);
   });
 
   it("takes a file to the folders it sits in, from the home folder", () => {
@@ -75,7 +78,7 @@ describe("locationCrumbs", () => {
       }),
     ).toMatchInlineSnapshot(`
       [
-        "~ -> /files?path=&root=%2FUsers%2Fcasey",
+        "casey -> /files?path=&root=%2FUsers%2Fcasey",
         "Downloads -> /files?path=&root=%2FUsers%2Fcasey%2FDownloads",
         "lisbon.md",
       ]

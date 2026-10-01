@@ -16,6 +16,7 @@ import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
+import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
@@ -181,11 +182,8 @@ export function Omnibar({
    * anyway.
    */
   const openPath = async (written: string) => {
-    const places = await queryClient.fetchQuery(
-      rpcClient.workspace.computer.places.queryOptions(),
-    );
-    const home = places.favorites.find((place) => place.name === "Home")?.path;
-    const host = expandHome(written, home);
+    const home = window.api.homeDir;
+    const host = expandHomePath(written, home);
     try {
       await queryClient.fetchQuery(
         rpcClient.workspace.computer.list.queryOptions({
@@ -215,7 +213,7 @@ export function Omnibar({
         ? search.root
         : undefined;
     const currentRootHost =
-      currentRoot === undefined ? undefined : expandHome(currentRoot, home);
+      currentRoot === undefined ? undefined : expandHomePath(currentRoot, home);
     const under =
       currentRoot !== undefined &&
       currentRootHost !== undefined &&
@@ -408,7 +406,7 @@ export function Omnibar({
             group: "Open",
             icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
             id: "path",
-            name: typedPath,
+            name: displayHostPath(typedPath, window.api.homeDir),
             note: computerName(),
             run: () => {
               void openPath(typedPath);
@@ -621,13 +619,6 @@ export function Omnibar({
   );
 }
 
-function expandHome(path: string, home: string | undefined) {
-  if (home === undefined) {
-    return path;
-  }
-  return path === "~" ? home : path.replace(/^~\//, `${home}/`);
-}
-
 /**
  * Whether there is a file at a path on the computer. A channel that is not
  * up, or a request cut off, is not the file's absence, so those count as
@@ -644,7 +635,6 @@ async function fileExists(hostPath: string) {
   }
 }
 
-/** The path with `~` written out, so it can be compared with paths the Mac gives. */
 /** The site a page is on, as its bar would name it. */
 function hostOf(url: string): string {
   if (!URL.canParse(url)) {

@@ -3,6 +3,7 @@ import type { DownloadItem, Session, WebContents } from "electron";
 
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { displayHostPath } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fs from "node:fs";
@@ -108,13 +109,10 @@ function availableFilename(dir: string, filename: string): string {
   return `${stem}-${suffix}${ext}`;
 }
 
-// The folder as the toast shows it, with the home directory collapsed the
+// The folder as the toast shows it, read from the home folder's own name the
 // way the app shows every path of the person's.
 function displayFolder(dir: string): string {
-  const home = app.getPath("home");
-  return dir === home || dir.startsWith(home + path.sep)
-    ? `~${dir.slice(home.length)}`
-    : dir;
+  return displayHostPath(dir, app.getPath("home"));
 }
 
 // By the guest's identity rather than a captured target id: the entry map is

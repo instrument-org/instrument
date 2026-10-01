@@ -301,7 +301,7 @@ describe("attachDownloadHandler", () => {
         expect(publish).toHaveBeenCalledWith("browser.download-finished", {
           completed,
           filename: "report.pdf",
-          folder: "~/Downloads",
+          folder: `${path.basename(home.dir)}/Downloads`,
           path: path.join(home.downloads, "report.pdf"),
           targetId: TARGET_ID,
         });

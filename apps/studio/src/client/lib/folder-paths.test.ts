@@ -1,4 +1,6 @@
 import {
+  displayHostPath,
+  expandHomePath,
   folderLabelFromPath,
   folderNameFromPath,
   shortenHomePath,
@@ -127,5 +129,72 @@ describe("folderLabelFromPath", () => {
     },
   ])("calls $label $expected", ({ expected, folderPath, home }) => {
     expect(folderLabelFromPath(folderPath, home)).toBe(expected);
+  });
+});
+
+describe("displayHostPath", () => {
+  it.each([
+    {
+      expected: "sam/Documents/Photos",
+      home: "/Users/sam",
+      label: "a path inside home",
+      path: "/Users/sam/Documents/Photos",
+    },
+    {
+      expected: "sam",
+      home: "/Users/sam",
+      label: "home itself",
+      path: "/Users/sam",
+    },
+    {
+      expected: "sam/Documents",
+      home: "/Users/sam",
+      label: "a path written from `~`",
+      path: "~/Documents",
+    },
+    {
+      expected: String.raw`sam\Documents`,
+      home: String.raw`C:\Users\sam`,
+      label: "a Windows path inside home",
+      path: String.raw`C:\Users\sam\Documents`,
+    },
+    {
+      expected: "/Users/samantha/Documents",
+      home: "/Users/sam",
+      label: "a sibling sharing a name prefix",
+      path: "/Users/samantha/Documents",
+    },
+    {
+      expected: "/Volumes/Backup",
+      home: "/home/sam",
+      label: "a path outside home",
+      path: "/Volumes/Backup",
+    },
+  ])("reads $label as $expected", ({ expected, home, path }) => {
+    expect(displayHostPath(path, home)).toBe(expected);
+  });
+});
+
+describe("expandHomePath", () => {
+  it.each([
+    { expected: "/Users/sam", home: "/Users/sam", path: "~" },
+    {
+      expected: "/Users/sam/Documents",
+      home: "/Users/sam/",
+      path: "~/Documents",
+    },
+    {
+      expected: String.raw`C:\Users\sam\Documents`,
+      home: String.raw`C:\Users\sam`,
+      path: "~/Documents",
+    },
+    { expected: "~user/x", home: "/Users/sam", path: "~user/x" },
+    {
+      expected: "/Volumes/Backup",
+      home: "/Users/sam",
+      path: "/Volumes/Backup",
+    },
+  ])("writes $path out as $expected", ({ expected, home, path }) => {
+    expect(expandHomePath(path, home)).toBe(expected);
   });
 });

@@ -19,6 +19,7 @@ import { Input } from "@/client/components/ui/input";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
+import { displayPath } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -30,8 +31,7 @@ import { debounce } from "radashi";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type Memory =
-  RPCOutput["workspace"]["memory"]["list"]["memories"][number];
+type Memory = RPCOutput["workspace"]["memory"]["list"]["memories"][number];
 /** How tall a memory is allowed to stand before it is folded. */
 const COLLAPSED_MAX_HEIGHT_PX = 60;
 
@@ -225,7 +225,7 @@ function Import() {
         <SourceList caption="On this computer">
           {sources.map((source) => (
             <SourceRow
-              detail={source.home}
+              detail={displayPath(source.home)}
               icon={<Favicon fallback={<FolderIcon />} url={source.site} />}
               key={source.path}
               name={source.name}

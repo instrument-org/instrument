@@ -21,6 +21,36 @@
 export const HOME_DIR_LABEL = "Home";
 
 /**
+ * A path the way it reads on screen: in the home folder, from that folder's own
+ * name (`sam/Documents`), which is what the file manager calls it on every
+ * platform; anywhere else, as it is. Keeps the separators it was given.
+ *
+ * For the screen only. The folder's name is the account name, so what reaches
+ * the model or an export spells the home folder `~` ({@link shortenHomePath})
+ * or {@link HOME_DIR_LABEL} instead.
+ */
+export function displayHostPath(
+  filePath: string,
+  homeDir: string | undefined,
+): string {
+  const names = namesFromHome(filePath, homeDir);
+  return names ? names.join(filePath.includes("\\") ? "\\" : "/") : filePath;
+}
+
+/** `~` and `~/x` written out against the home directory; any other path as given. */
+export function expandHomePath(
+  filePath: string,
+  homeDir: string | undefined,
+): string {
+  if (!homeDir || !(filePath === "~" || /^~[/\\]/.test(filePath))) {
+    return filePath;
+  }
+  const separator = homeDir.includes("\\") ? "\\" : "/";
+  const below = filePath.slice(2).split(/[/\\]/).filter(Boolean);
+  return [homeDir.replace(/[/\\]+$/, ""), ...below].join(separator);
+}
+
+/**
  * What a folder is called wherever it is named for a person. Its own name,
  * except the home folder. Given no home directory nothing is the home folder,
  * so every folder is called what it is called on disk.
@@ -51,6 +81,38 @@ export function isHomeDir(
   return (
     normalizedHome !== "" && normalizeForCompare(filePath) === normalizedHome
   );
+}
+
+/**
+ * The names along a path from the home folder down, the home folder called by
+ * its own name, for a path in it: spelled out, or from `~`. Undefined for a
+ * path outside home, and for any path given without a home directory.
+ *
+ * Matched the way {@link shortenHomePath} matches, so either platform's
+ * separators shorten against a home directory spelled either way.
+ */
+export function namesFromHome(
+  filePath: string,
+  homeDir: string | undefined,
+): string[] | undefined {
+  if (!homeDir) {
+    return undefined;
+  }
+  const normalizedHome = normalizeForCompare(homeDir);
+  const normalizedPath = normalizeForCompare(filePath);
+  if (normalizedHome === "") {
+    return undefined;
+  }
+  const below =
+    normalizedPath === "~" || normalizedPath.startsWith("~/")
+      ? normalizedPath.slice(1)
+      : normalizedPath === normalizedHome ||
+          normalizedPath.startsWith(`${normalizedHome}/`)
+        ? normalizedPath.slice(normalizedHome.length)
+        : undefined;
+  return below === undefined
+    ? undefined
+    : [folderNameFromPath(homeDir), ...below.split("/").filter(Boolean)];
 }
 
 /** The folder one level up, or undefined at a filesystem root. */

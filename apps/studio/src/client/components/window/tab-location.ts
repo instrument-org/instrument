@@ -1,12 +1,13 @@
 import { type OpenTarget } from "@/client/lib/open-target";
 import { folderHref } from "@/shared/computer-href";
+import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   StoreId,
   type TaskId,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
 
-import { homeRelative, segmentsOf, separatorOf } from "./host-path";
+import { segmentsOf, separatorOf } from "./host-path";
 import { DISCOVER_HREF } from "./ideas";
 
 /** One part of the place the field shows. */
@@ -74,7 +75,7 @@ export type TabLocation =
  */
 export function locationCrumbs(
   location: TabLocation,
-  { home }: { home: string | undefined },
+  { home }: { home: string },
 ): LocationCrumb[] {
   switch (location.kind) {
     case "app": {
@@ -91,12 +92,12 @@ export function locationCrumbs(
     case "chat": {
       return [{ label: location.title }];
     }
-    // A path is read the way a person writes one, whichever screen said it:
-    // the folder browser hands over a path with the home folder already as
-    // `~`, and a file arrives as it sits on the disk.
+    // A path reads the same whichever screen said it: the folder browser
+    // hands over a path with the home folder as `~`, and a file arrives as it
+    // sits on the disk.
     case "file":
     case "folder": {
-      return pathCrumbs(homeRelative(location.path, home), { home });
+      return pathCrumbs(location.path, { home });
     }
     case "idea": {
       return [
@@ -189,24 +190,27 @@ function join(base: string, name: string, separator: string) {
 /**
  * A path as its names, each above the last a way to that folder.
  *
- * The names read as the field writes them, `~` and all, while where one goes is
- * the path the computer knows, so the home folder is written back out there. A
+ * A path in the home folder starts at that folder, called by its own name the
+ * way the file manager calls it, rather than at the disk or at `~`. Where a
+ * name goes is the path the computer knows, so `~` is written out there. A
  * path that names no place on the computer -- a prefix under a root -- is
  * names alone with nowhere to go.
  */
-function pathCrumbs(
-  shown: string,
-  { home }: { home: string | undefined },
-): LocationCrumb[] {
-  const separator = separatorOf(shown);
-  const names = segmentsOf(shown);
+function pathCrumbs(path: string, { home }: { home: string }): LocationCrumb[] {
+  const fromHome = namesFromHome(path, home);
+  const hostPath = expandHomePath(path, home);
+  const separator = separatorOf(hostPath);
+  const names = fromHome ?? segmentsOf(hostPath);
   const first = names[0] ?? "";
-  const rooted = first === "~" || shown.startsWith("/") || isDrive(first);
+  const rooted =
+    fromHome !== undefined || hostPath.startsWith("/") || isDrive(first);
   let at = "";
   return names.map((name, index) => {
     at =
       index === 0
-        ? startOf(name, { home, separator })
+        ? fromHome
+          ? home
+          : startOf(name, separator)
         : join(at, name, separator);
     return !rooted || index === names.length - 1
       ? { label: name }
@@ -214,15 +218,7 @@ function pathCrumbs(
   });
 }
 
-/** Where a walk down a path starts: the home folder, a volume, or the disk. */
-function startOf(
-  name: string,
-  { home, separator }: { home: string | undefined; separator: string },
-) {
-  if (name === "~") {
-    // Written out where the window knows it, since a folder is opened by the
-    // path the computer has for it; the workspace reads `~` either way.
-    return home ?? "~";
-  }
+/** Where a walk down a path outside the home folder starts: a volume, or the disk. */
+function startOf(name: string, separator: string) {
   return isDrive(name) ? `${name}${separator}` : `${separator}${name}`;
 }

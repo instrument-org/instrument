@@ -1,8 +1,8 @@
-import { folderLabelFromPath, shortenHomePath } from "@instrument-org/shared";
+import { displayHostPath, folderLabelFromPath } from "@instrument-org/shared";
 
-/** A path as the user should read it: their own home directory spelled `~`. */
+/** A path as the user should read it: from their home folder's own name when it is in it. */
 export function displayPath(filePath: string): string {
-  return shortenHomePath(filePath, window.api.homeDir);
+  return displayHostPath(filePath, window.api.homeDir);
 }
 
 export function filenameFromFilePath(filePath: string): string {

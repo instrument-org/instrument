@@ -86,6 +86,7 @@
     "@instrument-org/typescript-config": "workspace:*",
     "@oxlint/plugins": "1.85.0",
     "@t3-oss/env-core": "^0.13.8",
+    "@types/json-schema": "^7.0.15",
     "@types/mime-types": "^3.0.1",
     "@types/mock-fs": "^4.13.4",
     "@types/ms": "^2.1.0",

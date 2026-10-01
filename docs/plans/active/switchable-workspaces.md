@@ -1,6 +1,6 @@
 # Plan: switchable workspaces
 
-Status: not started.
+Status: implemented; awaiting review before it lands.
 
 ## Why
 
@@ -51,7 +51,8 @@ Store modules move into `apps/studio/src/electron-main/stores/workspace/` and `s
 | File | Holds | Comes from |
 | --- | --- | --- |
 | `preferences.json` | `theme`, `developerMode`, `defaultModelURI`, `agentCompletionNotifications` | root `preferences.json` |
-| `state.json` | `hasCompletedProviderSetup` (a new workspace runs onboarding), window bounds and maximized flag by window, zoom | root `app-state.json`, root `window-state.json` |
+| `state.json` | `hasCompletedProviderSetup` (a new workspace runs onboarding) | root `app-state.json` |
+| `window-state.json` | Window bounds and maximized flag by window, zoom | root `window-state.json`, moved as is |
 | `session` (`.json.enc`; `session-dev.json` in dev) | Instrument account bearer token and Google tokens | root file, unchanged |
 | `providers` | BYOK keys | root file, unchanged |
 | `chatgpt-plan` | ChatGPT sign-in | root file, unchanged |
@@ -82,7 +83,7 @@ The `machine-` prefix on the root files keeps them distinct from the legacy `pre
 
 - `workspaceSettingsDir()` beside `getWorkspaceFolder()` returns `<resolved workspace>/.instrument/settings`.
 - Each workspace store passes `cwd: workspaceSettingsDir()`. Machine stores keep the default directory.
-- `window-state.ts` builds its store at module scope today. It gets a lazy getter like the others, and its record moves into the workspace `state` store; the per-display work-area learning stays in memory as it is.
+- `window-state.ts` builds its store at module scope today. It gets a lazy getter like the others and moves to the workspace's settings folder as its own file rather than a key of `state`: a moved or resized window writes on every settle, and nothing should be notified of that but the next launch. The per-display work-area learning stays in memory as it is.
 - Split preferences and app state into the four stores above and move every caller of a key to the store that owns it.
 
 ### 2. Workspace registry, read at boot
@@ -102,7 +103,7 @@ Order at boot, all synchronous in `setup-environment.ts`, before any store is co
 1. **Resolve** the workspace (step 2).
 2. **Machine migration**, once per machine: if `machine-preferences.json` or `machine-state.json` is missing, build it from the machine keys of the legacy root `preferences.json` and `app-state.json`. Read-only on the legacy files.
 3. **Workspace migration** for the resolved workspace only, driven by `settingsVersion` in its `workspace.json`:
-   - Version 1 for Default: rename the legacy credential and feature files from the root into `settings/` (both name sets: dev's plaintext `.json` with `session-dev.json`, packaged `.json.enc`; rename keeps the safeStorage ciphertext as is); build `preferences.json` and `state.json` from the legacy root `preferences.json`, `app-state.json`, and `window-state.json`; move `page-thumbnails/`; copy the default session's `Local Storage/` into `.instrument/app-session/` (step 4). Then remove the legacy root `preferences.json`, `app-state.json`, and `window-state.json`, whose machine keys step 2 already took.
+   - Version 1 for Default: rename the legacy credential and feature files from the root into `settings/` (both name sets: dev's plaintext `.json` with `session-dev.json`, packaged `.json.enc`; rename keeps the safeStorage ciphertext as is); move `window-state.json` as is; build `preferences.json` and `state.json` from the legacy root `preferences.json` and `app-state.json`; move `page-thumbnails/`; copy the default session's `Local Storage/` into `.instrument/app-session/` (step 4). Then remove the legacy root `preferences.json` and `app-state.json`, whose machine keys step 2 already took.
    - Version 1 for any other workspace: nothing legacy to consume; stamp the version.
    - Each sub-step skips once its target exists, so a crash mid-migration completes on the next boot.
 4. **Open stores.**
@@ -128,21 +129,21 @@ What does not follow is the app window itself, which runs on Electron's default 
 - Packaged builds restart with `app.relaunch(); app.exit(0)`.
 - Dev builds cannot. electron-vite's dev command spawns Electron and calls `process.exit` when it closes (`ps.on('close', process.exit)`), which also takes down the renderer dev server, so a relaunched child would load a dead URL. Instead main exits with a dedicated code (e.g. 75) and `apps/studio/scripts/dev-supervisor.mjs` runs electron-vite, starts it again on that code, and passes every other exit through. It keeps the environment and arguments, so `ELECTRON_DEV_USER_FOLDER_SUFFIX`, `REMOTE_DEBUGGING_PORT`, and `DISABLE_DEV_RELAUNCH` still apply.
 - The supervisor is what both the `dev` script and `studio-drive.mjs boot` spawn. studio-drive spawns the electron-vite shim directly today to save the cost of `pnpm run` and `cross-env`; it spawns the supervisor the same way instead. Its pid stays the same across a switch, so studio-drive's liveness check and instance record keep working, and the CDP port comes back on the same number.
-- A dev switch costs a full electron-vite start (renderer server plus main and preload builds). Measure it once this exists; it has not been timed.
+- A dev switch costs a full electron-vite start (renderer server plus main and preload builds): on an M1 Max, the new workspace's main process was up about 3 seconds after the old one exited, and the window was drivable after about 14.
 
 ### 6. Managing workspaces
 
 All in the dev panel, backed by debug RPC routes. Plain rows, nothing designed: this is a tool for us.
 
 - **List**: every registered workspace with color dot, name, size on disk, last opened, and an agent badge with its purpose when an agent made it. The resolved one is marked, and a pinned process says so.
-- **Create**: name, color from a fixed palette, and a starting point: blank (runs onboarding) or copy sign-ins from the current workspace (copies the credential stores and `hasCompletedProviderSetup`, nothing else). In dev the stores are plaintext; in a packaged build the ciphertext uses the same safeStorage key, so a byte copy works there too. Create does not switch.
+- **Create**: name, color from a fixed palette, and a starting point: blank (runs onboarding) or copy sign-ins from the current workspace (the session, providers, and ChatGPT plan stores plus `hasCompletedProviderSetup`; connected apps stay, since their tokens belong to apps in the workspace they came from). Developer mode is mirrored from the workspace doing the creating, so one made from the dev panel can reach the dev panel and one made any other way later does not inherit it by accident. In dev the stores are plaintext; in a packaged build the ciphertext uses the same safeStorage key, so a byte copy works there too. Create does not switch.
 - **Delete**: moves the folder to the system Trash with `shell.trashItem` and drops its registry entry. Default has no Delete control at all. The resolved workspace's is disabled until you switch away. A workspace another process has open is refused; each process writes its pid to `.instrument/open.pid` at boot and removes it on quit, and a pid that is no longer running counts as closed. The pid file is advisory only and does not stop two processes opening the same workspace.
 - **Strays**: folders under `<userData>/workspaces/` with a `workspace.json` but no registry entry are listed as unregistered, with Delete and Re-add, so a damaged registry cannot hide anything on disk.
-- **Dangling agent entries**: an agent-created entry whose folder is gone is dropped from the registry silently, since its owner (step 8) reaps its own folders. The app itself never deletes a workspace on its own.
+- **Dangling entries**: a registered workspace whose folder is gone is dropped from the registry as the list is read, whoever removed the folder (Finder, or studio-drive reaping a clean room in step 8). The app itself never deletes a workspace folder on its own.
 
 ### 7. Window identity
 
-When the resolved workspace is not Default, the window bar shows its name and a thin stripe in its color, so a screenshot or a driven instance's capture shows which scenario it came from.
+When the resolved workspace is not Default, the dev panel's badge in the window bar shows its color dot and name beside the instance label, so a screenshot or a driven instance's capture shows which scenario it came from. Deliberately the dev panel and nothing more: how workspaces would be shown to people is a product decision for later.
 
 ### 8. Agents get a clean room through studio-drive
 
@@ -169,10 +170,15 @@ It gives a fresh `Instrument (<timestamp>)` userData via `ELECTRON_USE_NEW_USER_
 - Store construction: a workspace store opened with a temp `cwd` reads and writes there and nowhere else.
 - App session: the app window's session path is under the resolved workspace, and `configureAppSession` applies the user agent, permission handler, authenticator, and `app:` handler to it.
 - Supervisor: restarts on the relaunch code with the same environment and arguments, exits with the child's code otherwise.
-- Management: copy sign-ins copies only the credential stores; Default offers no delete; delete refuses the resolved workspace and one with a live pid; strays are listed; dangling agent entries are dropped and nothing else is.
+- Management: copy sign-ins copies only the credential stores; Default offers no delete; delete refuses the resolved workspace and one with a live pid; strays are listed; dangling entries are dropped.
 - By hand in dev: create a workspace with sign-ins copied, switch, sign in to a different Gmail account in the in-app browser and resize the window, switch back, and confirm Default's tabs, history, sign-ins, model, theme, and window size are where they were. Then `boot --clean-room` beside it and confirm the person's instance is untouched.
 
-## Out of scope
+## Checked by hand
+
+- Booted on an APFS clone of a real dev application-data directory (12 GB, an Instrument account signed in, months of chats): the migration ran once, the account, default model, theme, and the window's 14 `studio.*` localStorage keys (tabs included) came across, and a second boot migrated nothing.
+- Created a workspace with sign-ins copied, switched to it under `pnpm dev`'s supervisor, found it signed in with no chats and its own window size and theme, switched back to the default workspace's chats and tab, and deleted the new one to the Trash. Deleting the default workspace, and one another process held open, were both refused.
+- `studio-drive boot --clean-room` beside a running instance on the same application data: signed in, pinned, listed as agent-made in the other instance, and its own switch refused.
+
 
 - Two workspaces open at once as separate windows of one process. Needs two workspace actors in one process. Step 8 already gets two workspaces running at once as two processes, each with its own window state.
 - A per-workspace output folder in place of the shared `~/Documents/Instrument` (`packages/workspace/src/lib/orchestrator/output-folder.ts`).

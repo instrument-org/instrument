@@ -2,7 +2,7 @@ import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 /** One thing a menu offers: what stands for it, what it is called, and whether it is on. */
 export interface PickEntry {
@@ -49,8 +49,31 @@ export function PickList({
   const shown = words
     ? entries.filter((entry) => entry.label.toLowerCase().includes(words))
     : entries;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setOverflowing] = useState(false);
+  // `scroll-fade-y` only while there is something to scroll: Chromium holds
+  // the fade's scroll-driven animation at its last value once a scroller
+  // stops being scrollable, so a list scrolled down and then narrowed by the
+  // find field would keep its top fade over rows with nothing above them.
+  // Both boxes are watched: the scroller stops growing at its cap, and the
+  // rows inside it keep going.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const rows = scroller?.firstElementChild;
+    if (!scroller || !rows) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      setOverflowing(scroller.scrollHeight > scroller.clientHeight);
+    });
+    observer.observe(scroller);
+    observer.observe(rows);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   return (
-    <div className="flex max-h-80 flex-col">
+    <div className="flex max-h-80 min-h-0 flex-col">
       {(findsAlways || entries.length > FIND_FROM) && (
         <div className="relative mb-1 shrink-0">
           <MagnifyingGlassIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -73,52 +96,63 @@ export function PickList({
           />
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto" role="group">
-        {shown.length === 0 ? (
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">
-            {entries.length === 0 ? "Nothing yet." : "Nothing matches."}
-          </p>
-        ) : (
-          shown.map((entry) => {
-            const isOn = chosen.has(entry.id);
-            const row = (
-              <div className="group/pick flex h-7 items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
-                <button
-                  aria-checked={isOn}
-                  className="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
-                  onClick={() => {
-                    onToggle(entry.id);
-                  }}
-                  role="menuitemcheckbox"
-                  type="button"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {entry.icon}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-                  {entry.note && (
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {entry.note}
-                    </span>
-                  )}
-                  <CheckIcon
-                    className={cn(
-                      "size-3.5 shrink-0",
-                      isOn ? "opacity-100" : "opacity-0",
-                    )}
-                    weight="bold"
-                  />
-                </button>
-                {rowTrailing?.(entry)}
-              </div>
-            );
-            return (
-              <Fragment key={entry.id}>
-                {wrapRow ? wrapRow(entry, row) : row}
-              </Fragment>
-            );
-          })
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto",
+          isOverflowing && "scroll-fade-y",
         )}
+        ref={scrollerRef}
+        role="group"
+      >
+        <div>
+          {shown.length === 0 ? (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              {entries.length === 0 ? "Nothing yet." : "Nothing matches."}
+            </p>
+          ) : (
+            shown.map((entry) => {
+              const isOn = chosen.has(entry.id);
+              const row = (
+                <div className="group/pick flex h-7 items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
+                  <button
+                    aria-checked={isOn}
+                    className="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
+                    onClick={() => {
+                      onToggle(entry.id);
+                    }}
+                    role="menuitemcheckbox"
+                    type="button"
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {entry.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {entry.label}
+                    </span>
+                    {entry.note && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {entry.note}
+                      </span>
+                    )}
+                    <CheckIcon
+                      className={cn(
+                        "size-3.5 shrink-0",
+                        isOn ? "opacity-100" : "opacity-0",
+                      )}
+                      weight="bold"
+                    />
+                  </button>
+                  {rowTrailing?.(entry)}
+                </div>
+              );
+              return (
+                <Fragment key={entry.id}>
+                  {wrapRow ? wrapRow(entry, row) : row}
+                </Fragment>
+              );
+            })
+          )}
+        </div>
       </div>
       {foot && (
         <div className="mt-1 shrink-0 border-t border-border pt-1">

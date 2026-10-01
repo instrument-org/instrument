@@ -67,7 +67,7 @@ export function TopicPicker({
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
         align={align}
-        className="w-60 p-1"
+        className="flex w-60 flex-col p-1"
         // Focus does not come back to the trigger as the list closes: a
         // trigger shown only on hover would stay for it after the pointer
         // had gone.

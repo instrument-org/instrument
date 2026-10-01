@@ -4,6 +4,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -381,7 +382,8 @@ function ViewPicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-72 rounded-2xl p-1.5"
+        className="flex w-72 flex-col rounded-2xl p-1.5"
+        maxHeight="30rem"
         role="menu"
         side="bottom"
         sideOffset={6}
@@ -408,8 +410,12 @@ function ViewPicker({
           )}
           <span className="truncate">Chats</span>
         </PickerRow>
-        {topics.length > 0 && <div className="mx-2 my-1 h-px bg-border" />}
-        {topics.map((entry) => (
+        {topics.length > 0 && (
+          <div className="mx-2 my-1 h-px shrink-0 bg-border" />
+        )}
+        {/* The topics scroll between the chats and the foot, which stay. */}
+        <MenuScrollArea className="p-0">
+          {topics.map((entry) => (
           <TopicContextMenu
             key={entry.topic.id}
             onDetails={onDetails}
@@ -432,8 +438,9 @@ function ViewPicker({
               <span className="truncate">{entry.topic.name}</span>
             </PickerRow>
           </TopicContextMenu>
-        ))}
-        <div className="mx-2 my-1 h-px bg-border" />
+          ))}
+        </MenuScrollArea>
+        <div className="mx-2 my-1 h-px shrink-0 bg-border" />
         <PickerRow
           isOn={false}
           muted

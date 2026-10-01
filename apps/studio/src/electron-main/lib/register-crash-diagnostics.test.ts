@@ -7,7 +7,7 @@ import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
 const { captureServerException, log } = vi.hoisted(() => ({
   captureServerException: vi.fn(),
-  log: { error: vi.fn(), warn: vi.fn() },
+  log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
 vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
@@ -172,6 +172,40 @@ describe("registerCrashDiagnostics", () => {
       }
 
       expect(log.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      "render-process-gone",
+      createFakeWebContents("window"),
+      "render-process-gone type=window id=7 reason=killed exitCode=15",
+    ],
+    [
+      "child-process-gone",
+      undefined,
+      "child-process-gone type=GPU name=GPU reason=killed exitCode=15",
+    ],
+  ])(
+    "keeps the SIGTERM a quit sends %s out of the errors",
+    (event, webContents, line) => {
+      const { app, emit } = createFakeApp();
+      registerCrashDiagnostics(app);
+
+      const details = {
+        exitCode: 15,
+        name: "GPU",
+        reason: "killed",
+        type: "GPU",
+      };
+      if (webContents) {
+        emit(event, {}, webContents, details);
+      } else {
+        emit(event, {}, details);
+      }
+
+      expect(log.error).not.toHaveBeenCalled();
+      expect(log.info).toHaveBeenCalledWith(line);
     },
   );
 

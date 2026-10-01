@@ -80,7 +80,8 @@ export function registerCrashDiagnostics(app: Electron.App) {
     if (details.reason === "clean-exit") {
       return;
     }
-    log.error(
+    logProcessGone(
+      details,
       `render-process-gone ${identifyWebContents(webContents)} reason=${details.reason} exitCode=${details.exitCode}`,
     );
   });
@@ -90,10 +91,27 @@ export function registerCrashDiagnostics(app: Electron.App) {
       return;
     }
     const name = details.name ?? details.serviceName ?? "unknown";
-    log.error(
+    logProcessGone(
+      details,
       `child-process-gone type=${details.type} name=${name} reason=${details.reason} exitCode=${details.exitCode}`,
     );
   });
+}
+
+// SIGTERM is how a quit, and a dev relaunch, ends every child process, so a
+// process killed by it is ordinary teardown rather than something that went
+// wrong.
+const SIGTERM_EXIT_CODE = 15;
+
+function logProcessGone(
+  details: { exitCode: number; reason: string },
+  line: string,
+) {
+  if (details.reason === "killed" && details.exitCode === SIGTERM_EXIT_CODE) {
+    log.info(line);
+    return;
+  }
+  log.error(line);
 }
 
 function getCrashRecordPath(app: Electron.App) {

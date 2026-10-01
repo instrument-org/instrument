@@ -149,13 +149,18 @@ const SPRITE_ICONS: ResolvedIcon[] = [
     ...getBuiltInSpriteSheet("complete").matchAll(
       /<symbol[^>]*id="file-tree-builtin-([^"]+)"/g,
     ),
-  ].map(([, token]) => ({ name: `file-tree-builtin-${token}`, token })),
+  ].flatMap(([, token]) =>
+    token ? [{ name: `file-tree-builtin-${token}`, token }] : [],
+  ),
   ...[...Object.keys(FILE_TYPE_GLYPHS), ...Object.keys(FILE_TYPE_ALIASES)].map(
     (token) => ({ name: `file-system-icon-${token}` }),
   ),
 ];
 
-type Group = { icon: ResolvedIcon; samples: string[] };
+interface Group {
+  icon: ResolvedIcon;
+  samples: string[];
+}
 
 function groupSamples(): Group[] {
   const groups = new Map<string, Group>(

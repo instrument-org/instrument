@@ -14,6 +14,8 @@ export const env = createEnv({
     APP_AI_GATEWAY_API_KEY: z.string().optional(),
     APP_ANTHROPIC_API_KEY: z.string().optional(),
     APP_CEREBRAS_API_KEY: z.string().optional(),
+    // A ChatGPT plan access token, as `script:chatgpt-plan-token` prints it.
+    APP_CHATGPT_PLAN_TOKEN: z.string().optional(),
     APP_GOOGLE_API_KEY: z.string().optional(),
     APP_GROQ_API_KEY: z.string().optional(),
     APP_OPENAI_API_KEY: z.string().optional(),

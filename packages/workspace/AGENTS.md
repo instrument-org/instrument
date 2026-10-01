@@ -44,6 +44,8 @@ bare slug means OpenRouter, full model URI pins any configured provider),
 (`none|low|medium|high|max`, recorded on every task the run creates), `--name`,
 `--repeat`, `--concurrency`, `--dry-run`, `--include-context`, `--json`.
 
+The ChatGPT plan, the provider most users sign in with and the cheapest one to test real models on, is configured from `APP_CHATGPT_PLAN_TOKEN`. `pnpm --silent script:chatgpt-plan-token` prints the token of the account signed in to the installed app (`--dev` for a dev build's), so a run is `APP_CHATGPT_PLAN_TOKEN=$(pnpm --silent script:chatgpt-plan-token) pnpm eval run --model 'openai/gpt-5.6-sol?provider=chatgpt&providerConfigId=chatgpt-plan' ...`. The token lasts about an hour and only the app renews it, so it does not belong in `.env`; the same token works for direct requests to `https://api.openai.com/v1/responses` with `store: false` and `stream: true`.
+
 `run` and `report` exit non-zero when an assertion failed or a model request was
 refused, so a failed suite is visible without reading the output. `--json` prints
 the whole report as one line on stdout with all narration on stderr; the same

@@ -8,6 +8,7 @@ import {
 import {
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
+  CHATGPT_PLAN_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import path from "node:path";
@@ -340,6 +341,15 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
       ...OUR_PROVIDER_CONFIG,
       apiKey: env.APP_AI_API_KEY,
       baseURL: env.APP_AI_BASE_URL,
+    });
+  }
+
+  // The plan Studio signs in to with ChatGPT, under the config id the app
+  // uses, so a model URI copied from a real transcript runs here unchanged.
+  if (env.APP_CHATGPT_PLAN_TOKEN) {
+    configs.push({
+      ...CHATGPT_PLAN_PROVIDER_CONFIG,
+      apiKey: env.APP_CHATGPT_PLAN_TOKEN,
     });
   }
 

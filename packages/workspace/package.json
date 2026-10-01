@@ -24,6 +24,7 @@
     "eval": "node --disable-warning=ExperimentalWarning --import tsx evals/cli.ts",
     "eval:activity-grouping": "node --disable-warning=ExperimentalWarning --import tsx evals/activity-grouping.ts",
     "fix:lint": "oxlint --type-aware --fix",
+    "script:chatgpt-plan-token": "tsx scripts/chatgpt-plan-token.ts",
     "script:clt-shim-audit": "cross-env NODE_ENV=development node --import tsx scripts/clt-shim-audit.ts",
     "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",

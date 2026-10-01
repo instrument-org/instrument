@@ -29,7 +29,7 @@ import { useState } from "react";
 /**
  * The guide to every chord the window answers to, mounted once at the window
  * root, which is also where `?` is listened for. Reads
- * `shortcutGuideModalAtom` (opened by `?`, the Help menu, or the omnibar).
+ * `shortcutGuideModalAtom` (opened by `?` or the Help menu).
  * Rows are grouped and searchable; chords are drawn for this platform from the
  * same tables the native menu builds its accelerators from, so nothing here
  * can go stale. Traps tab navigation while open.

@@ -245,7 +245,7 @@ export interface BrowserTab {
   url?: string;
 }
 
-/** A page the browser showed, for the new-tab page: newest first, one per address. */
+/** A page the browser showed, for the new-tab page and the address field's completions: newest first, one per address. */
 export interface VisitedPage {
   at: number;
   favicon?: string;
@@ -253,7 +253,8 @@ export interface VisitedPage {
   url: string;
 }
 
-export const VISITED_MAX = 30;
+/** Enough history for the address field to finish the sites a person goes back to, which a page's handful of rows never needed. */
+export const VISITED_MAX = 500;
 
 export const visitedPagesAtom = atomWithStorage<VisitedPage[]>(
   "studio.visited-pages.v1",

@@ -166,19 +166,13 @@ export function TabLocationRow({
           <Omnibar
             initial={locationText(location)}
             key={locationText(location)}
+            location={location}
             {...(onSite ? { onSite } : {})}
             {...(onVisit ? { onVisit } : {})}
             resting={
               location.kind === "newTab" ? undefined : (
                 <Field location={location} />
               )
-            }
-            // A Finder or file tab reaches the computer; every other tab is
-            // a browser tab or stands where one would, and reaches the web.
-            scope={
-              location.kind === "file" || location.kind === "folder"
-                ? "files"
-                : "web"
             }
           />
           {openIn && <OpenInAppButton target={openIn} />}

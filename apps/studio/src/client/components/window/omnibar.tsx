@@ -1,95 +1,199 @@
-import { openSettings } from "@/client/atoms/settings-modal";
-import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   bookmarksAtom,
-  recentsAtom,
+  CHATS_HREF,
   visitedPagesAtom,
 } from "@/client/atoms/window";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
+import { AppIcon } from "@/client/components/window/app-icon";
+import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { childTasksOptions } from "@/client/components/window/child-tasks-query";
 import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
-import { RecentIcon, SiteIcon } from "@/client/components/window/sidebar";
+import { ideaHref } from "@/client/components/window/ideas";
+import {
+  addressCompletion,
+  bareAddress,
+  hostPathOf,
+  matchEntries,
+  matchNames,
+  matchPages,
+  pathFromWords,
+  pathQuery,
+} from "@/client/components/window/omnibar-match";
+import { ShellContext } from "@/client/components/window/shell-context";
+import { SiteIcon } from "@/client/components/window/sidebar";
+import {
+  SKILLS_HREF,
+  type TabLocation,
+  taskHref,
+} from "@/client/components/window/tab-location";
+import { ideasQueryOptions } from "@/client/components/window/use-ideas";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { siteFromWords } from "@/client/lib/site-from-words";
+import { matchSkills } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
-import uFuzzy from "@leeoniya/ufuzzy";
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { type TaskId } from "@instrument-org/workspace/client";
+import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
-import { GearIcon } from "@phosphor-icons/react/Gear";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
+import ms from "ms";
 import { unique } from "radashi";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  use,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
-const RECENTS_SHOWN = 6;
+/** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
+const PAGES_SHOWN = 4;
+const SUGGESTIONS_SHOWN = 5;
+const ENTRIES_SHOWN = 8;
+const MATCHES_SHOWN = 8;
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const SEARCH_URL = "https://www.google.com/search?q=";
 
 /**
- * What a tab's field reaches, decided by the kind of tab it is in: the web
- * from a browser tab, the computer from a Finder or file tab.
+ * What a tab's field reaches, decided by what the tab holds: the web from a
+ * page or a new tab, the computer from a folder or a file, and from any other
+ * screen the list that screen is one of, so an app's page finds apps and a
+ * task's page finds tasks.
  */
-export type OmnibarScope = "files" | "web";
+export type OmnibarMode =
+  | "apps"
+  | "chats"
+  | "files"
+  | "ideas"
+  | "skills"
+  | "tasks"
+  | "web";
 
-/** Something the window can be asked to do, as opposed to somewhere it can go. */
-interface OmniCommand {
-  icon: ReactNode;
-  id: string;
-  name: string;
-  run: () => void;
-  /**
-   * The words that summon it, each matched from its start. A command the field
-   * should not offer of its own accord is summoned by a word starting `!`,
-   * which nothing else typed here begins with.
-   */
-  words: string[];
+export function omnibarModeOf(location: TabLocation): OmnibarMode {
+  switch (location.kind) {
+    case "app":
+    case "apps": {
+      return "apps";
+    }
+    case "chat": {
+      return "chats";
+    }
+    case "file":
+    case "folder": {
+      return "files";
+    }
+    case "idea":
+    case "ideas": {
+      return "ideas";
+    }
+    case "skill":
+    case "skills": {
+      return "skills";
+    }
+    case "task":
+    case "tasks": {
+      return "tasks";
+    }
+    case "newTab":
+    case "page": {
+      return "web";
+    }
+  }
 }
+
+/** What the field says it is for, empty and to a screen reader. */
+const PROMPTS: Record<OmnibarMode, string> = {
+  apps: "Find an app",
+  chats: "Find a chat",
+  files: "Go to a folder or file",
+  ideas: "Find an idea",
+  skills: "Find a skill",
+  tasks: "Find a task",
+  web: "Search or enter address",
+};
+
+/** What a list with nothing matching is a list of. */
+const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
+  apps: "apps",
+  chats: "chats",
+  ideas: "ideas",
+  skills: "skills",
+  tasks: "tasks",
+};
 
 interface OmniRow {
-  group: string;
-  icon: ReactNode;
+  /** Muted after the name: a page's address, what Enter does with the words. */
+  detail?: string | undefined;
   /**
-   * What the row stands for, unique across the list: the key React keeps the
-   * row's element by. Two rows keyed by their words (two pages titled alike,
-   * a page in the history and again in the recents) left orphaned elements
-   * at the top of the list that no highlight could reach.
+   * What the field says while the row is picked with the arrows, and what Tab
+   * writes into it to go on typing from there: a page's address, a folder's
+   * path ending in a separator.
    */
+  fill?: string;
+  icon: ReactNode;
+  /** What the row stands for, unique across the list: the key React keeps its element by. */
   id: string;
-  /** A second line under the name: a page's site, so a page reads as one beside a screen. */
-  line?: string;
+  /**
+   * Whether the row puts the field away itself, once it knows it has gone
+   * somewhere: a path is looked for first, and the words stay when nothing is
+   * there.
+   */
+  leavesItself?: boolean;
   name: string;
-  note: string;
   run: () => void;
 }
 
 /**
- * A tab's address field. On the web it opens a typed address, searches for
- * typed words, and finds bookmarked and recently seen pages; on the computer it
- * opens a typed path and finds recent files and folders. It lives in the row
- * above a new tab, where a browser keeps its address field, so a new tab is
- * the field with nothing in it yet rather than a page with a second field
- * drawn on it.
+ * A tab's address field, which reads what is typed in the terms of what the
+ * tab holds (see `OmnibarMode`).
+ *
+ * The first row is always what Enter does with the words in the field, and it
+ * is what the field says: an address a browser would open, a search, a path,
+ * or the best match in the screen's list. The rows under it are other things
+ * the words could mean, and the arrows pick one without the field forgetting
+ * what was typed. On the web and the computer the field finishes an address or
+ * a name ahead of the caret, from where the browser has been or what the
+ * folder holds, the way a browser's address bar does.
+ *
+ * It lives in the row above a new tab, where a browser keeps its address
+ * field, so a new tab is the field with nothing in it yet rather than a page
+ * with a second field drawn on it.
  */
 export function Omnibar({
   initial = "",
+  location,
   onSite,
   onVisit,
   resting,
-  scope,
 }: {
   /** What the field says when it is edited: the place, ready to be typed over. */
   initial?: string;
+  /** Where the tab is, which is what the field reaches and where a relative path starts. */
+  location: TabLocation;
   /** Where a site goes when one is asked for: the tab's own guest, on a page. Absent, a new tab. */
   onSite?: (url: string) => void;
   /** Where a screen the field names goes: the tab this row is over, when that tab is not the router's. */
@@ -99,53 +203,33 @@ export function Omnibar({
    * Absent on a new tab, which has nowhere to show and takes the caret at once.
    */
   resting?: ReactNode;
-  /** What the field reaches, which is what the tab it sits in holds. */
-  scope: OmnibarScope;
 }) {
+  const mode = omnibarModeOf(location);
   const { openPage, taskId } = useWindow();
   const router = useRouter();
-  /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
-  const visit = (href: string) => {
-    if (onVisit) {
-      onVisit(href);
-    } else {
-      router.history.push(href);
-    }
-  };
   const queryClient = useQueryClient();
-  const location = useRouterState({
+  const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const recents = useAtomValue(recentsAtom);
-  const visited = useAtomValue(visitedPagesAtom);
-  const bookmarks = useAtomValue(bookmarksAtom);
-  const preferences = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const setDeveloperMode = useMutation(
-    rpcClient.preferences.setDeveloperMode.mutationOptions(),
-  );
-  const setReleaseChannel = useMutation(
-    rpcClient.preferences.setReleaseChannel.mutationOptions(),
-  );
-  const checkForUpdates = useMutation(
-    rpcClient.preferences.checkForUpdates.mutationOptions(),
-  );
-  const simulateNoUpdate = useMutation(
-    rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
-  );
   const [query, setQuery] = useState(initial);
+  // Which row the arrows have picked; the first is what Enter does with the
+  // words as they stand.
   const [highlight, setHighlight] = useState(0);
+  // Whether the field may finish the words ahead of the caret: only just
+  // after a letter typed at the end, never after one taken away, so deleting
+  // the part it wrote does not write it straight back.
+  const [canComplete, setCanComplete] = useState(false);
   const [isEditing, setEditing] = useState(resting === undefined);
   // Whether the caret is in the box: a new tab's box is editing whether or
   // not it has focus, so this is the one that says where the placeholder
   // sits.
   const [isFocused, setFocused] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = useId();
   // What was typed over the place, which is what the rows answer to; the
   // place itself, left as it was, asks for nothing.
-  const typed = query.trim() === initial.trim() ? "" : query.trim();
-  const words = typed.toLowerCase();
-  const input = useRef<HTMLInputElement>(null);
+  const typed = query.trim() === initial.trim() ? "" : query;
+
   // A new tab the user opened should be ready to type in, but this field also
   // appears when a channel with no tabs is switched to, and there the caret
   // belongs in that channel's composer. So it takes the keyboard as it
@@ -158,56 +242,36 @@ export function Omnibar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The matcher the model picker uses: typed letters in order, close
-  // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
-  const matches = (name: string) =>
-    !words || (fuzzy.filter([name], typed)?.length ?? 0) > 0;
-  // A name typed whole is that thing asked for, the way an address typed
-  // whole is: it opens on Enter rather than being searched for.
-  const isNamed = (name: string) =>
-    words !== "" && name.toLowerCase() === words;
-  const typedSite = scope === "web" ? siteFromWords(typed) : undefined;
-  const typedPath = scope === "files" ? pathFromWords(typed) : undefined;
-
-  // Done with: the field goes back to showing the place, which is also what
-  // answers a path typed again for where the tab already is.
-  const arrived = () => {
+  /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
+  const visit = (href: string) => {
+    if (onVisit) {
+      onVisit(href);
+    } else {
+      router.history.push(href);
+    }
+  };
+  /** Where a site goes: this tab's own guest on a page, a tab of its own anywhere else. */
+  const openSite = (url: string) => {
+    (onSite ?? openPage)(url);
+  };
+  // Done with: the field goes back to showing the place, or to empty on a
+  // new tab, which has no place to show.
+  const leave = () => {
+    if (resting === undefined) {
+      setQuery("");
+    }
     input.current?.blur();
   };
+
   /**
-   * Opens a typed path where the field is: the folder in this tab, rooted
-   * where the tab already is when the folder is under it, so the columns keep
-   * their place; a file as its tab. Whether it is a folder is learned by
-   * asking for it as one, which is the read the folder view is about to make
-   * anyway.
+   * Opens a folder where the field is, rooted where the tab already is when
+   * the folder is under it, so the columns keep their place.
    */
-  const openPath = async (written: string) => {
+  const openFolder = (host: string) => {
     const home = window.api.homeDir;
-    const host = expandHomePath(written, home);
-    try {
-      await queryClient.fetchQuery(
-        rpcClient.workspace.computer.list.queryOptions({
-          input: { id: taskId, path: host },
-          retry: false,
-        }),
-      );
-    } catch {
-      // Not a folder: a file, if one is there. Asked of the channel first,
-      // since opening a tab on nothing would close the tab this field sits in
-      // once the viewer found the file missing.
-      if (await fileExists(host)) {
-        visit(fileHref(host));
-        arrived();
-        return;
-      }
-      toast(`Nothing at “${written}”`, {
-        description: "No folder or file there.",
-      });
-      return;
-    }
-    const search = location.search as Record<string, unknown>;
+    const search = routerLocation.search as Record<string, unknown>;
     const currentRoot =
-      location.pathname === "/files" &&
+      routerLocation.pathname === "/files" &&
       typeof search.root === "string" &&
       search.root !== RECENTS_ROOT
         ? search.root
@@ -232,238 +296,89 @@ export function Omnibar({
         to: "/files",
       }).href,
     );
-    arrived();
+    leave();
+  };
+  /**
+   * Opens a path where the field is: a folder in this tab, a file as its tab.
+   * Whether it is a folder is learned by asking for it as one, which is the
+   * read the folder view is about to make anyway.
+   */
+  const openPath = async (host: string) => {
+    try {
+      await queryClient.fetchQuery(
+        rpcClient.workspace.computer.list.queryOptions({
+          input: { id: taskId, path: host },
+          retry: false,
+        }),
+      );
+    } catch {
+      // Not a folder: a file, if one is there. Asked of the channel first,
+      // since opening a tab on nothing would close the tab this field sits in
+      // once the viewer found the file missing.
+      if (await fileExists(host)) {
+        visit(fileHref(host));
+        leave();
+        return;
+      }
+      toast(`Nothing at “${displayHostPath(host, window.api.homeDir)}”`, {
+        description: "No folder or file there.",
+      });
+      return;
+    }
+    openFolder(host);
   };
 
-  // Where the window has been, newest first, as one list: the pages the
-  // browser showed on the web, the files and folders it opened on the
-  // computer.
-  // One row per place: a page the browser showed is also a recent screen when
-  // the window landed on it, and the two are the same place.
-  const wasAt = unique(
-    [
-      ...recents
-        .filter((entry) =>
-          scope === "web"
-            ? entry.kind === "browser"
-            : entry.kind === "file" || entry.kind === "folder",
-        )
-        .map((entry) => ({
-          at: entry.at,
-          icon: <RecentIcon recent={entry} />,
-          id:
-            entry.kind === "browser"
-              ? `page:${entry.href}`
-              : `recent:${entry.href}`,
-          ...(entry.kind === "browser" ? { line: hostOf(entry.href) } : {}),
-          note: {
-            browser: "Page",
-            file: "File",
-            folder: "Folder",
-            task: "Task",
-          }[entry.kind],
-          run: () => {
-            visit(entry.href);
-          },
-          title: entry.title,
-        })),
-      // A page it has been to goes where a typed site goes: this tab's own
-      // guest on a page, a tab of its own anywhere else.
-      ...(scope === "web" ? visited : []).map((page) => ({
-        at: page.at,
-        icon: <SiteIcon favicon={page.favicon} url={page.url} />,
-        id: `page:${page.url}`,
-        line: hostOf(page.url),
-        note: "Page",
-        run: () => {
-          (onSite ?? openPage)(page.url);
-        },
-        title: page.title || hostOf(page.url),
-      })),
-    ].sort((a, b) => b.at - a.at),
-    (entry) => entry.id,
-  );
-  const recentRows = wasAt
-    .filter((entry) => matches(entry.title))
-    .slice(0, words ? RECENTS_SHOWN : 0);
-  // The pages kept as bookmarks, ahead of those merely seen.
-  const bookmarkRows: OmniRow[] =
-    scope === "web"
-      ? bookmarks
-          .filter((bookmark) => matches(bookmark.title))
-          .map((bookmark) => ({
-            group: "Bookmarks",
-            icon: <SiteIcon url={bookmark.url} />,
-            id: `bookmark:${bookmark.id}`,
-            line: hostOf(bookmark.url),
-            name: bookmark.title,
-            note: "Page",
-            run: () => {
-              (onSite ?? openPage)(bookmark.url);
-            },
-          }))
-      : [];
-  const recentOmniRows: OmniRow[] = recentRows.map((entry) => ({
-    group: "Recent",
-    icon: entry.icon,
-    id: entry.id,
-    ...(entry.line === undefined ? {} : { line: entry.line }),
-    name: entry.title,
-    note: entry.note,
-    run: entry.run,
-  }));
-  // The switches this window keeps nowhere else, developer mode among them, so
-  // turning one on is a thing you type rather than a build you restart.
-  // A command runs on Enter, so it is summoned by words of its own from three
-  // letters on, rather than by the matcher the places use: a search that
-  // merely grazed one would otherwise take the top of the list from the web.
-  // Developer mode answers to `!dev` and the beta channel to `!beta`: they are
-  // for whoever already knows to ask for them.
-  const developerMode = preferences.data?.developerMode ?? false;
-  const isBeta = preferences.data?.releaseChannel === "beta";
-  const commands: OmniCommand[] = [
-    {
-      icon: <WrenchIcon className="size-4" />,
-      id: "developer-mode",
-      name: developerMode
-        ? "Turn off developer mode"
-        : "Turn on developer mode",
-      run: () => {
-        setDeveloperMode.mutate({ enabled: !developerMode });
-        toast(developerMode ? "Developer mode off" : "Developer mode on");
-      },
-      words: ["!dev"],
-    },
-    {
-      icon: <FlaskIcon className="size-4" />,
-      id: "beta-channel",
-      name: isBeta ? "Leave the beta channel" : "Join the beta channel",
-      run: () => {
-        setReleaseChannel.mutate({ channel: isBeta ? undefined : "beta" });
-        toast(isBeta ? "Beta channel removed" : "Beta channel enabled");
-      },
-      words: ["!beta"],
-    },
-    {
-      icon: <GearIcon className="size-4" />,
-      id: "settings",
-      name: "Settings",
-      run: () => {
-        openSettings({ tab: "General" });
-      },
-      words: ["settings", "preferences"],
-    },
-    {
-      icon: <KeyboardIcon className="size-4" />,
-      id: "shortcut-guide",
-      name: "Keyboard shortcuts",
-      run: openShortcutGuide,
-      words: ["keyboard shortcuts", "shortcuts", "hotkeys"],
-    },
-    {
-      icon: <ArrowsClockwiseIcon className="size-4" />,
-      id: "updates",
-      name: "Check for updates",
-      run: () => {
-        // In development there is no build to find, so the window is shown the
-        // answer it would have got instead.
-        if (import.meta.env.DEV) {
-          simulateNoUpdate.mutate(undefined);
-        } else {
-          checkForUpdates.mutate({});
-        }
-      },
-      words: ["updates", "check for updates"],
-    },
-  ];
-  const commandRows: OmniRow[] = commands
-    .filter(
-      (command) =>
-        words.length >= 3 &&
-        command.words.some((phrase) => phrase.startsWith(words)),
-    )
-    .map((command) => ({
-      group: "Commands",
-      icon: command.icon,
-      id: command.id,
-      name: command.name,
-      note: "Command",
-      run: () => {
-        command.run();
-        // Done with: the field goes back to showing the place it is in.
-        setQuery("");
-        input.current?.blur();
-      },
-    }));
-  const matched = [...bookmarkRows, ...recentOmniRows];
-  const rows: OmniRow[] = [
-    // What the words are, when they are a place: a path on the computer, an
-    // address, or the whole name of something the box knows. Each opens on
-    // Enter, which is what the field is for when it is edited in place.
-    ...(typedPath
-      ? [
-          {
-            group: "Open",
-            icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
-            id: "path",
-            name: displayHostPath(typedPath, window.api.homeDir),
-            note: computerName(),
-            run: () => {
-              void openPath(typedPath);
-            },
-          },
-        ]
-      : []),
-    ...(typedSite
-      ? [
-          {
-            group: "Open",
-            icon: <GlobeIcon className="size-4" />,
-            id: "site",
-            name: `Open ${typedSite.host}`,
-            note: "Site",
-            run: () => {
-              (onSite ?? openPage)(typedSite.url);
-            },
-          },
-        ]
-      : []),
-    ...matched
-      .filter((row) => isNamed(row.name))
-      .map((row) => ({ ...row, group: "Open" })),
-    // Then what the words ask the window to do, which is as plain a reading of
-    // them as a place is.
-    ...commandRows,
-    // On the web, a search for the words next: what typed words most often
-    // mean there, and the rows that matched them follow.
-    ...(words && scope === "web"
-      ? [
-          {
-            group: `Use “${typed}” with`,
-            icon: <MagnifyingGlassIcon className="size-4" />,
-            id: "search",
-            name: "Search the web",
-            note: "Browser",
-            run: () => {
-              (onSite ?? openPage)(
-                `https://www.google.com/search?q=${encodeURIComponent(typed)}`,
-              );
-              setQuery("");
-            },
-          },
-        ]
-      : []),
-    ...matched.filter((row) => !isNamed(row.name)),
-  ];
+  const { completion, empty, rows } = useRows({
+    canComplete,
+    location,
+    mode,
+    open: { openFolder, openPath, openSite, visit },
+    taskId,
+    typed,
+  });
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
+  const isListShown = isEditing && typed.trim() !== "";
+  const picked = current > 0 ? rows[current] : undefined;
+  // The field says what Enter will do: the words with the rest of an address
+  // written in ahead of the caret, or the row the arrows are on.
+  const shown = picked?.fill ?? `${query}${completion}`;
+
+  // The part the field wrote in is selected, so the next letter typed
+  // replaces it and Backspace takes it away, the way a browser's does.
+  useLayoutEffect(() => {
+    const box = input.current;
+    if (completion && !picked && box && document.activeElement === box) {
+      box.setSelectionRange(query.length, query.length + completion.length);
+    }
+  }, [completion, picked, query]);
+
+  const run = (row: OmniRow | undefined) => {
+    if (!row) {
+      return;
+    }
+    row.run();
+    if (!row.leavesItself) {
+      leave();
+    }
+  };
+  /** The words as the field shows them become the words typed, and the field goes on from there. */
+  const takeShown = (words: string) => {
+    setQuery(words);
+    setHighlight(0);
+    setCanComplete(false);
+  };
 
   return (
     <>
       {!isEditing && resting !== undefined && resting}
       <input
-        aria-label={
-          scope === "web" ? "Search or enter address" : "Go to a file or folder"
+        aria-activedescendant={
+          isListShown && rows.length > 0 ? `${listId}-${current}` : undefined
         }
+        aria-autocomplete="both"
+        aria-controls={isListShown ? listId : undefined}
+        aria-expanded={isListShown}
+        aria-label={PROMPTS[mode]}
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
@@ -481,6 +396,8 @@ export function Omnibar({
         )}
         onBlur={() => {
           setFocused(false);
+          setHighlight(0);
+          setCanComplete(false);
           // The list goes with the caret, wherever the box is; a place's own
           // name comes back into the box once it is left.
           setEditing(false);
@@ -489,8 +406,15 @@ export function Omnibar({
           }
         }}
         onChange={(event) => {
-          setQuery(event.target.value);
+          const box = event.currentTarget;
+          const { nativeEvent } = event;
+          setQuery(box.value);
           setHighlight(0);
+          setCanComplete(
+            nativeEvent instanceof InputEvent &&
+              nativeEvent.inputType === "insertText" &&
+              box.selectionEnd === box.value.length,
+          );
         }}
         onFocus={(event) => {
           setFocused(true);
@@ -503,18 +427,26 @@ export function Omnibar({
           switch (event.key) {
             case "ArrowDown": {
               event.preventDefault();
-              setHighlight((value) => Math.min(rows.length - 1, value + 1));
+              setHighlight(Math.min(rows.length - 1, current + 1));
+              break;
+            }
+            case "ArrowRight":
+            case "End": {
+              // The written-in rest is kept, and the caret goes past it.
+              if (completion && !picked) {
+                takeShown(shown);
+              }
               break;
             }
             case "ArrowUp": {
               event.preventDefault();
-              setHighlight((value) => Math.max(0, value - 1));
+              setHighlight(Math.max(0, current - 1));
               break;
             }
             case "Enter": {
               event.preventDefault();
-              if (typed !== "") {
-                rows[current]?.run();
+              if (typed.trim() !== "") {
+                run(rows[current]);
                 break;
               }
               // Nothing typed over the place, so no list is showing and no
@@ -524,99 +456,501 @@ export function Omnibar({
               // back to the place.
               const again = pathFromWords(query.trim());
               if (again) {
-                void openPath(again);
+                void openPath(expandHomePath(again, window.api.homeDir));
               } else if (resting !== undefined) {
                 event.currentTarget.blur();
               }
               break;
             }
             case "Escape": {
-              if (resting === undefined) {
+              // Back to the words typed first, then to the place.
+              if (picked || completion) {
+                event.preventDefault();
+                setHighlight(0);
+                setCanComplete(false);
+              } else if (resting === undefined) {
                 setQuery("");
               } else {
                 event.currentTarget.blur();
               }
               break;
             }
+            case "Tab": {
+              // Takes what the field shows, to go on typing from it: a
+              // folder's path, ready for a name in it.
+              const fill = rows[current]?.fill;
+              if (isListShown && !event.shiftKey && fill && fill !== query) {
+                event.preventDefault();
+                takeShown(fill);
+              }
+              break;
+            }
             // No default
           }
         }}
-        placeholder={
-          scope === "web"
-            ? "Search or enter address"
-            : "Type a path or a recent file’s name"
-        }
+        placeholder={PROMPTS[mode]}
         ref={input}
+        role="combobox"
         spellCheck={false}
         type="text"
-        value={query}
+        value={shown}
       />
-      {words && isEditing ? (
+      {isListShown && (rows.length > 0 || empty) ? (
         // A press on a row must not take the caret first: the box would blur,
         // the list would go, and the click would land on nothing.
         <div
-          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg"
+          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-lg"
+          id={listId}
           onMouseDown={(event) => {
             event.preventDefault();
           }}
+          role="listbox"
         >
           {rows.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-muted-foreground">
-              Nothing by that name.
-            </p>
+            <p className="px-3 py-2 text-sm text-muted-foreground">{empty}</p>
           ) : (
             rows.map((row, index) => (
-              <div key={row.id}>
-                {index === 0 || rows[index - 1]?.group !== row.group ? (
-                  <p className="px-4 pt-3 pb-1 text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
-                    {row.group}
-                  </p>
-                ) : null}
-                <button
-                  className={cn(
-                    "flex w-full items-center gap-3 px-4 py-2 text-left text-sm",
-                    index === current ? "bg-accent" : "hover:bg-accent/50",
-                  )}
-                  onClick={row.run}
-                  onMouseEnter={() => {
-                    setHighlight(index);
-                  }}
-                  // The arrows move the highlight past the list's fold; the
-                  // list follows, so the row picked is the row seen.
-                  ref={(element) => {
-                    if (index === current) {
-                      element?.scrollIntoView({ block: "nearest" });
-                    }
-                  }}
-                  type="button"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                    {row.icon}
-                  </span>
-                  {/* A page stacks its site under its title, so a page and
-                      a screen of the same name read as the two things they
-                      are. */}
-                  {row.line === undefined ? (
-                    <span className="min-w-0 flex-1 truncate">{row.name}</span>
-                  ) : (
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{row.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {row.line}
-                      </span>
+              <button
+                aria-selected={index === current}
+                className={cn(
+                  "flex h-8 w-full items-center gap-2.5 px-3 text-left text-sm",
+                  index === current ? "bg-accent" : "hover:bg-accent/50",
+                )}
+                id={`${listId}-${index}`}
+                key={row.id}
+                onClick={() => {
+                  run(row);
+                }}
+                // The arrows move the highlight past the list's fold; the
+                // list follows, so the row picked is the row seen.
+                ref={(element) => {
+                  if (index === current) {
+                    element?.scrollIntoView({ block: "nearest" });
+                  }
+                }}
+                role="option"
+                tabIndex={-1}
+                type="button"
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                  {row.icon}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  {row.name}
+                  {row.detail ? (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {row.detail}
                     </span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {row.note}
-                  </span>
-                </button>
-              </div>
+                  ) : null}
+                </span>
+              </button>
             ))
           )}
         </div>
       ) : null}
     </>
   );
+}
+
+/**
+ * The rows the words in the field stand for, in the terms of what the tab
+ * holds, the first of them what Enter does, and the rest of a name or an
+ * address the field writes in ahead of the caret.
+ */
+function useRows({
+  canComplete,
+  location,
+  mode,
+  open,
+  taskId,
+  typed,
+}: {
+  canComplete: boolean;
+  location: TabLocation;
+  mode: OmnibarMode;
+  open: {
+    openFolder: (host: string) => void;
+    openPath: (host: string) => Promise<void>;
+    openSite: (url: string) => void;
+    visit: (href: string) => void;
+  };
+  taskId: TaskId;
+  typed: string;
+}): { completion: string; empty?: string; rows: OmniRow[] } {
+  const home = window.api.homeDir;
+  const words = typed.trim();
+  const shell = use(ShellContext);
+  const commandRows = useCommandRows(words);
+
+  // On the web: the pages the window knows, bookmarks ahead of history.
+  const visited = useAtomValue(visitedPagesAtom);
+  const bookmarks = useAtomValue(bookmarksAtom);
+  const pages = unique(
+    [
+      ...bookmarks.map((bookmark) => ({
+        favicon: undefined,
+        title: bookmark.title,
+        url: bookmark.url,
+      })),
+      ...visited.map((page) => ({
+        favicon: page.favicon,
+        title: page.title,
+        url: page.url,
+      })),
+    ],
+    (page) => page.url,
+  );
+  // What the engine would finish the words as, asked once typing pauses
+  // rather than on every letter, and never for a path or a whole address.
+  const wantsSuggestions =
+    mode === "web" &&
+    words !== "" &&
+    pathFromWords(words) === undefined &&
+    !/^[a-z][a-z0-9+.-]*:\/\//i.test(words);
+  const [asked, setAsked] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAsked(wantsSuggestions ? words : "");
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [wantsSuggestions, words]);
+  const suggestions = useQuery(
+    rpcClient.browser.searchSuggestions.queryOptions({
+      input: asked ? { query: asked } : skipToken,
+      // The last answer stands until the next arrives, so the list does not
+      // empty and refill with every letter.
+      placeholderData: keepPreviousData,
+      staleTime: ms("5 minutes"),
+    }),
+  );
+
+  // On the computer: the folder the words are in, and the start of a name.
+  const here = hereOf(location, home);
+  const path = pathQuery(typed, { here, home });
+  const listing = useQuery(
+    rpcClient.workspace.computer.list.queryOptions({
+      input:
+        mode === "files" && words !== ""
+          ? { id: taskId, path: path.folder }
+          : skipToken,
+      retry: false,
+      staleTime: ms("10 seconds"),
+    }),
+  );
+
+  // The lists the other screens are one of.
+  const appsBySlug = useAppsBySlug();
+  const ideas = useQuery({
+    ...ideasQueryOptions(),
+    enabled: mode === "ideas",
+  });
+  const skills = useQuery(
+    rpcClient.workspace.skill.list.queryOptions({ enabled: mode === "skills" }),
+  );
+  const tasks = useQuery(
+    childTasksOptions(mode === "tasks" && shell ? shell.ids.taskId : skipToken),
+  );
+
+  // A switch asked for by its word is all the words mean.
+  if (commandRows.length > 0) {
+    return { completion: "", rows: commandRows };
+  }
+  if (mode === "web") {
+    const completion =
+      canComplete && pathFromWords(words) === undefined
+        ? addressCompletion(typed, pages)
+        : "";
+    const whole = `${typed}${completion}`.trim();
+    const typedPath = pathFromWords(whole);
+    const site = typedPath ? undefined : siteFromWords(whole);
+    const known = site
+      ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
+      : undefined;
+    const first: OmniRow = typedPath
+      ? pathRow(expandHomePath(typedPath, home), open.openPath)
+      : site
+        ? {
+            detail: known?.title,
+            fill: whole,
+            icon: <SiteIcon url={site.url} />,
+            id: "site",
+            name: whole,
+            run: () => {
+              // A page the window knows opens at the address it was at, the
+              // one the field finished the words as.
+              open.openSite(known?.url ?? site.url);
+            },
+          }
+        : {
+            detail: "Search Google",
+            fill: whole,
+            icon: <MagnifyingGlassIcon className="size-4" />,
+            id: "search",
+            name: whole,
+            run: () => {
+              open.openSite(searchUrl(whole));
+            },
+          };
+    const pageRows = matchPages(words, pages)
+      .filter((page) => page.url !== known?.url)
+      .slice(0, PAGES_SHOWN)
+      .map(
+        (page): OmniRow => ({
+          detail: bareAddress(page.url),
+          fill: page.url,
+          icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+          id: `page:${page.url}`,
+          name: page.title || bareAddress(page.url),
+          run: () => {
+            open.openSite(page.url);
+          },
+        }),
+      );
+    const suggestionRows = wantsSuggestions
+      ? (suggestions.data ?? [])
+          .filter(
+            (suggestion) => suggestion.toLowerCase() !== whole.toLowerCase(),
+          )
+          .slice(0, SUGGESTIONS_SHOWN)
+          .map((suggestion): OmniRow => {
+            const suggestedSite = siteFromWords(suggestion);
+            return {
+              fill: suggestion,
+              icon: suggestedSite ? (
+                <SiteIcon url={suggestedSite.url} />
+              ) : (
+                <MagnifyingGlassIcon className="size-4" />
+              ),
+              id: `suggestion:${suggestion}`,
+              name: suggestion,
+              run: () => {
+                open.openSite(suggestedSite?.url ?? searchUrl(suggestion));
+              },
+            };
+          })
+      : [];
+    return {
+      completion,
+      rows: [first, ...pageRows, ...suggestionRows],
+    };
+  }
+
+  if (mode === "files") {
+    const entries = matchEntries(path.prefix, listing.data?.entries ?? []);
+    // The name the field finishes the words as: the first the start typed
+    // begins, letter for letter, so what it writes in is a real name's rest.
+    const finished = canComplete
+      ? entries.find(
+          (entry) => path.prefix !== "" && entry.name.startsWith(path.prefix),
+        )
+      : undefined;
+    const completion = finished ? finished.name.slice(path.prefix.length) : "";
+    const whole = `${typed}${completion}`;
+    const host = finished?.path ?? hostPathOf(whole.trim(), { here, home });
+    const first: OmniRow = {
+      ...pathRow(host, open.openPath),
+      ...(finished?.kind === "folder" ? { fill: `${whole}/` } : {}),
+      ...(finished?.kind === "file"
+        ? { icon: <FileTypeIcon className="size-4" fileName={finished.name} /> }
+        : {}),
+    };
+    const entryRows = entries
+      .filter((entry) => entry !== finished)
+      .slice(0, ENTRIES_SHOWN)
+      .map(
+        (entry): OmniRow => ({
+          fill: `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
+          icon:
+            entry.kind === "folder" ? (
+              <FileSystemFolderGlyph className="h-3 w-auto" />
+            ) : (
+              <FileTypeIcon className="size-4" fileName={entry.name} />
+            ),
+          id: `entry:${entry.path}`,
+          name: entry.name,
+          run: () => {
+            if (entry.kind === "folder") {
+              open.openFolder(entry.path);
+            } else {
+              open.visit(fileHref(entry.path));
+            }
+          },
+          ...(entry.kind === "folder" ? { leavesItself: true } : {}),
+        }),
+      );
+    return { completion, rows: [first, ...entryRows] };
+  }
+
+  // Anywhere else, a path pasted in is still a path, and opens on Enter.
+  const typedPath = pathFromWords(words);
+  if (typedPath) {
+    return {
+      completion: "",
+      rows: [pathRow(expandHomePath(typedPath, home), open.openPath)],
+    };
+  }
+  const matches = ((): OmniRow[] => {
+    switch (mode) {
+      case "apps": {
+        return matchNames(words, [...appsBySlug], ([, app]) => app.name).map(
+          ([slug, app]) => ({
+            icon: <AppIcon name={app.name} site={app.site} size="sm" />,
+            id: `app:${slug}`,
+            name: app.name,
+            run: () => {
+              open.visit(`/apps/${slug}`);
+            },
+          }),
+        );
+      }
+      case "chats": {
+        return matchNames(
+          words,
+          [...(shell?.chatTitles ?? [])],
+          ([, title]) => title,
+        ).map(([id, title]) => ({
+          icon: <ChatCircleIcon className="size-4" />,
+          id: `chat:${id}`,
+          name: title,
+          run: () => {
+            open.visit(`${CHATS_HREF}/${id}`);
+          },
+        }));
+      }
+      case "ideas": {
+        return matchNames(words, ideas.data ?? [], (idea) => idea.title).map(
+          (idea) => ({
+            detail: idea.tagline,
+            icon: <CompassIcon className="size-4" />,
+            id: `idea:${idea.name}`,
+            name: idea.title,
+            run: () => {
+              open.visit(ideaHref(idea.name));
+            },
+          }),
+        );
+      }
+      case "skills": {
+        return matchSkills(skills.data ?? [], words, {
+          scope: "name-and-description",
+        }).map(({ skill }) => ({
+          detail: skill.description,
+          icon: <GraduationCapIcon className="size-4" />,
+          id: `skill:${skill.id}`,
+          name: skill.name,
+          run: () => {
+            open.visit(`${SKILLS_HREF}/${skill.id}`);
+          },
+        }));
+      }
+      case "tasks": {
+        // A task's page finds the tasks of the chat it was opened from, the
+        // list its crumb goes back to.
+        const chat = location.kind === "task" ? location.chat : undefined;
+        const ofChat = (tasks.data ?? []).filter(
+          (task) => chat === undefined || task.chatSessionId === chat,
+        );
+        return matchNames(words, ofChat, (task) => task.title).map((task) => ({
+          icon: <CheckSquareIcon className="size-4" />,
+          id: `task:${task.id}`,
+          name: task.title,
+          run: () => {
+            open.visit(taskHref(task.id, chat));
+          },
+        }));
+      }
+    }
+  })().slice(0, MATCHES_SHOWN);
+  return {
+    completion: "",
+    empty: `No ${NOUNS[mode]} match “${words}”`,
+    rows: [...matches],
+  };
+}
+
+/**
+ * The switches the window keeps nowhere a person would stumble on them, so
+ * turning one on is a thing you type rather than a build you restart. Each
+ * answers to a word starting `!`, which nothing else typed here begins
+ * with, from three letters on.
+ */
+function useCommandRows(words: string): OmniRow[] {
+  const preferences = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setDeveloperMode = useMutation(
+    rpcClient.preferences.setDeveloperMode.mutationOptions(),
+  );
+  const setReleaseChannel = useMutation(
+    rpcClient.preferences.setReleaseChannel.mutationOptions(),
+  );
+  if (words.length < 3 || !words.startsWith("!")) {
+    return [];
+  }
+  const lower = words.toLowerCase();
+  const developerMode = preferences.data?.developerMode ?? false;
+  const isBeta = preferences.data?.releaseChannel === "beta";
+  const commands: (OmniRow & { word: string })[] = [
+    {
+      icon: <WrenchIcon className="size-4" />,
+      id: "developer-mode",
+      name: developerMode
+        ? "Turn off developer mode"
+        : "Turn on developer mode",
+      run: () => {
+        setDeveloperMode.mutate({ enabled: !developerMode });
+        toast(developerMode ? "Developer mode off" : "Developer mode on");
+      },
+      word: "!dev",
+    },
+    {
+      icon: <FlaskIcon className="size-4" />,
+      id: "beta-channel",
+      name: isBeta ? "Leave the beta channel" : "Join the beta channel",
+      run: () => {
+        setReleaseChannel.mutate({ channel: isBeta ? undefined : "beta" });
+        toast(isBeta ? "Beta channel removed" : "Beta channel enabled");
+      },
+      word: "!beta",
+    },
+  ];
+  return commands.filter((command) => command.word.startsWith(lower));
+}
+
+/** The row that opens a path on the computer, which says it before looking. */
+function pathRow(host: string, openPath: (host: string) => Promise<void>) {
+  return {
+    detail: `Open on ${computerName()}`,
+    icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+    id: "path",
+    leavesItself: true,
+    name: displayHostPath(host, window.api.homeDir),
+    run: () => {
+      void openPath(host);
+    },
+  } satisfies OmniRow;
+}
+
+/**
+ * The folder a path typed bare is in: the folder on screen, a file's own
+ * folder, and the home folder from anywhere else.
+ */
+function hereOf(location: TabLocation, home: string) {
+  if (location.kind === "folder" && location.path !== "") {
+    return expandHomePath(location.path, home);
+  }
+  if (location.kind === "file") {
+    const host = expandHomePath(location.path, home);
+    const cut = Math.max(host.lastIndexOf("/"), host.lastIndexOf("\\"));
+    return cut > 0 ? host.slice(0, cut) : host.slice(0, cut + 1) || home;
+  }
+  return home;
+}
+
+function searchUrl(words: string) {
+  return `${SEARCH_URL}${encodeURIComponent(words)}`;
 }
 
 /**
@@ -633,24 +967,4 @@ async function fileExists(hostPath: string) {
   } catch {
     return true;
   }
-}
-
-/** The site a page is on, as its bar would name it. */
-function hostOf(url: string): string {
-  if (!URL.canParse(url)) {
-    return url;
-  }
-  return new URL(url).hostname.replace(/^www\./, "") || url;
-}
-
-/**
- * Typed words that are a place on the computer: a path from the root, from
- * the home folder as `~`, or from a drive letter, the way the field shows one.
- * A trailing slash says nothing about a folder the field will open anyway.
- */
-function pathFromWords(words: string): string | undefined {
-  if (!/^(?:~(?:\/|$)|\/|[A-Z]:[\\/])/i.test(words)) {
-    return;
-  }
-  return words.length > 1 ? words.replace(/[\\/]+$/, "") || words[0] : words;
 }

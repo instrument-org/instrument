@@ -16,6 +16,7 @@ import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
 import { BrowserTargetIdSchema } from "@instrument-org/workspace/electron";
+import { app } from "electron";
 import { z } from "zod";
 
 // Every recorded target and whether its guest has attached yet. The renderer
@@ -200,10 +201,47 @@ const thumbnails = {
     }),
 };
 
+/** The engine's answer: the words asked about, then what it would finish them as. */
+const SuggestionsSchema = z.tuple(
+  [z.string(), z.array(z.string())],
+  z.unknown(),
+);
+
+/**
+ * What the search engine would finish words typed into the address field as,
+ * asked the way a browser's own field asks it. From here rather than the
+ * renderer, whose page policy keeps every request at home. A slow or failed
+ * answer is no suggestions: the field still searches for what was typed.
+ */
+const searchSuggestions = base
+  .input(z.object({ query: z.string().min(1).max(200) }))
+  .output(z.array(z.string()))
+  .handler(async ({ input, signal }) => {
+    const url = new URL("https://suggestqueries.google.com/complete/search");
+    url.searchParams.set("client", "firefox");
+    url.searchParams.set("hl", app.getLocale());
+    url.searchParams.set("oe", "utf-8");
+    url.searchParams.set("q", input.query);
+    const timeout = AbortSignal.timeout(3000);
+    try {
+      const response = await fetch(url, {
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) {
+        return [];
+      }
+      const body = SuggestionsSchema.safeParse(await response.json());
+      return body.success ? body.data[1] : [];
+    } catch {
+      return [];
+    }
+  });
+
 export const browser = {
   events,
   live,
   rememberPageIcon,
+  searchSuggestions,
   setEmulatedDevice,
   syncFocus,
   syncGuestSurface,

@@ -131,15 +131,16 @@ const SAMPLE_FILE_NAMES = [
 ];
 
 const SAMPLES = [
-  ...new Set([
-    ...COMMON_EXTENSIONS,
-    ...Object.keys(EXTENSION_MAP),
-    ...Object.values(FILE_TYPE_ALIASES).flat(),
-    ...Object.values(FILE_TYPE_GLYPHS).flatMap((glyph) => glyph.extensions),
-  ]),
-]
-  .map((extension) => ({ fileName: `file.${extension}`, label: extension }))
-  .concat(SAMPLE_FILE_NAMES.map((fileName) => ({ fileName, label: fileName })));
+  ...[
+    ...new Set([
+      ...COMMON_EXTENSIONS,
+      ...Object.keys(EXTENSION_MAP),
+      ...Object.values(FILE_TYPE_ALIASES).flat(),
+      ...Object.values(FILE_TYPE_GLYPHS).flatMap((glyph) => glyph.extensions),
+    ]),
+  ].map((extension) => ({ fileName: `file.${extension}`, label: extension })),
+  ...SAMPLE_FILE_NAMES.map((fileName) => ({ fileName, label: fileName })),
+];
 
 // Every glyph the sprite carries, reached by a sample or not, so a glyph no
 // listed format resolves to still shows up.

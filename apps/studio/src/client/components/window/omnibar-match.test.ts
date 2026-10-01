@@ -87,6 +87,7 @@ describe("pathQuery", () => {
   it.each([
     ["~/Doc", { folder: "/Users/me", lead: "~/", prefix: "Doc" }],
     ["~/", { folder: "/Users/me", lead: "~/", prefix: "" }],
+    ["~", { folder: "/Users/me", lead: "~/", prefix: "" }],
     ["/", { folder: "/", lead: "/", prefix: "" }],
     [
       "/Applications/Sa",

@@ -17,7 +17,6 @@ import { ideaHref } from "@/client/components/window/ideas";
 import {
   addressCompletion,
   bareAddress,
-  hostPathOf,
   matchEntries,
   matchNames,
   matchPages,
@@ -738,49 +737,72 @@ function useRows({
   }
 
   if (mode === "files") {
-    const entries = matchEntries(path.prefix, listing.data?.entries ?? []);
-    // The name the field finishes the words as: the first the start typed
+    // Only what is there: the folder's own entries, and the folder itself
+    // once the words end in it. Nothing is offered at a path with nothing at
+    // it, and words that are not a path find names in the folder on screen.
+    const isWhole = pathFromWords(words) !== undefined;
+    const listed = listing.data;
+    const entries = matchEntries(path.prefix, listed?.entries ?? []);
+    // The name the field finishes a whole path as: the first the start typed
     // begins, letter for letter, so what it writes in is a real name's rest.
-    const finished = canComplete
-      ? entries.find(
-          (entry) => path.prefix !== "" && entry.name.startsWith(path.prefix),
-        )
-      : undefined;
+    // Bare words are a search of the folder on screen, and are left as typed.
+    const finished =
+      canComplete && isWhole && path.prefix !== ""
+        ? entries.find((entry) => entry.name.startsWith(path.prefix))
+        : undefined;
     const completion = finished ? finished.name.slice(path.prefix.length) : "";
     const whole = `${typed}${completion}`;
-    const host = finished?.path ?? hostPathOf(whole.trim(), { here, home });
-    const first: OmniRow = {
-      ...pathRow(host, open.openPath),
-      ...(finished?.kind === "folder" ? { fill: `${whole}/` } : {}),
-      ...(finished?.kind === "file"
-        ? { icon: <FileTypeIcon className="size-4" fileName={finished.name} /> }
-        : {}),
+    const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+      fill:
+        entry === finished
+          ? `${whole}${entry.kind === "folder" ? "/" : ""}`
+          : `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
+      icon:
+        entry.kind === "folder" ? (
+          <FileSystemFolderGlyph className="h-3 w-auto" />
+        ) : (
+          <FileTypeIcon className="size-4" fileName={entry.name} />
+        ),
+      id: `entry:${entry.path}`,
+      name: entry.name,
+      run: () => {
+        if (entry.kind === "folder") {
+          open.openFolder(entry.path);
+        } else {
+          open.visit(fileHref(entry.path));
+        }
+      },
+      ...(entry.kind === "folder" ? { leavesItself: true } : {}),
+    });
+    const folderRows: OmniRow[] =
+      listed && path.prefix === ""
+        ? [
+            {
+              ...pathRow(path.folder, open.openPath),
+              run: () => {
+                open.openFolder(path.folder);
+              },
+            },
+          ]
+        : [];
+    const rows = [
+      ...folderRows,
+      ...(finished ? [entryRow(finished)] : []),
+      ...entries
+        .filter((entry) => entry !== finished)
+        .slice(0, ENTRIES_SHOWN)
+        .map(entryRow),
+    ];
+    const folderName = displayHostPath(path.folder, home);
+    return {
+      completion,
+      ...(listing.isError
+        ? { empty: `Nothing at “${folderName}”` }
+        : listed
+          ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
+          : {}),
+      rows,
     };
-    const entryRows = entries
-      .filter((entry) => entry !== finished)
-      .slice(0, ENTRIES_SHOWN)
-      .map(
-        (entry): OmniRow => ({
-          fill: `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
-          icon:
-            entry.kind === "folder" ? (
-              <FileSystemFolderGlyph className="h-3 w-auto" />
-            ) : (
-              <FileTypeIcon className="size-4" fileName={entry.name} />
-            ),
-          id: `entry:${entry.path}`,
-          name: entry.name,
-          run: () => {
-            if (entry.kind === "folder") {
-              open.openFolder(entry.path);
-            } else {
-              open.visit(fileHref(entry.path));
-            }
-          },
-          ...(entry.kind === "folder" ? { leavesItself: true } : {}),
-        }),
-      );
-    return { completion, rows: [first, ...entryRows] };
   }
 
   // Anywhere else, a path pasted in is still a path, and opens on Enter.

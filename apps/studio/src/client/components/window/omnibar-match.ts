@@ -150,6 +150,10 @@ export function pathQuery(
   typed: string,
   { here, home }: { here: string; home: string },
 ): PathQuery {
+  // The home folder on its own is a folder, not the start of a name in one.
+  if (typed === "~") {
+    return { folder: home, lead: "~/", prefix: "" };
+  }
   const cut = Math.max(typed.lastIndexOf("/"), typed.lastIndexOf("\\"));
   const lead = typed.slice(0, cut + 1);
   const prefix = typed.slice(cut + 1);

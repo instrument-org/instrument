@@ -384,6 +384,7 @@ export const workspaceMachine = setup({
       getUser?: WorkspaceConfig["getUser"];
       isActivityHeadingsEnabled: () => boolean;
       isExternalBrowserEnabled: () => boolean;
+      indexesDir?: string;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
@@ -418,6 +419,9 @@ export const workspaceMachine = setup({
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isActivityHeadingsEnabled: input.isActivityHeadingsEnabled,
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.indexesDir && {
+        indexesDir: AbsolutePathSchema.parse(input.indexesDir),
+      }),
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),

@@ -1,4 +1,4 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME_SLUG, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -8,6 +8,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { absolutePathJoin } from "../absolute-path-join";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -15,12 +16,12 @@ import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { chatOfSession, chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { cacheByStoreGeneration } from "../store-generation";
-import { taskDir } from "../task-dir-utils";
+import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
+import { indexedByStore } from "../workspace-index";
 import {
   askIn,
   latestStepIn,
@@ -392,13 +393,28 @@ async function appsHeld(
   return unique(knownAmong(slugs, known));
 }
 
+/**
+ * The same apps across launches, kept in the index against the task's
+ * settings as well as its store, since the settings are where they are
+ * written. Held in memory by `filedAppsByTask`, which hears every write.
+ */
+const appsIndex = indexedByStore<string[]>("task_apps", {
+  files: (taskId) => [
+    absolutePathJoin(
+      getTaskPrivateDir(taskDir(taskId)),
+      TASK_SETTINGS_FILE_NAME,
+    ),
+  ],
+  inMemory: false,
+});
+
 function filedApps(taskId: TaskId): Promise<string[]> {
   const known = filedAppsByTask.get(taskId);
   if (known) {
     return known;
   }
-  const read = getTaskSettings(taskDir(taskId)).then(
-    (settings) => settings?.apps ?? [],
+  const read = appsIndex(taskId, () =>
+    getTaskSettings(taskDir(taskId)).then((settings) => settings?.apps ?? []),
   );
   filedAppsByTask.set(taskId, read);
   read.catch(() => {
@@ -411,7 +427,7 @@ function filedApps(taskId: TaskId): Promise<string[]> {
  * The hosts a filed task's newest session has visited, held until its store
  * is written: the browser records a visit there and announces nothing.
  */
-const filedHosts = cacheByStoreGeneration<string[]>();
+const filedHosts = indexedByStore<string[]>("task_hosts");
 
 /**
  * The app slugs a shell command calls or asks the user to connect: `app call`

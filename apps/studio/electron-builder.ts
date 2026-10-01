@@ -204,6 +204,8 @@ const config: Configuration = {
       // each protected folder with generic text. Each is raised the first time
       // a task is handed the folder.
       NSAppDataUsageDescription: `${APP_NAME} reads another app's files when you ask it to work with them.`,
+      // Asked the first time a task controls each app, named in the ask.
+      NSAppleEventsUsageDescription: `${APP_NAME} works in this app when you ask it to, like adding a reminder or a calendar event.`,
       // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
       NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
       NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,

@@ -49,6 +49,10 @@ import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import {
+  createOsascriptCommand,
+  OSASCRIPT_COMMAND,
+} from "./shell-commands/osascript";
+import {
   createPip3Command,
   createPipCommand,
   PIP3_COMMAND,
@@ -319,6 +323,8 @@ interface CustomCommandDef {
   // from the agent-facing description to discourage its use.
   listInDescription: boolean;
   name: string;
+  /** Where the binary exists; elsewhere the name stays unclaimed. */
+  platforms?: NodeJS.Platform[];
 }
 
 /**
@@ -348,7 +354,7 @@ const SESSION_COMMAND_DEFS: {
   },
 ];
 
-const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
+const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
     factory: ({ taskId }) => createFfmpegCommand(taskId),
@@ -378,6 +384,13 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: ({ taskId }) => createNodeCommand(taskId),
     listInDescription: true,
     name: NODE_COMMAND.name,
+  },
+  {
+    description: OSASCRIPT_COMMAND.description,
+    factory: ({ taskId }) => createOsascriptCommand(taskId),
+    listInDescription: true,
+    name: OSASCRIPT_COMMAND.name,
+    platforms: ["darwin"],
   },
   {
     description: JS_EXEC_COMMAND.description,
@@ -456,6 +469,13 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
 ];
 
+/** The custom commands this platform has, read per call so a test can pin one. */
+function customCommandDefs(): CustomCommandDef[] {
+  return ALL_CUSTOM_COMMAND_DEFS.filter(
+    (cmd) => cmd.platforms?.includes(process.platform) ?? true,
+  );
+}
+
 export interface BashEnvOptions {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
@@ -494,7 +514,7 @@ export function createBashDescription({
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
+    ...customCommandDefs().filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
@@ -629,7 +649,7 @@ export async function createLocalBashEnv({
       ]
     : [
         createAppCommand({ taskId }),
-        ...CUSTOM_COMMAND_DEFS.map((cmd) =>
+        ...customCommandDefs().map((cmd) =>
           cmd.factory({ attachedFolders, projectFolderName, taskId }),
         ),
       ];
@@ -641,7 +661,7 @@ export async function createLocalBashEnv({
         APP_COMMAND.name,
         TAB_COMMAND.name,
       ]
-    : [APP_COMMAND.name, ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name)];
+    : [APP_COMMAND.name, ...customCommandDefs().map((cmd) => cmd.name)];
 
   const bash = new Bash({
     commands: allowedCommands,

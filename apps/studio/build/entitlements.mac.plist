@@ -10,6 +10,13 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- Lets a task's osascript control another app (Reminders, Calendar,
+         Notes). Under the hardened runtime, Apple Events the app is
+         responsible for are refused without asking unless this is claimed;
+         with it, macOS asks the user once per app. A hardened-runtime key,
+         not one the provisioning profile grants, so it sits above them. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
     <!-- Everything below is granted by build/Instrument_Developer_ID.provisionprofile
          and has to match it exactly: the profile grants keychain-access-groups
          "Y83DK4YU3N.*", which covers the group below. Claiming more than the

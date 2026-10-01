@@ -359,6 +359,13 @@ const { parentPort, workerData } = require("node:worker_threads");
 const fs = require("node:fs");
 const path = require("node:path");
 
+// Under Electron, fs reads an .asar archive as a folder of the files packed in
+// it, so every Electron app's app.asar would be counted twice, once as the
+// file it is and again as the folder Electron shows, and an archive entry can
+// claim any size at all (one in Figma's says 4 GiB). This thread only reads
+// the user's disk, so it reads it as it is. The setting is this thread's own.
+process.noAsar = true;
+
 const { maxOutput, operands, options, windows } = workerData;
 const lines = [];
 const errors = [];

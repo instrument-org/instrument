@@ -54,6 +54,7 @@ export {
 } from "./lib/bash-worker/client";
 export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
+export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
 export {
   migrateWorkspaceLayout,

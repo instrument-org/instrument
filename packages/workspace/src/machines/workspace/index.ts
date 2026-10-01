@@ -382,9 +382,9 @@ export const workspaceMachine = setup({
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
+      indexesDir?: string;
       isActivityHeadingsEnabled: () => boolean;
       isExternalBrowserEnabled: () => boolean;
-      indexesDir?: string;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;

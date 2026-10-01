@@ -1,9 +1,12 @@
-// ---- the 2.0 window kit ----------------------------------------------------------
-// The Instrument 2.0 window, measured off a 1240x840 window on the documents fixture
-// (beta.17, 2026-09-23) and redrawn at 1280x800 in the light theme. Window bar 40,
-// rail 76, inbox column 400, thread and pane share the rest; Apps and Files are a card
-// with a tab strip and a location row. build.mjs pastes this whole file, after
-// brands.js, into the wireframe template's kit section.
+// ---- the window kit ------------------------------------------------------------
+// The Studio window, measured off a 1240x840 window on the documents fixture
+// (2026-10-01, after the classic window was removed) and redrawn at 1280x800 in the
+// light theme. The bar (40) and the rail (76) sit on the gray ground; everything else
+// is one rounded card inset 8px from the right and bottom. Chat is the inbox column
+// (320) beside a thread or the empty state; a chat's pane sits flush beside it with
+// its tiles on a 120px rail. Window tabs live in the bar. Onboarding is its own
+// 480x600 window. build.mjs pastes this whole file, after brands.js, into the
+// wireframe template's kit section.
 
 const W2 = 1280;
 const H2 = 800;
@@ -83,65 +86,90 @@ const tabTitle = (t) =>
 
 // ---- window --------------------------------------------------------------------
 
-const trafficLights = `<div class="flex shrink-0 items-center gap-2 pl-4"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
+const GROUND = "bg-[#e7e5e4]";
+const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
-/** The 40px window bar. `inbox` draws the inbox toggle past the lights (Chat only). */
-const winBar = ({ inbox = false, middle = "", right = "" } = {}) => `
-  <div class="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-background">
-    ${trafficLights}
-    <div class="w-6 shrink-0">${inbox ? `<i class="ph ph-sidebar-simple ml-2 text-[16px] text-muted-foreground"></i>` : ""}</div>
-    <div class="flex min-w-0 flex-1 items-center self-stretch">${middle}</div>
-    <div class="flex shrink-0 items-center gap-2 pr-3">${right}</div>
+/** A window tab in the bar. `t` is a tab ({site} | {file} | {newtab}) or {chats: true, title}. */
+const barTab = (t, { on = false } = {}) => `
+  <div class="relative flex h-8 max-w-48 min-w-20 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium ${on ? "bg-background shadow-xs" : "text-foreground/55"}">
+    ${t.chats ? `<i class="ph ph-chat-circle text-[14px]"></i>` : tabMark(t)}
+    <span class="min-w-0 flex-1 truncate">${t.chats ? t.title || "Chats" : tabTitle(t)}</span>${t.agent ? pulse : ""}
+    ${on ? `<i class="ph ph-x text-[12px]"></i>` : ""}
   </div>`;
 
+/** The 40px window bar on the ground: back and forward, the window's tabs, then the right corner. */
+const winBar = ({ tabs = [{ chats: true }], active = 0, right = "" } = {}) => `
+  <div class="flex h-10 shrink-0 items-center gap-1.5 pr-2">
+    ${trafficLights}
+    <i class="ph ph-arrow-left px-1.5 text-[16px] text-foreground/80"></i><i class="ph ph-arrow-right px-1.5 text-[16px] text-foreground/40"></i>
+    <div class="flex min-w-0 flex-1 items-center gap-1 px-2">
+      ${tabs.map((t, i) => barTab(t, { on: i === active })).join(`<span class="h-4 w-px shrink-0 bg-gray-300"></span>`)}
+      <span class="grid size-8 shrink-0 place-items-center rounded-xl"><i class="ph ph-plus text-[16px]"></i></span>
+    </div>
+    <div class="flex shrink-0 items-center gap-2">${right}</div>
+  </div>`;
+
+// The starter loads Phosphor's regular weight only, so a lit place keeps its outline
+// icon and takes the brand color, where the app also swaps to the fill weight.
 const RAIL = [
-  ["home", "Home", "ph-house"],
-  ["chat", "Chat", "ph-chats-circle"],
-  ["apps", "Apps", ""],
+  ["chat", "Chat", "ph-chat-circle"],
   ["files", "Files", "ph-folder"],
+  ["browser", "Browser", "ph-globe"],
+  ["apps", "Apps", "ph-shapes"],
+  ["discover", "Discover", "ph-map-trifold"],
 ];
 
-const appFan = `
-  <span class="relative block h-6 w-9">
-    <span class="absolute top-0.5 left-0 grid size-5 -rotate-12 place-items-center rounded-[5px] border border-border bg-white">${brand("linear", "size-3")}</span>
-    <span class="absolute top-0.5 right-0 grid size-5 rotate-12 place-items-center rounded-[5px] border border-border bg-white">${brand("gmail", "size-3")}</span>
-    <span class="absolute top-0 left-2 grid size-5 place-items-center rounded-[5px] border border-border bg-white shadow-sm">${brand("notion", "size-3")}</span>
-  </span>`;
-
-/** The 76px app rail. `on` is home | chat | apps | files | "" (nothing lit). */
-const rail = (on = "chat", { mark = {} } = {}) => `
-  <nav class="flex w-[76px] shrink-0 flex-col items-center gap-1 border-r border-border bg-muted/40 pt-3 pb-3">
-    <div class="mb-3 flex flex-col items-center gap-1">
-      <span class="grid size-11 place-items-center rounded-full bg-brand-600 text-white"><i class="ph ph-pencil-simple text-[20px]"></i></span>
-      <span class="text-[11px] font-medium">New</span>
+/** The 76px app rail on the ground. `on` is chat | files | browser | apps | discover | "" (nothing lit). `user` draws the signed-in avatar in place of Settings. */
+const rail = (on = "chat", { mark = {}, user = false } = {}) => `
+  <nav class="flex w-[76px] shrink-0 flex-col items-center gap-3 pt-1 pb-2">
+    <div class="flex w-15 flex-col items-center gap-0.5 py-1.5">
+      <span class="grid size-11 place-items-center rounded-full bg-brand-600 text-white shadow-xs"><i class="ph ph-feather text-[20px]"></i></span>
+      <span class="text-[11px] leading-4 font-medium">New</span>
+      ${mark.new || ""}
     </div>
-    ${RAIL.map(
-      ([key, word, icon]) => `
-      <div class="flex h-[58px] w-16 flex-col items-center justify-center gap-1 rounded-xl ${on === key ? "bg-black/[0.06]" : ""}">
-        ${key === "apps" ? appFan : `<i class="ph ${icon} text-[22px] ${on === key ? "" : "text-muted-foreground"}"></i>`}
-        <span class="text-[11px] ${on === key ? "font-medium" : "text-muted-foreground"}">${word}</span>
-        ${mark[key] || ""}
-      </div>`,
-    ).join("")}
+    <div class="flex w-full flex-col items-center gap-1">
+      ${RAIL.map(
+        ([key, word, icon]) => `
+        <div class="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 ${on === key ? "bg-foreground/8 text-brand-600" : "text-muted-foreground"}">
+          <span class="flex h-6 items-center"><i class="ph ${icon} text-[24px]"></i></span>
+          <span class="text-[11px] leading-4 ${on === key ? "font-medium" : ""}">${word}</span>
+          ${mark[key] || ""}
+        </div>`,
+      ).join("")}
+    </div>
     <div class="flex-1"></div>
-    <div class="flex flex-col items-center gap-1 text-muted-foreground"><i class="ph ph-sliders-horizontal text-[20px]"></i><span class="text-[11px]">Settings</span></div>
+    ${
+      user
+        ? `<div class="grid w-15 place-items-center rounded-xl p-2"><span class="grid size-11 place-items-center rounded-xl bg-[#c5d5d0] text-[15px] font-semibold text-brand-800">J</span></div>`
+        : `<div class="flex w-15 flex-col items-center gap-0.5 py-1.5 text-muted-foreground"><span class="flex h-6 items-center"><i class="ph ph-faders-horizontal text-[24px]"></i></span><span class="text-[11px] leading-4">Settings</span></div>`
+    }
   </nav>`;
 
 /** The whole window. `over` is drawn on a layer over everything (floating chats, menus, sheets). */
 const win2 = ({
   bar = winBar(),
   on = "chat",
-  body = "",
+  body = inboxCol({ on: -1 }) + noChatOpen(),
   over = "",
   railMark = {},
+  user = false,
 } = {}) => `
-  <div class="relative flex h-full flex-col overflow-hidden bg-background text-foreground [color-scheme:light]">
+  <div class="relative flex h-full flex-col overflow-hidden ${GROUND} text-foreground [color-scheme:light]">
     ${bar}
     <div class="flex min-h-0 flex-1">
-      ${rail(on, { mark: railMark })}
-      <div class="relative flex min-w-0 flex-1">${body}</div>
+      ${rail(on, { mark: railMark, user })}
+      <div class="relative mr-2 mb-2 flex min-w-0 flex-1 overflow-hidden rounded-2xl bg-background shadow-xs">${body}</div>
     </div>
     ${over}
+  </div>`;
+
+/** Chat with nothing open: what sits beside the inbox. There is no Home page. */
+const noChatOpen = () => `
+  <div class="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-muted/20">
+    <i class="ph ph-chats-circle text-[40px] text-muted-foreground/40"></i>
+    <span class="text-[15px] font-medium">No chat open</span>
+    <span class="max-w-72 text-center text-[13px] text-muted-foreground">Pick one from the list, or start a new one.</span>
+    <span class="flex h-8 items-center gap-1.5 rounded-full bg-brand-600 px-3 text-[13px] font-medium text-white"><i class="ph ph-feather"></i>New chat<span class="text-[11px] opacity-70">⌘N</span></span>
   </div>`;
 
 // ---- inbox ---------------------------------------------------------------------
@@ -153,96 +181,102 @@ const ROWS = [
       "It's going well: the task is checking current ticket prices and fares for the cost table.",
     unread: true,
     working: true,
+    time: "9:41 AM",
   },
   {
     title: "Kitchen quotes from Alder St contractors",
     preview:
       "Three of the four replied. Harbor Build is the lowest, and the only one that includes permits.",
+    starred: true,
+    time: "Yesterday",
   },
   {
     title: "Season of the snow haiku in the Instrument",
     preview: "That was snow-haiku.md, in your Instrument folder.",
+    time: "Mon",
   },
   {
     title: "Weekly grocery order",
     preview:
       "The cart is ready in Instacart; nothing is ordered until you say so.",
+    time: "Sep 26",
   },
   {
     title: "demo-page HTML file in the Instrument folder",
     preview:
       "From its name alone, this is an HTML file called demo-page sitting in your Instrument folder.",
+    time: "Sep 24",
   },
 ];
 
-const inboxHead = ({ count = 1 } = {}) => `
+/** The view picker chip, the place marks, and search. `waiting` adds the amber needs-you dot. */
+const inboxHead = ({ waiting = false } = {}) => `
   <div class="flex items-center gap-1 px-2 pt-2">
-    <span class="flex h-8 items-center gap-1.5 rounded-lg bg-black/[0.06] px-2.5 text-[13px] font-medium"><i class="ph ph-tray text-[16px]"></i>Inbox${count ? `<span class="ml-0.5">${count}</span>` : ""}</span>
-    <i class="ph ph-star px-2 text-[16px] text-muted-foreground"></i>
-    <i class="ph ph-file-dashed px-2 text-[16px] text-muted-foreground"></i>
-    <i class="ph ph-stack px-2 text-[16px] text-muted-foreground"></i>
-    <span class="flex-1"></span>
-    <span class="flex h-8 items-center gap-1 rounded-full border border-border px-3 text-[12px]">Topic<i class="ph ph-caret-down text-[11px]"></i></span>
+    <span class="flex h-10 items-center gap-1.5 rounded-xl bg-brand-50 pr-2 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ph-chats-circle text-[28px]"></i>Chats<i class="ph ph-caret-down text-[14px] text-brand-800/50"></i></span>
+    ${waiting ? `<span class="grid size-10 place-items-center"><span class="size-2.5 rounded-full bg-warning-500"></span></span>` : ""}
+    ${["ph-star", "ph-file-dashed", "ph-cards-three"].map((i) => `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ${i} text-[28px]"></i></span>`).join("")}
   </div>
-  <div class="mx-2 mt-2 flex h-8 items-center justify-center gap-1.5 rounded-full border border-border bg-card text-[13px] text-muted-foreground"><i class="ph ph-magnifying-glass"></i>Search</div>`;
+  <div class="px-2 pt-2 pb-1"><div class="flex h-7 items-center justify-center gap-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground"><i class="ph ph-magnifying-glass text-[14px]"></i>Search</div></div>`;
 
-/** A condensed inbox row, two lines, as the column draws it. */
-const row = (r, { on = false } = {}) => `
-  <div class="mx-1 rounded-xl px-2.5 py-2.5 ${on ? "border border-border bg-card shadow-sm" : "border border-transparent"}">
-    <div class="flex items-center gap-1.5">
-      ${r.unread ? `<span class="size-2 shrink-0 rounded-full bg-brand-600"></span>` : ""}
-      <span class="truncate text-[13px] ${r.unread ? "font-semibold" : ""}">${r.title}</span>
+/** An inbox row: hairline above, title (semibold when unread), two lines of peek, time at the bottom right. */
+const row = (r, { on = false, first = false } = {}) => `
+  <div class="relative flex flex-col gap-0.5 px-3 py-2.5 ${first ? "" : "border-t border-border"} ${on ? "bg-brand-50" : ""}">
+    <div class="flex h-5 items-center gap-1.5">
+      <span class="min-w-0 flex-1 truncate text-[13px] ${r.unread ? "font-semibold" : "text-foreground/90"}">${r.title}</span>
+      ${r.starred ? `<i class="ph ph-star text-[14px] text-warning-500"></i>` : ""}
     </div>
-    <div class="mt-1 flex items-end gap-2">
-      <span class="line-clamp-2 flex-1 text-[12px] leading-[17px] text-muted-foreground">${r.preview}</span>
-      <i class="ph ph-star text-[13px] text-gray-400"></i>
+    <div class="flex items-end gap-2">
+      <span class="line-clamp-2 min-h-10 flex-1 text-[12px] leading-5 text-muted-foreground">${r.preview}</span>
+      <span class="w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">${r.time || ""}</span>
     </div>
   </div>`;
 
-/** The inbox column: head, search, rows. `on` is the open row's index. */
-const inboxCol = ({ on = 0, w = 400, rows = ROWS } = {}) => `
-  <div class="flex shrink-0 flex-col gap-1 border-r border-border" style="width:${w}px">
-    ${inboxHead()}
-    <div class="mt-1 flex flex-col">${rows.map((r, i) => row(r, { on: i === on })).join("")}</div>
+/** The inbox column: head, search, rows. `on` is the open row's index (-1 for none). */
+const inboxCol = ({ on = 0, w = 320, rows = ROWS, waiting = false } = {}) => `
+  <div class="flex shrink-0 flex-col border-r border-border bg-background" style="width:${w}px">
+    ${inboxHead({ waiting })}
+    <div class="mt-1 flex flex-col">${rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")}</div>
   </div>`;
 
-// ---- a thread ------------------------------------------------------------------
+// ---- a chat --------------------------------------------------------------------
 
+/** The chat header: inbox toggle, title, the menu, and pop-out at the right. */
 const threadHead = (title, { right = "" } = {}) => `
-  <div class="flex h-12 shrink-0 items-center gap-2 px-4">
-    <span class="truncate text-[15px] font-medium">${title}</span>
-    <i class="ph ph-dots-three-vertical text-[16px] text-muted-foreground"></i>
+  <div class="flex shrink-0 items-center gap-2 bg-background p-3">
+    <i class="ph ph-sidebar-simple px-1.5 text-[16px] text-muted-foreground"></i>
+    <span class="truncate text-sm font-medium">${title}</span>
+    <i class="ph ph-dots-three-outline-vertical text-[16px] text-muted-foreground"></i>
     <span class="flex-1"></span>
-    ${right || `<i class="ph ph-picture-in-picture text-[17px] text-muted-foreground"></i><i class="ph ph-sidebar-simple ml-3 -scale-x-100 text-[17px] text-muted-foreground"></i>`}
+    ${right || `<i class="ph ph-picture-in-picture px-1.5 text-[16px] text-muted-foreground"></i>`}
   </div>`;
 
 const you = (text) =>
-  `<div class="flex justify-end"><div class="max-w-[80%] rounded-2xl bg-brand-700 px-3.5 py-2 text-[13px] leading-5 text-white">${text}</div></div>`;
+  `<div class="flex justify-end"><div class="max-w-[80%] rounded-2xl rounded-tr-md bg-[#bcdcd2] px-3.5 py-2 text-sm text-foreground">${text}</div></div>`;
 const agent = (text) =>
-  `<div class="max-w-[88%] rounded-2xl bg-black/[0.05] px-3.5 py-2.5 text-[13px] leading-5">${text}</div>`;
+  `<div class="max-w-[85%] rounded-2xl rounded-tl-md bg-card px-3.5 py-2 text-sm leading-[1.5]">${text}</div>`;
 
-/** A file the agent linked, as the transcript's thin file row. */
+/** A file the agent linked, as the transcript's file card. */
 const fileRow = (key) => `
-  <div class="flex max-w-[88%] items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">${fileMark(FILES[key].kind)}<span class="truncate">${FILES[key].title}</span></div>`;
+  <div class="flex max-w-[85%] items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-[13px]"><span class="grid size-8 shrink-0 place-items-center rounded-md border border-border">${fileMark(FILES[key].kind)}</span><span class="truncate">${FILES[key].title}</span></div>`;
 
 /** A page the agent opened, as a thin row in the transcript. */
 const pageRow = (site) => `
-  <div class="flex max-w-[88%] items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">${SITES[site].mark()}<span class="truncate">${SITES[site].title}</span></div>`;
+  <div class="flex max-w-[85%] items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">${SITES[site].mark()}<span class="truncate">${SITES[site].title}</span></div>`;
 
-/** The one working line over the reply box while the thread's task runs. */
+/** The folded work box over the reply box while the chat's task runs. */
 const workLine = (text = "Checking fares on flytap.com") => `
-  <div class="flex items-center gap-2 px-1 pb-1.5 text-[12px] text-muted-foreground"><span class="size-2 animate-pulse rounded-full bg-brand-500"></span>${text}</div>`;
+  <div class="mb-2 flex h-7 items-center gap-1.5 rounded-lg bg-card px-2 text-[11px] text-muted-foreground ring-1 ring-border"><i class="ph ph-caret-right text-[12px]"></i><span class="truncate">${text}</span></div>`;
 
-const replyBox = ({ ph = "Reply in thread", text = "" } = {}) => `
-  <div class="flex h-11 items-center gap-2 rounded-full border border-border bg-card pr-1.5 pl-1.5 shadow-sm">
-    <span class="grid size-8 shrink-0 place-items-center rounded-full bg-black/[0.05]"><i class="ph ph-plus text-[15px] text-muted-foreground"></i></span>
+const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
+  <div class="flex items-center gap-2 rounded-[22px] bg-white p-1.5 shadow-sm">
+    <span class="grid size-7 shrink-0 place-items-center rounded-full"><i class="ph ph-plus text-[16px] text-muted-foreground"></i></span>
     <span class="flex-1 truncate text-[13px] ${text ? "" : "text-gray-400"}">${text || ph}</span>
-    <span class="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[15px] text-white"></i></span>
+    <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
   </div>`;
 
 const LISBON_TITLE = "Lisbon trip itinerary with ticket prices";
 
-/** The Lisbon thread's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
+/** The Lisbon chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
 const lisbon = (stage = 1) =>
   [
     you("Plan a trip to Lisbon"),
@@ -264,7 +298,7 @@ const lisbon = (stage = 1) =>
     .filter(Boolean)
     .join("");
 
-/** A thread column: head, transcript, working line, reply box. */
+/** A chat column: header, the centered transcript, the work box, the reply box. */
 const thread = ({
   title = LISBON_TITLE,
   body = lisbon(2),
@@ -275,36 +309,19 @@ const thread = ({
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${head || threadHead(title)}
-    <div class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-4 pt-2">${body}</div>
-    <div class="shrink-0 px-3 pb-3">${working ? workLine(working) : ""}${foot}${replyBox(reply)}</div>
+    <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
+    <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${working ? workLine(working) : ""}${foot}${replyBox(reply)}</div>
   </div>`;
 
 // ---- tabs, the pane, pages -------------------------------------------------------
 
 const pulse = `<span class="size-1.5 shrink-0 animate-pulse rounded-full bg-brand-500"></span>`;
 
-/** One tab in a strip. */
-const tabPill = (t, { on = false, w = 200 } = {}) => `
-  <div class="flex h-8 shrink-0 items-center gap-2 rounded-lg px-2.5 text-[12px] ${on ? "bg-black/[0.06] font-medium" : "text-muted-foreground"}" style="max-width:${w}px">
-    ${tabMark(t)}<span class="min-w-0 flex-1 truncate">${tabTitle(t)}</span>${t.agent ? pulse : ""}${on ? `<i class="ph ph-x text-[11px]"></i>` : ""}
-  </div>`;
-
-const tabStrip = (
-  tabs,
-  active = 0,
-  { right = "", w = 200, plus = true } = {},
-) => `
-  <div class="flex h-11 shrink-0 items-center gap-1 border-b border-border px-2">
-    ${tabs.map((t, i) => tabPill(t, { on: i === active, w })).join("")}
-    ${plus ? `<i class="ph ph-plus px-1.5 text-[14px] text-muted-foreground"></i>` : ""}
-    <span class="flex-1"></span>${right}
-  </div>`;
-
-/** The location row: back, forward, home, and the omnibar holding crumbs or an address. */
+/** The location row: back, forward, and the omnibar holding crumbs or an address. */
 const locRow = (t) => `
-  <div class="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3 text-muted-foreground">
-    <i class="ph ph-caret-left text-[14px]"></i><i class="ph ph-caret-right text-[14px] text-gray-300"></i><i class="ph ph-house text-[14px]"></i>
-    <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[12px]">
+  <div class="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-background px-2 text-muted-foreground">
+    <i class="ph ph-caret-left px-1 text-[14px]"></i><i class="ph ph-caret-right text-[14px] text-gray-300"></i>
+    <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-[12px]">
       ${
         !t || t.newtab
           ? `<span class="w-full text-center text-gray-400">Search, open a file, or ask Instrument</span>`
@@ -315,19 +332,30 @@ const locRow = (t) => `
     </div>
   </div>`;
 
-/** The pane beside a thread: a card with its strip, location row and the page. */
-const paneCard = ({
-  tabs,
-  active = 0,
-  body,
-  w = 400,
-  loc = true,
-  tabW = 150,
-}) => `
-  <div class="my-2 mr-2 flex shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card" style="width:${w}px">
-    ${tabStrip(tabs, active, { w: tabW, right: `<i class="ph ph-sidebar-simple -scale-x-100 px-1 text-[15px] text-muted-foreground"></i><i class="ph ph-list-checks px-1 text-[15px] text-muted-foreground"></i>` })}
-    ${loc ? locRow(tabs[active]) : ""}
-    <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active])}</div>
+/** The chat's tiles down the pane's right edge: one 4:3 picture per tab, New at the foot. */
+const chatRail = (tabs, active = 0) => `
+  <div class="flex w-30 shrink-0 flex-col gap-3 border-l border-border bg-background px-2 py-3">
+    ${tabs
+      .map(
+        (t, i) => `
+      <div class="flex flex-col gap-1">
+        <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-card shadow-xs ${i === active ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}"><div class="absolute inset-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div></div>
+        <span class="truncate text-[11px] text-muted-foreground">${tabTitle(t)}</span>
+      </div>`,
+      )
+      .join("")}
+    <div class="flex-1"></div>
+    <div class="flex items-center justify-center gap-1 text-[12px] text-muted-foreground"><i class="ph ph-plus"></i>New</div>
+  </div>`;
+
+/** The pane beside a chat, flush with a border: location row and page, then the chat's tiles. */
+const paneCard = ({ tabs, active = 0, body, w = 560, loc = true }) => `
+  <div class="flex shrink-0 border-l border-border" style="width:${w}px">
+    <div class="flex min-w-0 flex-1 flex-col">
+      ${loc ? locRow(tabs[active]) : ""}
+      <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active])}</div>
+    </div>
+    ${chatRail(tabs, active)}
   </div>`;
 
 const bars2 = (...ws) =>
@@ -436,12 +464,11 @@ const page = (t) =>
 
 // ---- places --------------------------------------------------------------------
 
-/** Apps or Files as built: a card holding its own tab strip, location row and body. */
-const placeCard = ({ tabs, active = 0, body, loc = true }) => `
-  <div class="m-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
-    ${tabStrip(tabs, active)}
-    ${loc ? locRow(tabs[active]) : ""}
-    <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active])}</div>
+/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps and Discover). Its tabs are the window's, in the bar. */
+const placeCard = ({ tab, body, loc = true }) => `
+  <div class="flex min-w-0 flex-1 flex-col">
+    ${loc ? locRow(tab) : ""}
+    <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tab)}</div>
   </div>`;
 
 const FINDER_FILES = [
@@ -470,25 +497,6 @@ const finder = ({ pick = -1 } = {}) => `
       <div class="flex h-10 items-center gap-2 border-b border-border px-3 text-[13px] font-medium">Instrument<span class="flex-1"></span><span class="flex h-7 w-40 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] font-normal text-gray-400"><i class="ph ph-magnifying-glass"></i>Search</span></div>
       <div class="w-[260px] border-r border-border p-1.5 text-[12px]">${FINDER_FILES.map(([k, n], i) => `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 ${i === pick ? "bg-[#d6e6fb]" : ""}">${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}</div>
     </div>
-  </div>`;
-
-/** Home as built: the date, one working line, made lately, recent chats as rows in a card. */
-const homeBody = () => `
-  <div class="min-w-0 flex-1 overflow-hidden px-8 pt-6">
-    <div class="text-[26px] font-bold">Wednesday, September 23</div>
-    <div class="mt-1 flex items-center gap-2 text-[13px] text-muted-foreground"><span class="size-2 rounded-full bg-brand-500"></span>One thread is working: Lisbon trip itinerary</div>
-    <div class="mt-6 text-[13px] font-medium text-muted-foreground">Made lately</div>
-    <div class="mt-2 flex gap-2">${["itinerary", "costs", "packing"].map((k) => `<div class="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[12px]">${fileMark(FILES[k].kind)}${FILES[k].title}</div>`).join("")}</div>
-    <div class="mt-6 text-[13px] font-medium text-muted-foreground">Recent chats</div>
-    <div class="mt-2 overflow-hidden rounded-xl border border-border bg-card">${ROWS.slice(
-      0,
-      4,
-    )
-      .map(
-        (r) =>
-          `<div class="flex items-center gap-3 border-b border-border px-3 py-2.5 text-[13px] last:border-0">${r.unread ? `<span class="size-2 rounded-full bg-brand-600"></span>` : ""}<span class="w-80 truncate ${r.unread ? "font-semibold" : ""}">${r.title}</span><span class="flex-1 truncate text-[12px] text-muted-foreground">${r.preview}</span></div>`,
-      )
-      .join("")}</div>
   </div>`;
 
 // ---- floating ------------------------------------------------------------------
@@ -536,4 +544,40 @@ const menu = (items, { left, top, w = 240 } = {}) => `
 const sheet = (inner, { w = 760, h = 620 } = {}) => `
   <div class="absolute inset-0 z-40 grid place-items-center bg-black/30">
     <div class="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" style="width:${w}px;height:${h}px">${inner}</div>
+  </div>`;
+
+// ---- onboarding ------------------------------------------------------------------
+
+/** The app mark: a green rounded square with the two-bar glyph. */
+const brandMark = (cls = "size-20") =>
+  `<span class="grid ${cls} shrink-0 place-items-center rounded-[22%] bg-linear-to-b from-[#5b9e8e] to-[#0b6056] shadow-md"><span class="flex w-3/5 flex-col gap-[12%]"><span class="block h-2 rounded-full bg-white/80"></span><span class="block h-2 rounded-full bg-white/80"></span></span></span>`;
+
+/** Onboarding's own 480x600 window: a gradient, the lights, centered content and an optional pinned footer. `tone` is brand (welcome, success) or subtle (the other steps). */
+const onboardWin = ({
+  body = "",
+  foot = "",
+  tone = "brand",
+  over = "",
+} = {}) => `
+  <div class="relative flex h-full flex-col overflow-hidden text-foreground [color-scheme:light]" style="background:${tone === "brand" ? "linear-gradient(180deg,#c5d5d0,#fcfbf8)" : "linear-gradient(180deg,#e3ebe6,#fcfbf8 30%)"}">
+    <div class="flex h-10 shrink-0 items-center">${trafficLights}</div>
+    <div class="flex min-h-0 flex-1 flex-col items-center px-6 pt-4 pb-6">${body}</div>
+    ${foot ? `<div class="shrink-0 px-6 pb-6 text-center">${foot}</div>` : ""}
+    ${over}
+  </div>`;
+
+/** The sign-in step as built: mark, serif heading, Google and ChatGPT. */
+const onboardLogin = () => `
+  <div class="flex w-full flex-col items-center gap-10">
+    <div class="flex flex-col items-center gap-6">
+      ${brandMark()}
+      <h1 class="font-serif text-3xl font-medium tracking-tight">Log in to Instrument</h1>
+      <p class="-mt-3 text-sm text-foreground/80">A guided AI workspace for ambitious work</p>
+    </div>
+    <div class="flex w-full max-w-xs flex-col items-center gap-4">
+      <p class="text-xs font-medium text-brand-600">Create an account to enjoy free AI usage</p>
+      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium shadow-sm"><span class="text-[15px] font-bold text-[#4285f4]">G</span>Continue with Google</div>
+      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border text-sm font-medium"><i class="ph ph-open-ai-logo text-[16px]"></i>Continue with ChatGPT</div>
+      <p class="text-center text-xs text-foreground/60">Instrument can run on the ChatGPT Plus or Pro plan you already pay for.</p>
+    </div>
   </div>`;

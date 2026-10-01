@@ -9,6 +9,7 @@ import { ensureChat } from "../../lib/orchestrator/chat-records";
 import {
   archiveChat,
   chatById,
+  chatRecordTitle,
   ChatSchema,
   listChats,
   markChatSeen,
@@ -28,7 +29,6 @@ import {
   isChatId,
   sessionOfChat,
 } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
 import { getTaskSettings } from "../../lib/task-settings";
@@ -95,11 +95,9 @@ async function childTasks(id: TaskId) {
         task.parentTaskId === undefined
           ? undefined
           : sessionOfChat(task.parentTaskId);
-      const chat =
-        chatSessionId && task.parentTaskId
-          ? await Store.getSession(chatSessionId, task.parentTaskId)
-          : undefined;
-      const chatTitle = chat?.isOk() ? chat.value.title : undefined;
+      const chatTitle = chatSessionId
+        ? await chatRecordTitle(chatSessionId)
+        : undefined;
       const running = isWorking(task.id);
       return {
         ...task,

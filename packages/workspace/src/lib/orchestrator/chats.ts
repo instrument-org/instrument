@@ -201,11 +201,11 @@ export async function chatById(
   if (!taskId) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, taskId);
-  if (session.isErr() || session.value.parentId) {
+  const digest = await chatDigest(taskId, sessionId);
+  if (!digest || digest.session.parentId) {
     return undefined;
   }
-  return chatFor(session.value, await loadShared());
+  return chatFor(digest, taskId, await loadShared());
 }
 
 /**
@@ -228,6 +228,21 @@ export async function chatIsWorking(
 }
 
 /**
+ * A chat's title as its record holds it, read from its digest so a chat
+ * whose store has not changed is not opened to answer.
+ */
+export async function chatRecordTitle(
+  sessionId: StoreId.Session,
+): Promise<string | undefined> {
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return undefined;
+  }
+  const digest = await chatDigest(taskId, sessionId);
+  return digest?.session.title;
+}
+
+/**
  * Every chat, oldest first.
  *
  * Each chat is a record of its own holding one session, and it is a chat
@@ -244,8 +259,8 @@ export async function listChats(): Promise<Chat[]> {
       if (!sessionId) {
         return;
       }
-      const session = await Store.getSession(sessionId, chatId);
-      return session.isOk() ? chatFor(session.value, shared) : undefined;
+      const digest = await chatDigest(chatId, sessionId);
+      return digest ? chatFor(digest, chatId, shared) : undefined;
     },
   );
   return chats.filter((chat) => chat !== undefined);
@@ -382,11 +397,11 @@ export async function unarchiveChat(
 
 /** The app slugs a chat reached: its own calls and the grants of its tasks. */
 async function appsHeld(
-  messages: SessionMessage.WithParts[],
+  calledApps: string[],
   filedTasks: TaskId[],
   known: Set<string>,
 ): Promise<string[]> {
-  const slugs = bashCommandsIn(messages).flatMap(appSlugsIn);
+  const slugs = [...calledApps];
   for (const filed of filedTasks) {
     slugs.push(...(await filedApps(filed)));
   }
@@ -430,6 +445,38 @@ function filedApps(taskId: TaskId): Promise<string[]> {
 const filedHosts = indexedByStore<string[]>("task_hosts");
 
 /**
+ * What a chat's row is made from that its own store holds: its session
+ * record and what its messages say, boiled down to what the row reads. Kept
+ * in the workspace index, so a chat whose store has not changed since the
+ * last launch draws its row without its transcript being read.
+ */
+interface ChatDigest {
+  /** Commands' `app call` and `app request` slugs. */
+  calledApps: string[];
+  lastAsk: string;
+  /** When the last assistant message started, which an ask of its own is dated by. */
+  lastAssistantAt?: number;
+  lastMessageAt?: number;
+  lastReplyAt?: number;
+  madeFiles: string[];
+  newestSettledMessageId?: StoreId.Message;
+  /** The newest user or assistant message's role and time, which says whether a turn is starting. */
+  newestTurn?: { at: number; role: "assistant" | "user" };
+  openedHosts: string[];
+  /** What the chat's own last turn asked the user, if it ended on an ask. */
+  ownAsk?: string;
+  replyCount: number;
+  root?: SessionMessage.UserWithParts;
+  sent: ReturnType<typeof sentHeld>;
+  session: Session.Type;
+  /** The last reply with words: when it finished and its first line. */
+  spoken?: { at: number; text: string };
+  stepInMessages?: string;
+  /** Messages that count once seen, by id, against the newest the user saw. */
+  unreadCandidates: StoreId.Message[];
+}
+
+/**
  * The app slugs a shell command calls or asks the user to connect: `app call`
  * or `app request` where a command begins, followed by a slug's own letters.
  * Anchored to the command's start and to a slug's shape so the same words
@@ -466,7 +513,7 @@ function asFolder(path: string): string {
  * the chat's own last turn ending on one.
  */
 function askOf(
-  messages: SessionMessage.WithParts[],
+  digest: ChatDigest,
   filed: OrchestratorActivity["running"],
 ): undefined | { at: number; text: string } {
   for (const task of filed) {
@@ -474,10 +521,8 @@ function askOf(
       return { at: task.updatedAt, text: task.waiting };
     }
   }
-  const text = askIn(messages);
-  const last = messages.findLast((message) => message.role === "assistant");
-  return text && last
-    ? { at: last.metadata.createdAt.getTime(), text }
+  return digest.ownAsk && digest.lastAssistantAt !== undefined
+    ? { at: digest.lastAssistantAt, text: digest.ownAsk }
     : undefined;
 }
 
@@ -516,21 +561,11 @@ function behind(given: string[], made: string[]): string[] {
 }
 
 async function chatFor(
-  session: Session.Type,
+  digest: ChatDigest,
+  taskId: TaskId,
   shared: Shared,
-): Promise<Chat | undefined> {
-  const taskId = chatOfSession(session.id);
-  const messages = await chatMessages(session.id);
-  if (!taskId || !messages) {
-    return undefined;
-  }
-  // Every chat is listed: the first thing the user sent opens it, whether
-  // words, files, or an ask marked on a file.
-  const root = messages.find(
-    (message): message is SessionMessage.UserWithParts =>
-      message.role === "user",
-  );
-
+): Promise<Chat> {
+  const { root, session } = digest;
   const filedTasks = chatTaskIds(taskId);
   const filed = shared.activity.running.filter(
     (task) => task.chat === session.id,
@@ -547,49 +582,35 @@ async function chatFor(
   // something else in the chat is moving. The chat's own agent stopped
   // on an ask of its own is the same: alive to the machine, waiting to the
   // user.
-  const ownAsk = askIn(messages);
   const working =
-    (chatIsAlive(session.id) && ownAsk === undefined) ||
-    turnIsStarting(messages) ||
+    (chatIsAlive(session.id) && digest.ownAsk === undefined) ||
+    turnIsStarting(digest) ||
     filed.some((task) => !task.waiting) ||
     filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
-  const ask = working ? undefined : askOf(messages, filed);
+  const ask = working ? undefined : askOf(digest, filed);
   const state = working ? "working" : ask ? "waiting" : "idle";
 
   const seen = shared.seen[session.id];
   // A reply still being written is not news yet: it counts once it has
   // finished, which is also when marking the chat seen would record it.
-  const unread = messages.filter(
-    (message) =>
-      countsAsUnread(message) && (seen === undefined || message.id > seen),
+  const unread = digest.unreadCandidates.filter(
+    (id) => seen === undefined || id > seen,
   ).length;
 
-  const lastMessage = messages.at(-1);
-  const lastUser = messages.findLast((message) => message.role === "user");
-  const lastAsk = lastUser ? firstLine(textOf(lastUser)) : "";
   const latest = latestFor({
     ask,
-    lastMessage,
-    messages,
+    digest,
     runningStep: runningTasks.find((task) => task.step && !task.waiting)?.step,
     state,
   });
 
-  const sent = sentHeld(messages);
+  const { sent } = digest;
   const made = {
-    apps: await appsHeld(messages, filedTasks, shared.knownApps),
-    files: filesHeld(messages),
-    sites: await sitesHeld(messages, filedTasks),
+    apps: await appsHeld(digest.calledApps, filedTasks, shared.knownApps),
+    files: digest.madeFiles,
+    sites: await sitesHeld(digest.openedHosts, filedTasks),
   };
 
-  const newestSettledMessageId = newestSettledIn(messages);
-  const replies = messages.filter(
-    (message): message is SessionMessage.AssistantWithParts =>
-      message.role === "assistant" &&
-      message.metadata.finishedAt !== undefined &&
-      hasWords(message),
-  );
-  const lastReply = replies.at(-1)?.metadata.finishedAt;
   return {
     archived: session.archivedAt !== undefined,
     createdAt: (root?.metadata.createdAt ?? session.createdAt).getTime(),
@@ -606,11 +627,15 @@ async function chatFor(
     id: session.id,
     starred: session.starredAt !== undefined,
     taskId,
-    ...(lastAsk ? { lastAsk } : {}),
+    ...(digest.lastAsk ? { lastAsk: digest.lastAsk } : {}),
     ...(latest ? { latest } : {}),
-    ...(lastReply ? { lastReplyAt: lastReply.getTime() } : {}),
-    ...(newestSettledMessageId ? { newestSettledMessageId } : {}),
-    replyCount: replies.length,
+    ...(digest.lastReplyAt === undefined
+      ? {}
+      : { lastReplyAt: digest.lastReplyAt }),
+    ...(digest.newestSettledMessageId
+      ? { newestSettledMessageId: digest.newestSettledMessageId }
+      : {}),
+    replyCount: digest.replyCount,
     ...(root ? { root } : {}),
     runningTasks,
     state,
@@ -626,10 +651,30 @@ async function chatFor(
     // starts, so a reply landing later and the line it is peeked by count too.
     updatedAt: Math.max(
       (session.updatedAt ?? session.createdAt).getTime(),
-      lastReply?.getTime() ?? 0,
+      digest.lastReplyAt ?? 0,
       latest?.at ?? 0,
     ),
   };
+}
+
+/** Each chat's digest, kept until its store changes. */
+const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
+
+/** A chat's digest, or none when its record or its messages cannot be read. */
+function chatDigest(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<ChatDigest | undefined> {
+  return chatDigests(taskId, async () => {
+    const session = await Store.getSession(sessionId, taskId);
+    if (session.isErr()) {
+      return;
+    }
+    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    return messages.isOk()
+      ? digestOf(session.value, messages.value)
+      : undefined;
+  });
 }
 
 /** A chat's messages, oldest first, or nothing when they cannot be read. */
@@ -668,6 +713,76 @@ function countsAsUnread(message: SessionMessage.WithParts): boolean {
     message.role !== "session-context" &&
     (message.role !== "assistant" || message.metadata.finishedAt !== undefined)
   );
+}
+
+function digestOf(
+  session: Session.Type,
+  messages: SessionMessage.WithParts[],
+): ChatDigest {
+  // Every chat is listed: the first thing the user sent opens it, whether
+  // words, files, or an ask marked on a file.
+  const root = messages.find(
+    (message): message is SessionMessage.UserWithParts =>
+      message.role === "user",
+  );
+  const lastAssistant = messages.findLast(
+    (message) => message.role === "assistant",
+  );
+  const newestTurn = messages.findLast(
+    (
+      message,
+    ): message is
+      | SessionMessage.AssistantWithParts
+      | SessionMessage.UserWithParts =>
+      message.role === "user" || message.role === "assistant",
+  );
+  const lastUser = messages.findLast((message) => message.role === "user");
+  const spoken = messages.findLast(
+    (message) => message.role === "assistant" && hasWords(message),
+  );
+  const replies = messages.filter(
+    (message): message is SessionMessage.AssistantWithParts =>
+      message.role === "assistant" &&
+      message.metadata.finishedAt !== undefined &&
+      hasWords(message),
+  );
+  const commands = bashCommandsIn(messages);
+  const ownAsk = askIn(messages);
+  const stepInMessages = latestStepIn(messages);
+  const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
+  const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
+  const newestSettledMessageId = newestSettledIn(messages);
+  return {
+    calledApps: commands.flatMap(appSlugsIn),
+    ...(lastAssistant && {
+      lastAssistantAt: lastAssistant.metadata.createdAt.getTime(),
+    }),
+    lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
+    ...(lastMessageAt !== undefined && { lastMessageAt }),
+    ...(lastReplyAt !== undefined && { lastReplyAt }),
+    madeFiles: filesHeld(messages),
+    ...(newestSettledMessageId && { newestSettledMessageId }),
+    ...(newestTurn && {
+      newestTurn: {
+        at: newestTurn.metadata.createdAt.getTime(),
+        role: newestTurn.role,
+      },
+    }),
+    openedHosts: commands.flatMap(openedHostsIn),
+    ...(ownAsk !== undefined && { ownAsk }),
+    replyCount: replies.length,
+    ...(root && { root }),
+    sent: sentHeld(messages),
+    session,
+    ...(spoken?.role === "assistant" && {
+      spoken: {
+        at: (spoken.metadata.finishedAt ?? spoken.metadata.createdAt).getTime(),
+        text: firstLine(textOf(spoken)),
+      },
+    }),
+    ...(stepInMessages !== undefined && { stepInMessages }),
+    unreadCandidates: messages.filter(countsAsUnread).map(({ id }) => id),
+  };
 }
 
 function filedHostsOf(taskId: TaskId): Promise<string[]> {
@@ -738,25 +853,19 @@ async function knownAppSlugs(): Promise<Set<string>> {
 
 function latestFor({
   ask,
-  lastMessage,
-  messages,
+  digest,
   runningStep,
   state,
 }: {
   ask: undefined | { at: number; text: string };
-  lastMessage: SessionMessage.WithParts | undefined;
-  messages: SessionMessage.WithParts[];
+  digest: ChatDigest;
   runningStep: string | undefined;
   state: Chat["state"];
 }): Chat["latest"] {
   if (state === "working") {
-    const step = runningStep ?? latestStepIn(messages);
-    if (step && lastMessage) {
-      return {
-        at: lastMessage.metadata.createdAt.getTime(),
-        kind: "step",
-        text: step,
-      };
+    const step = runningStep ?? digest.stepInMessages;
+    if (step && digest.lastMessageAt !== undefined) {
+      return { at: digest.lastMessageAt, kind: "step", text: step };
     }
     // Working with no step to name yet, as right after a message is sent:
     // the row keeps the last thing said rather than going blank under the
@@ -767,17 +876,7 @@ function latestFor({
   }
   // The last reply with words in it, since a turn can end on a tool call
   // with nothing said, and the row wants the last thing the agent told them.
-  const spoken = messages.findLast(
-    (message) => message.role === "assistant" && hasWords(message),
-  );
-  if (spoken?.role !== "assistant") {
-    return undefined;
-  }
-  return {
-    at: (spoken.metadata.finishedAt ?? spoken.metadata.createdAt).getTime(),
-    kind: "reply",
-    text: firstLine(textOf(spoken)),
-  };
+  return digest.spoken && { ...digest.spoken, kind: "reply" };
 }
 
 async function loadShared(): Promise<Shared> {
@@ -938,10 +1037,10 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
  * state, one small read per task, rather than from its transcript.
  */
 async function sitesHeld(
-  messages: SessionMessage.WithParts[],
+  openedHosts: string[],
   filedTasks: TaskId[],
 ): Promise<string[]> {
-  const hosts = bashCommandsIn(messages).flatMap(openedHostsIn);
+  const hosts = [...openedHosts];
   for (const filed of filedTasks) {
     hosts.push(...(await filedHostsOf(filed)));
   }
@@ -994,12 +1093,9 @@ function chatIsAlive(sessionId: StoreId.Session): boolean {
 }
 
 /** The newest message is the user's or a wake's, recent, and not yet answered. */
-function turnIsStarting(messages: SessionMessage.WithParts[]): boolean {
-  const newest = messages.findLast(
-    (message) => message.role === "user" || message.role === "assistant",
-  );
+function turnIsStarting({ newestTurn }: ChatDigest): boolean {
   return (
-    newest?.role === "user" &&
-    Date.now() - newest.metadata.createdAt.getTime() < TURN_START_GRACE_MS
+    newestTurn?.role === "user" &&
+    Date.now() - newestTurn.at < TURN_START_GRACE_MS
   );
 }

@@ -21,7 +21,6 @@ import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Topic } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
-import { type RowDensity } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
@@ -260,20 +259,18 @@ function pillOf(row: HTMLElement) {
 async function renderRow(
   row: Chat,
   {
-    density = "tall",
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
-    density?: RowDensity;
     onOpen?: Mock<() => void>;
     onSetTopics?: Mock<(topics: string[]) => void>;
     openScreen?: Mock<(href: string) => void>;
     store?: ReturnType<typeof createStore>;
   } = {},
 ) {
-  const { rows, ...rest } = await renderRows([{ chat: row, density }], {
+  const { rows, ...rest } = await renderRows([row], {
     onOpen,
     onSetTopics,
     openScreen,
@@ -286,12 +283,9 @@ async function renderRow(
   return { ...rest, onOpen, onSetTopics, openScreen, row: element };
 }
 
-/**
- * Several rows at once, each in a box of its density's width, so one test
- * can hold two shapes side by side without a second render.
- */
+/** Several rows at once, each in a box of the list's width, so one test can compare them without a second render. */
 async function renderRows(
-  specs: { chat: Chat; density: RowDensity }[],
+  chats: Chat[],
   {
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
@@ -308,20 +302,16 @@ async function renderRows(
   // The rows' actions come from the list, which asks once for all of them.
   function Rows() {
     const actionsFor = useChatActionsFor();
-    return specs.map((spec, index) => (
-      <div
-        key={index}
-        style={{ width: spec.density === "slim" ? "800px" : "400px" }}
-      >
+    return chats.map((entry, index) => (
+      <div key={index} style={{ width: "400px" }}>
         <ChatRow
-          actions={actionsFor(spec.chat)}
+          actions={actionsFor(entry)}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
             ])
           }
-          chat={spec.chat}
-          density={spec.density}
+          chat={entry}
           isOpen={false}
           now={NOW}
           onNewTopic={vi.fn()}
@@ -359,29 +349,7 @@ function titleOf(row: HTMLElement) {
 }
 
 describe("ChatRow", () => {
-  it("lies down to one line across a wide list, the pills and the time at the far right, no ask on it", async () => {
-    const { row } = await renderRow(chat({ topics: ["house"] }), {
-      density: "slim",
-    });
-    expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
-    expect(row.textContent).toBe(`${TITLE}${REPLY}🏠House9:11 AM`);
-    // The time past the pill, at the row's end.
-    const pill = pillOf(row)?.getBoundingClientRect();
-    const time = [...row.querySelectorAll("span")]
-      .find((span) => span.textContent === "9:11 AM")
-      ?.getBoundingClientRect();
-    expect(time?.left).toBeGreaterThanOrEqual(pill?.right ?? 0);
-    // The latest line gets more of the row than the title's column.
-    expect(peekOf(row)?.getBoundingClientRect().width).toBeGreaterThan(
-      titleOf(row).getBoundingClientRect().width,
-    );
-    // The latest line starts past the title's column, never under it.
-    expect(peekOf(row)?.getBoundingClientRect().left).toBeGreaterThan(
-      titleOf(row).getBoundingClientRect().right,
-    );
-  });
-
-  it("stacks when the list is narrow: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
+  it("stacks: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
       chat({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -418,46 +386,22 @@ describe("ChatRow", () => {
     expect(time?.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
   });
 
-  it("gives the latest line two lines when tall and one when slim", async () => {
-    const long = chat({
-      latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
-    });
-    const { rows } = await renderRows([
-      { chat: long, density: "tall" },
-      { chat: long, density: "slim" },
-    ]);
-    const [tall, slim] = rows;
-    if (!tall || !slim) {
-      throw new Error("no rows");
-    }
-    const tallPeek = peekOf(tall);
-    expect(tallPeek?.querySelector(".line-clamp-2")).not.toBeNull();
-    expect(tallPeek?.getBoundingClientRect().height).toBeGreaterThan(30);
-    expect(peekOf(slim)?.getBoundingClientRect().height).toBeLessThanOrEqual(
-      24,
+  it("gives the latest line two lines", async () => {
+    const { row } = await renderRow(
+      chat({
+        latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
+      }),
     );
-    // Nothing the row holds spills past its edge. Its children rather than
-    // its `scrollWidth`, which also counts the hover tint running out to the
-    // list's edges.
-    const edge = slim.getBoundingClientRect().right;
-    for (const child of slim.children) {
-      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(edge);
-    }
+    const peek = peekOf(row);
+    expect(peek?.querySelector(".line-clamp-2")).not.toBeNull();
+    expect(peek?.getBoundingClientRect().height).toBeGreaterThan(30);
   });
 
-  it("carries no reply count, and the time at either width", async () => {
-    const { rows } = await renderRows([
-      { chat: chat({ replyCount: 3 }), density: "tall" },
-      { chat: chat({ replyCount: 3 }), density: "slim" },
-    ]);
-    const [tall, slim] = rows;
-    if (!tall || !slim) {
-      throw new Error("no rows");
-    }
-    expect(tall.querySelector('[aria-label="3 replies"]')).toBeNull();
-    expect(firstLineOf(tall).textContent).toBe(TITLE);
-    expect(tall.textContent).toContain("9:11 AM");
-    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
+  it("carries no reply count, and the time", async () => {
+    const { row } = await renderRow(chat({ replyCount: 3 }));
+    expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();
+    expect(firstLineOf(row).textContent).toBe(TITLE);
+    expect(row.textContent).toContain("9:11 AM");
   });
 
   it.each<[string, Partial<Chat>]>([
@@ -474,10 +418,7 @@ describe("ChatRow", () => {
   );
 
   it("sets the title in semibold only while something in it is unseen", async () => {
-    const { rows } = await renderRows([
-      { chat: chat({ unread: 1 }), density: "tall" },
-      { chat: chat(), density: "tall" },
-    ]);
+    const { rows } = await renderRows([chat({ unread: 1 }), chat()]);
     const [unseen, seen] = rows;
     if (!unseen || !seen) {
       throw new Error("no rows");
@@ -486,33 +427,29 @@ describe("ChatRow", () => {
     expect(titleOf(seen).className).not.toContain("font-semibold");
   });
 
-  it.each<RowDensity>(["tall", "slim"])(
-    "says Draft in red right after the title while the chat's composer holds words, %s",
-    async (density) => {
-      const store = createStore();
-      store.set(
-        promptDraftAtom({ scope: "chat", sessionId }),
-        "and keep the porch light on",
-      );
-      const { row } = await renderRow(chat({ topics: ["house"] }), {
-        density,
-        store,
-      });
-      const draft = [...row.querySelectorAll("span")].find(
-        (span) => span.textContent === "Draft",
-      );
-      expect(draft?.className).toContain("text-error-700");
-      // Beside the title's words, before the pill, and never the draft's words.
-      const title = titleOf(row).getBoundingClientRect();
-      const worn = draft?.getBoundingClientRect();
-      expect(worn?.left).toBeGreaterThanOrEqual(title.right);
-      expect(worn?.left).toBeLessThan(title.right + 16);
-      expect(worn?.left).toBeLessThan(
-        pillOf(row)?.getBoundingClientRect().left ?? 0,
-      );
-      expect(row.textContent).not.toContain("porch light");
-    },
-  );
+  it("says Draft in red right after the title while the chat's composer holds words", async () => {
+    const store = createStore();
+    store.set(
+      promptDraftAtom({ scope: "chat", sessionId }),
+      "and keep the porch light on",
+    );
+    const { row } = await renderRow(chat({ topics: ["house"] }), {
+      store,
+    });
+    const draft = [...row.querySelectorAll("span")].find(
+      (span) => span.textContent === "Draft",
+    );
+    expect(draft?.className).toContain("text-error-700");
+    // Beside the title's words, before the pill, and never the draft's words.
+    const title = titleOf(row).getBoundingClientRect();
+    const worn = draft?.getBoundingClientRect();
+    expect(worn?.left).toBeGreaterThanOrEqual(title.right);
+    expect(worn?.left).toBeLessThan(title.right + 16);
+    expect(worn?.left).toBeLessThan(
+      pillOf(row)?.getBoundingClientRect().left ?? 0,
+    );
+    expect(row.textContent).not.toContain("porch light");
+  });
 
   it("says nothing of a draft that is only whitespace", async () => {
     const store = createStore();
@@ -532,32 +469,26 @@ describe("ChatRow", () => {
 
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
     const { rows } = await renderRows([
-      {
-        chat: chat({
-          latest: undefined,
-          replyCount: 0,
-          runningTasks: [
-            {
-              id: TaskIdSchema.parse("nest-guard"),
-              step: "Reading the automation",
-              title: "Nest guard",
-            },
-          ],
-          state: "working",
-        }),
-        density: "tall",
-      },
-      {
-        chat: chat({
-          latest: {
-            at: MOVED_AT.getTime(),
-            kind: "question",
-            text: "Reuse the old CSR, or generate a new one?",
+      chat({
+        latest: undefined,
+        replyCount: 0,
+        runningTasks: [
+          {
+            id: TaskIdSchema.parse("nest-guard"),
+            step: "Reading the automation",
+            title: "Nest guard",
           },
-          state: "waiting",
-        }),
-        density: "tall",
-      },
+        ],
+        state: "working",
+      }),
+      chat({
+        latest: {
+          at: MOVED_AT.getTime(),
+          kind: "question",
+          text: "Reuse the old CSR, or generate a new one?",
+        },
+        state: "waiting",
+      }),
     ]);
     const [working, waiting] = rows;
     if (!working || !waiting) {
@@ -577,18 +508,10 @@ describe("ChatRow", () => {
       latest: undefined,
       state: "working",
     });
-    const { rows } = await renderRows([
-      { chat: working, density: "tall" },
-      { chat: working, density: "slim" },
-    ]);
-    const [tall, slim] = rows;
-    if (!tall || !slim) {
-      throw new Error("no rows");
-    }
-    expect(peekOf(tall)?.textContent).toBe(
+    const { row } = await renderRow(working);
+    expect(peekOf(row)?.textContent).toBe(
       "Instrument is workingYou: Check the Nest schedule",
     );
-    expect(peekOf(slim)?.textContent).toBe("Instrument is working");
   });
 
   it("says Instrument is working under a task's title until its first step lands", async () => {
@@ -683,10 +606,7 @@ describe("ChatRow", () => {
       files: ["/task/out/report.md", "/task/out/data.csv"],
       sites: ["wakatime.com", "example.com", "example.org", "example.net"],
     };
-    const { rows } = await renderRows([
-      { chat: chat({ holds }), density: "tall" },
-      { chat: chat({ holds }), density: "slim" },
-    ]);
+    const { rows } = await renderRows([chat({ holds })]);
     for (const row of rows) {
       const marks = marksOf(row);
       // Five marks, then a count of the two that did not get one.
@@ -715,18 +635,15 @@ describe("ChatRow", () => {
     }
   });
 
-  it("keeps what it holds to one line when tall, the files first, clipped at the row's edge rather than wrapped", async () => {
+  it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {
     const files = Array.from(
       { length: 4 },
       (_, index) => `/task/out/a-report-with-a-long-name-${index}.md`,
     );
     const holds = { apps: ["github"], files, sites: ["wakatime.com"] };
     const { rows } = await renderRows([
-      { chat: chat({ holds }), density: "tall" },
-      {
-        chat: chat({ holds: { ...holds, files: files.slice(0, 1) } }),
-        density: "tall",
-      },
+      chat({ holds }),
+      chat({ holds: { ...holds, files: files.slice(0, 1) } }),
     ]);
     const [many, few] = rows;
     if (!many || !few) {
@@ -761,7 +678,6 @@ describe("ChatRow", () => {
     // icon to arrive before the mark holds still under the pointer.
     const { row } = await renderRow(
       chat({ holds: { apps: ["paper"], files: [], sites: [] } }),
-      { density: "slim" },
     );
     const [app] = marksOf(row);
     if (!app) {
@@ -787,7 +703,6 @@ describe("ChatRow", () => {
           sites: ["no-such-site.invalid"],
         },
       }),
-      { density: "slim" },
     );
     // The site's mark goes once its icon has failed everywhere; the app's
     // stays.
@@ -809,7 +724,6 @@ describe("ChatRow", () => {
     );
     const { row } = await renderRow(
       chat({ holds: { apps: ["paper"], files, sites: [] } }),
-      { density: "slim" },
     );
     const count = marksOf(row).at(-1);
     if (!count) {
@@ -908,34 +822,28 @@ describe("the row's actions", () => {
     toast.dismiss();
   });
 
-  it.each<RowDensity>(["tall", "slim"])(
-    "stand over the %s row's right end while the pointer is on it, out of the flow at rest",
-    async (density) => {
-      const { row } = await renderRow(chat(), { density });
-      const { bar, labels } = barOf(row);
-      expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
-      // The pointer is wherever the last test left it, which may be here.
-      await userEvent.unhover(row);
-      expect(bar.getClientRects().length).toBe(0);
-      const before = titleOf(row).getBoundingClientRect();
-      await userEvent.hover(titleOf(row));
-      await vi.waitFor(() => {
-        expect(bar.getClientRects().length).toBeGreaterThan(0);
-      });
-      const box = bar.getBoundingClientRect();
-      const edge = row.getBoundingClientRect();
-      expect(box.right).toBeLessThanOrEqual(edge.right);
-      expect(box.right).toBeGreaterThan(edge.right - 80);
-      expect(box.top).toBeGreaterThanOrEqual(edge.top);
-      // Nothing on the row moved for them but the tag control's arrival in
-      // front of the title.
-      expect(titleOf(row).getBoundingClientRect().top).toBeCloseTo(
-        before.top,
-        0,
-      );
-      await userEvent.unhover(titleOf(row));
-    },
-  );
+  it("stand over the row's right end while the pointer is on it, out of the flow at rest", async () => {
+    const { row } = await renderRow(chat());
+    const { bar, labels } = barOf(row);
+    expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
+    // The pointer is wherever the last test left it, which may be here.
+    await userEvent.unhover(row);
+    expect(bar.getClientRects().length).toBe(0);
+    const before = titleOf(row).getBoundingClientRect();
+    await userEvent.hover(titleOf(row));
+    await vi.waitFor(() => {
+      expect(bar.getClientRects().length).toBeGreaterThan(0);
+    });
+    const box = bar.getBoundingClientRect();
+    const edge = row.getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(edge.right);
+    expect(box.right).toBeGreaterThan(edge.right - 80);
+    expect(box.top).toBeGreaterThanOrEqual(edge.top);
+    // Nothing on the row moved for them but the tag control's arrival in
+    // front of the title.
+    expect(titleOf(row).getBoundingClientRect().top).toBeCloseTo(before.top, 0);
+    await userEvent.unhover(titleOf(row));
+  });
 
   it("puts the chat away from its edge, short of the door, and offers it back from the toast", async () => {
     const { onOpen, row } = await renderRow(chat());
@@ -1026,10 +934,7 @@ describe("the row's actions", () => {
   it("lets the click that puts one row's menu away open another row", async () => {
     const onOpen = vi.fn();
     const { rows } = await renderRows(
-      [
-        { chat: chat({ title: `${TITLE} one` }), density: "tall" },
-        { chat: chat({ title: `${TITLE} two` }), density: "tall" },
-      ],
+      [chat({ title: `${TITLE} one` }), chat({ title: `${TITLE} two` })],
       { onOpen },
     );
     const [first, second] = rows;
@@ -1066,26 +971,22 @@ describe("the row's actions", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("marks a starred row with a star past its topics, not a control, at either width", async () => {
-    const starred = chat({ starred: true, topics: ["house"] });
+  it("marks a starred row with a star past its topics, not a control", async () => {
     const { rows } = await renderRows([
-      { chat: starred, density: "slim" },
-      { chat: starred, density: "tall" },
-      { chat: chat(), density: "tall" },
+      chat({ starred: true, topics: ["house"] }),
+      chat(),
     ]);
-    const [slim, tall, plain] = rows;
-    if (!slim || !tall || !plain) {
+    const [starred, plain] = rows;
+    if (!starred || !plain) {
       throw new Error("no rows");
     }
-    for (const row of [slim, tall]) {
-      const mark = row.querySelector('[aria-label="Starred"]');
-      expect(mark?.closest("button")).toBeNull();
-      expect(mark?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-        pillOf(row)?.getBoundingClientRect().right ?? 0,
-      );
-    }
+    const mark = starred.querySelector('[aria-label="Starred"]');
+    expect(mark?.closest("button")).toBeNull();
+    expect(mark?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
+      pillOf(starred)?.getBoundingClientRect().right ?? 0,
+    );
     expect(plain.querySelector('[aria-label="Starred"]')).toBeNull();
     // Taking the star back ends the corner's bar, over where the star stood.
-    expect(barOf(tall).labels.at(-1)).toBe("Unstar");
+    expect(barOf(starred).labels.at(-1)).toBe("Unstar");
   });
 });

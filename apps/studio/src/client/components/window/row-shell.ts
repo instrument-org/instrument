@@ -12,17 +12,6 @@ export interface RowAction {
 }
 
 /**
- * The name's column on a slim row: a quarter of it and no more than a
- * mailbox gives its senders, so the latest line gets the row's width, and
- * every row's latest line starts at one edge.
- */
-export const SLIM_NAME_COLUMN =
-  "flex w-1/4 max-w-60 min-w-0 shrink-0 items-center gap-1.5";
-
-/** The two shapes a row takes, by the room the list has: one line across a wide list, three down a narrow one. */
-export type RowDensity = "slim" | "tall";
-
-/**
  * The tint a row of a divided list wears while the pointer is on it, its
  * menu is open, or it has the keyboard: a rounded field drawn inside the
  * row, a hair in from the hairlines above and below it, rather than the
@@ -54,13 +43,12 @@ const INBOX_ROW_TINT =
  * own or on the row under it. Its words stay where every row has them, so
  * nothing moves as a chat opens or closes.
  */
-export function rowClassName(density: RowDensity, isOpen: boolean) {
+export function rowClassName(isOpen: boolean) {
   return cn(
-    "group/row relative flex cursor-default gap-2 border-t border-border px-3 select-none first:border-t-0 focus-visible:outline-hidden",
+    "group/row relative flex cursor-default items-start gap-2 border-t border-border px-3 py-2.5 select-none first:border-t-0 focus-visible:outline-hidden",
     // No hairline where the tint is, above the row or under it.
     "hover:border-transparent focus-visible:border-transparent has-[[data-state=open]]:border-transparent data-[state=open]:border-transparent",
     "[:focus-visible+&]:border-transparent [:has([data-state=open])+&]:border-transparent [:hover+&]:border-transparent [[data-open]+&]:border-transparent [[data-state=open]+&]:border-transparent",
-    density === "slim" ? "h-9 items-center" : "items-start py-2.5",
     isOpen
       ? "border-transparent bg-brand-50 dark:bg-brand-500/15"
       : INBOX_ROW_TINT,

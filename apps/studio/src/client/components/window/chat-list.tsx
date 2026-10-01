@@ -8,11 +8,7 @@ import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
 import { byActivity, type Chat, type Topic } from "./chats";
 import { DraftRow } from "./draft-row";
-import { type RowDensity, SLIM_NAME_COLUMN } from "./row-shell";
 import { useNow } from "./use-now";
-
-/** The width the list has to have, in px, before its rows lie down to one line each. */
-const SLIM_FROM = 600;
 
 /**
  * One chat's row, rendered again only when something it shows changes:
@@ -29,7 +25,6 @@ const ListedChat = memo(function ListedChat({
   actionsFor: ReturnType<typeof useChatActionsFor>;
   appsBySlug: AppsBySlug;
   chat: Chat;
-  density: RowDensity;
   handlers: RefObject<{
     onNewTopic: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
@@ -74,11 +69,8 @@ const SKELETON_WIDTHS = [
 /**
  * The inbox: every chat by when something last happened in it, newest at
  * the top, so a reply landing lifts its chat to the head of the list, or,
- * given drafts instead, every draft by when it was last touched. The rows
- * take one line each when the list is wide enough for a mailbox's columns,
- * and three when it is not; the list measures its own width for that, since
- * the pane and the column beside it set it. It opens at the top and stays
- * where the reader scrolled to.
+ * given drafts instead, every draft by when it was last touched. It opens at
+ * the top and stays where the reader scrolled to.
  */
 export function ChatList({
   appsBySlug,
@@ -126,7 +118,6 @@ export function ChatList({
 }) {
   const now = useNow();
   const ref = useRef<HTMLDivElement>(null);
-  const density = useDensity(ref);
   const actionsFor = useChatActionsFor();
   // The handlers as the list last had them, for the rows to call: the ones
   // the list is handed are new whenever the window re-renders, and a row
@@ -142,7 +133,6 @@ export function ChatList({
   const rows = drafts
     ? byActivity(drafts).map((draft) => (
         <DraftRow
-          density={density}
           draft={draft}
           key={draft.id}
           now={now}
@@ -160,7 +150,6 @@ export function ChatList({
           actionsFor={actionsFor}
           appsBySlug={appsBySlug}
           chat={chat}
-          density={density}
           handlers={handlers}
           isArriving={chat.id === arrivedId}
           isOpen={chat.id === openId}
@@ -179,19 +168,13 @@ export function ChatList({
         "min-h-0 flex-1 overflow-y-auto pt-1 pb-4",
         isScrollable && "scroll-fade-y",
       )}
-      data-density={density}
       ref={ref}
     >
       {rows.length === 0 ? (
         isLoading ? (
           <div aria-busy role="status">
             {SKELETON_WIDTHS.map(([title, peek]) => (
-              <RowSkeleton
-                density={density}
-                key={`${title} ${peek}`}
-                peek={peek}
-                title={title}
-              />
+              <RowSkeleton key={`${title} ${peek}`} peek={peek} title={title} />
             ))}
           </div>
         ) : (
@@ -224,67 +207,16 @@ export function ChatList({
   );
 }
 
-/** A row's shape at the list's density, standing in while the chats load. */
-function RowSkeleton({
-  density,
-  peek,
-  title,
-}: {
-  density: RowDensity;
-  peek: string;
-  title: string;
-}) {
+/** A row's shape, standing in while the chats load. */
+function RowSkeleton({ peek, title }: { peek: string; title: string }) {
   return (
-    <div
-      className={cn(
-        "flex gap-2 border-t border-border px-3 first:border-t-0",
-        density === "slim" ? "h-9 items-center" : "flex-col py-2.5",
-      )}
-    >
-      {density === "slim" ? (
-        <>
-          <span className="size-5 shrink-0" />
-          <span className={SLIM_NAME_COLUMN}>
-            <Skeleton className="h-3" style={{ width: title }} />
-          </span>
-          <Skeleton className="h-3 flex-1" style={{ maxWidth: peek }} />
-        </>
-      ) : (
-        <>
-          <div className="flex h-5 items-center">
-            <Skeleton className="h-3" style={{ width: title }} />
-          </div>
-          <Skeleton className="h-3" style={{ width: peek }} />
-        </>
-      )}
+    <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5 first:border-t-0">
+      <div className="flex h-5 items-center">
+        <Skeleton className="h-3" style={{ width: title }} />
+      </div>
+      <Skeleton className="h-3" style={{ width: peek }} />
     </div>
   );
-}
-
-/**
- * Which shape the rows take, from the list's own width: the pane is resized
- * by hand and the column beside the list changes shape on its own, so the
- * list is measured rather than told. Tall until measured, which is the shape
- * that fits anywhere.
- */
-function useDensity(ref: React.RefObject<HTMLDivElement | null>): RowDensity {
-  const [isSlim, setSlim] = useState(false);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const measure = () => {
-      setSlim(element.clientWidth >= SLIM_FROM);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [ref]);
-  return isSlim ? "slim" : "tall";
 }
 
 /**

@@ -12,12 +12,7 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { TopicPill } from "./chat-row";
 import { activityLabel, draftTitle, type Topic } from "./chats";
 import { RowActionBar } from "./row-action-bar";
-import {
-  type RowAction,
-  rowClassName,
-  type RowDensity,
-  SLIM_NAME_COLUMN,
-} from "./row-shell";
+import { type RowAction, rowClassName } from "./row-shell";
 
 /**
  * One draft in the Drafts place, laid out the way a chat's row is so the
@@ -30,14 +25,12 @@ import {
  * the caller says what was deleted and offers it back.
  */
 export function DraftRow({
-  density,
   draft,
   now,
   onDelete,
   onOpen,
   topics,
 }: {
-  density: RowDensity;
   draft: Draft;
   /** The moment the time at the row's end is read against. */
   now: Date;
@@ -74,8 +67,7 @@ export function DraftRow({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className={rowClassName(density, false)}
-          data-density={density}
+          className={rowClassName(false)}
           onClick={onOpen}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
@@ -90,26 +82,15 @@ export function DraftRow({
               <FeatherIcon className="size-3.5" />
             </span>
           </span>
-          {density === "slim" ? (
-            <>
-              <span className={SLIM_NAME_COLUMN}>
-                {pill}
-                {title}
-              </span>
-              <span className="flex min-w-0 flex-1">{standing}</span>
-              <span className="w-14 shrink-0 text-right">{time}</span>
-            </>
-          ) : (
-            <div className="min-w-0 flex-1">
-              <p className="flex h-5 items-center gap-1.5">
-                {pill}
-                {title}
-                {time}
-              </p>
-              <p className="mt-0.5 flex">{standing}</p>
-            </div>
-          )}
-          <RowActionBar actions={actions} density={density} />
+          <div className="min-w-0 flex-1">
+            <p className="flex h-5 items-center gap-1.5">
+              {pill}
+              {title}
+              {time}
+            </p>
+            <p className="mt-0.5 flex">{standing}</p>
+          </div>
+          <RowActionBar actions={actions} />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

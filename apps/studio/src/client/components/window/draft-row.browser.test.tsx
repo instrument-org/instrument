@@ -8,7 +8,6 @@ import { ChatList } from "./chat-list";
 import { type Topic } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
 import { DraftRow } from "./draft-row";
-import { type RowDensity } from "./row-shell";
 
 /** The window the list sits in, as far as a list of drafts can tell: it answers for the chats' actions, which a draft has none of. */
 const WINDOW: WindowContextValue = {
@@ -71,19 +70,16 @@ function gutterOf(row: HTMLElement) {
 async function renderRow(
   row: Draft,
   {
-    density = "tall",
     onDelete = vi.fn(),
     onOpen = vi.fn(),
   }: {
-    density?: RowDensity;
     onDelete?: () => void;
     onOpen?: () => void;
   } = {},
 ) {
   const rendered = await renderInBrowser(
-    <div style={{ width: density === "slim" ? "800px" : "400px" }}>
+    <div style={{ width: "400px" }}>
       <DraftRow
-        density={density}
         draft={row}
         now={NOW}
         onDelete={onDelete}
@@ -110,34 +106,27 @@ function timeOf(row: HTMLElement) {
 }
 
 describe("DraftRow", () => {
-  it.each<RowDensity>(["tall", "slim"])(
-    "wears a feather, the topic, the first line of the words, Draft, and the time, %s",
-    async (density) => {
-      const { row } = await renderRow(draft({ topicId: "house" }), {
-        density,
-      });
-      expect(gutterOf(row).querySelector("[aria-label]")?.ariaLabel).toBe(
-        "Draft",
+  it("wears a feather, the topic, the first line of the words, Draft, and the time", async () => {
+    const { row } = await renderRow(draft({ topicId: "house" }));
+    expect(gutterOf(row).querySelector("[aria-label]")?.ariaLabel).toBe(
+      "Draft",
+    );
+    expect(row.querySelector("svg")).not.toBeNull();
+    // The time ends the first line, and Draft sits on the second where a
+    // chat's latest line goes.
+    expect(row.textContent).toBe(
+      "🏠HouseGuard the Nest eco mode before 5 p.m.9:11 AMDraft",
+    );
+    expect(row.textContent).not.toContain("second floor");
+    const time = timeOf(row).getBoundingClientRect();
+    for (const child of row.children) {
+      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(
+        time.right,
       );
-      expect(row.querySelector("svg")).not.toBeNull();
-      // Slim, the time ends the one line; tall, it ends the first, and
-      // Draft sits on the second where a chat's latest line goes.
-      expect(row.textContent).toBe(
-        density === "slim"
-          ? "🏠HouseGuard the Nest eco mode before 5 p.m.Draft9:11 AM"
-          : "🏠HouseGuard the Nest eco mode before 5 p.m.9:11 AMDraft",
-      );
-      expect(row.textContent).not.toContain("second floor");
-      const time = timeOf(row).getBoundingClientRect();
-      for (const child of row.children) {
-        expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(
-          time.right,
-        );
-      }
-      // The pill names the topic and opens nothing of its own.
-      expect(row.querySelector("button.rounded-full")).toBeNull();
-    },
-  );
+    }
+    // The pill names the topic and opens nothing of its own.
+    expect(row.querySelector("button.rounded-full")).toBeNull();
+  });
 
   it("is a new chat while it has no words, and wears no pill for a topic that is gone", async () => {
     const { row } = await renderRow(draft({ topicId: "money", words: " \n" }));

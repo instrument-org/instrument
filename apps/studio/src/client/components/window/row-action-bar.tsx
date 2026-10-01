@@ -6,7 +6,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
-import { type RowAction, type RowDensity, stopHere } from "./row-shell";
+import { type RowAction, stopHere } from "./row-shell";
 
 /**
  * A row's own controls, in its top corner while the pointer is on the row,
@@ -21,12 +21,10 @@ import { type RowAction, type RowDensity, stopHere } from "./row-shell";
  */
 export function RowActionBar({
   actions,
-  density,
   isHeld = false,
   leading,
 }: {
   actions: RowAction[];
-  density: RowDensity;
   /** Kept in the flow whatever the pointer does: while a menu of one of the controls is on its way out. */
   isHeld?: boolean;
   /** The control in front of the actions: the one that files the chat. */
@@ -41,13 +39,10 @@ export function RowActionBar({
       className={cn(
         // The shadow's hairline is the tile's one edge.
         "hidden shrink-0 items-center gap-0.5 rounded-md bg-background p-0.5 shadow-xs group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
-        // In the corner outright on a tall row, over the pills that step
-        // aside for it, 10px from the row's top and from its end, the row's
-        // own top padding; on a slim row, in the flow where the pills were, so
-        // the holds before it stay in reach, and pulled 6px into the row's
-        // 12px end padding so the 6px above and below it is the gap at its
-        // side too.
-        density === "slim" ? "-mr-1.5" : "absolute top-2.5 right-2.5",
+        // In the corner outright, over the pills that step aside for it,
+        // 10px from the row's top and from its end, the row's own top
+        // padding.
+        "absolute top-2.5 right-2.5",
         isHeld && "flex",
       )}
       data-slot="row-actions"

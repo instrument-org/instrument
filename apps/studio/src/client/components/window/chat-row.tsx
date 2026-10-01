@@ -28,13 +28,7 @@ import { activityLabel, type Chat, type Topic } from "./chats";
 import { useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
-import {
-  type RowAction,
-  rowClassName,
-  type RowDensity,
-  SLIM_NAME_COLUMN,
-  stopHere,
-} from "./row-shell";
+import { type RowAction, rowClassName, stopHere } from "./row-shell";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
@@ -53,15 +47,12 @@ const PICKER_LEAVE_MS = 250;
  * chat's composer, the way mail marks a conversation with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
- * reply's first words), and the marks of what it holds. Slim, all of that is
- * one line, the way a mailbox lists mail: the title held to a narrow column
- * so the latest line gets the room, the holds held to a share of it, and
- * when something last happened at the far end; tall, the title has the first line with the
- * topics at its end, the latest line gets two, and what it holds sits on a
+ * reply's first words), and the marks of what it holds. The title has the
+ * first line with the topics at its end, the latest line gets two, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
  * with the time in the row's bottom corner. A starred chat wears a filled
- * star past its topics, at either width. Where the chat
+ * star past its topics. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
  * an amber glyph while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
@@ -76,7 +67,6 @@ export function ChatRow({
   actions,
   appsBySlug,
   chat,
-  density,
   isArriving = false,
   isOpen,
   now,
@@ -89,12 +79,11 @@ export function ChatRow({
   actions: RowAction[];
   appsBySlug: AppsBySlug;
   chat: Chat;
-  density: RowDensity;
   /** Whether the chat just started from a draft: its row arrives with a wash that settles. */
   isArriving?: boolean;
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
-  /** The moment the slim row's time is read against. */
+  /** The moment the row's time is read against. */
   now: Date;
   /** Opens the new-topic dialog for this chat, with the name typed in the picker when anything was. */
   onNewTopic: (name?: string) => void;
@@ -173,9 +162,8 @@ export function ChatRow({
       )}
     </>
   );
-  // When something last happened: at the far end of a slim row, and in a
-  // tall row's bottom corner, in a column of one width so the times line up
-  // down the list.
+  // When something last happened, in the row's bottom corner, in a column
+  // of one width so the times line up down the list.
   const time = (
     <span
       className={cn(
@@ -215,13 +203,12 @@ export function ChatRow({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            rowClassName(density, isOpen),
+            rowClassName(isOpen),
             // The chat just started from a draft arrives with a wash of
             // the brand's tint that settles, so the eye finds the row the
             // draft became; nothing else that lands in the list does this.
             isArriving && "chat-arrive",
           )}
-          data-density={density}
           data-open={isOpen || undefined}
           onClick={onOpen}
           onKeyDown={(event) => {
@@ -232,98 +219,57 @@ export function ChatRow({
           role="button"
           tabIndex={0}
         >
-          {density === "slim" ? (
-            <>
-              <span className={SLIM_NAME_COLUMN}>{title}</span>
-              <Peek chat={chat} className="min-w-0 flex-1" lines={1} />
-              {/* No more than a share of the row, clipped with a fade past
-                it, so a chat with many files never pushes into the title's
-                column. */}
-              {hasHolds && (
-                <HoldsInChat chatSessionId={chat.id}>
-                  <HoldMarks
-                    appsBySlug={appsBySlug}
-                    className="ml-auto max-w-[30%]"
-                    holds={chat.holds}
-                    namedFiles
-                    wrap={false}
-                  />
-                </HoldsInChat>
-              )}
-              {/* The topics and the time at the row's end, both stepping
-                aside for the corner's bar while the pointer is on the row,
-                so the bar takes the far end the way mail's actions take the
-                date's place. */}
-              <span className="flex shrink-0 items-center gap-1 group-hover/row:hidden">
+          <div className="min-w-0 flex-1">
+            {/* The topics at the line's end in the row's corner. */}
+            <div className="flex h-5 items-center gap-1.5">
+              {title}
+              {/* Stepping aside for the corner's bar while the pointer is
+                  on the row. */}
+              <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
                 {pills}
                 {starMark}
               </span>
-              <RowActionBar
-                actions={actions}
-                density={density}
-                isHeld={isPickerLeaving}
-                leading={tagControl}
-              />
-              <span className="flex shrink-0 group-hover/row:hidden">
-                {time}
-              </span>
-            </>
-          ) : (
-            <div className="min-w-0 flex-1">
-              {/* The topics at the line's end in the row's corner. */}
-              <div className="flex h-5 items-center gap-1.5">
-                {title}
-                {/* Stepping aside for the corner's bar while the pointer is
-                  on the row. */}
-                <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
-                  {pills}
-                  {starMark}
-                </span>
-              </div>
-              {/* The time in the row's bottom corner: at the end of the
+            </div>
+            {/* The time in the row's bottom corner: at the end of the
                 holds' line when the chat holds anything, and otherwise at
                 the end of the latest line, so a row with nothing held takes
                 no line for nothing. */}
-              {hasHolds ? (
-                <>
-                  {/* Two lines' room whatever the latest line takes, so
+            {hasHolds ? (
+              <>
+                {/* Two lines' room whatever the latest line takes, so
                     the row keeps one height as its chat starts work,
                     starts a task, and settles on a reply of one line. */}
-                  <Peek chat={chat} className="mt-0.5 min-h-10" lines={2} />
-                  <div className="mt-1 flex items-end gap-2">
-                    <HoldsInChat chatSessionId={chat.id}>
-                      <HoldMarks
-                        appsBySlug={appsBySlug}
-                        className="min-w-0 flex-1 gap-1"
-                        holds={chat.holds}
-                        namedFiles
-                        wrap={false}
-                      />
-                    </HoldsInChat>
-                    {time}
-                  </div>
-                </>
-              ) : (
-                // Two lines' room whatever the latest line takes, so the
-                // time sits under the corner's bar rather than beneath it
-                // while the pointer is on the row, and the row keeps one
-                // height as the line changes. The line starts under the
-                // title, as it does in a row that holds something.
-                <div className="mt-0.5 flex min-h-10 items-start gap-2">
-                  <Peek chat={chat} className="min-w-0 flex-1" lines={2} />
-                  <span className="ml-auto flex shrink-0 self-end">{time}</span>
+                <Peek chat={chat} className="mt-0.5 min-h-10" />
+                <div className="mt-1 flex items-end gap-2">
+                  <HoldsInChat chatSessionId={chat.id}>
+                    <HoldMarks
+                      appsBySlug={appsBySlug}
+                      className="min-w-0 flex-1 gap-1"
+                      holds={chat.holds}
+                      namedFiles
+                      wrap={false}
+                    />
+                  </HoldsInChat>
+                  {time}
                 </div>
-              )}
-            </div>
-          )}
-          {density === "tall" && (
-            <RowActionBar
-              actions={actions}
-              density={density}
-              isHeld={isPickerLeaving}
-              leading={tagControl}
-            />
-          )}
+              </>
+            ) : (
+              // Two lines' room whatever the latest line takes, so the
+              // time sits under the corner's bar rather than beneath it
+              // while the pointer is on the row, and the row keeps one
+              // height as the line changes. The line starts under the
+              // title, as it does in a row that holds something.
+              <div className="mt-0.5 flex min-h-10 items-start gap-2">
+                <Peek chat={chat} className="min-w-0 flex-1" />
+                <span className="ml-auto flex shrink-0 self-end">{time}</span>
+              </div>
+            )}
+          </div>
+          <RowActionBar
+            actions={actions}
+            isHeld={isPickerLeaving}
+            leading={tagControl}
+          />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -506,23 +452,14 @@ function HoldsInChat({
  * The agent's latest line: the step while it works, in brand; the question
  * while it waits, behind an amber glyph with the words themselves in gray;
  * and the last reply's first words otherwise, in muted. Nothing when an idle
- * chat has said nothing yet. One line that truncates, or two that clamp.
+ * chat has said nothing yet. Two lines that clamp.
  */
-function Peek({
-  chat,
-  className,
-  lines,
-}: {
-  chat: Chat;
-  className?: string;
-  lines: 1 | 2;
-}) {
+function Peek({ chat, className }: { chat: Chat; className?: string }) {
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
   if (!chat.latest && !isWaiting && !isWorking) {
     return null;
   }
-  const clamp = lines === 1 ? "truncate" : "line-clamp-2";
   return (
     <span
       className={cn(
@@ -531,19 +468,19 @@ function Peek({
       )}
     >
       {isWorking ? (
-        <WorkingPeek chat={chat} lines={lines} />
+        <WorkingPeek chat={chat} />
       ) : isWaiting ? (
         <>
           <QuestionIcon
             className="mt-[3px] size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
             weight="bold"
           />
-          <span className={cn("min-w-0 text-foreground/80", clamp)}>
+          <span className="line-clamp-2 min-w-0 text-foreground/80">
             {chat.latest?.text || "Waiting on you"}
           </span>
         </>
       ) : (
-        <span className={cn("min-w-0 text-muted-foreground", clamp)}>
+        <span className="line-clamp-2 min-w-0 text-muted-foreground">
           {chat.latest?.text}
         </span>
       )}
@@ -601,14 +538,13 @@ function TagControl({
 }
 
 /**
- * What a working chat is doing. In two lines, the task at work by its title
- * and under it the step it is on, each held to one line, so the row keeps its
- * height as the step changes with every call; the step line says Instrument
- * is working until the task's first call lands. In one line, the step, or the task's title
- * before it has one. With no task at work, the chat's own agent is, and
- * in two lines the user's message it is answering goes under it.
+ * What a working chat is doing: the task at work by its title and under it
+ * the step it is on, each held to one line, so the row keeps its height as
+ * the step changes with every call; the step line says Instrument is working
+ * until the task's first call lands. With no task at work, the chat's own
+ * agent is, and the user's message it is answering goes under it.
  */
-function WorkingPeek({ chat, lines }: { chat: Chat; lines: 1 | 2 }) {
+function WorkingPeek({ chat }: { chat: Chat }) {
   const working = chat.runningTasks.filter((task) => !task.waiting);
   const lead = working.find((task) => task.step) ?? working[0];
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
@@ -619,9 +555,9 @@ function WorkingPeek({ chat, lines }: { chat: Chat; lines: 1 | 2 }) {
         Instrument is working
       </span>
     );
-    // In two lines, what it is answering under it, so the second line says
-    // what the wait is for rather than standing empty until a task starts.
-    if (lines === 1 || !chat.lastAsk) {
+    // What it is answering under it, so the second line says what the wait
+    // is for rather than standing empty until a task starts.
+    if (!chat.lastAsk) {
       return status;
     }
     return (
@@ -630,13 +566,6 @@ function WorkingPeek({ chat, lines }: { chat: Chat; lines: 1 | 2 }) {
         <span className="min-w-0 truncate text-muted-foreground">
           You: {chat.lastAsk}
         </span>
-      </span>
-    );
-  }
-  if (lines === 1) {
-    return (
-      <span className="brand-shiny-text min-w-0 truncate">
-        {lead.step ?? lead.title}
       </span>
     );
   }

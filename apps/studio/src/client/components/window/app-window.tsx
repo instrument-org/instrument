@@ -571,9 +571,7 @@ function WindowShell({
   // been started that field is always set. The stored model stands in for a
   // window whose default was never saved.
   const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
-  const topicsQuery = useQuery(
-    rpcClient.workspace.topics.list.queryOptions(),
-  );
+  const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
     rpcClient.workspace.topics.create.mutationOptions({
@@ -754,6 +752,9 @@ function WindowShell({
       (draft) => hasWords(draft) && !startingIds.has(draft.id),
     ),
     ids,
+    newDraft: () => {
+      newDraft();
+    },
     onListed: (listed) => {
       listedChats.current = listed;
     },

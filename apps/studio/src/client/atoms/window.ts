@@ -423,15 +423,22 @@ function windowTabsStorage() {
 }
 
 export const SIDEBAR_WIDTH_MIN = 320;
-/** Wide enough for the inbox to lay its rows down to one line each beside the column. */
-export const SIDEBAR_WIDTH_MAX = 1200;
+/** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
+export const SIDEBAR_WIDTH_MAX = 440;
 
-/** The chat pane's width in CSS px, dragged by its right edge. It holds the conversation, so it never closes. */
-export const inboxWidthAtom = atomWithStorage<number>(
+const storedInboxWidthAtom = atomWithStorage<number>(
   "studio.inbox-width.v1",
   SIDEBAR_WIDTH_MIN,
   undefined,
   { getOnInit: true },
+);
+
+/** The inbox column's width in CSS px, dragged by its right edge, and read within its widest whatever was stored. */
+export const inboxWidthAtom = atom(
+  (get) => Math.min(get(storedInboxWidthAtom), SIDEBAR_WIDTH_MAX),
+  (_get, set, width: number) => {
+    set(storedInboxWidthAtom, width);
+  },
 );
 
 /**

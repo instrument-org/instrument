@@ -28,9 +28,8 @@ import { type ReactNode, useEffect, useRef } from "react";
  */
 /** How wide a rail may be, where a drag lets go of it, and where it opens. */
 export interface RailBounds {
-  collapse: number;
-  /** A width a drag reaches past the max, where the rail is asked to cover what is beside it; none by default. */
-  cover?: number;
+  /** Dragged narrower than this, the rail slides shut; with none, a drag stops at the min. */
+  collapse?: number;
   initial: number;
   max: number;
   min: number;
@@ -43,7 +42,6 @@ export function StudioSidebarRail({
   isOpen,
   label = "Resize sidebar",
   onCollapse,
-  onCover,
   panelClassName,
   side = "left",
   widthAtom,
@@ -55,8 +53,6 @@ export function StudioSidebarRail({
   isOpen: boolean;
   label?: string;
   onCollapse: () => void;
-  /** Dragged past the cover width: the rail is to have the whole row, and what was beside it goes. */
-  onCover?: () => void;
   panelClassName?: string;
   /** Which edge of the window it hangs from; the handle is on the other. */
   side?: "left" | "right";
@@ -204,18 +200,22 @@ export function StudioSidebarRail({
               ? "right-0 translate-x-1/2"
               : "left-0 -translate-x-1/2"
           }
-          collapse={{
-            below: bounds.collapse,
-            onCollapse: () => {
-              collapsingRef.current = true;
-              draggingRef.current = false;
-              const frozenWidth = panelWidth.get();
-              animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
-              animate(panelX, away * frozenWidth, RAIL_SLIDE_TRANSITION);
-              animate(opacity, 0, RAIL_FADE_TRANSITION);
-              onCollapse();
-            },
-          }}
+          collapse={
+            bounds.collapse === undefined
+              ? undefined
+              : {
+                  below: bounds.collapse,
+                  onCollapse: () => {
+                    collapsingRef.current = true;
+                    draggingRef.current = false;
+                    const frozenWidth = panelWidth.get();
+                    animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
+                    animate(panelX, away * frozenWidth, RAIL_SLIDE_TRANSITION);
+                    animate(opacity, 0, RAIL_FADE_TRANSITION);
+                    onCollapse();
+                  },
+                }
+          }
           getWidth={() => panelWidth.get()}
           grows={side === "left" ? "right" : "left"}
           label={label}
@@ -231,18 +231,7 @@ export function StudioSidebarRail({
             ];
             setStoredWidth(bounds.initial);
           }}
-          onResize={(width, release) => {
-            // Past the point of keeping anything beside it: the rail is left
-            // at its widest, and the row is the caller's to give it.
-            if (bounds.cover !== undefined && onCover && width > bounds.cover) {
-              draggingRef.current = false;
-              const widest = clampWidth(width);
-              applyWidth(widest);
-              setStoredWidth(widest);
-              onCover();
-              release();
-              return;
-            }
+          onResize={(width) => {
             applyWidth(clampWidth(width));
           }}
           onResizeEnd={() => {

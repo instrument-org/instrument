@@ -15,7 +15,7 @@ function renderHandle(
 ) {
   const calls = {
     onReset: vi.fn(),
-    onResize: vi.fn<(width: number, release: () => void) => void>(),
+    onResize: vi.fn<(width: number) => void>(),
     onResizeEnd: vi.fn(),
     onResizeStart: vi.fn(),
   };
@@ -79,19 +79,6 @@ it("lets go and collapses under the threshold, without ending as a resize", () =
   fireEvent.pointerUp(handle, { pointerId: 1 });
   expect(onCollapse).toHaveBeenCalledOnce();
   expect(calls.onResize).not.toHaveBeenCalled();
-  expect(calls.onResizeEnd).not.toHaveBeenCalled();
-});
-
-it("lets go when the resize asks to", () => {
-  const onResize = vi.fn((_width: number, release: () => void) => {
-    release();
-  });
-  const { calls, handle } = renderHandle({ onResize });
-  fireEvent.pointerDown(handle, { button: 0, clientX: 500, pointerId: 1 });
-  fireEvent.pointerMove(handle, { clientX: 510, pointerId: 1 });
-  fireEvent.pointerMove(handle, { clientX: 520, pointerId: 1 });
-  fireEvent.pointerUp(handle, { pointerId: 1 });
-  expect(onResize).toHaveBeenCalledOnce();
   expect(calls.onResizeEnd).not.toHaveBeenCalled();
 });
 

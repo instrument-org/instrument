@@ -42,6 +42,8 @@ export interface WindowShell {
   /** The drafts worth coming back to, for the inbox. */
   drafts: Draft[];
   ids: RPCOutput["workspace"]["window"]["ensure"];
+  /** Opens a new draft, as the rail's New does. */
+  newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */
   onListed: (listed: StoreId.Session[]) => void;
   /** A topic asked for from a chat's head, with what was typed. */

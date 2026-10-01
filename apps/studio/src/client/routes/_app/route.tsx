@@ -33,6 +33,7 @@ import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatRail } from "@/client/components/window/chat-rail";
 import { ChatScreen } from "@/client/components/window/chat-screen";
+import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { GroupItem } from "@/client/components/window/compose-window";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
@@ -65,8 +66,6 @@ import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
-/** How far past its widest the inbox is dragged before it takes the row and the chat beside it goes. */
-const INBOX_COVER_PAST = 80;
 /** The least the conversation and its pane keep beside the inbox while the inbox is dragged wider. */
 const MAIN_WIDTH_MIN = 560;
 /** The rail's width with its pictures, `w-30`, and folded to its marks, `w-14`. */
@@ -91,36 +90,24 @@ export const Route = createFileRoute("/_app")({
 });
 
 /**
- * The column the inbox stands in: beside the right area, a resizable rail
- * that slides shut when dragged
- * under its floor or put away by the bar's toggle, and giving the whole row
- * to the inbox when dragged past its widest; with nothing on the right, the
- * whole width outright. The pane inside is re-laid between the two, so
- * anything it has to keep lives outside it.
+ * The column the inbox stands in: a resizable rail that stops at its widest,
+ * with a chat or the empty side beside it, and slides shut when dragged under
+ * its floor or put away by the chat's toggle.
  */
 function ChatColumn({
   bounds,
   children,
   isAtOnce,
   isOpen,
-  isRightAreaOpen,
   onCollapse,
-  onCover,
 }: {
   bounds: RailBounds;
   children: ReactNode;
   /** Whether it comes and goes at once, for a change the row's width made. */
   isAtOnce: boolean;
   isOpen: boolean;
-  isRightAreaOpen: boolean;
   onCollapse: () => void;
-  onCover: () => void;
 }) {
-  if (!isRightAreaOpen) {
-    return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-    );
-  }
   return (
     <StudioSidebarRail
       bounds={bounds}
@@ -128,7 +115,6 @@ function ChatColumn({
       isOpen={isOpen}
       label="Resize the inbox"
       onCollapse={onCollapse}
-      onCover={onCover}
       panelClassName="bg-background"
       widthAtom={inboxWidthAtom}
     >
@@ -154,7 +140,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const isActive = useIsActiveTab();
   const showsRightArea = chat !== undefined;
-  const bounds = inboxBounds(rowWidth);
+  const bounds = inboxBounds(rowWidth, { canCollapse: showsRightArea });
 
   // The chat's tabs, and the one it has up.
   const tabs =
@@ -198,7 +184,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     setRailCompact(railFolds);
   }, [railFolds]);
 
-  /** Puts the chat away: the inbox takes the width, shown again if it was hidden. */
+  /** Puts the chat away: the inbox is shown again if it was hidden, with the empty side beside it. */
   const leaveChat = () => {
     appTabs.navigate(INBOX_HREF);
     setInboxOpen(true);
@@ -223,12 +209,12 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
       <ChatColumn
         bounds={bounds}
         isAtOnce={isCrossing}
-        isOpen={isShown}
-        isRightAreaOpen={showsRightArea}
+        // With no chat open there is no toggle to bring it back by, so it
+        // stays.
+        isOpen={isShown || !showsRightArea}
         onCollapse={() => {
           setInboxOpen(false);
         }}
-        onCover={leaveChat}
       >
         {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. */}
         <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
@@ -247,6 +233,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
           />
         </div>
       </ChatColumn>
+      {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
       {chat !== undefined && (
         <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
@@ -410,20 +397,22 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
 }
 
 /**
- * How wide the inbox column may be beside the right area: the row less what
- * the conversation keeps, within the column's own floor and ceiling; a drag
- * past that by a margin covers the row.
+ * How wide the inbox column may be: the row less what the conversation
+ * keeps, within the column's own floor and ceiling. It slides shut under its
+ * floor only while a chat is open, since that chat's head holds the toggle
+ * that brings it back.
  */
-function inboxBounds(rowWidth: number): RailBounds {
-  const max = Math.min(
-    SIDEBAR_WIDTH_MAX,
-    Math.max(SIDEBAR_WIDTH_MIN, rowWidth - MAIN_WIDTH_MIN),
-  );
+function inboxBounds(
+  rowWidth: number,
+  { canCollapse }: { canCollapse: boolean },
+): RailBounds {
   return {
-    collapse: INBOX_COLLAPSE_THRESHOLD,
-    cover: max + INBOX_COVER_PAST,
+    ...(canCollapse ? { collapse: INBOX_COLLAPSE_THRESHOLD } : {}),
     initial: SIDEBAR_WIDTH_MIN,
-    max,
+    max: Math.min(
+      SIDEBAR_WIDTH_MAX,
+      Math.max(SIDEBAR_WIDTH_MIN, rowWidth - MAIN_WIDTH_MIN),
+    ),
     min: SIDEBAR_WIDTH_MIN,
   };
 }

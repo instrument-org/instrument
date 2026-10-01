@@ -13,7 +13,7 @@ const KEYBOARD_STEP = 16;
  * - Widths are layout px: the pointer's travel is divided by the zoom the
  *   handle is under, read per move since it can change mid-drag.
  * - Dragged under `collapse.below`, the drag lets go and the caller closes
- *   what it resizes; `onResize` calling its `release` lets go the same way.
+ *   what it resizes.
  * - Double-click resets; with a `label`, it is a focusable WAI-ARIA window
  *   splitter whose arrows step and whose Home/End jump to the bounds.
  *
@@ -53,8 +53,8 @@ export function ResizeHandle({
   max?: number;
   min?: number;
   onReset?: () => void;
-  /** An unclamped width asked for; `release` ends the drag without `onResizeEnd`. */
-  onResize: (width: number, release: () => void) => void;
+  /** An unclamped width asked for. */
+  onResize: (width: number) => void;
   /** A drag or key press is over and did not let go early: keep what was applied. */
   onResizeEnd?: () => void;
   /** Before the first width: the moment to stop whatever animates it. */
@@ -106,7 +106,7 @@ export function ResizeHandle({
         collapse.onCollapse();
         return;
       }
-      onResize(width, endDrag);
+      onResize(width);
     };
 
     // Ends the drag once: releasing capture raises `lostpointercapture`
@@ -157,13 +157,8 @@ export function ResizeHandle({
     }
     event.preventDefault();
     onResizeStart?.();
-    const press = { released: false };
-    onResize(next, () => {
-      press.released = true;
-    });
-    if (!press.released) {
-      onResizeEnd?.();
-    }
+    onResize(next);
+    onResizeEnd?.();
   }
 
   return (

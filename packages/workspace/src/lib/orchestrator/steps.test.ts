@@ -56,7 +56,11 @@ const call =
     };
     switch (result.state) {
       case "input-available": {
-        return { ...base, state: "input-available" };
+        return {
+          ...base,
+          metadata: { ...base.metadata, startedAt: createdAt },
+          state: "input-available",
+        };
       }
       case "output-available": {
         return {

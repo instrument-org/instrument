@@ -125,6 +125,24 @@ describe("stepInFlightIn", () => {
     );
   });
 
+  it("counts the calls a step is running together, not the ones queued", () => {
+    const messages = [
+      user(at(0)),
+      step(
+        at(5),
+        [
+          bash(at(8), "input-available", at(12)),
+          bash(at(9), "input-available", at(12)),
+          bash(at(10), "input-available"),
+        ],
+        at(11),
+      ),
+    ];
+    expect(stepInFlightIn(messages, at(72))).toMatchInlineSnapshot(
+      `"working 1m 12s · running 2 calls (bash) for 1m (still running)"`,
+    );
+  });
+
   it("calls a step that has only reasoned so far thinking", () => {
     const messages = [
       user(at(0)),

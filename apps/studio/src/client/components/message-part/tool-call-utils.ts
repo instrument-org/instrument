@@ -73,10 +73,10 @@ export function isToolCallVisible({
 }
 
 /**
- * Whether this call is the one the agent is working on right now, as opposed to
- * one it has asked for and that is still waiting behind the calls ahead of it.
- * A model emits a batch of calls at once and they run one at a time, so most of
- * a batch is idle while a single member of it works.
+ * Whether the agent is working on this call right now, as opposed to having
+ * asked for it while it waits behind the calls ahead of it. A model emits a
+ * batch of calls at once: the read-only ones run together and the rest one at
+ * a time, so a batch can have several members running or only one.
  *
  * Input that is still arriving counts: the call is being written, which is the
  * agent doing something. So does a preliminary output, which a streaming tool

@@ -4,6 +4,8 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { TOOL_NAMES } from "../../tools/name";
+import { getToolNameByType } from "../get-tool-name-by-type";
+import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
 import { latestSessionId } from "./latest-session";
@@ -157,7 +159,15 @@ const PartMetadataSchema = z.object({ createdAt: z.date() });
 
 function outcome(part: SessionMessagePart.ToolPart): string {
   switch (part.state) {
-    case "input-available":
+    // A call can wait in `input-available` behind a write ahead of it in the
+    // queue; only `startedAt` says it began. An interactive call never starts,
+    // so being asked for is its running.
+    case "input-available": {
+      return part.metadata.startedAt !== undefined ||
+        isInteractiveTool(getToolNameByType(part.type))
+        ? " (running)"
+        : " (queued)";
+    }
     case "input-streaming": {
       return " (running)";
     }

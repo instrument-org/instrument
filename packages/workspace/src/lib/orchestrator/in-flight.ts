@@ -63,12 +63,25 @@ export function stepInFlightIn(
     return `${working} · waiting on the model`;
   }
 
-  const running = current.parts
+  // Read-only calls run together, so a step can have several running at once,
+  // and calls queued behind them wait in the same state without a `startedAt`.
+  const waiting = current.parts
     .filter(isToolPart)
-    .findLast((part) => part.state === "input-available");
-  if (running && current.metadata.finishedAt) {
-    const since = running.metadata.startedAt ?? running.metadata.createdAt;
-    return `${working} · running ${toolName(running)} for ${formatSpan(now.getTime() - since.getTime())} (still running)`;
+    .filter((part) => part.state === "input-available");
+  const started = waiting.filter((part) => part.metadata.startedAt);
+  const running = started.length > 0 ? started : waiting.slice(-1);
+  if (running.length > 0 && current.metadata.finishedAt) {
+    const since = Math.min(
+      ...running.map((part) =>
+        (part.metadata.startedAt ?? part.metadata.createdAt).getTime(),
+      ),
+    );
+    const [only] = running;
+    const what =
+      running.length === 1 && only
+        ? toolName(only)
+        : `${running.length} calls (${[...new Set(running.map(toolName))].join(", ")})`;
+    return `${working} · running ${what} for ${formatSpan(now.getTime() - since)} (still running)`;
   }
 
   const lastCall =

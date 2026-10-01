@@ -201,6 +201,20 @@ Enabling the `Runtime` domain replays the console buffer, so a run would otherwi
 
 The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
 
+## Measuring the main thread
+
+Typing and pasting wait on the main process's thread twice: once for the key to reach the page and once for the paste's clipboard read. So input lag is a main-thread question, and the renderer's own timestamps cannot see it (`KeyboardEvent.timeStamp` is when the renderer got the event). Boot with the main process's inspector open and sample it:
+
+```bash
+node $DRIVE boot --purpose "main stalls" --inspect 9339
+node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15
+node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15 --profile main.cpuprofile
+```
+
+It drives nothing, so it is safe while someone is at the machine. Read `stallsOver.60` first: a paste-based dictation tool that restores the clipboard after 60 ms loses text on any stall past about 40 ms. A quiet main thread has none over 30 ms. `--profile` writes a CPU profile of the same window for DevTools' Performance panel, which names what held the thread.
+
+To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy. A copy has no provider credentials, so it measures the app, not a model turn.
+
 ## States a dev build otherwise cannot reach
 
 Both have a dev panel entry under the `dev` badge:

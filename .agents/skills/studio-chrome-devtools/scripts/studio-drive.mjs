@@ -62,6 +62,9 @@
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
 //
+// `--inspect <port>` also opens the main process's V8 inspector on that port,
+// which is what `main-stalls.mjs` measures the main thread through.
+//
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
@@ -286,7 +289,10 @@ function recordDirs(workspaceDir) {
 
 // --- lifecycle ---------------------------------------------------------
 
-async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
+async function cmdBoot(
+  explicitPort,
+  { fresh, hot, inspect, purpose: rawPurpose },
+) {
   const purpose = normalizePurpose(rawPurpose);
   const existing = readSession(WORKSPACE);
   if (existing && (await isPortLive(existing.port))) {
@@ -351,7 +357,7 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
   // ffmpeg-static and friends resolves through.
   const child = spawn(
     path.join(STUDIO_DIR, "node_modules/.bin/electron-vite"),
-    ["dev", "--sourcemap"],
+    ["dev", "--sourcemap", ...(inspect ? ["--inspect", inspect] : [])],
     {
       cwd: STUDIO_DIR,
       detached: true,
@@ -391,6 +397,7 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
 
   const session = {
     hot: Boolean(hot),
+    ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
     pid: child.pid,
     port,
@@ -617,6 +624,7 @@ try {
         await cmdBoot(flag(argv, "--port"), {
           fresh: argv.includes("--fresh"),
           hot: argv.includes("--hot"),
+          inspect: flag(argv, "--inspect"),
           purpose: flag(argv, "--purpose"),
         }),
       );

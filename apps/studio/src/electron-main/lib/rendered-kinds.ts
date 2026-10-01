@@ -4,7 +4,7 @@
  * nothing and loads none of the drawing's machinery.
  */
 
-export type RenderedKind = "code" | "markdown" | "page" | "text";
+export type RenderedKind = "code" | "markdown" | "page" | "table" | "text";
 
 const PAGE_EXTENSIONS = new Set(["htm", "html"]);
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
@@ -15,7 +15,6 @@ const CODE_EXTENSIONS = new Set([
   "cpp",
   "cs",
   "css",
-  "csv",
   "go",
   "h",
   "hpp",
@@ -37,7 +36,6 @@ const CODE_EXTENSIONS = new Set([
   "swift",
   "toml",
   "ts",
-  "tsv",
   "tsx",
   "xml",
   "yaml",
@@ -45,6 +43,8 @@ const CODE_EXTENSIONS = new Set([
   "zsh",
 ]);
 
+/** Delimited data, set as the viewer's table. */
+const TABLE_EXTENSIONS = new Set(["csv", "tsv"]);
 /** Plain text, set as the viewer reads it: in the reading typeface, never highlighted. */
 const TEXT_EXTENSIONS = new Set(["log", "txt"]);
 
@@ -66,6 +66,9 @@ export function renderedKindOf(hostPath: string): RenderedKind | undefined {
   }
   if (CODE_EXTENSIONS.has(extension)) {
     return "code";
+  }
+  if (TABLE_EXTENSIONS.has(extension)) {
+    return "table";
   }
   if (TEXT_EXTENSIONS.has(extension)) {
     return "text";

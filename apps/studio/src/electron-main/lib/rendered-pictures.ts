@@ -77,6 +77,12 @@ const EMULATE_WAIT_MS = 300;
 /** How much of a file a document is set from; a thumbnail shows its first page. */
 const READ_BYTES = 48 * 1024;
 const CODE_LINES = 90;
+/** Past this many characters a line is minified or generated, and highlighting it is slow and shows nothing. */
+const HIGHLIGHT_LINE_MAX = 2000;
+/** The rows of a delimited file a thumbnail shows, header aside: more than a sheet holds. */
+const TABLE_ROWS = 40;
+/** The columns it shows; the rest are off the sheet's right edge anyway. */
+const TABLE_COLUMNS = 12;
 /** A JSON file small enough to be parsed and laid out, when it came minified. */
 const JSON_PRETTY_MAX = 2 * 1024 * 1024;
 
@@ -185,13 +191,25 @@ async function documentOf(
   kind: Exclude<RenderedKind, "page">,
   theme: "dark" | "light",
 ) {
-  const text = await readHead(hostPath);
+  const { cut, text } = await readHead(hostPath);
   if (kind === "markdown") {
     // Loaded with the first document, not with the app.
     const { marked } = await import("marked");
     const { body, fm } = splitFrontMatter(text);
     const html = await marked.parse(body, { async: true, gfm: true });
     return sheet("markdown", frontMatterPanel(fm) + html, theme);
+  }
+  if (kind === "table") {
+    const { default: Papa } = await import("papaparse");
+    const records = Papa.parse<string[]>(text, {
+      // As the viewer reads it: the extension decides a `.tsv`, since Papa's
+      // guess goes wrong on a first line holding more commas than tabs.
+      delimiter: extensionOf(hostPath) === "tsv" ? "\t" : undefined,
+      skipEmptyLines: "greedy",
+    }).data.filter((record) => Array.isArray(record));
+    // The read may have stopped partway through the last record.
+    const complete = cut ? records.slice(0, -1) : records;
+    return sheet("table", tableOf(complete), theme);
   }
   if (kind === "text") {
     const lines = text.split(/\r?\n/).slice(0, CODE_LINES).join("\n");
@@ -203,7 +221,10 @@ async function documentOf(
   // a string open, and the grammar then reads the rest of the file as broken.
   const lines = code.split(/\r?\n/).slice(0, CODE_LINES).join("\n");
   const language = languageOf(extension);
-  if (!language) {
+  const unreadable = lines
+    .split("\n")
+    .some((line) => line.length > HIGHLIGHT_LINE_MAX);
+  if (!language || unreadable) {
     return sheet("code", `<pre><code>${escapeHtml(lines)}</code></pre>`, theme);
   }
   const highlighter = await getHighlighter();
@@ -284,10 +305,46 @@ async function readHead(hostPath: string) {
   try {
     const buffer = Buffer.alloc(READ_BYTES);
     const { bytesRead } = await handle.read(buffer, 0, READ_BYTES, 0);
-    return buffer.subarray(0, bytesRead).toString("utf8");
+    return {
+      /** Whether the file goes on past what was read. */
+      cut: bytesRead === READ_BYTES,
+      text: buffer.subarray(0, bytesRead).toString("utf8"),
+    };
   } finally {
     await handle.close();
   }
+}
+
+/**
+ * A delimited file's first rows as the viewer's grid draws them: the first
+ * record as the header, every row squared off to the widest, and a column
+ * whose values all read as numbers set to the right.
+ */
+function tableOf(records: string[][]) {
+  const [header = [], ...body] = records;
+  const rows = body.slice(0, TABLE_ROWS);
+  let width = 0;
+  for (const record of [header, ...rows]) {
+    width = Math.max(width, record.length);
+  }
+  width = Math.min(width, TABLE_COLUMNS);
+  const columns = Array.from({ length: width }, (_, index) => {
+    const values = rows.map((row) => row[index] ?? "").filter(Boolean);
+    const numeric =
+      values.length > 0 &&
+      values.every((value) => !Number.isNaN(Number(value)));
+    return numeric ? ' class="num"' : "";
+  });
+  const cells = (record: string[], tag: "td" | "th") =>
+    columns
+      .map(
+        (align, index) =>
+          `<${tag}${align}>${escapeHtml(record[index] ?? "")}</${tag}>`,
+      )
+      .join("");
+  return `<table><thead><tr>${cells(header, "th")}</tr></thead><tbody>${rows
+    .map((row) => `<tr>${cells(row, "td")}</tr>`)
+    .join("")}</tbody></table>`;
 }
 
 /** A sheet's colors in each theme, the app's own card and ink. */
@@ -320,6 +377,11 @@ body.markdown .front-matter .title { min-width: 0; overflow: hidden; text-overfl
 body.markdown .front-matter .count { flex: none; color: var(--muted); font-size: 0.85em; }
 body.text { padding: 56px 64px; font: 15px/1.625 -apple-system, "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: break-word; }
 body.code { padding: 36px 40px; }
+body.table { font: 14px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; }
+body.table table { border-collapse: collapse; white-space: nowrap; }
+body.table th, body.table td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; padding: 7px 12px; border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule); text-align: left; }
+body.table th { font-weight: 500; }
+body.table .num { text-align: right; font-variant-numeric: tabular-nums; }
 body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 `;
 

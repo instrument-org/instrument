@@ -4,6 +4,12 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
+import {
+  ManageWorkspacesDialog,
+  NewWorkspaceDialog,
+  WorkspaceDot,
+  WorkspaceMenu,
+} from "@/client/components/dev-panel-workspaces";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   AlertDialog,
@@ -197,6 +203,13 @@ export function DevPanel() {
   );
 
   const [relaunchDialogOpen, setRelaunchDialogOpen] = useState(false);
+  const [workspaceDialog, setWorkspaceDialog] = useState<
+    "manage" | "new" | null
+  >(null);
+
+  const { data: currentWorkspace } = useQuery(
+    rpcClient.workspaces.current.queryOptions(),
+  );
 
   const isPackaged = appEnvironment?.isPackaged === true;
 
@@ -251,6 +264,15 @@ export function DevPanel() {
                   {instanceTag}
                 </span>
               )}
+              {/* Nothing for the default workspace, which is what every
+                  other one is a deviation from. */}
+              {currentWorkspace !== undefined &&
+                !currentWorkspace.isDefault && (
+                  <span className="flex items-center gap-x-1 font-mono text-[9px] leading-none text-dev-700/80 dark:text-dev-300/80">
+                    <WorkspaceDot color={currentWorkspace.color} />
+                    {currentWorkspace.name}
+                  </span>
+                )}
               <FeatureFlagStrip features={features} />
             </MenubarTrigger>
             <MenubarContent align="end" side="bottom">
@@ -548,6 +570,14 @@ export function DevPanel() {
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
+              <WorkspaceMenu
+                onCreate={() => {
+                  setWorkspaceDialog("new");
+                }}
+                onManage={() => {
+                  setWorkspaceDialog("manage");
+                }}
+              />
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Open folder
@@ -745,6 +775,19 @@ export function DevPanel() {
           </MenubarMenu>
         </Menubar>
       </div>
+
+      <NewWorkspaceDialog
+        onOpenChange={(open) => {
+          setWorkspaceDialog(open ? "new" : null);
+        }}
+        open={workspaceDialog === "new"}
+      />
+      <ManageWorkspacesDialog
+        onOpenChange={(open) => {
+          setWorkspaceDialog(open ? "manage" : null);
+        }}
+        open={workspaceDialog === "manage"}
+      />
 
       <AlertDialog
         onOpenChange={setRelaunchDialogOpen}

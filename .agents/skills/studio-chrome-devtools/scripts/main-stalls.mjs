@@ -36,7 +36,9 @@ const targets = await fetch(`http://127.0.0.1:${port}/json/list`)
     process.exit(1);
   });
 const socket = new WebSocket(targets[0].webSocketDebuggerUrl);
-await new Promise((resolve) => socket.addEventListener("open", resolve));
+await new Promise((resolve) => {
+  socket.addEventListener("open", resolve);
+});
 
 let nextId = 0;
 function send(method, params) {

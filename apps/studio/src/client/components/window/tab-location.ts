@@ -7,7 +7,7 @@ import {
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
 
-import { segmentsOf, separatorOf } from "./host-path";
+import { isInside, segmentsOf, separatorOf } from "./host-path";
 import { DISCOVER_HREF } from "./ideas";
 
 /** One part of the place the field shows. */
@@ -16,6 +16,12 @@ export interface LocationCrumb {
   label: string;
   /** Where a press on it goes; absent on the last, which is where the tab is. */
   to?: OpenTarget;
+}
+
+/** A disk the computer has mounted, by the name the sidebar lists it under. */
+interface Volume {
+  name: string;
+  path: string;
 }
 
 /** The route a chat's tasks are at: the list, and each task's page under it. */
@@ -75,7 +81,7 @@ export type TabLocation =
  */
 export function locationCrumbs(
   location: TabLocation,
-  { home }: { home: string },
+  { home, volumes = [] }: { home: string; volumes?: Volume[] },
 ): LocationCrumb[] {
   switch (location.kind) {
     case "app": {
@@ -97,7 +103,7 @@ export function locationCrumbs(
     // sits on the disk.
     case "file":
     case "folder": {
-      return pathCrumbs(location.path, { home });
+      return pathCrumbs(location.path, { home, volumes });
     }
     case "idea": {
       return [
@@ -191,26 +197,39 @@ function join(base: string, name: string, separator: string) {
  * A path as its names, each above the last a way to that folder.
  *
  * A path in the home folder starts at that folder, called by its own name the
- * way the file manager calls it, rather than at the disk or at `~`. Where a
- * name goes is the path the computer knows, so `~` is written out there. A
- * path that names no place on the computer -- a prefix under a root -- is
- * names alone with nowhere to go.
+ * way the file manager calls it, rather than at the disk or at `~`. Anywhere
+ * else it starts at the disk it is on, by the disk's name, so the top of the
+ * boot disk is "Macintosh HD" rather than nothing at all. Where a name goes is
+ * the path the computer knows, so `~` is written out there. A path that names
+ * no place on the computer -- a prefix under a root -- is names alone with
+ * nowhere to go.
  */
-function pathCrumbs(path: string, { home }: { home: string }): LocationCrumb[] {
+function pathCrumbs(
+  path: string,
+  { home, volumes }: { home: string; volumes: Volume[] },
+): LocationCrumb[] {
   const fromHome = namesFromHome(path, home);
   const hostPath = expandHomePath(path, home);
+  const volume = fromHome ? undefined : volumeOf(hostPath, volumes);
   const separator = separatorOf(hostPath);
-  const names = fromHome ?? segmentsOf(hostPath);
+  const names =
+    fromHome ??
+    (volume
+      ? [volume.name, ...segmentsOf(hostPath.slice(volume.path.length))]
+      : segmentsOf(hostPath));
   const first = names[0] ?? "";
   const rooted =
-    fromHome !== undefined || hostPath.startsWith("/") || isDrive(first);
+    fromHome !== undefined ||
+    volume !== undefined ||
+    hostPath.startsWith("/") ||
+    isDrive(first);
   let at = "";
   return names.map((name, index) => {
     at =
       index === 0
         ? fromHome
           ? home
-          : startOf(name, separator)
+          : (volume?.path ?? startOf(name, separator))
         : join(at, name, separator);
     return !rooted || index === names.length - 1
       ? { label: name }
@@ -218,7 +237,14 @@ function pathCrumbs(path: string, { home }: { home: string }): LocationCrumb[] {
   });
 }
 
-/** Where a walk down a path outside the home folder starts: a volume, or the disk. */
+/** Where a walk down a path on no known disk starts: a drive, or the root. */
 function startOf(name: string, separator: string) {
   return isDrive(name) ? `${name}${separator}` : `${separator}${name}`;
+}
+
+/** The disk a path is on: the innermost one mounted at or above it. */
+function volumeOf(hostPath: string, volumes: Volume[]) {
+  return volumes
+    .filter((volume) => isInside(hostPath, volume.path))
+    .toSorted((a, b) => b.path.length - a.path.length)[0];
 }

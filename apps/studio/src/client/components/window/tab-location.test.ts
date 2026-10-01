@@ -47,6 +47,40 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  it("starts a path outside home at the disk's name", () => {
+    const volumes = [
+      { name: "Macintosh HD", path: "/" },
+      { name: "Backup", path: "/Volumes/Backup" },
+    ];
+    const crumbsOf = (path: string) =>
+      locationCrumbs({ kind: "folder", path }, { home: HOME, volumes }).map(
+        (crumb) =>
+          crumb.to?.kind === "screen"
+            ? `${crumb.label} -> ${crumb.to.href}`
+            : crumb.label,
+      );
+    expect({
+      bootDisk: crumbsOf("/"),
+      onBootDisk: crumbsOf("/Applications/Utilities"),
+      onOtherDisk: crumbsOf("/Volumes/Backup/Photos"),
+    }).toMatchInlineSnapshot(`
+      {
+        "bootDisk": [
+          "Macintosh HD",
+        ],
+        "onBootDisk": [
+          "Macintosh HD -> /files?path=&root=%2F",
+          "Applications -> /files?path=&root=%2FApplications",
+          "Utilities",
+        ],
+        "onOtherDisk": [
+          "Backup -> /files?path=&root=%2FVolumes%2FBackup",
+          "Photos",
+        ],
+      }
+    `);
+  });
+
   it("walks a folder up from the root of the disk", () => {
     expect(readable({ kind: "folder", path: "/Volumes/Backup/Photos" }))
       .toMatchInlineSnapshot(`

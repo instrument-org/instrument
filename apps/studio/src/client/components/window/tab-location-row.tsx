@@ -17,6 +17,7 @@ import {
 } from "@/client/hooks/use-open-in-app";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
 import { expandHomePath } from "@instrument-org/shared";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -31,6 +32,7 @@ import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {
   Fragment,
@@ -254,8 +256,19 @@ export function TabRowControl({
 
 /** The mark and the words, which is all that changes between page types. */
 function Field({ location }: { location: TabLocation }) {
+  // The disks the sidebar lists, which name where a path outside the home
+  // folder starts. Asked for only where a path is on screen, and answered
+  // from the same cache the folder browser reads.
+  const places = useQuery(
+    rpcClient.workspace.computer.places.queryOptions({
+      enabled: location.kind === "file" || location.kind === "folder",
+    }),
+  );
   const gesturesFor = useGesturesFor();
-  const crumbs = locationCrumbs(location, { home: window.api.homeDir });
+  const crumbs = locationCrumbs(location, {
+    home: window.api.homeDir,
+    ...(places.data ? { volumes: places.data.volumes } : {}),
+  });
   const path = useRef<HTMLSpanElement>(null);
   // Past the point where even shortened names fit, the end of the path is
   // what stays in view and its head scrolls off to the left: the place you

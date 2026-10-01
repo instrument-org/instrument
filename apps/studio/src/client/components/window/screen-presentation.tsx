@@ -4,6 +4,7 @@ import {
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
+import { folderNameFromPath } from "@instrument-org/shared";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -235,7 +236,7 @@ function folderTitle(search: URLSearchParams) {
   }
   const root = search.get("root") ?? "~";
   if (root === "~") {
-    return "Home";
+    return folderNameFromPath(window.api.homeDir);
   }
   if (root === RECENTS_ROOT) {
     return "Recents";

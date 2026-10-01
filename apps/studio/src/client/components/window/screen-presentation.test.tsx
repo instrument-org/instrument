@@ -38,7 +38,7 @@ describe("screenPresentation", () => {
   });
 
   it.each([
-    ["the home folder", "/files?path=&root=~", "Home"],
+    ["the home folder", "/files?path=&root=~", "sam"],
     [
       "the Instrument folder a Finder opens at",
       instrumentFolderHref(),

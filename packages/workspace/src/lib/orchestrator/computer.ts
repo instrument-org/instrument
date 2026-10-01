@@ -148,12 +148,13 @@ export function accessIn(
  * Where the computer is entered from: the folder Instrument keeps its own
  * outcomes in, which is where what the app made is looked for and so stands
  * first; then the folders a person keeps things in, and every mounted volume.
+ * The home folder goes by its own name, as the file manager calls it.
  */
 export async function computerPlaces(): Promise<ComputerPlaces> {
   const home = os.homedir();
   const candidates: [string, string][] = [
     ["Instrument", outputFolderPath()],
-    ["Home", home],
+    [path.basename(home), home],
     ["Desktop", path.join(home, "Desktop")],
     ["Documents", path.join(home, "Documents")],
     ["Downloads", path.join(home, "Downloads")],

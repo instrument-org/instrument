@@ -14,9 +14,10 @@
 /**
  * What the home folder is called instead of what it is called on disk, which is
  * the account name. That name is real PII -- it reaches agent context, session
- * markdown exports, and shared task transcripts -- and it is a poor label
- * besides, so the substitution holds everywhere the folder is named: on screen,
- * to the model, and in the path the agent reads it at.
+ * markdown exports, and shared task transcripts -- so the substitution holds
+ * everywhere the model is told the folder: in what it reads and in the path it
+ * reads it at. The screen names it by its own name, as the file manager does
+ * ({@link displayHostPath}).
  */
 export const HOME_DIR_LABEL = "Home";
 
@@ -51,7 +52,7 @@ export function expandHomePath(
 }
 
 /**
- * What a folder is called wherever it is named for a person. Its own name,
+ * What a folder is called wherever it is named to the model. Its own name,
  * except the home folder. Given no home directory nothing is the home folder,
  * so every folder is called what it is called on disk.
  */

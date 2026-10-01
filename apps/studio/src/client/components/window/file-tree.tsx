@@ -70,8 +70,6 @@ export function FileTree({
 }) {
   const { askAbout, openScreen } = useWindow();
   const queryClient = useQueryClient();
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const home = places.data?.favorites.find((place) => place.name === "Home");
   // The folders pressed open or shut, by path; the rest stand open down to
   // the selected file and shut elsewhere, so a file arrived at by a link
   // opens its own folders on the way.
@@ -81,8 +79,7 @@ export function FileTree({
   const toggle = (path: string) => {
     setToggled((current) => ({ ...current, [path]: !isOpen(path) }));
   };
-  const rootName =
-    root === home?.path ? "Home" : (segmentsOf(root).at(-1) ?? root);
+  const rootName = segmentsOf(root).at(-1) ?? root;
   const [menuItem, setMenuItem] = useState<FileSystemItem>();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const reread = () => {

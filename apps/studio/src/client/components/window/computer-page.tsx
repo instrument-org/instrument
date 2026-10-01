@@ -50,6 +50,7 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { folderNameFromPath } from "@instrument-org/shared";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -63,6 +64,7 @@ import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
+import { HouseIcon } from "@phosphor-icons/react/House";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
@@ -235,9 +237,7 @@ export function ComputerPage({
           : Math.max(refreshInterval, RECENTS_REFRESH_MS),
     }),
   );
-  const homePath = places.data?.favorites.find(
-    (place) => place.name === "Home",
-  )?.path;
+  const homePath = window.api.homeDir;
   const instrumentPath = places.data?.favorites.find(
     (place) => place.name === "Instrument",
   )?.path;
@@ -948,7 +948,7 @@ export function ComputerPage({
   const rootName = isRecents
     ? "Recents"
     : root === "~"
-      ? "Home"
+      ? folderNameFromPath(homePath)
       : (segmentsOf(root).at(-1) ?? places.data.volumes[0]?.name ?? "Root");
   // The folder on screen, which is the only row the sidebar marks: a place
   // walked down out of is no longer where the user is, so nothing is marked
@@ -1008,14 +1008,19 @@ export function ComputerPage({
             rootTo(folder === homePath ? "~" : folder);
           }}
           places={places.data.favorites.map((place) => ({
-            icon: (
-              <FileSystemFolderGlyph
-                className="h-3.5 w-auto"
-                {...(place.name === "Instrument"
-                  ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
-                  : {})}
-              />
-            ),
+            // The home folder wears the house it wears in the Finder, which
+            // is what says the account-named folder is home.
+            icon:
+              place.path === homePath ? (
+                <HouseIcon className="size-4 text-muted-foreground" />
+              ) : (
+                <FileSystemFolderGlyph
+                  className="h-3.5 w-auto"
+                  {...(place.name === "Instrument"
+                    ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
+                    : {})}
+                />
+              ),
             isActive: folderHostPath === place.path,
             name: place.name,
             path: place.path,

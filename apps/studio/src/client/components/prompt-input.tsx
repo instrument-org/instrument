@@ -2,14 +2,15 @@ import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
+import { AttachedItemPreview } from "@/client/components/attached-item-preview";
 import {
   type ComposerAction,
   ComposerAddMenu,
   type ComposerMenuView,
   type ComposerPlaces,
 } from "@/client/components/composer-add-menu";
-import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
 import { ComposerFrame } from "@/client/components/composer-frame";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -18,9 +19,9 @@ import {
   useFileDropRegion,
 } from "@/client/hooks/use-file-drop-region";
 import { appMentionToken } from "@/client/lib/app-mention";
-import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
+import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
-import { folderLabel } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { captureException } from "@/client/lib/telemetry";
 import { splitTransferItems } from "@/client/lib/transfer-items";
@@ -142,10 +143,6 @@ interface PromptInputProps {
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
-  // Which side of the composer the attached folders are listed on. Below on the
-  // surfaces a prompt is composed from scratch; above where the composer is
-  // already pinned to the bottom of the window.
-  folderTrayPlacement?: "above" | "below";
   /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
   hasAttachmentsLead?: boolean;
   id?: TaskId;
@@ -168,11 +165,6 @@ interface PromptInputProps {
   places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  // Whether the folder tray offers its own entry point. Off, the tray still
-  // appears once folders are attached -- otherwise a folder added from the plus
-  // menu would be invisible and impossible to remove -- it just does not
-  // advertise itself on surfaces that have their own folder controls.
-  showWorkInFolder?: boolean;
   /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
   variant?: "bare" | "block" | "pill";
 }
@@ -233,7 +225,6 @@ export const PromptInput = ({
   className,
   disabled = false,
   draftKey,
-  folderTrayPlacement = "below",
   hasAttachmentsLead = false,
   id,
   isLoading,
@@ -245,7 +236,6 @@ export const PromptInput = ({
   places,
   ref,
   selectedSessionId,
-  showWorkInFolder = false,
   variant = "block",
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
@@ -547,17 +537,8 @@ export const PromptInput = ({
     }),
   }));
 
-  const removeFolder = (folderPath: string) => {
-    setAttachedItems((prev) =>
-      prev.filter(
-        (item) => !(item.type === "folder" && item.path === folderPath),
-      ),
-    );
-  };
-
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
-  const showFolderTray = showWorkInFolder || attachedFolders.length > 0;
 
   const actions: ComposerAction[] = [
     {
@@ -836,53 +817,8 @@ export const PromptInput = ({
     return false;
   };
 
-  const folderTray = (
-    // `initial={false}`: a surface that offers the tray has it from the first
-    // paint, and a restored draft arrives with its folders already attached.
-    // Neither is a change, so neither is worth animating.
-    <AnimatePresence initial={false}>
-      {showFolderTray && (
-        <motion.div
-          animate={{ height: "auto", opacity: 1 }}
-          className="overflow-hidden"
-          exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-          initial={{ height: 0, opacity: 0 }}
-          transition={BLOCK_OPEN}
-        >
-          <ComposerFolderTray
-            disabled={disabled || isLoading}
-            folders={attachedFolders.map((folder) => folder.path)}
-            onAdd={() => void handleFolderPick()}
-            onRemove={removeFolder}
-            showAdd={showWorkInFolder}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-
   return (
-    // Once there are folders to show, the composer sits inside a tray rather
-    // than on top of one: a single rounded block, a shade off the page, with the
-    // prompt inset in it. `isolate` keeps the block behind the prompt rather
-    // than behind whatever the composer was placed on.
-    <motion.div
-      animate={{ padding: showFolderTray ? 4 : 0 }}
-      className={cn("relative isolate flex flex-col", className)}
-      initial={false}
-      transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
-    >
-      {/* The block itself, out of flow: a border and a fill on the box the
-          prompt sits in cannot be faded without taking the prompt with them. */}
-      <motion.div
-        animate={{ opacity: showFolderTray ? 1 : 0 }}
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/2 bg-black/2 dark:border-white/1 dark:bg-white/1"
-        initial={false}
-        transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
-      />
-
-      {folderTrayPlacement === "above" && folderTray}
-
+    <div className={cn("relative flex flex-col", className)}>
       <ComposerFrame
         actions={
           <>
@@ -965,7 +901,7 @@ export const PromptInput = ({
         attachments={
           ((variant !== "pill" && lead) ||
             hasAttachmentsLead ||
-            attachedFiles.length > 0) && (
+            attachedItems.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
@@ -975,7 +911,7 @@ export const PromptInput = ({
             <AnimatePresence initial={false}>
               <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
               <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
-              {attachedFiles.map((item) => (
+              {attachedItems.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
@@ -983,25 +919,36 @@ export const PromptInput = ({
                   key={item.id}
                   transition={ITEM_IN}
                 >
-                  <AttachedFilePreview
-                    filename={item.name}
-                    mimeType={item.mimeType}
-                    onClick={() => {
-                      if (item.url) {
-                        openFilePreview({
-                          filename: item.name,
-                          mimeType: item.mimeType,
-                          size: item.size,
-                          url: item.url,
-                        });
-                      }
-                    }}
-                    onRemove={() => {
-                      removeAttachedItem(item.id);
-                    }}
-                    size={item.size}
-                    url={item.url}
-                  />
+                  {item.type === "folder" ? (
+                    <AttachedItemPreview
+                      icon={<MacFolderIcon className="size-5 shrink-0" />}
+                      label={folderLabel(item.path)}
+                      onRemove={() => {
+                        removeAttachedItem(item.id);
+                      }}
+                      tooltip={displayPath(item.path)}
+                    />
+                  ) : (
+                    <AttachedFilePreview
+                      filename={item.name}
+                      mimeType={item.mimeType}
+                      onClick={() => {
+                        if (item.url) {
+                          openFilePreview({
+                            filename: item.name,
+                            mimeType: item.mimeType,
+                            size: item.size,
+                            url: item.url,
+                          });
+                        }
+                      }}
+                      onRemove={() => {
+                        removeAttachedItem(item.id);
+                      }}
+                      size={item.size}
+                      url={item.url}
+                    />
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -1158,8 +1105,6 @@ export const PromptInput = ({
         />
       </ComposerFrame>
 
-      {folderTrayPlacement === "below" && folderTray}
-
       <input
         className="hidden"
         multiple
@@ -1167,6 +1112,6 @@ export const PromptInput = ({
         ref={fileInputRef}
         type="file"
       />
-    </motion.div>
+    </div>
   );
 };

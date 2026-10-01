@@ -353,7 +353,6 @@ export function TaskChat({
       autoFocus
       className="relative z-10"
       draftKey={draftKey}
-      folderTrayPlacement="above"
       hasAttachmentsLead={asks?.pills != null}
       id={id}
       isLoading={createMessage.isPending}

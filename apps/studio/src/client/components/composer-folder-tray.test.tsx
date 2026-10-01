@@ -3,17 +3,15 @@ import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ComposerFolderTray } from "./composer-folder-tray";
-import { type FolderAccess } from "./folder-access-list";
 import { TooltipProvider } from "./ui/tooltip";
 
-function renderTray({ folders = [] as FolderAccess[], showAdd = false } = {}) {
+function renderTray({ folders = [] as string[], showAdd = false } = {}) {
   const onAdd = vi.fn();
   const onRemove = vi.fn();
   renderWithProviders(
     <TooltipProvider>
       <ComposerFolderTray
         folders={folders}
-        onAccessChange={vi.fn()}
         onAdd={onAdd}
         onRemove={onRemove}
         showAdd={showAdd}
@@ -31,8 +29,7 @@ describe("ComposerFolderTray", () => {
       <TooltipProvider>
         <ComposerFolderTray
           folders={[]}
-          onAccessChange={vi.fn()}
-          onAdd={vi.fn()}
+            onAdd={vi.fn()}
           onRemove={vi.fn()}
           showAdd
         />
@@ -44,7 +41,7 @@ describe("ComposerFolderTray", () => {
     unmount();
 
     renderTray({
-      folders: [{ access: "read-write", path: "/Users/sam/Docs" }],
+      folders: ["/Users/sam/Docs"],
       showAdd: true,
     });
     expect(
@@ -56,7 +53,7 @@ describe("ComposerFolderTray", () => {
   // plus menu -- it just stops advertising itself.
   it("lists folders on a surface that does not offer to add one", () => {
     const { onRemove } = renderTray({
-      folders: [{ access: "read-only", path: "/Users/sam/Docs" }],
+      folders: ["/Users/sam/Docs"],
     });
 
     expect(screen.queryByText("Work in a local folder")).toBeNull();

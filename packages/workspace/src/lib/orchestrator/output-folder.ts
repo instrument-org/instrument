@@ -2,75 +2,17 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { type TaskId } from "../../schemas/task-id";
-import { assignMountNames } from "../assign-mount-names";
-import { attachFolder } from "../attach-folder";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
-
-/**
- * The user's home folder, attached to the orchestrator's conversation from
- * the start with a write grant: what the app can reach, the agent can reach,
- * and a task is handed the part of it the work needs. The grant holds for a
- * folder inside it and not for the whole, since the workspace lives inside it
- * too (effectiveFolderAccess). macOS asks the user itself the first time a
- * protected folder inside it is looked into, which `task new` does as it hands
- * a folder over.
- */
-export async function ensureHomeFolder(
-  orchestratorTaskId: TaskId,
-): Promise<string> {
-  return ensureAttached(orchestratorTaskId, os.homedir());
-}
-
-export async function ensureOutputFolder(
-  orchestratorTaskId: TaskId,
-): Promise<string> {
-  const folderPath = outputFolderPath();
-  await fs.mkdir(folderPath, { recursive: true });
-  return ensureAttached(orchestratorTaskId, folderPath);
+/** Creates the workspace folder if it is not there yet. */
+export async function ensureOutputFolder(): Promise<void> {
+  await fs.mkdir(outputFolderPath(), { recursive: true });
 }
 
 /**
  * Where everything Instrument makes lands when nobody said where: a folder in
- * the user's Documents, created on first use and attached writable to the
- * orchestrator's conversation, so a task can be handed it like any other
- * folder and the user can find it in the Finder like any other folder.
+ * the user's Documents, created on first use and reached by every chat (see
+ * folder-reach.ts), so a task can be handed it like any other folder and the
+ * user can find it in the Finder like any other folder.
  */
 export function outputFolderPath(): string {
   return path.join(os.homedir(), "Documents", "Instrument");
-}
-
-async function ensureAttached(
-  orchestratorTaskId: TaskId,
-  folderPath: string,
-): Promise<string> {
-  const state = await getTaskState(taskDir(orchestratorTaskId));
-  const folders = Object.values(state.attachedFolders ?? {});
-  const attached = folders.find((folder) => folder.path === folderPath);
-  if (attached?.access === "read-write" && keepsItsName(folders, attached)) {
-    return attached.mountName;
-  }
-  const folder = await attachFolder({
-    access: "read-write",
-    path: folderPath,
-    taskId: orchestratorTaskId,
-  });
-  return folder.mountName;
-}
-
-/**
- * Whether the name a folder is on record under is the one today's rules give
- * it. A folder named under earlier rules is attached again to take the name it
- * would get now, which is the whole of the correction: this conversation is in
- * no project, so detectProjectChanges never reaches it, and the rename is
- * announced to the agent by detectAttachedFolderChanges like any other.
- */
-function keepsItsName(
-  folders: FolderAttachment.Type[],
-  folder: FolderAttachment.Type,
-): boolean {
-  const sorted = folders.toSorted((a, b) => a.createdAt - b.createdAt);
-  return assignMountNames(sorted).get(folder.id) === folder.mountName;
 }

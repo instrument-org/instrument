@@ -11,13 +11,13 @@ import { pathIsWithin } from "../path-is-within";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
 import { resolveTaskProjectFolder } from "../task-project-folder";
-import { getTaskState } from "../task-record";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
+import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import { linkedFiles } from "./linked-files";
 import { outputFolderPath } from "./output-folder";
@@ -465,8 +465,7 @@ async function orchestratorView(
   { withChildren = true }: { withChildren?: boolean } = {},
 ) {
   const taskHostRoot = taskDir(taskId);
-  const state = await getTaskState(taskHostRoot);
-  const attachedFolders = state.attachedFolders ?? {};
+  const attachedFolders = await folderReach(taskId);
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
     extraMounts: withChildren ? await childTaskMounts(taskId) : [],

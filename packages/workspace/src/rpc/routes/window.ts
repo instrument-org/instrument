@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
-  ensureHomeFolder,
   ensureOutputFolder,
   outputFolderPath,
 } from "../../lib/orchestrator/output-folder";
@@ -20,8 +19,8 @@ import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
 /**
- * The window's own record, created on first use, with the home folder and the
- * workspace folder attached to it: every chat starts with what it holds.
+ * The window's own record, created on first use, and the workspace folder
+ * every chat reaches.
  */
 const ensure = base
   .output(z.object({ taskId: TaskIdSchema }))
@@ -31,8 +30,7 @@ const ensure = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
-    await ensureHomeFolder(result.value.taskId);
-    await ensureOutputFolder(result.value.taskId);
+    await ensureOutputFolder();
     // Folder decoration must not prevent a conversation from opening.
     void context.workspaceConfig
       .ensureOutputFolderIcon?.(outputFolderPath())

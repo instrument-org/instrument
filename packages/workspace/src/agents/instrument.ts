@@ -12,14 +12,13 @@ import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
+import { folderReach } from "../lib/orchestrator/folder-reach";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { TAB_COMMAND } from "../lib/shell-commands/tab-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
-import { taskDir } from "../lib/task-dir-utils";
-import { getTaskState } from "../lib/task-record";
 import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
@@ -200,8 +199,7 @@ ${
       text,
     });
 
-    const taskState = await getTaskState(taskDir(taskId));
-    const attached = assignAttachedMounts(taskState.attachedFolders ?? {});
+    const attached = assignAttachedMounts(await folderReach(taskId));
     const foldersText =
       attached.length > 0
         ? buildAttachedFoldersText({
@@ -218,7 +216,7 @@ ${
               };
             }),
             intro:
-              "The user has attached these folders to this conversation. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder:",
+              "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder, read-only or with :rw as the work needs:",
             writes: "through-tasks",
           })
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;

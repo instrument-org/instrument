@@ -14,6 +14,7 @@ import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
 import { childTaskMounts } from "../lib/orchestrator/children";
+import { folderReach } from "../lib/orchestrator/folder-reach";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -23,7 +24,6 @@ import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../lib/task-project-folder";
-import { getTaskState } from "../lib/task-record";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -325,14 +325,14 @@ export const BashTool = setupTool({
         return executeError(refused);
       }
     }
-    const taskState = await getTaskState(taskDir(taskId));
+    const attachedFolders = await folderReach(taskId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
     const childMounts =
       agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
     const projectFolderName = await resolveTaskProjectFolder(taskId);
     const bash = await createBashEnv({
-      attachedFolders: taskState.attachedFolders,
+      attachedFolders,
       orchestrator: childMounts ? { childMounts } : undefined,
       projectFolderName,
       // `fg` waits inside this call, so what is left of the window is its
@@ -346,7 +346,7 @@ export const BashTool = setupTool({
     // copy a promoted command streams names them the way the foreground copy
     // does.
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
+      attachedFolders,
       extraMounts: childMounts,
       projectFolderName,
       taskHostRoot: taskDir(taskId),

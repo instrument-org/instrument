@@ -3,8 +3,7 @@ import path from "node:path";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { FILES_FENCE, parseFilesBlock } from "../parse-files-block";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { folderReach } from "./folder-reach";
 
 /** The folders a task reaches, by the name each is mounted under. */
 export type FolderMounts = Record<string, { mountName: string; path: string }>;
@@ -49,9 +48,8 @@ export function mountPathOf(
 }
 
 /** The folders a task reaches, as it reaches them. */
-export async function mountsOf(taskId: TaskId): Promise<FolderMounts> {
-  const state = await getTaskState(taskDir(taskId));
-  return state.attachedFolders ?? {};
+export function mountsOf(taskId: TaskId): Promise<FolderMounts> {
+  return folderReach(taskId);
 }
 
 /**

@@ -1,9 +1,7 @@
 import path from "node:path";
 
-import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
-import { assignMountNames } from "../assign-mount-names";
 import { chatFolderName } from "../generate-task-folder-name";
 import { getCurrentDate } from "../get-current-date";
 import { initializeTask } from "../initialize-task";
@@ -13,18 +11,15 @@ import {
   recordIdTaken,
   sessionOfChat,
 } from "../record-folders";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
-import { ORCHESTRATOR_TITLE, windowTaskId } from "./ensure";
+import { ORCHESTRATOR_TITLE } from "./ensure";
 
 /**
  * A chat's record, made the first time something is sent in it, and named on
  * disk the way a task is: the day it began and a few words of what was asked.
- * It runs the conversation's agent, and it starts with every folder the user
- * has granted any chat, and the window's own, since a grant is the user's
- * answer to "may Instrument reach this" rather than something one chat asked
- * alone. Asked again for the same session, it answers with the chat it made.
+ * It runs the conversation's agent, and holds only the folders sent in it
+ * (what else it reaches is in folder-reach.ts). Asked again for the same
+ * session, it answers with the chat it made.
  */
 export async function ensureChat(
   sessionId: StoreId.Session,
@@ -61,9 +56,6 @@ export async function ensureChat(
     }
     throw made.error;
   }
-  await setTaskState(taskDir(chatId), {
-    attachedFolders: await grantedFolders(),
-  });
   return chatId;
 }
 
@@ -77,37 +69,4 @@ export function listChatIds(): TaskId[] {
     .sort((a, b) =>
       (sessionOfChat(a) ?? "").localeCompare(sessionOfChat(b) ?? ""),
     );
-}
-
-/**
- * Every folder granted anywhere in the window, one entry per path at the
- * widest access any chat was given, named the way a new chat would name them.
- */
-async function grantedFolders(): Promise<
-  Record<string, FolderAttachment.Type>
-> {
-  const holders = [await windowTaskId(), ...listChatIds()];
-  const byPath = new Map<string, FolderAttachment.Type>();
-  for (const holder of holders) {
-    const state = await getTaskState(taskDir(holder));
-    for (const folder of Object.values(state.attachedFolders ?? {})) {
-      const known = byPath.get(folder.path);
-      if (
-        !known ||
-        (known.access === "read-only" && folder.access !== "read-only")
-      ) {
-        byPath.set(folder.path, folder);
-      }
-    }
-  }
-  const sorted = [...byPath.values()].toSorted(
-    (a, b) => a.createdAt - b.createdAt,
-  );
-  const names = assignMountNames(sorted);
-  return Object.fromEntries(
-    sorted.map((folder) => {
-      const mountName = names.get(folder.id) ?? folder.mountName;
-      return [mountName, { ...folder, mountName }];
-    }),
-  );
 }

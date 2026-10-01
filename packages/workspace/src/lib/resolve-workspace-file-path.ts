@@ -1,10 +1,10 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { childTaskMounts } from "./orchestrator/children";
+import { folderReach } from "./orchestrator/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
-import { getTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
 import {
   buildWorkspaceFsLayout,
@@ -65,10 +65,9 @@ export async function resolveWorkspaceFilePaths({
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   const taskHostRoot = taskDir(taskId);
-  const taskState = await getTaskState(taskHostRoot);
   const settings = await getTaskSettings(taskHostRoot);
   return buildWorkspaceFsLayout({
-    attachedFolders: taskState.attachedFolders,
+    attachedFolders: await folderReach(taskId),
     extraMounts:
       settings?.kind === "orchestrator"
         ? await childTaskMounts(taskId)

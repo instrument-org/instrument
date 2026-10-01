@@ -1,13 +1,8 @@
-import {
-  type FolderAccess,
-  FolderAccessControl,
-} from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
-import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -17,8 +12,8 @@ import { AnimatePresence, motion } from "motion/react";
  * The folders this prompt will be worked in, listed beside the composer they
  * belong to.
  *
- * One row per folder: the way out on the left, where the folder is in the
- * middle, and what the agent may do with it on the right. Below them, the line
+ * One row per folder: the way out on the left, then where the folder is. The
+ * agent decides what each task it starts may do there. Below them, the line
  * that says the list can grow -- which doubles as the empty state on surfaces
  * that offer to start one.
  */
@@ -26,15 +21,13 @@ export function ComposerFolderTray({
   className,
   disabled,
   folders,
-  onAccessChange,
   onAdd,
   onRemove,
   showAdd,
 }: {
   className?: string;
   disabled?: boolean;
-  folders: FolderAccess[];
-  onAccessChange: (path: string, access: FolderAttachment.Access) => void;
+  folders: string[];
   onAdd: () => void;
   onRemove: (path: string) => void;
   /**
@@ -52,8 +45,8 @@ export function ComposerFolderTray({
           the first one on a surface that grows a tray for it is carried in by
           the tray opening around it. */}
       <AnimatePresence initial={false}>
-        {folders.map((folder) => {
-          const name = folderLabel(folder.path);
+        {folders.map((folderPath) => {
+          const name = folderLabel(folderPath);
 
           return (
             <motion.div
@@ -61,7 +54,7 @@ export function ComposerFolderTray({
               className="overflow-hidden"
               exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
               initial={{ height: 0, opacity: 0 }}
-              key={folder.path}
+              key={folderPath}
               transition={BLOCK_OPEN}
             >
               {/* The margin is what separates the rows, and it sits inside the
@@ -73,7 +66,7 @@ export function ComposerFolderTray({
                 <button
                   className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-60 hover:bg-foreground/10 hover:opacity-100"
                   onClick={() => {
-                    onRemove(folder.path);
+                    onRemove(folderPath);
                   }}
                   type="button"
                 >
@@ -83,17 +76,10 @@ export function ComposerFolderTray({
                 <MacFolderIcon className="size-5 shrink-0" />
                 <span
                   className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
-                  title={folder.path}
+                  title={folderPath}
                 >
-                  {displayPath(folder.path)}
+                  {displayPath(folderPath)}
                 </span>
-                <FolderAccessControl
-                  access={folder.access}
-                  folderName={name}
-                  onChange={(access) => {
-                    onAccessChange(folder.path, access);
-                  }}
-                />
               </div>
             </motion.div>
           );

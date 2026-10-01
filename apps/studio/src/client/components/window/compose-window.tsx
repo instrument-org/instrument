@@ -42,7 +42,6 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   type FileUpload,
-  type FolderAttachment,
   StoreId,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
@@ -121,7 +120,7 @@ import {
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
   files?: FileUpload.Input[];
-  folders?: { access: FolderAttachment.Access; path: string }[];
+  folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
   /** The kind of page the response should come back as, when one was picked. */
   output?: { name: string; title: string };

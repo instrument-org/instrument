@@ -12,11 +12,11 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
  * Two of the four changes are ours rather than theirs, and neither is shown
  * outside developer mode. A rename here is of the mount we assign, not of the
  * user's folder, so reporting one describes something they never did. And a
- * folder arriving is most often the app attaching its own two at startup, or
- * the conversation handing one to a task it is running: real, but nothing the
- * person reading this chat did or has to act on, and unreadable as "Added 2
- * folders" besides. In developer mode it says which, since there it is being
- * read to find out what the agent was told.
+ * folder arriving is most often the conversation handing one to a task it is
+ * running: real, but nothing the person reading this chat did or has to act
+ * on. In developer mode it says which, since there it is being
+ * read to find out what the agent was told. A change of access is never
+ * shown: what a task may do in a folder is the conversation's to decide.
  */
 export function AttachedFolderChangesNote({
   data,
@@ -26,30 +26,14 @@ export function AttachedFolderChangesNote({
   isDeveloperMode?: boolean;
 }) {
   const changes: string[] = [];
-  const [regranted] = data.accessChanged;
   const [detached] = data.removed;
 
   if (isDeveloperMode && data.added.length > 0) {
     changes.push(
       `added ${data.added
-        .map(
-          (folder) =>
-            `${folderLabel(folder.path)} (${folder.access === "read-write" ? "read and write" : "read-only"})`,
-        )
+        .map((folder) => folderLabel(folder.path))
         .join(", ")}`,
     );
-  }
-
-  if (regranted && data.accessChanged.length === 1) {
-    changes.push(
-      `${folderLabel(regranted.path)} ${
-        regranted.access === "read-write"
-          ? "now has full access"
-          : "is now read-only"
-      }`,
-    );
-  } else if (data.accessChanged.length > 1) {
-    changes.push(`${data.accessChanged.length} folders changed access`);
   }
 
   if (detached && data.removed.length === 1) {

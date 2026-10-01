@@ -47,6 +47,7 @@ import { childTaskMounts, listChildTasks } from "../orchestrator/children";
 import { describeHoldings } from "../orchestrator/describe-holdings";
 import { windowTaskId } from "../orchestrator/ensure";
 import { taskFolderHoldings } from "../orchestrator/folder-holdings";
+import { folderReach } from "../orchestrator/folder-reach";
 import { stepInFlight } from "../orchestrator/in-flight";
 import {
   lastAssistantText,
@@ -455,10 +456,7 @@ export async function runFolder(
       `folder: --add, --remove, or --none is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the folders it has.`,
     );
   }
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
   // Resolved before anything is written, so a refused spec leaves the task's
   // folders as they were rather than half changed.
   const adds = resolveFolders(askedAdds, orchestratorFolders);
@@ -572,7 +570,7 @@ export async function runNew(
   const { model, modelURI } = await resolveModel(rawURI, context);
   await requireOwnProvider(model, context);
   const askedFolders = values.get("folder") ?? [];
-  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
   const resolvedFolders = resolveFolders(askedFolders, orchestratorFolders);
   const looks = await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
@@ -738,10 +736,7 @@ export async function runSend(
     );
   }
   const state = await getTaskState(taskDir(task.id));
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
   const askedFiles = values.get("file") ?? [];
   const layout = await orchestratorLayout(context, orchestratorFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
@@ -899,10 +894,7 @@ async function grantPurpose(
   if (!said) {
     return "";
   }
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
   const taskState = await getTaskState(taskDir(taskId));
   const taskFolders = taskState.attachedFolders;
   requireFoldersNamedInBriefHanded(
@@ -957,14 +949,12 @@ async function tellOfGrant({
   if (!running && !added && !purpose) {
     return `${task.id} is not running; it is told when its next turn starts.\n`;
   }
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
+  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
   const state = await getTaskState(taskDir(task.id));
   const said = purpose
     ? translateMountPaths(
         purpose,
-        orchestratorState.attachedFolders ?? {},
+        orchestratorFolders,
         state.attachedFolders ?? {},
       )
     : "";

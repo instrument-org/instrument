@@ -356,6 +356,9 @@ export async function setChatTopics(
     },
     taskId,
   );
+  // The chat reaches its topics' folders (folder-reach.ts), so its state's
+  // readers hear of a change of topic.
+  publisher.publish("task.updated", { id: taskId });
   return saved.isOk();
 }
 

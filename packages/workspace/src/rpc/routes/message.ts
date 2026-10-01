@@ -18,7 +18,6 @@ import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
-import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -54,14 +53,7 @@ const create = base
       /** Places in files the user marked, with what to change at each. */
       asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
-      folders: z
-        .array(
-          z.object({
-            access: FolderAttachment.AccessSchema,
-            path: z.string(),
-          }),
-        )
-        .optional(),
+      folders: z.array(z.object({ path: z.string() })).optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       /**

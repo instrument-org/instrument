@@ -25,8 +25,8 @@ type RequestFolderPart = Extract<
  * answers that the user declined. Once answered it says what happened.
  *
  * The dialog is a sheet over this window, so the card is out of sight while
- * it is up: the reason goes into the sheet as its message, with what the
- * agent will be able to do there, and its button says Allow.
+ * it is up: the reason goes into the sheet as its message, and its button
+ * says Allow.
  */
 export function ToolRequestFolder({
   part,
@@ -59,27 +59,25 @@ export function ToolRequestFolder({
     return <ToolCardEmpty message="The request has not arrived yet." />;
   }
 
-  const { access, reason } = part.input;
+  const { reason } = part.input;
   const isUnanswered = part.state === "input-available";
   const isPending = isUnanswered && isWaitedOn;
 
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
-      message: `${APP_NAME} asked for a folder: ${reason ?? ""} It will ${access === "read-write" ? "read and change files in the folder you choose" : "only read the folder you choose"}.`,
+      message: `${APP_NAME} asked for a folder: ${reason ?? ""}`,
     });
     if (!picked) {
       return;
     }
     const folder = await attach.mutateAsync({
-      access,
       id: taskId,
       path: picked.path,
     });
     answer.mutate({
       id: taskId,
       output: {
-        access: folder.access,
         mountPoint: `${MOUNT.attachedFolders}/${folder.mountName}`,
         status: "granted",
       },
@@ -133,7 +131,7 @@ export function ToolRequestFolder({
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"
-              ? `You attached "${part.output.mountPoint.slice(MOUNT.attachedFolders.length + 1)}" (${part.output.access === "read-write" ? "read and write" : "read-only"}).`
+              ? `You attached "${part.output.mountPoint.slice(MOUNT.attachedFolders.length + 1)}".`
               : "You declined."}
           </p>
         ) : null}

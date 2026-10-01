@@ -10,10 +10,6 @@ import {
 } from "@/client/components/composer-add-menu";
 import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
 import { ComposerFrame } from "@/client/components/composer-frame";
-import {
-  DEFAULT_FOLDER_ACCESS,
-  type FolderAccess,
-} from "@/client/components/folder-access-list";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -39,7 +35,6 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
-  type FolderAttachment,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -79,12 +74,6 @@ import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
   | {
-      access: FolderAttachment.Access;
-      id: string;
-      path: string;
-      type: "folder";
-    }
-  | {
       content: string;
       id: string;
       mimeType: string;
@@ -101,6 +90,11 @@ type AttachedItem =
       size: number;
       type: "file";
       url?: string;
+    }
+  | {
+      id: string;
+      path: string;
+      type: "folder";
     };
 
 const MAX_PASTE_TEXT_LENGTH = 5000;
@@ -162,7 +156,7 @@ interface PromptInputProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
-    folders?: { access: FolderAttachment.Access; path: string }[];
+    folders?: { path: string }[];
     modelURI: AIGatewayModelURI.Type;
     prompt: string;
   }) => void;
@@ -415,7 +409,6 @@ export const PromptInput = ({
         duplicates.push(folderLabel(folder.path));
       } else {
         newFolders.push({
-          access: DEFAULT_FOLDER_ACCESS,
           id: ulid(),
           path: folder.path,
           type: "folder",
@@ -511,7 +504,6 @@ export const PromptInput = ({
         : [
             ...prev,
             {
-              access: DEFAULT_FOLDER_ACCESS,
               id: ulid(),
               path: folderPath,
               type: "folder",
@@ -555,19 +547,6 @@ export const PromptInput = ({
     }),
   }));
 
-  const setFolderAccess = (
-    folderPath: string,
-    access: FolderAttachment.Access,
-  ) => {
-    setAttachedItems((prev) =>
-      prev.map((item) =>
-        item.type === "folder" && item.path === folderPath
-          ? { ...item, access }
-          : item,
-      ),
-    );
-  };
-
   const removeFolder = (folderPath: string) => {
     setAttachedItems((prev) =>
       prev.filter(
@@ -578,11 +557,7 @@ export const PromptInput = ({
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
-  const folderAccessList: FolderAccess[] = attachedFolders.map((folder) => ({
-    access: folder.access,
-    path: folder.path,
-  }));
-  const showFolderTray = showWorkInFolder || folderAccessList.length > 0;
+  const showFolderTray = showWorkInFolder || attachedFolders.length > 0;
 
   const actions: ComposerAction[] = [
     {
@@ -790,10 +765,7 @@ export const PromptInput = ({
           : undefined,
       folders:
         attachedFolders.length > 0
-          ? attachedFolders.map((folder) => ({
-              access: folder.access,
-              path: folder.path,
-            }))
+          ? attachedFolders.map((folder) => ({ path: folder.path }))
           : undefined,
       modelURI,
       prompt,
@@ -879,8 +851,7 @@ export const PromptInput = ({
         >
           <ComposerFolderTray
             disabled={disabled || isLoading}
-            folders={folderAccessList}
-            onAccessChange={setFolderAccess}
+            folders={attachedFolders.map((folder) => folder.path)}
             onAdd={() => void handleFolderPick()}
             onRemove={removeFolder}
             showAdd={showWorkInFolder}

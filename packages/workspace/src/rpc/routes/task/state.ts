@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
 import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
+import { folderReach } from "../../../lib/orchestrator/folder-reach";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
   getTaskState,
@@ -21,9 +22,9 @@ const get = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskStateSchema)
   .handler(async ({ input }) => {
-    const taskId = input.id;
-
-    return getTaskState(taskDir(taskId));
+    const state = await getTaskState(taskDir(input.id));
+    // A chat's folders as it reaches them, which is more than it holds.
+    return { ...state, attachedFolders: await folderReach(input.id, state) };
   });
 
 const set = base
@@ -84,65 +85,6 @@ const applyPaneOperation = base
     return pane;
   });
 
-const removeFolder = base
-  .input(z.object({ folderId: z.string(), id: TaskIdSchema }))
-  .output(z.void())
-  .handler(async ({ input }) => {
-    const dir = taskDir(input.id);
-    const current = await getTaskState(dir);
-    if (!current.attachedFolders) {
-      return;
-    }
-    const updated = Object.fromEntries(
-      Object.entries(current.attachedFolders).filter(
-        ([, folder]) => folder.id !== input.folderId,
-      ),
-    );
-
-    await setTaskState(dir, { attachedFolders: updated });
-    publisher.publish("task.updated", { id: input.id });
-  });
-
-/**
- * Change what the agent may do with a folder already attached to this task.
- *
- * The grant is the user's to revise after the fact, so it is edited where the
- * folder is listed rather than by attaching it a second time. A folder the task
- * inherited from its project may be changed here too: the project's own edits
- * still reach the task, and the later of the two edits is the one that holds
- * (see `projectFolderBaseline`).
- */
-const setFolderAccess = base
-  .input(
-    z.object({
-      access: FolderAttachment.AccessSchema,
-      folderId: z.string(),
-      id: TaskIdSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ errors, input }) => {
-    const dir = taskDir(input.id);
-    const current = await getTaskState(dir);
-    const entries = Object.entries(current.attachedFolders ?? {});
-    const target = entries.find(([, folder]) => folder.id === input.folderId);
-
-    if (!target) {
-      throw errors.NOT_FOUND({ message: "That folder is not attached." });
-    }
-
-    const updated = Object.fromEntries(
-      entries.map(([mountName, folder]) =>
-        folder.id === input.folderId
-          ? [mountName, { ...folder, access: input.access }]
-          : [mountName, folder],
-      ),
-    );
-
-    await setTaskState(dir, { attachedFolders: updated });
-    publisher.publish("task.updated", { id: input.id });
-  });
-
 const live = {
   get: base
     .input(z.object({ id: TaskIdSchema }))
@@ -168,31 +110,30 @@ const live = {
 /**
  * Attach a folder outside of a message: what answering an agent's request for
  * one does. The message path stays the way a folder arrives with something the
- * user typed.
+ * user typed. The agent may read and write it; what a task it starts may do
+ * there is the agent's to say when it hands the folder over.
  */
 const attachFolder = base
-  .input(
-    z.object({
-      access: FolderAttachment.AccessSchema,
-      id: TaskIdSchema,
-      path: z.string(),
-    }),
-  )
+  .input(z.object({ id: TaskIdSchema, path: z.string() }))
   .output(FolderAttachment.Schema)
-  .handler(({ input }) =>
-    attachFolderToTask({
-      access: input.access,
+  .handler(async ({ input }) => {
+    const attached = await attachFolderToTask({
+      access: "read-write",
       path: input.path,
       taskId: input.id,
-    }),
-  );
+    });
+    // Named the way the agent reaches it, beside the folders a chat reaches
+    // without holding.
+    const reached = Object.values(await folderReach(input.id)).find(
+      (folder) => folder.path === attached.path,
+    );
+    return reached ?? attached;
+  });
 
 export const taskState = {
   applyPaneOperation,
   attachFolder,
   get,
   live,
-  removeFolder,
   set,
-  setFolderAccess,
 };

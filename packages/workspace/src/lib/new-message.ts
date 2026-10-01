@@ -8,13 +8,11 @@ import { ok } from "neverthrow";
 import { MOUNT } from "../mount-points";
 import { type FileUpload } from "../schemas/file-upload";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { attachFolder } from "./attach-folder";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
@@ -24,13 +22,13 @@ import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
+import { folderReach } from "./orchestrator/folder-reach";
 import { listTopics, type TopicFolder } from "./orchestrator/topics";
 import { tabHolders } from "./orchestrator/window-tab";
-import { pathExists } from "./path-exists";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
+import { setTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -57,7 +55,6 @@ export async function newMessage({
   chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
   folders?: {
-    access?: FolderAttachment.Access;
     path: string;
     source?: FolderAttachment.Source;
   }[];
@@ -183,7 +180,7 @@ export async function newMessage({
       return uploadResult;
     }
 
-    parts.push(uploadResult.value.part);
+    parts.push(await namedByReach(taskId, uploadResult.value.part));
   }
 
   if (projectContext) {
@@ -398,37 +395,6 @@ export async function newMessage({
 }
 
 /**
- * Attaches a topic's folders to the chat, the ones it does not have yet, and
- * returns where each is mounted. A folder no longer on disk is left out, so
- * the agent is not pointed at nothing; attaching one the chat already has
- * would reset the access it was given, so that one is only named.
- */
-async function attachTopicFolders(
-  chatId: TaskId,
-  folders: TopicFolder[],
-): Promise<string[]> {
-  const mounts: string[] = [];
-  for (const folder of folders) {
-    const onDisk = AbsolutePathSchema.safeParse(folder.path);
-    if (!onDisk.success || !(await pathExists(onDisk.data))) {
-      continue;
-    }
-    const state = await getTaskState(taskDir(chatId));
-    const attached =
-      Object.values(state.attachedFolders ?? {}).find(
-        (entry) => entry.path === folder.path,
-      ) ??
-      (await attachFolder({
-        access: "read-write",
-        path: folder.path,
-        taskId: chatId,
-      }));
-    mounts.push(`${MOUNT.attachedFolders}/${attached.mountName}`);
-  }
-  return mounts;
-}
-
-/**
  * The topics the chat carries, named for the model. None when it carries
  * none and never has: a chat untagged since its last message gets an empty
  * part, so the note can say the topics are gone.
@@ -461,13 +427,14 @@ async function createChatTopicsPart({
     }
   }
   const known = await listTopics();
+  const reach = await folderReach(taskId);
   const topics = [];
   for (const id of tagged) {
     const topic = known.find((entry) => entry.id === id);
     if (!topic) {
       continue;
     }
-    const folders = await attachTopicFolders(taskId, topic.folders ?? []);
+    const folders = topicFolderMounts(reach, topic.folders ?? []);
     topics.push({
       ...(topic.about ? { about: topic.about } : {}),
       ...(topic.emoji ? { emoji: topic.emoji } : {}),
@@ -481,6 +448,50 @@ async function createChatTopicsPart({
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-chatTopics",
   };
+}
+
+/**
+ * The attachments part with each folder named the way the agent reaches it. A
+ * chat mounts its sent folders beside the ones it reaches without holding
+ * (folder-reach.ts), and a namesake there can move one to a qualified name.
+ */
+async function namedByReach(
+  taskId: TaskId,
+  part: SessionMessagePart.Type,
+): Promise<SessionMessagePart.Type> {
+  if (part.type !== "data-attachments" || !part.data.folders) {
+    return part;
+  }
+  const reach = Object.values(await folderReach(taskId));
+  return {
+    ...part,
+    data: {
+      ...part.data,
+      folders: part.data.folders.map((folder) => ({
+        ...folder,
+        mountName:
+          reach.find((entry) => entry.path === folder.path)?.mountName ??
+          folder.mountName,
+      })),
+    },
+  };
+}
+
+/**
+ * Where each of a topic's folders is mounted in the chat, by the chat's
+ * reach. A folder no longer on disk is in no mount, and is left out so the
+ * agent is not pointed at nothing.
+ */
+function topicFolderMounts(
+  reach: Record<string, FolderAttachment.Type>,
+  folders: TopicFolder[],
+): string[] {
+  return folders.flatMap((folder) => {
+    const mounted = Object.values(reach).find(
+      (entry) => entry.path === folder.path,
+    );
+    return mounted ? [`${MOUNT.attachedFolders}/${mounted.mountName}`] : [];
+  });
 }
 
 /**

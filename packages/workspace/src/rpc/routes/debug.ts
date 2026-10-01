@@ -4,9 +4,8 @@ import { z } from "zod";
 import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
 import { childTaskMounts } from "../../lib/orchestrator/children";
-import { taskDir } from "../../lib/task-dir-utils";
+import { folderReach } from "../../lib/orchestrator/folder-reach";
 import { resolveTaskProjectFolder } from "../../lib/task-project-folder";
-import { getTaskState } from "../../lib/task-record";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
@@ -71,13 +70,12 @@ const runBash = base
     }),
   )
   .handler(async ({ input, signal }) => {
-    const taskState = await getTaskState(taskDir(input.taskId));
     // A chat's own shell, with the commands the conversation runs, for the
     // conversation's agent; a task's otherwise, the way the bash tool builds it.
     const isConversation =
       (await agentNameForTask(input.taskId)) === "instrument";
     const bash = await createBashEnv({
-      attachedFolders: taskState.attachedFolders,
+      attachedFolders: await folderReach(input.taskId),
       ...(isConversation
         ? {
             orchestrator: {

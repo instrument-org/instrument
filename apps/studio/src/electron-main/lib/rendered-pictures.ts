@@ -1,8 +1,14 @@
+import {
+  frontMatterTitle,
+  isMapping,
+  splitFrontMatter,
+} from "@/shared/front-matter";
 import { BrowserWindow, type NativeImage, session } from "electron";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { sleep } from "radashi";
 import { type BundledLanguage, bundledLanguages } from "shiki";
+import { parse } from "yaml";
 
 import { trackFrameDocumentsIn } from "../browser-view/frame-documents";
 import { isAllowedLocalRequest } from "../browser-view/local-file-policy";
@@ -179,8 +185,9 @@ async function documentOf(
   if (kind === "markdown") {
     // Loaded with the first document, not with the app.
     const { marked } = await import("marked");
-    const body = await marked.parse(text, { async: true, gfm: true });
-    return sheet("markdown", body, theme);
+    const { body, fm } = splitFrontMatter(text);
+    const html = await marked.parse(body, { async: true, gfm: true });
+    return sheet("markdown", frontMatterPanel(fm) + html, theme);
   }
   const extension = extensionOf(hostPath);
   const code = extension === "json" ? await prettyJson(hostPath, text) : text;
@@ -212,6 +219,34 @@ function escapeHtml(text: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+/**
+ * Front matter as the viewer first shows it: its panel folded to one line
+ * naming the file and counting its properties. Left to `marked`, the closing
+ * fence would underline the block into a heading. YAML that is not a mapping
+ * is shown as the code it is, and an empty block shows nothing, as there.
+ */
+function frontMatterPanel(fm: string) {
+  const source = fm.replace(/^---[^\n]*\n/, "").replace(/\n[^\n]*\n?$/, "");
+  if (source.trim() === "") {
+    return "";
+  }
+  let parsed: unknown;
+  try {
+    parsed = parse(source);
+  } catch {
+    parsed = source;
+  }
+  if (parsed === null || parsed === undefined) {
+    return "";
+  }
+  if (!isMapping(parsed)) {
+    return `<pre><code>${escapeHtml(source)}</code></pre>`;
+  }
+  const count = Object.keys(parsed).length;
+  const title = frontMatterTitle(parsed) ?? "Properties";
+  return `<div class="front-matter"><span class="caret"></span><span class="title">${escapeHtml(title)}</span><span class="count">${count === 1 ? "1 property" : `${count} properties`}</span></div>`;
 }
 
 function languageOf(extension: string): BundledLanguage | undefined {
@@ -273,6 +308,10 @@ body.markdown table { border-collapse: collapse; }
 body.markdown th, body.markdown td { border: 1px solid var(--rule); padding: 4px 10px; text-align: left; }
 body.markdown hr { border: 0; border-top: 1px solid var(--rule); margin: 1.5em 0; }
 body.markdown img { max-width: 100%; }
+body.markdown .front-matter { display: flex; align-items: center; gap: 8px; margin: 0 0 1.2em; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--well); font-size: 0.82em; }
+body.markdown .front-matter .caret { flex: none; width: 0; height: 0; border-block: 4px solid transparent; border-left: 6px solid var(--muted); margin: 0 3px; }
+body.markdown .front-matter .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+body.markdown .front-matter .count { flex: none; color: var(--muted); font-size: 0.85em; }
 body.code { padding: 36px 40px; }
 body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 `;

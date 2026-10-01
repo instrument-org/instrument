@@ -159,6 +159,42 @@ const SPRITE_ICONS: ResolvedIcon[] = [
   ),
 ];
 
+// What people keep on their own computers, as opposed to in a repository:
+// the icons that turn up most in attachments, folders and the files a task
+// hands back.
+const EVERYDAY_FILES = [
+  "Budget.xlsx",
+  "Export.csv",
+  "Report.docx",
+  "Contract.pdf",
+  "Deck.pptx",
+  "Keynote.key",
+  "Pages.pages",
+  "Numbers.numbers",
+  "Notes.txt",
+  "Notes.md",
+  "Notes.rtf",
+  "Photo.jpg",
+  "Screenshot.png",
+  "Photo.heic",
+  "Logo.svg",
+  "Design.psd",
+  "Recording.mov",
+  "Video.mp4",
+  "Song.mp3",
+  "Memo.m4a",
+  "Archive.zip",
+  "Installer.dmg",
+  "Page.html",
+  "Email.eml",
+  "Invite.ics",
+  "Contact.vcf",
+  "Book.epub",
+  "Font.otf",
+  "Data.json",
+  "Shortcut.webloc",
+];
+
 interface Group {
   icon: ResolvedIcon;
   samples: string[];
@@ -263,6 +299,23 @@ function RouteComponent() {
             </div>
           ) : null}
         </div>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-medium">Everyday files</h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+            {EVERYDAY_FILES.map((fileName) => (
+              <div
+                className="flex items-center gap-3 rounded-lg border border-border p-3"
+                key={fileName}
+              >
+                <GlyphTiles icon={resolveFileTypeIcon(fileName)} />
+                <span className="truncate font-mono text-[11px] text-muted-foreground">
+                  {fileName}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {DEFAULT_GROUP ? (
           <section className="flex flex-col gap-3">

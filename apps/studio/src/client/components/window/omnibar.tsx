@@ -93,7 +93,7 @@ export type OmnibarMode =
   | "tasks"
   | "web";
 
-export function omnibarModeOf(location: TabLocation): OmnibarMode {
+function omnibarModeOf(location: TabLocation): OmnibarMode {
   switch (location.kind) {
     case "app":
     case "apps": {

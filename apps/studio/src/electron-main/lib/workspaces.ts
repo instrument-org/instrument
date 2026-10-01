@@ -28,7 +28,7 @@ const REGISTRY_FILENAME = "workspaces.json";
 const IDENTITY_FILENAME = "workspace.json";
 const OPEN_PID_FILENAME = "open.pid";
 
-export const WORKSPACE_COLORS = [
+const WORKSPACE_COLORS = [
   "gray",
   "red",
   "orange",

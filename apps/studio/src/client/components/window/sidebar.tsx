@@ -1,18 +1,6 @@
-import { type RecentEntry } from "@/client/atoms/window";
 import { Favicon } from "@/client/components/favicon";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useState } from "react";
-
-import { screenPresentation } from "./screen-presentation";
-
-/** What stands for a recent screen: the Finder's own folder and file icons, the globe, the mark. */
-export function RecentIcon({ recent }: { recent: RecentEntry }) {
-  if (recent.kind === "browser") {
-    return <SiteIcon favicon={recent.favicon} url={recent.href} />;
-  }
-  // The same icon the strip gives the screen's tab, read off the address.
-  return screenPresentation(recent.href, { appsBySlug: new Map() }).icon;
-}
 
 /**
  * A site's icon: the one its page announced when a tab has one, else the

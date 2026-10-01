@@ -25,7 +25,7 @@ import {
  * rather than keeping those defaults over the user's legacy files.
  */
 
-export const CURRENT_SETTINGS_VERSION = 1;
+const CURRENT_SETTINGS_VERSION = 1;
 
 /** Electron-store names of the machine stores, at the root of userData. */
 export const MACHINE_PREFERENCES_NAME = "machine-preferences";

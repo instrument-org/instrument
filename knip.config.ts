@@ -82,7 +82,14 @@ const config: KnipConfig = {
       // The default run calls `evals/cli.ts!` redundant for that reason: keep it.
       entry: ["__mocks__/*", "evals/cli.ts!", "scripts/*.ts!"],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["which", "ldd", "ps", "taskkill", "xcode-select"],
+      ignoreBinaries: [
+        "which",
+        "ldd",
+        "ps",
+        "security",
+        "taskkill",
+        "xcode-select",
+      ],
       project: [projectFiles, "!src/test/**!"],
     },
   },

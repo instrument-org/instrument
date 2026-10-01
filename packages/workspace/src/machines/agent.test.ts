@@ -278,7 +278,10 @@ describe("agentMachine", () => {
       StoreId.newMessageId(),
       runSessionId,
     );
-    const parts = calls({ messageId: runMessage.id, sessionId: runSessionId });
+    const runParts = calls({
+      messageId: runMessage.id,
+      sessionId: runSessionId,
+    });
     let running = 0;
     let mostRunning = 0;
     let finished = 0;
@@ -301,7 +304,7 @@ describe("agentMachine", () => {
             },
           }),
           llmRequestLogic: fromPromise(() =>
-            Promise.resolve({ message: runMessage, parts }),
+            Promise.resolve({ message: runMessage, parts: runParts }),
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
@@ -320,8 +323,8 @@ describe("agentMachine", () => {
     await waitFor(actor, (state) => state.matches("Done"));
 
     expect({ finished, mostRunning }).toEqual({
-      finished: parts.length,
-      mostRunning: Math.min(parts.length, 8),
+      finished: runParts.length,
+      mostRunning: Math.min(runParts.length, 8),
     });
   });
 

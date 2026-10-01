@@ -164,7 +164,11 @@ const SPRITE_ICONS: ResolvedIcon[] = [
 // hands back.
 const EVERYDAY_FILES = [
   "Budget.xlsx",
+  "Legacy.xls",
+  "Macros.xlsm",
+  "Open.ods",
   "Export.csv",
+  "Export.tsv",
   "Report.docx",
   "Contract.pdf",
   "Deck.pptx",
@@ -221,13 +225,33 @@ const DEFAULT_GROUP = GROUPS.find(
 );
 const GLYPH_GROUPS = GROUPS.filter((group) => group !== DEFAULT_GROUP);
 
+// The extension leads, since telling formats apart is the point; the name
+// and the glyph it resolved to sit under it, wrapping rather than cut off.
+function EverydayFile({ fileName }: { fileName: string }) {
+  const icon = resolveFileTypeIcon(fileName);
+  const dot = fileName.lastIndexOf(".");
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+      <GlyphTiles icon={icon} />
+      <div className="flex min-w-0 flex-col">
+        <span className="font-mono text-sm font-medium break-all">
+          {dot > 0 ? fileName.slice(dot) : fileName}
+        </span>
+        <span className="font-mono text-[11px] break-all text-muted-foreground">
+          {fileName} → {glyphLabel(icon)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function GlyphCard({ group }: { group: Group }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
       <div className="flex items-center gap-3">
         <GlyphTiles icon={group.icon} />
         <div className="flex min-w-0 flex-col">
-          <span className="truncate font-mono text-xs">
+          <span className="font-mono text-xs break-all">
             {glyphLabel(group.icon)}
           </span>
           <span className="text-[11px] text-muted-foreground">
@@ -304,15 +328,7 @@ function RouteComponent() {
           <h2 className="text-sm font-medium">Everyday files</h2>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
             {EVERYDAY_FILES.map((fileName) => (
-              <div
-                className="flex items-center gap-3 rounded-lg border border-border p-3"
-                key={fileName}
-              >
-                <GlyphTiles icon={resolveFileTypeIcon(fileName)} />
-                <span className="truncate font-mono text-[11px] text-muted-foreground">
-                  {fileName}
-                </span>
-              </div>
+              <EverydayFile fileName={fileName} key={fileName} />
             ))}
           </div>
         </section>

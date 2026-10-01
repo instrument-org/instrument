@@ -687,15 +687,26 @@ export const PromptInput = ({
           // A provider that answers with an error contributes nothing to the
           // list, so an empty one here can mean a reachable provider refusing
           // rather than no provider at all. Outranks the no-models case below.
-          toast.error("Failed to load models", {
-            action: {
-              label: "Retry",
-              onClick: () => {
-                void modelsRefetch();
+          // Named after the provider that failed, since a provider that
+          // cannot be reached (a local server that is not running, say) is
+          // otherwise indistinguishable from the app failing.
+          const failed = modelsErrors?.map((error) => error.config.displayName);
+          toast.error(
+            failed?.length === 1
+              ? `Couldn't load models from ${failed[0] ?? "a provider"}`
+              : failed?.length
+                ? `Couldn't load models from ${failed.length.toString()} providers`
+                : "Failed to load models",
+            {
+              action: {
+                label: "Retry",
+                onClick: () => {
+                  void modelsRefetch();
+                },
               },
+              description: modelsErrors?.[0]?.message,
             },
-            description: modelsErrors?.[0]?.message,
-          });
+          );
         } else if (models?.length) {
           toast.error("Select a model");
         } else {

@@ -160,17 +160,15 @@ export function AssistantMessagesFooter({
           {generationDuration > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
+                {/* The time the reply took on the clock. Generation time adds
+                    up every model call, and calls that ran side by side make
+                    it longer than the wait it stands for. */}
                 <span className="cursor-default text-xs text-muted-foreground">
-                  {formatDuration(generationDuration)}
+                  {formatDuration(elapsedDuration ?? generationDuration)}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="p-3 text-xs">
                 <div className="space-y-2">
-                  <TooltipRow
-                    label="Generation time:"
-                    tabular
-                    value={formatDuration(generationDuration)}
-                  />
                   {elapsedDuration != null && (
                     <TooltipRow
                       label="Total time:"
@@ -178,6 +176,11 @@ export function AssistantMessagesFooter({
                       value={formatDuration(elapsedDuration)}
                     />
                   )}
+                  <TooltipRow
+                    label="Generation time:"
+                    tabular
+                    value={formatDuration(generationDuration)}
+                  />
                 </div>
               </TooltipContent>
             </Tooltip>

@@ -1,6 +1,6 @@
 # Plan: find chats and tasks from the omnibar
 
-Status: proposal, not started.
+Status: not built, and superseded. Each tab's omnibar searches only what that tab holds (the web on a page, the folder on the computer, apps on an app page, tasks on a task page), so finding chats and tasks from any tab no longer fits it; a cross-app lookup would need a surface of its own.
 
 The classic window had a Cmd+K command menu that searched tasks, projects and debug scenarios by name, with recent tasks as its empty state and a handful of commands (developer mode, release channel, check for updates). It went with the classic window. The app window's omnibar (`apps/studio/src/client/components/window/omnibar.tsx`) searches places, bookmarks, recents and a few `!` commands, but not what people have been working on.
 

@@ -18,7 +18,7 @@ The app window lists the tasks its chats started (`workspace.chats.tasks`), and 
 - **Server exceptions banner.** Back in the app window as a red count beside the dev badge (developer mode), opening the exceptions with copy and clear and a way into Settings' diagnostic log.
 - **Per-task usage summary** (tokens across the task). Back in the task page's header in developer mode, from `workspace.task.live.usageSummary`. Usage per reply is gone from the footer on purpose.
 - **Background processes control** in the task header: back, as the "still running" pill with a stop for each command.
-- **Task search.** Cmd+K searched tasks, projects and debug pages by name. Not coming back as a palette; [chat-search-in-the-omnibar.md](chat-search-in-the-omnibar.md) proposes finding chats and tasks from the omnibar instead.
+- **Task search.** Cmd+K searched tasks, projects and debug pages by name. Not coming back as a palette; [chat-search-in-the-omnibar.md](../completed/chat-search-in-the-omnibar.md) proposed finding chats and tasks from the omnibar, superseded once each tab's omnibar was scoped to what that tab holds.
 - **Tasks list** with filters and bulk delete. Not coming back: tasks are the chat's to manage, and the Tasks screen lists a chat's tasks, or every chat's.
 - **Branch from a message.** Deleted, and not coming back: `workspace.task.branch` and `lib/branch-task.ts`.
 - **Keyboard shortcut guide.** Back: `?`, Help > Keyboard Shortcuts, and the omnibar open a searchable guide generated from `shared/window-shortcuts.ts` and `shared/shortcuts.ts`.

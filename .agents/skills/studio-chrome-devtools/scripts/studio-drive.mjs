@@ -349,12 +349,17 @@ async function cmdBoot(
   // and nothing else. Keep this in step with the `dev` script in
   // apps/studio/package.json, which is the thing it is standing in for.
   //
-  // The bin shim rather than the .js entry, because the shim is what exports
-  // the NODE_PATH into .pnpm that the config's `require.resolve` of
-  // ffmpeg-static and friends resolves through.
+  // Through the dev supervisor, which starts electron-vite again when the app
+  // restarts itself (a workspace switch), so this pid stays the instance's
+  // across one and the CDP port comes back on the same number.
   const child = spawn(
-    path.join(STUDIO_DIR, "node_modules/.bin/electron-vite"),
-    ["dev", "--sourcemap", ...(inspect ? ["--inspect", inspect] : [])],
+    process.execPath,
+    [
+      path.join(STUDIO_DIR, "scripts/dev-supervisor.ts"),
+      "dev",
+      "--sourcemap",
+      ...(inspect ? ["--inspect", inspect] : []),
+    ],
     {
       cwd: STUDIO_DIR,
       detached: true,

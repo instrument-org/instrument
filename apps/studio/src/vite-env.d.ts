@@ -45,6 +45,8 @@ declare namespace NodeJS {
       INSTRUMENT_BASH_WORKER: string | undefined;
       /** Dev only: shrinks every model's context window to this many tokens. */
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
+      /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
+      INSTRUMENT_DEV_SUPERVISOR: string | undefined;
       /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See

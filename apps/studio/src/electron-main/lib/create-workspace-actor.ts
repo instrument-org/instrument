@@ -44,6 +44,7 @@ import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { getRegistryDir } from "./registry-dir";
+import { quitExitCode } from "./relaunch";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
 const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
@@ -325,7 +326,7 @@ export function createWorkspaceActor({
             logger.info("Quit teardown: stopping the workspace actor");
             actor.stop();
             logger.info("Quit teardown: exiting");
-            app.exit(0);
+            app.exit(quitExitCode());
           };
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
           // is torn down while Node frees the environment, so stop the skills

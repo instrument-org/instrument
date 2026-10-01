@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  hasWorkspaceIdentity,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   workspacePrivateDir,
@@ -110,6 +111,7 @@ export function migrateWorkspaceSettings({
 }): string[] {
   const done: string[] = [];
   try {
+    const hadIdentity = hasWorkspaceIdentity(workspace.path);
     const identity = readWorkspaceIdentity(workspace.path);
     if (identity.settingsVersion >= CURRENT_SETTINGS_VERSION) {
       return done;
@@ -121,7 +123,13 @@ export function migrateWorkspaceSettings({
 
     writeWorkspaceIdentity(workspace.path, {
       ...identity,
-      name: workspace.isDefault ? "Default" : identity.name,
+      // A folder pinned from outside with nothing to say about itself is
+      // named after the folder.
+      name: workspace.isDefault
+        ? "Default"
+        : hadIdentity
+          ? identity.name
+          : path.basename(workspace.path),
       settingsVersion: CURRENT_SETTINGS_VERSION,
     });
     done.push(`settings at version ${CURRENT_SETTINGS_VERSION.toString()}`);

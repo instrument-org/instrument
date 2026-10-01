@@ -24,6 +24,7 @@ import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
 import { window } from "./window";
+import { workspaces } from "./workspaces";
 
 export const router = {
   appCommands,
@@ -51,4 +52,5 @@ export const router = {
   utils,
   window,
   workspace: workspaceRouter,
+  workspaces,
 };

@@ -53,6 +53,6 @@ export function cacheByStoreGeneration<Value>(
 }
 
 /** A task's store's write count, comparable only for equality. */
-export function storeGeneration(id: TaskId): string {
+function storeGeneration(id: TaskId): string {
   return `${epoch}:${GENERATIONS.get(id) ?? 0}`;
 }

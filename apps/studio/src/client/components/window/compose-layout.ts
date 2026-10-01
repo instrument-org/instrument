@@ -42,7 +42,7 @@ export const COMPOSE_MOTION = {
 } as const;
 
 /** A grown window's widest, in layout px: wide enough for a conversation, a page beside it and the rail, short of the whole window, which would read as a place of its own rather than a window over one. */
-export const GROWN_MAX_WIDTH = 1120;
+const GROWN_MAX_WIDTH = 1120;
 
 /** The least room a grown window leaves at each side of it, in layout px, so what it stands over shows around it. */
 const GROWN_SIDE = 80;
@@ -63,11 +63,6 @@ export const GROWN = {
   top: 40,
   width: `min(calc(100% - ${2 * GROWN_SIDE}px), ${GROWN_MAX_WIDTH}px)`,
 } as const;
-
-/** How wide a grown window stands over a row this wide, in layout px; the window it is laid over is a little wider than the row, so this errs narrow. */
-function grownWidth(width: number): number {
-  return Math.min(width - 2 * GROWN_SIDE, GROWN_MAX_WIDTH);
-}
 
 /**
  * A window with its place along the foot: how far its right edge stands from
@@ -149,6 +144,11 @@ export function layoutCompose(
     right += own + COMPOSE_GAP;
   }
   return placed;
+}
+
+/** How wide a grown window stands over a row this wide, in layout px; the window it is laid over is a little wider than the row, so this errs narrow. */
+function grownWidth(width: number): number {
+  return Math.min(width - 2 * GROWN_SIDE, GROWN_MAX_WIDTH);
 }
 
 /** How wide a window stands along the foot: a bar's width put down, and otherwise its kind's. */

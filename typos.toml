@@ -57,8 +57,8 @@ extend-exclude = [
   "apps/studio/resources/tailwind-browser.js",
   # Recorded agent sessions and the documents they produced. The text is model
   # output and extracted PDF glyph runs, not prose anyone maintains.
-  "fixtures/workspaces/*/tasks/*/session.json",
-  "fixtures/workspaces/*/tasks/*/files/",
+  "fixtures/workspaces/**/session.json",
+  "fixtures/workspaces/**/files/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
   "packages/workspace/evals/cases/project-instructions.ts",

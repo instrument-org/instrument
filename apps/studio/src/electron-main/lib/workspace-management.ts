@@ -5,9 +5,9 @@ import { workspaceSettingsDirOf } from "./settings-migration";
 import {
   createdWorkspacesDir,
   DEFAULT_WORKSPACE_ID,
+  defaultWorkspacePath,
   hasWorkspaceIdentity,
   openElsewhereBy,
-  readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   updateRegistry,
@@ -37,16 +37,17 @@ export interface WorkspaceListing {
 
 /**
  * The credential stores a new workspace can start from: who you are signed in
- * as, your keys, and a ChatGPT plan. Connected apps stay behind, since their
- * tokens belong to apps in the workspace they came from.
+ * as, and your keys. A ChatGPT plan is not one of them: its refresh token
+ * rotates on every use, so two workspaces holding one copy would each spend it
+ * and whichever refreshed second would be signed out (or both, if the provider
+ * revokes the family). Connected apps stay behind too, since their tokens
+ * belong to apps in the workspace they came from.
  */
 const SIGN_IN_FILES = [
   "session-dev.json",
   "session.json.enc",
   "providers.json",
   "providers.json.enc",
-  "chatgpt-plan.json",
-  "chatgpt-plan.json.enc",
 ];
 
 /**
@@ -69,53 +70,29 @@ export function createWorkspace({
   name: string;
   userDataDir: string;
 }): { id: string; path: string } {
-  const registry = readRegistry(userDataDir);
   const base = slugify(name);
   let id = base;
-  for (
-    let n = 2;
-    registry.workspaces.some((entry) => entry.id === id) ||
-    fs.existsSync(path.join(createdWorkspacesDir(userDataDir), id));
-    n++
-  ) {
-    id = `${base}-${n.toString()}`;
-  }
-  const dir = path.join(createdWorkspacesDir(userDataDir), id);
-  fs.mkdirSync(dir, { recursive: true });
-
-  const settingsDir = workspaceSettingsDirOf(dir);
-  writeJsonAtomic(path.join(settingsDir, "preferences.json"), {
-    developerMode,
-  });
-  if (copySignInsFrom) {
-    const fromDir = workspaceSettingsDirOf(copySignInsFrom);
-    let copied = 0;
-    for (const file of SIGN_IN_FILES) {
-      if (fs.existsSync(path.join(fromDir, file))) {
-        fs.copyFileSync(path.join(fromDir, file), path.join(settingsDir, file));
-        copied++;
-      }
+  let dir = "";
+  // Inside the locked update: the id is picked, the folder claimed, and the
+  // entry added in one step, so two processes creating the same name at once
+  // get two folders.
+  updateRegistry(userDataDir, (current) => {
+    for (
+      let n = 2;
+      current.workspaces.some((entry) => entry.id === id) ||
+      fs.existsSync(path.join(createdWorkspacesDir(userDataDir), id));
+      n++
+    ) {
+      id = `${base}-${n.toString()}`;
     }
-    if (copied > 0) {
-      writeJsonAtomic(path.join(settingsDir, "state.json"), {
-        hasCompletedProviderSetup: true,
-      });
-    }
-  }
-
-  // Written last and already at the current settings version: there is
-  // nothing legacy in a workspace made by this build.
-  writeWorkspaceIdentity(dir, {
-    color,
-    createdBy: { kind: "person" },
-    name,
-    settingsVersion: 1,
+    dir = path.join(createdWorkspacesDir(userDataDir), id);
+    fs.mkdirSync(dir, { recursive: true });
+    populateWorkspace({ color, copySignInsFrom, developerMode, dir, name });
+    return {
+      ...current,
+      workspaces: [...current.workspaces, { id, path: dir }],
+    };
   });
-
-  updateRegistry(userDataDir, (current) => ({
-    ...current,
-    workspaces: [...current.workspaces, { id, path: dir }],
-  }));
   return { id, path: dir };
 }
 
@@ -139,17 +116,23 @@ export function listWorkspaces({
     ),
   }));
 
-  const listed: WorkspaceListing[] = registry.workspaces.map((entry) => ({
-    id: entry.id,
-    identity: readWorkspaceIdentity(entry.path),
-    isDefault: entry.id === DEFAULT_WORKSPACE_ID,
-    isRegistered: true,
-    isResolved: entry.id === resolved.id,
-    lastOpenedAt: entry.lastOpenedAt ?? null,
-    openElsewhereBy:
-      entry.id === resolved.id ? null : openElsewhereBy(entry.path),
-    path: entry.path,
-  }));
+  // By folder rather than by id: the folder is what a delete would remove.
+  const defaultPath = path.resolve(defaultWorkspacePath(userDataDir));
+  const resolvedPath = path.resolve(resolved.path);
+  const listed: WorkspaceListing[] = registry.workspaces.map((entry) => {
+    const entryPath = path.resolve(entry.path);
+    return {
+      id: entry.id,
+      identity: readWorkspaceIdentity(entry.path),
+      isDefault: entryPath === defaultPath,
+      isRegistered: true,
+      isResolved: entryPath === resolvedPath,
+      lastOpenedAt: entry.lastOpenedAt ?? null,
+      openElsewhereBy:
+        entryPath === resolvedPath ? null : openElsewhereBy(entry.path),
+      path: entry.path,
+    };
+  });
 
   const registeredPaths = new Set(
     registry.workspaces.map((entry) => path.resolve(entry.path)),
@@ -183,24 +166,40 @@ export function listWorkspaces({
   ];
 }
 
-/** Put a workspace found on disk back in the list. */
+/**
+ * Put a workspace found on disk back in the list. Only a folder the listing
+ * offers as a stray, under `<userData>/workspaces/` with an identity and no
+ * entry: anything else would let a path from the renderer become a workspace a
+ * delete could then remove.
+ */
 export function registerStray({
   dir,
+  resolved,
   userDataDir,
 }: {
   dir: string;
+  resolved: ResolvedWorkspace;
   userDataDir: string;
-}): void {
+}): boolean {
+  const stray = listWorkspaces({ resolved, userDataDir }).find(
+    (listing) =>
+      !listing.isRegistered && path.resolve(listing.path) === path.resolve(dir),
+  );
+  if (!stray) {
+    return false;
+  }
   updateRegistry(userDataDir, (current) => {
-    let id = path.basename(dir);
+    const base = path.basename(stray.path);
+    let id = base;
     for (let n = 2; current.workspaces.some((entry) => entry.id === id); n++) {
-      id = `${path.basename(dir)}-${n.toString()}`;
+      id = `${base}-${n.toString()}`;
     }
     return {
       ...current,
-      workspaces: [...current.workspaces, { id, path: dir }],
+      workspaces: [...current.workspaces, { id, path: stray.path }],
     };
   });
+  return true;
 }
 
 export function unregisterWorkspace({
@@ -252,6 +251,49 @@ function isDirectory(dir: string) {
   } catch {
     return false;
   }
+}
+
+function populateWorkspace({
+  color,
+  copySignInsFrom,
+  developerMode,
+  dir,
+  name,
+}: {
+  color: WorkspaceIdentity["color"];
+  copySignInsFrom: null | string;
+  developerMode: boolean;
+  dir: string;
+  name: string;
+}) {
+  const settingsDir = workspaceSettingsDirOf(dir);
+  writeJsonAtomic(path.join(settingsDir, "preferences.json"), {
+    developerMode,
+  });
+  if (copySignInsFrom) {
+    const fromDir = workspaceSettingsDirOf(copySignInsFrom);
+    let copied = 0;
+    for (const file of SIGN_IN_FILES) {
+      if (fs.existsSync(path.join(fromDir, file))) {
+        fs.copyFileSync(path.join(fromDir, file), path.join(settingsDir, file));
+        copied++;
+      }
+    }
+    if (copied > 0) {
+      writeJsonAtomic(path.join(settingsDir, "state.json"), {
+        hasCompletedProviderSetup: true,
+      });
+    }
+  }
+
+  // Already at the current settings version: there is nothing legacy in a
+  // workspace made by this build.
+  writeWorkspaceIdentity(dir, {
+    color,
+    createdBy: { kind: "person" },
+    name,
+    settingsVersion: 1,
+  });
 }
 
 function slugify(name: string) {

@@ -51,21 +51,28 @@ describe("resolveWorkspace", () => {
     expect(readRegistry(userDataDir)).toEqual({
       active: "default",
       workspaces: [
-        { id: "default", lastOpenedAt: 1, path: defaultWorkspacePath(userDataDir) },
+        {
+          id: "default",
+          lastOpenedAt: 1,
+          path: defaultWorkspacePath(userDataDir),
+        },
       ],
     });
   });
 
   it("opens the default workspace when the registry is not JSON", () => {
     fs.writeFileSync(path.join(userDataDir, "workspaces.json"), "{not json");
-    expect(
-      resolveWorkspace({ pin: undefined, userDataDir }).workspace.id,
-    ).toBe("default");
+    expect(resolveWorkspace({ pin: undefined, userDataDir }).workspace.id).toBe(
+      "default",
+    );
   });
 
   it("opens the active workspace", () => {
     const dir = registerWorkspace("byok");
-    updateRegistry(userDataDir, (registry) => ({ ...registry, active: "byok" }));
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      active: "byok",
+    }));
     expect(resolveWorkspace({ pin: undefined, userDataDir }).workspace).toEqual(
       { id: "byok", isDefault: false, path: dir, pinned: false },
     );
@@ -73,7 +80,10 @@ describe("resolveWorkspace", () => {
 
   it("falls back to the default workspace when the active one's folder is gone", () => {
     const dir = registerWorkspace("byok");
-    updateRegistry(userDataDir, (registry) => ({ ...registry, active: "byok" }));
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      active: "byok",
+    }));
     fs.rmSync(dir, { recursive: true });
 
     const { problems, workspace } = resolveWorkspace({
@@ -88,7 +98,10 @@ describe("resolveWorkspace", () => {
   it("lets a pin by id win over active without moving active", () => {
     registerWorkspace("byok");
     registerWorkspace("chatgpt");
-    updateRegistry(userDataDir, (registry) => ({ ...registry, active: "byok" }));
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      active: "byok",
+    }));
 
     const { workspace } = resolveWorkspace({ pin: "chatgpt", userDataDir });
     expect(workspace).toMatchObject({ id: "chatgpt", pinned: true });
@@ -128,13 +141,70 @@ describe("resolveWorkspace", () => {
   it("keeps another writer's entry when it records its own", () => {
     registerWorkspace("byok");
     resolveWorkspace({ pin: undefined, userDataDir });
-    expect(readRegistry(userDataDir).workspaces.map((entry) => entry.id)).toEqual(
-      ["default", "byok"],
+    expect(
+      readRegistry(userDataDir).workspaces.map((entry) => entry.id),
+    ).toEqual(["default", "byok"]);
+  });
+});
+
+describe("the registry on disk", () => {
+  it("stores paths inside userData relative to it, so a copy opens its own", () => {
+    registerWorkspace("byok");
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      active: "byok",
+    }));
+    const stored: unknown = JSON.parse(
+      fs.readFileSync(path.join(userDataDir, "workspaces.json"), "utf8"),
     );
+    expect(stored).toHaveProperty("workspaces", [
+      { id: "default", path: "workspace" },
+      { id: "byok", path: path.join("workspaces", "byok") },
+    ]);
+
+    const copy = fs.mkdtempSync(path.join(os.tmpdir(), "workspaces-copy-"));
+    fs.cpSync(userDataDir, copy, { recursive: true });
+    try {
+      expect(
+        resolveWorkspace({ pin: undefined, userDataDir: copy }).workspace.path,
+      ).toBe(path.join(copy, "workspaces", "byok"));
+    } finally {
+      fs.rmSync(copy, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps an unreadable registry beside the one it writes", () => {
+    fs.writeFileSync(path.join(userDataDir, "workspaces.json"), "{not json");
+    resolveWorkspace({ pin: undefined, userDataDir });
+    expect(
+      fs
+        .readdirSync(userDataDir)
+        .some((name) => name.startsWith("workspaces.json.unreadable-")),
+    ).toBe(true);
+  });
+
+  it("opens the default workspace when the registry cannot be written", () => {
+    const blocked = path.join(userDataDir, "blocked");
+    fs.writeFileSync(blocked, "a file where the userData folder would be");
+    const { problems, workspace } = resolveWorkspace({
+      pin: undefined,
+      userDataDir: blocked,
+    });
+    expect(workspace.id).toBe("default");
+    expect(problems).toHaveLength(1);
   });
 });
 
 describe("open marks", () => {
+  it("leaves a live process's mark alone", () => {
+    const dir = defaultWorkspacePath(userDataDir);
+    fs.mkdirSync(workspacePrivateDir(dir), { recursive: true });
+    const mark = path.join(workspacePrivateDir(dir), "open.pid");
+    fs.writeFileSync(mark, process.ppid.toString());
+    markWorkspaceOpen(dir);
+    expect(fs.readFileSync(mark, "utf8")).toBe(process.ppid.toString());
+  });
+
   it("reports no other process for this one's own mark, or after release", () => {
     const dir = defaultWorkspacePath(userDataDir);
     markWorkspaceOpen(dir);

@@ -141,6 +141,13 @@ export function isDebInstall({
 // than exact text so a reworded upstream message still lands.
 const SQUIRREL_HANDOFF_LOG = /nativeUpdater|proxy server/i;
 
+export function installedFromDeb() {
+  return isDebInstall({
+    packageType: readPackageType(),
+    platform: os.platform(),
+  });
+}
+
 // electron-updater logs the handoff above at debug level, which the production
 // file transport drops, and those are the only lines separating an install that
 // could not take from one that never ran. Route them to info and keep a failed
@@ -201,13 +208,6 @@ function getInstallNotice() {
     return;
   }
   return `${APP_NAME} will close and ask you to authenticate, then reopen once the update is installed.`;
-}
-
-function installedFromDeb() {
-  return isDebInstall({
-    packageType: readPackageType(),
-    platform: os.platform(),
-  });
 }
 
 function installStagedUpdate() {

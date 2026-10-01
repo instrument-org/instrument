@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { app } from "electron";
 import Store from "electron-store";
 import semver from "semver";
@@ -51,6 +52,12 @@ export const getMachineState = (): Store<MachineState> => {
     if (STORE.get("telemetryId") === DEFAULT_TELEMETRY_ID) {
       STORE.set("telemetryId", generateTelemetryId());
     }
+
+    // Settings shows when updates were last checked, read through
+    // `preferences.get`.
+    STORE.onDidChange("lastUpdateCheck", () => {
+      publisher.publish("preferences.updated", null);
+    });
   }
 
   return STORE;

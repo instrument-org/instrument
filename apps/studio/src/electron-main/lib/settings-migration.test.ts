@@ -92,7 +92,9 @@ describe("settings migration", () => {
       seedLegacy(flavor);
       migrateBoth();
 
-      const settings = workspaceSettingsDirOf(defaultWorkspacePath(userDataDir));
+      const settings = workspaceSettingsDirOf(
+        defaultWorkspacePath(userDataDir),
+      );
       expect(read(path.join(userDataDir, "machine-preferences.json"))).toEqual({
         enableUsageMetrics: false,
         releaseChannel: "beta",
@@ -142,13 +144,23 @@ describe("settings migration", () => {
         ),
       ).toBe(true);
 
+      // Kept for an older build sharing this userData, except page
+      // thumbnails (a cache) and the ChatGPT plan (a rotating token).
       const root = fs.readdirSync(userDataDir).toSorted();
       expect(root).toEqual(
         [
           "Local Storage",
+          "app-connections.json",
+          "app-state.json",
+          "features.json",
           "machine-preferences.json",
           "machine-state.json",
+          "preferences.json",
+          "window-state.json",
           "workspace",
+          ...(flavor === "dev"
+            ? ["providers.json", "session-dev.json"]
+            : ["providers.json.enc", "session.json.enc"]),
         ].toSorted(),
       );
       expect(readWorkspaceIdentity(defaultWorkspacePath(userDataDir))).toEqual({
@@ -172,9 +184,9 @@ describe("settings migration", () => {
     fs.mkdirSync(settings, { recursive: true });
     fs.writeFileSync(path.join(settings, "session-dev.json"), "newer");
     migrateBoth();
-    expect(fs.readFileSync(path.join(settings, "session-dev.json"), "utf8")).toBe(
-      "newer",
-    );
+    expect(
+      fs.readFileSync(path.join(settings, "session-dev.json"), "utf8"),
+    ).toBe("newer");
   });
 
   it("leaves the legacy files for the default workspace when another opens first", () => {
@@ -182,13 +194,59 @@ describe("settings migration", () => {
     const other = path.join(userDataDir, "workspaces", "byok");
     migrateBoth({ id: "byok", isDefault: false, path: other, pinned: false });
 
-    expect(fs.existsSync(path.join(userDataDir, "preferences.json"))).toBe(true);
-    expect(fs.existsSync(path.join(userDataDir, "session-dev.json"))).toBe(true);
+    expect(fs.existsSync(path.join(userDataDir, "preferences.json"))).toBe(
+      true,
+    );
+    expect(fs.existsSync(path.join(userDataDir, "session-dev.json"))).toBe(
+      true,
+    );
     expect(fs.existsSync(workspaceSettingsDirOf(other))).toBe(false);
     expect(readWorkspaceIdentity(other).settingsVersion).toBe(1);
 
     migrateBoth();
-    expect(fs.existsSync(path.join(userDataDir, "preferences.json"))).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(
+          workspaceSettingsDirOf(defaultWorkspacePath(userDataDir)),
+          "session-dev.json",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("moves the ChatGPT plan rather than copying it", () => {
+    seedLegacy("dev");
+    write("chatgpt-plan.json", { accounts: [] });
+    migrateBoth();
+    expect(fs.existsSync(path.join(userDataDir, "chatgpt-plan.json"))).toBe(
+      false,
+    );
+    expect(
+      fs.existsSync(
+        path.join(
+          workspaceSettingsDirOf(defaultWorkspacePath(userDataDir)),
+          "chatgpt-plan.json",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("copies Local Storage even past a partial copy a crash left behind", () => {
+    seedLegacy("dev");
+    const partial = path.join(
+      defaultWorkspacePath(userDataDir),
+      ".instrument/app-session/Local Storage.partial-1",
+    );
+    fs.mkdirSync(partial, { recursive: true });
+    migrateBoth();
+    expect(
+      fs.existsSync(
+        path.join(
+          defaultWorkspacePath(userDataDir),
+          ".instrument/app-session/Local Storage/leveldb/000003.log",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("starts a fresh install with nothing to move", () => {

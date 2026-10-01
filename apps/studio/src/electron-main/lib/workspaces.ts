@@ -101,19 +101,16 @@ export function hasWorkspaceIdentity(workspacePath: string): boolean {
 }
 
 export function readRegistry(userDataDir: string): WorkspaceRegistry {
-  const parsed = RegistrySchema.safeParse(
-    readJson(registryPath(userDataDir)) ?? {},
-  );
-  return withDefault(
-    parsed.success ? parsed.data : { workspaces: [] },
-    userDataDir,
-  );
+  return readRegistryFile(userDataDir).registry;
 }
 
-export function readWorkspaceIdentity(workspacePath: string): WorkspaceIdentity {
+export function readWorkspaceIdentity(
+  workspacePath: string,
+): WorkspaceIdentity {
   const parsed = WorkspaceIdentitySchema.safeParse(
-    readJson(path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME)) ??
-      {},
+    readJson(
+      path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+    ) ?? {},
   );
   return parsed.success ? parsed.data : WorkspaceIdentitySchema.parse({});
 }
@@ -137,67 +134,42 @@ export function resolveWorkspace({
   userDataDir: string;
 }): { problems: string[]; workspace: ResolvedWorkspace } {
   const problems: string[] = [];
-  const registry = readRegistry(userDataDir);
   const fallback = toResolved(
-    {
-      id: DEFAULT_WORKSPACE_ID,
-      path: defaultWorkspacePath(userDataDir),
-    },
+    { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) },
     false,
   );
 
-  let chosen: ResolvedWorkspace = fallback;
-  if (pin) {
-    if (path.isAbsolute(pin)) {
-      const known = registry.workspaces.find(
-        (entry) => path.resolve(entry.path) === path.resolve(pin),
-      );
-      chosen = toResolved(
-        known ?? { id: idForPath(registry, pin), path: path.resolve(pin) },
-        true,
-      );
-      fs.mkdirSync(pin, { recursive: true });
-    } else {
-      const known = registry.workspaces.find((entry) => entry.id === pin);
-      if (known && isDirectory(known.path)) {
-        chosen = toResolved(known, true);
-      } else {
-        problems.push(
-          `INSTRUMENT_WORKSPACE names "${pin}", which is not a registered workspace with a folder; opening the default workspace`,
-        );
+  try {
+    let chosen = fallback;
+    // Decided inside the locked update, so an id picked for a new pin cannot
+    // collide with one another process registers at the same moment.
+    updateRegistry(userDataDir, (current) => {
+      chosen = chooseWorkspace({ current, fallback, pin, problems });
+      if (chosen.pinned) {
+        fs.mkdirSync(chosen.path, { recursive: true });
       }
-    }
-  } else if (registry.active && registry.active !== DEFAULT_WORKSPACE_ID) {
-    const known = registry.workspaces.find(
-      (entry) => entry.id === registry.active,
+      const entry: RegistryEntry = {
+        id: chosen.id,
+        lastOpenedAt: now,
+        path: chosen.path,
+      };
+      const known = current.workspaces.some((other) => other.id === chosen.id);
+      return {
+        active: chosen.pinned ? current.active : chosen.id,
+        workspaces: known
+          ? current.workspaces.map((other) =>
+              other.id === chosen.id ? entry : other,
+            )
+          : [...current.workspaces, entry],
+      };
+    });
+    return { problems, workspace: chosen };
+  } catch (error) {
+    problems.push(
+      `Could not settle the workspace (${String(error)}); opening the default workspace`,
     );
-    if (known && isDirectory(known.path)) {
-      chosen = toResolved(known, false);
-    } else {
-      problems.push(
-        `The active workspace "${registry.active}" has no folder any more; opening the default workspace`,
-      );
-    }
+    return { problems, workspace: fallback };
   }
-
-  updateRegistry(userDataDir, (current) => {
-    const entry: RegistryEntry = {
-      id: chosen.id,
-      lastOpenedAt: now,
-      path: chosen.path,
-    };
-    const known = current.workspaces.some((other) => other.id === chosen.id);
-    return {
-      active: chosen.pinned ? current.active : chosen.id,
-      workspaces: known
-        ? current.workspaces.map((other) =>
-            other.id === chosen.id ? entry : other,
-          )
-        : [...current.workspaces, entry],
-    };
-  });
-
-  return { problems, workspace: chosen };
 }
 
 /**
@@ -209,9 +181,26 @@ export function updateRegistry(
   userDataDir: string,
   change: (registry: WorkspaceRegistry) => WorkspaceRegistry,
 ): WorkspaceRegistry {
-  const next = withDefault(change(readRegistry(userDataDir)), userDataDir);
-  writeJsonAtomic(registryPath(userDataDir), next);
-  return next;
+  return withRegistryLock(userDataDir, () => {
+    const { registry, unreadable } = readRegistryFile(userDataDir);
+    if (unreadable) {
+      // Kept rather than overwritten: it may list workspaces outside
+      // `workspaces/`, which nothing else would find again.
+      fs.copyFileSync(
+        registryPath(userDataDir),
+        `${registryPath(userDataDir)}.unreadable-${Date.now().toString()}`,
+      );
+    }
+    const next = normalize(change(registry), userDataDir);
+    writeJsonAtomic(registryPath(userDataDir), {
+      ...next,
+      workspaces: next.workspaces.map((entry) => ({
+        ...entry,
+        path: storedPath(entry.path, userDataDir),
+      })),
+    });
+    return next;
+  });
 }
 
 export function workspacePrivateDir(workspacePath: string): string {
@@ -234,6 +223,50 @@ export function writeWorkspaceIdentity(
     path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
     identity,
   );
+}
+
+function chooseWorkspace({
+  current,
+  fallback,
+  pin,
+  problems,
+}: {
+  current: WorkspaceRegistry;
+  fallback: ResolvedWorkspace;
+  pin: string | undefined;
+  problems: string[];
+}): ResolvedWorkspace {
+  if (pin) {
+    if (path.isAbsolute(pin)) {
+      const known = current.workspaces.find(
+        (entry) => path.resolve(entry.path) === path.resolve(pin),
+      );
+      return toResolved(
+        known ?? { id: idForPath(current, pin), path: path.resolve(pin) },
+        true,
+      );
+    }
+    const known = current.workspaces.find((entry) => entry.id === pin);
+    if (known && isDirectory(known.path)) {
+      return toResolved(known, true);
+    }
+    problems.push(
+      `INSTRUMENT_WORKSPACE names "${pin}", which is not a registered workspace with a folder; opening the default workspace`,
+    );
+    return fallback;
+  }
+  if (current.active && current.active !== DEFAULT_WORKSPACE_ID) {
+    const known = current.workspaces.find(
+      (entry) => entry.id === current.active,
+    );
+    if (known && isDirectory(known.path)) {
+      return toResolved(known, false);
+    }
+    problems.push(
+      `The active workspace "${current.active}" has no folder any more; opening the default workspace`,
+    );
+  }
+  return fallback;
 }
 
 /** A registry id for a folder named from outside: its name, made unique. */
@@ -259,6 +292,37 @@ function isDirectory(dir: string) {
   }
 }
 
+/**
+ * The default workspace first, always at this userData's own folder whatever
+ * the file says, and each folder listed once: a second entry for a folder
+ * already listed (the default one under another id, say) would let it be
+ * mistaken for a different workspace.
+ */
+function normalize(
+  registry: WorkspaceRegistry,
+  userDataDir: string,
+): WorkspaceRegistry {
+  const defaultEntry =
+    registry.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ??
+    ({ id: DEFAULT_WORKSPACE_ID } satisfies Partial<RegistryEntry>);
+  const seen = new Set<string>();
+  const workspaces: RegistryEntry[] = [];
+  const others = registry.workspaces.filter(
+    (other) => other.id !== DEFAULT_WORKSPACE_ID,
+  );
+  for (const entry of [
+    { ...defaultEntry, path: defaultWorkspacePath(userDataDir) },
+    ...others,
+  ]) {
+    const key = path.resolve(entry.path);
+    if (!seen.has(key)) {
+      seen.add(key);
+      workspaces.push(entry);
+    }
+  }
+  return { ...registry, workspaces };
+}
+
 function readJson(filePath: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -267,14 +331,49 @@ function readJson(filePath: string): unknown {
   }
 }
 
+/**
+ * Read the registry, with paths inside this userData made absolute again. They
+ * are stored relative to it, so a copied application-data directory (an APFS
+ * clone under ELECTRON_USER_DATA_DIR) opens its own workspaces rather than the
+ * original's.
+ */
+function readRegistryFile(userDataDir: string): {
+  registry: WorkspaceRegistry;
+  unreadable: boolean;
+} {
+  const file = registryPath(userDataDir);
+  const raw = readJson(file);
+  const parsed = RegistrySchema.safeParse(raw ?? {});
+  const unreadable =
+    fs.existsSync(file) && (raw === undefined || !parsed.success);
+  const registry = parsed.success ? parsed.data : { workspaces: [] };
+  return {
+    registry: normalize(
+      {
+        ...registry,
+        workspaces: registry.workspaces.map((entry) => ({
+          ...entry,
+          path: path.resolve(userDataDir, entry.path),
+        })),
+      },
+      userDataDir,
+    ),
+    unreadable,
+  };
+}
+
 function registryPath(userDataDir: string) {
   return path.join(userDataDir, REGISTRY_FILENAME);
 }
 
-function toResolved(
-  entry: RegistryEntry,
-  pinned: boolean,
-): ResolvedWorkspace {
+function storedPath(workspacePath: string, userDataDir: string) {
+  const relative = path.relative(userDataDir, workspacePath);
+  return relative.startsWith("..") || path.isAbsolute(relative)
+    ? workspacePath
+    : relative;
+}
+
+function toResolved(entry: RegistryEntry, pinned: boolean): ResolvedWorkspace {
   return {
     id: entry.id,
     isDefault: entry.id === DEFAULT_WORKSPACE_ID,
@@ -283,21 +382,45 @@ function toResolved(
   };
 }
 
-/** The default workspace is always listed, whatever the file says. */
-function withDefault(
-  registry: WorkspaceRegistry,
-  userDataDir: string,
-): WorkspaceRegistry {
-  if (registry.workspaces.some((entry) => entry.id === DEFAULT_WORKSPACE_ID)) {
-    return registry;
+const LOCK_STALE_MS = 10_000;
+const LOCK_WAIT_MS = 2000;
+
+/**
+ * Serialize registry writes across processes with a lock file. A boot is
+ * never held hostage to it: past the wait, or on a lock older than any write
+ * takes, the update goes ahead.
+ */
+function withRegistryLock<T>(userDataDir: string, run: () => T): T {
+  const lock = `${registryPath(userDataDir)}.lock`;
+  fs.mkdirSync(userDataDir, { recursive: true });
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  let held = false;
+  while (!held) {
+    try {
+      fs.writeFileSync(lock, process.pid.toString(), { flag: "wx" });
+      held = true;
+    } catch {
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) {
+          fs.rmSync(lock, { force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (Date.now() > deadline) {
+        break;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
   }
-  return {
-    ...registry,
-    workspaces: [
-      { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) },
-      ...registry.workspaces,
-    ],
-  };
+  try {
+    return run();
+  } finally {
+    if (held) {
+      fs.rmSync(lock, { force: true });
+    }
+  }
 }
 
 let resolvedWorkspace: ResolvedWorkspace | undefined;
@@ -321,6 +444,12 @@ export function getResolvedWorkspace(): ResolvedWorkspace {
  * share the default one), only a delete from under a running one.
  */
 export function markWorkspaceOpen(workspacePath: string): void {
+  // A live process already holding it keeps its mark: a second process (a
+  // single-instance lock loser on its way out, a second worktree) would
+  // otherwise take the mark and then remove it on exit.
+  if (openElsewhereBy(workspacePath) !== null) {
+    return;
+  }
   try {
     fs.mkdirSync(workspacePrivateDir(workspacePath), { recursive: true });
     fs.writeFileSync(openPidPath(workspacePath), process.pid.toString());

@@ -1,4 +1,4 @@
-import { relaunchApp } from "@/electron-main/lib/relaunch";
+import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
 import {
   createWorkspace,
   listWorkspaces,
@@ -18,6 +18,7 @@ import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { app, shell } from "electron";
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
@@ -143,16 +144,24 @@ const switchTo = devOnly
           "This instance is pinned to its workspace by INSTRUMENT_WORKSPACE",
       });
     }
-    if (!readRegistry(userDataDir()).workspaces.some((w) => w.id === input.id)) {
+    if (
+      !readRegistry(userDataDir()).workspaces.some((w) => w.id === input.id)
+    ) {
       throw errors.NOT_FOUND({ message: `No workspace "${input.id}"` });
     }
-    updateRegistry(userDataDir(), (registry) => ({
-      ...registry,
-      active: input.id,
-    }));
-    // Written first either way: a build that cannot restart itself opens the
-    // chosen workspace the next time it is started by hand.
-    return { outcome: await relaunchApp() };
+    const choose = () => {
+      updateRegistry(userDataDir(), (registry) => ({
+        ...registry,
+        active: input.id,
+      }));
+    };
+    // A build that cannot restart itself opens the chosen workspace the next
+    // time it is started by hand.
+    if (!canRelaunch()) {
+      choose();
+      return { outcome: "unsupported" as const };
+    }
+    return { outcome: await relaunchApp({ beforeRestart: choose }) };
   });
 
 const remove = devOnly
@@ -161,7 +170,9 @@ const remove = devOnly
     const listing = listWorkspaces({
       resolved: getResolvedWorkspace(),
       userDataDir: userDataDir(),
-    }).find((candidate) => candidate.path === input.path);
+    }).find(
+      (candidate) => path.resolve(candidate.path) === path.resolve(input.path),
+    );
     if (!listing) {
       throw errors.NOT_FOUND({ message: "No such workspace" });
     }
@@ -175,8 +186,15 @@ const remove = devOnly
 
 const register = devOnly
   .input(z.object({ path: z.string() }))
-  .handler(({ input }) => {
-    registerStray({ dir: input.path, userDataDir: userDataDir() });
+  .handler(({ errors, input }) => {
+    const registered = registerStray({
+      dir: input.path,
+      resolved: getResolvedWorkspace(),
+      userDataDir: userDataDir(),
+    });
+    if (!registered) {
+      throw errors.NOT_FOUND({ message: "Not an unlisted workspace" });
+    }
   });
 
 export const workspaces = {

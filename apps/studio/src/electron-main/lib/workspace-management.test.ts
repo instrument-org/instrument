@@ -86,8 +86,9 @@ describe("createWorkspace", () => {
       name: "Second account",
       userDataDir,
     });
+    // Not the ChatGPT plan: two holders of its rotating refresh token sign
+    // each other out.
     expect(settingsOf(dir)).toEqual([
-      "chatgpt-plan.json",
       "preferences.json",
       "providers.json",
       "session-dev.json",
@@ -158,7 +159,7 @@ describe("listWorkspaces", () => {
       "kept",
     ]);
 
-    registerStray({ dir: stray, userDataDir });
+    expect(registerStray({ dir: stray, resolved, userDataDir })).toBe(true);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "kept",
@@ -167,7 +168,37 @@ describe("listWorkspaces", () => {
   });
 });
 
+describe("registerStray", () => {
+  it.each([
+    [
+      "the default workspace's folder, spelled differently",
+      () => `${resolved.path}/`,
+    ],
+    ["a folder that is no workspace", () => os.homedir()],
+    ["a relative path", () => "workspaces/nothing"],
+  ])("refuses %s", (_, dir) => {
+    expect(registerStray({ dir: dir(), resolved, userDataDir })).toBe(false);
+    expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
+      "default",
+    ]);
+  });
+});
+
 describe("deleting", () => {
+  it("never offers the default workspace's folder under another id", () => {
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "workspace", path: `${resolved.path}/` },
+      ],
+    }));
+    const listed = listWorkspaces({ resolved, userDataDir });
+    expect(listed.map((row) => [row.id, row.isDefault])).toEqual([
+      ["default", true],
+    ]);
+  });
+
   it.each([
     [{ isDefault: true, isResolved: false, openElsewhereBy: null }, true],
     [{ isDefault: false, isResolved: true, openElsewhereBy: null }, true],

@@ -78,8 +78,8 @@
 // `--clean-room <name>` boots a blank workspace instead, as a second process on
 // the developer's own application data pinned with INSTRUMENT_WORKSPACE: the
 // toolchain and caches are already set up, so it starts as fast as the
-// developer's instance, and `--with-sign-ins` copies the developer's sign-ins
-// into it so it can run a real agent turn. The developer's own instance keeps
+// developer's instance, and `--with-sign-ins` copies the developer's account and
+// keys into it so it can run a real agent turn. The developer's own instance keeps
 // its workspace. Clean rooms not booted for 14 days are reaped like fixtures;
 // `--fresh` empties one first.
 //
@@ -245,12 +245,11 @@ function prepareWorkspace(name, { fresh }) {
 const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
 
 // The sign-in stores a clean room can start from, as the app names them in a
-// workspace's settings folder (workspace-management.ts in Studio).
-const SIGN_IN_FILES = [
-  "session-dev.json",
-  "providers.json",
-  "chatgpt-plan.json",
-];
+// workspace's settings folder (workspace-management.ts in Studio). Not the
+// ChatGPT plan: its refresh token rotates on every use, so a clean room holding
+// a copy would sign the developer's own instance out the first time either
+// refreshed.
+const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
 
 /**
  * The shared dev application-data directory, where the app keeps the

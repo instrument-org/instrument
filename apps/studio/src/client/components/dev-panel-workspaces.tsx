@@ -237,7 +237,8 @@ export function NewWorkspaceDialog({
                 setCopySignIns(checked === true);
               }}
             />
-            Copy sign-ins from this workspace
+            Copy the account and API keys from this workspace (sign in to a
+            ChatGPT plan again)
           </Label>
         </div>
         <DialogFooter>
@@ -349,8 +350,11 @@ function useSwitchWorkspace() {
       onSuccess: ({ outcome }) => {
         if (outcome === "unsupported") {
           toast(
-            "Quit and start the app again to open it: this run was not started through the dev supervisor",
+            "Quit and start the app again to open it: this run cannot restart itself",
           );
+        }
+        if (outcome === "canceled") {
+          toast("Switch canceled; the workspace stays as it was");
         }
       },
     }),

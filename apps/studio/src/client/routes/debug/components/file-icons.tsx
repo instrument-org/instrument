@@ -3,6 +3,7 @@ import {
   resolveFileTypeIcon,
 } from "@/client/components/extend/file-system";
 import {
+  FILE_NAME_ALIASES,
   FILE_TYPE_ALIASES,
   FILE_TYPE_GLYPHS,
 } from "@/client/components/extend/file-type-glyphs";
@@ -115,12 +116,8 @@ const SAMPLE_FILE_NAMES = [
   ".env",
   ".gitignore",
   ".prettierrc",
-  "CHANGELOG",
   "CLAUDE.md",
   "Dockerfile",
-  "LICENSE",
-  "Makefile",
-  "README",
   "biome.json",
   "bun.lockb",
   "eslint.config.js",
@@ -139,7 +136,12 @@ const SAMPLES = [
       ...Object.values(FILE_TYPE_GLYPHS).flatMap((glyph) => glyph.extensions),
     ]),
   ].map((extension) => ({ fileName: `file.${extension}`, label: extension })),
-  ...SAMPLE_FILE_NAMES.map((fileName) => ({ fileName, label: fileName })),
+  ...[
+    ...new Set([
+      ...SAMPLE_FILE_NAMES,
+      ...Object.values(FILE_NAME_ALIASES).flat(),
+    ]),
+  ].map((fileName) => ({ fileName, label: fileName })),
 ];
 
 // Every glyph the sprite carries, reached by a sample or not, so a glyph no

@@ -3,6 +3,7 @@ import {
   useNaturalAspectRatio,
 } from "@/client/components/extend/file-thumbnail";
 import {
+  FILE_NAME_ALIASES,
   FILE_TYPE_ALIASES,
   FILE_TYPE_GLYPHS,
 } from "@/client/components/extend/file-type-glyphs";
@@ -1051,6 +1052,14 @@ const FILE_TYPE_ICONS_BY_EXTENSION = Object.fromEntries(
     ]),
   ),
 );
+const FILE_TYPE_ICONS_BY_FILE_NAME = Object.fromEntries(
+  Object.entries(FILE_NAME_ALIASES).flatMap(([token, fileNames]) =>
+    fileNames.map((fileName) => [
+      fileName,
+      { name: `file-system-icon-${token}`, viewBox: "0 0 16 16" },
+    ]),
+  ),
+);
 // The @pierre/trees "complete" set — the full, colored suite with brand and
 // framework glyphs — ships as an SVG sprite, rendered once per browser so
 // every view falls back to the same file-type icon when a file has no
@@ -1058,6 +1067,7 @@ const FILE_TYPE_ICONS_BY_EXTENSION = Object.fromEntries(
 const FILE_ICON_SPRITE_SHEET = `${getBuiltInSpriteSheet("complete")}<svg data-icon-sprite aria-hidden="true" width="0" height="0">${FILE_TYPE_ICON_SYMBOLS}</svg>`;
 const { resolveIcon: resolveFileIcon } = createFileTreeIconResolver({
   byFileExtension: FILE_TYPE_ICONS_BY_EXTENSION,
+  byFileName: FILE_TYPE_ICONS_BY_FILE_NAME,
   colored: true,
   set: "complete",
 });

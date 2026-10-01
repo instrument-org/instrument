@@ -22,12 +22,15 @@ import { router } from "./routes";
 EventEmitter.defaultMaxListeners = 100;
 
 // A folder listing the system refused, or asked for at a path that names a
-// file, is an answer the folder view shows (or the typed-path field opens the
-// file for), not a bug. Rethrow for the client, skip the capture.
+// file or nothing at all, is an answer the folder view shows (or the
+// typed-path field opens the file for, or offers nothing for), not a bug.
+// Rethrow for the client, skip the capture.
 function isHandledFolderAnswer(error: unknown): boolean {
   return (
     error instanceof ORPCError &&
-    (error.code === "NOT_A_FOLDER" || error.code === "NOT_PERMITTED")
+    (error.code === "NOT_A_FOLDER" ||
+      error.code === "NOT_FOUND" ||
+      error.code === "NOT_PERMITTED")
   );
 }
 

@@ -20,13 +20,18 @@ import { base } from "../base";
  * is the moment the system asks, and a refusal there is silent from then on,
  * so the screen has to say what happened and where it is undone. A path that
  * names a file is its own answer too: a typed path is asked for as a folder to
- * learn whether it is one, and the caller opens a file for that answer.
+ * learn whether it is one, and the caller opens a file for that answer. So is
+ * a path with nothing at it, which is what a path still being typed often is.
  */
 const list = base
   .errors({
     NOT_A_FOLDER: {
       data: z.object({ path: z.string() }),
       message: "The path names a file, not a folder",
+    },
+    NOT_FOUND: {
+      data: z.object({ path: z.string() }),
+      message: "Nothing is at the path",
     },
     NOT_PERMITTED: {
       data: z.object({ path: z.string() }),
@@ -44,6 +49,9 @@ const list = base
       }
       if (errorCode(error) === "ENOTDIR") {
         throw errors.NOT_A_FOLDER({ data: { path: input.path } });
+      }
+      if (errorCode(error) === "ENOENT") {
+        throw errors.NOT_FOUND({ data: { path: input.path } });
       }
       throw error;
     }

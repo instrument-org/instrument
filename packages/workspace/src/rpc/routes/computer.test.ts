@@ -52,6 +52,21 @@ describe("workspace.computer.list", () => {
     });
   });
 
+  it("answers NOT_FOUND for a path with nothing at it", async () => {
+    const target = path.join(tmpDir, "missing");
+    await expect(
+      call(
+        computer.list,
+        { id: taskId, path: target },
+        { context: createContext() },
+      ),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      data: { path: target },
+      defined: true,
+    });
+  });
+
   it("lists a folder", async () => {
     const listing = await call(
       computer.list,

@@ -1,5 +1,6 @@
 import {
   type CaptureExceptionFunction,
+  isExpectedNetworkError,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { Result } from "typescript-result";
@@ -92,7 +93,10 @@ export function fetchModelsForProvider(
       return models;
     })
     .onFailure((error) => {
-      captureOnce(config, error, captureException);
+      // An offline machine or a DNS miss is the user's network, not a bug.
+      if (!isExpectedNetworkError(error)) {
+        captureOnce(config, error, captureException);
+      }
     })
     .recover((error) => {
       const cached = modelCache.read(config.cacheIdentifier);

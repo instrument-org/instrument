@@ -656,6 +656,15 @@ export function PromptEditor({
         className="overflow-y-auto rounded-[20px] p-1 shadow-lg"
         maxHeight="18rem"
         onCloseAutoFocus={preventDefault}
+        // The popover's layer takes Escape on the document before the editor
+        // sees it, and marks it handled, so the menu is closed here. It goes
+        // no further: what holds the box (a grown draft window) takes an
+        // Escape from the editor as its own.
+        onEscapeKeyDown={(event) => {
+          event.stopPropagation();
+          menuRef.current = null;
+          setMenu(null);
+        }}
         onFocusOutside={preventDefault}
         onInteractOutside={preventDefault}
         onOpenAutoFocus={preventDefault}

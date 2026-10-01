@@ -507,8 +507,9 @@ body {
   /* Tailwind Typography gives an image 2em of air above and below, enough that
      it reads as a section of its own. An image here is nearly always the answer
      to the sentence that introduces it, so it sits on the same rhythm as a
-     paragraph instead. */
-  img {
+     paragraph instead. Like Typography's own rules it stops at `not-prose`,
+     where an image is a card's thumbnail sized by its frame. */
+  img:not(:where(.not-prose *)) {
     margin-top: 1.25em;
     margin-bottom: 1.25em;
   }

@@ -8,14 +8,13 @@ import { useOnScreen } from "@/client/components/window/on-screen";
 import { useScreenTab } from "@/client/components/window/screen-tab";
 import { taskHref } from "@/client/components/window/tab-location";
 import { TaskPage } from "@/client/components/window/task-page";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import ms from "ms";
+import { childTasksOptions } from "./child-tasks-query";
 
 /** How often the tasks are re-read for where they stand while one of these screens is up. */
-const REFRESH_MS = ms("2 seconds");
 
 type Child = RPCOutput["workspace"]["chats"]["tasks"][number];
 
@@ -88,10 +87,5 @@ function describe(child: Child) {
 /** The conversation's tasks, re-read while a tasks screen is up. */
 function useChildren() {
   const appWindow = useWindow();
-  return useQuery(
-    rpcClient.workspace.chats.tasks.queryOptions({
-      input: { id: appWindow.taskId },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
+  return useQuery(childTasksOptions(appWindow.taskId));
 }

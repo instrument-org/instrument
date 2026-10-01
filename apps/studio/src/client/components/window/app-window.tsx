@@ -64,7 +64,6 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import ms from "ms";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -113,13 +112,11 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
 import { chatOfHref, useWindowTabs } from "./window-tabs";
+import { childTasksOptions } from "./child-tasks-query";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
-
-/** How often the tasks' titles are re-read, for the tabs standing on one. */
-const REFRESH_MS = ms("2 seconds");
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -264,12 +261,7 @@ function WindowShell({
       input: ids ? { id: ids.taskId } : skipToken,
     }),
   );
-  const children = useQuery(
-    rpcClient.workspace.chats.tasks.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-      refetchInterval: REFRESH_MS,
-    }),
-  );
+  const children = useQuery(childTasksOptions(ids ? ids.taskId : skipToken));
   const childTitles = new Map<TaskId, string>(
     children.data?.map((child) => [child.id, child.title]) ?? [],
   );
@@ -514,10 +506,6 @@ function WindowShell({
     if (!ids) {
       return;
     }
-    const input = { id: ids.taskId };
-    void queryClient.prefetchQuery(
-      rpcClient.workspace.chats.tasks.queryOptions({ input }),
-    );
     void queryClient.prefetchQuery(
       rpcClient.workspace.computer.recents.queryOptions(),
     );

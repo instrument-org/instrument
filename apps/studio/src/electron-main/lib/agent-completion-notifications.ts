@@ -180,10 +180,7 @@ export function startAgentCompletionNotifications({
     sessionId: StoreId.Session;
   }): Promise<Chat | undefined> {
     try {
-      const chats = await call(workspaceRouter.chats.list, undefined, {
-        context,
-      });
-      return chats.find((chat) => chat.id === sessionId);
+      return await call(workspaceRouter.chats.byId, { sessionId }, { context });
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")

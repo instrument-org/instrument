@@ -8,6 +8,7 @@ import { isWorking, latestStep } from "../../lib/orchestrator/activity";
 import { ensureChat } from "../../lib/orchestrator/chat-records";
 import {
   archiveChat,
+  chatById,
   ChatSchema,
   listChats,
   markChatSeen,
@@ -68,51 +69,125 @@ const childStatus = base
     };
   });
 
+/** A task the window filed, as its tasks screen lists it. */
+const ChildTaskSchema = TaskSchema.extend({
+  // With each one's folder on disk: what a link into `/tasks/<id>` opens.
+  dir: z.string(),
+  /** Where it stands and the line the list says about it. */
+  standing: z.object({
+    kind: z.enum(["done", "failed", "running", "waiting"]),
+    line: z.string(),
+  }),
+  /** The chat it was filed from, absent for a task filed outside a turn. */
+  chatSessionId: StoreId.SessionSchema.optional(),
+  /** That chat's title, as the user knows it. */
+  chatTitle: z.string().optional(),
+  /** Whether a stop has something to end: an agent at work, or a hold on its start. */
+  stoppable: z.boolean(),
+});
+
 /** The tasks an orchestrator created, newest activity first. */
+async function childTasks(id: TaskId) {
+  const tasks = await listChildTasks(id);
+  return await Promise.all(
+    tasks.map(async (task) => {
+      const chatSessionId =
+        task.parentTaskId === undefined
+          ? undefined
+          : sessionOfChat(task.parentTaskId);
+      const chat =
+        chatSessionId && task.parentTaskId
+          ? await Store.getSession(chatSessionId, task.parentTaskId)
+          : undefined;
+      const chatTitle = chat?.isOk() ? chat.value.title : undefined;
+      const running = isWorking(task.id);
+      return {
+        ...task,
+        dir: taskDir(task.id),
+        standing: await taskStanding({ isRunning: running, taskId: task.id }),
+        stoppable: running || taskHold(task.id) !== undefined,
+        ...(chatSessionId ? { chatSessionId } : {}),
+        ...(chatTitle === undefined ? {} : { chatTitle }),
+      };
+    }),
+  );
+}
+
 const children = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(
-    TaskSchema.extend({
-      // With each one's folder on disk: what a link into `/tasks/<id>` opens.
-      dir: z.string(),
-      /** Where it stands and the line the list says about it. */
-      standing: z.object({
-        kind: z.enum(["done", "failed", "running", "waiting"]),
-        line: z.string(),
-      }),
-      /** The chat it was filed from, absent for a task filed outside a turn. */
-      chatSessionId: StoreId.SessionSchema.optional(),
-      /** That chat's title, as the user knows it. */
-      chatTitle: z.string().optional(),
-      /** Whether a stop has something to end: an agent at work, or a hold on its start. */
-      stoppable: z.boolean(),
-    }).array(),
-  )
-  .handler(async ({ input }) => {
-    const tasks = await listChildTasks(input.id);
-    return await Promise.all(
-      tasks.map(async (task) => {
-        const chatSessionId =
-          task.parentTaskId === undefined
-            ? undefined
-            : sessionOfChat(task.parentTaskId);
-        const chat =
-          chatSessionId && task.parentTaskId
-            ? await Store.getSession(chatSessionId, task.parentTaskId)
-            : undefined;
-        const chatTitle = chat?.isOk() ? chat.value.title : undefined;
-        const running = isWorking(task.id);
-        return {
-          ...task,
-          dir: taskDir(task.id),
-          standing: await taskStanding({ isRunning: running, taskId: task.id }),
-          stoppable: running || taskHold(task.id) !== undefined,
-          ...(chatSessionId ? { chatSessionId } : {}),
-          ...(chatTitle === undefined ? {} : { chatTitle }),
-        };
-      }),
-    );
+  .output(ChildTaskSchema.array())
+  .handler(({ input }) => childTasks(input.id));
+
+/**
+ * Fires whenever something a filed task's row shows may have moved: a task
+ * filed, retitled, held or let go (`task.updated`), a message landing in one,
+ * a turn starting a tool call (its step), a turn or session ending, a task
+ * or chat deleted, or a chat retitled. Tokens streaming do not fire it, since
+ * no row shows them.
+ */
+function childTaskChanges(signal: AbortSignal | undefined) {
+  const messages = changedMessageBatches({ id: () => true }, signal);
+  const subscriptions = [
+    publisher.subscribe("task.updated", { signal }),
+    publisher.subscribe("task.removed", { signal }),
+    publisher.subscribe("chat.removed", { signal }),
+    publisher.subscribe("session.added", { signal }),
+    publisher.subscribe("session.done", { signal }),
+    publisher.subscribe("session.removed", { signal }),
+    publisher.subscribe("session.updated", { signal }),
+  ];
+  const partUpdates = publisher.subscribe("part.updated", { signal });
+  async function* steps() {
+    for await (const { part } of partUpdates) {
+      if (
+        part.type.startsWith("tool-") &&
+        "state" in part &&
+        part.state === "input-available"
+      ) {
+        yield null;
+      }
+    }
+  }
+  async function* changed() {
+    for await (const _batch of messages) {
+      yield null;
+    }
+  }
+  async function* merged() {
+    try {
+      yield* mergeGenerators([
+        changed(),
+        steps(),
+        ...subscriptions.map((subscription) => everyOne(subscription)),
+      ]);
+    } finally {
+      await messages.return();
+    }
+  }
+  return collapsed(merged());
+}
+
+/** The same tasks, re-read whenever one of them may have changed. */
+const liveChildTasksRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(eventIterator(ChildTaskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    const changes = childTaskChanges(signal);
+    try {
+      yield await childTasks(input.id);
+      for await (const _change of changes) {
+        yield await childTasks(input.id);
+      }
+    } finally {
+      await changes.return();
+    }
   });
+
+/** One chat as the list shows it, or none for a session that is not a chat. */
+const chatByIdRoute = base
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .output(ChatSchema.optional())
+  .handler(({ input }) => chatById(input.sessionId));
 
 /** The conversation's chats, oldest first. */
 const listChatsRoute = base
@@ -206,7 +281,62 @@ export function chatChanges(signal: AbortSignal | undefined) {
       await batches.return();
     }
   }
-  return merged();
+  return collapsed(merged());
+}
+
+/**
+ * One firing for however many events landed since the consumer last came
+ * back: a reader that re-reads everything on each firing does it once per
+ * read, not once per event that arrived during the read.
+ */
+async function* collapsed(source: AsyncGenerator) {
+  const state: {
+    /** What ended the source, handed to the consumer as the source would have. */
+    failure?: { error: unknown };
+    finished: boolean;
+    pending: boolean;
+    wake?: () => void;
+  } = { finished: false, pending: false };
+  // Read through a call each time: the pump changes these between awaits.
+  const isPending = () => state.pending;
+  const isFinished = () => state.finished;
+  void (async () => {
+    try {
+      for await (const _event of source) {
+        state.pending = true;
+        state.wake?.();
+      }
+    } catch (error) {
+      state.failure = { error };
+    } finally {
+      state.finished = true;
+      state.wake?.();
+    }
+  })();
+  try {
+    while (true) {
+      if (!isPending() && !isFinished()) {
+        await new Promise((resolve) => {
+          state.wake = () => {
+            resolve(undefined);
+          };
+        });
+        state.wake = undefined;
+      }
+      if (!isPending()) {
+        if (state.failure) {
+          throw state.failure.error;
+        }
+        return;
+      }
+      state.pending = false;
+      yield null;
+    }
+  } finally {
+    // Not awaited: the source may be waiting on an event that ends only when
+    // the request's signal does.
+    void source.return(undefined);
+  }
 }
 
 /** One firing per event, whatever it carries. */
@@ -390,9 +520,10 @@ export function announceChatRemoved({
 
 export const chats = {
   archive: archiveChatRoute,
+  byId: chatByIdRoute,
   ensure: ensureChatRoute,
   list: listChatsRoute,
-  live: { list: liveListChatsRoute },
+  live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
   of: chatOfRoute,
   rename: renameChatRoute,
   retitle: retitleChatRoute,

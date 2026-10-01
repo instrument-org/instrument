@@ -18,7 +18,7 @@ vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     workspace: {
       chats: {
-        tasks: { queryOptions: childrenOptions },
+        live: { tasks: { experimental_liveOptions: childrenOptions } },
         taskStatus: { queryOptions: childStatusOptions },
       },
       session: {

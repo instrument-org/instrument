@@ -11,6 +11,7 @@ import { PlanningDotIcon } from "../icons/planning-dot";
 import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { StopProcessButton } from "../task/stop-process-button";
 import { useWindow } from "./context";
+import { childTasksOptions } from "./child-tasks-query";
 
 /** How often the row re-reads where the task stands while it works. */
 const REFRESH_MS = ms("2 seconds");
@@ -44,12 +45,10 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   // The line a finished task ends on: what it made, what it asks for, or how
   // it stopped. Read from the list of every task the conversation started, and
   // only once this one is done, which is the moment the line is settled.
-  const children = useQuery(
-    rpcClient.workspace.chats.tasks.queryOptions({
-      enabled: status.data?.isWorking === false && !status.data.held,
-      input: { id: appWindow.taskId },
-    }),
-  );
+  const children = useQuery({
+    ...childTasksOptions(appWindow.taskId),
+    enabled: status.data?.isWorking === false && !status.data.held,
+  });
   const standing = children.data?.find((child) => child.id === id)?.standing;
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
 

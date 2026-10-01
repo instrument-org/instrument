@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { useWindow } from "./context";
+import { childTasksOptions } from "./child-tasks-query";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
 const TASKS_NAMED = 5;
@@ -33,12 +34,7 @@ export function DeleteChatDialog({
   const { taskId } = useWindow();
   const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
-  const children = useQuery(
-    rpcClient.workspace.chats.tasks.queryOptions({
-      enabled: open,
-      input: { id: taskId },
-    }),
-  );
+  const children = useQuery({ ...childTasksOptions(taskId), enabled: open });
   const tasks = (children.data ?? []).filter(
     (task) => task.chatSessionId === chat.id,
   );

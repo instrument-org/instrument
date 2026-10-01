@@ -13,7 +13,11 @@ import { parse } from "yaml";
 import { trackFrameDocumentsIn } from "../browser-view/frame-documents";
 import { isAllowedLocalRequest } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
-import { extensionOf, renderedKindOf } from "./rendered-kinds";
+import {
+  extensionOf,
+  type RenderedKind,
+  renderedKindOf,
+} from "./rendered-kinds";
 import { getHighlighter } from "./shiki-highlighter";
 
 const log = createScopedLogger("RenderedPictures");
@@ -178,7 +182,7 @@ export async function renderPicture(
 /** The file set as a sheet of HTML that runs nothing and loads nothing. */
 async function documentOf(
   hostPath: string,
-  kind: "code" | "markdown",
+  kind: Exclude<RenderedKind, "page">,
   theme: "dark" | "light",
 ) {
   const text = await readHead(hostPath);
@@ -189,13 +193,15 @@ async function documentOf(
     const html = await marked.parse(body, { async: true, gfm: true });
     return sheet("markdown", frontMatterPanel(fm) + html, theme);
   }
+  if (kind === "text") {
+    const lines = text.split(/\r?\n/).slice(0, CODE_LINES).join("\n");
+    return sheet("text", escapeHtml(lines), theme);
+  }
   const extension = extensionOf(hostPath);
   const code = extension === "json" ? await prettyJson(hostPath, text) : text;
-  const lines = code
-    .split(/\r?\n/)
-    .slice(0, CODE_LINES)
-    .map((line) => (line.length > 240 ? line.slice(0, 240) : line))
-    .join("\n");
+  // Whole lines, wrapped as the viewer wraps them: a line cut short can leave
+  // a string open, and the grammar then reads the rest of the file as broken.
+  const lines = code.split(/\r?\n/).slice(0, CODE_LINES).join("\n");
   const language = languageOf(extension);
   if (!language) {
     return sheet("code", `<pre><code>${escapeHtml(lines)}</code></pre>`, theme);
@@ -312,6 +318,7 @@ body.markdown .front-matter { display: flex; align-items: center; gap: 8px; marg
 body.markdown .front-matter .caret { flex: none; width: 0; height: 0; border-block: 4px solid transparent; border-left: 6px solid var(--muted); margin: 0 3px; }
 body.markdown .front-matter .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 body.markdown .front-matter .count { flex: none; color: var(--muted); font-size: 0.85em; }
+body.text { padding: 56px 64px; font: 15px/1.625 -apple-system, "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: break-word; }
 body.code { padding: 36px 40px; }
 body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 `;
@@ -322,7 +329,7 @@ body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monos
  * and inline pictures load, since a Markdown file can carry any HTML at all.
  */
 function sheet(
-  kind: "code" | "markdown",
+  kind: Exclude<RenderedKind, "page">,
   body: string,
   theme: "dark" | "light",
 ) {

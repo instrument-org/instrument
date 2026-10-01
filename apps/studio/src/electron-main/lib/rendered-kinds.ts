@@ -4,11 +4,11 @@
  * nothing and loads none of the drawing's machinery.
  */
 
-export type RenderedKind = "code" | "markdown" | "page";
+export type RenderedKind = "code" | "markdown" | "page" | "text";
 
 const PAGE_EXTENSIONS = new Set(["htm", "html"]);
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
-/** Code and plain text, set as a sheet: highlighted where there is a grammar for it, plain where not. */
+/** Code, set as a sheet: highlighted where there is a grammar for it, plain where not. */
 const CODE_EXTENSIONS = new Set([
   "c",
   "cc",
@@ -25,7 +25,6 @@ const CODE_EXTENSIONS = new Set([
   "json",
   "jsx",
   "kt",
-  "log",
   "lua",
   "mjs",
   "php",
@@ -40,12 +39,14 @@ const CODE_EXTENSIONS = new Set([
   "ts",
   "tsv",
   "tsx",
-  "txt",
   "xml",
   "yaml",
   "yml",
   "zsh",
 ]);
+
+/** Plain text, set as the viewer reads it: in the reading typeface, never highlighted. */
+const TEXT_EXTENSIONS = new Set(["log", "txt"]);
 
 /** A file's extension, lowercased; empty for none. */
 export function extensionOf(hostPath: string) {
@@ -65,6 +66,9 @@ export function renderedKindOf(hostPath: string): RenderedKind | undefined {
   }
   if (CODE_EXTENSIONS.has(extension)) {
     return "code";
+  }
+  if (TEXT_EXTENSIONS.has(extension)) {
+    return "text";
   }
   return;
 }

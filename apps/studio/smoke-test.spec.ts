@@ -428,8 +428,14 @@ describe("Studio Smoke Test", () => {
 
     const requiredPaths = [
       path.join(tempUserDataDir, "bin"),
-      path.join(tempUserDataDir, "preferences.json"),
-      path.join(tempUserDataDir, "app-state.json"),
+      path.join(tempUserDataDir, "machine-state.json"),
+      path.join(
+        tempUserDataDir,
+        "workspace",
+        ".instrument",
+        "settings",
+        "preferences.json",
+      ),
     ];
 
     for (const filePath of requiredPaths) {
@@ -442,9 +448,9 @@ describe("Studio Smoke Test", () => {
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
 
-    // Validate app-state.json has lastMigratedVersion set (migration ran)
+    // Validate machine-state.json has lastMigratedVersion set (migration ran)
     const appStateContent = await fs.readFile(
-      path.join(tempUserDataDir, "app-state.json"),
+      path.join(tempUserDataDir, "machine-state.json"),
       "utf8",
     );
     const appState = JSON.parse(appStateContent) as {
@@ -452,15 +458,15 @@ describe("Studio Smoke Test", () => {
     };
     expect(
       appState.lastMigratedVersion,
-      "app-state.json: lastMigratedVersion is set (migrations ran on first launch)",
+      "machine-state.json: lastMigratedVersion is set (migrations ran on first launch)",
     ).toBeDefined();
     expect(
       typeof appState.lastMigratedVersion,
-      "app-state.json: lastMigratedVersion is a string",
+      "machine-state.json: lastMigratedVersion is a string",
     ).toBe("string");
     expect(
       appState.lastMigratedVersion?.length,
-      "app-state.json: lastMigratedVersion is non-empty",
+      "machine-state.json: lastMigratedVersion is non-empty",
     ).toBeGreaterThan(0);
   });
 });

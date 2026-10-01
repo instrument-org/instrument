@@ -17,6 +17,7 @@ import { ideaHref } from "@/client/components/window/ideas";
 import {
   addressCompletion,
   bareAddress,
+  isSearchWords,
   matchEntries,
   matchNames,
   matchPages,
@@ -426,7 +427,7 @@ export function Omnibar({
           switch (event.key) {
             case "ArrowDown": {
               event.preventDefault();
-              setHighlight(Math.min(rows.length - 1, current + 1));
+              setHighlight(Math.max(0, Math.min(rows.length - 1, current + 1)));
               break;
             }
             case "ArrowRight":
@@ -445,7 +446,17 @@ export function Omnibar({
             case "Enter": {
               event.preventDefault();
               if (typed.trim() !== "") {
-                run(rows[current]);
+                // A path with no row for it (a hidden name, a folder past the
+                // listing's cut or refused to it, a listing still on its way)
+                // is still opened as typed.
+                const typedPath = rows[current]
+                  ? undefined
+                  : pathFromWords(typed.trim());
+                if (typedPath) {
+                  void openPath(expandHomePath(typedPath, window.api.homeDir));
+                } else {
+                  run(rows[current]);
+                }
                 break;
               }
               // Nothing typed over the place, so no list is showing and no
@@ -600,12 +611,8 @@ function useRows({
     (page) => page.url,
   );
   // What the engine would finish the words as, asked once typing pauses
-  // rather than on every letter, and never for a path or a whole address.
-  const wantsSuggestions =
-    mode === "web" &&
-    words !== "" &&
-    pathFromWords(words) === undefined &&
-    !/^[a-z][a-z0-9+.-]*:\/\//i.test(words);
+  // rather than on every letter, and never for a path or an address.
+  const wantsSuggestions = mode === "web" && isSearchWords(words);
   const [asked, setAsked] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {

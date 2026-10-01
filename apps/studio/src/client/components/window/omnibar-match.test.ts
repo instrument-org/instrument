@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addressCompletion,
   bareAddress,
+  isSearchWords,
   hostPathOf,
   matchEntries,
   matchNames,
@@ -175,5 +176,25 @@ describe("matchEntries", () => {
       "my-docs.txt",
     ]);
     expect(names(".c")).toEqual([".config"]);
+  });
+});
+
+describe("isSearchWords", () => {
+  it.each([
+    ["weather tomorrow", true],
+    ["github", true],
+    ["what is 1/2 of 10", true],
+    ["", false],
+    ["localhost:3000/callback?code=SECRET", false],
+    ["jira.corp.example/browse/SEC-123", false],
+    ["example.com:8443", false],
+    ["user@host.example", false],
+    ["Documents/tax.pdf", false],
+    ["\\\\srv\\share", false],
+    ["https://example.com", false],
+    ["~/Documents", false],
+    ["x".repeat(201), false],
+  ])("%s → %s", (words, expected) => {
+    expect(isSearchWords(words)).toBe(expected);
   });
 });

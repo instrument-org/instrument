@@ -129,6 +129,26 @@ export function matchNames<T>(
 }
 
 /**
+ * Whether typed words may be sent to the search engine for suggestions:
+ * search words, never a path or an address. One word carrying a slash,
+ * backslash, port, query, fragment, or user is an address or a path (a pasted
+ * link without its scheme, a reset link, `Documents/tax.pdf`), and a long
+ * paste is more likely a secret than a search.
+ */
+export function isSearchWords(words: string): boolean {
+  if (words === "" || words.length > 200) {
+    return false;
+  }
+  if (
+    pathFromWords(words) !== undefined ||
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(words)
+  ) {
+    return false;
+  }
+  return /\s/.test(words) || !/[/\\?#@]|:\d/.test(words);
+}
+
+/**
  * Typed words that are a place on the computer: a path from the root, from
  * the home folder as `~`, or from a drive letter, the way the field shows one.
  * A trailing slash says nothing about a folder the field will open anyway.

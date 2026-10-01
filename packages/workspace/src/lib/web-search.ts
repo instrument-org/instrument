@@ -229,13 +229,17 @@ function searchSystemPrompt() {
     year: "numeric",
   });
 
+  // One search and a short reply are what keep this a lookup. Left to itself a
+  // search model searches two or three times and writes up to 650 words, which
+  // measured at two to three times the latency of this prompt on the ChatGPT
+  // plan and on OpenRouter with no loss of the facts, dates, or sources; the
+  // agent asking can search again or fetch a page when it needs more.
   return dedent`
-    You research a query using the search results you retrieve now. Today is ${today}. Never answer from memory.
+    You look up a query on the web now and report what you find. Today is ${today}. Never answer from memory.
 
-    - Keep the wording of each source rather than paraphrasing it, and give the date a page was published or last updated whenever it shows one.
-    - Every specific claim -- a name, version, price, tier, model, or date -- must come from a result you actually retrieved, attributed to the page it came from. Leave out anything you did not find.
-    - When results disagree, or the query turns on something you could not confirm, say so plainly instead of settling on the most plausible answer.
-    - A proper noun that matches nothing may be misspelled or misheard. Search the closest real name, and say which name you searched.
+    - Search once. Search again only when the first results miss the query entirely; a proper noun that matches nothing may be misspelled or misheard, so search the closest real name and say which name you searched.
+    - Reply in at most 150 words: the facts that answer the query, each attributed to the page it came from, with the date the page shows when it shows one. Keep the source's own wording for names, numbers, prices, versions, and dates.
+    - Leave out anything you did not find. When results disagree, or the query turns on something you could not confirm, say so plainly.
   `;
 }
 

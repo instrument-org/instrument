@@ -1,6 +1,6 @@
 # Plan: a workspace index the chat list reads from
 
-Status: proposed, not started. Stage A of the metadata index [conversation storage](conversation-storage.md) calls for, built as its option C: each chat and task keeps its own SQLite store as the source of truth, and one index per workspace is derived from them and kept in the app's data folder.
+Status: stage A implemented, not merged. Stage A of the metadata index [conversation storage](conversation-storage.md) calls for, built as its option C: each chat and task keeps its own SQLite store as the source of truth, and one index per workspace is derived from them and kept in the app's data folder (`indexes/`, named by a hash of the workspace root).
 
 ## Problem
 
@@ -22,38 +22,38 @@ Every chat-list build derives all 353 rows of a real workspace from their transc
 
 ## Shape
 
-Three tables and a version.
+One table per derived value, each row keyed by the chat's or task's id and carrying the value (superjson) and the stamp of the store it was derived from, plus a `meta` table holding the version:
 
-- **`chats`**: one row per chat. Columns for what is sorted, filtered or joined on (session id, chat task id, created and updated times, archived, starred, title, topics) and one JSON column for the rest of the row the list draws (latest line when settled, last ask, last reply time, reply count, newest settled message id, holds, the trimmed root message).
-- **`tasks`**: one row per filed task: its id, the chat it was filed from, its title, and its settled standing.
-- **`linked_files`**: the files each chat's replies put on screen, newest first, which the Files screen's recents reads instead of every chat's transcript.
-- **`meta`**: the row-shape version and when the index was last reconciled.
+- **`chat_digests`**: what a chat's row is made from that its own store holds: its session record and what its messages say, boiled down to what the row reads (`ChatDigest` in `lib/orchestrator/chats.ts`).
+- **`task_standings`**: a filed task's standing when no agent is at work on it.
+- **`task_apps`** and **`task_hosts`**: a filed task's apps (from its settings, so their stamp includes `settings.json`) and the hosts its browser visited, which a chat's holds gather.
+- **`linked_files`**: the files each chat's replies put on screen, which the Files screen's recents reads instead of every chat's transcript.
 
-Each `chats` and `tasks` row also carries the store stats it was derived from.
+Stage A reads rows by id and never queries across them, so no field is promoted to a column yet. Stage B promotes what its queries filter and sort on, which is a version bump and a rebuild rather than a migration.
 
-What only memory knows stays out of the index and is laid over the row when the list is read: whether the chat's agent or a filed task is at work, the running tasks and their steps, holds on a task's start, and pending wakes. Those come from the workspace actor, as they do today.
+What only memory knows stays out of the index and is laid over the row when the list is read: whether the chat's agent or a filed task is at work, the running tasks and their steps, holds on a task's start, pending wakes, what the user has seen, and whether a turn is starting by the clock. Those come from the workspace actor, as they do today.
 
-## Write path
+## Read through, not written ahead
 
-A row is recomputed from its store when that store has been written and has settled, never on every token. The seam already exists: every write to a task's store goes through the per-task storage handle in `session-store-storage.ts`, which counts writes per task. The index subscribes to the same events the live list does (`message.updated`, `part.updated` at tool-call starts, `session.*`, `task.updated`, `task.removed`, `chat.removed`), marks the affected rows dirty, and recomputes each dirty row once its task's write count has stopped moving. The mutations that change a session record (archive, star, rename, retitle, set topics, trash) update their row directly.
+A value is looked up when it is read (`indexedByStore` in `lib/workspace-index.ts`), in three steps:
 
-The row is computed by the code that computes it today: `chatFor` without its live overlay, and `standingAtRest` for a task. The index stores their output; it does not reimplement them.
+1. In memory, by the task store's write count, which every write in this process moves.
+2. In the index, by stamp: the size and modification time of the store (`task.db` and its `-wal`) and of any other file the value reads, taken before the value is derived. A row whose stamp matches is used.
+3. Otherwise derived from the store, as before the index, and written to the index with its stamp.
+
+Nothing subscribes to events to keep rows current and nothing marks rows dirty: a write moves the stamp, and the next read derives the row again. A write landing while a value is derived leaves the saved stamp older than the store, which costs one more derivation and never serves a stale row. The derivations are the code that ran before the index (`digestOf` from `chatFor`, `standingAtRest`, the filed-task holds, `shownIn`); the index stores their output and does not reimplement them.
 
 ## Read path
 
-`listChats` and `chatById` read rows from the index and lay the live state over them. `chats.tasks` reads the `tasks` table the same way. `ChatSchema` and the routes do not change, so no client code changes. The server's other readers get the speedup with no change of their own: completion notifications, the chat list in the conversation's prompt (`chat-context.ts`), and the agent's `chat` command.
+`listChats` and `chatById` read rows from the index and lay the live state over them. `chats.tasks` reads each filed task's standing from `task_standings` and its chat's title from that chat's digest. `ChatSchema` and the routes do not change, so no client code changes. The server's other readers get the speedup with no change of their own: completion notifications, the chat list in the conversation's prompt (`chat-context.ts`), and the agent's `chat` command.
 
 ## Boot
 
-1. Open the workspace's index. If it is missing, unreadable, or its version differs, rebuild it: derive every row, the way a list build does today, once.
-2. Otherwise reconcile: list the chat and task folders, stat each store, drop rows whose folder is gone, and derive rows for folders the index has not seen (a chat migrated or copied in) or whose store's stats moved.
-3. Serve the list from the index from then on.
-
-The first boot after the index lands pays one full derivation, which is what every boot pays today.
+There is no separate boot pass. The first list build reads every row through the index: unchanged stores answer from their rows, changed or new ones are derived and saved. A missing index, one that will not open, or one of another version is rebuilt the same way, by being read. Rows for chats or tasks that are gone are never read again; nothing prunes them yet.
 
 ## What it touches
 
-Server: a new module that owns the index (open, version, rebuild, reconcile, write path), `listChats` and `chatById` in `lib/orchestrator/chats.ts`, `childTasks` in `rpc/routes/chats.ts`, `linkedFiles` in `lib/orchestrator/linked-files.ts`, and the session-record mutations in `chats.ts`. Studio main hands the workspace's index path to the workspace actor, as it does the model cache's. Client: nothing.
+Server: `lib/workspace-index.ts` (open, version, rebuild, read through), `chatFor` split into `digestOf` and the overlay in `lib/orchestrator/chats.ts`, `standingAtRest` in `standing.ts`, `shownIn` in `linked-files.ts`, and filed tasks' chat titles in `rpc/routes/chats.ts`. Studio main passes `indexesDir` under its data folder to the workspace actor. Client: nothing.
 
 ## Out of scope: stage B
 
@@ -61,10 +61,18 @@ Paging and full-text search. Today the client holds every row and filters, searc
 
 ## Validation
 
-Against a copy-on-write copy of a real workspace (`studio-chrome-devtools` skill, "Measuring the main thread"): full transcript reads at boot (1,124 now, counted with a logpoint on `Store.getMessagesWithParts`; zero for an unchanged workspace is the target), time from the list's skeleton to its first row (6.5 s in a dev build now), a rebuild after one chat changes, main-thread stalls under a burst of events with `main-stalls.mjs`, and open task databases while idle and while busy. A packaged build on a second machine gives boot times without the dev server's module loading in them.
+Against a copy-on-write copy of a real workspace of 353 chats and 388 filed tasks (`studio-chrome-devtools` skill, "Measuring the main thread"), in a dev build:
+
+- The chat list, the filed tasks and the Files screen's recents came back byte-identical to the build before the index, with the index cold and warm.
+- A warm boot read no transcripts (1,124 before), counted with a logpoint on `Store.getMessagesWithParts` that a deliberate read afterward did trip.
+- The first chat row came 1.5 s after the list's skeleton (about 7 s before), with 72 task databases open (741).
+- After writing one chat's store with the app closed, the next boot re-derived that chat alone.
+- A star and a rename show in the row at once.
+
+What is left between skeleton and rows is reading every filed task's `settings.json` to list them, and the renderer drawing the list; a packaged build on a second machine gives the boot time without the dev server's module loading in it.
 
 ## Risks
 
-- **A write that does not announce itself** leaves its row stale until the next reconcile. The per-task write count catches store writes that publish nothing (the browser's visited hosts are one), so the dirty check keys on it rather than on events alone.
+- **A write the stamp cannot see.** Every write this process makes moves the store's write count, and every write moves the file's modification time, so neither a write that announces nothing (the browser's visited hosts) nor one made while the app was closed is missed.
 - **Two processes on one workspace** (two dev instances sharing a data directory) would both write the index. SQLite's locking keeps the file sound; rows can still be recomputed twice, which is waste, not damage.
-- **Stats that do not move.** A store rewritten within the clock's resolution with the same size would read as unchanged. The in-process write path covers every write this app makes; the stats only stand in for writes made while it was not running, where that collision is not a practical concern.
+- **Stats that do not move.** A store rewritten within the clock's resolution with the same size would read as unchanged. Writes in this process are caught by the write count; the stats only stand in for writes made while it was not running, where that collision is not a practical concern.

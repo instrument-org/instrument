@@ -1,10 +1,10 @@
 import { ChatsOutlineIcon } from "@/client/components/icons/chats-outline-icon";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import {
   Tooltip,
   TooltipContent,

@@ -8,9 +8,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
-import { COMPOSE_MOTION } from "./compose-layout";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Chat, type Topic } from "./chats";
+import { COMPOSE_MOTION } from "./compose-layout";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
 import { type useCompose } from "./use-compose";
 

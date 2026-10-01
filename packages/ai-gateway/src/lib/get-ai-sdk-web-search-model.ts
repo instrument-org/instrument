@@ -88,10 +88,13 @@ export async function getAISDKWebSearchModel({
     }
     case "chatgpt": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
-      // Always the plan's lightest model, thinking little and reading little:
-      // a search is a lookup, and on the plan every search model's own
+      // Always the plan's lightest model, not thinking and reading little: a
+      // search is a lookup, and on the plan every search model's own
       // searching counts against the user's limits and takes minutes at the
-      // chat model's depth.
+      // chat model's depth. `none` is the lowest effort the plan accepts
+      // alongside web search (`minimal` is refused); the short reply the
+      // search prompt asks for is what most of the speed comes from, and
+      // `none` takes a little more off.
       result = {
         model: sdk(
           // The account's own catalog decides, so a newer Luna is used the
@@ -101,7 +104,7 @@ export async function getAISDKWebSearchModel({
             ?.providerId ?? callingModel.providerId,
         ),
         providerOptions: {
-          openai: { reasoningEffort: "low" },
+          openai: { reasoningEffort: "none" },
         },
         tools: {
           web_search: sdk.tools.webSearch({ searchContextSize: "low" }),

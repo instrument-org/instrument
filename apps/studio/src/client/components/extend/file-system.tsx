@@ -1128,7 +1128,20 @@ export function FileTypeIcon({
   fallbackExtension?: string;
   fileName: string;
 }) {
-  const icon = resolveFileTypeIcon(fileName, fallbackExtension);
+  return (
+    <FileTypeGlyph
+      className={className}
+      icon={resolveFileTypeIcon(fileName, fallbackExtension)}
+    />
+  );
+}
+export function FileTypeGlyph({
+  className,
+  icon,
+}: {
+  className?: string;
+  icon: ReturnType<typeof resolveFileTypeIcon>;
+}) {
   return (
     <svg
       aria-hidden="true"

@@ -97,6 +97,11 @@ export const componentPages = [
     to: "/debug/components/provider-icons",
   },
   {
+    id: "file-icons",
+    label: "File icons",
+    to: "/debug/components/file-icons",
+  },
+  {
     id: "onboarding",
     label: "Onboarding",
     to: "/debug/components/onboarding",

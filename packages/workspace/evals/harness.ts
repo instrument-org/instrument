@@ -444,10 +444,10 @@ export async function runEvals(
           }
           projectId = project.value.id;
         }
-        const folders = [
-          ...(privateFoldersFor(evalCase, index) ?? []),
-          ...(evalCase.kind === "orchestrator" ? orchestratorFolders() : []),
-        ];
+        if (evalCase.kind === "orchestrator") {
+          ensureWorkspaceFolder();
+        }
+        const folders = privateFoldersFor(evalCase, index) ?? [];
         return call(
           taskRoute.create,
           {
@@ -768,33 +768,19 @@ export async function sessionsFor(
 }
 
 /**
- * The two folders `window.ensure` attaches to the conversation in the
- * app: the user's home, and the workspace folder inside it that results go to
- * when nobody said where.
+ * The workspace folder results go to when nobody said where, made the way
+ * `window.ensure` makes it in the app. A chat reaches it and the home folder
+ * without being sent either (folder-reach.ts), so neither rides on a message:
+ * sent, they would arrive as folders the user attached, which the app never
+ * says.
  *
- * They ride on the first message rather than being attached after the task is
- * created, because the session's context baseline is written the first time the
- * session needs model input and then reused byte for byte. A folder attached a
- * moment too late is a folder the agent is never told about, and an
- * orchestrator that believes it has no mounts cannot read back what its own
- * children wrote: measured, it spends ten tool calls and 240K tokens hunting a
- * file it was told to have them write, against two and 96K when it can see it.
- *
- * Unlike a case's own folders these are not copied per run, because `task new`
- * hands every child the workspace folder from the same `$HOME`-derived global:
- * a private copy for the conversation would put the children somewhere else.
- * They are sandboxed away from the developer's real files by
- * `evals/lib/sandbox-home`, but still shared across runs in one process, so run
+ * Both derive from `$HOME`, sandboxed away from the developer's real files by
+ * `evals/lib/sandbox-home` but shared across runs in one process, so run
  * orchestrator cases at low concurrency and give a separate process its own
  * `INSTRUMENT_EVAL_HOME` when two runs must not see each other's output.
  */
-function orchestratorFolders(): { access: "read-write"; path: string }[] {
-  const workspaceFolder = outputFolderPath();
-  fs.mkdirSync(workspaceFolder, { recursive: true });
-  return [
-    { access: "read-write", path: os.homedir() },
-    { access: "read-write", path: workspaceFolder },
-  ];
+function ensureWorkspaceFolder() {
+  fs.mkdirSync(outputFolderPath(), { recursive: true });
 }
 
 /**

@@ -49,7 +49,7 @@ export function WindowFrame({
 }: {
   bar?: ReactNode;
   children: ReactNode;
-  /** Laid over the row, for the draft windows that float over it. */
+  /** Laid over the whole window, for the draft windows that float over it. */
   overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
@@ -88,9 +88,7 @@ export function WindowFrame({
             the row is sized against the width the columns actually share. */}
           {/* Two planes: the rail and the bar on the window's own ground,
             and everything else on one card inset from it, rounded, with room
-            left at its right and foot. The overlay covers the card and that
-            room, so a draft or a popped-out chat stands on the window's own
-            foot and right edge rather than inside the card's margin. */}
+            left at its right and foot. */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <div
               className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-xs [--guest-bottom-radius:var(--radius-2xl)]"
@@ -101,9 +99,12 @@ export function WindowFrame({
                 <LinkSurface>{children}</LinkSurface>
               </div>
             </div>
-            {overlay}
           </div>
         </div>
+        {/* Over the whole window, so a draft or a popped-out chat stands on
+          the window's own foot and right edge rather than inside the card's
+          margin, and a grown one is centered over the bar and the rail too. */}
+        {overlay}
         <StudioModals />
         {isFilePreviewOpen && (
           <Suspense fallback={null}>

@@ -41,23 +41,33 @@ export const COMPOSE_MOTION = {
   type: "tween",
 } as const;
 
+/** A grown window's widest, in layout px: wide enough for a conversation, a page beside it and the rail, short of the whole window, which would read as a place of its own rather than a window over one. */
+export const GROWN_MAX_WIDTH = 1120;
+
+/** The least room a grown window leaves at each side of it, in layout px, so what it stands over shows around it. */
+const GROWN_SIDE = 80;
+
 /**
  * A grown window's box, stated rather than left to the classes: a docked
  * window's width and height are motion values, and a style that merely stops
- * naming them can leave the last ones standing. Its right edge is not here:
- * that is animated, to GROWN_RIGHT, and a style naming it as well would fight
- * the animation.
+ * naming them can leave the last ones standing. Centered over the whole
+ * window, the bar and the rail included, by its auto side margins between a
+ * left and a right of zero. Its right edge is not here: that is animated, to
+ * zero, and a style naming it as well would fight the animation.
  */
 export const GROWN = {
-  bottom: 12,
+  bottom: 40,
   height: "auto",
-  left: 12,
-  top: 12,
-  width: "auto",
+  left: 0,
+  marginInline: "auto",
+  top: 40,
+  width: `min(calc(100% - ${2 * GROWN_SIDE}px), ${GROWN_MAX_WIDTH}px)`,
 } as const;
 
-/** A grown window's right edge, in layout px, as its other edges stand. */
-export const GROWN_RIGHT = 12;
+/** How wide a grown window stands over a row this wide, in layout px; the window it is laid over is a little wider than the row, so this errs narrow. */
+function grownWidth(width: number): number {
+  return Math.min(width - 2 * GROWN_SIDE, GROWN_MAX_WIDTH);
+}
 
 /**
  * A window with its place along the foot: how far its right edge stands from
@@ -74,8 +84,8 @@ export type PlacedCompose = ComposeEntry & {
  * Lays the windows along the foot the way a mail client does: the newest
  * at the right edge, each older one beside the last, and the ones there is
  * no room for left out from the left, so the row never wraps or squeezes. A
- * window grown to fill the row stands alone among the windows; the bars
- * along the foot stay in their places under it. A chat's small view is
+ * grown window stands alone among the windows, over the whole window; the
+ * bars along the foot stay in their places under it. A chat's small view is
  * laid the same way as a draft's window, at its own width.
  */
 export function layoutCompose(
@@ -91,12 +101,11 @@ export function layoutCompose(
   let right = COMPOSE_EDGE_GAP / zoom;
   for (const [index, entry] of entries.toReversed().entries()) {
     if (entry.placement === "expanded") {
-      // Grown over the row: the conversation, the view beside it and the
+      // Grown over the window: the conversation, the view beside it and the
       // rail, which folds once the three no longer fit at their own widths.
       const isRailCompact =
         hasRail(entry) &&
-        width - 2 * GROWN_RIGHT <
-          CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
+        grownWidth(width) < CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
       placed.push({
         ...entry,
         right: 0,

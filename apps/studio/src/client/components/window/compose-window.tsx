@@ -80,7 +80,6 @@ import {
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
   GROWN,
-  GROWN_RIGHT,
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { useWindow, WindowContext } from "./context";
@@ -644,7 +643,7 @@ export function ComposeWindow({
     // slides to its new place along the foot when a neighbor goes, and its
     // page is placed again as it moves (see the host's `place`).
     <motion.div
-      animate={{ opacity: 1, right: isExpanded ? GROWN_RIGHT : right, y: 0 }}
+      animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
       className={cn(
         // An opaque edge, and the shadow ramp without its own hairline: these
         // windows are drawn over the pane, over a page guest, and over each
@@ -660,12 +659,12 @@ export function ComposeWindow({
         // and the shadow under it never reach that edge either. The bars
         // along the foot stand on the same line.
         isExpanded
-          ? "inset-3 rounded-2xl"
-          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
+          ? "z-41 rounded-2xl"
+          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-3.5rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
-      initial={{ opacity: 0, right: isExpanded ? GROWN_RIGHT : right, y: 24 }}
+      initial={{ opacity: 0, right: isExpanded ? 0 : right, y: 24 }}
       style={isExpanded ? GROWN : { height: dockedHeight, width }}
       transition={COMPOSE_MOTION}
     >

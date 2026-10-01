@@ -29,7 +29,6 @@ import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
   GROWN,
-  GROWN_RIGHT,
 } from "./compose-layout";
 import {
   BarMarks,
@@ -328,7 +327,7 @@ export function ChatWindow({
 
   return (
     <motion.div
-      animate={{ opacity: 1, right: isExpanded ? GROWN_RIGHT : right, y: 0 }}
+      animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
       // On the page's ground rather than the card's: the conversation is
       // drawn for that ground, its bubbles on the card's and its fades from
       // the page's, and on a card both go missing.
@@ -344,14 +343,14 @@ export function ChatWindow({
         // and the shadow under it never reach that edge either. The bars
         // along the foot stand on the same line.
         isExpanded
-          ? "inset-3 rounded-2xl"
-          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
+          ? "z-41 rounded-2xl"
+          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-3.5rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
       data-slot="chat-window"
       exit={{ opacity: 0, y: 24 }}
       initial={
         arrives
-          ? { opacity: 0, right: isExpanded ? GROWN_RIGHT : right, y: 24 }
+          ? { opacity: 0, right: isExpanded ? 0 : right, y: 24 }
           : false
       }
       style={

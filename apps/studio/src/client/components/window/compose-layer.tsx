@@ -1,13 +1,18 @@
-import { type Draft, draftGroupOf } from "@/client/atoms/window";
+import {
+  composeKeyOf,
+  type Draft,
+  draftGroupOf,
+} from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { COMPOSE_MOTION } from "./compose-layout";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Chat, type Topic } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
@@ -21,7 +26,9 @@ import { type useCompose } from "./use-compose";
  * chat and the places stay in reach beside them. A window or a bar
  * arrives and leaves with a motion of its own, so a draft opening is seen
  * to open; a draft becoming a chat keeps its window, since it is the same
- * window in the same corner.
+ * window in the same corner. A grown window stands over a scrim that holds
+ * the rest of the window still, like a dialog: pressing the scrim or Escape
+ * shrinks it back to the foot.
  */
 export function ComposeLayer({
   browser,
@@ -100,9 +107,48 @@ export function ComposeLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orphanKey]);
 
+  const grown = compose.placed.find((entry) => entry.placement === "expanded");
+  const shrink = () => {
+    if (grown) {
+      compose.setPlacement(composeKeyOf(grown), "docked");
+    }
+  };
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-40">
+    <div
+      className="pointer-events-none absolute inset-0 z-40"
+      // Bubbled from inside the windows, so a menu or a picker that took its
+      // own Escape (and marked it handled) is closed first. The prompt editor
+      // marks every Escape handled whether it did anything or not, and stops
+      // the one that closed its menu, so one that arrives from it is free.
+      onKeyDown={(event) => {
+        if (
+          grown &&
+          event.key === "Escape" &&
+          (!event.defaultPrevented ||
+            (event.target instanceof Element &&
+              event.target.closest(".ProseMirror") !== null))
+        ) {
+          event.preventDefault();
+          shrink();
+        }
+      }}
+    >
       <AnimatePresence initial={false}>
+        {/* Over the bars along the foot and under the grown window, which is
+          drawn after it on the same layer. */}
+        {grown && (
+          <motion.div
+            animate={{ opacity: 1 }}
+            className="pointer-events-auto absolute inset-0 z-41 bg-black/20 dark:bg-black/50"
+            data-slot="compose-scrim"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            key="scrim"
+            onClick={shrink}
+            transition={COMPOSE_MOTION}
+          />
+        )}
         {compose.placed.map((entry) => {
           if (entry.kind === "chat") {
             const { sessionId } = entry;

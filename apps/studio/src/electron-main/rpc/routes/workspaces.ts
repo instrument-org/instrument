@@ -56,7 +56,6 @@ const WorkspaceRowSchema = z.object({
   isResolved: z.boolean(),
   lastOpenedAt: z.number().nullable(),
   path: z.string(),
-  sizeBytes: z.number().nullable(),
 });
 
 /** Which workspace this window shows, for the window bar's name and stripe. */
@@ -89,15 +88,12 @@ const list = devOnly
       workspaces: z.array(WorkspaceRowSchema),
     }),
   )
-  .handler(async () => {
+  .handler(() => {
     const resolved = getResolvedWorkspace();
     const listings = listWorkspaces({ resolved, userDataDir: userDataDir() });
-    const sizes = await Promise.all(
-      listings.map((listing) => sizeOnDisk(listing.path)),
-    );
     return {
       pinned: resolved.pinned,
-      workspaces: listings.map((listing, index) => ({
+      workspaces: listings.map((listing) => ({
         deleteBlockedBy: whyNotDeletable(listing),
         id: listing.id,
         identity: listing.identity,
@@ -106,9 +102,31 @@ const list = devOnly
         isResolved: listing.isResolved,
         lastOpenedAt: listing.lastOpenedAt,
         path: listing.path,
-        sizeBytes: sizes[index] ?? null,
       })),
     };
+  });
+
+/**
+ * How much each workspace takes on disk, by path. Its own call because a large
+ * workspace takes `du` a while, and the menu that lists workspaces must not
+ * wait on it.
+ */
+const sizes = devOnly
+  .output(z.record(z.string(), z.number().nullable()))
+  .handler(async () => {
+    const listings = listWorkspaces({
+      resolved: getResolvedWorkspace(),
+      userDataDir: userDataDir(),
+    });
+    const measured = await Promise.all(
+      listings.map(
+        async (listing): Promise<[string, null | number]> => [
+          listing.path,
+          await sizeOnDisk(listing.path),
+        ],
+      ),
+    );
+    return Object.fromEntries(measured);
   });
 
 const create = devOnly
@@ -203,5 +221,6 @@ export const workspaces = {
   list,
   register,
   remove,
+  sizes,
   switch: switchTo,
 };

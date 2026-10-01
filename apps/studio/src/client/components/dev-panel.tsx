@@ -7,6 +7,7 @@ import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import {
   ManageWorkspacesDialog,
   NewWorkspaceDialog,
+  WORKSPACE_COLOR_HEX,
   WorkspaceDot,
   WorkspaceMenu,
 } from "@/client/components/dev-panel-workspaces";
@@ -192,6 +193,10 @@ export function DevPanel() {
     "manage" | "new" | null
   >(null);
 
+  const { mutate: skipOnboarding } = useMutation(
+    rpcClient.debug.skipOnboarding.mutationOptions(),
+  );
+
   const { data: currentWorkspace } = useQuery(
     rpcClient.workspaces.current.queryOptions(),
   );
@@ -221,6 +226,23 @@ export function DevPanel() {
       {crash && <CrashProbe />}
       <div className="flex h-5 items-center gap-x-0.5 rounded-full bg-foreground/4 px-0.5 ring-1 ring-foreground/8 ring-inset">
         <ThemeToggle />
+        {/* Its own pill in its own color, apart from the instance label: which
+            workspace is open is a different fact from which checkout and port
+            this is. Nothing for the default workspace, which is what every
+            other one is a deviation from. */}
+        {currentWorkspace !== undefined && !currentWorkspace.isDefault && (
+          <span
+            className="flex h-4 items-center gap-x-1 rounded-full px-1.5 font-mono text-[9px] leading-none"
+            style={{
+              backgroundColor: `color-mix(in oklab, ${WORKSPACE_COLOR_HEX[currentWorkspace.color]} 16%, transparent)`,
+              color: WORKSPACE_COLOR_HEX[currentWorkspace.color],
+            }}
+            title={`Workspace: ${currentWorkspace.name}`}
+          >
+            <WorkspaceDot color={currentWorkspace.color} />
+            {currentWorkspace.name}
+          </span>
+        )}
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
@@ -249,15 +271,6 @@ export function DevPanel() {
                   {instanceTag}
                 </span>
               )}
-              {/* Nothing for the default workspace, which is what every
-                  other one is a deviation from. */}
-              {currentWorkspace !== undefined &&
-                !currentWorkspace.isDefault && (
-                  <span className="flex items-center gap-x-1 font-mono text-[9px] leading-none text-dev-700/80 dark:text-dev-300/80">
-                    <WorkspaceDot color={currentWorkspace.color} />
-                    {currentWorkspace.name}
-                  </span>
-                )}
               <FeatureFlagStrip features={features} />
             </MenubarTrigger>
             <MenubarContent align="end" side="bottom">
@@ -294,6 +307,17 @@ export function DevPanel() {
                     </span>
                   </>
                 )}
+                {currentWorkspace !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      workspace
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                      {currentWorkspace.name}
+                      {currentWorkspace.pinned ? " (pinned)" : ""}
+                    </span>
+                  </>
+                )}
                 {appEnvironment?.userData !== undefined && (
                   <>
                     <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
@@ -316,6 +340,22 @@ export function DevPanel() {
                 )}
               </div>
               <MenubarSeparator />
+              {/* Past the first-run screens without a provider, which is a
+                  state worth seeing too. Here rather than on those screens, so
+                  their layout stays the one people get. */}
+              {window.api.windowType === "onboarding" && (
+                <>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      skipOnboarding();
+                    }}
+                  >
+                    Skip onboarding
+                  </MenubarItem>
+                  <MenubarSeparator />
+                </>
+              )}
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Pages

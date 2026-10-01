@@ -7,7 +7,12 @@ import {
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
-import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { openAppWindow } from "@/electron-main/windows/app-window";
+import {
+  closeOnboardingWindow,
+  openOnboardingWindow,
+} from "@/electron-main/windows/onboarding";
 import { PORTS } from "@instrument-org/shared";
 import { app, shell } from "electron";
 import fsSync from "node:fs";
@@ -241,6 +246,18 @@ async function openFolder(folderPath: string) {
   }
 }
 
+/**
+ * Past onboarding with nothing set up, as though it had been finished: the
+ * app window with no provider and no account is a state worth seeing too.
+ */
+const skipOnboarding = devOnly.input(z.void()).handler(() => {
+  getWorkspaceState().set("hasCompletedProviderSetup", true);
+  // Opened before the onboarding window closes, which quits the app when it
+  // leaves no window behind.
+  openAppWindow();
+  closeOnboardingWindow();
+});
+
 const openUserDataFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(app.getPath("userData"));
 });
@@ -271,6 +288,7 @@ export const debug = {
   openUserDataFolder,
   openWorkspaceFolder,
   setQuitGuardForced,
+  skipOnboarding,
   systemInfo,
   throwError,
   trigger,

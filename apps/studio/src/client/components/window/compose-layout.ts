@@ -105,7 +105,8 @@ export function layoutCompose(
       // rail, which folds once the three no longer fit at their own widths.
       const isRailCompact =
         hasRail(entry) &&
-        grownWidth(width) < CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
+        grownWidth(width) <
+          CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
       placed.push({
         ...entry,
         right: 0,

@@ -4,10 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import {
-  isToolPartRunning,
-  stripPatchHeader,
-} from "./tool-call-utils";
+import { isToolPartRunning, stripPatchHeader } from "./tool-call-utils";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();

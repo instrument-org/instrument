@@ -41,11 +41,7 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
  * Every skill a task can load, searchable and grouped by where it comes
  * from, each a row that `onOpen` takes to the skill's page.
  */
-export function SkillList({
-  onOpen,
-}: {
-  onOpen: (skill: Skill) => void;
-}) {
+export function SkillList({ onOpen }: { onOpen: (skill: Skill) => void }) {
   const { data: skills = [], isLoading } = useQuery(
     rpcClient.workspace.skill.list.queryOptions(),
   );

@@ -1,8 +1,4 @@
-import {
-  composeKeyOf,
-  type Draft,
-  draftGroupOf,
-} from "@/client/atoms/window";
+import { composeKeyOf, type Draft, draftGroupOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,

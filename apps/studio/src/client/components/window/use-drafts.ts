@@ -259,11 +259,10 @@ export function useDrafts({
       // so the press still feels immediate.
       let chatId: TaskId;
       try {
-        ({ taskId: chatId } =
-          await rpcClient.workspace.chats.ensure.call({
-            firstWords: send.prompt,
-            sessionId,
-          }));
+        ({ taskId: chatId } = await rpcClient.workspace.chats.ensure.call({
+          firstWords: send.prompt,
+          sessionId,
+        }));
         // Known at once to the chat's screen, which asks for its chat.
         queryClient.setQueryData(
           rpcClient.workspace.chats.of.queryKey({

@@ -4,8 +4,7 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
 /** A chat as the chat lists it: the first message, the title, and where it stands. */
-export type Chat =
-  RPCOutput["workspace"]["chats"]["list"][number];
+export type Chat = RPCOutput["workspace"]["chats"]["list"][number];
 
 /** What narrows the list, all of it client-side: each group is any-of, and the groups are all-of. */
 export interface ChatFilters {
@@ -23,8 +22,7 @@ export interface ChatFilters {
 export type ChatPlace = "all" | "drafts" | "needsYou" | "starred";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
-export type Topic =
-  RPCOutput["workspace"]["topics"]["list"][number];
+export type Topic = RPCOutput["workspace"]["topics"]["list"][number];
 
 export const NO_FILTERS: ChatFilters = {
   apps: [],

@@ -320,9 +320,7 @@ async function start() {
   // renders, so it says whether the plan is ready, and the window comes back
   // to the front because the browser it ran in is the user's own.
   app.get(CHATGPT_CALLBACK_PATH, async (c) => {
-    const finished = receiveChatGPTCallback(
-      new URL(c.req.url).searchParams,
-    );
+    const finished = receiveChatGPTCallback(new URL(c.req.url).searchParams);
     if (!finished) {
       return c.html(renderAuthPage({ isError: true }), 400);
     }

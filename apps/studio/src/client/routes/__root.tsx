@@ -62,9 +62,7 @@ function RootComponent() {
   const isActiveTab = useIsActiveTab();
   return (
     <Root>
-      {isActiveTab && window.api.windowType !== "app" ? (
-        <HeadContent />
-      ) : null}
+      {isActiveTab && window.api.windowType !== "app" ? <HeadContent /> : null}
       <Outlet />
     </Root>
   );

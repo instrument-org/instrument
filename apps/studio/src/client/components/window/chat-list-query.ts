@@ -8,7 +8,7 @@ import { rpcClient } from "@/client/rpc/client";
  * reader passes the same options, since the one query holds one set.
  */
 export function chatListOptions() {
-  return rpcClient.workspace.chats.live.list.experimental_liveOptions(
-    { structuralSharing: shareEqualDeep },
-  );
+  return rpcClient.workspace.chats.live.list.experimental_liveOptions({
+    structuralSharing: shareEqualDeep,
+  });
 }

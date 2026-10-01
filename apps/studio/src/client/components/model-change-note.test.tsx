@@ -51,7 +51,11 @@ describe("ModelChangeNote", () => {
     renderWithProviders(
       <ModelChangeNote
         data={change(
-          { modelId: "gpt-6-luna", name: "GPT-6 Luna", providerName: "Instrument" },
+          {
+            modelId: "gpt-6-luna",
+            name: "GPT-6 Luna",
+            providerName: "Instrument",
+          },
           {
             modelId: "gpt-5.6-luna",
             name: "GPT-5.6-Luna",

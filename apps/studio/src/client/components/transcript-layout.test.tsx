@@ -805,7 +805,7 @@ describe("while the agent is working", () => {
   // moment none does. The run is one group under one id through all of it:
   // opened on another row, it would be drawn afresh, and with no row it would
   // leave the transcript.
-  it("holds one group through a batch of calls streaming in and queueing", () => {
+  it("holds one group through a batch of calls streaming in and queuing", () => {
     const frames: Spec[][] = [
       [["blank-thinking", "pondering"]],
       [

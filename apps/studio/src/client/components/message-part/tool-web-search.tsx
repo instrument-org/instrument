@@ -14,12 +14,7 @@ import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import {
-  ToolCard,
-  ToolCardEmpty,
-  ToolCardHeader,
-  ToolChip,
-} from "./tool-card";
+import { ToolCard, ToolCardEmpty, ToolCardHeader, ToolChip } from "./tool-card";
 
 type WebSearchPart = Extract<
   SessionMessagePart.ToolPart,

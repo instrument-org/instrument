@@ -349,9 +349,7 @@ export function ChatWindow({
       data-slot="chat-window"
       exit={{ opacity: 0, y: 24 }}
       initial={
-        arrives
-          ? { opacity: 0, right: isExpanded ? 0 : right, y: 24 }
-          : false
+        arrives ? { opacity: 0, right: isExpanded ? 0 : right, y: 24 } : false
       }
       style={
         isExpanded

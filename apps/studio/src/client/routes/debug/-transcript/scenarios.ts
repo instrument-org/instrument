@@ -1456,7 +1456,8 @@ done`,
         {
           classification: "auth",
           kind: "api-call",
-          message: "Encountered invalidated oauth token for user, failing request",
+          message:
+            "Encountered invalidated oauth token for user, failing request",
           name: "AI_APICallError",
           responseBody: JSON.stringify({
             error: {

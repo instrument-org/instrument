@@ -36,7 +36,10 @@ const ResultsSchema = z.discriminatedUnion("kind", [
     modelId: z.string().optional(),
     modelIdServed: z.string().optional(),
     provider: z
-      .object({ displayName: z.string().optional(), type: AIProviderTypeSchema })
+      .object({
+        displayName: z.string().optional(),
+        type: AIProviderTypeSchema,
+      })
       .optional(),
     sources: z.array(
       z.object({ title: z.string().optional(), url: z.string() }),

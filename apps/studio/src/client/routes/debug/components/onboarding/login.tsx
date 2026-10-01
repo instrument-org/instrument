@@ -10,14 +10,12 @@ import { useState } from "react";
 import { getOnboardingScreen } from "../../-debug-routes";
 import { OnboardingWindowFrame } from "../onboarding";
 
-export const Route = createFileRoute("/debug/components/onboarding/login")(
-  {
-    component: RouteComponent,
-    head: () => ({
-      meta: [{ title: getOnboardingScreen("login").label }],
-    }),
-  },
-);
+export const Route = createFileRoute("/debug/components/onboarding/login")({
+  component: RouteComponent,
+  head: () => ({
+    meta: [{ title: getOnboardingScreen("login").label }],
+  }),
+});
 
 const noopAsync = () => Promise.resolve();
 

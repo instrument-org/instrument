@@ -10,7 +10,8 @@ describe("chatTopicsModelNote", () => {
           {
             emoji: "✈️",
             folders: ["/mnt/Trips", "/mnt/Receipts"],
-            instructions: "Book aisle seats.\n\nKeep hotels under $200 a night.",
+            instructions:
+              "Book aisle seats.\n\nKeep hotels under $200 a night.",
             name: "Travel",
           },
           { about: "the house", name: "Home" },

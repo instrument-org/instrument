@@ -54,4 +54,3 @@ describe("generateTaskFolderName", () => {
     expect(name).toMatch(/^[a-z0-9-]+$/);
   });
 });
-

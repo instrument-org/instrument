@@ -416,28 +416,28 @@ function ViewPicker({
         {/* The topics scroll between the chats and the foot, which stay. */}
         <MenuScrollArea className="p-0">
           {topics.map((entry) => (
-          <TopicContextMenu
-            key={entry.topic.id}
-            onDetails={onDetails}
-            topic={entry.topic}
-          >
-            <PickerRow
-              isOn={entry.isOn}
-              onPick={() => {
-                pick(entry.choose);
-              }}
-              trailing={
-                <TopicActionsButton
-                  className="group-hover/row:opacity-100"
-                  onDetails={onDetails}
-                  topic={entry.topic}
-                />
-              }
+            <TopicContextMenu
+              key={entry.topic.id}
+              onDetails={onDetails}
+              topic={entry.topic}
             >
-              <TopicFace size="row" topic={entry.topic} />
-              <span className="truncate">{entry.topic.name}</span>
-            </PickerRow>
-          </TopicContextMenu>
+              <PickerRow
+                isOn={entry.isOn}
+                onPick={() => {
+                  pick(entry.choose);
+                }}
+                trailing={
+                  <TopicActionsButton
+                    className="group-hover/row:opacity-100"
+                    onDetails={onDetails}
+                    topic={entry.topic}
+                  />
+                }
+              >
+                <TopicFace size="row" topic={entry.topic} />
+                <span className="truncate">{entry.topic.name}</span>
+              </PickerRow>
+            </TopicContextMenu>
           ))}
         </MenuScrollArea>
         <div className="mx-2 my-1 h-px shrink-0 bg-border" />

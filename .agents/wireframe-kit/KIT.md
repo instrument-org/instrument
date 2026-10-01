@@ -183,7 +183,7 @@ Two that are wrong on sight if you guess:
 - **2.0 window:** Rail, Home, Inbox, Thread, Reply box, Thread tabs, Pane, Window tabs, Floating chat, Composer, Files, Apps, Settings
 - **Classic window:** Sidebar, Conversation, Composer, Artifact panel, Settings
 
-A page about how two surfaces share the screen names the pair (*Page and chat: chat as corner picture*). Takes on one question share the surface so they sort together: *Thread tabs: dock over reply box*, *Thread tabs: dock under reply box*.
+A page about how two surfaces share the screen names the pair (_Page and chat: chat as corner picture_). Takes on one question share the surface so they sort together: _Thread tabs: dock over reply box_, _Thread tabs: dock under reply box_.
 
 ## Where the files go
 

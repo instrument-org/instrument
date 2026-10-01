@@ -82,8 +82,10 @@ describe("modelChangeSincePreviousTurn", () => {
       role: "assistant",
     } as unknown as SessionMessage.WithParts;
     expect(
-      modelChangeSincePreviousTurn({ messages: [user(), elsewhere, user()], model })
-        ?.from.providerName,
+      modelChangeSincePreviousTurn({
+        messages: [user(), elsewhere, user()],
+        model,
+      })?.from.providerName,
     ).toBe("Other Provider");
   });
 

@@ -91,9 +91,7 @@ const locate = (name: string) =>
   existsSync(path.resolve(ROOT, name)) ? name : undefined;
 
 const fromManifest = (): Entry[] => {
-  const lines = readFileSync(path.resolve(ROOT, MANIFEST), "utf8").split(
-    "\n",
-  );
+  const lines = readFileSync(path.resolve(ROOT, MANIFEST), "utf8").split("\n");
   const entries: Entry[] = [];
   let group: string | undefined;
 

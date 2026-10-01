@@ -61,9 +61,7 @@ export function ChatPane({
 }) {
   const appsBySlug = useAppsBySlug();
   const chatsQuery = useQuery(chatListOptions());
-  const topicsQuery = useQuery(
-    rpcClient.workspace.topics.list.queryOptions(),
-  );
+  const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const chats: Chat[] = chatsQuery.data ?? [];
   const topics: Topic[] = topicsQuery.data ?? [];
   const afterTopicChange = {
@@ -73,19 +71,13 @@ export function ChatPane({
     onSuccess: () => void topicsQuery.refetch(),
   };
   const createTopic = useMutation(
-    rpcClient.workspace.topics.create.mutationOptions(
-      afterTopicChange,
-    ),
+    rpcClient.workspace.topics.create.mutationOptions(afterTopicChange),
   );
   const updateTopic = useMutation(
-    rpcClient.workspace.topics.update.mutationOptions(
-      afterTopicChange,
-    ),
+    rpcClient.workspace.topics.update.mutationOptions(afterTopicChange),
   );
   const retireTopic = useMutation(
-    rpcClient.workspace.topics.retire.mutationOptions(
-      afterTopicChange,
-    ),
+    rpcClient.workspace.topics.retire.mutationOptions(afterTopicChange),
   );
   const setChatTopics = useSetChatTopics();
 

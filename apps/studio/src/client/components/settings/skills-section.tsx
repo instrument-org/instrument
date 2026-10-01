@@ -117,7 +117,9 @@ function SkillActions({
   skill: Skill;
 }) {
   const queryClient = useQueryClient();
-  const remove = useMutation(rpcClient.workspace.skill.remove.mutationOptions());
+  const remove = useMutation(
+    rpcClient.workspace.skill.remove.mutationOptions(),
+  );
   const [isConfirming, setConfirming] = useState(false);
 
   const confirmDelete = async () => {

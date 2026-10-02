@@ -74,8 +74,5 @@
       "onFail": "download",
       "version": "24.15.0"
     }
-  },
-  "overrides": {
-    "@types/node": "24.12.2"
   }
 }

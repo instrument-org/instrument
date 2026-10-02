@@ -198,7 +198,7 @@
     "devtools-protocol": "^0.0.1617013",
     "diff-match-patch-es": "2.0.1",
     "dotenv": "^16.6.1",
-    "electron": "^42.3.3",
+    "electron": "^42.11.8",
     "electron-builder": "26.15.7",
     "electron-vite": "6.0.0-beta.1",
     "hast-util-from-html": "^2.0.3",

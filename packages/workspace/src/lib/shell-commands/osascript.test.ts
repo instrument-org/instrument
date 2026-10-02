@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { taskDir } from "../task-dir-utils";
 import { createOsascriptCommand } from "./osascript";
 
 vi.mock("execa");
@@ -60,6 +61,49 @@ describe("osascriptCommand", () => {
       ["-"],
       expect.objectContaining({ input: Buffer.from(script) }),
     );
+  });
+
+  it.each([
+    ["-l", "JavaScript", "-e", "var re=/^a/"],
+    ["-e", 'open location "https://x.com/?a=/b"'],
+  ])(
+    "runs a script whose text only looks like a path: %s %s",
+    async (...args) => {
+      const execa = await mockExeca();
+
+      const result = await command.execute(args, mockCtx);
+
+      expect(result.exitCode).toBe(0);
+      expect(vi.mocked(execa)).toHaveBeenCalledWith(
+        "/usr/bin/osascript",
+        args,
+        expect.anything(),
+      );
+    },
+  );
+
+  it("points a quoted task path in the script at the task folder", async () => {
+    const execa = await mockExeca();
+
+    await command.execute(
+      ["-e", 'read POSIX file "/task/invite.ics"'],
+      mockCtx,
+    );
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      "/usr/bin/osascript",
+      ["-e", `read POSIX file "${taskDir(taskId)}/invite.ics"`],
+      expect.anything(),
+    );
+  });
+
+  it("refuses a quoted attached-folder path in the script", async () => {
+    const result = await command.execute(
+      ["-e", 'read POSIX file "/mnt/Home/invite.ics"'],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
   });
 
   it("refuses a script file on a mount it cannot reach", async () => {

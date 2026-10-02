@@ -6,6 +6,7 @@ import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
+  bridgeAppleScriptPaths,
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
@@ -29,13 +30,28 @@ const OSASCRIPT_PATH = "/usr/bin/osascript";
 
 export function createOsascriptCommand(taskId: TaskId) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {
+    // The value after each `-e` is script source, not a path: it is checked
+    // and bridged as code, and only the remaining arguments as paths.
+    const isScript = args.map((_arg, index) => args[index - 1] === "-e");
     const unreachable = unreachablePathArgError(
       OSASCRIPT_COMMAND.name,
-      args,
+      args.filter((_arg, index) => !isScript[index]),
       ctx.cwd,
     );
     if (unreachable !== undefined) {
       return { exitCode: 1, stderr: unreachable, stdout: "" };
+    }
+    const bridgedArgs: string[] = [];
+    for (const [index, arg] of args.entries()) {
+      if (!isScript[index]) {
+        bridgedArgs.push(...resolvePathArgs([arg], taskId, ctx));
+        continue;
+      }
+      const bridged = bridgeAppleScriptPaths(arg, taskId);
+      if ("error" in bridged) {
+        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      }
+      bridgedArgs.push(bridged.code);
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
@@ -43,7 +59,7 @@ export function createOsascriptCommand(taskId: TaskId) {
 
     const result = await execShim(
       OSASCRIPT_PATH,
-      resolvePathArgs(args, taskId, ctx),
+      bridgedArgs,
       {
         cancelSignal: ctx.signal,
         cwd: taskCwd,

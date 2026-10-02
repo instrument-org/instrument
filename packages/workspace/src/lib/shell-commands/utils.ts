@@ -114,6 +114,29 @@ export function bridgeInlineCodePaths(
 }
 
 /**
+ * `bridgeInlineCodePaths` for AppleScript and JavaScript for Automation, whose
+ * `POSIX file` and path strings resolve against `/` rather than the working
+ * directory, so a quoted `/task/...` literal becomes the task folder's absolute
+ * host path. macOS only, so no Windows separators to escape.
+ */
+export function bridgeAppleScriptPaths(
+  code: string,
+  taskId: TaskId,
+): { code: string } | { error: string } {
+  const checked = bridgeInlineCodePaths(code, taskId, taskDir(taskId));
+  if ("error" in checked) {
+    return checked;
+  }
+  const taskRoot = taskDir(taskId);
+  return {
+    code: code.replaceAll(
+      quotedMountPattern(MOUNT.task),
+      (_match, quote: string) => `${quote}${taskRoot}`,
+    ),
+  };
+}
+
+/**
  * Extract the resolved file path and trailing script args from positionals + original args.
  * Paths are returned relative to taskCwd so the real host dir is not exposed.
  * All path-like script args (absolute or relative traversals) are resolved through

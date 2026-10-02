@@ -40,10 +40,7 @@ const MACHINE_STATE_KEYS_FROM_PREFERENCES = [
   "lastLaunchedVersion",
   "lastUpdateCheck",
 ];
-const MACHINE_STATE_KEYS_FROM_APP_STATE = [
-  "telemetryId",
-  "lastMigratedVersion",
-];
+const MACHINE_STATE_KEYS_FROM_APP_STATE = ["telemetryId"];
 const WORKSPACE_PREFERENCE_KEYS = [
   "agentCompletionNotifications",
   "defaultModelURI",

@@ -7,7 +7,6 @@ import {
   scheduleRefresh as scheduleChatGPTPlanRefresh,
 } from "@/electron-main/lib/chatgpt-plan";
 import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
-import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
@@ -193,8 +192,6 @@ async function bootstrapPrimaryInstance() {
   servePageEditorBoot();
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
-
-  await timeBootStep("runMigrations", runMigrations);
 
   // Detect whether the app was updated since the last launch so the renderer
   // can surface a one-time "updated" notification.

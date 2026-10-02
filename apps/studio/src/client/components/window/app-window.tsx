@@ -37,6 +37,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
+import { getWebviewElement } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
@@ -47,8 +48,12 @@ import { captureComponentError } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
-import { type Tab } from "@/shared/tabs";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type Tab, type TabId } from "@/shared/tabs";
+import {
+  encodeBrowserTargetId,
+  StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -75,6 +80,8 @@ import {
   hrefOfAppTab,
   isChatHref,
   isSiteGroup,
+  newSiteGroup,
+  pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
   useAppTabs,
@@ -719,6 +726,45 @@ function WindowShell({
       }
     : null;
 
+  // A site's tab and the page its group has up, which is what the strip's
+  // menu duplicates or reloads.
+  const pageOfAppTab = (id: TabId) => {
+    const href = tabs.find((tab) => tab.id === id)?.pathname;
+    const group = href === undefined ? undefined : groupOfHref(href);
+    if (group === undefined || !isSiteGroup(group)) {
+      return;
+    }
+    const up = windowTabs.tabUpIn(group);
+    return up?.kind === "page" ? up : undefined;
+  };
+  /**
+   * A copy of a tab beside it: a screen at the same place with its history,
+   * and a site as a new page at the same address, since one page cannot be
+   * two tabs' at once.
+   */
+  const duplicateAppTab = (id: TabId) => {
+    const page = pageOfAppTab(id);
+    if (page === undefined) {
+      appTabs.duplicate(id);
+      return;
+    }
+    const group = newSiteGroup();
+    browser?.open(page.url, { group });
+    appTabs.duplicate(id, pageHrefOf(group));
+  };
+  /** A site's page reloaded in place, for the strip's Reload; undefined for a tab that is no site. */
+  const reloadablePageOf = (id: TabId) => {
+    const page = pageOfAppTab(id);
+    if (page === undefined || !ids) {
+      return;
+    }
+    return () => {
+      getWebviewElement(
+        encodeBrowserTargetId(ids.taskId, StoreId.SessionSchema.parse(page.id)),
+      )?.reload();
+    };
+  };
+
   if (ensure.error) {
     return (
       <WindowFrame>
@@ -791,7 +837,11 @@ function WindowShell({
                     chatTitles={chatTitles}
                     childTitles={childTitles}
                     onClose={appTabs.close}
+                    onCloseOthers={appTabs.closeOthers}
+                    onCloseToRight={appTabs.closeToRight}
+                    onDuplicate={duplicateAppTab}
                     onNew={appTabs.openNewTab}
+                    onReload={reloadablePageOf}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}

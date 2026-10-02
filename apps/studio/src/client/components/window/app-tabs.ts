@@ -15,7 +15,10 @@ import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
   addTab,
+  closeOtherTabs,
   closeTab,
+  closeTabsToRight,
+  duplicateTab,
   reopenClosed,
   reorderTabs,
   selectAdjacent,
@@ -192,6 +195,22 @@ export function useAppTabs() {
   return {
     activeRouter,
     close,
+    closeOthers: (id: TabId) => {
+      setModel((current) => closeOtherTabs(current, { id }));
+    },
+    closeToRight: (id: TabId) => {
+      setModel((current) => closeTabsToRight(current, { id }));
+    },
+    /** A copy of the tab beside it, up; at `pathname` for a copy that needs a place of its own. */
+    duplicate: (id: TabId, pathname?: string) => {
+      setModel((current) =>
+        duplicateTab(current, {
+          id,
+          newId: freshTabId(),
+          ...(pathname === undefined ? {} : { pathname }),
+        }),
+      );
+    },
     go,
     goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
       go(placeHrefOf(place, lastChat), { behind, newTab });

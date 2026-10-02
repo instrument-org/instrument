@@ -3,7 +3,19 @@ import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { XIcon } from "@phosphor-icons/react/X";
+import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { reopenClosed } from "@/client/lib/tabs-model";
 import { useAtom, useAtomValue } from "jotai";
@@ -34,7 +46,11 @@ export function AppTabStrip({
   chatTitles,
   childTitles,
   onClose,
+  onCloseOthers,
+  onCloseToRight,
+  onDuplicate,
   onNew,
+  onReload,
   onReorder,
   onSelect,
   selectedId,
@@ -43,7 +59,12 @@ export function AppTabStrip({
   chatTitles: Map<StoreId.Session, string>;
   childTitles: Map<TaskId, string>;
   onClose: (id: TabId) => void;
+  onCloseOthers: (id: TabId) => void;
+  onCloseToRight: (id: TabId) => void;
+  onDuplicate: (id: TabId) => void;
   onNew: () => void;
+  /** The tab's own reload, for a site's page; undefined where a tab has none. */
+  onReload: (id: TabId) => (() => void) | undefined;
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
@@ -57,21 +78,6 @@ export function AppTabStrip({
   const putAway = useAtomValue(putAwaySitesAtom);
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => {
-      setMenu(undefined);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menu]);
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
   /** A site's tab is named for the page its group has up. */
@@ -170,28 +176,105 @@ export function AppTabStrip({
         selectedKey={selectedId ?? undefined}
         tabs={presented}
       />
-      {menu && (
-        <div
-          className="fixed z-50 min-w-40 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
-          onPointerDown={(event) => {
-            event.stopPropagation();
-          }}
-          role="menu"
-          style={menuStyle}
-        >
-          <button
-            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
-            onClick={() => {
-              onClose(menu.id);
-              setMenu(undefined);
-            }}
-            role="menuitem"
-            type="button"
-          >
-            Close tab
-          </button>
-        </div>
-      )}
+      {/* The menu a right click on a tab raises, anchored at the pointer:
+          what a browser's tab menu offers, marks and all, the way the
+          system's own menus draw them. */}
+      <DropdownMenu
+        modal={false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMenu(undefined);
+          }
+        }}
+        open={menu !== undefined}
+      >
+        <DropdownMenuTrigger asChild>
+          <span
+            aria-hidden
+            className="pointer-events-none fixed size-0"
+            style={menuStyle}
+          />
+        </DropdownMenuTrigger>
+        {menu && (
+          <TabMenu
+            id={menu.id}
+            isLast={tabs.at(-1)?.id === menu.id}
+            isOnly={tabs.length === 1}
+            onClose={onClose}
+            onCloseOthers={onCloseOthers}
+            onCloseToRight={onCloseToRight}
+            onDuplicate={onDuplicate}
+            reload={onReload(menu.id)}
+          />
+        )}
+      </DropdownMenu>
     </>
+  );
+}
+
+/** A tab's own menu: reload and copy it, then close it or the tabs around it. */
+function TabMenu({
+  id,
+  isLast,
+  isOnly,
+  onClose,
+  onCloseOthers,
+  onCloseToRight,
+  onDuplicate,
+  reload,
+}: {
+  id: TabId;
+  isLast: boolean;
+  isOnly: boolean;
+  onClose: (id: TabId) => void;
+  onCloseOthers: (id: TabId) => void;
+  onCloseToRight: (id: TabId) => void;
+  onDuplicate: (id: TabId) => void;
+  reload: (() => void) | undefined;
+}) {
+  return (
+    <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
+      {reload && (
+        <DropdownMenuItem onClick={reload}>
+          <ArrowClockwiseIcon className="size-4" />
+          <span>Reload</span>
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem
+        onClick={() => {
+          onDuplicate(id);
+        }}
+      >
+        <NewTabIcon className="size-4" />
+        <span>Duplicate Tab</span>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => {
+          onClose(id);
+        }}
+      >
+        <XIcon className="size-4" />
+        <span>Close Tab</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={isOnly}
+        onClick={() => {
+          onCloseOthers(id);
+        }}
+      >
+        <XSquareIcon className="size-4" />
+        <span>Close Other Tabs</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={isLast}
+        onClick={() => {
+          onCloseToRight(id);
+        }}
+      >
+        <ArrowLineRightIcon className="size-4" />
+        <span>Close Tabs to the Right</span>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
   );
 }

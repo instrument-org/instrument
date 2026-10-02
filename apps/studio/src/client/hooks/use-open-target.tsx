@@ -248,13 +248,21 @@ function useDestinationsFor(): (
               },
             ]
           : []),
-        {
-          id: "openBrowser",
-          label: "Open in Default Browser",
-          run: () => {
-            openExternalLink(url, { addReferral });
-          },
-        },
+        // The default browser only where nothing in the app can open the
+        // page: the app's own browser is where a page opens, and its Open in
+        // button is the way out of it, so a menu offering both was offering
+        // to leave by default.
+        ...(canOpenHere || appWindow
+          ? []
+          : [
+              {
+                id: "openBrowser" as const,
+                label: "Open in Default Browser",
+                run: () => {
+                  openExternalLink(url, { addReferral });
+                },
+              },
+            ]),
         ...copy,
       ];
     }

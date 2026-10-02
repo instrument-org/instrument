@@ -1,6 +1,6 @@
 ---
 name: changelog
-description: Approach
+description: Generate a Features / Bug Fixes changelog since the last non-beta version, in the style of the examples below.
 disable-model-invocation: true
 ---
 

@@ -4,10 +4,10 @@ Learnings from driving Studio live to reproduce and verify a browser-panel layou
 
 ## Check the debug pages before hand-inspecting the DOM
 
-Developer Mode also unlocks `#/debug/*` routes -- check these before reaching for `evaluate_script` archaeology:
+The `/debug/*` routes (`node $DRIVE goto /debug/browser-views`, or the Debug links in the Developer Mode dev panel) are worth checking before reaching for `evaluate_script` archaeology:
 
-- **`#/debug/browser-views`** -- every live agent-controlled browser guest: URL, title, CDP-attached state, loading/crashed state, screencast state, webContents id, listener counts. Has a "View" button (`rpcClient.debug.browserViewManager.openAsTab`) that opens the guest as a normal devtools-visible tab if you need a direct CDP session on it.
-- **`#/debug`** -- index of all debug tools (components, errors, notifications, browser views).
+- **`/debug/browser-views`** -- every live agent-controlled browser: URL, target id, profile dir, CDP-attached state, loading/crashed state, screencast state, webContents id, listener counts, downloads, plus each task's cleanup machine. Its RPCs are Developer-Mode-only. Each card's "View" button (`rpcClient.debug.browserViewManager.openAsTab`) opens the owning task's page, where its browser is.
+- **`/debug`** -- index of all debug tools (components, errors, notifications, browser views).
 
 If what you need isn't visible there, that's a signal the debug page could be extended (cheap, high-leverage) rather than a one-off script.
 
@@ -15,15 +15,16 @@ If what you need isn't visible there, that's a signal the debug page could be ex
 
 Only type into the composer when the composer _is_ the thing under test. To get a prompt in front of an agent, `rpc workspace.message.create` (main SKILL.md) skips the entire input path and hands back the session id you will want afterwards.
 
-`chrome-devtools fill <uid> <text>` sets the DOM value directly. Studio's composer textarea is React-controlled, so a raw DOM write does **not** update the component's state -- the send button stays disabled even though the textarea visually shows your text. Symptom: `fill` "succeeds" but nothing is sent and the button reports `disabled: true`.
+`chrome-devtools fill <uid> <text>` writes the DOM directly. Studio's composer is a ProseMirror editor (`prompt-editor.tsx`) that owns its document, so a raw DOM write is not a reliable way in: the send button can stay disabled even though the editor visually shows your text. Symptom: `fill` "succeeds" but nothing is sent and the button reports `disabled: true`.
 
-Working recipe (real keyboard events, so React sees the change):
+Working recipe (real keyboard events, so the editor sees the change):
 
 ```bash
-pnpm exec chrome-devtools click <textarea-uid>
-pnpm exec chrome-devtools press_key "Control+a"
-pnpm exec chrome-devtools press_key "Backspace"
-pnpm exec chrome-devtools type_text "your message here" --submitKey Enter
+node $DRIVE click --selector '[contenteditable=true]'
+node $DRIVE press 'Meta+a'
+node $DRIVE press Backspace
+node $DRIVE type "your message here"
+node $DRIVE press Enter
 ```
 
 Other CLI gotchas hit along the way:
@@ -51,7 +52,7 @@ pnpm exec chrome-devtools evaluate_script "async function() {
   const webviews = Array.from(document.querySelectorAll('webview'));
   // Match by partition, not DOM order -- the pool can hold guests for
   // multiple tasks at once. Partition encodes the task/session id:
-  // persist:browser-route:<taskId>/<sessionId>
+  // persist:browser-route:<taskId>%2F<sessionId>
   const target = webviews.find(w => w.getAttribute('partition')?.includes('<task-id>'));
   if (!target) return { error: 'not found' };
   return JSON.parse(await target.executeJavaScript(

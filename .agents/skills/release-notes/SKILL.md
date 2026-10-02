@@ -12,8 +12,9 @@ Turn the commits since a version into plain, human-readable release notes for en
 
 1. Determine the version range.
    - If given a version (e.g. "since 1.3.0"), diff `v<version>..HEAD`.
+   - For a beta, start from the previous published release, beta or stable, that is an ancestor of the tag (`gh release list`); that is the range the release workflow's own body uses.
    - Otherwise find the latest non-beta tag (`git tag --list | sort -V`, ignoring `*-beta.*`) and diff the one before it to HEAD.
-   - Tags look like `vX.Y.Z`; betas like `vX.Y.Z-beta.N` (ignore betas).
+   - Tags look like `vX.Y.Z`; betas like `vX.Y.Z-beta.N` (ignore betas for a stable release).
    - Note which changes actually shipped in a tagged release vs. sit unreleased on `HEAD`; fold them together unless the split matters.
 2. List commits: `git log --oneline <range> --no-merges`.
 3. Keep only user-facing changes (see filtering below). Inspect larger or ambiguous commits before deciding what they mean to a user.
@@ -27,8 +28,8 @@ Commits are scope-prefixed. Current commits use `scope: description`; older comm
 
 Drop anything a user never sees:
 
-- **Drop by scope**: `dx:`, `docs:`, `cspell:`, `spelling:`, `lint:`, `knip:`, `pnpm:`, `deps:`, `dependencies:`, `eslint-config:`, `skills:`, `release(...)`, dependency bumps, formatter/lint migrations, and dev-only or debug-only work (dev hot-reload behavior, debug launchers, RPC consoles, developer-mode pages).
-- **Keep by scope**: `studio:`, `workspace:`, `agent-browser:`, `browser:`, `tabs:`, `task:` / `tasks:`, `session:`, `image-gen:`, `ai-gateway:`, `shim:`, and `registry` updates (bundled skills/content; opaque subjects like "update to latest" need inspection to describe).
+- **Drop by scope**: `dx:`, `docs:`, `cspell:`, `spelling:`, `lint:`, `knip:`, `pnpm:`, `deps:`, `dependencies:`, `eslint-config:`, `skills:`, `release:` / `release(...)`, `ci:`, `evals:`, `studio-drive:`, dependency bumps, formatter/lint migrations, and dev-only or debug-only work (dev hot-reload behavior, debug launchers, RPC consoles, developer-mode pages).
+- **Keep by scope**: `studio:`, `workspace:`, `agent-browser:`, `browser:`, `tabs:`, `task:` / `tasks:`, `session:`, `image-gen:`, `ai-gateway:`, `orchestrator:`, `topics:`, `files:`, `apps:`, `shim:`, and `registry` updates (bundled skills/content; opaque subjects like "update to latest" need inspection to describe).
 - **Then drop by effect**: scope alone is not enough. Within kept scopes, a large share of commits are internal plumbing with no user-visible change (refactors, RPC/IPC channel moves, lifecycle/ownership fixes, phrases like "single-owner", "stream over RPC", "break import cycle"). Keep only commits that change what a user sees or can do. When a commit is half-internal, describe only the part a user would notice.
 
 ## Tone

@@ -33,7 +33,7 @@ ls -t apps/studio/.logs/*.jsonl | head -1
 Each line is a JSON object:
 
 ```jsonl
-{"level":"info","time":"2026-06-01T21:14:55.123Z","msg":"App already running, quitting"}
+{"level":"info","time":"2026-06-01T21:14:55.123Z","msg":"Quit teardown started"}
 {"level":"error","time":"2026-06-01T21:15:02.456Z","msg":{"name":"Error","message":"connect ECONNREFUSED","stack":"Error: connect..."}}
 ```
 
@@ -41,7 +41,7 @@ Fields:
 
 - `level` — `debug` | `info` | `warn` | `error`
 - `time` — ISO 8601 timestamp
-- `scope`: the scoped logger's name (`boot`, `BrowserViewManager`, `CrashDiagnostics`, ...). Absent for plain `console.*` calls.
+- `scope`: the scoped logger's name (`boot`, `appUpdater`, `rpc`, ...). Absent for plain `console.*` calls.
 - `source` — present only on entries forwarded from the **renderer** process (value `"renderer"`). Absent on main-process entries.
 - `msg` — string for plain messages; object for `Error` instances (`name`, `message`, `stack`, optional `cause`); array when multiple arguments were passed
 

@@ -20,7 +20,7 @@ No dependencies. It reads only the Markdown, so it works on a transcript from an
 1. Run the digest first, always. Read its header, time split and flags before opening the transcript.
 2. Read the transcript only at the line ranges the flags and the step list point to (`sed -n 'A,Bp'` or Read with an offset). The step list's `L` numbers are the step headings; a flagged tool call's line is its `### Tool Call` heading, with the result below it.
 3. If the header says the same session was exported more than once, work from the newest export and say which one you used. Identical copies are marked.
-4. For a chat (task name "Instrument", `task new` / `task send` in its calls), rerun with `--children` before judging what a child did; the chat only sees the child's receipt. Each child's header gives the path of its exported transcript; read that file at the child's flagged lines rather than running the digest again.
+4. For a chat (`task new` / `task send` in its calls), rerun with `--children` before judging what a child did; the chat only sees the child's receipt. Each child's header gives the path of its exported transcript; read that file at the child's flagged lines rather than running the digest again.
 
 ## Reading the output
 

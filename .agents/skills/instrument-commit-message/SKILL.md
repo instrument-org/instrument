@@ -9,7 +9,7 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 
 `scope: clear, concise description of what changed`
 
-- **Scope:** default to the package/app that owns the change (`studio`, `workspace`, `ai-gateway`, `shim-client`) or an established workflow scope (`dx`, `ci`, `release`, `docs`). Use a feature-area scope only when recent history shows that scope is established; do not invent one from the subject matter.
+- **Scope:** default to the package/app that owns the change (`studio`, `workspace`, `ai-gateway`, `shared`) or an established workflow scope (`dx`, `ci`, `release`, `docs`, `evals`, `studio-drive`). Use a feature-area scope only when recent history shows that scope is established (`orchestrator`, `task`, `topics`); do not invent one from the subject matter.
 - **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
 - **Description:** lowercase, no period, under ~72 chars. Start with a concrete verb and name the product noun or feature affected, then the observable behavior: `restore window bounds`, `open reply folders`, `suppress duplicate folder notices`.
 - **Standalone subject:** write a history label, not a sentence from the implementation story. Avoid starting with articles or pronouns; personification, metaphors, comparisons, and contrast clauses belong in the body. Prefer product behavior over an implementation detail unless that detail is the public contract.
@@ -19,10 +19,10 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 ## Examples
 
 ```plaintext
-studio: darken dark-mode secondary button to sit below default
-workspace: move pins into task settings and drop KV store
-dx: drop eslint --cache from lint scripts and editor
-studio: revert dark-mode secondary variant on new task button
+studio: refuse deleting a workspace folder that holds userData
+workspace: run osascript scripts as code, with /task literals bridged
+orchestrator: mark the apps a user names in a message with the slash menu
+dx: hash the root oxlint config into every package's lint cache
 ```
 
 Use comma-separated package/app scopes only when changes genuinely span both areas (`studio,workspace`). Omit scope only for truly repo-wide changes.

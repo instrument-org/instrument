@@ -1,6 +1,6 @@
 ---
 name: run-bash
-description: Test bash commands in the same just-bash sandbox the agent uses, without booting Studio. Use when validating bash environment fixes, checking command availability, or verifying tool behavior (uv, pnpm, tsx, ffmpeg, etc.).
+description: Test bash commands in the same just-bash sandbox the agent uses, without booting Studio. Use when validating bash environment fixes, checking command availability, or verifying tool behavior (uv, pnpm, node, ffmpeg, etc.).
 ---
 
 # run-bash
@@ -24,15 +24,15 @@ Pass the command as a positional argument. The process exits with the command's 
 ```bash
 pnpm --silent script:run-bash -- "python -c 'import sys; print(sys.version)'"
 pnpm --silent script:run-bash -- "uv pip install numpy && python-native -c 'import numpy'"
-pnpm --silent script:run-bash -- "tsx --version"
+pnpm --silent script:run-bash -- "node --version"
 ```
 
 Pass multiple positional commands to run them back to back in the same task dir:
 
 ```bash
 pnpm --silent script:run-bash -- \
-  "echo hello > /note.txt" \
-  "cat /note.txt"
+  "echo hello > note.txt" \
+  "cat note.txt"
 ```
 
 By default, all commands run and the process exits with the first non-zero exit code. Add `--bail` to stop after the first failure:
@@ -53,7 +53,7 @@ pnpm --silent script:run-bash -- --task TASK_ID "python-native -c 'import numpy'
 
 ### Attached-folder mounts
 
-Mount host folders read-only under `/mnt/<basename>` (repeatable), the same way user-attached folders appear to the agent:
+Mount host folders read-only under `/mnt/<basename>` (repeatable; `--attach-writable` mounts one read-write), the same way user-attached folders appear to the agent:
 
 ```bash
 pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
@@ -95,11 +95,12 @@ task: 01kv...  session: ses_01KV...
 
 Same environment as the real agent:
 
-- **FS**: the task dir mounts writable at `/task` (the working directory) and `--attach` folders mount read-only under `/mnt/<name>`; everything else is a read-only empty root, so there is no access to the host filesystem
+- **FS**: the task dir mounts writable at `/task` (the working directory), skills read-only at `/skills`, and `--attach` folders under `/mnt/<name>`; everything else is a read-only empty root, so there is no access to the host filesystem
 - **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
 - **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads `/mnt` directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
-- **Custom shims**: `tsx`, `pnpm`, `pnx`, `npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `node`, `git`
+- **Custom shims**: `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
+- **Not here**: the chat agent's commands (`task`, `chat`, `tab`, `memory`); this runner builds a task agent's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 
@@ -119,4 +120,4 @@ TASK_DIR=$(pnpm --silent script:run-bash -- "echo hi" 2>&1 \
   | grep 'task dir:' | awk '{print $3}')
 ```
 
-Alternatively pass `--task <id>` to a known task dir under `/tmp/instrument-bash-repl/tasks/<id>/`.
+Alternatively pass `--task <id>` to a known task dir under `$TMPDIR/instrument-bash-repl/tasks/<id>/` (`--tasks-dir <dir>` uses another tasks root).

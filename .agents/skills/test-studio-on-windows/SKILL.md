@@ -106,7 +106,7 @@ Against a development build:
 ```bash
 node "$DRIVE" state --port 49160
 node "$DRIVE" goto /release-notes --port 49160
-node "$DRIVE" click --text "New task" --port 49160
+node "$DRIVE" click --text "New chat" --port 49160
 node "$DRIVE" shot /tmp/windows-dev.png --port 49160
 node "$DRIVE" rpc workspace.task.agentStatus.byIds '{"ids":["<task-id>"]}' --port 49160
 node "$DRIVE" wait --idle --task <task-id> --port 49160

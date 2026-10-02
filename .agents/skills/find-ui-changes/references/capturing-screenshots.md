@@ -7,7 +7,7 @@ Read `.agents/skills/studio-chrome-devtools/SKILL.md` for the general picture. T
 ## Drive it with studio-drive.mjs
 
 ```bash
-DRIVE=".agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs"
+DRIVE=$(git rev-parse --show-toplevel)/.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 
 node $DRIVE boot --purpose "ui review"              # your own instance, on its own port
 node $DRIVE goto /skills

@@ -12,7 +12,7 @@ Create a concise queue of review-worthy UI changes from recent commits. This is 
 Accept ranges such as:
 
 - `HEAD~20..HEAD`
-- `v1.3.0..HEAD`
+- `v2.0.0-beta.41..HEAD`
 - `since Monday`
 - `last 48 hours`
 - `last two weeks`
@@ -108,16 +108,19 @@ Guidelines:
 
 Use product language like:
 
-- Studio task page, artifact panel
-- Studio task page, prompt input
-- Studio task page, inline file previews
-- Main Studio window, left sidebar
-- Main Studio toolbar
+- Inbox (the chat list)
+- Chat window, composer
+- Compose window (a new chat's draft)
+- Task page
+- App rail
+- Window tab bar
+- Apps home, or a named app
+- Files page
+- Skills page
 - Settings modal
 - Welcome or onboarding flow
 - Provider/model picker
 - File viewer
-- Project page
 
 ## Commit Links
 

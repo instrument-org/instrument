@@ -1,6 +1,6 @@
 ---
 name: validate-changes
-description: Choose how to check an Instrument change — sandbox shell, tool harness, a real agent across models, or the running app. Use after changing an agent tool, a prompt, a skill, the sandbox, or any behavior reading the code cannot confirm.
+description: Choose how to check an Instrument change: unit tests, sandbox shell, a real agent across models, or the running app. Use after changing an agent tool, a prompt, a skill, the sandbox, or any behavior reading the code cannot confirm.
 ---
 
 # Validating a change
@@ -40,7 +40,7 @@ description, or choose the right arguments. Only rung 3 answers that.
 ## Rung 1: unit tests
 
 ```bash
-cd packages/workspace && pnpm test run <path/to/file.test.ts>
+pnpm --filter @instrument-org/workspace exec vitest run <path/to/file.test.ts>
 ```
 
 Root-level checks (`pnpm exec turbo run check:types check:lint`) are in the root
@@ -52,7 +52,7 @@ Boots the same `just-bash` sandbox the agent gets (same virtual FS, same command
 shims, same network policy) without Studio.
 
 ```bash
-cd packages/workspace && pnpm --silent script:run-bash -- "<command>"
+pnpm --filter @instrument-org/workspace run --silent script:run-bash -- "<command>"
 ```
 
 Full options, mounts, and what the sandbox provides: `run-bash` skill.
@@ -64,10 +64,12 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
+pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-flash
 ```
 
 - Runs from the repo root; no `cd` first.
+- `--prompt` runs a task agent; add `--orchestrator` to send it through the chat
+  agent the user talks to, which starts tasks of its own.
 - **`--model` is required, and there is no default set.** `pnpm eval models
 [pattern]` lists what the configured providers can run today, newest first,
   each row spelled the way `--model` takes it. Pick for the question you are
@@ -98,7 +100,8 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
 dir>` re-runs every assertion against the sessions already recorded. The run
   prints the exact command to use.
 
-Committed cases live in `packages/workspace/evals/cases/`; add one when a
+Committed cases live in `packages/workspace/evals/cases/` (`pnpm eval list
+[pattern]` names them, `pnpm eval run <pattern>` runs them); add one when a
 behavior is worth guarding permanently. Details in
 `packages/workspace/AGENTS.md`.
 
@@ -134,7 +137,7 @@ still hot reload: an edit landing mid-run resets the state you navigated to.
 - `studio-drive.mjs stop` when the check is done, unless you booted it for
   someone to look at.
 
-Three things not to do, each of which costs someone else their session:
+Two things not to do, each of which costs someone else their session:
 
 - **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
   A hand-picked port is either already a window someone is using, and you will

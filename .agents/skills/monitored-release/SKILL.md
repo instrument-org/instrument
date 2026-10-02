@@ -44,7 +44,7 @@ git worktree add --detach <scratch>/verify <sha>
 cd <scratch>/verify && pnpm check-and-test:ci --force
 ```
 
-**5. Know the baseline before calling anything broken.** `check:unused` (knip) has been failing on `spike/orchestrator` for several releases. Check the previous tag out in the same worktree and run `pnpm knip` there before reporting a regression. `--output-logs errors-only` prints nothing for a passing task, so read the final `Tasks: N successful, M total` line rather than reading a quiet log as a full run.
+**5. Know the baseline before calling anything broken.** `check:unused` (knip) has failed across several releases in a row. Check the previous tag out in the same worktree and run `pnpm knip` there before reporting a regression. `--output-logs errors-only` prints nothing for a passing task, so read the final `Tasks: N successful, M total` line rather than reading a quiet log as a full run.
 
 Booting the packaged app is CI's job, not yours. Boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
 

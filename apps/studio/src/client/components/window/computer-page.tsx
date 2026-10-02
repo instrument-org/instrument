@@ -19,6 +19,7 @@ import {
   type FileSystemSortKey,
   type FileSystemSortState,
   TOOLBAR_CONTROL_CLASSNAME,
+  TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -40,7 +41,16 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
@@ -60,6 +70,7 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
@@ -959,6 +970,72 @@ export function ComputerPage({
       }}
     />
   );
+  const afterMenuClosed = () => {
+    afterMenu.current?.();
+    afterMenu.current = null;
+  };
+  /** What the folder's menus do to a row, or to the folder where there is none. */
+  const menuActionsFor = (item: FileSystemItem | undefined) => ({
+    onCopyPath: () => void copyPath(item),
+    onDuplicate: () => void duplicate(item),
+    // The recents are a list rather than a folder, so there is nowhere
+    // there to make one.
+    onNewDraft:
+      askAbout && (item || folderOnScreenPath !== undefined)
+        ? () => {
+            draftAbout(item);
+          }
+        : undefined,
+    onNewFolder:
+      folderOnScreenPath === undefined
+        ? undefined
+        : () => {
+            void newFolderIn({
+              hostPath: folderOnScreenPath,
+              prefix: onScreen,
+            });
+          },
+    onOpen: () => {
+      if (item?.kind === "file") {
+        openFile(item);
+      }
+    },
+    onOpenInNewTab: () => {
+      const itemPath = hostPathOfItem(item);
+      if (!itemPath) {
+        return;
+      }
+      // A file comes up with the folder it was chosen in as its tree, the
+      // way one opened in place does.
+      openScreen(
+        item?.kind === "folder"
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+        { newTab: true },
+      );
+    },
+    onQuickLook:
+      onQuickLook &&
+      (() => {
+        const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
+        if (tab) {
+          onQuickLook(tab);
+        }
+      }),
+    onRename: () => {
+      const renaming = item?.path ?? null;
+      afterMenu.current = () => {
+        setRenamingPath(renaming);
+      };
+    },
+    onReveal: () =>
+      void rpcClient.utils.showFileInFolder
+        .call({ filepath: hostPathOfItem(item) })
+        .catch(failed),
+    onTrash: () => void trash(item),
+  });
   const rootName = isRecents
     ? "Recents"
     : root === "~"
@@ -1221,29 +1298,35 @@ export function ComputerPage({
                         </span>
                       ),
                     })}
-                renderHeaderTrail={
-                  askAbout && (selectedItem || folderOnScreenPath !== undefined)
-                    ? () => {
-                        const about =
-                          segmentsOf(
-                            hostPathOfItem(selectedItem) ||
-                              (folderOnScreenPath ?? ""),
-                          ).at(-1) ?? "this folder";
-                        return (
-                          <GlyphButton
-                            className={TOOLBAR_CONTROL_CLASSNAME}
-                            onClick={() => {
-                              draftAbout(selectedItem);
-                            }}
-                            size="sm"
-                            title={`Ask about “${about}”`}
-                          >
-                            <span className="@max-lg/finder:sr-only">Ask</span>
-                          </GlyphButton>
-                        );
-                      }
-                    : undefined
-                }
+                renderHeaderTrail={() => {
+                  const about =
+                    segmentsOf(
+                      hostPathOfItem(selectedItem) ||
+                        (folderOnScreenPath ?? ""),
+                    ).at(-1) ?? "this folder";
+                  return (
+                    <>
+                      <FolderOverflowMenu
+                        {...menuActionsFor(selectedItem)}
+                        item={selectedItem}
+                        onClosed={afterMenuClosed}
+                      />
+                      {askAbout &&
+                      (selectedItem || folderOnScreenPath !== undefined) ? (
+                        <GlyphButton
+                          className={TOOLBAR_CONTROL_CLASSNAME}
+                          onClick={() => {
+                            draftAbout(selectedItem);
+                          }}
+                          size="sm"
+                          title={`Ask about “${about}”`}
+                        >
+                          <span className="@max-lg/finder:sr-only">Ask</span>
+                        </GlyphButton>
+                      ) : null}
+                    </>
+                  );
+                }}
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
@@ -1253,75 +1336,10 @@ export function ComputerPage({
             </div>
           </ContextMenuTrigger>
           <FolderMenu
+            {...menuActionsFor(menuItem)}
             isRecents={isRecents}
             item={menuItem}
-            onClosed={() => {
-              afterMenu.current?.();
-              afterMenu.current = null;
-            }}
-            onCopyPath={() => void copyPath(menuItem)}
-            onDuplicate={() => void duplicate(menuItem)}
-            // The recents are a list rather than a folder, so there is nowhere
-            // there to make one.
-            onNewDraft={
-              askAbout && (menuItem || folderOnScreenPath !== undefined)
-                ? () => {
-                    draftAbout(menuItem);
-                  }
-                : undefined
-            }
-            onNewFolder={
-              folderOnScreenPath === undefined
-                ? undefined
-                : () => {
-                    void newFolderIn({
-                      hostPath: folderOnScreenPath,
-                      prefix: onScreen,
-                    });
-                  }
-            }
-            onOpen={() => {
-              if (menuItem?.kind === "file") {
-                openFile(menuItem);
-              }
-            }}
-            onOpenInNewTab={() => {
-              const itemPath = hostPathOfItem(menuItem);
-              if (!itemPath) {
-                return;
-              }
-              // A file comes up with the folder it was chosen in as its
-              // tree, the way one opened in place does.
-              openScreen(
-                menuItem?.kind === "folder"
-                  ? folderHref(itemPath)
-                  : fileHref(itemPath, {
-                      tree: folderOnScreenPath ?? folderOf(itemPath),
-                    }),
-                { newTab: true },
-              );
-            }}
-            onQuickLook={
-              onQuickLook &&
-              (() => {
-                const tab =
-                  menuItem?.kind === "file" ? fileTabOf(menuItem) : undefined;
-                if (tab) {
-                  onQuickLook(tab);
-                }
-              })
-            }
-            onRename={() => {
-              const renaming = menuItem?.path ?? null;
-              afterMenu.current = () => {
-                setRenamingPath(renaming);
-              };
-            }}
-            onReveal={() =>
-              void rpcClient.utils.showFileInFolder
-                .call({ filepath: hostPathOfItem(menuItem) })
-                .catch(failed)
-            }
+            onClosed={afterMenuClosed}
             onSortKey={(key) => {
               sortBy(
                 key === shown.sort.key
@@ -1334,7 +1352,6 @@ export function ComputerPage({
                     },
               );
             }}
-            onTrash={() => void trash(menuItem)}
             sort={shown.sort}
           />
         </ContextMenu>
@@ -1342,6 +1359,26 @@ export function ComputerPage({
     </div>
   );
 }
+
+/** What a row's menus do, by the menu's own components; see `FolderMenu`. */
+type FolderMenuActions = {
+  onCopyPath: () => void;
+  onDuplicate: () => void;
+  /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
+  onNewDraft?: (() => void) | undefined;
+  /** Left out where there is no folder to make one in. */
+  onNewFolder: (() => void) | undefined;
+  /** What a double-click does: a folder is gone into, a file opened here. */
+  onOpen: () => void;
+  /** A folder in a tab of its own, which is the Finder's first answer for one. */
+  onOpenInNewTab: () => void;
+  /** Left out where nothing shows a file over the page. */
+  onQuickLook: (() => void) | undefined;
+  /** Left out where there is no field to type a name in. */
+  onRename?: () => void;
+  onReveal: () => void;
+  onTrash: () => void;
+};
 
 /**
  * What can be done to the thing under the pointer, or to the folder itself
@@ -1354,52 +1391,19 @@ export function ComputerPage({
  */
 export function FolderMenu({
   isRecents = false,
-  item,
   onClosed,
-  onCopyPath,
-  onDuplicate,
-  onNewDraft,
-  onNewFolder,
-  onOpen,
-  onOpenInNewTab,
-  onQuickLook,
-  onRename,
-  onReveal,
   onSortKey,
-  onTrash,
   sort,
-}: {
+  ...props
+}: FolderMenuActions & {
   isRecents?: boolean;
   item: FileSystemItem | undefined;
   /** The menu gone, and the keyboard with it. */
   onClosed?: () => void;
-  onCopyPath: () => void;
-  onDuplicate: () => void;
-  /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
-  onNewDraft?: () => void;
-  /** Left out where there is no folder to make one in. */
-  onNewFolder: (() => void) | undefined;
-  /** What a double-click does: a folder is gone into, a file opened here. */
-  onOpen: () => void;
-  /** A folder in a tab of its own, which is the Finder's first answer for one. */
-  onOpenInNewTab: () => void;
-  /** Left out where nothing shows a file over the page. */
-  onQuickLook: (() => void) | undefined;
-  /** Left out where there is no field to type a name in. */
-  onRename?: () => void;
-  onReveal: () => void;
   /** With `sort`, the folder's own orders, offered on its empty space. */
   onSortKey?: (key: FileSystemSortKey) => void;
-  onTrash: () => void;
   sort?: FileSystemSortState;
 }) {
-  const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
-  const file = tab ? { hostPath: tab.hostPath } : undefined;
-  const openFile = useOpenFile();
-  const { openLabel, showOpen } = useFileOpenTarget(file);
-  const itemHostPath = hostPathOfItem(item);
-  const openIn =
-    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
   return (
     <ContextMenuContent
       className="min-w-48"
@@ -1412,92 +1416,10 @@ export function FolderMenu({
         onClosed?.();
       }}
     >
-      {onNewDraft ? (
-        <>
-          <ContextMenuItem onClick={onNewDraft}>
-            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>New Chat</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-        </>
-      ) : null}
-      {item ? (
-        <>
-          {item.kind === "file" && (
-            <ContextMenuItem onClick={onOpen}>
-              <FolderOpenIcon className="size-4" />
-              <span>Open</span>
-            </ContextMenuItem>
-          )}
-          <ContextMenuItem onClick={onOpenInNewTab}>
-            <ArrowSquareOutIcon className="size-4" />
-            <span>Open in New Tab</span>
-          </ContextMenuItem>
-          {/* The apps are listed where the Mac can be asked for them, and the
-              submenu asks only once it is opened, so the row is there from
-              the first frame rather than arriving under the pointer once a
-              lookup has answered. Elsewhere the one row hands the file to
-              whichever program the system has chosen for it. */}
-          {openIn ? (
-            <OpenInMenu file={openIn} menuComponents={contextMenuComponents} />
-          ) : file && showOpen ? (
-            <ContextMenuItem
-              onClick={() => {
-                openFile(file);
-              }}
-            >
-              <OpenTargetIcon className="size-4" file={file} />
-              <span>{openLabel}</span>
-            </ContextMenuItem>
-          ) : null}
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={onTrash} variant="destructive">
-            <TrashIcon className="size-4" />
-            <span>Move to Trash</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          {onRename ? (
-            <ContextMenuItem onClick={onRename}>
-              <PencilSimpleIcon className="size-4" />
-              <span>Rename</span>
-            </ContextMenuItem>
-          ) : null}
-          <ContextMenuItem onClick={onDuplicate}>
-            <CopyIcon className="size-4" />
-            <span>Duplicate</span>
-          </ContextMenuItem>
-          {file && onQuickLook ? (
-            <ContextMenuItem onClick={onQuickLook}>
-              <EyeIcon className="size-4" />
-              <span>Quick Look</span>
-            </ContextMenuItem>
-          ) : null}
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={onCopyPath}>
-            <ClipboardTextIcon className="size-4" />
-            <span>Copy Path</span>
-          </ContextMenuItem>
-          {/* The Open in list already offers the Finder, so a row of its
-              own would name it twice. */}
-          {openIn ? null : (
-            <ContextMenuItem onClick={onReveal}>
-              <RevealInFolderIcon className="size-4" />
-              <span>{getRevealInFolderLabel()}</span>
-            </ContextMenuItem>
-          )}
-        </>
-      ) : (
-        <>
-          {onNewFolder ? (
-            <>
-              <ContextMenuItem onClick={onNewFolder}>
-                <FolderPlusIcon className="size-4" />
-                <span>New Folder</span>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          ) : null}
-          {onSortKey && sort ? (
+      <FolderMenuItems
+        {...props}
+        emptyTail={
+          onSortKey && sort ? (
             <ContextMenuSub>
               <ContextMenuSubTrigger>
                 <SortAscendingIcon className="size-4" />
@@ -1523,10 +1445,191 @@ export function FolderMenu({
                 </ContextMenuRadioGroup>
               </ContextMenuSubContent>
             </ContextMenuSub>
+          ) : null
+        }
+        menuComponents={contextMenuComponents}
+      />
+    </ContextMenuContent>
+  );
+}
+
+/**
+ * The toolbar's More menu, the Finder's ⋯: the folder menu for what is
+ * selected, or for the folder where nothing is, with New Folder at its head
+ * either way, since a list with no empty space to right-click still needs a
+ * way to make one.
+ */
+function FolderOverflowMenu({
+  onClosed,
+  ...props
+}: FolderMenuActions & {
+  item: FileSystemItem | undefined;
+  onClosed: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <ToolbarTooltip label="More">
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label="More"
+            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+            type="button"
+          >
+            <DotsThreeIcon className="size-4" weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+      </ToolbarTooltip>
+      <DropdownMenuContent
+        align="end"
+        className="min-w-48"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          onClosed();
+        }}
+      >
+        <FolderMenuItems
+          {...props}
+          menuComponents={dropdownMenuComponents}
+          newFolderFirst
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** The folder menu's rows, drawn by whichever menu holds them. */
+function FolderMenuItems({
+  emptyTail,
+  item,
+  menuComponents,
+  newFolderFirst = false,
+  onCopyPath,
+  onDuplicate,
+  onNewDraft,
+  onNewFolder,
+  onOpen,
+  onOpenInNewTab,
+  onQuickLook,
+  onRename,
+  onReveal,
+  onTrash,
+}: FolderMenuActions & {
+  /** What the menu adds on the folder's empty space, after New Folder. */
+  emptyTail?: ReactNode;
+  item: FileSystemItem | undefined;
+  menuComponents: MenuComponents;
+  /** New Folder at the head whatever the menu is about, the way the Finder's ⋯ has it. */
+  newFolderFirst?: boolean;
+}) {
+  const { Item, Separator } = menuComponents;
+  const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
+  const file = tab ? { hostPath: tab.hostPath } : undefined;
+  const openFile = useOpenFile();
+  const { openLabel, showOpen } = useFileOpenTarget(file);
+  const itemHostPath = hostPathOfItem(item);
+  const openIn =
+    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
+  return (
+    <>
+      {newFolderFirst && onNewFolder ? (
+        <>
+          <Item onClick={onNewFolder}>
+            <FolderPlusIcon className="size-4" />
+            <span>New Folder</span>
+          </Item>
+          <Separator />
+        </>
+      ) : null}
+      {onNewDraft ? (
+        <>
+          <Item onClick={onNewDraft}>
+            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
+            <span>New Chat</span>
+          </Item>
+          {/* Nothing comes after it on a folder's More menu. */}
+          {item || !newFolderFirst ? <Separator /> : null}
+        </>
+      ) : null}
+      {item ? (
+        <>
+          {item.kind === "file" && (
+            <Item onClick={onOpen}>
+              <FolderOpenIcon className="size-4" />
+              <span>Open</span>
+            </Item>
+          )}
+          <Item onClick={onOpenInNewTab}>
+            <ArrowSquareOutIcon className="size-4" />
+            <span>Open in New Tab</span>
+          </Item>
+          {/* The apps are listed where the Mac can be asked for them, and the
+                submenu asks only once it is opened, so the row is there from
+                the first frame rather than arriving under the pointer once a
+                lookup has answered. Elsewhere the one row hands the file to
+                whichever program the system has chosen for it. */}
+          {openIn ? (
+            <OpenInMenu file={openIn} menuComponents={menuComponents} />
+          ) : file && showOpen ? (
+            <Item
+              onClick={() => {
+                openFile(file);
+              }}
+            >
+              <OpenTargetIcon className="size-4" file={file} />
+              <span>{openLabel}</span>
+            </Item>
           ) : null}
+          <Separator />
+          <Item onClick={onTrash} variant="destructive">
+            <TrashIcon className="size-4" />
+            <span>Move to Trash</span>
+          </Item>
+          <Separator />
+          {onRename ? (
+            <Item onClick={onRename}>
+              <PencilSimpleIcon className="size-4" />
+              <span>Rename</span>
+            </Item>
+          ) : null}
+          <Item onClick={onDuplicate}>
+            <CopyIcon className="size-4" />
+            <span>Duplicate</span>
+          </Item>
+          {file && onQuickLook ? (
+            <Item onClick={onQuickLook}>
+              <EyeIcon className="size-4" />
+              <span>Quick Look</span>
+            </Item>
+          ) : null}
+          <Separator />
+          <Item onClick={onCopyPath}>
+            <ClipboardTextIcon className="size-4" />
+            <span>Copy Path</span>
+          </Item>
+          {/* The Open in list already offers the Finder, so a row of its
+                own would name it twice. */}
+          {openIn ? null : (
+            <Item onClick={onReveal}>
+              <RevealInFolderIcon className="size-4" />
+              <span>{getRevealInFolderLabel()}</span>
+            </Item>
+          )}
+        </>
+      ) : (
+        <>
+          {onNewFolder && !newFolderFirst ? (
+            <>
+              <Item onClick={onNewFolder}>
+                <FolderPlusIcon className="size-4" />
+                <span>New Folder</span>
+              </Item>
+              <Separator />
+            </>
+          ) : null}
+          {emptyTail}
         </>
       )}
-    </ContextMenuContent>
+    </>
   );
 }
 

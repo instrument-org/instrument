@@ -2613,7 +2613,7 @@ const VIEW_TAB_CLASSNAME =
 export const TOOLBAR_CONTROL_CLASSNAME =
   "h-8 rounded-lg border-0 bg-card shadow-xs dark:bg-input/30";
 // Shared style for the ghost icon buttons in the toolbar.
-const TOOLBAR_ICON_BUTTON_CLASSNAME =
+export const TOOLBAR_ICON_BUTTON_CLASSNAME =
   "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
 // Searchable file-type list (cmdk) rendered inside a menu popup, so the
 // long MIME list can be filtered by typing. Selection toggles stay open for

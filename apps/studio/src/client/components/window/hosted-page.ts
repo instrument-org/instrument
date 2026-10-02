@@ -9,9 +9,12 @@ import { useEffect, useRef } from "react";
  * What a page drawn inside a file tab (beside its tree) moving means for the
  * tab around it:
  *
- * - `back`: the mouse's back button pressed over the page with nothing of
- *   the page's own behind it. The file is the start of the page's history,
- *   so the step is the tab's, back to where the file was opened from.
+ * - `back`: the mouse's back button pressed over the page, or the back
+ *   chord pressed in it, with nothing of the page's own behind it. The file
+ *   is the start of the page's history, so the step is the tab's, back to
+ *   where the file was opened from.
+ * - `forward`: the same forward, with nothing of the page's own ahead of it:
+ *   the tab's step forward.
  * - `file`: a link took the page to another file on the computer, which the
  *   tab shows in the file's place, its tree following.
  * - `site`: a link took the page off the computer, and the tab becomes the
@@ -23,6 +26,7 @@ import { useEffect, useRef } from "react";
 export type HostedPageStep =
   | undefined
   | { kind: "back" }
+  | { kind: "forward" }
   | { kind: "file"; path: string }
   | { kind: "site"; url: string };
 
@@ -43,8 +47,8 @@ export function hostedPageStep(
 /**
  * Follows the guest of a page drawn inside a file tab and hands each move
  * that takes it off the file to the tab; see `hostedPageStep`. The mouse's
- * thumb buttons over the page walk the page's own history, and back past
- * its start is the tab's. A page going on to a site starts its own history
+ * thumb buttons over the page walk the page's own history, and a step past
+ * either end of it is the tab's. A page going on to a site starts its own history
  * there, since what came before it is the tab's.
  */
 export function useHostedPageNavigation(
@@ -94,6 +98,8 @@ export function useHostedPageNavigation(
         if (direction === "forward") {
           if (webview.canGoForward()) {
             webview.goForward();
+          } else if (latest.current.fileUrl !== undefined) {
+            latest.current.onStep({ kind: "forward" });
           }
         } else if (webview.canGoBack()) {
           webview.goBack();

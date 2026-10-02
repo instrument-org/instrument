@@ -102,7 +102,8 @@ export function FilesScreen({
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail, taskId } =
     useWindow();
-  const { allTabs, close, moveToGroup, pageTakesOver } = useWindowTabs();
+  const { allTabs, close, moveToGroup, pageTakesOver, stepTab, stepVisitOf } =
+    useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -237,8 +238,8 @@ export function FilesScreen({
   });
   // A link the page follows moves the tab: to another file, which the tab
   // shows in this one's place, or off the computer, where the tab becomes
-  // the page at that address and back returns here. A step back past the
-  // file is the tab's own back.
+  // the page at that address and back returns here. A step past either end
+  // of the page's history is the tab's own.
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
@@ -247,6 +248,14 @@ export function FilesScreen({
     (step) => {
       if (step.kind === "back") {
         leaveFile();
+        return;
+      }
+      if (step.kind === "forward") {
+        if (!screenTab) {
+          router.history.forward();
+        } else if (stepTab(screenTab.id, 1) === undefined) {
+          stepVisitOf(screenTab.id, 1);
+        }
         return;
       }
       if (step.kind === "file") {

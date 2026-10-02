@@ -81,7 +81,7 @@ Do not use `state`, `goto`, or `modal`. They wait for a dev-only handle that pac
 `rpc` is the exception, and it is why enumerating the DOM should not be the first move on this target. It goes through a different handle (`window.__studioDebug`) that does ship in a packaged build, so the installed product can be asked what it holds rather than read off what it painted:
 
 ```bash
-node "$DRIVE" rpc workspace.task.list '{}' --port 49171
+node "$DRIVE" rpc workspace.chats.tasks '{"id":"<chat-id>"}' --port 49171
 ```
 
 Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle`, which blocks until a task's agent goes quiet, needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.

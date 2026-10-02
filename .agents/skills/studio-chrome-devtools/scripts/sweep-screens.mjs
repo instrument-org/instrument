@@ -16,6 +16,9 @@
 // to see what a screen logs while it mounts. It costs the wait, so it is off by
 // default.
 
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+
 import { sleep } from "./studio-app.mjs";
 
 /** How long a screen is given to mount and settle before moving on. */
@@ -76,14 +79,16 @@ export default async (app, args = {}) => {
   // on. Everything else this script does works without it.
   await app.cdp.send("Runtime.enable");
 
-  // Both are best-effort: a workspace with no connected app or no task should
-  // sweep the screens it does have rather than fail on the two it does not.
-  const [apps, tasks] = await Promise.all([
-    app.rpc("apps.list", {}).catch(() => undefined),
-    app.rpc("workspace.task.list", {}).catch(() => undefined),
-  ]);
+  // A workspace with no connected app, no chat, or a chat with no task
+  // sweeps the screens it does have rather than failing on the ones it does
+  // not. A route that answers with an error is a finding, not an empty list.
+  const apps = await app.rpc("apps.list", {}).catch(() => undefined);
   const slug = apps?.apps?.[0]?.slug;
-  const taskId = (Array.isArray(tasks) ? tasks : tasks?.tasks)?.[0]?.id;
+  const chat = await firstChat(app);
+  const tasks = chat
+    ? await app.rpc("workspace.chats.tasks", { id: chat.id })
+    : [];
+  const taskId = tasks[0]?.id;
 
   const routes = [
     "/chats",
@@ -93,8 +98,8 @@ export default async (app, args = {}) => {
     "/apps",
     slug && `/apps/${slug}`,
     "/skills",
-    "/tasks",
-    taskId && `/tasks/${taskId}`,
+    chat && `/tasks?chat=${chat.sessionId}`,
+    taskId && `/tasks/${taskId}?chat=${chat.sessionId}`,
     "/release-notes",
     // The inbox again last: a screen can leave something behind that only the
     // next navigation off it surfaces, and the last screen in the list never
@@ -120,7 +125,8 @@ export default async (app, args = {}) => {
 
   const skipped = [
     slug ? undefined : "no connected app, so /apps/$slug",
-    taskId ? undefined : "no task, so /tasks/$id",
+    chat ? undefined : "no chat, so /tasks?chat=$chat",
+    taskId ? undefined : "no task in the first chat, so /tasks/$id",
   ].filter(Boolean);
 
   return {
@@ -130,3 +136,43 @@ export default async (app, args = {}) => {
     ...(skipped.length > 0 && { skipped }),
   };
 };
+
+/**
+ * The first chat on the workspace's disk, by its folder (the id its task
+ * routes take) and the session the folder's settings name; none when the
+ * workspace has no chat. Read from disk because nothing in the app lists
+ * the chats in one call, and the task routes need one to stand on.
+ */
+async function firstChat(app) {
+  const info = await app.rpc("debug.systemInfo", {});
+  const root = info.find((entry) => entry.title === "Workspace Root")?.value;
+  if (!root) {
+    throw new Error("debug.systemInfo named no workspace root.");
+  }
+  const chatsDir = path.join(root, "chats");
+  let names;
+  try {
+    names = readdirSync(chatsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name)
+      .toSorted();
+  } catch {
+    return undefined;
+  }
+  for (const name of names) {
+    try {
+      const settings = JSON.parse(
+        readFileSync(
+          path.join(chatsDir, name, ".instrument", "settings.json"),
+          "utf8",
+        ),
+      );
+      if (typeof settings.chatSessionId === "string") {
+        return { id: name, sessionId: settings.chatSessionId };
+      }
+    } catch {
+      // A chat folder whose settings cannot be read is Storage's to list.
+    }
+  }
+  return undefined;
+}

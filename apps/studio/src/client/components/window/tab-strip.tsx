@@ -141,7 +141,10 @@ export function TabStrip({
     [],
   );
   const [arriving, setArriving] = useState<string[]>([]);
-  const [seen, setSeen] = useState(movableKeys);
+  // The tabs as last drawn, so a tab gone from the list since is drawn on its
+  // way out from wherever it went: its own cross, the middle button, a chord,
+  // a menu, or anything else that closed it.
+  const [seen, setSeen] = useState(movableTabs);
   const [group, setGroup] = useState(groupKey);
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
@@ -152,16 +155,29 @@ export function TabStrip({
     // user was not looking, and animating them in makes a switch feel like
     // five tabs opening at once.
     setGroup(groupKey);
-    setSeen(movableKeys);
+    setSeen(movableTabs);
     setArriving([]);
+    setClosing([]);
   } else if (
     movableKeys.length !== seen.length ||
-    movableKeys.some((key, index) => key !== seen[index])
+    movableKeys.some((key, index) => key !== seen[index]?.key)
   ) {
-    const opened = movableKeys.filter((key) => !seen.includes(key));
-    setSeen(movableKeys);
+    const seenKeys = seen.map((tab) => tab.key);
+    const opened = movableKeys.filter((key) => !seenKeys.includes(key));
+    const closed = seen.flatMap((tab, index) =>
+      movableKeys.includes(tab.key) ? [] : [{ index, tab }],
+    );
+    setSeen(movableTabs);
     if (opened.length > 0) {
       setArriving((current) => [...current, ...opened]);
+    }
+    if (closed.length > 0 && !prefersReducedMotion) {
+      setClosing((current) => [
+        ...current.filter(
+          ({ tab }) => !closed.some((gone) => gone.tab.key === tab.key),
+        ),
+        ...closed,
+      ]);
     }
   }
 
@@ -244,12 +260,17 @@ export function TabStrip({
   const visibleTabs = movableTabs.slice(start, start + liveCount);
   const visibleKeys = movableKeys.slice(start, start + liveCount);
 
+  // A closing tab collapses where it stood among the tabs in view, by its
+  // place in the whole row, ahead of anything since closed beside it.
   const drawnTabs = visibleTabs.map((tab) => ({ isClosing: false, tab }));
-  for (const { index, tab } of collapsing) {
-    drawnTabs.splice(Math.min(index, drawnTabs.length), 0, {
-      isClosing: true,
-      tab,
-    });
+  for (const { index, tab } of collapsing.toSorted(
+    (a, b) => a.index - b.index,
+  )) {
+    drawnTabs.splice(
+      Math.min(Math.max(index - start, 0), drawnTabs.length),
+      0,
+      { isClosing: true, tab },
+    );
   }
   const drawnKeys = drawnTabs.map(({ tab }) => tab.key);
 
@@ -336,9 +357,6 @@ export function TabStrip({
                 // second close would keep it collapsing rather than gone.
                 if (isClosing) {
                   return;
-                }
-                if (!prefersReducedMotion) {
-                  setClosing((current) => [...current, { index, tab }]);
                 }
                 onClose(tab.key);
               }}

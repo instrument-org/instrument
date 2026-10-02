@@ -312,7 +312,6 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
  */
 interface CustomCommandContext {
   attachedFolders?: Record<string, FolderAttachment.Type>;
-  projectFolderName?: string;
   taskId: TaskId;
 }
 
@@ -484,7 +483,6 @@ export interface BashEnvOptions {
    * `createChatBashDescription`.
    */
   chat?: { childMounts: WorkspaceFsMount[] };
-  projectFolderName?: string;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -596,7 +594,6 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   attachedFolders,
   chat,
-  projectFolderName,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
@@ -608,8 +605,7 @@ export async function createLocalBashEnv({
   standIn?: (name: string) => Command;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory), the
-  // project folder at /project when the task belongs to one, plus any
+  // writable task directory mounted at /task (the working directory), plus any
   // user-attached folders under /mnt, each read-only or writable. The bash
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
@@ -619,7 +615,6 @@ export async function createLocalBashEnv({
     apps: chat !== undefined,
     attachedFolders,
     extraMounts: chat?.childMounts,
-    projectFolderName,
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
@@ -650,7 +645,7 @@ export async function createLocalBashEnv({
     : [
         createAppCommand({ taskId }),
         ...customCommandDefs().map((cmd) =>
-          cmd.factory({ attachedFolders, projectFolderName, taskId }),
+          cmd.factory({ attachedFolders, taskId }),
         ),
       ];
   const specializedCommandNames = chat
@@ -676,14 +671,12 @@ export async function createLocalBashEnv({
       createRgCommand({
         attachedFolders,
         extraMounts: chat?.childMounts,
-        projectFolderName,
         taskId,
       }),
       createDuCommand({
         apps: chat !== undefined,
         attachedFolders,
         extraMounts: chat?.childMounts,
-        projectFolderName,
         taskId,
       }),
       ...specializedCommands,

@@ -10,7 +10,6 @@ import { CurrentFileInfoSchema } from "./get-file-info";
 import { getMimeType } from "./get-mime-type";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 import { taskDir } from "./task-dir-utils";
-import { resolveTaskProjectFolder } from "./task-project-folder";
 import { getTaskState } from "./task-record";
 import { buildWorkspaceFsLayout, resolveHostPath } from "./workspace-fs-layout";
 
@@ -73,7 +72,6 @@ export async function* watchFileInfo({
     const { attachedFolders } = await getTaskState(taskDir(taskId));
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     return resolveHostPath(layout, filePath)?.mount.hostRoot;

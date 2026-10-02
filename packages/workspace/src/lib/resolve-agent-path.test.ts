@@ -215,56 +215,7 @@ describe("private-dir (.instrument) restriction", () => {
     },
   );
 
-  // The project mount is writable, and its private dir names the folders the
-  // project contributes to every task in it, with the access granted to each.
-  // The mask over that dir belongs to the bash filesystem, which none of these
-  // resolvers goes through.
-  describe("the project mount's private dir", () => {
-    const projectLayout = buildWorkspaceFsLayout({
-      projectFolderName: "Acme",
-      taskHostRoot: dir,
-    });
-    const settings = `${MOUNT.project}/.instrument/settings.json`;
-
-    it("is refused for reading", () => {
-      const result = resolveAgentPath({
-        inputPath: settings,
-        layout: projectLayout,
-      });
-
-      expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
-        expect(result.error.message).toMatch(/private .* directory/);
-      }
-    });
-
-    it("is refused for writing", () => {
-      expect(
-        resolveWritableToolPath({
-          inputPath: settings,
-          layout: projectLayout,
-        }).isErr(),
-      ).toBe(true);
-    });
-
-    it("is refused to the read-only host path a real binary receives", () => {
-      expect(resolveReadOnlyHostPath(projectLayout, settings)).toBeNull();
-    });
-
-    it("leaves the project's own files reachable", () => {
-      const instructions = `${MOUNT.project}/AGENTS.md`;
-
-      expect(
-        resolveAgentPath({
-          inputPath: instructions,
-          layout: projectLayout,
-        }).isOk(),
-      ).toBe(true);
-      expect(
-        resolveReadOnlyHostPath(projectLayout, instructions),
-      ).not.toBeNull();
-    });
-
+  describe("a mount's private dir", () => {
     // A folder the user attached is theirs, and a directory of that name in it
     // is an ordinary one rather than ours to hide.
     it("leaves an attached folder's own .instrument dir alone", () => {

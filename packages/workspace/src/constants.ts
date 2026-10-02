@@ -42,12 +42,6 @@ export const MEMORY_DIR_NAME = "memory";
 // settings in `.instrument/settings.json` and its instructions in
 // `instructions.md`.
 export const TOPICS_DIR_NAME = "topics";
-// Projects are real folders at the workspace root, named by the (sanitized)
-// project name. Their identity + instructions live inside each folder.
-export const PROJECTS_DIR_NAME = "projects";
-// A project's instructions live in a visible, hand-editable AGENTS.md at the
-// project folder root; identity lives in `.instrument/settings.json`.
-export const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 // Per-task SQLite store in the task's `.instrument/` private dir.
 export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
@@ -85,9 +79,6 @@ export const AGENT_NEEDS_LANGUAGE = "needs";
  * the same reason as the skill catalog's budget: no tokenizer is right for every
  * provider we run against. This is roughly 4,200 tokens of Markdown prose, and
  * closer to 13,000 if the file is written in CJK.
- *
- * Nothing is lost to the cap. The project folder mounts at MOUNT.project,
- * so what does not fit stays one read away and the truncated block says where.
  */
 export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
 

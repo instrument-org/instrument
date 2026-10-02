@@ -1,7 +1,6 @@
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { ProjectIdSchema } from "./project-id";
 import { TaskIdSchema } from "./task-id";
 
 // The loaded representation of a task: id + metadata read from disk. This is
@@ -21,7 +20,6 @@ export const TaskSchema = z.object({
   parentTaskId: TaskIdSchema.optional(),
   // The level chosen for this task, absent when nobody chose one and the
   // model's own catalog default stands. See TaskSettingsSchema.
-  projectId: ProjectIdSchema.optional(),
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
   title: z.string(),
   updatedAt: z.date(),

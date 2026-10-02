@@ -76,14 +76,12 @@ export function createDuCommand({
   apps,
   attachedFolders,
   extraMounts,
-  projectFolderName,
   taskId,
 }: {
   /** Whether the shell mounts the apps directory at `/apps`, as the chat's does. */
   apps?: boolean;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   extraMounts?: WorkspaceFsMount[];
-  projectFolderName?: string;
   taskId: TaskId;
 }) {
   return defineCommand(DU_COMMAND.name, async (args, ctx) => {
@@ -107,7 +105,6 @@ export function createDuCommand({
       apps,
       attachedFolders,
       extraMounts,
-      projectFolderName,
       taskHostRoot: taskDir(taskId),
     });
 

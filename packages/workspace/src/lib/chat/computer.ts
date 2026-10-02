@@ -10,7 +10,6 @@ import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
-import { resolveTaskProjectFolder } from "../task-project-folder";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
@@ -469,7 +468,6 @@ async function chatView(
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
     extraMounts: withChildren ? await childTaskMounts(taskId) : [],
-    projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });
   return { layout, roots: reachableRoots(layout, attachedFolders) };

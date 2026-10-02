@@ -5,7 +5,6 @@ import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
 import { childTaskMounts } from "../../lib/chat/children";
 import { folderReach } from "../../lib/chat/folder-reach";
-import { resolveTaskProjectFolder } from "../../lib/task-project-folder";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
@@ -82,7 +81,6 @@ const runBash = base
             },
           }
         : {}),
-      projectFolderName: await resolveTaskProjectFolder(input.taskId),
       sessionId: input.sessionId,
       taskId: input.taskId,
     });

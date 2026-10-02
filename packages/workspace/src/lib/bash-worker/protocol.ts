@@ -19,7 +19,6 @@ export const WORKER_CONFIG_KEYS = [
   "nodeExecEnv",
   "pnpmBinPath",
   "preparedSkillsDir",
-  "projectsDir",
   "registryDir",
   "rootDir",
   "systemSkillsDir",

@@ -17,7 +17,6 @@ import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
-  clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -188,25 +187,6 @@ export function createWorkspaceActor({
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
-
-  // Reconcile task -> project references against disk. A project folder can be
-  // deleted outside the app (or while it is closed), leaving tasks pointing at
-  // a project that no longer exists; in-app deletes already sweep, but disk
-  // deletes do not. Best-effort and async; must not block boot.
-  void clearOrphanedProjectRefs()
-    .then((clearedTaskIds) => {
-      if (clearedTaskIds.length > 0) {
-        logger.info(
-          `Cleared ${clearedTaskIds.length} task(s) referencing a deleted project`,
-        );
-      }
-    })
-    .catch((error: unknown) => {
-      captureServerException(
-        error instanceof Error ? error : new Error(String(error)),
-        { scopes: ["studio"] },
-      );
-    });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.

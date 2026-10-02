@@ -21,11 +21,7 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import {
-  APPS_DIR_NAME,
-  PROJECTS_DIR_NAME,
-  TASKS_DIR_NAME,
-} from "../../constants";
+import { APPS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -426,7 +422,6 @@ export const workspaceMachine = setup({
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
-      projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),

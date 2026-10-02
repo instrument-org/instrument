@@ -20,20 +20,6 @@ export type HeldTab = z.output<typeof HeldTabSchema>;
 // they picked, the folders attached. Per-task and read on
 // open, never queried across tasks -- which is what separates it from the
 // settings around it, and why it is one nested key rather than a flat spread.
-//
-// `projectFolderName` names the folder under `projects/` belonging to the
-// project this task is in, kept here beside the attached folders because every
-// caller that builds the filesystem layout already reads this state and needs
-// both. Denormalized rather than resolved from the project id per call, because
-// the file tools build a layout on every read and write and every asset request,
-// synchronously, while resolving an id means reading every project's settings to
-// find the match.
-//
-// The folder name and not its absolute path, so that nothing here is true only
-// of the machine that wrote it: this file ships inside an exported task, and a
-// host path from someone else's disk names nothing on the machine that imports
-// it. `syncTaskProjectRoot` owns keeping it current; nothing else should write
-// it.
 export const StoredTaskStateSchema = z
   .object({
     // The apps whose guide this task has read, so `app request` hands the
@@ -41,27 +27,12 @@ export const StoredTaskStateSchema = z
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTabs: z.array(HeldTabSchema).optional(),
-    // The project's folders, path to access, as this task last saw them. What
-    // makes a task's own edit to an inherited folder survive the next message:
-    // a folder whose live access still matches what is recorded here has not
-    // been touched in the project since, so the task's version is the newer
-    // edit and stands. A path recorded here but no longer attached is one the
-    // task detached, which is the same rule read the other way.
-    //
-    // Not in the RPC shape below, for the reason `projectFolderName` is not: it
-    // decides what the agent may reach, so it is not a client's to set.
-    projectFolderBaseline: z
-      .record(z.string(), FolderAttachment.AccessSchema)
-      .optional(),
-    projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
   })
   .default(() => ({}));
 
-// The RPC-facing shape. Deliberately without `projectFolderName`: the renderer
-// has no use for it, and it selects the directory of a writable agent mount, so
-// it is not something a client should be able to set.
+// The RPC-facing shape.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   /**

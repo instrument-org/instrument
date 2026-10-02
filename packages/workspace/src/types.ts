@@ -197,7 +197,6 @@ export interface WorkspaceConfig {
   // per machine here instead. Outside the workspace deliberately: several
   // workspaces, or a workspace the user moves, all source from one prepared set.
   preparedSkillsDir: AbsolutePath;
-  projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
   systemSkillsDir: AbsolutePath;

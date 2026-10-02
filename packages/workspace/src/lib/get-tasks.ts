@@ -97,7 +97,6 @@ async function readTask({ dir }: { dir: TaskDir }) {
     id,
     isChat: isChatId(id),
     parentTaskId: chatIdOfTask(id),
-    projectId: settings?.projectId,
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };

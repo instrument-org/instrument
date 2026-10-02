@@ -1,7 +1,6 @@
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { ProjectIdSchema } from "./project-id";
 import { StoreId } from "./store-id";
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
@@ -31,7 +30,6 @@ export const TaskSettingsSchema = z.object({
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().default("Untitled task"),
-  projectId: ProjectIdSchema.optional(),
   // How hard this task's model is asked to think, on every turn it takes. Sits
   // beside the task rather than on a message because a task runs on one model
   // for its whole life and the level is part of that choice. Absent leaves the
@@ -42,8 +40,6 @@ export const TaskSettingsSchema = z.object({
 export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().trim().min(1).optional(),
-  // `null` explicitly clears the project association; omit to leave unchanged.
-  projectId: ProjectIdSchema.nullable().optional(),
 });
 
 export type TaskSettings = z.output<typeof TaskSettingsSchema>;

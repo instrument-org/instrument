@@ -18,7 +18,7 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { detectDateChange } from "./date-change";
-import { detectProjectChanges } from "./detect-project-changes";
+
 import { detectMessageGap } from "./message-gap";
 import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
@@ -40,7 +40,6 @@ export async function newMessage({
   model,
   modelURI,
   output,
-  projectContext,
   prompt,
   replyTo,
   sessionId,
@@ -61,7 +60,6 @@ export async function newMessage({
   modelURI: AIGatewayModelURI.Type;
   /** The kind of page the user asked for the response as; see the output-format part. */
   output?: SessionMessageDataPart.OutputFormatDataPart;
-  projectContext?: SessionMessageDataPart.ProjectContextDataPart;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
@@ -181,19 +179,6 @@ export async function newMessage({
     parts.push(await namedByReach(taskId, uploadResult.value.part));
   }
 
-  if (projectContext) {
-    parts.push({
-      data: projectContext,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-projectContext",
-    });
-  }
-
   if (chatContext) {
     parts.push({
       data: chatContext,
@@ -291,21 +276,6 @@ export async function newMessage({
     }
   }
 
-  // Notify agent when the live project's instructions or folders drift from the
-  // task's frozen snapshot. Also writes folder additions/removals into task
-  // state so they become standing context.
-  const projectChanges = await detectProjectChanges({
-    messageId,
-    sessionId,
-    taskId,
-  });
-  if (projectChanges.isErr()) {
-    // Awareness of project drift is best-effort; never block sending.
-    getWorkspaceConfig().captureException(projectChanges.error);
-  } else if (projectChanges.value) {
-    parts.push(projectChanges.value);
-  }
-
   // The apps a task may reach are named in the session context, which is never
   // rewritten, so an app handed over after it started arrives here or nowhere.
   const appChanges = await detectTaskAppChanges({
@@ -321,23 +291,12 @@ export async function newMessage({
   }
 
   // Notify agent of folders added, removed, or renamed since last turn
-  // (per-session baseline diff). Runs after writeUploadedAttachments and
-  // detectProjectChanges above so a rename either of them triggers this message
-  // is read as part of "current" and reported now instead of lagging a turn
-  // behind -- and so the folders those two just introduced can be named here as
-  // already announced. A project folder arriving is the project's news, told
-  // once by the part above; told again here it would reach the model twice and
-  // the user as two separate notes about one change.
-  const projectFolders =
-    projectChanges.isOk() &&
-    projectChanges.value?.type === "data-projectChanges"
-      ? projectChanges.value.data.foldersAdded.map((folder) => folder.path)
-      : [];
+  // (per-session baseline diff). Runs after writeUploadedAttachments above so a
+  // rename it triggers is read as part of "current" and reported now instead of
+  // lagging a turn behind, and so the folders this message attaches can be
+  // named here as already announced.
   const folderChanges = await detectAttachedFolderChanges({
-    announced: [
-      ...(folders?.map((folder) => folder.path) ?? []),
-      ...projectFolders,
-    ],
+    announced: folders?.map((folder) => folder.path) ?? [],
     messageId,
     sessionId,
     taskId,

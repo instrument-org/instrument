@@ -1,8 +1,4 @@
-import {
-  MAX_PROJECT_INSTRUCTIONS_LENGTH,
-  PROJECT_INSTRUCTIONS_FILE_NAME,
-} from "../constants";
-import { MOUNT } from "../mount-points";
+import { MAX_PROJECT_INSTRUCTIONS_LENGTH } from "../constants";
 
 /**
  * The model-facing form of a project's instructions: trimmed, whitespace-only
@@ -15,13 +11,9 @@ import { MOUNT } from "../mount-points";
  * `AGENTS.md` the user pasted into outside the app, and snapshots frozen onto
  * tasks that predate the cap. Both pass through here on their way to the model.
  *
- * `Project.instructions` stays the whole file -- only what is sent is cut, so
- * the editor still shows the user everything they wrote.
- *
  * The cut lands on a paragraph break rather than mid-sentence, so the last
- * surviving instruction is a whole one, and the block says where the rest is:
- * the project folder is mounted, so the model can read the file when the tail
- * matters.
+ * surviving instruction is a whole one, and the block says that the rest was
+ * left out.
  *
  * Its own module, rather than sitting with the rest of the project helpers, so
  * the parts of this that the renderer shares (`projectChangesModelNote`) can
@@ -46,5 +38,5 @@ export function normalizeProjectInstructions(
   const kept =
     lastBreak > 0 ? withinBudget.slice(0, lastBreak) : withinBudget.trimEnd();
 
-  return `${kept}\n\n[Cut off here: these instructions are too long to include in full. The rest is in ${MOUNT.project}/${PROJECT_INSTRUCTIONS_FILE_NAME} -- read that file if you need it.]`;
+  return `${kept}\n\n[Cut off here: these instructions are too long to include in full.]`;
 }

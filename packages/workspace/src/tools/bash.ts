@@ -23,7 +23,6 @@ import {
 import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
-import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -330,11 +329,9 @@ export const BashTool = setupTool({
     const startedAt = performance.now();
     const childMounts =
       agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
-    const projectFolderName = await resolveTaskProjectFolder(taskId);
     const bash = await createBashEnv({
       attachedFolders,
       chat: childMounts ? { childMounts } : undefined,
-      projectFolderName,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
@@ -348,7 +345,6 @@ export const BashTool = setupTool({
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
       extraMounts: childMounts,
-      projectFolderName,
       taskHostRoot: taskDir(taskId),
     });
     // Interpreter metadata, only available once the run finishes. A promoted

@@ -24,7 +24,6 @@ import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
-import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
 import { updateTaskSettings } from "../src/lib/task-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
@@ -34,7 +33,6 @@ import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
-import { type ProjectId } from "../src/schemas/project-id";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
@@ -224,12 +222,6 @@ export interface EvalCase {
    */
   kind?: "chat" | "task";
   name: string;
-  /**
-   * Run the task inside a project created for it. The only way to exercise the
-   * standing project context and the `/project` mount: both hang off the task's
-   * project, so a task created without one has neither.
-   */
-  project?: { instructions?: string; name: string };
   prompt: string;
   shouldStop?: (
     part: SessionMessagePart.Type,
@@ -425,23 +417,8 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      // One project per run. Disambiguated by the run's index rather than by the
-      // case name, because the project name reaches the agent as "this task
-      // belongs to the X project" -- a case named for what it is checking would
-      // be telling the model the answer.
       standInWindow.seed(evalCase.viewing);
       const created = creating.then(async () => {
-        let projectId: ProjectId | undefined;
-        if (evalCase.project) {
-          const project = await createProject({
-            instructions: evalCase.project.instructions,
-            name: `${evalCase.project.name} ${modelLabel} ${index}`,
-          });
-          if (project.isErr()) {
-            throw project.error;
-          }
-          projectId = project.value.id;
-        }
         if (evalCase.kind === "chat") {
           ensureWorkspaceFolder();
         }
@@ -454,7 +431,6 @@ export async function runEvals(
             chat: evalCase.kind === "chat",
             modelURI: uri,
             name: evalCase.name,
-            projectId,
             prompt: evalCase.prompt,
             viewing: evalCase.viewing,
           },

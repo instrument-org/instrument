@@ -14,11 +14,8 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { ensureChat } from "../../../lib/chat/chat-records";
-import { getProject } from "../../../lib/project";
-import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
-import { taskDir } from "../../../lib/task-dir-utils";
-import { setTaskState } from "../../../lib/task-record";
+
 import { updateTaskSettings } from "../../../lib/task-settings";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
@@ -27,8 +24,7 @@ import {
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
-import { type Project } from "../../../schemas/project";
-import { ProjectIdSchema } from "../../../schemas/project-id";
+
 import { SessionMessageDataPart } from "../../../schemas/session/message-data-part";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
@@ -94,7 +90,7 @@ const create = base
       chat: z.boolean().optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
-      projectId: ProjectIdSchema.nullish(),
+
       prompt: z.string(),
       /** What the window had on screen, as the note on the first message: the eval harness's stand-in for a window. */
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
@@ -110,17 +106,7 @@ const create = base
     async ({
       context,
       errors,
-      input: {
-        chat,
-        files,
-        folders,
-        intent,
-        modelURI,
-        name,
-        projectId,
-        prompt,
-        viewing,
-      },
+      input: { chat, files, folders, intent, modelURI, name, prompt, viewing },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -138,16 +124,6 @@ const create = base
 
       const model = modelResult.value;
 
-      // Validate project early to avoid orphan projectId; also needed for folder attachment below.
-      let project: Project | undefined;
-      if (projectId) {
-        const projectResult = await getProject(projectId);
-        if (projectResult.isErr()) {
-          throw toORPCError(projectResult.error, errors);
-        }
-        project = projectResult.value;
-      }
-
       // Made the way the window's first send makes a chat: a record of its
       // own, named for the words it opens with.
       const chatSession = chat ? StoreId.newSessionId() : undefined;
@@ -163,10 +139,7 @@ const create = base
         });
         result = await initializeTask(
           {
-            initialSettings: {
-              name: initialTaskName,
-              projectId: projectId ?? undefined,
-            },
+            initialSettings: { name: initialTaskName },
             taskId,
             workspaceConfig: context.workspaceConfig,
           },
@@ -190,63 +163,18 @@ const create = base
         throw toORPCError(sessionResult.error, errors);
       }
 
-      // Merge the project's folders onto the first message (deduped against any
-      // the user attached). Each folder carries its source so later consumers
-      // tell project from user folders without re-deriving from paths.
       const userFolders = (folders ?? []).map((folder) => ({
         access: folder.access,
         path: folder.path,
         source: "user" as const,
       }));
-      let mergedFolders: {
-        access: FolderAttachment.Access;
-        path: string;
-        source: FolderAttachment.Source;
-      }[] = userFolders;
-      if (project && project.folders.length > 0) {
-        const seen = new Set(userFolders.map((folder) => folder.path));
-        mergedFolders = [
-          ...userFolders,
-          ...project.folders
-            .filter((folder) => !seen.has(folder.path))
-            .map((folder) => ({
-              access: folder.access,
-              path: folder.path,
-              source: "project" as const,
-            })),
-        ];
-
-        // What the project said at the moment this task took its folders on.
-        // Recorded here rather than left to the next message, because a folder
-        // detached before that message would otherwise read as one the project
-        // had just added and come straight back.
-        await setTaskState(taskDir(taskId), {
-          projectFolderBaseline: Object.fromEntries(
-            project.folders.map((folder) => [folder.path, folder.access]),
-          ),
-        });
-      }
-
-      // Frozen snapshot of the project's identity and instructions for this task.
-      // Captured at creation so later project edits/deletion don't affect it; the
-      // agent and UI read this instead of the live project.
-      const projectContext = project
-        ? {
-            // project already carries instructions from getProject above, so
-            // normalize those rather than re-reading them from projects/.
-            instructions: normalizeProjectInstructions(project.instructions),
-            projectId: project.id,
-            projectName: project.name,
-          }
-        : undefined;
 
       const messageResult = await newMessage({
         files,
-        folders: mergedFolders.length > 0 ? mergedFolders : undefined,
+        folders: userFolders.length > 0 ? userFolders : undefined,
         intent,
         model,
         modelURI,
-        projectContext,
         prompt,
         sessionId: sessionResult.value.id,
         taskId,
@@ -285,7 +213,6 @@ const create = base
         generateTitleFromUserMessage({
           message,
           model,
-          projectName: project?.name,
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {

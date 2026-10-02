@@ -36,9 +36,8 @@ export function maskedEntryOf(
 /**
  * Wrap a filesystem so the given entries at its root are invisible to the agent
  * shell. The `.instrument` dir is masked on the task mount, whose private dir
- * holds the task db and state, and on the project mount, whose private dir
- * holds the project's folder list and the access granted to each. A chat's
- * task mount masks its `tasks/` dir too (see {@link MaskedEntry}).
+ * holds the task db and state, and on each task a chat reaches at
+ * `/tasks/<id>`. A chat's task mount masks its `tasks/` dir too (see {@link MaskedEntry}).
  *
  * The mask is a decorator on the mount rather than an empty filesystem mounted
  * over `/task/.instrument`, because `MountableFs` refuses to mount inside an

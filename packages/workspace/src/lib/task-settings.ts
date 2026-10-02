@@ -99,12 +99,6 @@ async function writeMergedSettings(
       ...updates,
     };
 
-    // A `null` projectId is the clear sentinel: drop the key entirely rather
-    // than persisting `null`.
-    if (updates.projectId === null) {
-      delete merged.projectId;
-    }
-
     return merged;
   });
 }

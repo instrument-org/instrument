@@ -48,7 +48,6 @@ beforeEach(() => {
   opened = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    projectsDir: WorkspaceDirSchema.parse(path.join(root, "projects")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {

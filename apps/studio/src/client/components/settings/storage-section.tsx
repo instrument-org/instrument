@@ -36,7 +36,7 @@ export function StorageSection() {
       <div>
         <h3 className="text-base font-semibold">Storage</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Where {APP_NAME} keeps your projects and tasks on your computer
+          Where {APP_NAME} keeps your chats and tasks on your computer
         </p>
       </div>
       <WorkspaceLocation />
@@ -141,7 +141,6 @@ function UnrecognizedFolders() {
   }
 
   const chats = folders.filter((folder) => folder.kind === "chat");
-  const projects = folders.filter((folder) => folder.kind === "project");
   const tasks = folders.filter((folder) => folder.kind === "task");
 
   return (
@@ -149,14 +148,12 @@ function UnrecognizedFolders() {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FolderIcon className="size-4" />
-          <h4 className="text-sm font-medium">
-            Broken chats, projects and tasks
-          </h4>
+          <h4 className="text-sm font-medium">Broken chats and tasks</h4>
         </div>
         <p className="text-sm text-muted-foreground">
-          These chats, projects and tasks are included in your workspace, but{" "}
-          {APP_NAME} can&apos;t show them because of problems in the folders.
-          You can reveal them on your computer, or delete them to tidy up.
+          These chats and tasks are included in your workspace, but {APP_NAME}{" "}
+          can&apos;t show them because of problems in the folders. You can
+          reveal them on your computer, or delete them to tidy up.
         </p>
       </div>
       {chats.length > 0 && (
@@ -167,16 +164,6 @@ function UnrecognizedFolders() {
           }}
           onTrash={setFolderToTrash}
           title="Chats"
-        />
-      )}
-      {projects.length > 0 && (
-        <FolderGroup
-          folders={projects}
-          onReveal={(folder) => {
-            void showInFolder(folder.path, { kind: "folder" });
-          }}
-          onTrash={setFolderToTrash}
-          title="Projects"
         />
       )}
       {tasks.length > 0 && (

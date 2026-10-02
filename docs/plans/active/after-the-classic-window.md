@@ -26,7 +26,7 @@ The app window lists the tasks its chats started (`workspace.chats.tasks`), and 
 - **Transcript viewer** (developer mode). Deleted, with `transcript.content`, the route that rendered a transcript for it. "Save transcript" stays in a chat's menu; `/debug/components/transcript` is the chat transcript's component gallery, not a viewer.
 - **Chat replay** (developer mode). Deleted: `workspace.debug.replaySession`, `workspace.replay.*`, `lib/session-replay.ts`, and the replay sessions a task's activity reported. The seeder inserts recorded transcripts without re-running them.
 - **Pins and unread marks on tasks.** Deleted; tasks are a detail the chat manages and need neither. Chats have their own: `starredAt` on the chat's session, and a seen watermark per chat (`chatSeen` in the window's state, `.instrument/window.json`). The legacy migration carries 1.x `pinnedAt` over as a star and `unreadIndicator` over as the watermark.
-- **Projects.** Topics replace them; the legacy migration makes each project a topic, with its instructions and folders. `workspace.project.byId` stays for the transcript note that names a task's project, and `lib/project.ts` stays for 1.x tasks still in a project and for the migration.
+- **Projects.** Topics replace them; the legacy migration makes each project a topic, with its instructions and folders. The import strips every task's `projectId` and sets `projects/` aside, so the project route, `lib/project.ts`, and the `/project` mount are gone; a 1.x transcript's project notes name the project from the name stored on the part.
 
 ## Edge cases the removal surfaced
 

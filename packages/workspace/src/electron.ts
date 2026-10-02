@@ -62,7 +62,7 @@ export {
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";
 export { FILES_FENCE } from "./lib/parse-files-block";
-export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
+
 export { readTaskFile } from "./lib/read-task-file";
 export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";

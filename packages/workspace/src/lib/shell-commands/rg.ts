@@ -88,12 +88,10 @@ const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 export function createRgCommand({
   attachedFolders,
   extraMounts,
-  projectFolderName,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   extraMounts?: WorkspaceFsMount[];
-  projectFolderName?: string;
   taskId: TaskId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
@@ -109,7 +107,6 @@ export function createRgCommand({
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
       extraMounts,
-      projectFolderName,
       taskHostRoot: taskDir(taskId),
     });
 

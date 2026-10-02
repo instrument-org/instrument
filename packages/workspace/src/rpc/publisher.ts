@@ -75,7 +75,6 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     part: SessionMessagePart.Type;
   };
-  "project.updated": null;
   "runtime.log.updated": {
     id: TaskId;
   };

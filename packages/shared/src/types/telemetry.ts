@@ -73,11 +73,6 @@ export interface AnalyticsEvents {
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "project.created": never;
-  "project.invalid_folder_trashed": never;
-  "project.removed": never;
-  "project.task_added": never;
-  "project.task_removed": never;
   "provider.created": {
     provider_type: AIProviderType;
   };

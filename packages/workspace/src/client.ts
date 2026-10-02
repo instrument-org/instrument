@@ -52,7 +52,6 @@ export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
-export type { Project, ProjectFolder } from "./schemas/project";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";

@@ -12,7 +12,7 @@ import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
-import { getTaskProjectName } from "../../lib/project";
+
 import { isChatId, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { recordTaskActivity } from "../../lib/task-settings";
@@ -184,23 +184,12 @@ const create = base
         const message = messageResult.value;
 
         if (isFirstMessageInSession) {
-          // Titling is deliberately non-blocking, and so is finding the project
-          // it reads: resolving one scans `projects/` and reads each settings
-          // file until the id matches, which is a serial walk the agent's turn
-          // would otherwise wait behind on the first message of every session.
+          // Titling is deliberately non-blocking, so the agent's turn never
+          // waits behind it on the first message of a session.
           void (async () => {
-            let projectName: string | undefined;
-            try {
-              projectName = await getTaskProjectName(taskId);
-            } catch {
-              // A title that does not know its project is worth more than no
-              // title, so a failed lookup falls through rather than ending the run.
-            }
-
             const title = await generateTitleFromUserMessage({
               message,
               model,
-              projectName,
               workspaceConfig: context.workspaceConfig,
             });
             if (title.isOk()) {

@@ -15,7 +15,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
@@ -72,9 +72,6 @@ export function buildReportWorkspaceConfig(
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
     preparedSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "prepared-skills"),
-    ),
-    projectsDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, PROJECTS_DIR_NAME),
     ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),

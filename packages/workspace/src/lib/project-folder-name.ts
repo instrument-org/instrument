@@ -61,9 +61,3 @@ export function validateFolderName(
 
   return ok(name);
 }
-
-export function validateProjectName(
-  raw: string,
-): Result<string, TypedError.InvalidInput> {
-  return validateFolderName(raw, "Project");
-}

@@ -10,8 +10,6 @@ import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
 import { CHAT_EVALS } from "./chat";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
-import { PROJECT_FOLDER_DISCIPLINE_EVALS } from "./project-folder-discipline";
-import { PROJECT_INSTRUCTIONS_EVALS } from "./project-instructions";
 import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
@@ -35,8 +33,6 @@ export const EVALS = [
   ...MESSAGE_BLOCK_EVALS,
   ...CHAT_EVALS,
   ...PDF_SKILL_EVALS,
-  ...PROJECT_FOLDER_DISCIPLINE_EVALS,
-  ...PROJECT_INSTRUCTIONS_EVALS,
   ...QUESTIONS_EVALS,
   ...REACH_EVALS,
   ...SANDBOXED_PYTHON_EVALS,

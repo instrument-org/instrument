@@ -314,8 +314,8 @@ function resolveVirtualAbsolutePath(
   const { hostPath, mount } = resolved;
 
   // Asked of the mount that owns the path rather than of the task mount alone:
-  // the project mount masks a private dir too, and the file tools reach it by
-  // a route the bash sandbox's mask does not cover.
+  // a chat's task mounts mask a private dir too, and the file tools reach them
+  // by a route the bash sandbox's mask does not cover.
   const masked = maskedEntryAt(mount, virtualPath);
   if (masked !== null) {
     return maskedEntryError(normalizePath(virtualPath), masked);

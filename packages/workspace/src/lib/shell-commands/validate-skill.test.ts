@@ -13,6 +13,7 @@ import {
   vi,
 } from "vitest";
 
+import { WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
   createMockTaskConfigForDir,
@@ -76,7 +77,7 @@ describe("createValidateSkillCommand", () => {
     const result = await run(argument);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "validate-skill: only skills under /skills/ can be checked.\n",
+      "validate-skill: only skills under /skills/workspace/ can be checked.\n",
     );
   });
 
@@ -86,7 +87,7 @@ describe("createValidateSkillCommand", () => {
       "---\nname: tidy\ndescription: Tidy things. Use when asked to tidy.\n---\n\nBody.\n",
     );
     const byName = await run("tidy");
-    const byPath = await run("/skills/tidy/");
+    const byPath = await run(`${WORKSPACE_SKILLS_MOUNT}/tidy/`);
     expect(byName).toEqual(byPath);
     expect(byName.exitCode).toBe(0);
     expect(byName.stdout).toContain("tidy: ok");
@@ -111,7 +112,7 @@ describe("createValidateSkillCommand", () => {
     const result = await run("ghost");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      'validate-skill: no skill named "ghost" in /skills/.\n',
+      'validate-skill: no skill named "ghost" in /skills/workspace/.\n',
     );
   });
 

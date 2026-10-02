@@ -2,7 +2,7 @@ import { defineCommand } from "just-bash";
 import fs from "node:fs/promises";
 import { dedent } from "radashi";
 
-import { MOUNT } from "../../mount-points";
+import { WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { TOOL_NAMES } from "../../tools/name";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -20,7 +20,7 @@ const VALIDATE_SKILL_NAME = "validate-skill";
 
 export const VALIDATE_SKILL_COMMAND = {
   description: dedent`
-    Check a skill written under \`${MOUNT.skills}/\` and report what is wrong with it.
+    Check a skill written under \`${WORKSPACE_SKILLS_MOUNT}/\` and report what is wrong with it.
     Errors are what the runtime already acts on: a skill that is never discovered, or one \`${TOOL_NAMES.loadSkill}\` refuses. Warnings are authoring rules and context budgets.
     Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
     Usage: \`${VALIDATE_SKILL_NAME} [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors.
@@ -36,7 +36,7 @@ export function createValidateSkillCommand() {
     const requested = args.filter((arg) => !arg.startsWith("-"));
     const names = requested.map(toSkillName);
     if (names.includes(null)) {
-      return fail(`only skills under ${MOUNT.skills}/ can be checked.`);
+      return fail(`only skills under ${WORKSPACE_SKILLS_MOUNT}/ can be checked.`);
     }
 
     const targets =
@@ -47,13 +47,13 @@ export function createValidateSkillCommand() {
       return {
         exitCode: 0,
         stderr: "",
-        stdout: `No skills in ${MOUNT.skills}/ to check.\n`,
+        stdout: `No skills in ${WORKSPACE_SKILLS_MOUNT}/ to check.\n`,
       };
     }
 
     const missing = await findMissing(skillsDir, targets);
     if (missing) {
-      return fail(`no skill named "${missing}" in ${MOUNT.skills}/.`);
+      return fail(`no skill named "${missing}" in ${WORKSPACE_SKILLS_MOUNT}/.`);
     }
 
     // The catalog and duplicate-name checks are about this skill's place among
@@ -158,7 +158,7 @@ async function skillDirectoryNames(skillsDir: string) {
  */
 function toSkillName(argument: string): null | string {
   const normalized = argument.replace(/\/+$/, "");
-  const prefix = `${MOUNT.skills}/`;
+  const prefix = `${WORKSPACE_SKILLS_MOUNT}/`;
   const rest = normalized.startsWith(prefix)
     ? normalized.slice(prefix.length)
     : normalized;
@@ -170,5 +170,5 @@ function toSkillName(argument: string): null | string {
  * that does not exist inside the sandbox and must not leak into output.
  */
 function withSandboxPath(report: SkillReport) {
-  return { ...report, path: `${MOUNT.skills}/${report.name}` };
+  return { ...report, path: `${WORKSPACE_SKILLS_MOUNT}/${report.name}` };
 }

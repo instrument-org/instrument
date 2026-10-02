@@ -1,5 +1,7 @@
 import { type IFileSystem, InMemoryFs } from "just-bash";
 
+import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../mount-points";
+
 /**
  * The empty, read-only base filesystem underneath the workspace mounts.
  *
@@ -44,8 +46,13 @@ export class ReadOnlyBaseFs implements IFileSystem {
 }
 
 function erofs(op: string, path: string) {
+  // A write that lands beside the skill sources is a skill being authored, and
+  // the task is the wrong place to send it.
+  const hint = path.startsWith(`${MOUNT.skills}/`)
+    ? `write skills under ${WORKSPACE_SKILLS_MOUNT}/ instead`
+    : "put files under the task (cwd) instead";
   return new Error(
     `EROFS: read-only file system, ${op} '${path}' -- only the task ` +
-      `and its mounts are writable; put files under the task (cwd) instead`,
+      `and its mounts are writable; ${hint}`,
   );
 }

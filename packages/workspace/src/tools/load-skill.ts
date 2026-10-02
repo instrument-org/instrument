@@ -31,7 +31,7 @@ import {
 } from "../lib/skills";
 import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { MOUNT } from "../mount-points";
+import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 const TAGS = {
@@ -85,8 +85,8 @@ export const LoadSkill = setupTool({
       installResults: z.array(SkillInstallResultSchema).optional(),
       name: z.string(),
       // Where the skill came from, so the model can say so and knows whether it
-      // can edit the skill in place: "workspace" lives in the writable /skills
-      // mount, the others are read-only where they were discovered.
+      // can edit the skill in place: "workspace" lives in the writable
+      // /skills/workspace mount, the others are read-only where they were discovered.
       origin: z.enum(SKILL_ORIGINS),
       skillName: z.string(),
       state: z.literal("success"),
@@ -289,12 +289,12 @@ export const LoadSkill = setupTool({
       fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
     }
 
-    const customizeHint = `Copy it into \`${MOUNT.skills}/\` to change it.`;
+    const customizeHint = `Copy it into \`${WORKSPACE_SKILLS_MOUNT}/\` to change it.`;
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${MOUNT.skills}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
+        ? `\n\nThis skill lives at \`${WORKSPACE_SKILLS_MOUNT}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
         : output.origin === "in-repo"
-          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${MOUNT.skills}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
+          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${WORKSPACE_SKILLS_MOUNT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"
             ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
             : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;

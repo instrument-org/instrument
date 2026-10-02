@@ -39,7 +39,7 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
-import { MOUNT } from "../mount-points";
+import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
@@ -270,15 +270,15 @@ export const mainAgent = setupAgent({
     - \`${F.attachments}/\` -- inputs you were given. Read from here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here.
 
-    ${audience.finishedFileHome} Your working directory is the task root (\`${MOUNT.task}\`); use relative paths for task files (\`${F.work}/...\`). The only absolute paths you use are virtual mount paths: \`${MOUNT.attachedFolders}/...\` for attached folders, \`${MOUNT.skills}/...\` for the workspace's own skills, and \`${MOUNT.project}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
+    ${audience.finishedFileHome} Your working directory is the task root (\`${MOUNT.task}\`); use relative paths for task files (\`${F.work}/...\`). The only absolute paths you use are virtual mount paths: \`${MOUNT.attachedFolders}/...\` for attached folders, \`${WORKSPACE_SKILLS_MOUNT}/...\` for the workspace's own skills, and \`${MOUNT.project}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
     - Folders you were handed are mounted under \`${MOUNT.attachedFolders}/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`${MOUNT.attachedFolders}/...\` path and never a relative one.
     - An HTML file you write opens in the user's browser as a local file, at its place on the disk, where your mount paths mean nothing: never write \`${MOUNT.task}/...\` or \`${MOUNT.attachedFolders}/...\` into a page's links, sources, or CSS. Inline what the page needs (styles, scripts, small images as data URIs) or refer to files beside it by relative path within the same folder, so the page still works when it is opened alone or shared. A page that has to fetch data or reach across folders is a page that needs a server: start one on localhost and open that.
-    - \`${MOUNT.skills}/\` is the workspace's own skills folder, mounted writable.
+    - \`${WORKSPACE_SKILLS_MOUNT}/\` is the workspace's own skills folder, mounted writable.
       Each skill is a directory holding \`SKILL.md\` plus optional \`scripts/\`,
       \`references/\`, and \`assets/\`. Create and edit skills here with your normal file
       tools; a skill saved here is immediately available to \`${agentTools.LoadSkill.name}\`.
-      Skills that came from elsewhere on the machine are not under
-      \`${MOUNT.skills}/\` and cannot be edited -- load them by name instead.
+      The other folders under \`${MOUNT.skills}/\` hold the skills ${APP_NAME} ships and those
+      found elsewhere on the machine, one per source; they are read-only, so load them by name.
       To run a skill's script, load the skill and run the copy under
       \`${F.work}/${F.skills}/\`: a mount is out of a native tool's reach.
 
@@ -409,8 +409,8 @@ export const mainAgent = setupAgent({
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
     const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 
-    // Skills live outside the task tree, in the shared writable `/skills`
-    // mount, so a turn that only authored a skill leaves nothing in the task.
+    // Skills live outside the task tree, in the shared writable
+    // `/skills/workspace` mount, so a turn that only authored a skill leaves nothing in the task.
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }

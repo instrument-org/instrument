@@ -45,14 +45,12 @@ export const MOUNT = {
   project: "/project",
 
   /**
-   * The workspace's own `skills/` directory.
-   *
-   * Always writable, whatever access the attached folders have: authoring a
-   * skill is editing a plain package of files, so the agent does it with the
-   * ordinary file tools rather than a dedicated tool. Only the workspace's
-   * skills live here -- skills discovered in a co-installed agent's home
-   * directory stay readable through `load_skill` and are never exposed for
-   * writing.
+   * The skills the agent can see, one mount per skill source at
+   * `/skills/<source>/`. The segment carries provenance and writability: only
+   * the workspace's own skills (`WORKSPACE_SKILLS_MOUNT`) are writable, because
+   * authoring a skill is editing a plain package of files with the ordinary file
+   * tools. What the app ships and what a co-installed agent left in its home
+   * directory are read-only where they were discovered.
    */
   skills: "/skills",
 
@@ -76,3 +74,10 @@ export const MOUNT = {
    */
   tasks: "/tasks",
 } as const;
+
+/**
+ * The workspace's own skills folder, the one place under `MOUNT.skills` the
+ * agent writes. `workspace` is that source's mount segment
+ * (`skillsMountSegment` in `lib/skills.ts`).
+ */
+export const WORKSPACE_SKILLS_MOUNT = `${MOUNT.skills}/workspace`;

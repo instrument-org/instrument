@@ -26,7 +26,7 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
-import { childTaskMounts } from "../lib/orchestrator/children";
+import { childTaskMounts } from "../lib/chat/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,

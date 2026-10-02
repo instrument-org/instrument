@@ -9,12 +9,12 @@ import {
 } from "../../schemas/window-tab";
 import { encodeBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
-import { windowTaskId } from "../orchestrator/ensure";
+import { windowTaskId } from "../chat/ensure";
 import {
   askWindow,
   tabHolders,
   WINDOW_TAB_TIMEOUT_MS,
-} from "../orchestrator/window-tab";
+} from "../chat/window-tab";
 import { isUnder } from "../path-containment";
 import { TAB_COMMAND } from "./tab-command";
 

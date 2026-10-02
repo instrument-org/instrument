@@ -7,7 +7,7 @@ Core AI agents, workflow logic, RPC, and tools.
 - **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, project, session, skill, storage, decision, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
-- **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs an orchestrator's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/orchestrator/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
+- **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs a chat's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/chat/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
 - **Workspace server**: loopback Hono app in `src/logic/server/index.ts`: the CDP bridge `agent-browser` drives a guest through, and the AI gateway mounted at `AI_GATEWAY_API_PATH` when provided. It serves no files: a page on this computer opens at its `file://` address for the person and the agent alike, and the person's viewers read files through Studio's own `instrument://computer-<token>` channel.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
@@ -61,11 +61,11 @@ case with follow-ups cannot quietly take three times the number you set.
 
 Every run gets a home directory of its own under `$TMPDIR`, or wherever
 `INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not
-optional tidiness: an orchestrator attaches the user's real home and their real
+optional tidiness: a chat attaches the user's real home and their real
 `~/Documents/Instrument` to its conversation and hands that workspace folder to
 every task it starts, so an unsandboxed suite is several agents at once holding
 read-write on your actual files. Both folders derive from one `$HOME` for the
-whole process, so orchestrator cases want `--concurrency 1` and a separate
+whole process, so chat cases want `--concurrency 1` and a separate
 process per model when two runs must not see each other's output.
 
 **There is no default model set, and `--model` is required.** A list of models
@@ -118,9 +118,9 @@ until the OS reaps it or the storage format moves past it. What lasts is
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.
 
-## Orchestrator evals
+## Chat evals
 
-`kind: "orchestrator"` (or `--orchestrator` with `--prompt`) runs a case through
+`kind: "chat"` (or `--chat` with `--prompt`) runs a case through
 the agent the user talks to, which delegates to tasks of its own. Three things
 differ from an ordinary case:
 
@@ -136,7 +136,7 @@ differ from an ordinary case:
 - Assertions get `childSessions()` alongside `sessions`, because the work being
   scored happened in the tasks rather than in the conversation.
 
-`scripts/orchestrator-handoff-report.ts <workspace-dir>` prints what each task
+`scripts/chat-handoff-report.ts <workspace-dir>` prints what each task
 handed back and whether the wake note's ceiling cut it, which is the number to
 watch: a task's last message travels whole up to that ceiling, and everything
 past it was composed, paid for, and dropped.

@@ -26,13 +26,13 @@ import { createAppCommand } from "./app";
 import { runApp as run, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
-const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 let CHILD_ID = TaskIdSchema.parse("file-the-issue");
 
 let context: TaskCommandContext;
@@ -41,7 +41,7 @@ let context: TaskCommandContext;
 const working = vi.hoisted(() => ({ value: false }));
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: () => working.value,
 }));
@@ -114,7 +114,7 @@ const originalApps = getWorkspaceConfig().apps;
 
 /** An app in the workspace, connected on the manifest it currently has. */
 async function connectedApp(slug: string) {
-  const result = await createAppCommand({ taskId: ORCHESTRATOR_ID }).execute(
+  const result = await createAppCommand({ taskId: CHAT_ID }).execute(
     ["new", slug, "--name", "Linear", "--mcp", "https://mcp.example.com/sse"],
     createCommandContext({
       cwd: "/task",
@@ -161,20 +161,20 @@ function useWorkspace(taskId: string) {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(ORCHESTRATOR_SESSION, ORCHESTRATOR_ID);
+  chatFor(CHAT_SESSION, CHAT_ID);
 }
 
 beforeEach(async () => {
   counter += 1;
-  ORCHESTRATOR_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`file-the-issue-${counter}`);
-  context = { orchestratorTaskId: ORCHESTRATOR_ID, remainingYieldMs: () => 0 };
+  context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   working.value = false;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-app-"));
   appsConfig = createMemoryAppsConfig();
   useWorkspace(CHILD_ID);
-  await setTaskState(taskDir(ORCHESTRATOR_ID), {
+  await setTaskState(taskDir(CHAT_ID), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
   });
@@ -184,7 +184,7 @@ beforeEach(async () => {
         apps: [],
         kind: "task",
         name: "File the issue",
-        parentTaskId: ORCHESTRATOR_ID,
+        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
@@ -309,7 +309,7 @@ describe("task app", () => {
     useWorkspace(personMade);
     const created = await initializeTask(
       {
-        initialSettings: { name: "Theirs", parentTaskId: ORCHESTRATOR_ID },
+        initialSettings: { name: "Theirs", parentTaskId: CHAT_ID },
         taskId: personMade,
         workspaceConfig: getWorkspaceConfig(),
       },
@@ -329,7 +329,7 @@ describe("task app", () => {
     await expect(
       runApp([CHILD_ID, "--add", "linear"], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(`"${CHILD_ID}" was started in another chat`);
   });

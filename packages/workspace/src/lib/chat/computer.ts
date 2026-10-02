@@ -51,7 +51,7 @@ const ComputerEntrySchema = z.object({
 type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
 /**
- * How the orchestrator reaches a folder of the computer, when one of the
+ * How the chat reaches a folder of the computer, when one of the
  * folders granted to it covers that folder. Absent means the agent cannot
  * read it or hand it to a task until the user allows it.
  */
@@ -266,13 +266,13 @@ export async function listComputerFolder({
 export async function recentComputerFiles(): Promise<ComputerRecent[]> {
   // Each path is read the way the chat that named it reads it: `/task` is
   // that chat's own folder, and its tasks are the ones mounted for it.
-  const views = new Map<TaskId, ReturnType<typeof orchestratorView>>();
+  const views = new Map<TaskId, ReturnType<typeof chatView>>();
   const viewOf = (chatId: TaskId) => {
     const known = views.get(chatId);
     if (known) {
       return known;
     }
-    const view = orchestratorView(chatId);
+    const view = chatView(chatId);
     views.set(chatId, view);
     return view;
   };
@@ -326,11 +326,11 @@ async function computerAccess(
   taskId: TaskId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  // Only a folder among the tasks can be inside one the orchestrator made,
+  // Only a folder among the tasks can be inside one the chat made,
   // and listing the tasks reads every one of them, which every folder
   // listing, and every re-read of one on the clock, would otherwise pay.
   const tasksRoot = path.dirname(taskDir(taskId));
-  const { roots } = await orchestratorView(taskId, {
+  const { roots } = await chatView(taskId, {
     withChildren: isInsideFolder(hostPath, tasksRoot),
   });
   return accessIn(roots, hostPath);
@@ -455,12 +455,12 @@ function isInsideFolder(hostPath: string, folder: string) {
 }
 
 /**
- * The orchestrator's own view of the filesystem: the folders the user attached
+ * The chat's own view of the filesystem: the folders the user attached
  * and a read-only mount per task it created, which is where a file its work
  * made actually sits. Beside the layout, the same mounts as host roots with
  * the grant each carries, which is what a folder's access is judged from.
  */
-async function orchestratorView(
+async function chatView(
   taskId: TaskId,
   { withChildren = true }: { withChildren?: boolean } = {},
 ) {
@@ -476,7 +476,7 @@ async function orchestratorView(
 }
 
 /**
- * What an orchestrator can reach outside its own folder, each resolved to a
+ * What a chat can reach outside its own folder, each resolved to a
  * host root: the folders the user granted it, and the tasks it created, which
  * it reads and never writes. A file one of its tasks made lives in the second
  * kind, so leaving those out would show the user a file with no way to open it.
@@ -494,7 +494,7 @@ function reachableRoots(
   return layout.attached.map((mount) => {
     const root = path.resolve(mount.hostRoot);
     return {
-      // A mount with no grant behind it is a task the orchestrator created,
+      // A mount with no grant behind it is a task the chat created,
       // which it reads and never writes.
       grant: grants.get(root) ?? (mount.readOnly ? "read-only" : "read-write"),
       mountPoint: mount.mountPoint,

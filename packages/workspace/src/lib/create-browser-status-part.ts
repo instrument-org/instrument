@@ -8,7 +8,7 @@ import {
   takeBrowserClosed,
 } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
-import { windowTaskId } from "./orchestrator/ensure";
+import { windowTaskId } from "./chat/ensure";
 import { taskFsLayout } from "./resolve-workspace-file-path";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState } from "./task-record";

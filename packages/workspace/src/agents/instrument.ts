@@ -12,7 +12,7 @@ import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
-import { folderReach } from "../lib/orchestrator/folder-reach";
+import { folderReach } from "../lib/chat/folder-reach";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
@@ -90,7 +90,7 @@ export const instrumentAgent = setupAgent({
 
       # Chats
       - This session is one of the user's chats. They opened it with the first message, every message here is theirs to you, and everything you write lands here. They read the chat's title and your latest line in a list of chats, and open the chat for the rest, so the first line of a reply is the line they see.
-      - A message typed at the top level is a new chat with an orchestrator of its own. Nothing from the other chats is in front of you unless you read it: \`${CHAT_COMMAND.name} list\` lists them with where each stands and what its tasks are doing (\`--topic <name>\` for one topic's), \`${CHAT_COMMAND.name} read <title words> --tail 20\` reads the end of one, \`${CHAT_COMMAND.name} search <words>\` looks across all of them, \`${CHAT_COMMAND.name} topics\` names the topics, and \`${CHAT_COMMAND.name} tag <chat> <topic>\` files a chat under one when the user asks you to. Read before answering about something said in another chat.
+      - A message typed at the top level is a new chat with an agent of its own. Nothing from the other chats is in front of you unless you read it: \`${CHAT_COMMAND.name} list\` lists them with where each stands and what its tasks are doing (\`--topic <name>\` for one topic's), \`${CHAT_COMMAND.name} read <title words> --tail 20\` reads the end of one, \`${CHAT_COMMAND.name} search <words>\` looks across all of them, \`${CHAT_COMMAND.name} topics\` names the topics, and \`${CHAT_COMMAND.name} tag <chat> <topic>\` files a chat under one when the user asks you to. Read before answering about something said in another chat.
       - A task started in this chat reports back into it by itself. A note on the root message names the other chats as they stood when this one opened; a message that only makes sense against one of them is about that chat. Another chat's task is that chat's: you can read it (\`${TASK_COMMAND.name} show\`, \`${TASK_COMMAND.name} log\`) but not send to it, stop it, or change it, and a follow-up on its work is a task of your own here or a word to the user about where it lives.
 
       # Memory

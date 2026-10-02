@@ -10,7 +10,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { createTopic } from "../orchestrator/topics";
+import { createTopic } from "../chat/topics";
 import { Store } from "../store";
 import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -20,9 +20,9 @@ vi.mock(import("../session-store-storage"));
 
 // The list asks the machine which chats and tasks are at work; a test has
 // no machine, so nothing is.
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  orchestratorActivity: () => Promise.resolve({ running: [] }),
+  chatActivity: () => Promise.resolve({ running: [] }),
 }));
 vi.mock(import("../workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
@@ -52,7 +52,7 @@ const freshTask = async () => {
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
   const made = await updateTaskSettings(taskId, {
-    kind: "orchestrator",
+    kind: "chat",
     name: "Instrument",
   });
   expect(made.isOk()).toBe(true);

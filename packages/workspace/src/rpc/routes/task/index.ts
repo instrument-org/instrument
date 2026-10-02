@@ -13,7 +13,7 @@ import { getTask, getTasks } from "../../../lib/get-tasks";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
-import { ensureChat } from "../../../lib/orchestrator/chat-records";
+import { ensureChat } from "../../../lib/chat/chat-records";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
@@ -90,7 +90,7 @@ const create = base
         )
         .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
-      // An orchestrator is created this way only by the eval harness, and it
+      // A chat is created this way only by the eval harness, and it
       // is made a chat, the way the window's first send makes one.
       kind: TaskKindSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
@@ -149,10 +149,9 @@ const create = base
         project = projectResult.value;
       }
 
-      // An orchestrator made here is a chat, the way the window's first send
-      // makes one: a record of its own, named for the words it opens with.
-      const chatSession =
-        kind === "orchestrator" ? StoreId.newSessionId() : undefined;
+      // Made the way the window's first send makes a chat: a record of its
+      // own, named for the words it opens with.
+      const chatSession = kind === "chat" ? StoreId.newSessionId() : undefined;
       const initialTaskName = name ?? defaultTaskName(prompt);
       let taskId: TaskId;
       let result: Result<unknown, TypedError.Type> = ok(undefined);

@@ -70,7 +70,7 @@ async function makeChat(name: string, sessionId = SESSION) {
     {
       initialSettings: {
         chatSessionId: sessionId,
-        kind: "orchestrator",
+        kind: "chat",
         name: "Instrument",
       },
       taskId,

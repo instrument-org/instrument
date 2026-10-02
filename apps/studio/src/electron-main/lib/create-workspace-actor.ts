@@ -15,7 +15,7 @@ import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
-  attachOrchestrator,
+  attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
@@ -184,7 +184,7 @@ export function createWorkspaceActor({
       webSearch: searchWeb,
     },
   });
-  attachOrchestrator(actor);
+  attachChats(actor);
   actor.start();
 
   const snapshot = actor.getSnapshot();

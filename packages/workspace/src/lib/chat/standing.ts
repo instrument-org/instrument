@@ -49,10 +49,10 @@ type TaskStandingKind = "done" | "failed" | "running" | "waiting";
  * How a turn that ended before the agent wrote any words ended. That happens
  * three ways, each of which leaves the last assistant message text-less: the
  * step limit, a model error, or a stop, whether the user's or the
- * orchestrator's, which lands either in the message the model was streaming
+ * chat's, which lands either in the message the model was streaming
  * or in the tool call it was waiting on. The line names the one it was and,
  * for a stop, what the task was in the middle of. Read by the task list and
- * by the note that wakes the orchestrator, so the two say the same thing.
+ * by the note that wakes the chat, so the two say the same thing.
  */
 export async function endedWithoutWords(
   taskId: TaskId,

@@ -224,7 +224,10 @@ export async function buildBashFs(
       layout.project.mountPoint,
       masked(
         layout.project,
-        new ReadWriteFsWithRmdir({ maxFileReadSize, root: layout.project.hostRoot }),
+        new ReadWriteFsWithRmdir({
+          maxFileReadSize,
+          root: layout.project.hostRoot,
+        }),
       ),
     );
   }
@@ -293,7 +296,7 @@ export function buildWorkspaceFsLayout({
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
    * Mounts the caller adds beside the attached folders, already resolved: an
-   * orchestrator's read-only view of the tasks it created. They are attached
+   * chat's read-only view of the tasks it created. They are attached
    * mounts in every way that matters to the filesystem, so they take the same
    * masking and containment.
    */

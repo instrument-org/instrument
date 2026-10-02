@@ -34,8 +34,8 @@ import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { windowTaskId } from "../orchestrator/ensure";
-import { chatSessionOfTask, liveHeldTabs } from "../orchestrator/window-tab";
+import { windowTaskId } from "../chat/ensure";
+import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
@@ -1092,7 +1092,7 @@ async function resolveBrowserTarget({
       : noTabUp;
   }
   const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind === "orchestrator") {
+  if (settings?.kind === "chat") {
     return noTabUp;
   }
   const chatSession = await chatSessionOfTask(id);

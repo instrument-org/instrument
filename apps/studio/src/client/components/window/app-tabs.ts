@@ -1,6 +1,3 @@
-// Before this module's stored atoms read their values, whatever chunk the
-// bundler puts either in.
-import "@/client/lib/migrate-window-storage";
 import { tabsAtomOf } from "@/client/atoms/tabs";
 import {
   type AppPlace,

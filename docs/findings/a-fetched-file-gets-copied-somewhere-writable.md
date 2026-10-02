@@ -41,7 +41,7 @@ An earlier version quoted the user's phrasing ("Grab me that file"), which is th
 EVAL_HOME=$(mktemp -d)
 mkdir -p "$EVAL_HOME/Library/Mobile Documents/com~apple~CloudDocs/Downloads"
 printf '# soul\n\nnotes to self\n' > "$EVAL_HOME/Library/Mobile Documents/com~apple~CloudDocs/Downloads/SOUL.md"
-INSTRUMENT_EVAL_HOME=$EVAL_HOME pnpm eval run --yes --orchestrator --concurrency 1 \
+INSTRUMENT_EVAL_HOME=$EVAL_HOME pnpm eval run --yes --chat --concurrency 1 \
   --paid --model openai/gpt-5.6-luna --repeat 3 \
   --prompt "For my iCloud downloads folder, can you grab me the recently saved, I believe it's a soul.md file"
 ```

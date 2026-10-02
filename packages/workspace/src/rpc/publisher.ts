@@ -14,7 +14,7 @@ export const publisher = new EventPublisher<{
   /**
    * The user acted on an app outside the conversation: finished a sign-in,
    * saved a key, declined, disconnected. Published by the host app, which
-   * owns those surfaces; the orchestrator is woken with it.
+   * owns those surfaces; the chat is woken with it.
    */
   "app.event": {
     detail?: string;

@@ -2,8 +2,8 @@ import { defineCommand } from "just-bash";
 import { alphabetical } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
-import { type Chat, listChats, setChatTopics } from "../orchestrator/chats";
-import { listTopics, type Topic, topicByName } from "../orchestrator/topics";
+import { type Chat, listChats, setChatTopics } from "../chat/chats";
+import { listTopics, type Topic, topicByName } from "../chat/topics";
 import { chatOfSession } from "../record-folders";
 import { Store } from "../store";
 import { CHAT_COMMAND } from "./chat-command";
@@ -21,7 +21,7 @@ const SEARCH_MAX = 20;
 /**
  * The conversation's way of reading itself.
  *
- * A chat is a session with an orchestrator of its own, handed nothing from
+ * A chat is a session with an agent of its own, handed nothing from
  * the others. These read the rest on demand, which is what keeps a reply in
  * one chat able to answer about another without every chat riding along
  * in the prompt.

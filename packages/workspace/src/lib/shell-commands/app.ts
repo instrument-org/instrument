@@ -178,8 +178,8 @@ export function createAppCommand(context: AppCommandContext) {
 }
 
 /**
- * The apps a task may reach: the ones the orchestrator handed it, by slug, or
- * every app for a task nobody scoped (the orchestrator itself, a task a person
+ * The apps a task may reach: the ones the chat handed it, by slug, or
+ * every app for a task nobody scoped (the chat itself, a task a person
  * made). Undefined means every app.
  */
 async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {

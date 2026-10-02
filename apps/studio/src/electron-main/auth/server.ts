@@ -246,7 +246,7 @@ async function start() {
 
   // An app's sign-in lands here after the user approves. Finish the parked
   // flow (the code becomes tokens, the app becomes connected), then tell the
-  // window and the orchestrator. The page opened in the window's own browser,
+  // window and the chat. The page opened in the window's own browser,
   // so this renders where the user is looking rather than pulling focus.
   app.get(APP_OAUTH_CALLBACK_PATH, async (c) => {
     const code = c.req.query("code");

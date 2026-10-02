@@ -3,7 +3,7 @@
  * should not?
  *
  * The task prompt names the skill and tells the model to err toward it for
- * anything long, structured, or worth keeping; the orchestrator's brief rule
+ * anything long, structured, or worth keeping; the chat's brief rule
  * names it whenever the user asks for a page.
  * Both are prompt lines, so neither can be read off the source.
  *
@@ -157,8 +157,8 @@ export const CREATE_PAGE_SKILL_EVALS = [
     // The user names the ability. The conversation has no skill tool of its
     // own, so the whole of the answer is a brief that names the skill.
     assertions: [briefNamesCreatePage, tasksLoadedCreatePage],
-    kind: "orchestrator",
-    name: "orchestrator-create-page-by-name",
+    kind: "chat",
+    name: "chat-create-page-by-name",
     prompt:
       "Can you use your create page ability to just make me a quick and small demo page? I want to just demonstrate the functionality here",
   }),

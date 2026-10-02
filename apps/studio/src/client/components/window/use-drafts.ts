@@ -55,7 +55,7 @@ export function useDrafts({
 }: {
   /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
   activeHref: string;
-  /** The orchestrator's granted folders, for how the agent reaches a file an ask is on. */
+  /** The window record's granted folders, for how the agent reaches a file an ask is on. */
   attachedFolders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
@@ -63,7 +63,7 @@ export function useDrafts({
   draftContext: (
     draftId: string,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** The orchestrator, once it exists; no chat starts before it does. */
+  /** The window's record, once it exists; no chat starts before it does. */
   ids: RPCOutput["workspace"]["window"]["ensure"] | undefined;
   /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
@@ -71,7 +71,7 @@ export function useDrafts({
   openChat: (sessionId: StoreId.Session) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
-  /** The orchestrator's topics, for the one the inbox stands in. */
+  /** The window record's topics, for the one the inbox stands in. */
   topics: Topic[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {

@@ -347,7 +347,7 @@ async function seedTask({
         initialSettings: isChat
           ? {
               chatSessionId: chatSession.id,
-              kind: "orchestrator",
+              kind: "chat",
               name: task.name,
             }
           : { name: task.name, ...(parentTaskId ? { parentTaskId } : {}) },

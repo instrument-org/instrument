@@ -3,12 +3,12 @@ import type { Protocol } from "devtools-protocol";
 import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
-import { windowTaskId } from "../../../lib/orchestrator/ensure";
+import { windowTaskId } from "../../../lib/chat/ensure";
 import {
   askWindow,
   chatSessionOfTask,
   requestWindowTab,
-} from "../../../lib/orchestrator/window-tab";
+} from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import { getBrowserSessionDir, taskDir } from "../../../lib/task-dir-utils";
 import { getTaskState, setTaskState } from "../../../lib/task-record";

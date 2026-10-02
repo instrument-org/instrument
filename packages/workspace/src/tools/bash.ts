@@ -13,8 +13,8 @@ import {
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
-import { childTaskMounts } from "../lib/orchestrator/children";
-import { folderReach } from "../lib/orchestrator/folder-reach";
+import { childTaskMounts } from "../lib/chat/children";
+import { folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -49,12 +49,12 @@ const MAX_YIELD_MS = ms("10 minutes");
  */
 const YIELD_TIMEOUT_SLACK_MS = ms("30 seconds");
 
-/** What the orchestrator's shell runs: the two commands that are its job, and filters to read their output with. */
+/** What the chat's shell runs: the two commands that are its job, and filters to read their output with. */
 // Its commands, and the file commands for putting a finished file where it
 // belongs and looking at one: a task's folder is mounted read-only under the
-// orchestrator's view and the user's folders read and write, so a copy out of
+// chat's view and the user's folders read and write, so a copy out of
 // one into the other is the whole of what these can do to a file.
-const ORCHESTRATOR_COMMANDS = new Set([
+const CHAT_COMMANDS = new Set([
   "app",
   "cat",
   "chat",
@@ -76,7 +76,7 @@ const ORCHESTRATOR_COMMANDS = new Set([
   "task",
   "wc",
 ]);
-const ORCHESTRATOR_FILTERS = new Set([
+const CHAT_FILTERS = new Set([
   "awk",
   "cut",
   "echo",
@@ -99,7 +99,7 @@ const ORCHESTRATOR_FILTERS = new Set([
 // The rest stay downstream of a pipe because they can write from inside their
 // own arguments -- `sed -i`, and `awk 'BEGIN{print > "..."}'` -- which the
 // redirect guard above does not see.
-const ORCHESTRATOR_SEARCH = new Set(["grep", "rg"]);
+const CHAT_SEARCH = new Set(["grep", "rg"]);
 
 /**
  * The first word of every command in a script, heredoc bodies skipped, and
@@ -140,7 +140,7 @@ export function leadingWords(
  * their output. Anything else is refused with the way to do it instead, so
  * the agent never becomes busy doing what a task exists for.
  */
-export function orchestratorRefusal(script: string): string | undefined {
+export function chatRefusal(script: string): string | undefined {
   // Checked before the command names, because this is the hole they leave: the
   // list is a list of things safe to *read* with, and every one of them writes
   // a file the moment its output is redirected. Measured, a model finds it on
@@ -152,9 +152,9 @@ export function orchestratorRefusal(script: string): string | undefined {
   }
   const outside = leadingWords(script).find(
     ({ piped, word }) =>
-      !ORCHESTRATOR_COMMANDS.has(word) &&
-      !ORCHESTRATOR_SEARCH.has(word) &&
-      !(piped && ORCHESTRATOR_FILTERS.has(word)),
+      !CHAT_COMMANDS.has(word) &&
+      !CHAT_SEARCH.has(word) &&
+      !(piped && CHAT_FILTERS.has(word)),
   );
   if (outside === undefined) {
     return;
@@ -162,10 +162,10 @@ export function orchestratorRefusal(script: string): string | undefined {
   // A filter run without one is a rewrite away from working, so say the
   // rewrite: a refusal that only names the rule leaves the agent to guess at
   // the form, and the guess is usually another refusal.
-  if (ORCHESTRATOR_FILTERS.has(outside.word)) {
+  if (CHAT_FILTERS.has(outside.word)) {
     return `\`${outside.word}\` reads what a command before it printed, so give it one: \`cat <file> | ${outside.word} ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one.`;
   }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, du, cp, mv, mkdir), \`jobs\`/\`fg\`/\`kill\` on what it sent to the background, and \`grep\`/\`rg\` on a path, with the other filters (${[...ORCHESTRATOR_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, du, cp, mv, mkdir), \`jobs\`/\`fg\`/\`kill\` on what it sent to the background, and \`grep\`/\`rg\` on a path, with the other filters (${[...CHAT_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {
@@ -317,10 +317,10 @@ export const BashTool = setupTool({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
   description: ({ agentName }) =>
-    createBashDescription({ orchestrator: agentName === "instrument" }),
+    createBashDescription({ chat: agentName === "instrument" }),
   async execute({ agentName, input, partId, sessionId, signal, taskId }) {
     if (agentName === "instrument") {
-      const refused = orchestratorRefusal(input.command);
+      const refused = chatRefusal(input.command);
       if (refused) {
         return executeError(refused);
       }
@@ -333,7 +333,7 @@ export const BashTool = setupTool({
     const projectFolderName = await resolveTaskProjectFolder(taskId);
     const bash = await createBashEnv({
       attachedFolders,
-      orchestrator: childMounts ? { childMounts } : undefined,
+      chat: childMounts ? { childMounts } : undefined,
       projectFolderName,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only

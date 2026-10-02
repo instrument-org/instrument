@@ -234,7 +234,7 @@ describe("store migrations", () => {
   );
 
   it("leaves a view sent from another screen alone", async () => {
-    const data = { screen: "tasks", url: "/orchestrator/tasks" };
+    const data = { screen: "tasks", url: "/tasks" };
     await seedStoredPart({ data, type: "data-viewContext" });
 
     const stored = await openAndReadStoredPart();

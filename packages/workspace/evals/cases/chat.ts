@@ -31,7 +31,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { mountsOf } from "../../src/lib/orchestrator/mount-paths";
+import { mountsOf } from "../../src/lib/chat/mount-paths";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { taskDir } from "../../src/lib/task-dir-utils";
 import { MOUNT } from "../../src/mount-points";
@@ -535,7 +535,7 @@ const tasksWroteFiles: Assertion = {
  */
 /**
  * The receipt rule: a task's last message ends with a files fence naming what
- * it made, which is the one thing about its files the orchestrator is handed.
+ * it made, which is the one thing about its files the chat is handed.
  */
 const tasksNamedTheirFiles: Assertion = {
   check: async ({ childSessions }) => {
@@ -709,7 +709,7 @@ function wroteInto(folder: string): Assertion {
 // Cases
 // ---------------------------------------------------------------------------
 
-export const ORCHESTRATOR_EVALS = [
+export const CHAT_EVALS = [
   defineEval({
     assertions: [
       delegated(1),
@@ -720,8 +720,8 @@ export const ORCHESTRATOR_EVALS = [
       linkedAFileThatExists,
       childRepliedInAtMost(600),
     ],
-    kind: "orchestrator",
-    name: "orchestrator-one-file",
+    kind: "chat",
+    name: "chat-one-file",
     prompt:
       "Make me a one-page markdown summary of what a CDN is, and put it in my Instrument folder.",
   }),
@@ -730,8 +730,8 @@ export const ORCHESTRATOR_EVALS = [
     // The ask that took a minute and three quarters of thinking before anything
     // appeared on screen, in the words it was typed in.
     assertions: [delegated(3), didNotDoTheWorkItself, saidAtMost(400)],
-    kind: "orchestrator",
-    name: "orchestrator-three-documents",
+    kind: "chat",
+    name: "chat-three-documents",
     prompt:
       "I want to do a quick document creation test. Can you spawn a few tasks to make a Word doc and a PowerPoint and a Excel sheet, just kind of for an example company with kind of a fake environment set up so that it can show how it does and I can understand if it's working well. Thank you.",
   }),
@@ -740,8 +740,8 @@ export const ORCHESTRATOR_EVALS = [
     // "one from each of the newest models" is one task per model, which is the
     // fan-out the conversation gets wrong most often: one task told to compare.
     assertions: [delegated(2), didNotDoTheWorkItself],
-    kind: "orchestrator",
-    name: "orchestrator-one-task-per-model",
+    kind: "chat",
+    name: "chat-one-task-per-model",
     prompt:
       "Write a two-line poem about beans with two different models, one file each in my Instrument folder, named for the model.",
   }),
@@ -751,8 +751,8 @@ export const ORCHESTRATOR_EVALS = [
     // on the conversation's. The ask is one whose "strength" a conversation
     // might reach for a bigger model over, which is the pick nobody made.
     assertions: [delegated(1), ranOnTheConversationsModel],
-    kind: "orchestrator",
-    name: "orchestrator-runs-on-its-own-model",
+    kind: "chat",
+    name: "chat-runs-on-its-own-model",
     prompt:
       "Write a careful, well-researched 600-word explainer on how DNS resolution works, to dns.md in my Instrument folder.",
   }),
@@ -760,8 +760,8 @@ export const ORCHESTRATOR_EVALS = [
   defineEval({
     // The mirror case. Its folder is mounted, so this is a `ls` and a sentence.
     assertions: [answeredWithoutATask, saidAtMost(400)],
-    kind: "orchestrator",
-    name: "orchestrator-answers-a-question",
+    kind: "chat",
+    name: "chat-answers-a-question",
     prompt: "How many files are in my Instrument folder?",
   }),
 
@@ -779,8 +779,8 @@ export const ORCHESTRATOR_EVALS = [
       linkedAFileThatExists,
       wroteInto("Downloads"),
     ],
-    kind: "orchestrator",
-    name: "orchestrator-hands-over-a-folder",
+    kind: "chat",
+    name: "chat-hands-over-a-folder",
     prompt:
       "Write me a one-page markdown summary of what a CDN is and put it in my Downloads folder.",
   }),
@@ -789,8 +789,8 @@ export const ORCHESTRATOR_EVALS = [
     // A correction mid-flight goes into the running task, not into a new one.
     assertions: [delegated(1), didNotDoTheWorkItself],
     followUps: ["Actually make that 400 words, and skip the sources."],
-    kind: "orchestrator",
-    name: "orchestrator-steers-a-running-task",
+    kind: "chat",
+    name: "chat-steers-a-running-task",
     prompt:
       "Write a 1500-word essay on the pelican in heraldry, with sources, to pelican-heraldry.md in my Instrument folder.",
   }),
@@ -808,8 +808,8 @@ export const ORCHESTRATOR_EVALS = [
       didNotDoTheWorkItself,
     ],
     followUps: ["Put copies of those in my Downloads folder as well."],
-    kind: "orchestrator",
-    name: "orchestrator-widens-a-running-task",
+    kind: "chat",
+    name: "chat-widens-a-running-task",
     prompt:
       "Write two short markdown notes, one on what a CDN is and one on what DNS is, one file each in my Instrument folder.",
   }),
@@ -830,8 +830,8 @@ export const ORCHESTRATOR_EVALS = [
     followUps: [
       "Good. Now file each of the points it made as its own issue in our Beacon tracker.",
     ],
-    kind: "orchestrator",
-    name: "orchestrator-hands-over-an-app",
+    kind: "chat",
+    name: "chat-hands-over-an-app",
     prompt:
       "Write me a short markdown note in my Instrument folder about what makes a good bug report.",
   }),
@@ -852,8 +852,8 @@ export const ORCHESTRATOR_EVALS = [
       briefAtMost(500),
       didNotRaiseEffort,
     ],
-    kind: "orchestrator",
-    name: "orchestrator-quick-question-outage",
+    kind: "chat",
+    name: "chat-quick-question-outage",
     prompt:
       "are folks having issues getting disconnected from wow forever today",
   }),
@@ -869,8 +869,8 @@ export const ORCHESTRATOR_EVALS = [
       briefAtMost(400),
       didNotRaiseEffort,
     ],
-    kind: "orchestrator",
-    name: "orchestrator-quick-question-weather",
+    kind: "chat",
+    name: "chat-quick-question-weather",
     prompt: "what's the weather in Nashville right now",
   }),
 
@@ -883,8 +883,8 @@ export const ORCHESTRATOR_EVALS = [
       saidAtMost(280),
       briefNamedSkill("create-page"),
     ],
-    kind: "orchestrator",
-    name: "orchestrator-asks-for-a-page",
+    kind: "chat",
+    name: "chat-asks-for-a-page",
     prompt:
       "Make me a page comparing the three best-known static site generators, in my Instrument folder.",
   }),
@@ -904,8 +904,8 @@ export const ORCHESTRATOR_EVALS = [
     files: [
       { content: imageFixture("legible-status.png"), filename: "status.png" },
     ],
-    kind: "orchestrator",
-    name: "orchestrator-hands-over-a-sent-file",
+    kind: "chat",
+    name: "chat-hands-over-a-sent-file",
     prompt: "wat this",
   }),
   defineEval({
@@ -916,8 +916,8 @@ export const ORCHESTRATOR_EVALS = [
       briefNamedSkill("color"),
       aTaskLoadedSkill("color"),
     ],
-    kind: "orchestrator",
-    name: "orchestrator-passes-on-a-mentioned-skill",
+    kind: "chat",
+    name: "chat-passes-on-a-mentioned-skill",
     prompt:
       "[$color](skill:color) use this to pick a five-color palette for a small coffee shop brand, and put it in my Instrument folder.",
   }),
@@ -929,8 +929,8 @@ export const ORCHESTRATOR_EVALS = [
       briefNamedSkill("color"),
       aTaskLoadedSkill("color"),
     ],
-    kind: "orchestrator",
-    name: "orchestrator-passes-on-a-typed-skill",
+    kind: "chat",
+    name: "chat-passes-on-a-typed-skill",
     prompt:
       "/color use this to pick a five-color palette for a small coffee shop brand, and put it in my Instrument folder.",
   }),

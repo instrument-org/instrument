@@ -9,20 +9,20 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { initializeTask } from "../initialize-task";
-import { cancelAskedWake } from "../orchestrator/wake";
+import { cancelAskedWake } from "../chat/wake";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runWake, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
-const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("audit-the-runtime");
 
 const working = vi.hoisted(() => ({ value: true }));
 
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: () => working.value,
 }));
@@ -35,7 +35,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 }));
 
 const context: TaskCommandContext = {
-  orchestratorTaskId: ORCHESTRATOR_ID,
+  chatId: CHAT_ID,
   remainingYieldMs: () => 0,
 };
 
@@ -54,12 +54,12 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(ORCHESTRATOR_SESSION, ORCHESTRATOR_ID);
+  chatFor(CHAT_SESSION, CHAT_ID);
   const created = await initializeTask(
     {
       initialSettings: {
         name: "Audit the runtime",
-        parentTaskId: ORCHESTRATOR_ID,
+        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
@@ -113,7 +113,7 @@ describe("task wake", () => {
     await expect(
       runWake([CHILD_ID, "--in", "5m"], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"audit-the-runtime" was started in another chat/);
   });

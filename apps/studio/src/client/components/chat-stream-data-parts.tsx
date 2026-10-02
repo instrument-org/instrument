@@ -87,7 +87,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // conversation the reader of this transcript is not looking at, and it is
   // usually what the task had stopped and waited for.
   "data-taskAppChanges": "always",
-  // The reason an orchestrator woke, shown so a reply that follows nothing the
+  // The reason a chat woke, shown so a reply that follows nothing the
   // user typed has a visible cause.
   "data-taskEvent": "always",
   // What the agent is told about the chats around this one: the other

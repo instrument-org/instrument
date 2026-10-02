@@ -411,11 +411,11 @@ export namespace SessionMessageDataPart {
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
   /**
-   * Tasks an orchestrator created that finished a turn since it last heard.
+   * Tasks a chat created that finished a turn since it last heard.
    *
-   * The one way work comes back to the orchestrator: a child never speaks in
+   * The one way work comes back to the chat: a child never speaks in
    * this conversation, so its completion has to arrive as something the
-   * orchestrator reads on a turn of its own. Written on a user message with no
+   * chat reads on a turn of its own. Written on a user message with no
    * text, which starts that turn, so the model reads it as a note from the
    * harness rather than as something the user said.
    *
@@ -430,7 +430,7 @@ export namespace SessionMessageDataPart {
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
           /**
-           * Set when the orchestrator asked to be woken about this task after
+           * Set when the chat asked to be woken about this task after
            * a delay of its own, rather than the clock deciding. The delay it
            * asked for, so the note can say so.
            */
@@ -452,7 +452,7 @@ export namespace SessionMessageDataPart {
            * What the task's folder holds when the note is composed: each
            * top-level folder with the files under it, and the files at the
            * root, the scaffold left out. Counts rather than names, so the
-           * orchestrator sees the shape of the folder without a listing of it.
+           * chat sees the shape of the folder without a listing of it.
            */
           holds: z
             .array(
@@ -465,7 +465,7 @@ export namespace SessionMessageDataPart {
             .optional(),
           /**
            * The files the task named in the files fence of its last message,
-           * in the paths the orchestrator can open. What the task said it
+           * in the paths the chat can open. What the task said it
            * made, not a reading of what its tools did: the card draws them as
            * chips, and the note carries the message itself.
            */
@@ -503,7 +503,7 @@ export namespace SessionMessageDataPart {
           /**
            * Done and error end a turn, error being a model error rather than
            * a stop; overdue is a task still at work past the point the
-           * orchestrator should look, and says so once.
+           * chat should look, and says so once.
            */
           status: z.enum(["done", "error", "overdue"]),
           /**
@@ -528,7 +528,7 @@ export namespace SessionMessageDataPart {
   /**
    * An app the user acted on outside the conversation: a sign-in finished in
    * the browser, a key saved on a card, a decline, a disconnect from the
-   * app's page. Like a task event, it wakes the orchestrator on a text-less
+   * app's page. Like a task event, it wakes the chat on a text-less
    * user message, so the agent learns without anyone typing, and it draws as
    * a product-event line in the transcript.
    */

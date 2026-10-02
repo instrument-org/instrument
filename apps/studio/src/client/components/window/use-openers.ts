@@ -53,7 +53,7 @@ export function useOpeners({
   /** The chats the window has, once the list has been read. */
   chats: Chat[] | undefined;
   chatTitles: Map<StoreId.Session, string>;
-  /** The orchestrator, once it exists; a path is resolved against it, and nothing it asks for is opened before then. */
+  /** The window's record, once it exists; a path is resolved against it, and nothing it asks for is opened before then. */
   ids: RPCOutput["workspace"]["window"]["ensure"] | undefined;
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;

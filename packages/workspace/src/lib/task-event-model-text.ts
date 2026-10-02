@@ -3,13 +3,13 @@ import ms from "ms";
 import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
-import { describeHoldings } from "./orchestrator/describe-holdings";
-import { describeLeftRunning } from "./orchestrator/left-running";
+import { describeHoldings } from "./chat/describe-holdings";
+import { describeLeftRunning } from "./chat/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
 /**
- * The note that wakes an orchestrator: which of its tasks finished a turn,
+ * The note that wakes a chat: which of its tasks finished a turn,
  * what each cost, and where to read more. Points at the log rather than
  * inlining it, so a wake costs the same context whether the child wrote one
  * line or a thousand.
@@ -66,7 +66,7 @@ export function taskEventModelNote(
         ? ""
         : " It said nothing.";
     // The shape of its folder, as counts: enough to see a repository copied
-    // in or a build left behind, without a listing the orchestrator can make
+    // in or a build left behind, without a listing the chat can make
     // for itself when it wants the names.
     // What the step running now is doing, on its own line: the measure of a
     // step that may never end on its own, which its label does not give.

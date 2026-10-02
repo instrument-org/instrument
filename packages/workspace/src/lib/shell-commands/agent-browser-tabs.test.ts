@@ -121,7 +121,7 @@ beforeEach(async () => {
   });
   chatFor(CHAT_SESSION, CHAT_ID);
   for (const [taskId, initialSettings] of [
-    [WINDOW_ID, { kind: "orchestrator", name: "Instrument" }],
+    [WINDOW_ID, { kind: "chat", name: "Instrument" }],
     [TASK_ID, { name: "Read the page", parentTaskId: CHAT_ID }],
     [LONE_TASK_ID, { name: "Lone task" }],
   ] as const) {

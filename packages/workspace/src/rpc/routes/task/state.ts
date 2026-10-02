@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
 import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
-import { folderReach } from "../../../lib/orchestrator/folder-reach";
+import { folderReach } from "../../../lib/chat/folder-reach";
 import { taskDir } from "../../../lib/task-dir-utils";
 import { getTaskState, setTaskState } from "../../../lib/task-record";
 import { FolderAttachment } from "../../../schemas/folder-attachment";

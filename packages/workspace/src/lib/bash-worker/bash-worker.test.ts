@@ -187,8 +187,8 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         '{"private":"overwritten"}',
       );
       const bashOptions: BashEnvOptions = {
-        orchestrator: {
-          // The mount `childTaskMounts` gives the orchestrator for this task.
+        chat: {
+          // The mount `childTaskMounts` gives the chat for this task.
           childMounts: [
             {
               hostRoot: AbsolutePathSchema.parse(childDir),

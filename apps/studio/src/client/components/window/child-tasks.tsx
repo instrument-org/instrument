@@ -38,7 +38,7 @@ const noop = () => {
 /**
  * A task's transcript, on its own screen, read the way it unfolded and kept
  * at its end while the task works. Nothing to type into: the user talks to
- * the orchestrator, which talks to the task, so this is how they look over
+ * the chat, which talks to the task, so this is how they look over
  * its shoulder and not a second conversation.
  */
 export function ChildTranscript({ task }: { task: Task }) {

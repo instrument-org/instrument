@@ -68,7 +68,7 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-f
 ```
 
 - Runs from the repo root; no `cd` first.
-- `--prompt` runs a task agent; add `--orchestrator` to send it through the chat
+- `--prompt` runs a task agent; add `--chat` to send it through the chat
   agent the user talks to, which starts tasks of its own.
 - **`--model` is required, and there is no default set.** `pnpm eval models
 [pattern]` lists what the configured providers can run today, newest first,

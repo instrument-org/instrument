@@ -65,7 +65,7 @@ function oneConversation() {
   writeJson(path.join(windowDir, "settings.json"), {
     createdAt: "2026-09-08T16:37:42.156Z",
     createdWithAppVersion: "2.0.0-beta.0",
-    kind: "orchestrator",
+    kind: "chat",
     name: "Instrument",
     state: {
       appThreads: { linear: THREAD },
@@ -290,7 +290,7 @@ describe("migrateToChats", () => {
         "chatSessionId": "ses_01M3AX9RF3C2E9RTATMB602W0B",
         "createdAt": "2026-09-24T23:51:33.605Z",
         "createdWithAppVersion": "2.0.0-beta.0",
-        "kind": "orchestrator",
+        "kind": "chat",
         "lastActivityAt": "2026-09-24T23:51:33.605Z",
         "name": "Transcribe the note",
         "state": {
@@ -411,7 +411,7 @@ describe("migrateToChats", () => {
       path.join(root, "chats", THREAD_CHAT, ".instrument", "settings.json"),
       {
         chatSessionId: THREAD,
-        kind: "orchestrator",
+        kind: "chat",
         name: "Transcribe the note",
       },
     );
@@ -443,7 +443,7 @@ describe("migrateToChats", () => {
     // An earlier run named the chat, and something stands where its database goes.
     writeJson(
       path.join(root, "chats", THREAD_CHAT, ".instrument", "settings.json"),
-      { chatSessionId: THREAD, kind: "orchestrator", name: "Instrument" },
+      { chatSessionId: THREAD, kind: "chat", name: "Instrument" },
     );
     fs.mkdirSync(
       path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"),

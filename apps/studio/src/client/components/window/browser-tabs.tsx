@@ -236,13 +236,13 @@ type PageTabsUpdate = (current: {
 }) => { activeId: null | string; tabs: BrowserTab[] };
 
 /**
- * The window's pages: each page tab is a browser guest of the orchestrator's,
+ * The window's pages: each page tab is a browser guest of the window's record,
  * like a task's browser and driven by the same machinery, so a task can be
  * handed one by id and drive it in the user's sight. The tabs themselves are
  * the window's, drawn by the window's strip; this holds their guests, keeps
  * each tab's title, address and icon as its page announces them, and shows
  * the guest of the tab on screen when that tab is a page. The page on screen
- * is the one the orchestrator's own commands drive, and it rides along with
+ * is the one the chat's own commands drive, and it rides along with
  * every message.
  */
 export function BrowserTabs({
@@ -330,7 +330,7 @@ export function BrowserTabs({
     );
   const active = tabs.find((tab) => tab.id === activeId);
 
-  // The orchestrator's own browser is the tab on screen; a task's tab is the
+  // The chat's own browser is the tab on screen; a task's tab is the
   // task's to drive.
   const activeTarget = active && !active.taskId ? targetOf(active) : null;
   // Whether the guest on screen has been anywhere, for the arrows in the row

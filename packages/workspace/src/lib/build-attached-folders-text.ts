@@ -44,7 +44,7 @@ export function buildAttachedFoldersText({
   intro: string;
   /**
    * Who writes a file's contents into a folder: the reader of this text, with
-   * its file tools, or a task the reader hands the folder to. The orchestrator
+   * its file tools, or a task the reader hands the folder to. The chat
    * has no file tools and a shell that refuses to write, so telling it about
    * `write_file` sends it looking for a tool it has not got.
    */

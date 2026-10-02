@@ -9,7 +9,7 @@ import type { BrowserCommand } from "vitest/node";
  * Vitest node process, where the provider's Playwright objects live.
  *
  * The locator has to be resolved against `context.iframe`, not `context.page`.
- * The page is the orchestrator's own HTML and the test's DOM is one frame
+ * The page is Vitest's own runner HTML and the test's DOM is one frame
  * inside it, so a snapshot taken at the page level describes the harness.
  */
 export const ariaSnapshot: BrowserCommand<[selector: string], string> = (

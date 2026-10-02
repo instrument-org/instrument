@@ -19,7 +19,7 @@ import {
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
 import { type ChatsMigration, migrateToChats } from "./migrate-to-chats";
-import { convertTopicFiles } from "./orchestrator/topics";
+import { convertTopicFiles } from "./chat/topics";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.

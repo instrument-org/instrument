@@ -19,7 +19,7 @@ export const MOUNT = {
    * The workspace's own `apps/` directory: one folder per app the agent has
    * set up, each holding a manifest and a guide and never a secret.
    *
-   * Writable for the orchestrator, which authors apps; a task reaches the
+   * Writable for the chat, which authors apps; a task reaches the
    * apps it was handed through the `app` command rather than the folder.
    */
   apps: "/apps",
@@ -66,9 +66,9 @@ export const MOUNT = {
   task: "/task",
 
   /**
-   * Where an orchestrator sees the tasks it created, one read-only mount per
+   * Where a chat sees the tasks it created, one read-only mount per
    * task at `/tasks/<id>`. Plural, beside the singular `/task` that is the
-   * orchestrator's own scratch, because the two are different things: its own
+   * chat's own scratch, because the two are different things: its own
    * folder is where it keeps notes, and these are the folders of the work it
    * delegated, which it reads and never writes.
    */

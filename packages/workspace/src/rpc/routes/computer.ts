@@ -7,13 +7,13 @@ import {
   ComputerRecentSchema,
   listComputerFolder,
   recentComputerFiles,
-} from "../../lib/orchestrator/computer";
+} from "../../lib/chat/computer";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
 
 /**
  * One folder of the computer as the person browsing sees it, with whether the
- * orchestrator `id` can reach it.
+ * chat `id` can reach it.
  *
  * A folder the operating system will not let this app read is its own
  * answer rather than a failure: on a Mac the first read of a protected folder

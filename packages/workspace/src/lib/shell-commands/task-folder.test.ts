@@ -11,20 +11,20 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { attachFolder } from "../attach-folder";
 import { initializeTask } from "../initialize-task";
-import { outputFolderPath } from "../orchestrator/output-folder";
+import { outputFolderPath } from "../chat/output-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runFolder as run, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
-const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 let CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -33,7 +33,7 @@ let context: TaskCommandContext;
 const working = vi.hoisted(() => ({ value: false }));
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: () => working.value,
 }));
@@ -114,9 +114,9 @@ async function heldBy(taskId: TaskId) {
 
 beforeEach(async () => {
   counter += 1;
-  ORCHESTRATOR_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`find-the-vault-${counter}`);
-  context = { orchestratorTaskId: ORCHESTRATOR_ID, remainingYieldMs: () => 0 };
+  context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   working.value = false;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-folder-"));
@@ -137,14 +137,14 @@ beforeEach(async () => {
   });
   for (const [id, settings] of [
     [
-      ORCHESTRATOR_ID,
+      CHAT_ID,
       {
-        chatSessionId: ORCHESTRATOR_SESSION,
-        kind: "orchestrator" as const,
+        chatSessionId: CHAT_SESSION,
+        kind: "chat" as const,
         name: "Conversation",
       },
     ],
-    [CHILD_ID, { name: "Find the vault", parentTaskId: ORCHESTRATOR_ID }],
+    [CHILD_ID, { name: "Find the vault", parentTaskId: CHAT_ID }],
   ] as const) {
     const created = await initializeTask(
       {
@@ -158,7 +158,7 @@ beforeEach(async () => {
       throw created.error;
     }
   }
-  await setTaskState(taskDir(ORCHESTRATOR_ID), {
+  await setTaskState(taskDir(CHAT_ID), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
   });
@@ -167,7 +167,7 @@ beforeEach(async () => {
   await attachFolder({
     access: "read-write",
     path: home,
-    taskId: ORCHESTRATOR_ID,
+    taskId: CHAT_ID,
   });
 });
 
@@ -290,7 +290,7 @@ describe("task folder", () => {
     await expect(
       runFolder([CHILD_ID, "--add", "/mnt/home/Downloads:rw"], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(`"${CHILD_ID}" was started in another chat`);
   });

@@ -42,25 +42,25 @@ import { initializeTask } from "../initialize-task";
 import { isLocalAddress } from "../local-page-address";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
-import { isWorking, leftRunning } from "../orchestrator/activity";
-import { childTaskMounts, listChildTasks } from "../orchestrator/children";
-import { describeHoldings } from "../orchestrator/describe-holdings";
-import { windowTaskId } from "../orchestrator/ensure";
-import { taskFolderHoldings } from "../orchestrator/folder-holdings";
-import { folderReach } from "../orchestrator/folder-reach";
-import { stepInFlight } from "../orchestrator/in-flight";
+import { isWorking, leftRunning } from "../chat/activity";
+import { childTaskMounts, listChildTasks } from "../chat/children";
+import { describeHoldings } from "../chat/describe-holdings";
+import { windowTaskId } from "../chat/ensure";
+import { taskFolderHoldings } from "../chat/folder-holdings";
+import { folderReach } from "../chat/folder-reach";
+import { stepInFlight } from "../chat/in-flight";
 import {
   lastAssistantText,
   latestOrNewSessionId,
   latestSessionId,
-} from "../orchestrator/latest-session";
-import { describeLeftRunning } from "../orchestrator/left-running";
+} from "../chat/latest-session";
+import { describeLeftRunning } from "../chat/left-running";
 import {
   completeModelURI,
   listRunnableModels,
   modelTable,
   ownModelParams,
-} from "../orchestrator/models";
+} from "../chat/models";
 import {
   type FolderMounts,
   mountPathOf,
@@ -68,11 +68,11 @@ import {
   translateMountPaths,
   translateTaskFolderPaths,
   unreachableMountPaths,
-} from "../orchestrator/mount-paths";
-import { outputFolderPath } from "../orchestrator/output-folder";
-import { renderSteps, sessionSteps } from "../orchestrator/steps";
-import { askWake, cancelAskedWake, expectStop } from "../orchestrator/wake";
-import { tabHolders } from "../orchestrator/window-tab";
+} from "../chat/mount-paths";
+import { outputFolderPath } from "../chat/output-folder";
+import { renderSteps, sessionSteps } from "../chat/steps";
+import { askWake, cancelAskedWake, expectStop } from "../chat/wake";
+import { tabHolders } from "../chat/window-tab";
 import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { systemNote } from "../system-note";
@@ -130,8 +130,8 @@ export { TASK_COMMAND } from "./task-command";
 
 /** What `task` needs from the `bash` call it runs inside. */
 export interface TaskCommandContext {
-  /** The orchestrator whose tasks these are. Every subcommand is scoped to it. */
-  orchestratorTaskId: TaskId;
+  /** The chat whose tasks these are. Every subcommand is scoped to it. */
+  chatId: TaskId;
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
   /**
@@ -456,10 +456,10 @@ export async function runFolder(
       `folder: --add, --remove, or --none is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the folders it has.`,
     );
   }
-  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
+  const chatFolders = await folderReach(context.chatId);
   // Resolved before anything is written, so a refused spec leaves the task's
   // folders as they were rather than half changed.
-  const adds = resolveFolders(askedAdds, orchestratorFolders);
+  const adds = resolveFolders(askedAdds, chatFolders);
   await requireFoldersOnDisk(adds, askedAdds);
   const workspace = path.resolve(outputFolderPath());
   // Matched against the folders as they stand before any of this runs: every
@@ -470,7 +470,7 @@ export async function runFolder(
         (folder) => path.resolve(folder.path) !== workspace,
       )
     : askedRemoves.map((spec) => {
-        const folder = matchTaskFolder(spec, orchestratorFolders, taskFolders);
+        const folder = matchTaskFolder(spec, chatFolders, taskFolders);
         if (!folder) {
           throw new Error(
             `${task.id} has no folder "${spec}". \`${TASK_COMMAND.name} show ${task.id}\` lists the ones it has.`,
@@ -500,7 +500,7 @@ export async function runFolder(
   for (const folder of removes) {
     await detachFolder({ path: folder.path, taskId: task.id });
     lines.push(
-      `Took ${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} back from ${task.id}.`,
+      `Took ${mountPathOf(folder.path, chatFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} back from ${task.id}.`,
     );
     facts.push(
       `The folder ${folderLabel(folder.path)} at ${attachedFolderMountPoint(folder.mountName)} was taken back from you.`,
@@ -513,7 +513,7 @@ export async function runFolder(
       taskId: task.id,
     });
     lines.push(
-      `${task.id} now has ${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access}).`,
+      `${task.id} now has ${mountPathOf(folder.path, chatFolders) ?? folder.path} (${folder.access}).`,
     );
     facts.push(
       `You were handed the folder ${folderLabel(attached.path)} at ${attachedFolderMountPoint(attached.mountName)}, ${attached.access === "read-write" ? "read and write" : "read-only"}.`,
@@ -558,10 +558,8 @@ export async function runNew(
     );
   }
   const workspaceConfig = getWorkspaceConfig();
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const rawURI = values.get("model")?.[0] ?? orchestratorState.selectedModelURI;
+  const chatState = await getTaskState(taskDir(context.chatId));
+  const rawURI = values.get("model")?.[0] ?? chatState.selectedModelURI;
   if (!rawURI) {
     throw new Error(
       "new: no model. This conversation has not chosen one yet; pass --model <model>.",
@@ -570,24 +568,21 @@ export async function runNew(
   const { model, modelURI } = await resolveModel(rawURI, context);
   await requireOwnProvider(model, context);
   const askedFolders = values.get("folder") ?? [];
-  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
-  const resolvedFolders = resolveFolders(askedFolders, orchestratorFolders);
+  const chatFolders = await folderReach(context.chatId);
+  const resolvedFolders = resolveFolders(askedFolders, chatFolders);
   const looks = await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
   const askedFiles = values.get("file") ?? [];
-  const layout = await orchestratorLayout(context, orchestratorFolders);
+  const layout = await chatLayout(context, chatFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
-  requireFoldersNamedInBriefHanded("new", prompt, orchestratorFolders, [
+  requireFoldersNamedInBriefHanded("new", prompt, chatFolders, [
     ...folders,
     ...files,
   ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const handedTabs = await resolveTabs(values.get("tab") ?? []);
-  const sharedTabs = await tabsHeldElsewhere(
-    handedTabs,
-    context.orchestratorTaskId,
-  );
+  const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
   // The dialog is on the user's screen already, so the answer is often a few
@@ -606,9 +601,7 @@ export async function runNew(
   // How hard the conversation thinks is how hard its tasks think: the level is
   // a property of the workspace rather than of one turn, and a task the
   // conversation cannot configure has no other way to be told.
-  const parentSettings = await getTaskSettings(
-    taskDir(context.orchestratorTaskId),
-  );
+  const parentSettings = await getTaskSettings(taskDir(context.chatId));
   // A level named on the command wins over the conversation's own, which is how
   // one brief is run at several levels to compare them.
   const askedEffort = values.get("effort")?.[0]?.trim();
@@ -621,7 +614,7 @@ export async function runNew(
         apps,
         kind: "task",
         name,
-        parentTaskId: context.orchestratorTaskId,
+        parentTaskId: context.chatId,
         ...(effort ? { reasoningEffort: effort } : {}),
       },
       taskId,
@@ -664,11 +657,7 @@ export async function runNew(
       part.type === "text"
         ? {
             ...part,
-            text: translateMountPaths(
-              part.text,
-              orchestratorFolders,
-              taskFolders,
-            ),
+            text: translateMountPaths(part.text, chatFolders, taskFolders),
           }
         : part,
     ),
@@ -712,7 +701,7 @@ export async function runNew(
       ? `It is running now.`
       : `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog. Until then it waits; \`${TASK_COMMAND.name} send\` queues behind that, and \`${TASK_COMMAND.name} stop\` cancels it.`;
   return ok(
-    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, chatFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 
@@ -736,15 +725,15 @@ export async function runSend(
     );
   }
   const state = await getTaskState(taskDir(task.id));
-  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
+  const chatFolders = await folderReach(context.chatId);
   const askedFiles = values.get("file") ?? [];
-  const layout = await orchestratorLayout(context, orchestratorFolders);
+  const layout = await chatLayout(context, chatFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
   requireFoldersNamedInBriefHanded(
     "send",
     prompt,
-    orchestratorFolders,
+    chatFolders,
     [...Object.values(state.attachedFolders ?? {}), ...files],
     task.id,
   );
@@ -756,7 +745,7 @@ export async function runSend(
     // In the task's paths, as the brief that started it was.
     prompt: translateMountPaths(
       prompt,
-      orchestratorFolders,
+      chatFolders,
       state.attachedFolders ?? {},
     ),
     task,
@@ -793,10 +782,8 @@ async function deliver({
   task: Task;
 }) {
   const state = await getTaskState(taskDir(task.id));
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const rawURI = state.selectedModelURI ?? orchestratorState.selectedModelURI;
+  const chatState = await getTaskState(taskDir(context.chatId));
+  const rawURI = state.selectedModelURI ?? chatState.selectedModelURI;
   if (!rawURI) {
     throw new Error(
       `${command}: the task has no model; set one with \`task model\`.`,
@@ -894,13 +881,13 @@ async function grantPurpose(
   if (!said) {
     return "";
   }
-  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
+  const chatFolders = await folderReach(context.chatId);
   const taskState = await getTaskState(taskDir(taskId));
   const taskFolders = taskState.attachedFolders;
   requireFoldersNamedInBriefHanded(
     command,
     said,
-    orchestratorFolders,
+    chatFolders,
     handed ?? Object.values(taskFolders ?? {}),
     taskId,
   );
@@ -949,14 +936,10 @@ async function tellOfGrant({
   if (!running && !added && !purpose) {
     return `${task.id} is not running; it is told when its next turn starts.\n`;
   }
-  const orchestratorFolders = await folderReach(context.orchestratorTaskId);
+  const chatFolders = await folderReach(context.chatId);
   const state = await getTaskState(taskDir(task.id));
   const said = purpose
-    ? translateMountPaths(
-        purpose,
-        orchestratorFolders,
-        state.attachedFolders ?? {},
-      )
+    ? translateMountPaths(purpose, chatFolders, state.attachedFolders ?? {})
     : "";
   const { held } = await deliver({
     command,
@@ -1111,11 +1094,7 @@ export async function runTab(args: string[], context: TaskCommandContext) {
     browserTabs: next.length > 0 ? next : undefined,
   });
   publisher.publish("task.stateUpdated", { id: task.id });
-  const shared = await tabsHeldElsewhere(
-    handed,
-    context.orchestratorTaskId,
-    task.id,
-  );
+  const shared = await tabsHeldElsewhere(handed, context.chatId, task.id);
   return ok(
     `${task.id} now holds ${next.length > 0 ? `tabs ${next.map((held) => tabIdOf(held.id)).join(", ")}` : "no tabs"}. It acts on them from its next browser command.\n${shared}`,
   );
@@ -1159,7 +1138,7 @@ export async function runWake(args: string[], context: TaskCommandContext) {
   }
   askWake({
     afterMs,
-    orchestratorId: context.orchestratorTaskId,
+    chatId: context.chatId,
     taskId: task.id,
     workspaceRef: getWorkspaceActorRef(),
   });
@@ -1217,12 +1196,12 @@ function handedFiles(message: SessionMessage.UserWithParts): string {
  */
 function handedFolders(
   folders: { access: FolderAttachment.Access; path: string }[],
-  orchestratorFolders: FolderMounts,
+  chatFolders: FolderMounts,
 ): string {
   return folders
     .map(
       (folder) =>
-        `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
+        `${mountPathOf(folder.path, chatFolders) ?? folder.path} (${folder.access})`,
     )
     .join(", ");
 }
@@ -1244,13 +1223,13 @@ function handedTabsLine(tabs: BrowserTargetId[]): string {
  */
 function matchTaskFolder(
   spec: string,
-  orchestratorFolders: Record<string, FolderAttachment.Type>,
+  chatFolders: Record<string, FolderAttachment.Type>,
   taskFolders: FolderMounts,
 ): undefined | { mountName: string; path: string } {
   const held = Object.values(taskFolders);
   let hostPath: string | undefined;
   try {
-    hostPath = resolveFolders([spec], orchestratorFolders)[0]?.path;
+    hostPath = resolveFolders([spec], chatFolders)[0]?.path;
   } catch {
     // Not a folder of this conversation's; read as one of the task's below.
     hostPath = undefined;
@@ -1296,14 +1275,14 @@ function ok(stdout: string) {
  * spec is read against: its folder, the user's mounts, and the read-only
  * mounts of the tasks it created.
  */
-async function orchestratorLayout(
+async function chatLayout(
   context: TaskCommandContext,
   attachedFolders: Record<string, FolderAttachment.Type>,
 ): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
     attachedFolders,
-    extraMounts: await childTaskMounts(context.orchestratorTaskId),
-    taskHostRoot: taskDir(context.orchestratorTaskId),
+    extraMounts: await childTaskMounts(context.chatId),
+    taskHostRoot: taskDir(context.chatId),
   });
 }
 
@@ -1322,7 +1301,7 @@ function promptFrom(inline: string, stdin: ByteString): string {
 /**
  * A brief that tells the task to use an app the command did not hand it is
  * refused, with the flag to add: the task would fail on its first call and
- * wake the orchestrator about it, which is a turn spent on what this catches.
+ * wake the chat about it, which is a turn spent on what this catches.
  */
 function requireAppsNamedInBrief(prompt: string, apps: string[]) {
   const named = new Set(
@@ -1342,7 +1321,7 @@ function requireAppsNamedInBrief(prompt: string, apps: string[]) {
 
 async function requireChild(
   rawId: string | undefined,
-  { orchestratorTaskId }: TaskCommandContext,
+  { chatId }: TaskCommandContext,
 ): Promise<Task> {
   if (!rawId) {
     throw new Error("a task id is required. See `task list`.");
@@ -1357,12 +1336,9 @@ async function requireChild(
   const parent = task.isOk() ? task.value.parentTaskId : undefined;
   if (task.isErr() || parent === undefined || !isChatId(parent)) {
     // An id is most often mistyped from the title it was given rather than
-    // copied from what `new` printed, so the nearest of the orchestrator's own
+    // copied from what `new` printed, so the nearest of the chat's own
     // tasks is offered in the same reply, where `task list` costs a turn.
-    const nearest = nearestChildId(
-      rawId,
-      await listChildTasks(orchestratorTaskId),
-    );
+    const nearest = nearestChildId(rawId, await listChildTasks(chatId));
     throw new Error(
       `no task "${rawId}" of yours.${nearest ? ` Did you mean "${nearest}"?` : ""} See \`task list\`.`,
     );
@@ -1380,7 +1356,7 @@ async function requireChild(
 function requireFoldersNamedInBriefHanded(
   command: "app" | "folder" | "new" | "send",
   prompt: string,
-  orchestratorFolders: FolderMounts,
+  chatFolders: FolderMounts,
   handed: ({ content: string } | { path: string })[],
   taskId?: string,
 ) {
@@ -1389,7 +1365,7 @@ function requireFoldersNamedInBriefHanded(
   const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
   const unreachable = unreachableMountPaths(
     prompt,
-    orchestratorFolders,
+    chatFolders,
     Object.fromEntries(
       paths.map((itemPath) => [
         itemPath,
@@ -1429,7 +1405,7 @@ async function requireOwnChild(
       ? undefined
       : sessionOfChat(task.parentTaskId);
   if (
-    task.parentTaskId === context.orchestratorTaskId ||
+    task.parentTaskId === context.chatId ||
     task.parentTaskId === undefined ||
     filedIn === undefined
   ) {
@@ -1447,7 +1423,7 @@ async function requireOwnChild(
  * carry: the only provider it may put a task on.
  */
 async function requireOwnModelParams(context: TaskCommandContext) {
-  const params = await ownModelParams(context.orchestratorTaskId);
+  const params = await ownModelParams(context.chatId);
   if (params === undefined) {
     throw new Error(
       "this conversation has not chosen a model yet, so it has no provider to run a task on.",
@@ -1476,7 +1452,7 @@ async function requireOwnProvider(
 /**
  * The apps a task is handed, each checked to be connected now: a task given
  * an app that cannot answer would fail on its first call and wake the
- * orchestrator about it, which is a turn wasted on what this catches.
+ * chat about it, which is a turn wasted on what this catches.
  */
 async function resolveApps(slugs: string[]): Promise<string[]> {
   const appsDir = getWorkspaceConfig().appsDir;
@@ -1552,7 +1528,7 @@ async function resolveTab(tab: string): Promise<BrowserTargetId> {
 
 /**
  * A tab id from the note on the user's message is the session half of one of
- * the orchestrator's own browser targets; the target has to exist, since the
+ * the chat's own browser targets; the target has to exist, since the
  * task connects to it rather than creating anything. A tab showing a file on
  * the computer is not handed over: its address is a path only the window
  * opens, and a task reaches a file through its folders, never through a
@@ -1823,7 +1799,7 @@ async function renderTranscript({
 
 async function runList(args: string[], context: TaskCommandContext) {
   const query = listQueryFrom(args);
-  const children = await listChildTasks(context.orchestratorTaskId);
+  const children = await listChildTasks(context.chatId);
   const selection = selectTasks(listRowsOf(children), query);
   if (selection.shown.length === 0) {
     if (children.length === 0) {
@@ -1898,7 +1874,7 @@ async function runSearch(args: string[], context: TaskCommandContext) {
     throw new Error("search needs words. `task search <words>`.");
   }
   const query = listQueryFrom(args);
-  const children = await listChildTasks(context.orchestratorTaskId);
+  const children = await listChildTasks(context.chatId);
   // The dates narrow which conversations are opened at all; the window is
   // applied after ranking, so nothing is missed for having been old.
   const scoped = selectTasks(listRowsOf(children), {
@@ -1952,10 +1928,10 @@ async function runShow(args: string[], context: TaskCommandContext) {
   // Everything below is the task's, said in this conversation's paths: the
   // names are the task's own and mean nothing here (see mount-paths.ts).
   const taskFolders = state.attachedFolders ?? {};
-  const orchestratorFolders = await mountsOf(context.orchestratorTaskId);
+  const chatFolders = await mountsOf(context.chatId);
   const folders = Object.values(taskFolders).map(
     (folder) =>
-      `${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} (${effectiveFolderAccess(folder)})`,
+      `${mountPathOf(folder.path, chatFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} (${effectiveFolderAccess(folder)})`,
   );
   const holds = await taskFolderHoldings(task.id);
   const sessionId = await latestSessionId(task.id);
@@ -1972,7 +1948,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
     said === undefined
       ? undefined
       : translateTaskFolderPaths(
-          translateMountPaths(said, taskFolders, orchestratorFolders),
+          translateMountPaths(said, taskFolders, chatFolders),
           task.id,
         );
 

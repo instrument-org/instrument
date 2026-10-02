@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
-import { childTaskMounts } from "../../lib/orchestrator/children";
-import { folderReach } from "../../lib/orchestrator/folder-reach";
+import { childTaskMounts } from "../../lib/chat/children";
+import { folderReach } from "../../lib/chat/folder-reach";
 import { resolveTaskProjectFolder } from "../../lib/task-project-folder";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -78,7 +78,7 @@ const runBash = base
       attachedFolders: await folderReach(input.taskId),
       ...(isConversation
         ? {
-            orchestrator: {
+            chat: {
               childMounts: await childTaskMounts(input.taskId),
             },
           }

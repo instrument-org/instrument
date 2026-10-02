@@ -258,7 +258,7 @@ function WindowShell({
   });
   const ensure = useQuery(
     rpcClient.workspace.window.ensure.queryOptions({
-      // The orchestrator, once it exists, is the one this window shows for as
+      // The window's record, once it exists, is the one this window shows for as
       // long as it is open.
       staleTime: Number.POSITIVE_INFINITY,
     }),
@@ -563,7 +563,7 @@ function WindowShell({
   usePageThumbnailHousekeeping();
 
   // The default first, since it is what the draft's picker edits: every send
-  // stores its model on the orchestrator's own state, so once any chat has
+  // stores its model on the window record's own state, so once any chat has
   // been started that field is always set. The stored model stands in for a
   // window whose default was never saved.
   const modelURI = defaultModelURI ?? state.data?.selectedModelURI;

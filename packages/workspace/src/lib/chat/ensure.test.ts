@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { forgetRecordFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { ensureOrchestrator, windowTaskId } from "./ensure";
+import { ensureWindowRecord, windowTaskId } from "./ensure";
 
 let rootDir: string;
 
@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 const viaEnsure = async () => {
-  const result = await ensureOrchestrator();
+  const result = await ensureWindowRecord();
   return result._unsafeUnwrap().taskId;
 };
 

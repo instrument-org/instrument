@@ -25,7 +25,7 @@ import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { assignMountNames } from "./assign-mount-names";
 import { chatFolderName } from "./generate-task-folder-name";
-import { translateTaskFolderPaths } from "./orchestrator/mount-paths";
+import { translateTaskFolderPaths } from "./chat/mount-paths";
 import {
   newTopicId,
   readTopicsSync,
@@ -34,7 +34,7 @@ import {
   topicName,
   unusedTopicName,
   writeTopicSync,
-} from "./orchestrator/topics";
+} from "./chat/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { writeJsonFileSync } from "./write-json-file-sync";
@@ -51,7 +51,7 @@ const EMPTY_TASKS_DIR_NAME = "empty-tasks";
 // The model the tutorial's replay ran on, which marks a task as the tutorial.
 const TUTORIAL_MODEL = "tutorial-task-replay";
 
-// The app window's record, as `ensureOrchestrator` names and titles it.
+// The app window's record, as `ensureWindowRecord` names and titles it.
 const WINDOW_RECORD_NAME = "instrument";
 const WINDOW_RECORD_TITLE = "Instrument";
 
@@ -362,7 +362,7 @@ function adoptTask({
       ...(typeof settings.createdWithAppVersion === "string"
         ? { createdWithAppVersion: settings.createdWithAppVersion }
         : {}),
-      kind: "orchestrator",
+      kind: "chat",
       lastActivityAt: lastActivityAt.toISOString(),
       name: title,
       state: {
@@ -492,7 +492,7 @@ function grantedFolders(rootDir: string): Record<string, unknown> {
     const settings = readJson(
       path.join(holder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
     );
-    if (settings?.kind !== "orchestrator" || !isRecord(settings.state)) {
+    if (settings?.kind !== "chat" || !isRecord(settings.state)) {
       continue;
     }
     const attached = settings.state.attachedFolders;
@@ -616,9 +616,7 @@ function markSeen(
         TASK_SETTINGS_FILE_NAME,
       ),
     );
-    return (
-      settings?.kind === "orchestrator" && settings.chatSessionId === undefined
-    );
+    return settings?.kind === "chat" && settings.chatSessionId === undefined;
   });
   // A 1.x user who never opened the app window has no record for it yet, and
   // the marks would have nowhere to go. It is made the way the app would first
@@ -635,7 +633,7 @@ function markSeen(
     fs.mkdirSync(windowPrivateDir, { recursive: true });
     writeJsonFileSync(path.join(windowPrivateDir, TASK_SETTINGS_FILE_NAME), {
       createdAt: new Date().toISOString(),
-      kind: "orchestrator",
+      kind: "chat",
       name: WINDOW_RECORD_TITLE,
     });
     windows.push(WINDOW_RECORD_NAME);

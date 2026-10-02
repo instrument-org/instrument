@@ -69,7 +69,7 @@ So the candidates worth testing are the two above, not a smarter fetch:
 - Whether the URL-construction rule in `main.ts` should say plainly that resolving a relative link found on a page you opened is following a link, not constructing one.
 - Whether `web_fetch` should say what it holds and currently discards, chiefly that it never runs scripts, so a page that reads as navigation can be recognized as one.
 
-Both are prompt-shaped, both cost tokens on every call, and neither is demonstrated to change behavior. This repo can settle that: `pnpm eval run --orchestrator` across models, scoring whether the agent takes the second hop. Do not ship either on reasoning alone.
+Both are prompt-shaped, both cost tokens on every call, and neither is demonstrated to change behavior. This repo can settle that: `pnpm eval run --chat` across models, scoring whether the agent takes the second hop. Do not ship either on reasoning alone.
 
 ## Checking it
 

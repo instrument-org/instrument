@@ -25,7 +25,7 @@ export interface PageSlot {
 }
 
 /**
- * What the window keeps once and every app tab reads: the orchestrator and
+ * What the window keeps once and every app tab reads: the window's record and
  * its lists, the drafts and floating windows, and the ways back into the
  * window's own state from inside a tab.
  */

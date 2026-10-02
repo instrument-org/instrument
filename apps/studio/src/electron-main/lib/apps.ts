@@ -37,7 +37,7 @@ const DEFAULT_PORT =
     ? PORTS.authCallback.dev
     : PORTS.authCallback.prod;
 
-/** Tell the window and the orchestrator that a sign-in just went through. */
+/** Tell the window and the chat that a sign-in just went through. */
 export async function announceConnected(
   appsDir: WorkspaceConfig["appsDir"],
   slug: string,
@@ -105,7 +105,7 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
 
 /**
  * Take an app's key, tokens, and connection away, leaving its folder, and
- * tell both the window and the orchestrator.
+ * tell both the window and the chat.
  */
 export async function disconnectApp(
   slug: string,
@@ -114,7 +114,7 @@ export async function disconnectApp(
     event = "disconnected",
   }: {
     appsDir?: WorkspaceConfig["appsDir"];
-    /** Whether the folder goes too, which the note to the orchestrator says. */
+    /** Whether the folder goes too, which the note to the chat says. */
     event?: "disconnected" | "removed";
   } = {},
 ): Promise<void> {

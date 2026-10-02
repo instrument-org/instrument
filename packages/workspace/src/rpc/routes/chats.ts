@@ -4,8 +4,8 @@ import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
-import { isWorking, latestStep } from "../../lib/orchestrator/activity";
-import { ensureChat } from "../../lib/orchestrator/chat-records";
+import { isWorking, latestStep } from "../../lib/chat/activity";
+import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
@@ -19,10 +19,10 @@ import {
   setChatTopics,
   settleChatTitle,
   unarchiveChat,
-} from "../../lib/orchestrator/chats";
-import { listChildTasks } from "../../lib/orchestrator/children";
-import { retitleChat } from "../../lib/orchestrator/retitle";
-import { taskStanding } from "../../lib/orchestrator/standing";
+} from "../../lib/chat/chats";
+import { listChildTasks } from "../../lib/chat/children";
+import { retitleChat } from "../../lib/chat/retitle";
+import { taskStanding } from "../../lib/chat/standing";
 import {
   chatOfSession,
   chatTaskIds,
@@ -39,7 +39,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
-/** Where one task the orchestrator created stands this moment, for a card that follows it. */
+/** Where one task the chat created stands this moment, for a card that follows it. */
 const childStatus = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
@@ -86,7 +86,7 @@ const ChildTaskSchema = TaskSchema.extend({
   stoppable: z.boolean(),
 });
 
-/** The tasks an orchestrator created, newest activity first. */
+/** The tasks a chat created, newest activity first. */
 async function childTasks(id: TaskId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(

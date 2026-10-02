@@ -30,7 +30,7 @@ vi.mock("../../../lib/task-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
   taskDir: (id: string) => `/tmp/tasks/${id}`,
 }));
-vi.mock("../../../lib/orchestrator/ensure", () => ({
+vi.mock("../../../lib/chat/ensure", () => ({
   windowTaskId: () => Promise.resolve(TaskIdSchema.parse("instrument")),
 }));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
@@ -48,7 +48,7 @@ vi.mock("../../../lib/resolve-workspace-file-path", async () => {
 });
 // The window: what the task asked of it, answered with a tab of its own.
 const asked: WindowTabAction[] = [];
-vi.mock("../../../lib/orchestrator/window-tab", () => ({
+vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
     return Promise.resolve({ requestId: "r" });

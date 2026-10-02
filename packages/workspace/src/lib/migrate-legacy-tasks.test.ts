@@ -7,7 +7,7 @@ import { ulid } from "ulid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
-import { readTopicsSync, writeTopicSync } from "./orchestrator/topics";
+import { readTopicsSync, writeTopicSync } from "./chat/topics";
 
 let root: string;
 
@@ -16,7 +16,7 @@ beforeEach(() => {
   writeJson(
     path.join(root, "tasks", "instrument", ".instrument", "settings.json"),
     {
-      kind: "orchestrator",
+      kind: "chat",
       name: "Instrument",
       state: {
         attachedFolders: {
@@ -321,7 +321,7 @@ describe("migrateLegacyTasks", () => {
     expect(settings).toMatchObject({
       createdAt: "2026-06-23T21:47:33.119Z",
       createdWithAppVersion: "1.2.0",
-      kind: "orchestrator",
+      kind: "chat",
       lastActivityAt: "2026-06-23T21:48:33.119Z",
       name: "Rotating red square video",
     });
@@ -434,7 +434,7 @@ describe("migrateLegacyTasks", () => {
       ".instrument",
       "settings.json",
     );
-    expect(window).toMatchObject({ kind: "orchestrator", name: "Instrument" });
+    expect(window).toMatchObject({ kind: "chat", name: "Instrument" });
     expect(
       (window.state as { chatSeen: Record<string, string> }).chatSeen,
     ).toEqual({
@@ -822,7 +822,7 @@ describe("migrateLegacyTasks", () => {
   it("finishes a chat a boot staged with its task inside, and discards one staged without", () => {
     const staged = path.join(root, "chats", ".2026-06-23-staged.partial");
     writeJson(path.join(staged, ".instrument", "settings.json"), {
-      kind: "orchestrator",
+      kind: "chat",
     });
     writeJson(
       path.join(
@@ -838,7 +838,7 @@ describe("migrateLegacyTasks", () => {
     );
     const empty = path.join(root, "chats", ".2026-06-23-empty.partial");
     writeJson(path.join(empty, ".instrument", "settings.json"), {
-      kind: "orchestrator",
+      kind: "chat",
     });
 
     migrateLegacyTasks(root);

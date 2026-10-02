@@ -36,7 +36,7 @@ import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
-/** What a wake carries: the part that starts the orchestrator's turn. */
+/** What a wake carries: the part that starts the chat's turn. */
 export type WakePart =
   | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
@@ -44,14 +44,14 @@ export type WakePart =
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
 
 /**
- * How long after a child finishes before the orchestrator is woken. Long enough
+ * How long after a child finishes before the chat is woken. Long enough
  * that two children finishing together arrive as one note naming both, short
  * enough that a single finish still feels immediate.
  */
 const WAKE_DEBOUNCE_MS = 1500;
 
 /**
- * How long a task works before the orchestrator is told it is still at it,
+ * How long a task works before the chat is told it is still at it,
  * and then again after as long again. Long enough that ordinary tasks never
  * trip it; short enough that one lost in a website is caught before it has
  * spent a quarter of an hour.
@@ -76,11 +76,11 @@ const askedWakes = new Map<
 >();
 
 /**
- * Children the orchestrator itself told to stop. The turn that ends is the
+ * Children the chat itself told to stop. The turn that ends is the
  * one it ended, so there is nothing to wake it about; the next finish after
  * that is news again.
  */
-const stoppedByOrchestrator = new Set<TaskId>();
+const stoppedByChat = new Set<TaskId>();
 
 /**
  * Wakes the conversation about one of its tasks after a delay of its choosing,
@@ -89,19 +89,19 @@ const stoppedByOrchestrator = new Set<TaskId>();
  */
 export function askWake({
   afterMs,
-  orchestratorId,
+  chatId,
   taskId,
   workspaceRef,
 }: {
   afterMs: number;
-  orchestratorId: TaskId;
+  chatId: TaskId;
   taskId: TaskId;
   workspaceRef: WorkspaceActorRef;
 }) {
   cancelAskedWake(taskId);
   const timer = setTimeout(() => {
     askedWakes.delete(taskId);
-    deliverAskedWake({ afterMs, orchestratorId, taskId }, workspaceRef).catch(
+    deliverAskedWake({ afterMs, chatId, taskId }, workspaceRef).catch(
       (error: unknown) => {
         getWorkspaceConfig().captureException(error);
       },
@@ -123,7 +123,7 @@ export function cancelAskedWake(taskId: TaskId): boolean {
 }
 
 export function expectStop(taskId: TaskId) {
-  stoppedByOrchestrator.add(taskId);
+  stoppedByChat.add(taskId);
 }
 
 const pending = new Map<
@@ -136,20 +136,20 @@ const pending = new Map<
  * written. The chat it was filed from is still at work in that gap: its task
  * has stopped and its own agent has not started on the news yet.
  */
-export function hasPendingWake(orchestratorId: TaskId, taskId: TaskId) {
-  return pending.get(orchestratorId)?.events.has(taskId) ?? false;
+export function hasPendingWake(chatId: TaskId, taskId: TaskId) {
+  return pending.get(chatId)?.events.has(taskId) ?? false;
 }
 
 /**
- * Wakes an orchestrator when a task it created finishes a turn.
+ * Wakes a chat when a task it created finishes a turn.
  *
  * One subscriber over the session-done topic for the life of the process. A
- * finished session that belongs to a child of an orchestrator becomes a
- * `data-taskEvent` part on a text-less user message in the orchestrator's
+ * finished session that belongs to a child of a chat becomes a
+ * `data-taskEvent` part on a text-less user message in the chat's
  * session, which starts a turn there if it is idle and queues behind the
  * current one if it is not, the same as anything the user types.
  */
-export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
+export function startChatWake(workspaceRef: WorkspaceActorRef): void {
   void (async () => {
     for await (const payload of publisher.subscribe("session.done")) {
       try {
@@ -160,7 +160,7 @@ export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
     }
   })();
   // The clock on every child: a task that has worked past the mark wakes its
-  // orchestrator with where it is, so a task lost in the weeds is found by
+  // chat with where it is, so a task lost in the weeds is found by
   // the agent rather than by the person.
   const timer = setInterval(() => {
     checkOverdue(workspaceRef).catch((error: unknown) => {
@@ -227,7 +227,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     schedule(
       parentTaskId,
       await stillWorkingEvent({
-        orchestratorId: parentTaskId,
+        chatId: parentTaskId,
         taskId: task.id,
         title: task.title,
         turnStart,
@@ -238,7 +238,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
 }
 
 async function deliver(
-  orchestratorId: TaskId,
+  chatId: TaskId,
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
@@ -255,7 +255,7 @@ async function deliver(
   }
   for (const [key, chatEvents] of byChat) {
     await wakeWith(
-      orchestratorId,
+      chatId,
       { data: { events: chatEvents }, type: "data-taskEvent" },
       workspaceRef,
       sessions.get(key),
@@ -272,9 +272,9 @@ async function deliver(
 async function deliverAskedWake(
   {
     afterMs,
-    orchestratorId,
+    chatId,
     taskId,
-  }: { afterMs: number; orchestratorId: TaskId; taskId: TaskId },
+  }: { afterMs: number; chatId: TaskId; taskId: TaskId },
   workspaceRef: WorkspaceActorRef,
 ) {
   if (!isWorking(taskId)) {
@@ -283,10 +283,10 @@ async function deliverAskedWake(
   const settings = await getTaskSettings(taskDir(taskId));
   overdueReportedAt.set(taskId, Date.now());
   schedule(
-    orchestratorId,
+    chatId,
     {
       ...(await stillWorkingEvent({
-        orchestratorId,
+        chatId,
         taskId,
         title: settings?.name ?? taskId,
         turnStart: await turnStartedAt(taskId),
@@ -302,22 +302,15 @@ async function deliverAskedWake(
  * two hold the same folders under names of their own (see mount-paths.ts), and
  * a note is composed for the conversation rather than for the task.
  */
-async function inOrchestratorPaths(
+async function inChatPaths(
   text: string | undefined,
-  {
-    orchestratorTaskId,
-    taskId,
-  }: { orchestratorTaskId: TaskId; taskId: TaskId },
+  { chatId, taskId }: { chatId: TaskId; taskId: TaskId },
 ): Promise<string | undefined> {
   if (text === undefined) {
     return undefined;
   }
   return translateTaskFolderPaths(
-    translateMountPaths(
-      text,
-      await mountsOf(taskId),
-      await mountsOf(orchestratorTaskId),
-    ),
+    translateMountPaths(text, await mountsOf(taskId), await mountsOf(chatId)),
     taskId,
   );
 }
@@ -340,18 +333,18 @@ async function onSessionDone(
     return;
   }
   const childSettings = await getTaskSettings(taskDir(id));
-  const orchestratorId = childSettings?.parentTaskId;
+  const chatId = childSettings?.parentTaskId;
   // Only a chat is woken. A task still parented to the window's record, from
   // before chats had records of their own, has no conversation to report to.
-  if (!orchestratorId || !isChatId(orchestratorId)) {
+  if (!chatId || !isChatId(chatId)) {
     return;
   }
-  const orchestratorSettings = await getTaskSettings(taskDir(orchestratorId));
-  if (orchestratorSettings?.kind !== "orchestrator") {
+  const chatSettings = await getTaskSettings(taskDir(chatId));
+  if (chatSettings?.kind !== "chat") {
     return;
   }
   cancelAskedWake(id);
-  if (stoppedByOrchestrator.delete(id)) {
+  if (stoppedByChat.delete(id)) {
     return;
   }
 
@@ -361,16 +354,16 @@ async function onSessionDone(
   const running = leftRunning(id);
   const said = await lastAssistantText({ sessionId, taskId: id });
   // A turn with no words ended on a stop, the step limit, or a model error,
-  // and the note has to say which: the orchestrator continues one of those
+  // and the note has to say which: the chat continues one of those
   // with `task send`, and leaves one the user stopped alone.
   const ending =
     said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
-  const receipt = await inOrchestratorPaths(said, {
-    orchestratorTaskId: orchestratorId,
+  const receipt = await inChatPaths(said, {
+    chatId,
     taskId: id,
   });
   // What the task said it made, read from the whole receipt once the paths
-  // in it are the orchestrator's, before the ceiling cuts it: the fence is
+  // in it are the chat's, before the ceiling cuts it: the fence is
   // the receipt's last lines, and a long receipt would otherwise lose it.
   // The note carries the receipt itself; this is for the card, which draws
   // the files as chips.
@@ -387,7 +380,7 @@ async function onSessionDone(
           WAKE_SUMMARY_MAX_LENGTH,
         );
   schedule(
-    orchestratorId,
+    chatId,
     {
       activeMs: usage.activeMs,
       ...(ending ? { ended: ending.line } : {}),
@@ -406,25 +399,25 @@ async function onSessionDone(
 }
 
 function schedule(
-  orchestratorId: TaskId,
+  chatId: TaskId,
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
-  const existing = pending.get(orchestratorId);
+  const existing = pending.get(chatId);
   if (existing) {
     clearTimeout(existing.timer);
   }
   const events = existing?.events ?? new Map<TaskId, TaskEvent>();
   events.set(event.taskId, event);
   const timer = setTimeout(() => {
-    pending.delete(orchestratorId);
-    deliver(orchestratorId, [...events.values()], workspaceRef).catch(
+    pending.delete(chatId);
+    deliver(chatId, [...events.values()], workspaceRef).catch(
       (error: unknown) => {
         getWorkspaceConfig().captureException(error);
       },
     );
   }, WAKE_DEBOUNCE_MS);
-  pending.set(orchestratorId, { events, timer });
+  pending.set(chatId, { events, timer });
 }
 
 /**
@@ -434,23 +427,21 @@ function schedule(
  * its latest step alone does not.
  */
 async function stillWorkingEvent({
-  orchestratorId,
+  chatId,
   taskId,
   title,
   turnStart,
 }: {
-  orchestratorId: TaskId;
+  chatId: TaskId;
   taskId: TaskId;
   title: string;
   turnStart: Date | undefined;
 }): Promise<TaskEvent> {
   const usage = await getTaskUsageSummary(taskId);
-  const paths = { orchestratorTaskId: orchestratorId, taskId };
+  const paths = { chatId, taskId };
   const trajectory = await trajectorySince(taskId, turnStart ?? new Date());
   const steps = await Promise.all(
-    trajectory
-      .slice(-OVERDUE_STEPS)
-      .map((step) => inOrchestratorPaths(step, paths)),
+    trajectory.slice(-OVERDUE_STEPS).map((step) => inChatPaths(step, paths)),
   );
   return {
     activeMs: usage.activeMs,
@@ -459,7 +450,7 @@ async function stillWorkingEvent({
     inFlight: await stepInFlight(taskId),
     status: "overdue",
     steps: steps.filter((step) => step !== undefined),
-    summary: await inOrchestratorPaths(await latestStep(taskId), paths),
+    summary: await inChatPaths(await latestStep(taskId), paths),
     taskId,
     title,
     tokens: usage.inputTokens + usage.outputTokens,
@@ -467,17 +458,17 @@ async function stillWorkingEvent({
 }
 
 async function wakeWith(
-  orchestratorId: TaskId,
+  chatId: TaskId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
   /** The chat to wake in; the newest one when a caller has no chat. */
   chatSessionId?: StoreId.Session,
 ) {
   const workspaceConfig = getWorkspaceConfig();
-  const state = await getTaskState(taskDir(orchestratorId));
+  const state = await getTaskState(taskDir(chatId));
   if (!state.selectedModelURI) {
     throw new Error(
-      `Orchestrator ${orchestratorId} has no model to wake with; it has never been messaged.`,
+      `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
   const modelResult = await fetchModel({
@@ -490,7 +481,7 @@ async function wakeWith(
     throw modelResult.error;
   }
 
-  const session = await latestOrNewSessionId(orchestratorId);
+  const session = await latestOrNewSessionId(chatId);
   if (session.isErr()) {
     throw session.error;
   }
@@ -516,8 +507,8 @@ async function wakeWith(
   };
 
   // Written now, so the note shows in the conversation the moment it fires,
-  // whatever the orchestrator is in the middle of.
-  const written = await Store.saveMessageWithParts(message, orchestratorId);
+  // whatever the chat is in the middle of.
+  const written = await Store.saveMessageWithParts(message, chatId);
   if (written.isErr()) {
     throw new Error(written.error.message);
   }
@@ -525,12 +516,12 @@ async function wakeWith(
     type: "addMessage",
     value: {
       agentName: "instrument",
-      id: orchestratorId,
+      id: chatId,
       message,
       model: modelResult.value,
       saved: true,
       sessionId,
     },
   });
-  await recordTaskActivity(orchestratorId);
+  await recordTaskActivity(chatId);
 }

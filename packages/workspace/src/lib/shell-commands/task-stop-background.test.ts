@@ -23,7 +23,7 @@ import { runLog, runStop, type TaskCommandContext } from "./task";
 const working = vi.hoisted(() => ({ value: false }));
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: () => working.value,
 }));
@@ -43,8 +43,8 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // The chat the tasks were started in, a fresh one per test: a store handle is
 // kept per record id, and each test's workspace is a folder of its own.
 let counter = 0;
-let ORCHESTRATOR_SESSION = StoreId.newSessionId();
-let ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_SESSION = StoreId.newSessionId();
+let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -56,9 +56,9 @@ beforeEach(async () => {
   counter += 1;
   working.value = false;
   sent.events = [];
-  ORCHESTRATOR_SESSION = StoreId.newSessionId();
-  ORCHESTRATOR_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
-  context = { orchestratorTaskId: ORCHESTRATOR_ID, remainingYieldMs: () => 0 };
+  CHAT_SESSION = StoreId.newSessionId();
+  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-stop-background-"));
   createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
   setWorkspaceConfig({
@@ -70,26 +70,26 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  const orchestrator = await initializeTask(
+  const chat = await initializeTask(
     {
       initialSettings: {
-        chatSessionId: ORCHESTRATOR_SESSION,
-        kind: "orchestrator",
+        chatSessionId: CHAT_SESSION,
+        kind: "chat",
         name: "Instrument",
       },
-      taskId: ORCHESTRATOR_ID,
+      taskId: CHAT_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
     {},
   );
-  if (orchestrator.isErr()) {
-    throw orchestrator.error;
+  if (chat.isErr()) {
+    throw chat.error;
   }
   const created = await initializeTask(
     {
       initialSettings: {
         name: "Find the vault",
-        parentTaskId: ORCHESTRATOR_ID,
+        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
@@ -253,7 +253,7 @@ describe("task stop, for what a task left running", () => {
     await expect(
       runStop([CHILD_ID, "--all"], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"find-the-vault" was started in another chat/);
   });
@@ -261,21 +261,21 @@ describe("task stop, for what a task left running", () => {
   // A task started in another chat reports there, so steering it from here
   // would move a conversation the user is not having; reading it stays open.
   it("refuses to act on a task another chat started, naming the chat, and still reads it", async () => {
-    const theirs = ORCHESTRATOR_SESSION;
+    const theirs = CHAT_SESSION;
     const saved = await Store.saveSession(
       {
         createdAt: new Date(),
         id: theirs,
         title: "Vault hunt",
       },
-      ORCHESTRATOR_ID,
+      CHAT_ID,
     );
     if (saved.isErr()) {
       throw saved.error;
     }
     const server = leave("node work/server.js");
     const elsewhere = chatFor();
-    const here = { ...context, orchestratorTaskId: elsewhere };
+    const here = { ...context, chatId: elsewhere };
     await expect(runStop([CHILD_ID, "--all"], here)).rejects.toThrow(
       `"find-the-vault" was started in another chat ("Vault hunt"), and is that chat's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,
     );

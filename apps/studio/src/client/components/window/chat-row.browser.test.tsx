@@ -242,7 +242,7 @@ function paneWindow(openScreen = vi.fn()): WindowContextValue {
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen,
-    taskId: TaskIdSchema.parse("orchestrator"),
+    taskId: TaskIdSchema.parse("chat"),
   };
 }
 

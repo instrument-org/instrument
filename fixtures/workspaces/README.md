@@ -53,7 +53,7 @@ Three kinds of thing, and they want opposite treatment.
 
 ## Adding a fixture
 
-1. Get a chat that is worth keeping. A real run: from the app, or from `pnpm eval run --orchestrator --prompt "…"` in `packages/workspace`, which drives the real agent and leaves the chat, with its tasks inside it, on disk (each result's `task` link points at it).
+1. Get a chat that is worth keeping. A real run: from the app, or from `pnpm eval run --chat --prompt "…"` in `packages/workspace`, which drives the real agent and leaves the chat, with its tasks inside it, on disk (each result's `task` link points at it).
 2. Record it:
 
    ```bash

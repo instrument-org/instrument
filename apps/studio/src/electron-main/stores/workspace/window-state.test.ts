@@ -155,28 +155,6 @@ describe("getWindowState", () => {
     `);
   });
 
-  // The app window's record was `orchestrator` before it was `app`, and a
-  // window that forgot where it was on the first launch of a rename is the
-  // rename showing.
-  it("reads the app window's record under the name it had before", () => {
-    stored = savedFor("orchestrator", {
-      height: 700,
-      width: 900,
-      x: 10,
-      y: 20,
-    });
-    setPlatform("darwin");
-
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
-      {
-        "height": 700,
-        "width": 900,
-        "x": 10,
-        "y": 20,
-      }
-    `);
-  });
-
   // A window nobody has sized yet opens at the shape it was written for,
   // rather than at one size shared by every window in the app.
   it("opens an unsized window at the shape it asks for", () => {

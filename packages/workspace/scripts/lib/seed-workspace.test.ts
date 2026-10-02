@@ -127,7 +127,7 @@ describe("seedWorkspace", () => {
     const { session } = await readSeededSession(chatId);
     expect(chatSettings).toMatchObject({
       chatSessionId: session.id,
-      kind: "orchestrator",
+      kind: "chat",
       name: chat.chat.name,
     });
     // Named by the manifest, so the app never renames it.

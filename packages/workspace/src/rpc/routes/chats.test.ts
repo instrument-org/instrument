@@ -23,13 +23,13 @@ beforeAll(() => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-routes-")),
+      fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
 });
-const otherTaskId = TaskIdSchema.parse("orchestrator-other");
-const childTaskId = TaskIdSchema.parse("orchestrator-child");
+const otherTaskId = TaskIdSchema.parse("chat-other");
+const childTaskId = TaskIdSchema.parse("chat-child");
 
 vi.mock(import("../../lib/task-settings"), async (importOriginal) => ({
   ...(await importOriginal()),

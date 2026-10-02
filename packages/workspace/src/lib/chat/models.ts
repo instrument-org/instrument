@@ -46,7 +46,7 @@ export function completeModelURI(
 }
 
 /**
- * Every model the orchestrator can hand a task, newest first. One provider
+ * Every model the chat can hand a task, newest first. One provider
  * config only, the conversation's own, because every other one is another
  * account and another bill: the same model is usually listed by several, and
  * a conversation free to pick any of them spends from whichever row it read
@@ -84,9 +84,9 @@ export async function listRunnableModels(
  * has been messaged, since a conversation has no model before then.
  */
 export async function ownModelParams(
-  orchestratorTaskId: TaskId,
+  chatId: TaskId,
 ): Promise<AIGatewayModelURI.Params | undefined> {
-  const state = await getTaskState(taskDir(orchestratorTaskId));
+  const state = await getTaskState(taskDir(chatId));
   if (!state.selectedModelURI) {
     return undefined;
   }
@@ -96,9 +96,9 @@ export async function ownModelParams(
 
 /** The provider config a conversation runs on; see `ownModelParams`. */
 export async function ownProviderConfigId(
-  orchestratorTaskId: TaskId,
+  chatId: TaskId,
 ): Promise<AIProviderConfigId | undefined> {
-  const params = await ownModelParams(orchestratorTaskId);
+  const params = await ownModelParams(chatId);
   return params?.providerConfigId;
 }
 

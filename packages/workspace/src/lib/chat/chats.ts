@@ -25,8 +25,8 @@ import { indexedByStore, kept, unkept } from "../workspace-index";
 import {
   askIn,
   latestStepIn,
-  type OrchestratorActivity,
-  orchestratorActivity,
+  type ChatActivity,
+  chatActivity,
 } from "./activity";
 import { listChatIds } from "./chat-records";
 import { windowTaskId } from "./ensure";
@@ -177,7 +177,7 @@ publisher.subscribe("task.removed", ({ id }) => {
 
 /** What every chat of a conversation is read against, loaded once per list. */
 interface Shared {
-  activity: OrchestratorActivity;
+  activity: ChatActivity;
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
   seen: Record<string, StoreId.Message>;
@@ -223,7 +223,7 @@ export async function chatIsWorking(
   if (!taskId) {
     return false;
   }
-  const { running } = await orchestratorActivity(taskId);
+  const { running } = await chatActivity(taskId);
   return running.some((task) => !task.waiting);
 }
 
@@ -531,7 +531,7 @@ function asFolder(path: string): string {
  */
 function askOf(
   digest: ChatDigest,
-  filed: OrchestratorActivity["running"],
+  filed: ChatActivity["running"],
 ): undefined | { at: number; text: string } {
   for (const task of filed) {
     if (task.waiting) {
@@ -905,7 +905,7 @@ async function loadShared(): Promise<Shared> {
   const windowId = await windowTaskId();
   const state = await getTaskState(taskDir(windowId));
   return {
-    activity: await orchestratorActivity(windowId),
+    activity: await chatActivity(windowId),
     knownApps: await knownAppSlugs(),
     seen: state.chatSeen ?? {},
   };

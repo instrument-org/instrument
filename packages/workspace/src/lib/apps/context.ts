@@ -10,7 +10,7 @@ import { isMcpManifest } from "./manifest";
 import { listApps } from "./store";
 
 /**
- * What the orchestrator is told about apps when its session starts: the apps
+ * What the chat is told about apps when its session starts: the apps
  * the workspace has and where each stands, and what the directory knows, so
  * a request naming a well-known service needs no lookup. What changes after
  * this arrives as app events on later turns; `app list` is the ground truth.

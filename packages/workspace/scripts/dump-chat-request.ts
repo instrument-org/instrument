@@ -14,13 +14,11 @@ import { TOOLS } from "../src/tools/all";
 // The bash tool builds its description from the running workspace (mount paths,
 // which commands exist), so a config has to be in place before it is read.
 setWorkspaceConfig(
-  buildReportWorkspaceConfig(
-    path.join(os.tmpdir(), "orchestrator-request-dump"),
-  ),
+  buildReportWorkspaceConfig(path.join(os.tmpdir(), "chat-request-dump")),
 );
 
 /**
- * The tool half of what the orchestrator's first turn actually sends.
+ * The tool half of what the chat's first turn actually sends.
  *
  * A latency or delegation sweep run straight against a provider needs the same
  * request the app builds, and the system half of it can be read off a recorded
@@ -28,7 +26,7 @@ setWorkspaceConfig(
  * those sweeps a fixture instead of a hand-written approximation, which would
  * be measuring a prompt nothing ships.
  */
-const ORCHESTRATOR_TOOL_NAMES = [
+const CHAT_TOOL_NAMES = [
   "BashTool",
   "Choose",
   "ConnectApp",
@@ -42,7 +40,7 @@ const { values } = parseArgs({
   },
 });
 
-const tools = ORCHESTRATOR_TOOL_NAMES.map((name) => {
+const tools = CHAT_TOOL_NAMES.map((name) => {
   const agentTool = TOOLS[name];
   const inputSchema =
     typeof agentTool.inputSchema === "function"

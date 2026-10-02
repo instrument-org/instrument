@@ -12,7 +12,7 @@ import { setupTool } from "./create-tool";
  * Interactive, like `choose`: the call parks the turn, the user picks a folder
  * in the Mac's own dialog, the folder is attached to the conversation, and the
  * call answers with where it is mounted. The
- * orchestrator never learns the host path; it gets a mount name it can hand to
+ * chat never learns the host path; it gets a mount name it can hand to
  * a task. A user who declines answers that too, so the agent can say so
  * rather than wait.
  */

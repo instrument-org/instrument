@@ -35,7 +35,7 @@ export async function folderReach(
 ): Promise<Record<string, FolderAttachment.Type>> {
   const held = (state ?? (await getTaskState(taskDir(taskId)))).attachedFolders;
   const settings = await getTaskSettings(taskDir(taskId));
-  if (settings?.kind !== "orchestrator") {
+  if (settings?.kind !== "chat") {
     return held ?? {};
   }
 

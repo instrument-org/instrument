@@ -20,9 +20,9 @@ import { createMemoryPart } from "./create-memory-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
-import { folderReach } from "./orchestrator/folder-reach";
-import { listTopics, type TopicFolder } from "./orchestrator/topics";
-import { tabHolders } from "./orchestrator/window-tab";
+import { folderReach } from "./chat/folder-reach";
+import { listTopics, type TopicFolder } from "./chat/topics";
+import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
@@ -217,13 +217,13 @@ export async function newMessage({
     parts.push(backgroundProcessesPart);
   }
 
-  // An orchestrator has no browser of its own: it drives whichever of the
+  // A chat has no browser of its own: it drives whichever of the
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned.
   const settings = await getTaskSettings(taskDir(taskId));
   const browserStatusPart =
-    settings?.kind === "orchestrator"
+    settings?.kind === "chat"
       ? undefined
       : await createBrowserStatusPart({
           createdAt,
@@ -250,10 +250,10 @@ export async function newMessage({
   // later.
   //
   // Only where a person is the one who went quiet. A task's messages come from
-  // the orchestrator by way of `task send`, so the same gap there measures how
+  // the chat by way of `task send`, so the same gap there measures how
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
-  if (settings?.kind === "orchestrator") {
+  if (settings?.kind === "chat") {
     const messageGap = await detectMessageGap({
       messageId,
       sentAt: createdAt,

@@ -1,6 +1,3 @@
-// Before this module's stored atoms read their values, whatever chunk the
-// bundler puts either in.
-import "@/client/lib/migrate-window-storage";
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
@@ -228,7 +225,7 @@ export const paneShareAtom = atomWithStorage<number>(
   { getOnInit: true },
 );
 
-/** A tab of the window's browser: a browser session of the orchestrator's. */
+/** A tab of the window's browser: a browser session of the window's record. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */
   favicon?: string;
@@ -270,7 +267,7 @@ export interface FileTab {
 }
 
 /**
- * A tab of the window. A page is a browser session of the orchestrator's,
+ * A tab of the window. A page is a browser session of the window's record,
  * drawn by a guest the pool holds; a screen is anything else the product
  * shows (a folder, a file, a task, the apps, a new tab), addressed by the
  * route it is at, so navigating inside it changes the tab and not the row.

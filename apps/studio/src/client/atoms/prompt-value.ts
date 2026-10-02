@@ -18,7 +18,7 @@ import { rpcClient } from "../rpc/client";
 //  - compose: the "new task" input on the new-tab / project pages, keyed by the
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
-//  - chat: the reply in one chat of the orchestrator's, kept in memory for
+//  - chat: the reply in one chat of the window's, kept in memory for
 //    the window's life so a reply left half-typed is there on coming back,
 //    and so the inbox can say the chat has one. The chats share a task,
 //    whose stored draft is the top-level field's, so none of them writes it.

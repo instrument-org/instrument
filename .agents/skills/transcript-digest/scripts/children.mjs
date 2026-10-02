@@ -1,4 +1,4 @@
-// Tasks an orchestrator chat started, found by folder name anywhere in the
+// Tasks a chat started, found by folder name anywhere in the
 // chat and exported from their own task.db with the repo's exporter. The
 // only part of the digest that needs this machine's task folders.
 import { execFileSync } from "node:child_process";

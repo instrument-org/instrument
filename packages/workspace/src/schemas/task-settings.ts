@@ -12,7 +12,7 @@ import { TaskKindSchema } from "./task-kind";
 // in the workspace with them.
 export const TaskSettingsSchema = z.object({
   // The apps this task may reach through the `app` command, by slug. Set by
-  // the orchestrator when it creates the task (`--app`), possibly to none.
+  // the chat when it creates the task (`--app`), possibly to none.
   // Absent on a task a person created, which reaches every app.
   apps: z.array(z.string()).optional(),
   // On a chat's record, the one session it holds. A chat's folder is named for
@@ -33,7 +33,7 @@ export const TaskSettingsSchema = z.object({
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().default("Untitled task"),
-  // The orchestrator that created this task, which is how that orchestrator
+  // The chat that created this task, which is how that chat
   // lists its own work and how a finished task finds its way back to it.
   // Absent on a task a person created.
   parentTaskId: TaskIdSchema.optional(),

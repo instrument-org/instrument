@@ -12,8 +12,8 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /** What the app window opens on. */
-const ORCHESTRATOR_FOLDER_NAME = SubdomainPartSchema.parse("instrument");
-export const ORCHESTRATOR_TITLE = "Instrument";
+const WINDOW_FOLDER_NAME = SubdomainPartSchema.parse("instrument");
+export const INSTRUMENT_TITLE = "Instrument";
 
 /** A find-or-create still running, by the workspace it was asked in. */
 const pending = new Map<
@@ -33,7 +33,7 @@ const pending = new Map<
  * since the window's first load asks from several routes at once and two
  * creates would both claim the same folder name.
  */
-export function ensureOrchestrator(): ResultAsync<
+export function ensureWindowRecord(): ResultAsync<
   { taskId: TaskId },
   TypedError.Type
 > {
@@ -42,14 +42,14 @@ export function ensureOrchestrator(): ResultAsync<
   if (running) {
     return new ResultAsync(running);
   }
-  const started = Promise.resolve(findOrCreateOrchestrator()).finally(() => {
+  const started = Promise.resolve(findOrCreateWindowRecord()).finally(() => {
     pending.delete(root);
   });
   pending.set(root, started);
   return new ResultAsync(started);
 }
 
-function findOrCreateOrchestrator(): ResultAsync<
+function findOrCreateWindowRecord(): ResultAsync<
   { taskId: TaskId },
   TypedError.Type
 > {
@@ -63,7 +63,7 @@ function findOrCreateOrchestrator(): ResultAsync<
     // a chat still, not the window, though it is not in `chats/`.
     let existing: TaskId | undefined;
     for (const task of tasks) {
-      if (task.kind !== "orchestrator" || isChatId(task.id)) {
+      if (task.kind !== "chat" || isChatId(task.id)) {
         continue;
       }
       const settings = await getTaskSettings(taskDir(task.id));
@@ -72,7 +72,7 @@ function findOrCreateOrchestrator(): ResultAsync<
         break;
       }
     }
-    const taskId = existing ?? (yield* await createOrchestratorTask());
+    const taskId = existing ?? (yield* await createWindowRecord());
     return ok({ taskId });
   });
 }
@@ -86,7 +86,7 @@ export function windowTaskId(): Promise<TaskId> {
   if (known) {
     return known;
   }
-  const found = ensureOrchestrator().match(
+  const found = ensureWindowRecord().match(
     (ids) => ids.taskId,
     (error) => {
       windowIds.delete(root);
@@ -97,17 +97,15 @@ export function windowTaskId(): Promise<TaskId> {
   return found;
 }
 
-async function createOrchestratorTask(): Promise<
-  Result<TaskId, TypedError.Type>
-> {
+async function createWindowRecord(): Promise<Result<TaskId, TypedError.Type>> {
   const workspaceConfig = getWorkspaceConfig();
   const taskId = await newTaskId({
-    preferredFolderName: ORCHESTRATOR_FOLDER_NAME,
+    preferredFolderName: WINDOW_FOLDER_NAME,
     workspaceConfig,
   });
   const initialized = await initializeTask(
     {
-      initialSettings: { kind: "orchestrator", name: ORCHESTRATOR_TITLE },
+      initialSettings: { kind: "chat", name: INSTRUMENT_TITLE },
       taskId,
       workspaceConfig,
     },

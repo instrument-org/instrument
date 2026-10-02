@@ -57,7 +57,7 @@ export async function retitleChat({
     return undefined;
   }
   const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind !== "orchestrator") {
+  if (settings?.kind !== "chat") {
     return undefined;
   }
   const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
@@ -233,7 +233,7 @@ async function retitleOnSettle({
     return;
   }
   const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind !== "orchestrator") {
+  if (settings?.kind !== "chat") {
     return;
   }
   const session = await Store.getSession(sessionId, id);

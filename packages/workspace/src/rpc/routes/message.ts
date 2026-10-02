@@ -10,8 +10,8 @@ import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { chatContextFor } from "../../lib/orchestrator/chat-context";
-import { setChatTopics } from "../../lib/orchestrator/chats";
+import { chatContextFor } from "../../lib/chat/chat-context";
+import { setChatTopics } from "../../lib/chat/chats";
 import { getTaskProjectName } from "../../lib/project";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
@@ -124,7 +124,7 @@ const create = base
         // A chat's record holds one session, the one its settings name.
         const chatSession = sessionOfChat(taskId);
         const settings = await getTaskSettings(taskDir(taskId));
-        const isOrchestrator = settings?.kind === "orchestrator";
+        const isChat = settings?.kind === "chat";
 
         let finalSessionId: StoreId.Session;
         // The other chats as they stand when a new one opens, read before
@@ -133,7 +133,7 @@ const create = base
         if (sessionId) {
           finalSessionId = sessionId;
         } else {
-          if (isOrchestrator) {
+          if (isChat) {
             chatContext = await chatContextFor();
           }
           const sessionResult = await createSession({
@@ -145,7 +145,7 @@ const create = base
             throw toORPCError(sessionResult.error, errors);
           }
           finalSessionId = sessionResult.value.id;
-          if (isOrchestrator && topics && topics.length > 0) {
+          if (isChat && topics && topics.length > 0) {
             await setChatTopics(finalSessionId, topics);
           }
         }

@@ -1,7 +1,7 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { childTaskMounts } from "./orchestrator/children";
-import { folderReach } from "./orchestrator/folder-reach";
+import { childTaskMounts } from "./chat/children";
+import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
@@ -14,7 +14,7 @@ import {
 /**
  * Host path for a file a task can reach: task-relative, the mount path of a
  * folder the user attached (`/mnt/<name>/...`), the folder of the task's
- * project (`/project/...`), or, for an orchestrator, a task it created
+ * project (`/project/...`), or, for a chat, a task it created
  * (`/tasks/<id>/...`). Null when the path resolves outside everything the task
  * has -- including the task's own private dir and a symlink leading out of a
  * mount -- so a caller can fail closed.
@@ -60,7 +60,7 @@ export async function resolveWorkspaceFilePaths({
 
 /**
  * The filesystem a task's agent sees, as it stands now: its own folder, the
- * folders attached to it, its project's folder and, for an orchestrator, the
+ * folders attached to it, its project's folder and, for a chat, the
  * tasks it created.
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
@@ -69,9 +69,7 @@ export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
     extraMounts:
-      settings?.kind === "orchestrator"
-        ? await childTaskMounts(taskId)
-        : undefined,
+      settings?.kind === "chat" ? await childTaskMounts(taskId) : undefined,
     projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });

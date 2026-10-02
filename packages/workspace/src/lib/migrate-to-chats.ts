@@ -22,7 +22,7 @@ import {
   type Topic,
   unusedTopicName,
   writeTopicSync,
-} from "./orchestrator/topics";
+} from "./chat/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
@@ -906,8 +906,7 @@ function windowRecordIds(tasksDir: string): string[] {
       ),
     );
     return (
-      settings?.kind === "orchestrator" &&
-      typeof settings.chatSessionId !== "string"
+      settings?.kind === "chat" && typeof settings.chatSessionId !== "string"
     );
   });
 }
@@ -947,7 +946,7 @@ function writeChat({
       ...(typeof windowSettings.createdWithAppVersion === "string"
         ? { createdWithAppVersion: windowSettings.createdWithAppVersion }
         : {}),
-      kind: "orchestrator",
+      kind: "chat",
       lastActivityAt: session.updatedAt ?? createdAt,
       name: session.title ?? "Instrument",
       state: Object.fromEntries(

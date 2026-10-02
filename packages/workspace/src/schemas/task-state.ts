@@ -44,7 +44,7 @@ export const StoredTaskStateSchema = z
     browserTabs: z.array(HeldTabSchema).optional(),
     browserTargetId: BrowserTargetIdSchema.optional(),
     /**
-     * The orchestrator's topics, in the order they were made: the tags a
+     * The window record's topics, in the order they were made: the tags a
      * chat carries, many chats to many topics. Which chats carry one is
      * on each chat's own session record (`Session.topics`), so retiring a
      * topic touches no chat and a filter is a predicate over the list.

@@ -93,7 +93,7 @@ export const Task = setupTool({
   description: `Start a task, send one a message, or stop one. A task is a capable agent with its own tools, folder, browser and model; it knows nothing about this conversation beyond the brief you give it, and you are told when it finishes. Everything that touches a file, a page, a service, or the web is a task's. Reading about tasks stays in the shell: \`${TASK_COMMAND.name} list\`, \`${TASK_COMMAND.name} show <id>\`, \`${TASK_COMMAND.name} log <id>\`, \`${TASK_COMMAND.name} models\`.`,
   execute: async ({ input, taskId }) => {
     const context = {
-      orchestratorTaskId: taskId,
+      chatId: taskId,
       // Not a shell command, so nothing is waiting to move it to the background.
       remainingYieldMs: () => Number.POSITIVE_INFINITY,
     };

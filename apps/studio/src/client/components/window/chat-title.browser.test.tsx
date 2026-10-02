@@ -38,7 +38,7 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-const taskId = TaskIdSchema.parse("orchestrator");
+const taskId = TaskIdSchema.parse("chat");
 const sessionId = StoreId.newSessionId();
 const TITLE = "Grocery list for the week";
 

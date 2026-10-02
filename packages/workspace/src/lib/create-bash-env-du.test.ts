@@ -19,7 +19,7 @@ import { createBashEnv } from "./create-bash-env";
  */
 const sessionId = StoreId.newSessionId();
 
-/** More entries than the orchestrator's 20,000-entry traversal budget. */
+/** More entries than the chat's 20,000-entry traversal budget. */
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
@@ -27,7 +27,7 @@ let homeDir: string;
 let wideDir: string;
 let taskId: TaskId;
 
-async function run(command: string, { orchestrator = false } = {}) {
+async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
     access: "read-only" as const,
     createdAt: Date.now(),
@@ -43,7 +43,7 @@ async function run(command: string, { orchestrator = false } = {}) {
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    orchestrator: orchestrator ? { childMounts: [] } : undefined,
+    chat: chat ? { childMounts: [] } : undefined,
     sessionId,
     taskId,
   });
@@ -163,10 +163,10 @@ describe("du", () => {
     expect(result.stdout).toMatch(/^\d+\t\/mnt\n$/);
   });
 
-  it("answers past the orchestrator's traversal budget", async () => {
+  it("answers past the chat's traversal budget", async () => {
     // The walk is not the virtual filesystem's, so the budget that stops
     // find and ls over this folder does not apply to it.
-    const result = await run("du -a /mnt/Wide | wc -l", { orchestrator: true });
+    const result = await run("du -a /mnt/Wide | wc -l", { chat: true });
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBe(WIDE_FILES + 1);

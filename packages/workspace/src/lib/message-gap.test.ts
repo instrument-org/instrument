@@ -46,7 +46,7 @@ describe("detectMessageGap", () => {
       );
     }
 
-    /** A task finishing, which wakes the orchestrator on the same role. */
+    /** A task finishing, which wakes the chat on the same role. */
     async function wake(at: Date) {
       const messageId = StoreId.newMessageId();
       await Store.saveMessageWithParts(

@@ -17,7 +17,7 @@ const WINDOW: WindowContextValue = {
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: vi.fn(),
-  taskId: TaskIdSchema.parse("orchestrator"),
+  taskId: TaskIdSchema.parse("chat"),
 };
 
 /** The moment every row is read at: a Wednesday afternoon. */

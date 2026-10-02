@@ -11,7 +11,7 @@ const taskId = TaskIdSchema.parse("tab-command-chat");
 
 // The window's own task holds the tabs the window makes; finding it for real
 // would make one.
-vi.mock(import("../orchestrator/ensure"), () => ({
+vi.mock(import("../chat/ensure"), () => ({
   windowTaskId: () => Promise.resolve(TaskIdSchema.parse("window-task")),
 }));
 
@@ -20,7 +20,7 @@ const holders = new Map<
   string,
   { id: ReturnType<typeof TaskIdSchema.parse>; title: string }
 >();
-vi.mock(import("../orchestrator/window-tab"), async (importOriginal) => ({
+vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabHolders: () => Promise.resolve(holders),
 }));

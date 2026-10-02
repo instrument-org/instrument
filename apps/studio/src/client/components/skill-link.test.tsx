@@ -33,7 +33,7 @@ describe("SkillLink", () => {
       openPath: vi.fn(),
       openScreen,
       sessionId: StoreId.newSessionId(),
-      taskId: TaskIdSchema.parse("orchestrator"),
+      taskId: TaskIdSchema.parse("chat"),
     } satisfies WindowContextValue;
     renderWithProviders(<WindowContext value={context}>{link}</WindowContext>);
     const button = screen.getByRole("button", { name: "create-page" });

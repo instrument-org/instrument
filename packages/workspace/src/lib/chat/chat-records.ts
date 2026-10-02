@@ -12,7 +12,7 @@ import {
   sessionOfChat,
 } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
-import { ORCHESTRATOR_TITLE } from "./ensure";
+import { INSTRUMENT_TITLE } from "./ensure";
 
 /**
  * A chat's record, made the first time something is sent in it, and named on
@@ -40,8 +40,8 @@ export async function ensureChat(
     {
       initialSettings: {
         chatSessionId: sessionId,
-        kind: "orchestrator",
-        name: ORCHESTRATOR_TITLE,
+        kind: "chat",
+        name: INSTRUMENT_TITLE,
       },
       taskId: chatId,
       workspaceConfig: getWorkspaceConfig(),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { leadingWords, orchestratorRefusal } from "./bash";
+import { leadingWords, chatRefusal } from "./bash";
 
 describe("leadingWords", () => {
   it("reads the first word of each command, and whether it follows a pipe", () => {
@@ -47,73 +47,65 @@ describe("leadingWords", () => {
   });
 });
 
-describe("orchestratorRefusal", () => {
+describe("chatRefusal", () => {
   it("lets the task and app commands through, with a filter on their output", () => {
-    expect(
-      orchestratorRefusal("task log abc --tail 40 | rg -i error"),
-    ).toBeUndefined();
-    expect(orchestratorRefusal("app tools notion | head -20")).toBeUndefined();
+    expect(chatRefusal("task log abc --tail 40 | rg -i error")).toBeUndefined();
+    expect(chatRefusal("app tools notion | head -20")).toBeUndefined();
   });
 
   it("lets the conversation read its other chats", () => {
-    expect(orchestratorRefusal("chat list --topic work")).toBeUndefined();
+    expect(chatRefusal("chat list --topic work")).toBeUndefined();
     expect(
-      orchestratorRefusal("chat read Connect --tail 20 | head -5"),
+      chatRefusal("chat read Connect --tail 20 | head -5"),
     ).toBeUndefined();
-    expect(orchestratorRefusal("chat search gmail")).toBeUndefined();
+    expect(chatRefusal("chat search gmail")).toBeUndefined();
   });
 
   it("reads a quoted pipe as an argument, not a command", () => {
     expect(
-      orchestratorRefusal(
-        "task log abc --tail 60 | grep -iE 'call|url|project'",
-      ),
+      chatRefusal("task log abc --tail 60 | grep -iE 'call|url|project'"),
     ).toBeUndefined();
-    expect(
-      orchestratorRefusal(`app call notion x '{"query":"a|b"}'`),
-    ).toBeUndefined();
+    expect(chatRefusal(`app call notion x '{"query":"a|b"}'`)).toBeUndefined();
   });
 
   // A slow read outlives yieldMs and goes to the background like any other
   // command, and the notice that says so names these to follow and stop it.
   it("lets the conversation follow and stop what it sent to the background", () => {
-    expect(orchestratorRefusal("fg bg_2 --timeout 0")).toBeUndefined();
-    expect(orchestratorRefusal("kill bg_2; jobs")).toBeUndefined();
+    expect(chatRefusal("fg bg_2 --timeout 0")).toBeUndefined();
+    expect(chatRefusal("kill bg_2; jobs")).toBeUndefined();
   });
 
   it("refuses anything else and names the way instead", () => {
-    expect(orchestratorRefusal("agent-browser click @e98")).toMatch(
+    expect(chatRefusal("agent-browser click @e98")).toMatch(
       /`agent-browser` is not yours to run/,
     );
-    expect(orchestratorRefusal("curl https://example.com")).toMatch(/task new/);
-    expect(orchestratorRefusal("task list; python3 -c 'print(1)'")).toMatch(
+    expect(chatRefusal("curl https://example.com")).toMatch(/task new/);
+    expect(chatRefusal("task list; python3 -c 'print(1)'")).toMatch(
       /`python3`/,
     );
   });
 
   it("lets a file be looked at and put where it belongs", () => {
-    expect(orchestratorRefusal("ls /tasks/abc/output")).toBeUndefined();
+    expect(chatRefusal("ls /tasks/abc/output")).toBeUndefined();
     expect(
-      orchestratorRefusal(
+      chatRefusal(
         "cp /tasks/abc/output/report.md /mnt/Instrument/report.md && cat /mnt/Instrument/report.md | head -3",
       ),
     ).toBeUndefined();
-    expect(orchestratorRefusal("rm /mnt/Instrument/report.md")).toMatch(/`rm`/);
+    expect(chatRefusal("rm /mnt/Instrument/report.md")).toMatch(/`rm`/);
   });
 
   it("refuses a filter that is not on a pipe from task or app", () => {
-    expect(orchestratorRefusal("jq '.issues[]' issues.json")).toMatch(/`jq`/);
-    expect(orchestratorRefusal("awk -F, '{print $1}' saved.txt")).toMatch(
-      /`awk`/,
-    );
+    expect(chatRefusal("jq '.issues[]' issues.json")).toMatch(/`jq`/);
+    expect(chatRefusal("awk -F, '{print $1}' saved.txt")).toMatch(/`awk`/);
     expect(
-      orchestratorRefusal("app call linear list_issues '{}' | jq '.[0]'"),
+      chatRefusal("app call linear list_issues '{}' | jq '.[0]'"),
     ).toBeUndefined();
   });
 
   it("names the pipe a filter is missing, rather than only the rule", () => {
     expect(
-      orchestratorRefusal("sed -n '1,5p' /mnt/Instrument/report.md"),
+      chatRefusal("sed -n '1,5p' /mnt/Instrument/report.md"),
     ).toMatchInlineSnapshot(
       `"\`sed\` reads what a command before it printed, so give it one: \`cat <file> | sed ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one."`,
     );
@@ -121,26 +113,26 @@ describe("orchestratorRefusal", () => {
 
   it("searches a file by path, the same read cat already allows", () => {
     expect(
-      orchestratorRefusal(
+      chatRefusal(
         "grep -n -E 'Bottom line|Cost per' /mnt/Instrument/dairy-protein-comparison.md",
       ),
     ).toBeUndefined();
     expect(
-      orchestratorRefusal("rg -i caffeine /mnt/Instrument/notes.md | head -5"),
+      chatRefusal("rg -i caffeine /mnt/Instrument/notes.md | head -5"),
     ).toBeUndefined();
   });
 
   it("keeps the filters that can write from their own arguments on a pipe", () => {
-    expect(orchestratorRefusal("sed -i 's/a/b/' /mnt/Instrument/x.md")).toMatch(
+    expect(chatRefusal("sed -i 's/a/b/' /mnt/Instrument/x.md")).toMatch(
       /`sed`/,
     );
     expect(
-      orchestratorRefusal(`awk 'BEGIN{print "x" > "/mnt/Instrument/x.md"}'`),
+      chatRefusal(`awk 'BEGIN{print "x" > "/mnt/Instrument/x.md"}'`),
     ).toMatch(/`awk`/);
   });
 });
 
-describe("orchestratorRefusal: writing a file", () => {
+describe("chatRefusal: writing a file", () => {
   it.each([
     [
       "cat > '/mnt/Instrument/summary.md' <<'EOF'\nhello\nEOF",
@@ -150,7 +142,7 @@ describe("orchestratorRefusal: writing a file", () => {
     ["task list >> /mnt/log.txt", "append"],
     ["find /mnt -name '*.md' &> out.txt", "both streams"],
   ])("refuses %j (%s)", (script) => {
-    expect(orchestratorRefusal(script)).toMatch(/Redirecting output/);
+    expect(chatRefusal(script)).toMatch(/Redirecting output/);
   });
 
   it.each([
@@ -167,6 +159,6 @@ describe("orchestratorRefusal: writing a file", () => {
       "a brief that talks about redirects",
     ],
   ])("allows %j (%s)", (script) => {
-    expect(orchestratorRefusal(script)).toBeUndefined();
+    expect(chatRefusal(script)).toBeUndefined();
   });
 });

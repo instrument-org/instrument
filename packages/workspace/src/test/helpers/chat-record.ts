@@ -46,7 +46,7 @@ export function chatFor(
     path.join(privateDir, "settings.json"),
     JSON.stringify({
       chatSessionId: sessionId,
-      kind: "orchestrator",
+      kind: "chat",
       name: "Instrument",
     }),
   );

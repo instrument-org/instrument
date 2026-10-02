@@ -8,7 +8,7 @@ import { parseArgs } from "node:util";
 import { sessionsFor } from "../evals/harness";
 import { buildReportWorkspaceConfig } from "../evals/utils";
 import { getTasks } from "../src/lib/get-tasks";
-import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/orchestrator/wake-summary";
+import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/chat/wake-summary";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 
@@ -24,7 +24,7 @@ import { setWorkspaceConfig } from "../src/lib/workspace-config";
 const { positionals } = parseArgs({ allowPositionals: true });
 const workspaceRootDir = positionals[0];
 if (!workspaceRootDir) {
-  throw new Error("Usage: orchestrator-handoff-report.ts <workspace-dir>");
+  throw new Error("Usage: chat-handoff-report.ts <workspace-dir>");
 }
 
 const absolute = path.resolve(workspaceRootDir);

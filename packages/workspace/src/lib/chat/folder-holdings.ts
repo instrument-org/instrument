@@ -33,7 +33,7 @@ const NOT_ITS_OWN = new Set([
  * starts with left out. A count rather than a listing, because the folder is
  * read for its shape (a repository copied in, a build left behind, nothing at
  * all) and a listing of it would be the thing the note exists to avoid. The
- * orchestrator reads the folder itself when it wants the names.
+ * chat reads the folder itself when it wants the names.
  */
 export async function taskFolderHoldings(
   taskId: TaskId,

@@ -31,10 +31,10 @@ const RunningTaskSchema = z.object({
   waiting: z.string().optional(),
 });
 
-export const OrchestratorActivitySchema = z.object({
+export const ChatActivitySchema = z.object({
   running: RunningTaskSchema.array(),
 });
-export type OrchestratorActivity = z.output<typeof OrchestratorActivitySchema>;
+export type ChatActivity = z.output<typeof ChatActivitySchema>;
 
 /** What a pending ask is waiting for, in the user's terms. */
 const ASKS: Record<string, string> = {
@@ -143,7 +143,7 @@ export function latestStepIn(
 /**
  * What a task has running in the background right now, oldest first.
  *
- * Every session of the task, because the orchestrator reads a task the way the
+ * Every session of the task, because the chat reads a task the way the
  * user does: what a subagent of it started is the task's. A different fact
  * from `isWorking`, and the two come apart exactly when it matters: a task
  * whose turn ended with a scan still going is idle and has this.
@@ -160,15 +160,13 @@ export function leftRunning(taskId: TaskId, now = Date.now()): LeftRunning[] {
 
 /**
  * What is happening behind the conversation right now: each task of the
- * orchestrator's that is at work, and the label on its latest step. The
+ * chat's that is at work, and the label on its latest step. The
  * conversation shows this under its transcript, so a reply that handed the
  * work off does not read as the end of it. A task held from starting is here
  * too, waiting on what holds it, since it is the user's move either way.
  */
-export async function orchestratorActivity(
-  orchestratorTaskId: TaskId,
-): Promise<OrchestratorActivity> {
-  const children = await listChildTasks(orchestratorTaskId);
+export async function chatActivity(chatId: TaskId): Promise<ChatActivity> {
+  const children = await listChildTasks(chatId);
   const running = await Promise.all(
     children
       .filter((child) => isWorking(child.id) || taskHold(child.id))

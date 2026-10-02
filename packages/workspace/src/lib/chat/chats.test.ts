@@ -14,7 +14,7 @@ import { placeChatTask } from "../record-folders";
 import { Store } from "../store";
 import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { type OrchestratorActivity } from "./activity";
+import { type ChatActivity } from "./activity";
 import {
   archiveChat,
   chatById,
@@ -31,14 +31,14 @@ import { createTopic } from "./topics";
 vi.mock(import("../session-store-storage"));
 
 const running = vi.hoisted(() => {
-  const value: OrchestratorActivity["running"] = [];
+  const value: ChatActivity["running"] = [];
   return { value };
 });
 const alive = vi.hoisted(() => ({ value: new Set<string>() }));
 const pendingWakes = vi.hoisted(() => ({ value: new Set<string>() }));
 
 vi.mock(import("./wake"), () => ({
-  hasPendingWake: (_orchestratorId: string, taskId: string) =>
+  hasPendingWake: (_chatId: string, taskId: string) =>
     pendingWakes.value.has(taskId),
 }));
 
@@ -46,7 +46,7 @@ vi.mock(import("./wake"), () => ({
 // have a live agent. Neither exists in a test, so both are dials.
 vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  orchestratorActivity: () => Promise.resolve({ running: running.value }),
+  chatActivity: () => Promise.resolve({ running: running.value }),
 }));
 vi.mock(import("../workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
@@ -86,7 +86,7 @@ const freshTask = async () => {
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
   const made = await updateTaskSettings(taskId, {
-    kind: "orchestrator",
+    kind: "chat",
     name: "Instrument",
   });
   expect(made.isOk()).toBe(true);
@@ -741,7 +741,7 @@ describe("listChats", () => {
           selected: ["soup.md", "Old/"],
         },
         screen: "computer",
-        url: "/orchestrator/computer?path=&root=~%2FRecipes",
+        url: "/files?path=&root=~%2FRecipes",
       },
     });
 

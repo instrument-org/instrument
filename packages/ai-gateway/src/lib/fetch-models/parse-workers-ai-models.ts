@@ -35,7 +35,7 @@ type WorkersAiOpenRouterModel = z.output<typeof WorkersAiOpenRouterModelSchema>;
  * turn, so the rungs claimed here are the ones measured to be universal, and
  * anything above them steps down to `medium`.
  *
- * `low` is the rung that matters: on the orchestrator's first turn it is the
+ * `low` is the rung that matters: on the chat's first turn it is the
  * difference between a model that thinks for half a minute before saying
  * anything and one that answers in three seconds.
  */

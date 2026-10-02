@@ -18,12 +18,12 @@ import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
-import { attachOrchestrator, workspaceMachine } from "../src/electron";
+import { attachChats, workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
-import { isWorking } from "../src/lib/orchestrator/activity";
-import { listChildTasks } from "../src/lib/orchestrator/children";
-import { outputFolderPath } from "../src/lib/orchestrator/output-folder";
+import { isWorking } from "../src/lib/chat/activity";
+import { listChildTasks } from "../src/lib/chat/children";
+import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
 import { updateTaskSettings } from "../src/lib/task-settings";
@@ -116,7 +116,7 @@ export interface CompletedRun {
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
-  /** This task alone, which for an orchestrator is the conversation only. */
+  /** This task alone, which for a chat is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
@@ -165,10 +165,10 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 const STOP_GRACE_MS = 60_000;
 
 /**
- * How long every task in an orchestrator's tree has to sit idle before the run
+ * How long every task in a chat's tree has to sit idle before the run
  * is called finished.
  *
- * An orchestrator's own turn ends the moment it hands work off, which is the
+ * A chat's own turn ends the moment it hands work off, which is the
  * middle of the run rather than the end of it: the children are still working,
  * and the wake carrying their results back into the conversation is on a 1.5s
  * debounce behind them. A run that stopped at the first `session.done` would
@@ -219,9 +219,9 @@ export interface EvalCase {
    */
   followUps?: string[];
   /**
-   * Which agent answers the prompt. An orchestrator delegates to tasks it
+   * Which agent answers the prompt. A chat delegates to tasks it
    * creates inside the same workspace, so a run of that kind produces the
-   * orchestrator's transcript plus one per task it made.
+   * chat's transcript plus one per task it made.
    */
   kind?: TaskKind;
   name: string;
@@ -247,7 +247,7 @@ export interface EvalCase {
 
 interface AssertionContext {
   /**
-   * Every task this one started, with its sessions: what an orchestrator case
+   * Every task this one started, with its sessions: what a chat case
    * needs, since the work it is scored on happened in those rather than in the
    * conversation. A function because reading them costs a directory scan per
    * task and most assertions never ask.
@@ -367,7 +367,7 @@ export async function runEvals(
     },
   });
 
-  attachOrchestrator(actor);
+  attachChats(actor);
   actor.start();
 
   const runs = models
@@ -443,7 +443,7 @@ export async function runEvals(
           }
           projectId = project.value.id;
         }
-        if (evalCase.kind === "orchestrator") {
+        if (evalCase.kind === "chat") {
           ensureWorkspaceFolder();
         }
         const folders = privateFoldersFor(evalCase, index) ?? [];
@@ -648,9 +648,9 @@ export async function runEvals(
         });
       }
 
-      // The children and the wake they trigger are the rest of an orchestrator
+      // The children and the wake they trigger are the rest of a chat
       // run. Everything above this line has only watched the conversation.
-      if (evalCase.kind === "orchestrator" && !stoppedBy) {
+      if (evalCase.kind === "chat" && !stoppedBy) {
         const settled = await waitForTreeQuiet(id, {
           timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
         });
@@ -775,7 +775,7 @@ export async function sessionsFor(
  *
  * Both derive from `$HOME`, sandboxed away from the developer's real files by
  * `evals/lib/sandbox-home` but shared across runs in one process, so run
- * orchestrator cases at low concurrency and give a separate process its own
+ * chat cases at low concurrency and give a separate process its own
  * `INSTRUMENT_EVAL_HOME` when two runs must not see each other's output.
  */
 function ensureWorkspaceFolder() {
@@ -876,7 +876,7 @@ async function waitForSessionDone(
 /**
  * Waits until no task in this run's tree has been working for a continuous
  * stretch, so a lull between a child finishing and its wake reaching the
- * orchestrator is not mistaken for the end.
+ * chat is not mistaken for the end.
  *
  * Scoped to the tree rather than the workspace because one workspace holds
  * every concurrent run of a suite, and waiting on all of them would make each

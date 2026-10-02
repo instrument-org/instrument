@@ -12,7 +12,7 @@ import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
 
 const world = vi.hoisted(() => ({
-  kind: "orchestrator" as string,
+  kind: "chat" as string,
   missing: new Set<string>(),
   tagged: [] as string[],
   topics: [] as Topic[],
@@ -89,7 +89,7 @@ function topic(name: string, folders: string[]): Topic {
 }
 
 beforeEach(() => {
-  world.kind = "orchestrator";
+  world.kind = "chat";
   world.missing = new Set();
   world.topics = [];
   world.tagged = [];

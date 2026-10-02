@@ -33,7 +33,7 @@ const AWAY_AFTER_MS = ms("1 hour");
  * nor sufficient (a session running through midnight crosses one in minutes).
  *
  * Measured only against messages the user actually sent. A task finishing wakes
- * the orchestrator with a `user` message of its own, and counting those would
+ * the chat with a `user` message of its own, and counting those would
  * report three minutes of silence across a night where the user said nothing.
  *
  * Returns undefined when the user has not written in this chat before, and

@@ -79,7 +79,7 @@ export function createDuCommand({
   projectFolderName,
   taskId,
 }: {
-  /** Whether the shell mounts the apps directory at `/apps`, as the orchestrator's does. */
+  /** Whether the shell mounts the apps directory at `/apps`, as the chat's does. */
   apps?: boolean;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   extraMounts?: WorkspaceFsMount[];

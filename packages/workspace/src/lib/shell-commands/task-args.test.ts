@@ -117,7 +117,7 @@ describe("parseFolderSpec", () => {
 });
 
 describe("resolveFolders", () => {
-  createMockTaskConfig(TaskIdSchema.parse("orchestrator"));
+  createMockTaskConfig(TaskIdSchema.parse("chat"));
 
   const attached = {
     Home: FolderAttachment.Schema.parse({
@@ -314,7 +314,7 @@ describe("requireFoldersOnDisk", () => {
 });
 
 describe("resolveFileUploads", () => {
-  createMockTaskConfig(TaskIdSchema.parse("orchestrator"));
+  createMockTaskConfig(TaskIdSchema.parse("chat"));
   const root = mkdtempSync(path.join(os.tmpdir(), "task-files-"));
   const taskHostRoot = TaskDirSchema.parse(path.join(root, "conversation"));
   const desktop = path.join(root, "Desktop");
@@ -416,7 +416,7 @@ describe("resolveFileUploads", () => {
 });
 
 describe("requireFilesNamedInBrief", () => {
-  createMockTaskConfig(TaskIdSchema.parse("orchestrator"));
+  createMockTaskConfig(TaskIdSchema.parse("chat"));
   const taskHostRoot = TaskDirSchema.parse(
     path.join(
       mkdtempSync(path.join(os.tmpdir(), "task-brief-")),

@@ -12,7 +12,7 @@ import {
   loadApp,
   readAppGuide,
 } from "../lib/apps/store";
-import { recordAppChat } from "../lib/orchestrator/attribution";
+import { recordAppChat } from "../lib/chat/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";

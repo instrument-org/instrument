@@ -16,14 +16,14 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runTab, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
-const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("read-the-page");
 
 const context: TaskCommandContext = {
-  orchestratorTaskId: ORCHESTRATOR_ID,
+  chatId: CHAT_ID,
   remainingYieldMs: () => 0,
 };
 
@@ -74,10 +74,10 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(ORCHESTRATOR_SESSION, ORCHESTRATOR_ID);
+  chatFor(CHAT_SESSION, CHAT_ID);
   const window = await initializeTask(
     {
-      initialSettings: { kind: "orchestrator", name: "Instrument" },
+      initialSettings: { kind: "chat", name: "Instrument" },
       taskId: WINDOW_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -88,7 +88,7 @@ beforeEach(async () => {
   }
   const created = await initializeTask(
     {
-      initialSettings: { name: "Read the page", parentTaskId: ORCHESTRATOR_ID },
+      initialSettings: { name: "Read the page", parentTaskId: CHAT_ID },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -188,7 +188,7 @@ describe("task tab", () => {
     await expect(
       runTab([CHILD_ID, openTab], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"read-the-page" was started in another chat/);
   });

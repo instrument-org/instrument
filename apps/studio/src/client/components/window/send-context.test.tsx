@@ -158,7 +158,7 @@ describe("sendContext", () => {
     `);
   });
 
-  it("sends nothing before the orchestrator's state is read", async () => {
+  it("sends nothing before the chat's state is read", async () => {
     const { sendContext } = contextReaders(
       windowOf({
         screenView: { screen: "browser" },

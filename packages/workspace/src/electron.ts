@@ -60,7 +60,7 @@ export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
-export { attachOrchestrator } from "./lib/orchestrator/attach";
+export { attachChats } from "./lib/chat/attach";
 export { FILES_FENCE } from "./lib/parse-files-block";
 export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";

@@ -26,7 +26,7 @@ const { positionals, values } = parseArgs({
 
 const inputPath = positionals[0];
 const outputPath = values.output;
-// An orchestrator task has a root session per chat, so this names which one.
+// A chat task has a root session per chat, so this names which one.
 const wantedSessionId = values.session;
 
 if (!inputPath) {

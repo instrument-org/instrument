@@ -55,7 +55,7 @@ async function make(id: string, parentTaskId?: string, kind?: TaskKind) {
 
 describe("listChildTasks", () => {
   it("gives a chat its own tasks, the window every chat's, and a task none", async () => {
-    const window = await make("instrument", undefined, "orchestrator");
+    const window = await make("instrument", undefined, "chat");
     const one = chatFor();
     const two = chatFor();
     const first = await make("2026-09-26-first", one);

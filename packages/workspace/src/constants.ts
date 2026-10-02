@@ -32,7 +32,7 @@ export const TASKS_DIR_NAME = "tasks";
 // `tasks/` folder inside its own, so a chat and its work are one folder.
 export const CHATS_DIR_NAME = "chats";
 // One folder per app at the workspace root, mounted at /apps for the
-// orchestrator. Secrets never live here; the app's stores hold them.
+// chat. Secrets never live here; the app's stores hold them.
 export const APPS_DIR_NAME = "apps";
 // One Markdown file per memory at the workspace root: what the conversation's
 // agent keeps about the user across every chat, readable and editable in a

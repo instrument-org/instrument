@@ -1,11 +1,11 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
+import { ensureWindowRecord } from "../../lib/chat/ensure";
 import {
   ensureOutputFolder,
   outputFolderPath,
-} from "../../lib/orchestrator/output-folder";
+} from "../../lib/chat/output-folder";
 import { isChatId } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
@@ -25,7 +25,7 @@ import { publisher } from "../publisher";
 const ensure = base
   .output(z.object({ taskId: TaskIdSchema }))
   .handler(async ({ context, errors }) => {
-    const result = await ensureOrchestrator();
+    const result = await ensureWindowRecord();
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
@@ -44,7 +44,7 @@ const ensure = base
 
 /**
  * The tab the window's browser has in front, which is the tab the
- * orchestrator's own `agent-browser` drives; null once no tab is open.
+ * chat's own `agent-browser` drives; null once no tab is open.
  */
 const setActiveTab = base
   .input(

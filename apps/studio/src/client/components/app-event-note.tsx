@@ -2,7 +2,7 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 
 /**
- * The line that marks why the orchestrator woke about an app: the user signed
+ * The line that marks why the chat woke about an app: the user signed
  * in, saved a key, declined, or took it away. A product event in the muted
  * voice of a note, with the mark rather than an icon of its own, since the
  * product did this and the reply that follows is what the reader waits for.

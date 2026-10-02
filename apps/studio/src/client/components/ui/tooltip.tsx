@@ -33,9 +33,12 @@ function TooltipContent({
       <TooltipPrimitive.Content
         // Wrapping stays plain rather than balanced: `w-fit` resolves to the
         // max-width cap before lines are balanced, so a tooltip that wraps at
-        // all keeps the full width with half of it left empty.
+        // all keeps the full width with half of it left empty. In dark mode
+        // the hairline is the elevation ramp's white already composited over
+        // the background: the ramp's translucent ring sits outside the edge,
+        // so whatever passes under a tooltip would show through it.
         className={cn(
-          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-popover px-3 py-1.5 text-xs text-pretty text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-popover px-3 py-1.5 text-xs text-pretty text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:shadow-[0_0_0_1px_color-mix(in_srgb,#fff_10%,var(--background)),var(--elevation-md-soft)]",
           className,
         )}
         collisionPadding={collisionPadding ?? chromeCollisionPadding}

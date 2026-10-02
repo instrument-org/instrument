@@ -391,11 +391,7 @@ body {
   --sidebar-border: rgb(255 255 255 / 10%);
   --sidebar-ring: rgb(255 255 255 / 30%);
 
-  /* Elevation ramp (dark) — light hairline ring plus a deeper black drop.
-   * The ring sits outside the element's edge, so a translucent white would
-   * show whatever scrolls under a tooltip, menu, or popover through it. Each
-   * ring is the white it names already composited over `--background`, which
-   * is the same pixel over the window and a steady edge over anything else. */
+  /* Elevation ramp (dark) — light inner ring plus a deeper black drop. */
   --elevation-xs-soft: 0 0 0 2px rgb(0 0 0 / 0.04);
   --elevation-sm-soft: 0 2px 4px 0 rgb(0 0 0 / 0.08);
   --elevation-md-soft: 0 8px 16px -2px rgb(0 0 0 / 0.12);
@@ -403,27 +399,13 @@ body {
   --elevation-xl-soft: 0 20px 40px -7px rgb(0 0 0 / 0.21);
   --elevation-2xl-soft: 0 26px 52px -10px rgb(0 0 0 / 0.26);
   --elevation-3xl-soft: 0 32px 64px -12px rgb(0 0 0 / 0.3);
-  --elevation-xs:
-    0 0 0 1px color-mix(in srgb, #fff 6%, var(--background)),
-    var(--elevation-xs-soft);
-  --elevation-sm:
-    0 0 0 1px color-mix(in srgb, #fff 8%, var(--background)),
-    var(--elevation-sm-soft);
-  --elevation-md:
-    0 0 0 1px color-mix(in srgb, #fff 10%, var(--background)),
-    var(--elevation-md-soft);
-  --elevation-lg:
-    0 0 0 1px color-mix(in srgb, #fff 11%, var(--background)),
-    var(--elevation-lg-soft);
-  --elevation-xl:
-    0 0 0 1px color-mix(in srgb, #fff 13%, var(--background)),
-    var(--elevation-xl-soft);
-  --elevation-2xl:
-    0 0 0 1px color-mix(in srgb, #fff 14%, var(--background)),
-    var(--elevation-2xl-soft);
-  --elevation-3xl:
-    0 0 0 1px color-mix(in srgb, #fff 16%, var(--background)),
-    var(--elevation-3xl-soft);
+  --elevation-xs: 0 0 0 1px rgb(255 255 255 / 0.06), var(--elevation-xs-soft);
+  --elevation-sm: 0 0 0 1px rgb(255 255 255 / 0.08), var(--elevation-sm-soft);
+  --elevation-md: 0 0 0 1px rgb(255 255 255 / 0.1), var(--elevation-md-soft);
+  --elevation-lg: 0 0 0 1px rgb(255 255 255 / 0.11), var(--elevation-lg-soft);
+  --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
+  --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
+  --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
 }
 
 /* Typography gives `.prose` a `max-width: 65ch` measure of its own, and every

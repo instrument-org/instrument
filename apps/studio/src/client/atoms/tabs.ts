@@ -18,18 +18,13 @@ const json = createJSONStorage<TabsModel>(() => localStorage);
  * A window's tabs, kept across launches under `key`, opening on one tab at
  * `pathname` the first time. `getOnInit` so persisted tabs are present on the
  * first render: without it the atom would start from a throwaway tab and swap
- * after mount, building and discarding that tab's router. `repair` rewrites
- * what was kept as it is read, for addresses the window no longer draws.
+ * after mount, building and discarding that tab's router.
  */
-export function tabsAtomOf(
-  key: string,
-  pathname: string,
-  repair: (model: TabsModel) => TabsModel = (model) => model,
-) {
+export function tabsAtomOf(key: string, pathname: string) {
   return atomWithStorage<TabsModel>(
     key,
     freshTabsModel(pathname),
-    tabsStorage(repair),
+    tabsStorage(),
     { getOnInit: true },
   );
 }
@@ -48,7 +43,7 @@ export function tabsAtomOf(
  * instead of replaying the pending call, so the pending value is tracked here
  * rather than through it.
  */
-function tabsStorage(repair: (model: TabsModel) => TabsModel): typeof json {
+function tabsStorage(): typeof json {
   let pendingWrite: null | { key: string; value: TabsModel } = null;
   const flushWrite = () => {
     if (!pendingWrite) {
@@ -68,7 +63,7 @@ function tabsStorage(repair: (model: TabsModel) => TabsModel): typeof json {
       if (!parsed.success || parsed.data.tabs.length === 0) {
         return initialValue;
       }
-      const stored = repair(parsed.data);
+      const stored = parsed.data;
       // Keep selection pointing at a tab that still exists.
       if (stored.tabs.some((tab) => tab.id === stored.selectedId)) {
         return stored;

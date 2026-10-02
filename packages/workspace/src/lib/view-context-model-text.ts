@@ -20,18 +20,6 @@ export function viewContextModelNote(data: ViewContext) {
   return `${screenNote(data)}${chosenNote(data)}${tabsNote(data)}`;
 }
 
-function chatNote(data: ViewContext) {
-  const { chat } = data;
-  if (!chat) {
-    return systemNote`
-      When the user sent this, one of their chats was open. "This chat" refers to it.
-    `;
-  }
-  return systemNote`
-    When the user sent this, the chat "${chat.title}" was open, its transcript on screen. "This chat", "this", "here" and "it" refer to that chat. When it is not the chat you are in, \`chat read ${chat.title}\` reads it.
-  `;
-}
-
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
 function chosenNote(data: ViewContext) {
   const chosen = data.chosen ?? [];
@@ -168,9 +156,6 @@ function screenNote(data: ViewContext) {
     }
     case "browser": {
       return pageNote(data);
-    }
-    case "chat": {
-      return chatNote(data);
     }
     case "computer": {
       return systemNote`

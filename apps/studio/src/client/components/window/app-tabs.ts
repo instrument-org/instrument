@@ -5,7 +5,6 @@ import {
   BROWSER_HREF,
   chatGroupAtom,
   CHATS_HREF,
-  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -24,7 +23,7 @@ import {
   type TabsModel,
 } from "@/client/lib/tabs-model";
 import { instrumentFolderHref } from "@/shared/computer-href";
-import { type Tab, type TabId } from "@/shared/tabs";
+import { type TabId } from "@/shared/tabs";
 import { StoreId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
@@ -77,11 +76,7 @@ function siteGroupOf(id: string): string {
  * apps or an app, Discover, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf(
-  "studio.app-tabs.v1",
-  INBOX_HREF,
-  withoutNewTabPage,
-);
+export const appTabsAtom = tabsAtomOf("studio.app-tabs.v1", INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands
@@ -244,24 +239,6 @@ export function useAppTabs() {
 }
 
 /**
- * The window's tabs with the new-tab page, which is a draft's own face and
- * no route of the window's, read as the inbox wherever a tab stands on it
- * or has been at it.
- */
-export function withoutNewTabPage(model: TabsModel): TabsModel {
-  return {
-    ...model,
-    recentlyClosed: model.recentlyClosed.map(tabAsInbox),
-    tabs: model.tabs.map(tabAsInbox),
-  };
-}
-
-/** An address on the new-tab page as the inbox. */
-function newTabAsInbox(href: string) {
-  return href.split(/[?#]/)[0] === NEW_TAB_HREF ? INBOX_HREF : href;
-}
-
-/**
  * Where the rail takes a tab for a place: the chat at the one it last had
  * open, the computer at the Instrument folder, the browser's start, the
  * apps, and Discover. With no chat named, the chat is the inbox, which is
@@ -286,20 +263,4 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return instrumentFolderHref();
     }
   }
-}
-
-/** A tab standing on the new-tab page, or having been at it, as one at the inbox. */
-function tabAsInbox(tab: Tab): Tab {
-  return {
-    ...tab,
-    pathname: newTabAsInbox(tab.pathname),
-    ...(tab.history
-      ? {
-          history: {
-            ...tab.history,
-            entries: tab.history.entries.map(newTabAsInbox),
-          },
-        }
-      : {}),
-  };
 }

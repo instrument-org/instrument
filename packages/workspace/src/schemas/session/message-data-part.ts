@@ -691,7 +691,6 @@ export namespace SessionMessageDataPart {
       "skills",
       "task",
       "tasks",
-      "chat",
     ]),
     /** The one skill open on the Skills screen. */
     skill: z
@@ -706,13 +705,6 @@ export namespace SessionMessageDataPart {
     task: ViewedTaskSchema.optional(),
     /** The tasks listed on the Tasks screen. */
     tasks: z.array(ViewedTaskSchema).optional(),
-    /** The chat open beside the chat, when the message was sent from its screen. */
-    chat: z
-      .object({
-        id: z.string(),
-        title: z.string(),
-      })
-      .optional(),
     /** The screen's address in the window, the way a browser has one. */
     url: z.string().optional(),
   });

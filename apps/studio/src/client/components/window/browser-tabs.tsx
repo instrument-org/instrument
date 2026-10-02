@@ -592,7 +592,18 @@ export function BrowserTabs({
           }
           if (url && url !== "about:blank") {
             const title = webview.getTitle() || undefined;
-            patch(id, { title, url });
+            const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
+            patch(id, {
+              title,
+              url,
+              // A page on another site lets go of the last one's icon at
+              // once, so the tab wears the new site's straight away (from
+              // the site-icon cache) rather than the old page's until the
+              // new one announces its own.
+              ...(originOf(was) === originOf(url) && was?.startsWith("http")
+                ? {}
+                : { favicon: undefined }),
+            });
             const filePath = hostPathOfFileUrl(url);
             if (filePath === undefined) {
               // The new-tab page lists where the browser has been.

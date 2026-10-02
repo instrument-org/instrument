@@ -246,6 +246,8 @@ export type FileSystemProps = {
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
+  /** Controls drawn among the toolbar's own, between the filters and the search. */
+  renderHeaderActions?: () => React.ReactNode;
   /** Controls drawn at the toolbar's trailing end, after the search. */
   renderHeaderTrail?: () => React.ReactNode;
   /**
@@ -1521,6 +1523,7 @@ export function FileSystem({
   renderFileActions,
   renderFilePreview,
   renderFileStage,
+  renderHeaderActions,
   renderHeaderLead,
   renderHeaderTrail,
   renderTrailing,
@@ -2411,6 +2414,7 @@ export function FileSystem({
             onToggleFileType={toggleFileTypeFilterValue}
             showHiddenFiles={showHiddenFiles}
           />
+          {renderHeaderActions ? renderHeaderActions() : null}
           <FileSystemSearchField
             inputRef={searchInputRef}
             isExpanded={isSearchExpanded}

@@ -10,6 +10,7 @@ import {
   computerViewAtom,
   type FileTab,
   finderPlacesOpenAtom,
+  finderPlacesWidthAtom,
 } from "@/client/atoms/window";
 import {
   FileSystem,
@@ -25,6 +26,10 @@ import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrumen
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
+import {
+  type RailBounds,
+  StudioSidebarRail,
+} from "@/client/components/studio-sidebar-rail";
 import { useTheme } from "@/client/components/theme-provider";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -92,6 +97,7 @@ import { useAtom } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
   useLayoutEffect,
@@ -114,6 +120,18 @@ const FOLDER_VIEWS_KEPT = 500;
 
 /** Below this width, in CSS px (Tailwind's `@xl`), the places stand over the folder rather than beside it. */
 const NARROW_FINDER_PX = 576;
+
+/**
+ * How narrow and how wide the Finder's sidebar can be dragged, in CSS px,
+ * where it opens and goes back to on a double-click at its edge, and how far
+ * under its minimum a drag puts it away.
+ */
+const PLACES_BOUNDS: RailBounds = {
+  collapse: 110,
+  initial: 176,
+  max: 360,
+  min: 140,
+};
 
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
@@ -1084,6 +1102,71 @@ export function ComputerPage({
   const folderHostPath = isRecents
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
+  const onPlacesKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== "ArrowRight") {
+      return;
+    }
+    event.preventDefault();
+    enterListing();
+  };
+  const placeLists = (
+    <>
+      {/* What the conversation showed, before the places a person keeps things. */}
+      <PlaceList
+        onOpen={(folder) => {
+          rootTo(folder);
+        }}
+        places={[
+          {
+            icon: (
+              <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
+            ),
+            isActive: isRecents,
+            name: "Recents",
+            path: RECENTS_ROOT,
+          },
+        ]}
+      />
+      <PlaceList
+        label="Favorites"
+        menu={placeMenu}
+        onOpen={(folder) => {
+          rootTo(folder === homePath ? "~" : folder);
+        }}
+        places={places.data.favorites.map((place) => ({
+          // The home folder wears the house it wears in the Finder, which
+          // is what says the account-named folder is home.
+          icon:
+            place.path === homePath ? (
+              <HouseIcon className="size-4 text-muted-foreground" />
+            ) : (
+              <FileSystemFolderGlyph
+                className="h-3.5 w-auto"
+                {...(place.name === "Instrument"
+                  ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
+                  : {})}
+              />
+            ),
+          isActive: folderHostPath === place.path,
+          name: place.name,
+          path: place.path,
+        }))}
+      />
+      <PlaceList
+        label="Locations"
+        menu={placeMenu}
+        onOpen={(folder) => {
+          rootTo(folder);
+        }}
+        places={places.data.volumes.map((volume) => ({
+          icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
+          isActive: folderHostPath === volume.path,
+          name: volume.name,
+          path: volume.path,
+        }))}
+      />
+    </>
+  );
   return (
     // A container, so the places give the folder their room when the tab is
     // narrow: below it they stand over the folder, behind a toggle at the
@@ -1106,76 +1189,37 @@ export function ComputerPage({
           type="button"
         />
       )}
-      <nav
-        className={cn(
-          "flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm select-none",
-          isNarrow &&
-            "absolute inset-y-0 left-0 z-30 bg-background shadow-xl-soft",
-          !placesVisible && "hidden",
-        )}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowRight") {
-            return;
-          }
-          event.preventDefault();
-          enterListing();
-        }}
-      >
-        {/* What the conversation showed, before the places a person keeps things. */}
-        <PlaceList
-          onOpen={(folder) => {
-            rootTo(folder);
+      {isNarrow ? (
+        <nav
+          className={cn(
+            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft select-none",
+            !isPlacesOpen && "hidden",
+          )}
+          onKeyDown={onPlacesKeyDown}
+        >
+          {placeLists}
+        </nav>
+      ) : (
+        // Beside the folder the way the window's own rail is: its edge
+        // drags, an over-drag puts it away, and it slides at its width.
+        <StudioSidebarRail
+          bounds={PLACES_BOUNDS}
+          isOpen={isPlacesShown}
+          label="Resize the sidebar"
+          onCollapse={() => {
+            setPlacesShown(false);
           }}
-          places={[
-            {
-              icon: (
-                <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
-              ),
-              isActive: isRecents,
-              name: "Recents",
-              path: RECENTS_ROOT,
-            },
-          ]}
-        />
-        <PlaceList
-          label="Favorites"
-          menu={placeMenu}
-          onOpen={(folder) => {
-            rootTo(folder === homePath ? "~" : folder);
-          }}
-          places={places.data.favorites.map((place) => ({
-            // The home folder wears the house it wears in the Finder, which
-            // is what says the account-named folder is home.
-            icon:
-              place.path === homePath ? (
-                <HouseIcon className="size-4 text-muted-foreground" />
-              ) : (
-                <FileSystemFolderGlyph
-                  className="h-3.5 w-auto"
-                  {...(place.name === "Instrument"
-                    ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
-                    : {})}
-                />
-              ),
-            isActive: folderHostPath === place.path,
-            name: place.name,
-            path: place.path,
-          }))}
-        />
-        <PlaceList
-          label="Locations"
-          menu={placeMenu}
-          onOpen={(folder) => {
-            rootTo(folder);
-          }}
-          places={places.data.volumes.map((volume) => ({
-            icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
-            isActive: folderHostPath === volume.path,
-            name: volume.name,
-            path: volume.path,
-          }))}
-        />
-      </nav>
+          panelClassName="bg-background"
+          widthAtom={finderPlacesWidthAtom}
+        >
+          <nav
+            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
+            onKeyDown={onPlacesKeyDown}
+          >
+            {placeLists}
+          </nav>
+        </StudioSidebarRail>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
         <ContextMenu onOpenChange={setIsMenuOpen}>
           <ContextMenuTrigger asChild>
@@ -1333,35 +1377,36 @@ export function ComputerPage({
                         </span>
                       ),
                     })}
-                renderHeaderTrail={() => {
-                  const about =
-                    segmentsOf(
-                      hostPathOfItem(selectedItem) ||
-                        (folderOnScreenPath ?? ""),
-                    ).at(-1) ?? "this folder";
-                  return (
-                    <>
-                      <FolderOverflowMenu
-                        {...menuActionsFor(selectedItem)}
-                        item={selectedItem}
-                        onClosed={afterMenuClosed}
-                      />
-                      {askAbout &&
-                      (selectedItem || folderOnScreenPath !== undefined) ? (
-                        <GlyphButton
-                          className={TOOLBAR_CONTROL_CLASSNAME}
-                          onClick={() => {
-                            draftAbout(selectedItem);
-                          }}
-                          size="sm"
-                          title={`Ask about “${about}”`}
-                        >
-                          <span className="@max-lg/finder:sr-only">Ask</span>
-                        </GlyphButton>
-                      ) : null}
-                    </>
-                  );
-                }}
+                renderHeaderActions={() => (
+                  <FolderOverflowMenu
+                    {...menuActionsFor(selectedItem)}
+                    item={selectedItem}
+                    onClosed={afterMenuClosed}
+                  />
+                )}
+                renderHeaderTrail={
+                  askAbout && (selectedItem || folderOnScreenPath !== undefined)
+                    ? () => {
+                        const about =
+                          segmentsOf(
+                            hostPathOfItem(selectedItem) ||
+                              (folderOnScreenPath ?? ""),
+                          ).at(-1) ?? "this folder";
+                        return (
+                          <GlyphButton
+                            className={TOOLBAR_CONTROL_CLASSNAME}
+                            onClick={() => {
+                              draftAbout(selectedItem);
+                            }}
+                            size="sm"
+                            title={`Ask about “${about}”`}
+                          >
+                            <span className="@max-lg/finder:sr-only">Ask</span>
+                          </GlyphButton>
+                        );
+                      }
+                    : undefined
+                }
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}

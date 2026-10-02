@@ -511,6 +511,14 @@ export const finderPlacesOpenAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 );
 
+/** How wide the Finder's sidebar is, in CSS px, dragged at its right edge. One width for every Finder. */
+export const finderPlacesWidthAtom = atomWithStorage<number>(
+  "studio.finder-places-width.v1",
+  176,
+  undefined,
+  { getOnInit: true },
+);
+
 /** How wide the tree beside a file is, in CSS px, dragged at its right edge. One width for every file tab, as the tree is one way of working. */
 export const fileTreeWidthAtom = atomWithStorage<number>(
   "studio.file-tree-width.v1",

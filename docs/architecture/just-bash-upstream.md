@@ -2,7 +2,7 @@
 
 `just-bash` is the sandbox every agent `bash` call runs in, so its gaps do not surface as stack traces. They surface as an agent giving a confident wrong answer, or writing a prompt-shaped workaround into its own reasoning. That makes the accounting below worth keeping in one place: which build we consume, what we have patched or told the agent to avoid because of it, and what is open upstream.
 
-The failure mode this page exists to prevent is a workaround outliving the bug. Anything added to the two registers below needs a removal trigger recorded next to it. See also [agent-sandbox.md](agent-sandbox.md) for what the sandbox contains, and [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) for the mount layout.
+The failure mode this page exists to prevent is a workaround outliving the bug. Anything added to the registers below needs a removal trigger recorded next to it. See also [agent-sandbox.md](agent-sandbox.md) for what the sandbox contains, and [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) for the mount layout.
 
 ## What we consume
 
@@ -75,6 +75,14 @@ Text we put in front of the model, or commands we withhold from it, because of a
 
 `which` is in that table because it is withheld, not because it is pending. The `createWhichCommand` stub answers from the actual registered command set, so it knows the custom shims (`python`, `agent-browser`, `ffmpeg`) that a filesystem-based `which` cannot see, and it is registered as a custom command, which shadows the built-in whether or not the name is withheld. It belongs with the permanent adaptations rather than the workarounds: the `npm` stub pointing at `pnpm` is a product choice about which package manager tasks use, and the `<system_info>` line telling the agent its shell is GNU coreutils rather than BSD is a description of what just-bash is.
 
+## Filesystem workarounds
+
+Code in our own filesystem layer that stands in for an upstream fix, kept out of the patch because it can live downstream (see [decisions/2026-08-27-no-local-just-bash-patches.md](../decisions/2026-08-27-no-local-just-bash-patches.md)).
+
+| where | what it does | upstream gap | remove when |
+| --- | --- | --- | --- |
+| `ReadWriteFsWithRmdir` in `lib/read-write-fs-with-rmdir.ts`, which `buildBashFs` mounts in place of `ReadWriteFs` on every writable mount | A non-recursive `rm` of a directory removes it with `rmdir(2)`, which fails `ENOTEMPTY` on one that is not empty; the mount root answers `EBUSY`. Recursive removal, files, and symlinks go through `ReadWriteFs` unchanged, and `rm` without `-r` still refuses a directory before it reaches the filesystem | `rmdir` and `find -delete` call `fs.rm(path, { recursive: false })`, and `ReadWriteFs.rm` passes that to Node's `fs.promises.rm`, which refuses every directory with `EISDIR`, so both failed on `/task`, a writable `/mnt`, `/project`, `/apps`, and `/skills/workspace` with `rmdir: failed to remove 'x': ERR_FS_EISDIR: rm '/x'`. `InMemoryFs` and `OverlayFs` allow it, so upstream's tests pass. Unfixed on `main`; no issue filed yet | `ReadWriteFs.rm` removes an empty directory without `recursive` in the version we install; swap the class back to `ReadWriteFs` in `buildBashFs` and keep `create-bash-env-rmdir.test.ts` as the guard |
+
 ## Open upstream pull requests
 
 Ours, all against `vercel-labs/just-bash`, plus the other people's PRs that overlap them, since a maintainer picking between two fixes for one bug is the likeliest way any of these lands. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1, nor in 3.4.2, a packaging-only release (#381). Several merged to `main` after 3.4.2 and were published in 3.6.0 (the 3.5.0 release PR, #387, merged but its publish job failed), which we do not install yet: #414 (see the table), #444 and #377 (not ours, see the table), #363 (`ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F`, `-R` sections ordered by the sort key), #391 (`ln`: a refused symlink reported as a symlink failure rather than as a hard link on a directory), and #365 (`file`: gzip read from the header instead of inflated, which is the one that reached the host: on 3.4.1 `file` on a gzip leaks an `AbortError` unhandled rejection into Electron's main process after `exec()` has resolved, attributed to nothing). #313 (`allowNestedMounts` on `MountableFs`) was closed by us as speculative, and #423 in favor of #444. #428 and #429 are the `js-exec` rows above.
@@ -134,7 +142,7 @@ npm view just-bash time --json                   # when each version published, 
 pnpm why just-bash                               # what we resolve to
 ```
 
-When the published version moves, walk both registers above and delete every row whose trigger has fired, including the prompt text, then drop those parts from `patches/just-bash-sources/sources.json` and rebuild the patch against the new tag. Removing a stale line from the `sqlite3` description matters as much as dropping a patch: a model told a working command is broken will route around it for as long as the sentence survives.
+When the published version moves, walk the registers above and delete every row whose trigger has fired, including the prompt text, then drop those parts from `patches/just-bash-sources/sources.json` and rebuild the patch against the new tag. Removing a stale line from the `sqlite3` description matters as much as dropping a patch: a model told a working command is broken will route around it for as long as the sentence survives.
 
 Verify against the installed build rather than the changelog. `packages/workspace/scripts/run-bash.ts` boots the same sandbox the agent gets, so a claim about behavior is one command away:
 

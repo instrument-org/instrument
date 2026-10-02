@@ -4,12 +4,22 @@ import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { useAtomValue } from "jotai";
+import { freshTabId } from "@/client/lib/tab-actions";
+import { reopenClosed } from "@/client/lib/tabs-model";
+import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { groupOfHref, INBOX_HREF, isChatHref, isSiteHref } from "./app-tabs";
+import {
+  appTabsAtom,
+  groupOfHref,
+  INBOX_HREF,
+  isChatHref,
+  isSiteHref,
+  putAwaySitesAtom,
+} from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { ClosedTabsMenu } from "./closed-tabs-menu";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
@@ -41,6 +51,10 @@ export function AppTabStrip({
 }) {
   const appsBySlug = useAppsBySlug();
   const { activeByGroup, tabs: groupTabs } = useAtomValue(windowTabsAtom);
+  const [{ recentlyClosed }, setAppTabs] = useAtom(appTabsAtom);
+  // A closed site's page is kept aside rather than among the group's tabs,
+  // and is what its entry in the closed list is named by.
+  const putAway = useAtomValue(putAwaySitesAtom);
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   useEffect(() => {
@@ -64,7 +78,8 @@ export function AppTabStrip({
   const presentationOf = (href: string): { icon: ReactNode; title: string } => {
     if (isSiteHref(href)) {
       const group = groupOfHref(href);
-      const own = groupTabs.filter((tab) => tab.group === group);
+      const open = groupTabs.filter((tab) => tab.group === group);
+      const own = open.length > 0 ? open : (putAway[group ?? ""] ?? []);
       const up =
         own.find((tab) => tab.id === activeByGroup?.[group ?? ""]) ?? own[0];
       if (up?.kind === "page") {
@@ -83,6 +98,15 @@ export function AppTabStrip({
       taskTitles: childTitles,
     });
   };
+
+  // The closed tabs that would come back as they were: a site's page is kept
+  // only for this launch, and one closed before it would reopen on nothing.
+  const reopenable = recentlyClosed.flatMap((tab, entry) => {
+    const group = isSiteHref(tab.pathname)
+      ? groupOfHref(tab.pathname)
+      : undefined;
+    return group !== undefined && !putAway[group] ? [] : [{ entry, tab }];
+  });
 
   const presented = tabs.map((tab) => ({
     key: tab.id,
@@ -113,6 +137,21 @@ export function AppTabStrip({
             setMenu({ id, x: event.clientX, y: event.clientY });
           }
         }}
+        newMenu={
+          <ClosedTabsMenu
+            closed={reopenable.map(({ tab }) =>
+              presentationOf(tab.pathname || INBOX_HREF),
+            )}
+            onReopen={(row) => {
+              const entry = reopenable[row]?.entry;
+              if (entry !== undefined) {
+                setAppTabs((current) =>
+                  reopenClosed(current, { entry, id: freshTabId() }),
+                );
+              }
+            }}
+          />
+        }
         onNew={onNew}
         onReorder={(keys) => {
           onReorder(

@@ -1,4 +1,8 @@
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -98,6 +102,7 @@ export function TabStrip({
   groupKey,
   onClose,
   onContextMenu,
+  newMenu,
   onNew,
   onReorder,
   onSelect,
@@ -112,6 +117,8 @@ export function TabStrip({
   onClose: (key: string) => void;
   /** A right click on a tab, for a menu the caller draws. */
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
+  /** What a right click on the plus offers: a menu's content, the tabs closed lately. */
+  newMenu?: ReactNode;
   onNew?: () => void;
   onReorder: (keys: string[]) => void;
   onSelect: (key: string) => void;
@@ -364,15 +371,20 @@ export function TabStrip({
               once they fill it. It is not one of the values, so the drag
               never counts it. */}
           {onNew ? (
-            <ToolbarTooltip chord="newTab" label="New tab">
-              <button
-                className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-                onClick={onNew}
-                type="button"
-              >
-                <PlusIcon className="size-4" />
-              </button>
-            </ToolbarTooltip>
+            <ContextMenu>
+              <ToolbarTooltip chord="newTab" label="New tab">
+                <ContextMenuTrigger asChild disabled={newMenu === undefined}>
+                  <button
+                    className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
+                    onClick={onNew}
+                    type="button"
+                  >
+                    <PlusIcon className="size-4" />
+                  </button>
+                </ContextMenuTrigger>
+              </ToolbarTooltip>
+              {newMenu}
+            </ContextMenu>
           ) : null}
         </Reorder.Group>
       </div>

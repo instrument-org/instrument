@@ -434,9 +434,7 @@ export function TaskBrowserPanel({
     ]);
     // Said, since nothing on the page itself changes: it shows on the
     // browser's starting view, where it can be renamed.
-    toast("Added to Bookmarks", {
-      ...(title ? { description: title } : {}),
-    });
+    toast("Added to Bookmarks", title ? { description: title } : {});
   };
 
   return (

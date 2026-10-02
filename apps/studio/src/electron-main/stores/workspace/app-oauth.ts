@@ -5,6 +5,7 @@ import {
   type McpOAuthStore,
   type OAuthClientInformationFull,
   type OAuthTokens,
+  type OriginBound,
 } from "@instrument-org/workspace/electron";
 import { safeStorage } from "electron";
 import Store from "electron-store";
@@ -13,13 +14,14 @@ interface AppOAuthStoreShape {
   flows: Record<string, OAuthFlowRecord>;
 }
 
-// One OAuth flow per app slug: the client registration, the access and
-// refresh tokens, and transient PKCE material for an in-flight authorization.
+// One OAuth flow per app slug: the client registration and the access and
+// refresh tokens, each with the origin of the server it was obtained for, and
+// transient PKCE material for an in-flight authorization.
 interface OAuthFlowRecord {
-  clientInformation?: OAuthClientInformationFull;
+  clientInformation?: OriginBound<OAuthClientInformationFull>;
   codeVerifier?: string;
   state?: string;
-  tokens?: OAuthTokens;
+  tokens?: OriginBound<OAuthTokens>;
 }
 
 // Encrypted at rest through safeStorage (plaintext only in dev), like the
@@ -29,6 +31,19 @@ let STORE: null | Store<AppOAuthStoreShape> = null;
 
 function getFlow(slug: string): OAuthFlowRecord {
   return getStore().get("flows")[slug] ?? {};
+}
+
+/**
+ * A stored value only when it carries the origin it was obtained for. The
+ * file is read without a schema, so one written before values were bound to
+ * an origin reads as absent and the app signs in again.
+ */
+function withOrigin<T>(
+  stored: OriginBound<T> | undefined,
+): OriginBound<T> | undefined {
+  return typeof stored?.origin === "string" && stored.value !== undefined
+    ? stored
+    : undefined;
 }
 
 function getStore(): Store<AppOAuthStoreShape> {
@@ -115,10 +130,10 @@ export const appOAuthStore: McpOAuthStore = {
     return Promise.resolve();
   },
   getClientInformation: (slug) =>
-    Promise.resolve(getFlow(slug).clientInformation),
+    Promise.resolve(withOrigin(getFlow(slug).clientInformation)),
   getCodeVerifier: (slug) => Promise.resolve(getFlow(slug).codeVerifier),
   getState: (slug) => Promise.resolve(getFlow(slug).state),
-  getTokens: (slug) => Promise.resolve(getFlow(slug).tokens),
+  getTokens: (slug) => Promise.resolve(withOrigin(getFlow(slug).tokens)),
   saveClientInformation: (slug, info) => {
     setFlow(slug, { clientInformation: info });
     return Promise.resolve();

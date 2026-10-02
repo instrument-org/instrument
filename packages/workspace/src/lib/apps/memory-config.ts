@@ -1,5 +1,6 @@
 import { type WorkspaceAppsConfig } from "../../types";
 import { type AppConnection } from "./connection";
+import { type StoredAppCredential } from "./origin-bound";
 
 /**
  * Apps kept in memory: what a headless context (tests, the sandbox script,
@@ -9,7 +10,7 @@ import { type AppConnection } from "./connection";
 export function createMemoryAppsConfig({
   credentials = {},
 }: {
-  credentials?: Record<string, string>;
+  credentials?: Record<string, StoredAppCredential>;
 } = {}): WorkspaceAppsConfig {
   const keys = new Map(Object.entries(credentials));
   const connections = new Map<string, AppConnection>();

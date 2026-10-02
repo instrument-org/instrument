@@ -20,6 +20,7 @@ export {
   AppSlugSchema,
   isMcpManifest,
 } from "./lib/apps/manifest";
+export { requireAppCredential } from "./lib/apps/credential-origin";
 export {
   callMcpTool,
   listMcpTools,
@@ -40,6 +41,11 @@ export {
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 export { withAppMcpClient } from "./lib/apps/mcp/run";
 export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
+export {
+  credentialOrigin,
+  type OriginBound,
+  type StoredAppCredential,
+} from "./lib/apps/origin-bound";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";

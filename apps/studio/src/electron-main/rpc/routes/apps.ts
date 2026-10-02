@@ -9,6 +9,7 @@ import { appOAuthStore } from "@/electron-main/stores/workspace/app-oauth";
 import {
   AppConnectionSchema,
   appHomeFor,
+  credentialOrigin,
   appSiteFor,
   AppSlugSchema,
   beginMcpOAuth,
@@ -23,6 +24,7 @@ import {
   readAppGuide,
   recordConnection,
   removeLocalServer,
+  requireAppCredential,
   runAppTest,
   withAppMcpClient,
   workspacePublisher,
@@ -285,7 +287,6 @@ async function withInspectorClient<T>({
 }: {
   context: {
     workspaceConfig: {
-      apps: { getCredential: (slug: string) => Promise<null | string> };
       appsDir: Parameters<typeof loadApp>[0];
     };
   };
@@ -309,10 +310,14 @@ async function withInspectorClient<T>({
   if (!isMcpManifest(manifest)) {
     throw errors.NOT_FOUND({ message: `${slug} is not an MCP app.` });
   }
-  const credential =
-    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-      ? null
-      : await context.workspaceConfig.apps.getCredential(slug);
+  let credential: null | string;
+  try {
+    credential = await requireAppCredential(slug, manifest);
+  } catch (error) {
+    throw errors.API_ERROR({
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
   const result = await withAppMcpClient({
     credential,
     manifest,
@@ -399,8 +404,17 @@ const cancelOAuth = base
  */
 const setCredential = base
   .input(z.object({ slug: AppSlugSchema, value: z.string().min(1) }))
-  .handler(async ({ context, input, signal }) => {
-    setAppCredential(input.slug, input.value);
+  .handler(async ({ context, errors, input, signal }) => {
+    // The key is approved for where the manifest sends it right now, and
+    // goes nowhere else: a manifest pointed elsewhere later asks again.
+    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    setAppCredential(input.slug, {
+      origin: credentialOrigin(loaded.value.manifest),
+      value: input.value,
+    });
     const report = await runAppTest({
       appsDir: context.workspaceConfig.appsDir,
       signal: signal ?? AbortSignal.timeout(60_000),

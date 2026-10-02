@@ -506,11 +506,20 @@ function locationText(location: TabLocation) {
   }
 }
 
-/** What another app can open of the place: a file, or a site's address. */
+/**
+ * What another app can open of the place: a file, a folder (which the
+ * computer's file manager opens standing in it), or a site's address. The
+ * recents are a list rather than a folder, and have no path to hand over.
+ */
 function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
   switch (location.kind) {
     case "file": {
       return { hostPath: location.path };
+    }
+    case "folder": {
+      return location.path
+        ? { hostPath: expandHomePath(location.path, window.api.homeDir) }
+        : undefined;
     }
     case "page": {
       return openInAppTargetOfUrl(location.url);

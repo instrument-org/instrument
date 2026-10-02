@@ -137,6 +137,19 @@ export async function getFileOpenCandidates(
 export async function getFileOpenTarget(
   fullPath: string,
 ): Promise<FileOpenTarget> {
+  const isFolder = await fs
+    .stat(fullPath)
+    .then((stats) => stats.isDirectory())
+    .catch(() => false);
+  // Every folder opens in the same app, and a dot in a folder's name is not a
+  // type: keyed by its extension, `notes.d` would answer for `.d` files.
+  if (isFolder) {
+    return getCachedTarget(
+      FOLDER_CANDIDATES_KEY,
+      () => resolveTarget(fullPath),
+      () => fallbackTarget(fullPath),
+    );
+  }
   const ext = path.extname(fullPath).toLowerCase();
 
   // Extension-less files can't share a cache key across files, so resolve them

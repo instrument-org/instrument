@@ -248,18 +248,18 @@ function TaskBrief({ task }: { task: Task }) {
       </span>
       <EffortChip task={task} />
       {folders.map((folder) => (
-          <span
-            className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
-            key={folder.id}
-            title={`${folder.path} · ${folder.access}`}
-          >
-            <MacFolderIcon className="size-4 shrink-0" />
-            <span className="truncate font-medium">{folder.mountName}</span>
-            <span className="text-muted-foreground">
-              {folder.access === "read-write" ? "read, write" : "read"}
-            </span>
+        <span
+          className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
+          key={folder.id}
+          title={`${folder.path} · ${folder.access}`}
+        >
+          <MacFolderIcon className="size-4 shrink-0" />
+          <span className="truncate font-medium">{folder.mountName}</span>
+          <span className="text-muted-foreground">
+            {folder.access === "read-write" ? "read, write" : "read"}
           </span>
-        ))}
+        </span>
+      ))}
       <AppsChip apps={task.apps} />
       {heldTabs.map((sessionId) => (
         <HeldTabChip key={sessionId} sessionId={sessionId} />

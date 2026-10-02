@@ -93,7 +93,8 @@ export function getWindowState(
   size?: { height: number; width: number },
 ) {
   const stored =
-    getStore().store.windows?.[name] ?? getStore().store.windows?.[FORMER_NAMES[name]];
+    getStore().store.windows?.[name] ??
+    getStore().store.windows?.[FORMER_NAMES[name]];
   const defaults = getDefaultState(size);
 
   // Merge stored state with defaults to handle partial/corrupted data

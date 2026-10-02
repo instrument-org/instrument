@@ -4,7 +4,10 @@ import {
   getAppCredential,
   removeAppCredential,
 } from "@/electron-main/stores/workspace/app-credentials";
-import { appOAuthStore, clearAppOAuth } from "@/electron-main/stores/workspace/app-oauth";
+import {
+  appOAuthStore,
+  clearAppOAuth,
+} from "@/electron-main/stores/workspace/app-oauth";
 import { PORTS } from "@instrument-org/shared";
 import {
   appHomeFor,

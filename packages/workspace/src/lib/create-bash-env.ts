@@ -514,9 +514,9 @@ export function createBashDescription({
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...customCommandDefs().filter((cmd) => cmd.listInDescription).map(
-      (cmd) => `  ${cmd.name} - ${cmd.description}`,
-    ),
+    ...customCommandDefs()
+      .filter((cmd) => cmd.listInDescription)
+      .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 

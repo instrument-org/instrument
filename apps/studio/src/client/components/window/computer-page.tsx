@@ -22,6 +22,7 @@ import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -77,7 +78,6 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClo
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
-import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -1644,8 +1644,8 @@ function FolderMenuItems({
       {onNewDraft ? (
         <>
           <Item onClick={onNewDraft}>
-            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>New Chat</span>
+            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
+            <span>Ask</span>
           </Item>
           {/* Nothing comes after it on a folder's More menu. */}
           {item || !newFolderFirst ? <Separator /> : null}
@@ -2133,8 +2133,8 @@ function PlaceMenu({
       {onNewDraft ? (
         <>
           <ContextMenuItem onClick={onNewDraft}>
-            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>New Chat</span>
+            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
+            <span>Ask</span>
           </ContextMenuItem>
           <ContextMenuSeparator />
         </>

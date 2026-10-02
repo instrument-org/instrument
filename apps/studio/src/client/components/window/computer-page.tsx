@@ -291,6 +291,11 @@ export function ComputerPage({
   // It takes only a starting folder, so a Recent entry, the omnibox, or
   // history landing here while the screen is up opens it again there.
   const [openings, setOpenings] = useState(0);
+  // Whether the address on screen was handed to the page rather than written
+  // by it, until the browser has caught up with it: the folder the browser
+  // first settles on there stands for that address, and replaces it rather
+  // than stepping past it.
+  const arrived = useRef(true);
   useEffect(() => {
     const here = `${root}#${path}`;
     const [writtenRoot] = written.current.split("#");
@@ -299,6 +304,7 @@ export function ComputerPage({
     }
     const rootChanged = root !== writtenRoot;
     written.current = here;
+    arrived.current = true;
     setCurrent(path);
     setSelectedPath(select ?? null);
     setLoaded((previous) => ({
@@ -686,25 +692,54 @@ export function ComputerPage({
     }
     keepLook({ sort, view: shown.view });
   };
+  // The folder on screen as the address last had it. An address arriving
+  // from outside (back, forward, the sidebar) changes `path` a render before
+  // the browser is reopened there, and in that render `onScreen` is still the
+  // folder being left: written to the address then, it put back the folder
+  // back had just left, so one press of back never moved the Finder. Only the
+  // folder on screen moving is a step of the page's own.
+  const lastOnScreen = useRef(path);
   useEffect(() => {
-    if (!settled || onScreen === path) {
+    if (!settled) {
       return;
     }
-    written.current = `${root}#${onScreen}`;
-    if (onLocationChange) {
-      onLocationChange({ path: onScreen, root });
+    if (onScreen === path) {
+      lastOnScreen.current = onScreen;
+      arrived.current = false;
       return;
     }
-    void navigate({
-      replace: true,
-      search: (previous) => ({
-        ...previous,
-        path: onScreen,
-        root,
-        select: undefined,
-      }),
-      to: "/files",
+    if (lastOnScreen.current === onScreen) {
+      return;
+    }
+    // Written once the folder has settled: going into a folder in the columns
+    // clears the selection a render before the browser stands in the folder,
+    // and the folder above, on screen for that one render, is no step.
+    const timer = setTimeout(() => {
+      lastOnScreen.current = onScreen;
+      written.current = `${root}#${onScreen}`;
+      const replace = arrived.current;
+      arrived.current = false;
+      if (onLocationChange) {
+        onLocationChange({ path: onScreen, root });
+        return;
+      }
+      // Each folder walked to is a step of the tab's history, so back and
+      // forward (the bar's arrows, the thumb buttons, the chords) walk the
+      // folders the way the Finder's own do.
+      void navigate({
+        replace,
+        search: (previous) => ({
+          ...previous,
+          path: onScreen,
+          root,
+          select: undefined,
+        }),
+        to: "/files",
+      });
     });
+    return () => {
+      clearTimeout(timer);
+    };
   }, [navigate, onLocationChange, onScreen, path, root, settled]);
 
   // The arrows work the moment a folder is on screen: the first row takes

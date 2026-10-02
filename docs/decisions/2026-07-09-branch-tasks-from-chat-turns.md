@@ -1,5 +1,7 @@
 # Branch tasks from chat turns
 
+> Superseded by the 2.0 merge: branching went with the classic 1.x window in `a73917f45` (merged to main in `2d90d6270`), and 2.0 has no branch action.
+
 ## Context
 
 Duplicating an entire task could not express the common intent to continue from an earlier point in its conversation. It also made branching look like a task management action instead of a choice made at the relevant assistant turn.

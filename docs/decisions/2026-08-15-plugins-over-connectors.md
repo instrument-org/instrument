@@ -1,5 +1,7 @@
 # Plugins over connectors
 
+> Partly overtaken: 2.0 apps (merged in `2d90d6270`) connect a service as a folder holding `app.json`, mounted at `/apps/<slug>/`, and leave the plugin layout below for later; see [instrument-2-0-apps.md](../plans/completed/instrument-2-0-apps.md).
+
 Date: 2026-08-15
 
 ## Status

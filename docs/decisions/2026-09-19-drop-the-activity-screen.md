@@ -2,7 +2,7 @@
 
 Date: 2026-09-19
 
-Closes the open item in [plans/active/orchestrator-inbox.md](../plans/active/orchestrator-inbox.md) and the third piece of [plans/active/orchestrator-threads.md](../plans/active/orchestrator-threads.md).
+Closes the open item in [plans/completed/orchestrator-inbox.md](../plans/completed/orchestrator-inbox.md) and the third piece of [plans/completed/orchestrator-threads.md](../plans/completed/orchestrator-threads.md).
 
 ## Context
 

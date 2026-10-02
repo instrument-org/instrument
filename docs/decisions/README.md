@@ -11,20 +11,23 @@ Newest first. A struck-through entry has been superseded.
 | Date | Decision |
 | --- | --- |
 | 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) |
+| 2026-09-22 | [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md) |
 | 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
 | 2026-09-19 | [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md) |
 | 2026-09-11 | [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md) |
 | 2026-09-10 | [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md) |
+| 2026-09-10 | [Carry the just-bash cross-mount copy fix as a local patch until it is released](2026-09-10-carry-the-cross-mount-copy-patch.md) |
 | 2026-09-10 | [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md) |
 | 2026-09-09 | [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md) |
 | 2026-09-08 | [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md) |
-| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08 and 2026-09-09 |
+| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08, 2026-09-09, 2026-09-10 (twice), 2026-09-21 and 2026-09-22 |
 | 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
-| 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) |
+| 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) partly overtaken by 2.0 apps |
 | 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |
 | 2026-08-12 | [Try again runs the turn again rather than speaking for the user](2026-08-12-try-again-runs-the-turn-rather-than-speaking-for-the-user.md) |
 | 2026-08-12 | [No always-on budget across one step's tool results](2026-08-12-no-always-on-per-step-tool-result-budget.md) |
 | 2026-08-11 | [A retired data part is read and filtered, not migrated](2026-08-11-retired-parts-are-read-not-migrated.md) |
+| 2026-08-07 | [Node runs the agent's TypeScript, so the tsx and tsc shims are gone](2026-08-07-node-runs-typescript-natively.md) |
 | 2026-08-06 | [ffmpeg and ffprobe come from a fork, pinned to a release candidate](2026-08-06-ffmpeg-from-a-fork-at-a-release-candidate.md) |
 | 2026-07-31 | [pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md) |
 | 2026-07-29 | [Controls activate on release](2026-07-29-controls-activate-on-release.md) |
@@ -42,4 +45,4 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-15 | [Drop the agent tool in favor of attached-folder mounts](2026-07-15-drop-agent-tool-for-attached-folder-mounts.md) |
 | 2026-07-13 | [Workspace browser profile](2026-07-13-workspace-browser-profile.md) |
 | 2026-07-10 | [Managed agent-browser wrapper](2026-07-10-managed-agent-browser-wrapper.md) |
-| 2026-07-09 | [Branch tasks from chat turns](2026-07-09-branch-tasks-from-chat-turns.md) |
+| 2026-07-09 | ~~[Branch tasks from chat turns](2026-07-09-branch-tasks-from-chat-turns.md)~~ removed with the 1.x window in `a73917f45` |

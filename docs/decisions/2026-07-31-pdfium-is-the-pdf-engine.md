@@ -34,7 +34,7 @@ What remains genuinely impossible on pdfium is right-click Copy and Look Up. Chr
 
 Reverting to the `<iframe>` this branch replaced was reconsidered at the end and rejected. It is not a fidelity question: Chrome's built-in PDF viewer *is* pdfium, the same engine, so rendering would be identical — and it would hand back native selection, right-click Copy, Look Up, find and print for nothing, in about ten lines, with no dependency at all.
 
-What it costs is the reason the branch exists. PDF would become the only format with foreign chrome: no shared toolbar, no thumbnail rail, no zoom control matching the other four, and Chromium's own grey background instead of the app's theme — for the format people open most. An opaque frame also hands out no pixels, so it forecloses capturing a page for [thumbnails](../plans/active/document-thumbnails.md), and editing later stops being a plugin away.
+What it costs is the reason the branch exists. PDF would become the only format with foreign chrome: no shared toolbar, no thumbnail rail, no zoom control matching the other four, and Chromium's own grey background instead of the app's theme — for the format people open most. An opaque frame also hands out no pixels, so it forecloses capturing a page for [thumbnails](../plans/completed/document-thumbnails.md), and editing later stops being a plugin away.
 
 That trade is closer than it looks, and it turns on whether integrated chrome is worth more than a native context menu. It is worth revisiting if the beta says otherwise.
 

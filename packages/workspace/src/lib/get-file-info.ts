@@ -1,22 +1,12 @@
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
 
 import { type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
-
-export const CurrentFileInfoSchema = z.object({
-  filename: z.string(),
-  filePath: z.string(),
-  /** Where the file is on the computer, which is what a viewer reads it by. */
-  hostPath: z.string(),
-  mimeType: z.string(),
-  modifiedAt: z.number(),
-});
 
 export async function getCurrentFileInfo({
   filePath,

@@ -133,52 +133,6 @@ const live = {
 /** The directory: what the product knows how to reach before anyone connects it. */
 const catalog = base.handler(() => getAppCatalog());
 
-/** An app's guide, for its page. */
-const guide = base
-  .input(z.object({ slug: AppSlugSchema }))
-  .output(z.string().nullable())
-  .handler(async ({ context, errors, input }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (loaded.isErr()) {
-      throw errors.NOT_FOUND({ message: loaded.error.message });
-    }
-    return readAppGuide(loaded.value.dir);
-  });
-
-/** What a connected MCP app can do, for its page. */
-const tools = base
-  .input(z.object({ slug: AppSlugSchema }))
-  .output(z.array(z.object({ description: z.string(), name: z.string() })))
-  .handler(async ({ context, errors, input, signal }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (loaded.isErr()) {
-      throw errors.NOT_FOUND({ message: loaded.error.message });
-    }
-    const { manifest, manifestHash, slug } = loaded.value;
-    if (!isMcpManifest(manifest)) {
-      return [];
-    }
-    const credential =
-      manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-        ? null
-        : await context.workspaceConfig.apps.getCredential(slug);
-    const result = await withAppMcpClient({
-      credential,
-      manifest,
-      manifestHash,
-      run: (client) => listMcpTools(client),
-      signal,
-      slug,
-    });
-    if (result.isErr()) {
-      throw errors.API_ERROR({ message: result.error.message });
-    }
-    return result.value.map((tool) => ({
-      description: tool.description,
-      name: tool.name,
-    }));
-  });
-
 /**
  * Whether a tool may be pressed from the inspector: the server says it only
  * reads, and it is not one that brings something up on the screen, which a
@@ -569,7 +523,6 @@ export const apps = {
   catalog,
   disconnect,
   dismiss,
-  guide,
   inspect,
   list,
   live,
@@ -578,5 +531,4 @@ export const apps = {
   setCredential,
   startOAuth,
   test,
-  tools,
 };

@@ -98,4 +98,4 @@ Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs th
 - **UI**: shadcn in `src/client/components/ui`; shared in `src/client/components/`.
 - **Debug**: `routes/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
-- **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).
+- **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.live.me`, `plans.get`).

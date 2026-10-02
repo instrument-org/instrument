@@ -25,7 +25,9 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
 
-type Chat = InferRouterOutputs<typeof workspaceRouter>["chats"]["list"][number];
+type Chat = NonNullable<
+  InferRouterOutputs<typeof workspaceRouter>["chats"]["byId"]
+>;
 type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 
 export function shouldShowAgentCompletionNotification({

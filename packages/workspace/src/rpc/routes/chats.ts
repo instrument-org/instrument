@@ -86,6 +86,8 @@ const ChildTaskSchema = TaskSchema.extend({
   stoppable: z.boolean(),
 });
 
+export type ChildTask = z.output<typeof ChildTaskSchema>;
+
 /** The tasks a chat created, newest activity first. */
 async function childTasks(id: TaskId) {
   const tasks = await listChildTasks(id);
@@ -110,11 +112,6 @@ async function childTasks(id: TaskId) {
     }),
   );
 }
-
-const children = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(ChildTaskSchema.array())
-  .handler(({ input }) => childTasks(input.id));
 
 /**
  * Fires whenever something a filed task's row shows may have moved: a task
@@ -165,7 +162,7 @@ function childTaskChanges(signal: AbortSignal | undefined) {
   return collapsed(merged());
 }
 
-/** The same tasks, re-read whenever one of them may have changed. */
+/** A chat's tasks, re-read whenever one of them may have changed. */
 const liveChildTasksRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
@@ -186,11 +183,6 @@ const chatByIdRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(ChatSchema.optional())
   .handler(({ input }) => chatById(input.sessionId));
-
-/** The conversation's chats, oldest first. */
-const listChatsRoute = base
-  .output(ChatSchema.array())
-  .handler(() => listChats());
 
 /**
  * Fires whenever anything lands in any chat of the task, a chat's
@@ -331,7 +323,7 @@ async function* everyOne(generator: AsyncIterable<unknown>) {
   }
 }
 
-/** The same list, re-read on every change in any chat, bursts collapsed. */
+/** The chats, oldest first, re-read on every change in any chat, bursts collapsed. */
 const liveListChatsRoute = base
   .output(eventIterator(ChatSchema.array()))
   .handler(async function* ({ signal }) {
@@ -507,7 +499,6 @@ export const chats = {
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
-  list: listChatsRoute,
   live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
   of: chatOfRoute,
   rename: renameChatRoute,
@@ -515,7 +506,6 @@ export const chats = {
   seen: seenChatRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
-  tasks: children,
   taskStatus: childStatus,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,

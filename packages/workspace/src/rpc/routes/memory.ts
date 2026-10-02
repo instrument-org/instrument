@@ -29,11 +29,7 @@ async function readMemoryFolder() {
   return { dir, memories: await listMemories(dir) };
 }
 
-const listMemoryRoute = base
-  .output(MemoryFolderSchema)
-  .handler(() => readMemoryFolder());
-
-/** The same folder, re-read whenever a memory is saved, corrected, or forgotten. */
+/** The memory folder, re-read whenever a memory is saved, corrected, or forgotten. */
 const liveListMemoryRoute = base
   .output(eventIterator(MemoryFolderSchema))
   .handler(async function* ({ signal }) {
@@ -65,7 +61,6 @@ const forgetMemoryRoute = base
 
 export const memory = {
   forget: forgetMemoryRoute,
-  list: listMemoryRoute,
   live: { list: liveListMemoryRoute },
   sources: listMemorySourcesRoute,
 };

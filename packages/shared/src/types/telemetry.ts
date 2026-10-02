@@ -87,7 +87,6 @@ export interface AnalyticsEvents {
     provider_type: AIProviderType;
   };
   "session.created": never;
-  "session.removed": never;
   "session.run": never;
   "session.stopped": never;
   "subscribe.billing_cycle_changed": {

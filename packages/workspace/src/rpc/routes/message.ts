@@ -228,30 +228,6 @@ const create = base
       }),
   );
 
-const count = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema.optional(),
-    }),
-  )
-  .output(z.number())
-  .handler(async ({ errors, input }) => {
-    const { id, sessionId } = input;
-    const taskId = id;
-
-    const messageIds = sessionId
-      ? await Store.getMessageIds(sessionId, taskId)
-      : await Store.getAllMessageIds(taskId);
-
-    if (messageIds.isErr()) {
-      const error = toORPCError(messageIds.error, errors);
-      throw error;
-    }
-
-    return messageIds.value.length;
-  });
-
 const live = {
   list: base
     .input(
@@ -348,7 +324,6 @@ const live = {
 };
 
 export const message = {
-  count,
   create,
   list: listWithParts,
   live,

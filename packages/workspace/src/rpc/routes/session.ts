@@ -1,13 +1,10 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { isExpectedNetworkError } from "@instrument-org/shared";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { agentNameForTask } from "../../lib/agent-name-for-task";
-import { killSessionBackgroundProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
 import { cancelHold } from "../../lib/task-hold";
@@ -18,27 +15,6 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
 import { ToolNameSchema } from "../../tools/name";
 import { base, toORPCError } from "../base";
-import { publisher } from "../publisher";
-
-const byId = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .output(Session.Schema)
-  .handler(async ({ errors, input }) => {
-    const { id, sessionId } = input;
-    const taskId = id;
-    const session = await Store.getSession(sessionId, taskId);
-
-    if (session.isErr()) {
-      throw toORPCError(session.error, errors);
-    }
-
-    return session.value;
-  });
 
 const byIdWithMessagesAndParts = base
   .input(
@@ -85,68 +61,6 @@ const list = base
       (s.updatedAt ?? s.createdAt).getTime();
 
     return [...sessions.value].sort((a, b) => recency(b) - recency(a));
-  });
-
-const remove = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ context, errors, input }) => {
-    const { id, sessionId } = input;
-    const taskId = id;
-    const sessions = await Store.getSessions(taskId, {
-      includeChildSessions: true,
-    });
-    if (sessions.isErr()) {
-      throw toORPCError(sessions.error, errors);
-    }
-    const removedSessionIds = sessions.value
-      .filter(
-        (session) => session.id === sessionId || session.parentId === sessionId,
-      )
-      .map((session) => session.id);
-    // Cleanup is already bounded, and a process that will not confirm it stopped
-    // must not make its session undeletable: record it and remove the session
-    // anyway, so the stuck process is the only thing left to deal with.
-    await Promise.all(
-      removedSessionIds.map((removedSessionId) =>
-        killSessionBackgroundProcesses(removedSessionId).catch(
-          (error: unknown) => {
-            context.workspaceConfig.captureException(error);
-          },
-        ),
-      ),
-    );
-    const result = await Store.removeSession(sessionId, taskId);
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-
-    context.workspaceConfig.captureEvent("session.removed");
-  });
-
-const create = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(Session.Schema)
-  .handler(async ({ context, errors, input }) => {
-    const { id } = input;
-    const taskId = id;
-    const sessionResult = await createSession({
-      sessionId: StoreId.newSessionId(),
-      taskId,
-    });
-
-    if (sessionResult.isErr()) {
-      context.workspaceConfig.captureException(sessionResult.error);
-      throw toORPCError(sessionResult.error, errors);
-    }
-
-    return sessionResult.value;
   });
 
 // Run the agent over the session as it stands, with nothing added to it. What
@@ -287,36 +201,6 @@ const live = {
         await batches.return();
       }
     }),
-  list: base
-    .input(
-      z.object({
-        id: TaskIdSchema,
-        includeChildSessions: z.boolean().default(false),
-      }),
-    )
-    .handler(async function* ({ context, input, signal }) {
-      yield call(list, input, { context, signal });
-
-      const sessionUpdates = publisher.subscribe("session.updated", { signal });
-      const sessionRemoved = publisher.subscribe("session.removed", { signal });
-
-      async function* filterByTaskId(
-        generator: typeof sessionRemoved | typeof sessionUpdates,
-      ) {
-        for await (const payload of generator) {
-          if (payload.id === input.id) {
-            yield null;
-          }
-        }
-      }
-
-      for await (const _ of mergeGenerators([
-        filterByTaskId(sessionUpdates),
-        filterByTaskId(sessionRemoved),
-      ])) {
-        yield call(list, input, { context, signal });
-      }
-    }),
 };
 
 /**
@@ -372,13 +256,10 @@ const answerToolCall = base
 
 export const session = {
   answerToolCall,
-  byId,
   byIdWithMessagesAndParts,
   contextTokens,
-  create,
   list,
   live,
-  remove,
   run,
   stop,
   toMarkdown,

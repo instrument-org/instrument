@@ -7,8 +7,8 @@ import { useOnScreen } from "@/client/components/window/on-screen";
 import { useScreenTab } from "@/client/components/window/screen-tab";
 import { taskHref } from "@/client/components/window/tab-location";
 import { TaskPage } from "@/client/components/window/task-page";
-import { type RPCOutput } from "@/client/rpc/client";
 import {
+  type ChildTask,
   type StoreId,
   type TaskId,
   WINDOW_ID,
@@ -20,7 +20,7 @@ import { childTasksOptions } from "./child-tasks-query";
 
 /** How often the tasks are re-read for where they stand while one of these screens is up. */
 
-type Child = RPCOutput["workspace"]["chats"]["tasks"][number];
+type Child = ChildTask;
 
 /**
  * A chat's tasks as a screen in its tab group: the tasks filed from that

@@ -1,5 +1,3 @@
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
@@ -44,36 +42,14 @@ const set = base
 
     await setTaskState(taskDir(taskId), stateToSave);
 
-    // The state is read back off this stream, so a write has to push. A draft is
-    // not: it is seeded once with the rest of the task's state and never read
-    // again, so publishing one would wake every reader of this task once a
-    // second while someone types.
+    // What reads the state back listens for this, so a write has to push. A
+    // draft is not: it is seeded once with the rest of the task's state and
+    // never read again, so publishing one would wake every reader of this task
+    // once a second while someone types.
     if (Object.keys(stateToSave).some((key) => key !== "promptDraft")) {
       publisher.publish("task.stateUpdated", { id: taskId });
     }
   });
-
-const live = {
-  get: base
-    .input(z.object({ id: TaskIdSchema }))
-    .output(eventIterator(TaskStateSchema))
-    .handler(async function* ({ context, input, signal }) {
-      yield call(get, input, { context, signal });
-
-      // Both channels: a folder attach lands as a task update, a held tab
-      // change as a state update, and this stream is the reader of each.
-      const updates = mergeGenerators([
-        publisher.subscribe("task.updated", { signal }),
-        publisher.subscribe("task.stateUpdated", { signal }),
-      ]);
-
-      for await (const payload of updates) {
-        if (payload.id === input.id) {
-          yield call(get, input, { context, signal });
-        }
-      }
-    }),
-};
 
 /**
  * Attach a folder outside of a message: what answering an agent's request for
@@ -101,6 +77,5 @@ const attachFolder = base
 export const taskState = {
   attachFolder,
   get,
-  live,
   set,
 };

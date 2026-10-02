@@ -9,7 +9,7 @@ import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { type TypedError } from "../../../lib/errors";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
-import { getTask, getTasks } from "../../../lib/get-tasks";
+import { getTask } from "../../../lib/get-tasks";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
@@ -31,7 +31,7 @@ import { TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
-import { liveTaskActivity, taskActivity } from "./activity";
+import { liveTaskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
@@ -47,29 +47,6 @@ const byId = base
     }
 
     return result.value;
-  });
-
-const TasksWithTotalSchema = z.object({
-  tasks: TaskSchema.array(),
-  total: z.number(),
-});
-
-const ListInputSchema = z
-  .object({
-    direction: z.enum(["asc", "desc"]).optional(),
-    limit: z.number().optional(),
-    sortBy: z.enum(["createdAt", "updatedAt"]).optional(),
-  })
-  .default({
-    direction: "desc",
-    sortBy: "updatedAt",
-  });
-
-const list = base
-  .input(ListInputSchema)
-  .output(TasksWithTotalSchema)
-  .handler(async ({ context, input }) => {
-    return getTasks(context.workspaceConfig, input);
   });
 
 const create = base
@@ -311,13 +288,11 @@ const liveUsageSummary = base
   });
 
 export const task = {
-  activity: taskActivity,
   agentStatus: taskAgentStatus,
   backgroundProcesses: taskBackgroundProcesses,
   byId,
   create,
   files: taskFiles,
-  list,
   live: {
     ...live,
     activity: liveTaskActivity,

@@ -11,22 +11,6 @@ import { noop } from "radashi";
 
 import { isFileUrl, isHttpUrl } from "./window-open-policy";
 
-// Injected into the guest page: mouse thumb buttons are delivered to the page's
-// DOM, so traverse the guest's own history from there. Re-injected on each load;
-// the flag guards against adding the listener twice in one document.
-const MOUSE_NAV_SCRIPT = `(() => {
-  if (window.__instrumentMouseNav) return;
-  window.__instrumentMouseNav = true;
-  const offset = (e) => (e.button === 3 ? -1 : e.button === 4 ? 1 : 0);
-  addEventListener('mousedown', (e) => {
-    if (offset(e)) { e.preventDefault(); e.stopPropagation(); }
-  }, true);
-  addEventListener('mouseup', (e) => {
-    const d = offset(e);
-    if (d && e.isTrusted) { e.preventDefault(); e.stopPropagation(); history.go(d); }
-  }, true);
-})();`;
-
 /**
  * Where a link in the guest can go besides the guest itself: a tab of the
  * window's own, for a window that has tabs, and the checks a link must pass
@@ -39,24 +23,13 @@ export interface GuestLinkPlaces {
   openInNewTab?: (url: string) => void;
 }
 
-/** Wire user input the agent-browser guest needs to be usable directly: mouse
- * thumb-button navigation and a right-click context menu. */
+/** Wire user input the agent-browser guest needs to be usable directly: a
+ * right-click context menu. Thumb buttons over the page are the window's: see
+ * `handThumbsToWindow` in the page's preload. */
 export function attachGuestInteractions(
   guest: WebContents,
   places: GuestLinkPlaces,
 ) {
-  // `dom-ready` rather than `did-finish-load`, because the guard the script
-  // sets lives on the document and a navigation replaces it: waiting for the
-  // last subresource leaves a loaded, clickable page with no thumb-button
-  // handler on it for as long as the images take. Both fire, and the guard
-  // makes the second injection a no-op, so keeping the later one costs nothing
-  // and covers a document that reached load without a dom-ready.
-  const injectMouseNav = () => {
-    void guest.executeJavaScript(MOUSE_NAV_SCRIPT).catch(noop);
-  };
-  guest.on("dom-ready", injectMouseNav);
-  guest.on("did-finish-load", injectMouseNav);
-
   guest.on("context-menu", (_event, params) => {
     Menu.buildFromTemplate(contextMenuTemplate(guest, params, places)).popup();
   });

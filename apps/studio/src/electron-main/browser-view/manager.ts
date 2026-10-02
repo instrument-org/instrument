@@ -84,10 +84,6 @@ export interface BrowserViewManager {
   // Every recorded target and whether its guest has attached yet. The renderer
   // pool mounts a guest for every id; the UI treats only attached ones as live.
   getTargets: () => BrowserGuestTarget[];
-  // If a browser guest has focus, navigate its own history and return true.
-  // Lets keyboard back/forward target the focused guest instead of the tab
-  // (mouse buttons are handled by the guest's own app-command).
-  navigateFocusedGuest: (direction: "back" | "forward") => boolean;
   // If a browser guest has focus, reload its own web content and return true.
   // Lets Cmd+R reload the focused guest rather than the window.
   reloadFocusedGuest: () => boolean;
@@ -103,7 +99,7 @@ export interface BrowserViewManager {
   // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
   // stuck `true` after focus moves to a plain host-page element), so
-  // navigateFocusedGuest/zoomFocusedGuest trust this instead.
+  // zoomFocusedGuest trusts this instead.
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
@@ -689,15 +685,6 @@ export function createBrowserViewManager(): BrowserViewManager {
     return wc && !wc.isDestroyed() ? wc : null;
   }
 
-  function navigateFocusedGuest(direction: "back" | "forward"): boolean {
-    const wc = focusedGuestWebContents();
-    if (!wc) {
-      return false;
-    }
-    navigateGuest(wc, direction);
-    return true;
-  }
-
   // The panel calls this to reconcile a guest's device emulation to the
   // currently-desired state every time it shows the guest (and whenever the
   // selected device changes): `device: null` clears any override, which also
@@ -768,7 +755,6 @@ export function createBrowserViewManager(): BrowserViewManager {
         id: entry.targetId,
         navigated: entry.navigated,
       })),
-    navigateFocusedGuest,
     reloadFocusedGuest,
     setEmulatedDevice,
     setGuestFocus,
@@ -812,18 +798,6 @@ function markNavigated(entry: BrowserEntry, url: string) {
   }
   entry.navigated = true;
   notifyEntriesChanged();
-}
-
-function navigateGuest(wc: WebContents, direction: "back" | "forward") {
-  if (wc.isDestroyed()) {
-    return;
-  }
-  const history = wc.navigationHistory;
-  if (direction === "back" && history.canGoBack()) {
-    history.goBack();
-  } else if (direction === "forward" && history.canGoForward()) {
-    history.goForward();
-  }
 }
 
 // Single notify for any change to the entry set: refresh the debug snapshot and

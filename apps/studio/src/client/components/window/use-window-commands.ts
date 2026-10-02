@@ -2,6 +2,7 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
+import { stepFocusedPage } from "@/client/lib/browser-pool";
 import {
   requestBrowserFind,
   requestBrowserReload,
@@ -39,6 +40,9 @@ const MODAL_SAFE_COMMANDS = new Set([
  * walks the renderer's own history on the same mouseup unless the page
  * consumes it, and that history is not the tab's: left alone, back moved the
  * tab one step and the renderer one step, and the second undid the first.
+ * Back and forward from the main process go to the page holding the keyboard
+ * first, which steps the way a thumb press over it does; a thumb press over
+ * the window's own chrome is the window's.
  */
 export function useWindowCommands(
   handlers: {
@@ -157,7 +161,9 @@ export function useWindowCommands(
           }
           switch (command) {
             case "back": {
-              latest.current.back();
+              if (!stepFocusedPage("back")) {
+                latest.current.back();
+              }
               break;
             }
             case "closeTab": {
@@ -177,7 +183,9 @@ export function useWindowCommands(
               break;
             }
             case "forward": {
-              latest.current.forward();
+              if (!stepFocusedPage("forward")) {
+                latest.current.forward();
+              }
               break;
             }
             case "newChat": {

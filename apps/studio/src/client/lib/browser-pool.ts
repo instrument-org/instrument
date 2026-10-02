@@ -359,8 +359,53 @@ export function initBrowserPool(): () => void {
 }
 
 /**
- * Takes the thumb buttons pressed over one page, for the surface showing it,
- * until the returned function lets them go. The latest surface to ask has
+ * A step back or forward for the page that holds the keyboard, the way a
+ * thumb press over it steps: a history chord pressed in a page reaches the
+ * window rather than the page, and is answered here first. False when no page
+ * holds the keyboard, and the window's own history is what steps.
+ */
+export function stepFocusedPage(direction: "back" | "forward"): boolean {
+  for (const [targetId, pooled] of pool) {
+    // Only a page on screen: a parked guest hands the keyboard back as it
+    // goes, and one that kept it is no page the person is looking at.
+    if (
+      document.activeElement === pooled.webview &&
+      paintOwners.has(targetId)
+    ) {
+      stepPage(targetId, direction);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * A step for one page: the surface showing it walks its tab, which runs out
+ * into the tab's own history at either end; with none, the page steps its
+ * own history, as a browser would.
+ */
+function stepPage(targetId: BrowserTargetId, direction: "back" | "forward") {
+  const handler = thumbHandlers.get(targetId);
+  if (handler) {
+    handler(direction);
+    return;
+  }
+  const webview = pool.get(targetId)?.webview;
+  try {
+    if (direction === "back" && webview?.canGoBack()) {
+      webview.goBack();
+    } else if (direction === "forward" && webview?.canGoForward()) {
+      webview.goForward();
+    }
+  } catch {
+    // Not attached yet: there is no history to step.
+  }
+}
+
+/**
+ * Takes the thumb buttons pressed over one page, and the history chords
+ * pressed in it, for the surface showing it, until the returned function lets
+ * them go. The latest surface to ask has
  * them, since it is the one drawing the page.
  */
 export function onPageThumb(
@@ -562,8 +607,8 @@ function ensureWebview(
   webview.addEventListener("blur", () => {
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
-  // A thumb button pressed over the page: the surface showing it walks its
-  // tab; with none, the page steps its own history, as a browser would.
+  // A thumb button pressed over the page, which steps it as a history chord
+  // pressed in it does.
   webview.addEventListener("ipc-message", (event) => {
     // The guest's message, as Electron's `<webview>` fires it.
     const { args, channel } = event as Event & {
@@ -573,21 +618,7 @@ function ensureWebview(
     if (channel !== PAGE_THUMB_CHANNEL) {
       return;
     }
-    const direction = args?.[0] === "forward" ? "forward" : "back";
-    const handler = thumbHandlers.get(targetId);
-    if (handler) {
-      handler(direction);
-      return;
-    }
-    try {
-      if (direction === "back" && webview.canGoBack()) {
-        webview.goBack();
-      } else if (direction === "forward" && webview.canGoForward()) {
-        webview.goForward();
-      }
-    } catch {
-      // Not attached yet: there is no history to step.
-    }
+    stepPage(targetId, args?.[0] === "forward" ? "forward" : "back");
   });
 
   container.append(webview);

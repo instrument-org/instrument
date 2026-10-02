@@ -132,21 +132,11 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
 ];
 
 /**
- * A focused browser guest navigates its own history, the way the main
- * window's does; otherwise the window's screens do.
+ * Back and forward go to the window, focused page or not: it steps the page
+ * holding the keyboard the way the surface showing that page walks it, which
+ * runs out into the tab's history at either end, and the tab otherwise.
  */
-const HISTORY_CHORDS: WindowChord[] = [
-  chord("back", () => {
-    if (!getBrowserViewManager()?.navigateFocusedGuest("back")) {
-      publisher.publish("window.command", "back");
-    }
-  }),
-  chord("forward", () => {
-    if (!getBrowserViewManager()?.navigateFocusedGuest("forward")) {
-      publisher.publish("window.command", "forward");
-    }
-  }),
-];
+const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 
 const WINDOW_CHORDS = [
   ...FILE_CHORDS,

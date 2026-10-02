@@ -11,8 +11,11 @@ import {
   searchAppCatalog,
 } from "../apps/catalog";
 import {
+  credentialMayReach,
+  credentialOriginOf,
   describeConnection,
   isConnected,
+  movedCredentialMessage,
   readConnection,
 } from "../apps/connection";
 import {
@@ -738,11 +741,13 @@ async function runNew(args: string[], context: AppCommandContext) {
   // A key already in the store outlives the manifest that asked for it, so
   // rewriting one to try another auth placement costs the user nothing: the
   // test reuses what they already pasted. Asking again for a key we hold is
-  // how one wrong placement turns into four trips to the card.
+  // how one wrong placement turns into four trips to the card. It stays with
+  // the address it was given for, though: a new base URL needs a new key.
   const stored =
     manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
       ? null
       : await getWorkspaceConfig().apps.getCredential(slug);
+  const givenFor = (await readConnection(slug))?.credentialOrigin;
   const next =
     manifest.auth.kind === "none"
       ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
@@ -750,7 +755,9 @@ async function runNew(args: string[], context: AppCommandContext) {
         ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
         : stored === null
           ? `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`
-          : `A key for this app is already stored: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`;
+          : givenFor !== undefined && givenFor !== credentialOriginOf(manifest)
+            ? `The stored key was given for ${new URL(givenFor).host} and is never sent anywhere else. Ask the user for a key for this address with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`
+            : `A key for this app is already stored: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`;
   return ok(
     `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
@@ -810,6 +817,9 @@ async function runRequest(
   );
   const piped = subprocessStdin(stdin)?.toString("utf8").trim();
   const body = piped || inlineBody?.trim() || undefined;
+  if (app.manifest.auth.kind !== "none" && !(await credentialMayReach(app))) {
+    throw new Error(await movedCredentialMessage(app));
+  }
   const config = getWorkspaceConfig();
   const credential = await config.apps.getCredential(app.slug);
   const result = await performAppRequest({

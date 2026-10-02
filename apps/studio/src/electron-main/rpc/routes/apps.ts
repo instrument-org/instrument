@@ -13,6 +13,7 @@ import {
   AppSlugSchema,
   beginMcpOAuth,
   cancelMcpOAuth,
+  credentialOriginOf,
   describeLocalLaunch,
   getAppCatalog,
   isConnected,
@@ -374,6 +375,37 @@ async function withInspectorClient<T>({
 }
 
 /**
+ * Refuse a key or a sign-in unless the app still points where the controls
+ * the user acted on said: it is given for that address, and an agent that
+ * rewrote the manifest while the controls were up does not get it.
+ */
+async function appAtOrigin({
+  appsDir,
+  errors,
+  origin,
+  slug,
+}: {
+  appsDir: Parameters<typeof loadApp>[0];
+  errors: {
+    API_ERROR: (options: { message: string }) => Error;
+    NOT_FOUND: (options: { message: string }) => Error;
+  };
+  origin: string | undefined;
+  slug: string;
+}) {
+  const loaded = await loadApp(appsDir, slug);
+  if (loaded.isErr()) {
+    throw errors.NOT_FOUND({ message: loaded.error.message });
+  }
+  const current = credentialOriginOf(loaded.value.manifest);
+  if (current !== origin) {
+    throw errors.API_ERROR({
+      message: `${loaded.value.manifest.name} now points at ${current === undefined ? "a server on this computer" : new URL(current).host}. Check the address and try again.`,
+    });
+  }
+}
+
+/**
  * Start a sign-in. Hands the authorization page's address back rather than
  * opening it: the window opens it in its own browser, where the callback
  * lands too.
@@ -383,6 +415,8 @@ const startOAuth = base
     z.object({
       /** Where the page opens, so the callback can land the right way. */
       opensIn: z.enum(["app", "external"]).default("app"),
+      /** The server the card named, which the sign-in is for. */
+      origin: z.string().optional(),
       slug: AppSlugSchema,
     }),
   )
@@ -393,6 +427,12 @@ const startOAuth = base
     ]),
   )
   .handler(async ({ context, errors, input }) => {
+    await appAtOrigin({
+      appsDir: context.workspaceConfig.appsDir,
+      errors,
+      origin: input.origin,
+      slug: input.slug,
+    });
     // The callback server is what the provider sends the browser back to, so
     // it has to be up, on a port this redirect names, before the flow starts.
     await startAuthCallbackServer();
@@ -444,9 +484,29 @@ const cancelOAuth = base
  * connection. The agent hears the outcome, never the key.
  */
 const setCredential = base
-  .input(z.object({ slug: AppSlugSchema, value: z.string().min(1) }))
-  .handler(async ({ context, input, signal }) => {
+  .input(
+    z.object({
+      /**
+       * The address the card named, which the key is given for; none for a
+       * server that runs on this computer.
+       */
+      origin: z.string().optional(),
+      slug: AppSlugSchema,
+      value: z.string().min(1),
+    }),
+  )
+  .handler(async ({ context, errors, input, signal }) => {
+    await appAtOrigin({
+      appsDir: context.workspaceConfig.appsDir,
+      errors,
+      origin: input.origin,
+      slug: input.slug,
+    });
     setAppCredential(input.slug, input.value);
+    await recordConnection(input.slug, {
+      credentialOrigin: input.origin,
+      status: (await appConnectionStore.get(input.slug))?.status ?? "needs-key",
+    });
     const report = await runAppTest({
       appsDir: context.workspaceConfig.appsDir,
       signal: signal ?? AbortSignal.timeout(60_000),

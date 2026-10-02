@@ -2,7 +2,11 @@ import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
-import { recordConnection } from "./connection";
+import {
+  credentialMayReach,
+  movedCredentialMessage,
+  recordConnection,
+} from "./connection";
 import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
@@ -142,7 +146,14 @@ export async function runAppTest({
   );
 
   const { apps } = getWorkspaceConfig();
-  const credential = await apps.getCredential(slug);
+  const storedCredential = await apps.getCredential(slug);
+  // A credential is only sent where the user gave it. One whose app now points
+  // elsewhere fails here, before the canary that would carry it there.
+  const moved =
+    app.manifest.auth.kind !== "none" && !(await credentialMayReach(app))
+      ? await movedCredentialMessage(app)
+      : undefined;
+  const credential = moved === undefined ? storedCredential : null;
   let missing: "approval" | "key" | "sign-in" | undefined;
   if (app.manifest.auth.kind === "none") {
     checks.push({
@@ -176,6 +187,9 @@ export async function runAppTest({
           "No sign-in is stored for this app. Ask the user to sign in with connect_app; the app connects on its own when they do.",
         ),
       });
+    } else if (moved !== undefined) {
+      missing = "sign-in";
+      checks.push({ name: "credential", ...failure(moved) });
     } else {
       checks.push({
         detail: "A sign-in is stored for this app.",
@@ -183,7 +197,7 @@ export async function runAppTest({
         status: "pass",
       });
     }
-  } else if (credential === null) {
+  } else if (storedCredential === null) {
     missing = "key";
     checks.push({
       name: "credential",
@@ -191,6 +205,9 @@ export async function runAppTest({
         "No key is stored for this app. Ask the user for one with connect_app, then test again.",
       ),
     });
+  } else if (moved !== undefined) {
+    missing = "key";
+    checks.push({ name: "credential", ...failure(moved) });
   } else {
     checks.push({
       detail: "A key is stored for this app.",
@@ -199,7 +216,10 @@ export async function runAppTest({
     });
   }
 
-  const findings = await scanAppFolder({ credential, dir: app.dir });
+  const findings = await scanAppFolder({
+    credential: storedCredential,
+    dir: app.dir,
+  });
   checks.push(
     findings.length > 0
       ? {

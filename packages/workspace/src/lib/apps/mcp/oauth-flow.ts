@@ -6,7 +6,11 @@ import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
-import { recordConnection } from "../connection";
+import {
+  credentialMayReach,
+  credentialOriginOf,
+  recordConnection,
+} from "../connection";
 import { loadApp } from "../store";
 import { type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
@@ -91,6 +95,13 @@ export async function beginMcpOAuth({
   // material so this flow starts clean.
   dropPendingFlowsForSlug(slug);
   await store.clearTransient(slug);
+  // Tokens and a client registration belong to the server that issued them.
+  // A manifest that now names another one starts a sign-in from nothing
+  // rather than handing that server the old tokens.
+  if (!(await credentialMayReach(loaded.value))) {
+    await store.clearTokens(slug);
+    await store.clearClientInformation(slug);
+  }
 
   // The SDK asks for the browser while `connect` runs, before it throws for
   // the authorization it now waits on. A holder object so control-flow
@@ -127,6 +138,7 @@ export async function beginMcpOAuth({
       await client.close().catch(noop);
       await recordConnection(slug, {
         connectedAt: now,
+        credentialOrigin: credentialOriginOf(manifest),
         manifestHash,
         status: "connected",
         toolCount: tools.tools.length,
@@ -237,8 +249,11 @@ export async function completeMcpOAuth({
     }
     // The connect and the list prove the app works, so it is connected now:
     // the user should not have to wait on a separate test after signing in.
+    // The tokens were issued for the server the flow started on, which is
+    // where they may go from now on.
     await recordConnection(flow.slug, {
       connectedAt: Date.now(),
+      credentialOrigin: new URL(flow.url).origin,
       manifestHash: loaded.value.manifestHash,
       status: "connected",
       toolCount: tools.tools.length,

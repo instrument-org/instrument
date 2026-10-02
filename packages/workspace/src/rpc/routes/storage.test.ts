@@ -170,7 +170,7 @@ describe("storage.invalidFolders", () => {
         },
         {
           "at": "chats/2026-10-01-fine/tasks/Bad Task",
-          "kind": "chat",
+          "kind": "chat-task",
           "name": "2026-10-01-fine/tasks/Bad Task",
           "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
         },

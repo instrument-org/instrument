@@ -1,4 +1,4 @@
-import { ok } from "neverthrow";
+import { ok, okAsync } from "neverthrow";
 import { createStorage } from "unstorage";
 import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
@@ -34,6 +34,12 @@ export function getSessionsStoreStorage(taskId: TaskId) {
     },
   };
   return ok(counted);
+}
+
+/** Nothing to close: every task shares the one in-memory storage. */
+export function disposeSessionsStoreStorage(taskId: TaskId) {
+  bumpStoreGeneration(taskId);
+  return okAsync(undefined);
 }
 
 beforeEach(async () => {

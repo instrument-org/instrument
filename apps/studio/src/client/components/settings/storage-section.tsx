@@ -141,7 +141,8 @@ function UnrecognizedFolders() {
   }
 
   const chats = folders.filter((folder) => folder.kind === "chat");
-  const tasks = folders.filter((folder) => folder.kind === "task");
+  // A task inside a chat is a task to the person, wherever its folder is.
+  const tasks = folders.filter((folder) => folder.kind !== "chat");
 
   return (
     <section className="space-y-4">

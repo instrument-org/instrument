@@ -760,6 +760,24 @@ describe("migrateLegacyTasks", () => {
     );
   });
 
+  it("leaves a task whose settings cannot be read where it is, for Storage to list", () => {
+    legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    const corrupt = path.join(root, "tasks", "2026-06-24-corrupt");
+    fs.mkdirSync(path.join(corrupt, ".instrument"), { recursive: true });
+    fs.writeFileSync(
+      path.join(corrupt, ".instrument", "settings.json"),
+      '{"name": "Half',
+    );
+
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 1,
+      leftOver: 0,
+    });
+    expect(fs.readdirSync(path.join(corrupt, ".instrument"))).toEqual([
+      "settings.json",
+    ]);
+  });
+
   it("leaves a task whose move fails where it was, lists no chat for it, and adopts it next boot", () => {
     const taskDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
     const rename = fs.renameSync.bind(fs);

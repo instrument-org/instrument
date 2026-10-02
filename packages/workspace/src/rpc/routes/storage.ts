@@ -12,7 +12,8 @@ import {
 import { chatsDir } from "../../lib/record-folders";
 import { base, toORPCError } from "../base";
 
-const InvalidFolderKindSchema = z.enum(["chat", "task"]);
+/** A chat's folder, a task's inside a chat, or a task's no chat owns. */
+const InvalidFolderKindSchema = z.enum(["chat", "chat-task", "task"]);
 
 const InvalidFolderSchema = z.object({
   kind: InvalidFolderKindSchema,
@@ -46,7 +47,6 @@ const listInvalidFolders = base
     ]);
     return [
       ...chats.map((folder) => ({
-        kind: "chat" as const,
         ...folder,
         path: absolutePathJoin(chatsDir(), folder.name),
       })),
@@ -64,13 +64,17 @@ const trashInvalidFolder = base
   .handler(async ({ context, errors, input: { kind, name } }) => {
     const trash = {
       chat: () => trashInvalidChatFolder(name, context.workspaceConfig),
+      "chat-task": () => trashInvalidChatFolder(name, context.workspaceConfig),
       task: () => trashInvalidTaskFolder(name, context.workspaceConfig),
     }[kind];
     const result = await trash();
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
-    context.workspaceConfig.captureEvent(`${kind}.invalid_folder_trashed`);
+    // A task inside a chat is counted with the tasks.
+    context.workspaceConfig.captureEvent(
+      `${kind === "chat" ? "chat" : "task"}.invalid_folder_trashed`,
+    );
   });
 
 export const storage = {

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listChats } from "../../lib/orchestrator/chats";
+import { listChats } from "../../lib/chat/chats";
 import {
   forgetRecordFolders,
   isChatId,
@@ -25,11 +25,11 @@ import { type WorkspaceRPCContext } from "../base";
 import { storage } from "./storage";
 
 // The chat list asks the machine what is running; none runs in a test.
-vi.mock(import("../../lib/orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  orchestratorActivity: () => Promise.resolve({ running: [] }),
+  chatActivity: () => Promise.resolve({ running: [] }),
 }));
-vi.mock(import("../../lib/orchestrator/ensure"), async (importOriginal) => ({
+vi.mock(import("../../lib/chat/ensure"), async (importOriginal) => ({
   ...(await importOriginal()),
   windowTaskId: () => Promise.resolve(TaskIdSchema.parse("window")),
 }));

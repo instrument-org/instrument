@@ -7,7 +7,7 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
-import { chatReadProblem } from "./orchestrator/chats";
+import { chatReadProblem } from "./chat/chats";
 import {
   chatsDir,
   forgetChat,

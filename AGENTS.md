@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
+- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. What the window keeps about the chats (seen marks, the tab on screen) is `.instrument/window.json` at the workspace root.
 
 ## Local references
 

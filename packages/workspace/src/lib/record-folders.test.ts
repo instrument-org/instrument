@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
+import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./generate-task-folder-name";
 import { getTasks } from "./get-tasks";
 import { initializeTask } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
 import {
+  chatIdOfTask,
   chatOfSession,
   forgetChatTask,
   forgetRecordFolders,
@@ -45,16 +47,12 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, parentTaskId?: string) {
+async function make(id: string, chatId?: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      initialSettings: {
-        name: id,
-        ...(parentTaskId
-          ? { parentTaskId: TaskIdSchema.parse(parentTaskId) }
-          : {}),
-      },
+      ...(chatId ? { chatId: TaskIdSchema.parse(chatId) } : {}),
+      initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -70,7 +68,6 @@ async function makeChat(name: string, sessionId = SESSION) {
     {
       initialSettings: {
         chatSessionId: sessionId,
-        kind: "chat",
         name: "Instrument",
       },
       taskId,
@@ -131,23 +128,32 @@ describe("record folders", () => {
       false,
     ]);
     const { tasks } = await getTasks(getWorkspaceConfig());
-    expect(tasks.map((task) => [task.id, task.parentTaskId ?? null]).sort())
-      .toMatchInlineSnapshot(`
+    expect(
+      tasks
+        .map((task) => [task.id, task.isChat, task.parentTaskId ?? null])
+        .sort(),
+    ).toMatchInlineSnapshot(`
       [
         [
           "2026-08-07-dinner-near-broadway",
+          false,
           null,
         ],
         [
           "2026-09-24-transcribe-a-note",
+          true,
           null,
         ],
         [
           "2026-09-24-transcribe-the-recording",
+          false,
           "2026-09-24-transcribe-a-note",
         ],
       ]
     `);
+    expect(chatIdOfTask(child)).toBe(chat);
+    expect(relative(taskDir(WINDOW_ID))).toBe(".instrument/window");
+    expect(recordIdTaken(WINDOW_ID)).toBe(true);
   });
 
   it("finds chats and their tasks from disk in a fresh process", async () => {

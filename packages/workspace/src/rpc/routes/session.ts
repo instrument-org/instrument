@@ -183,7 +183,7 @@ const run = base
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: await agentNameForTask(taskId),
+        agentName: agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,

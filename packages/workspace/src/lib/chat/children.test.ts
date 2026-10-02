@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { type TaskKind } from "../../schemas/task-kind";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { initializeTask } from "../initialize-task";
 import { forgetRecordFolders } from "../record-folders";
@@ -33,17 +33,12 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, parentTaskId?: string, kind?: TaskKind) {
+async function make(id: string, chatId?: TaskId) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      initialSettings: {
-        name: id,
-        ...(kind ? { kind } : {}),
-        ...(parentTaskId
-          ? { parentTaskId: TaskIdSchema.parse(parentTaskId) }
-          : {}),
-      },
+      ...(chatId ? { chatId } : {}),
+      initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -55,7 +50,6 @@ async function make(id: string, parentTaskId?: string, kind?: TaskKind) {
 
 describe("listChildTasks", () => {
   it("gives a chat its own tasks, the window every chat's, and a task none", async () => {
-    const window = await make("instrument", undefined, "chat");
     const one = chatFor();
     const two = chatFor();
     const first = await make("2026-09-26-first", one);
@@ -67,7 +61,7 @@ describe("listChildTasks", () => {
     };
 
     expect(await ids(one)).toEqual([first]);
-    expect(await ids(window)).toEqual([first, second]);
+    expect(await ids(WINDOW_ID)).toEqual([first, second]);
     // A task is not the window: asking it for its tasks never walks back into
     // every chat, which is a loop for anything that walks the tree.
     expect(await ids(first)).toEqual([]);

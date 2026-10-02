@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
-import { forgetChat } from "../../lib/record-folders";
+import { forgetChat, placeChatTask } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -27,19 +27,10 @@ beforeAll(() => {
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
+  fs.mkdirSync(placeChatTask(childTaskId, taskId), { recursive: true });
 });
 const otherTaskId = TaskIdSchema.parse("chat-other");
 const childTaskId = TaskIdSchema.parse("chat-child");
-
-vi.mock(import("../../lib/task-settings"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  getTaskSettings: (dir: string) =>
-    Promise.resolve(
-      dir.endsWith(childTaskId)
-        ? { kind: "task" as const, name: "Child", parentTaskId: taskId }
-        : undefined,
-    ),
-}));
 
 /** A child's bash call as it lands, in the state a tool part reaches. */
 const toolPart = (

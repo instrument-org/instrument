@@ -27,7 +27,7 @@ import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
-import { getTaskSettings } from "./task-settings";
+import { isChatId } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -221,16 +221,15 @@ export async function newMessage({
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned.
-  const settings = await getTaskSettings(taskDir(taskId));
-  const browserStatusPart =
-    settings?.kind === "chat"
-      ? undefined
-      : await createBrowserStatusPart({
-          createdAt,
-          messageId,
-          sessionId,
-          taskId,
-        });
+  const isChat = isChatId(taskId);
+  const browserStatusPart = isChat
+    ? undefined
+    : await createBrowserStatusPart({
+        createdAt,
+        messageId,
+        sessionId,
+        taskId,
+      });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
   }
@@ -253,7 +252,7 @@ export async function newMessage({
   // the chat by way of `task send`, so the same gap there measures how
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
-  if (settings?.kind === "chat") {
+  if (isChat) {
     const messageGap = await detectMessageGap({
       messageId,
       sentAt: createdAt,

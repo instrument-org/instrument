@@ -10,7 +10,7 @@ import {
 } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
   StoreId,
@@ -46,8 +46,8 @@ export function useDrafts({
   attachedFolders,
   compose,
   draftContext,
-  ids,
   isChat,
+  isOpen,
   openChat,
   saveDefaultModelURI,
   topics,
@@ -55,7 +55,7 @@ export function useDrafts({
 }: {
   /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
   activeHref: string;
-  /** The window record's granted folders, for how the agent reaches a file an ask is on. */
+  /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   attachedFolders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
@@ -63,15 +63,15 @@ export function useDrafts({
   draftContext: (
     draftId: string,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** The window's record, once it exists; no chat starts before it does. */
-  ids: RPCOutput["workspace"]["window"]["ensure"] | undefined;
   /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
+  /** Whether what the window opens on is made; no chat starts before it is. */
+  isOpen: boolean;
   /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
   openChat: (sessionId: StoreId.Session) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
-  /** The window record's topics, for the one the inbox stands in. */
+  /** The topics, for the one the inbox stands in. */
   topics: Topic[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
@@ -238,7 +238,7 @@ export function useDrafts({
    */
   const startChat = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
-    if (!draft || !ids || startingIds.has(id)) {
+    if (!draft || !isOpen || startingIds.has(id)) {
       return;
     }
     // Read at the press, while the draft's window and what its band has up

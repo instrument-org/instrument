@@ -1,11 +1,12 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   isFolderPath,
   StoreId,
   type TaskId,
+  WINDOW_ID,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -39,7 +40,7 @@ export function useOpeners({
   chatOfTask,
   chats,
   chatTitles,
-  ids,
+  isOpen,
   revealPane,
   setPaneOpen,
   windowTabs,
@@ -53,8 +54,8 @@ export function useOpeners({
   /** The chats the window has, once the list has been read. */
   chats: Chat[] | undefined;
   chatTitles: Map<StoreId.Session, string>;
-  /** The window's record, once it exists; a path is resolved against it, and nothing it asks for is opened before then. */
-  ids: RPCOutput["workspace"]["window"]["ensure"] | undefined;
+  /** Whether what the window opens on is made; nothing is opened before it is. */
+  isOpen: boolean;
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
@@ -278,13 +279,13 @@ export function useOpeners({
    *
    * A path a chat named is read against that chat's own record: its own
    * folder and grants are what `/task` and `/mnt` mean to it. The window's
-   * record reads it where no chat is in view.
+   * reach reads it where no chat is in view.
    */
   const hrefOfNamedPath = async (
     path: string,
     group: string | undefined,
   ): Promise<string | undefined> => {
-    if (!ids) {
+    if (!isOpen) {
       return;
     }
     const isFolder = isFolderPath(path);
@@ -305,7 +306,7 @@ export function useOpeners({
     const [error, hostPaths] = await safe(
       rpcClient.workspace.task.files.hostPaths.call({
         filePaths: [filePath],
-        taskId: record?.taskId ?? ids.taskId,
+        taskId: record?.taskId ?? WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];
@@ -486,14 +487,14 @@ export function useOpeners({
     };
   }, []);
   useEffect(() => {
-    if (!ids) {
+    if (!isOpen) {
       return;
     }
     const controller = new AbortController();
     void (async () => {
       try {
         const asks = await rpcClient.workspace.window.events.tab.call(
-          { id: ids.taskId },
+          undefined,
           { signal: controller.signal },
         );
         for await (const request of asks) {
@@ -502,7 +503,6 @@ export function useOpeners({
           // conversation can hand a tab to a task, or say what went wrong,
           // without waiting for the next message's note.
           void rpcClient.workspace.window.tabDone.call({
-            id: ids.taskId,
             requestId: request.requestId,
             ...answer,
           });
@@ -514,6 +514,6 @@ export function useOpeners({
     return () => {
       controller.abort();
     };
-  }, [ids]);
+  }, [isOpen]);
   return { openNamedPath, openPage, openScreen };
 }

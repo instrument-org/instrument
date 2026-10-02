@@ -6,11 +6,11 @@ import { type TaskId } from "../../schemas/task-id";
 import { type TaskState } from "../../schemas/task-state";
 import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
-import { sessionOfChat } from "../record-folders";
+import { WINDOW_ID } from "../../schemas/window-id";
+import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
 
@@ -25,6 +25,8 @@ import { listTopics } from "./topics";
  * folder comes and goes with the topic and a folder sent in one chat stays in
  * that chat.
  *
+ * The window, which no chat is, reaches the two standing folders alone.
+ *
  * Names are assigned in a fixed order (the two standing folders, then the
  * sent ones by when they were sent, then the topics' folders), so a folder
  * keeps its name while a later one comes and goes.
@@ -33,9 +35,11 @@ export async function folderReach(
   taskId: TaskId,
   state?: TaskState,
 ): Promise<Record<string, FolderAttachment.Type>> {
-  const held = (state ?? (await getTaskState(taskDir(taskId)))).attachedFolders;
-  const settings = await getTaskSettings(taskDir(taskId));
-  if (settings?.kind !== "chat") {
+  const isWindow = taskId === WINDOW_ID;
+  const held = isWindow
+    ? undefined
+    : (state ?? (await getTaskState(taskDir(taskId)))).attachedFolders;
+  if (!isWindow && !isChatId(taskId)) {
     return held ?? {};
   }
 
@@ -58,7 +62,7 @@ export async function folderReach(
   )) {
     add(folder);
   }
-  for (const folderPath of await topicFolderPaths(taskId)) {
+  for (const folderPath of isWindow ? [] : await topicFolderPaths(taskId)) {
     add(standingFolder(folderPath));
   }
 

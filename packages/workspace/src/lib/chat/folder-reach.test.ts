@@ -7,22 +7,21 @@ import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { type TaskState } from "../../schemas/task-state";
 import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
 
 const world = vi.hoisted(() => ({
-  kind: "chat" as string,
+  isChat: true,
   missing: new Set<string>(),
   tagged: [] as string[],
   topics: [] as Topic[],
 }));
 
-vi.mock(import("../task-settings"), () => ({
-  getTaskSettings: () => Promise.resolve({ kind: world.kind } as never),
-}));
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
+  isChatId: () => world.isChat,
   sessionOfChat: () => StoreId.newSessionId(),
 }));
 vi.mock(import("../store"), () => ({
@@ -89,7 +88,7 @@ function topic(name: string, folders: string[]): Topic {
 }
 
 beforeEach(() => {
-  world.kind = "chat";
+  world.isChat = true;
   world.missing = new Set();
   world.topics = [];
   world.tagged = [];
@@ -97,11 +96,21 @@ beforeEach(() => {
 
 describe("folderReach", () => {
   it("is what a task was handed, and nothing more", async () => {
-    world.kind = "task";
+    world.isChat = false;
 
     expect(await reach(held({ createdAt: 1, path: elsewhere }))).toEqual([
       `Archive ${elsewhere}`,
     ]);
+  });
+
+  it("gives the window the home and workspace folders alone", async () => {
+    world.isChat = false;
+    world.tagged = ["top_Trips"];
+    world.topics = [topic("Trips", [elsewhere])];
+
+    expect(
+      Object.values(await folderReach(WINDOW_ID)).map((folder) => folder.path),
+    ).toEqual([home, workspace]);
   });
 
   it("gives a chat that holds nothing the home and workspace folders", async () => {

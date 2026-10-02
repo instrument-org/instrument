@@ -71,7 +71,10 @@ import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { folderNameFromPath } from "@instrument-org/shared";
-import { type ComputerListing } from "@instrument-org/workspace/client";
+import {
+  type ComputerListing,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -244,7 +247,7 @@ export function ComputerPage({
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
 }) {
-  const { askAbout, openScreen, rowLead, taskId } = useWindow();
+  const { askAbout, openScreen, rowLead } = useWindow();
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -360,7 +363,7 @@ export function ComputerPage({
       ? []
       : prefixes.map((prefix) =>
           rpcClient.workspace.computer.list.queryOptions({
-            input: { id: taskId, path: hostPathOf(prefix) },
+            input: { id: WINDOW_ID, path: hostPathOf(prefix) },
             refetchInterval: refreshInterval,
             retry: false,
           }),
@@ -1290,7 +1293,7 @@ export function ComputerPage({
                   // answer as it stands rather than a second read.
                   await queryClient.fetchQuery({
                     ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: taskId, path: hostPathOf(prefix) },
+                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
                     }),
                     staleTime: REFRESH_MS,
                   });
@@ -1338,7 +1341,7 @@ export function ComputerPage({
                   }
                   void queryClient.prefetchQuery({
                     ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: taskId, path: hostPathOf(prefix) },
+                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
                     }),
                     staleTime: REFRESH_MS,
                   });

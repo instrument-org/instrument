@@ -9,10 +9,9 @@ import {
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
-import { sessionOfChat } from "../record-folders";
+import { chatIdOfTask, isChatId, sessionOfChat } from "../record-folders";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
@@ -73,24 +72,13 @@ export async function askWindow({
 }
 
 /**
- * The chat a task was started in, by the chat's session: its parent, or its
- * parent's, up to the chat. Undefined for a task no chat owns.
+ * The chat a record is or was started in, by the chat's session: a chat's
+ * own, or the chat whose folder a task is in. Undefined for a task no chat
+ * owns.
  */
-export async function chatSessionOfTask(
-  taskId: TaskId,
-): Promise<StoreId.Session | undefined> {
-  const seen = new Set<TaskId>();
-  let current: TaskId | undefined = taskId;
-  while (current !== undefined && !seen.has(current)) {
-    seen.add(current);
-    const session = sessionOfChat(current);
-    if (session) {
-      return session;
-    }
-    const settings = await getTaskSettings(taskDir(current));
-    current = settings?.parentTaskId;
-  }
-  return undefined;
+export function chatSessionOfTask(taskId: TaskId): StoreId.Session | undefined {
+  const chatId = isChatId(taskId) ? taskId : chatIdOfTask(taskId);
+  return chatId === undefined ? undefined : sessionOfChat(chatId);
 }
 
 /**
@@ -116,7 +104,7 @@ export async function liveHeldTabs(
     const answer = await askWindow({
       action: { kind: "restore", tabId: decoded.sessionId },
       askedBy: taskId,
-      group: await chatSessionOfTask(taskId),
+      group: chatSessionOfTask(taskId),
     });
     if (answer?.tabId === undefined) {
       continue;

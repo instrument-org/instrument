@@ -10,7 +10,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { chatOfSession, isChatId, sessionOfChat } from "../record-folders";
+import { chatIdOfTask, chatOfSession, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -205,11 +205,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   const now = Date.now();
   for (const task of tasks) {
     const parentTaskId = task.parentTaskId;
-    if (
-      parentTaskId === undefined ||
-      !isChatId(parentTaskId) ||
-      !isWorking(task.id)
-    ) {
+    if (parentTaskId === undefined || !isWorking(task.id)) {
       overdueReportedAt.delete(task.id);
       continue;
     }
@@ -248,7 +244,7 @@ async function deliver(
   const byChat = new Map<string, TaskEvent[]>();
   const sessions = new Map<string, StoreId.Session | undefined>();
   for (const event of events) {
-    const sessionId = await chatOfTask(event.taskId);
+    const sessionId = chatOfTask(event.taskId);
     const key = sessionId ?? "";
     sessions.set(key, sessionId);
     byChat.set(key, [...(byChat.get(key) ?? []), event]);
@@ -332,15 +328,9 @@ async function onSessionDone(
   if (parentSessionId) {
     return;
   }
-  const childSettings = await getTaskSettings(taskDir(id));
-  const chatId = childSettings?.parentTaskId;
-  // Only a chat is woken. A task still parented to the window's record, from
-  // before chats had records of their own, has no conversation to report to.
-  if (!chatId || !isChatId(chatId)) {
-    return;
-  }
-  const chatSettings = await getTaskSettings(taskDir(chatId));
-  if (chatSettings?.kind !== "chat") {
+  // Only a chat is woken, by a task inside it.
+  const chatId = chatIdOfTask(id);
+  if (!chatId) {
     return;
   }
   cancelAskedWake(id);
@@ -391,7 +381,7 @@ async function onSessionDone(
       status: ending?.failed ? "error" : "done",
       summary,
       taskId: id,
-      title: childSettings.name,
+      title: (await getTaskSettings(taskDir(id)))?.name ?? id,
       tokens: usage.inputTokens + usage.outputTokens,
     },
     workspaceRef,

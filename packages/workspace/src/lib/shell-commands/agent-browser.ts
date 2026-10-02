@@ -34,7 +34,6 @@ import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { windowTaskId } from "../chat/ensure";
 import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
@@ -47,7 +46,7 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
+import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
@@ -1057,8 +1056,8 @@ async function recordHeldTabHosts({
 /**
  * The browser an invocation acts on.
  *
- * A chat drives the tab on the window's screen, which the window records on
- * its own record rather than on any chat's: one page. A task in a chat drives
+ * A chat drives the tab on the window's screen, which the window keeps in its
+ * own state rather than on any chat's: one page. A task in a chat drives
  * the tabs it holds, through a browser of their own: tabs the conversation
  * handed it, which are the user's and outlive the task, and tabs it opened
  * itself, each opened behind whatever the user has up, so every page a task
@@ -1083,19 +1082,14 @@ async function resolveBrowserTarget({
       "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
   };
   if (isChatId(id)) {
-    const windowState = await getTaskState(taskDir(await windowTaskId()));
-    const onScreen = windowState.browserTargetId;
+    const { browserTargetId: onScreen } = await getWindowState();
     // The conversation drives the tab on the user's screen and never a
     // browser of its own; with no tab up there is nothing to drive.
     return onScreen && browser.getTargetMeta(onScreen)
       ? { isOwnGuest: false, kind: "page", targetId: onScreen }
       : noTabUp;
   }
-  const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind === "chat") {
-    return noTabUp;
-  }
-  const chatSession = await chatSessionOfTask(id);
+  const chatSession = chatSessionOfTask(id);
   if (!chatSession) {
     // Idempotent: createTarget returns the existing view for this (id,
     // sessionId) pair if one is already live, so sub-agents and repeat

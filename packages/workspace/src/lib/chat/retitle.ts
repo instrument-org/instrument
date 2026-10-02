@@ -15,7 +15,7 @@ import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
+import { isChatId } from "../record-folders";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking, settleChatTitle } from "./chats";
@@ -56,8 +56,7 @@ export async function retitleChat({
   if (parentSessionId) {
     return undefined;
   }
-  const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind !== "chat") {
+  if (!isChatId(id)) {
     return undefined;
   }
   const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
@@ -232,8 +231,7 @@ async function retitleOnSettle({
   if (parentSessionId) {
     return;
   }
-  const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind !== "chat") {
+  if (!isChatId(id)) {
     return;
   }
   const session = await Store.getSession(sessionId, id);

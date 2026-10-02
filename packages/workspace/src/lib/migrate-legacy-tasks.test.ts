@@ -11,31 +11,24 @@ import { readTopicsSync, writeTopicSync } from "./chat/topics";
 
 let root: string;
 
+// A mark the window already holds for a chat made before the boot.
+const KEPT_SESSION = "ses_01M3AX9RF3C2E9RTATMB602W0B";
+
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-legacy-tasks-"));
-  writeJson(
-    path.join(root, "tasks", "instrument", ".instrument", "settings.json"),
-    {
-      kind: "chat",
-      name: "Instrument",
-      state: {
-        attachedFolders: {
-          Home: {
-            access: "read-write",
-            createdAt: 1,
-            id: "01M20Y3V5QYG9BEP4RPPX77CZV",
-            mountName: "Home",
-            path: "/Users/someone",
-            source: "user",
-          },
-        },
-        chatSeen: {
-          ses_01M3AX9RF3C2E9RTATMB602W0B: "msg_01M3AX9RF3C2E9RTATMB602W0C",
-        },
-      },
-    },
-  );
+  writeJson(path.join(root, ".instrument", "window.json"), {
+    chatSeen: { [KEPT_SESSION]: "msg_01M3AX9RF3C2E9RTATMB602W0C" },
+  });
 });
+
+/** What the window holds of where each chat was last read. */
+function windowSeen(): Record<string, string> {
+  return (
+    readJson(".instrument", "window.json") as {
+      chatSeen: Record<string, string>;
+    }
+  ).chatSeen;
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -305,36 +298,25 @@ describe("migrateLegacyTasks", () => {
 
     const chat = "2026-06-23-rotating-red-square";
     expect(fs.readdirSync(path.join(root, "chats"))).toEqual([chat]);
-    expect(fs.readdirSync(path.join(root, "tasks"))).toEqual(["instrument"]);
+    expect(fs.readdirSync(path.join(root, "tasks"))).toEqual([]);
     expect(
-      readJson(
-        "chats",
-        chat,
-        "tasks",
-        "2026-06-23-use-ffmpeg",
-        ".instrument",
-        "settings.json",
-      ).parentTaskId,
-    ).toBe(chat);
+      fs.existsSync(
+        path.join(root, "chats", chat, "tasks", "2026-06-23-use-ffmpeg"),
+      ),
+    ).toBe(true);
 
     const settings = readJson("chats", chat, ".instrument", "settings.json");
     expect(settings).toMatchObject({
       createdAt: "2026-06-23T21:47:33.119Z",
       createdWithAppVersion: "1.2.0",
-      kind: "chat",
       lastActivityAt: "2026-06-23T21:48:33.119Z",
       name: "Rotating red square video",
     });
-    // Every folder granted anywhere, as a chat made today starts with.
+    // The task held no folders, so neither does the chat.
     expect(
-      Object.values(
-        (
-          settings.state as {
-            attachedFolders: Record<string, { path: string }>;
-          }
-        ).attachedFolders,
-      ).map((folder) => folder.path),
-    ).toEqual(["/Users/someone"]);
+      (settings.state as { attachedFolders: Record<string, unknown> })
+        .attachedFolders,
+    ).toEqual({});
     const session = sessionOf(chat);
     expect(settings.chatSessionId).toBe(session.id);
     expect(session).toMatchObject({
@@ -374,10 +356,7 @@ describe("migrateLegacyTasks", () => {
 
     migrateLegacyTasks(root);
 
-    const seen = readJson("tasks", "instrument", ".instrument", "settings.json")
-      .state as {
-      chatSeen: Record<string, string>;
-    };
+    const seen = { chatSeen: windowSeen() };
     const read = sessionOf("2026-06-23-rotating-red-square").id as string;
     const unread = sessionOf("2026-06-23-unread-one").id as string;
     // The chat already there keeps its mark.
@@ -412,15 +391,13 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-rotating-red-square";
-    const seen = readJson("tasks", "instrument", ".instrument", "settings.json")
-      .state as { chatSeen: Record<string, string> };
-    expect(seen.chatSeen[sessionOf(chat).id as string]).toBe(
+    expect(windowSeen()[sessionOf(chat).id as string]).toBe(
       messageIds(chat).at(-1),
     );
   });
 
-  it("makes the window's record when there is none, so the marks have a home", () => {
-    fs.rmSync(path.join(root, "tasks", "instrument"), {
+  it("writes the window's state when there is none, so the marks have a home", () => {
+    fs.rmSync(path.join(root, ".instrument"), {
       force: true,
       recursive: true,
     });
@@ -428,16 +405,7 @@ describe("migrateLegacyTasks", () => {
 
     migrateLegacyTasks(root);
 
-    const window = readJson(
-      "tasks",
-      "instrument",
-      ".instrument",
-      "settings.json",
-    );
-    expect(window).toMatchObject({ kind: "chat", name: "Instrument" });
-    expect(
-      (window.state as { chatSeen: Record<string, string> }).chatSeen,
-    ).toEqual({
+    expect(windowSeen()).toEqual({
       [sessionOf("2026-06-23-rotating-red-square").id as string]: messageIds(
         "2026-06-23-rotating-red-square",
       ).at(-1),
@@ -476,7 +444,6 @@ describe("migrateLegacyTasks", () => {
               path: "/Users/someone/Documents/bikes",
               source: "project",
             },
-            // The chat already has this folder, as Home.
             Me: {
               access: "read-write",
               createdAt: 3,
@@ -498,8 +465,6 @@ describe("migrateLegacyTasks", () => {
         attachedFolders: Record<string, { path: string; source: string }>;
       }
     ).attachedFolders;
-    // The chat's own name for the home folder, whatever this machine calls it.
-    const home = Object.keys(folders)[0] ?? "";
     expect(
       Object.fromEntries(
         Object.entries(folders).map(([mount, folder]) => [
@@ -508,11 +473,11 @@ describe("migrateLegacyTasks", () => {
         ]),
       ),
     ).toEqual({
-      "/Users/someone": `${home} (user)`,
+      "/Users/someone": "Me (user)",
       "/Users/someone/Documents/bikes": "My bikes (user)",
     });
     expect(conversationIn(chat).at(-1)).toBe(
-      `assistant text: Saved.\n\n\`\`\`files\n/mnt/My bikes/bike.png\n/mnt/${home}/notes.md\n\`\`\``,
+      "assistant text: Saved.\n\n```files\n/mnt/My bikes/bike.png\n/mnt/Me/notes.md\n```",
     );
   });
 
@@ -821,9 +786,7 @@ describe("migrateLegacyTasks", () => {
 
   it("finishes a chat a boot staged with its task inside, and discards one staged without", () => {
     const staged = path.join(root, "chats", ".2026-06-23-staged.partial");
-    writeJson(path.join(staged, ".instrument", "settings.json"), {
-      kind: "chat",
-    });
+    writeJson(path.join(staged, ".instrument", "settings.json"), {});
     writeJson(
       path.join(
         staged,
@@ -837,9 +800,7 @@ describe("migrateLegacyTasks", () => {
       },
     );
     const empty = path.join(root, "chats", ".2026-06-23-empty.partial");
-    writeJson(path.join(empty, ".instrument", "settings.json"), {
-      kind: "chat",
-    });
+    writeJson(path.join(empty, ".instrument", "settings.json"), {});
 
     migrateLegacyTasks(root);
 
@@ -855,6 +816,6 @@ describe("migrateLegacyTasks", () => {
         ".instrument",
         "settings.json",
       ),
-    ).toEqual({ name: "Inside", parentTaskId: "2026-06-23-staged" });
+    ).toEqual({ name: "Inside" });
   });
 });

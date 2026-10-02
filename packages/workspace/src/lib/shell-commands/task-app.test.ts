@@ -180,12 +180,8 @@ beforeEach(async () => {
   });
   const created = await initializeTask(
     {
-      initialSettings: {
-        apps: [],
-        kind: "task",
-        name: "File the issue",
-        parentTaskId: CHAT_ID,
-      },
+      chatId: CHAT_ID,
+      initialSettings: { apps: [], name: "File the issue" },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -309,7 +305,8 @@ describe("task app", () => {
     useWorkspace(personMade);
     const created = await initializeTask(
       {
-        initialSettings: { name: "Theirs", parentTaskId: CHAT_ID },
+        chatId: CHAT_ID,
+        initialSettings: { name: "Theirs" },
         taskId: personMade,
         workspaceConfig: getWorkspaceConfig(),
       },

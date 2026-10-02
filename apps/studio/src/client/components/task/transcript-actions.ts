@@ -29,7 +29,8 @@ export function useTranscriptActions({
   label,
   sessionId,
 }: {
-  id: TaskId;
+  /** The record the session is in; absent where every call names its own. */
+  id?: TaskId;
   /** What the saved file is named after, where the task's name is not it: a channel's, say. */
   label?: string;
   sessionId: StoreId.Session | undefined;
@@ -82,9 +83,10 @@ export function useTranscriptActions({
   const targetOf = (target?: Target) => {
     const name = target?.label ?? label;
     const session = target?.sessionId ?? sessionId;
-    return session
+    const record = target?.id ?? id;
+    return session && record
       ? {
-          id: target?.id ?? id,
+          id: record,
           sessionId: session,
           ...(name === undefined ? {} : { label: name }),
         }

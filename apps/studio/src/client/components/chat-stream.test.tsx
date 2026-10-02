@@ -60,6 +60,7 @@ const messageId = StoreId.newMessageId();
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("quarterly-numbers"),
+  isChat: false,
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };

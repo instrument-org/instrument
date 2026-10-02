@@ -82,9 +82,9 @@ beforeEach(async () => {
   });
   const created = await initializeTask(
     {
+      chatId: CHAT_ID,
       initialSettings: {
         name: "Write the story",
-        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),

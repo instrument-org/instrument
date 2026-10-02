@@ -53,6 +53,7 @@ import {
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -258,18 +259,13 @@ function WindowShell({
   });
   const ensure = useQuery(
     rpcClient.workspace.window.ensure.queryOptions({
-      // The window's record, once it exists, is the one this window shows for as
-      // long as it is open.
+      // What the window opens on is made once, and the folders it reaches
+      // stay put for as long as it is open.
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
-  const ids = ensure.data;
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-    }),
-  );
-  const children = useQuery(childTasksOptions(ids ? ids.taskId : skipToken));
+  const opened = ensure.data;
+  const children = useQuery(childTasksOptions(opened ? WINDOW_ID : skipToken));
   const childTitles = new Map<TaskId, string>(
     children.data?.map((child) => [child.id, child.title]) ?? [],
   );
@@ -499,7 +495,7 @@ function WindowShell({
     chatOfTask: (id) => childChats.get(id),
     chats: chats.data,
     chatTitles,
-    ids,
+    isOpen: opened !== undefined,
     revealPane,
     setPaneOpen,
     windowTabs,
@@ -511,7 +507,7 @@ function WindowShell({
   // section at a time as each answer lands.
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!ids) {
+    if (!opened) {
       return;
     }
     void queryClient.prefetchQuery(
@@ -521,7 +517,7 @@ function WindowShell({
       rpcClient.workspace.computer.places.queryOptions(),
     );
     void queryClient.prefetchQuery(ideasQueryOptions());
-  }, [ids, queryClient]);
+  }, [opened, queryClient]);
 
   // Closing a task's browser tab closes the browser, and the task loses its
   // page; while the task is in it, the user is asked first.
@@ -562,11 +558,6 @@ function WindowShell({
   useRecordRecents();
   usePageThumbnailHousekeeping();
 
-  // The default first, since it is what the draft's picker edits: every send
-  // stores its model on the window record's own state, so once any chat has
-  // been started that field is always set. The stored model stands in for a
-  // window whose default was never saved.
-  const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
@@ -607,7 +598,7 @@ function WindowShell({
         : hrefOfAppTab(appTabs.model, id),
     paneOpenByGroup,
     screenView,
-    state: state.data,
+    state: opened,
     viewsById: compose.viewsById,
     windowTabs,
   });
@@ -623,10 +614,10 @@ function WindowShell({
     startingIds,
   } = useDrafts({
     activeHref,
-    attachedFolders: state.data?.attachedFolders ?? {},
+    attachedFolders: opened?.attachedFolders ?? {},
     compose,
     draftContext,
-    ids,
+    isOpen: opened !== undefined,
     isChat,
     openChat: (sessionId) => {
       appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
@@ -696,10 +687,10 @@ function WindowShell({
         }
       },
     },
-    { isReady: ids !== undefined },
+    { isReady: opened !== undefined },
   );
   const { moveTo: moveAsks } = useStagedAskActions();
-  const screens: null | Screens = ids
+  const screens: null | Screens = opened
     ? {
         // No session: a line a button hands over at the top level opens a
         // draft with the line in it rather than a chat, so the person reads
@@ -722,7 +713,6 @@ function WindowShell({
         openPage,
         openPath: openNamedPath,
         openScreen,
-        taskId: ids.taskId,
       }
     : null;
 
@@ -775,7 +765,7 @@ function WindowShell({
     );
   }
 
-  if (!screens || !state.data || !ids) {
+  if (!screens) {
     return (
       <WindowFrame>
         <div className="flex h-full flex-1 items-center justify-center">
@@ -799,7 +789,6 @@ function WindowShell({
     drafts: drafts.filter(
       (draft) => hasWords(draft) && !startingIds.has(draft.id),
     ),
-    ids,
     newDraft: () => {
       newDraft();
     },
@@ -857,7 +846,7 @@ function WindowShell({
                 chats={chats.data ?? []}
                 compose={compose}
                 drafts={drafts}
-                modelURI={modelURI}
+                modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
                     current.map((entry) =>

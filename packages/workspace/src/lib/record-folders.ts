@@ -13,12 +13,19 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { WINDOW_ID } from "../schemas/window-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { windowDir } from "./window-paths";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * Where the chats and the tasks inside them are, for the workspace it was
- * read from. A chat's folder has a readable name of its own, so which session
+ * Where every record is, which is also what each one is: a folder under
+ * `chats/` is a chat, one under a chat's `tasks/` is a task that chat
+ * started, and one under `tasks/` at the root is a task no chat owns.
+ * Nothing on a record says which; its place does.
+ *
+ * The index covers the chats and the tasks inside them, for the workspace it
+ * was read from. A chat's folder has a readable name of its own, so which session
  * it holds is read from its settings; a task no chat owns sits flat under
  * `tasks/` and needs no looking up. The index is read from disk the first time
  * a workspace asks, and kept current by whatever makes or trashes a chat or a
@@ -40,6 +47,21 @@ let index:
 /** Every chat's folder. */
 export function chatDirs(): TaskDir[] {
   return [...read().chats.keys()].map((id) => chatDir(id));
+}
+
+/**
+ * The chat whose `tasks/` folder holds a task, or none for a chat, or for a
+ * task no chat owns.
+ */
+export function chatIdOfTask(id: TaskId): TaskId | undefined {
+  const dir = read().tasks.get(id);
+  if (!dir) {
+    return undefined;
+  }
+  const chatId = TaskIdSchema.safeParse(
+    path.basename(path.dirname(path.dirname(dir))),
+  );
+  return chatId.success ? chatId.data : undefined;
 }
 
 /** The chat a session is, or none for a session that is not a chat's. */
@@ -131,9 +153,13 @@ export function placeChatTask(id: TaskId, chatId: TaskId): TaskDir {
 
 /**
  * The folder a record lives in: a chat's own, a chat's task inside that chat,
- * and any other task flat under `tasks/`.
+ * and any other task flat under `tasks/`. The window, which is no record,
+ * has a folder of its own in the workspace's `.instrument/`.
  */
 export function recordDir(id: TaskId): TaskDir {
+  if (id === WINDOW_ID) {
+    return TaskDirSchema.parse(windowDir());
+  }
   const known = read();
   if (known.chats.has(id)) {
     return chatDir(id);
@@ -147,7 +173,8 @@ export function recordDir(id: TaskId): TaskDir {
 /**
  * Whether any record already has this id: ids are unique across the whole
  * workspace, so a name picked for a task or a chat anywhere has to check
- * every chat, every task inside one, and the tasks no chat owns.
+ * every chat, every task inside one, and the tasks no chat owns. The
+ * window's id is never free, since its scope goes by it.
  */
 export function recordIdTaken(id: string): boolean {
   const parsed = TaskIdSchema.safeParse(id);
@@ -156,6 +183,7 @@ export function recordIdTaken(id: string): boolean {
   }
   const known = read();
   return (
+    parsed.data === WINDOW_ID ||
     known.chats.has(parsed.data) ||
     known.tasks.has(parsed.data) ||
     fs.existsSync(path.join(chatsDir(), parsed.data)) ||

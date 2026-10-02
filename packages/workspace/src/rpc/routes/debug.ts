@@ -72,8 +72,7 @@ const runBash = base
   .handler(async ({ input, signal }) => {
     // A chat's own shell, with the commands the conversation runs, for the
     // conversation's agent; a task's otherwise, the way the bash tool builds it.
-    const isConversation =
-      (await agentNameForTask(input.taskId)) === "instrument";
+    const isConversation = agentNameForTask(input.taskId) === "instrument";
     const bash = await createBashEnv({
       attachedFolders: await folderReach(input.taskId),
       ...(isConversation

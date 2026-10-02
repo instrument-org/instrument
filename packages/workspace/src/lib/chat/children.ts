@@ -2,10 +2,9 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { getTasks } from "../get-tasks";
-import { isChatId } from "../record-folders";
 import { taskDir } from "../task-dir-utils";
-import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsMount } from "../workspace-fs-layout";
 
@@ -29,22 +28,18 @@ export async function childTaskMounts(
 }
 
 /**
- * The tasks a record started, newest activity first. Asked of the window's
- * own record, every chat's tasks: the window shows all of them, and a path
- * into any of them opens from it.
+ * The tasks a chat started, newest activity first. Asked for the window,
+ * every chat's tasks: the window shows all of them, and a path into any of
+ * them opens from it.
  */
 export async function listChildTasks(chatId: TaskId): Promise<Task[]> {
   const { tasks } = await getTasks(getWorkspaceConfig(), {
     direction: "desc",
     sortBy: "updatedAt",
   });
-  const settings = await getTaskSettings(taskDir(chatId));
-  const everyChat = !isChatId(chatId) && settings?.kind === "chat";
-  return tasks.filter(
-    (task) =>
-      task.parentTaskId === chatId ||
-      (everyChat &&
-        task.parentTaskId !== undefined &&
-        isChatId(task.parentTaskId)),
+  return tasks.filter((task) =>
+    chatId === WINDOW_ID
+      ? task.parentTaskId !== undefined
+      : task.parentTaskId === chatId,
   );
 }

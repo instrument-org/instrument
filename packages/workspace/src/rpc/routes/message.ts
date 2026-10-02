@@ -13,10 +13,9 @@ import { newMessage } from "../../lib/new-message";
 import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
 import { getTaskProjectName } from "../../lib/project";
-import { sessionOfChat } from "../../lib/record-folders";
+import { isChatId, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
-import { taskDir } from "../../lib/task-dir-utils";
-import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
+import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
@@ -123,8 +122,7 @@ const create = base
 
         // A chat's record holds one session, the one its settings name.
         const chatSession = sessionOfChat(taskId);
-        const settings = await getTaskSettings(taskDir(taskId));
-        const isChat = settings?.kind === "chat";
+        const isChat = isChatId(taskId);
 
         let finalSessionId: StoreId.Session;
         // The other chats as they stand when a new one opens, read before
@@ -224,7 +222,7 @@ const create = base
         context.workspaceRef.send({
           type: "addMessage",
           value: {
-            agentName: await agentNameForTask(taskId),
+            agentName: agentNameForTask(taskId),
             id,
             message,
             model,

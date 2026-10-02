@@ -3,7 +3,7 @@ import type { Protocol } from "devtools-protocol";
 import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
-import { windowTaskId } from "../../../lib/chat/ensure";
+import { WINDOW_ID } from "../../../schemas/window-id";
 import {
   askWindow,
   chatSessionOfTask,
@@ -121,7 +121,7 @@ export function handleTaskCdpClient(
 
   /** The window's titles for its tabs, which only the main process knows. */
   const titles = async (): Promise<Map<BrowserTargetId, string>> => {
-    const targets = await browser.listTargets(await windowTaskId());
+    const targets = await browser.listTargets(WINDOW_ID);
     return new Map(targets.map((target) => [target.id, target.title]));
   };
 
@@ -283,7 +283,7 @@ export function handleTaskCdpClient(
     }
     const tabId = await requestWindowTab({
       askedBy: taskId,
-      group: await chatSessionOfTask(taskId),
+      group: chatSessionOfTask(taskId),
       show: false,
       ...(address === undefined ? {} : { url: address }),
     });
@@ -294,7 +294,7 @@ export function handleTaskCdpClient(
     // The window opens the guest too; asking here as well waits for it to
     // attach, and asking twice for one tab makes one guest.
     const { targetId } = await browser.createTarget(
-      await windowTaskId(),
+      WINDOW_ID,
       tabId,
       getBrowserSessionDir(),
     );
@@ -327,7 +327,7 @@ export function handleTaskCdpClient(
       await askWindow({
         action: { kind: "close", tabId: tab.tabId },
         askedBy: taskId,
-        group: await chatSessionOfTask(taskId),
+        group: chatSessionOfTask(taskId),
       });
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);

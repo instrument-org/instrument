@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
-import { StoreId } from "./store-id";
 
 /**
  * A tab of the window a task holds: one the conversation handed it, which is
@@ -42,36 +41,6 @@ export const StoredTaskStateSchema = z
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTabs: z.array(HeldTabSchema).optional(),
-    browserTargetId: BrowserTargetIdSchema.optional(),
-    /**
-     * The window record's topics, in the order they were made: the tags a
-     * chat carries, many chats to many topics. Which chats carry one is
-     * on each chat's own session record (`Session.topics`), so retiring a
-     * topic touches no chat and a filter is a predicate over the list.
-     */
-    topics: z
-      .array(
-        z.object({
-          /** The agent's line about what goes here, for later. */
-          about: z.string().optional(),
-          /** The tint its mark is drawn on, as a hex string. */
-          color: z.string().optional(),
-          createdAt: z.number(),
-          /** What stands for it: one emoji, chosen when it was made. */
-          emoji: z.string().optional(),
-          id: z.string(),
-          name: z.string(),
-          /** Out of the menus, with the chats that carry it left alone. */
-          retired: z.boolean().optional(),
-        }),
-      )
-      .optional(),
-    /**
-     * The newest settled message the user has seen in each chat, by session
-     * id. Window state, kept off the session record; unread is every non-user
-     * message after it.
-     */
-    chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
     // The project's folders, path to access, as this task last saw them. What
     // makes a task's own edit to an inherited folder survive the next message:
     // a folder whose live access still matches what is recorded here has not
@@ -87,18 +56,6 @@ export const StoredTaskStateSchema = z
     projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
-    /**
-     * The one-conversation layout's map of the chat each task was filed
-     * from, by task id, under the name that layout gave it. Nothing writes
-     * it; it is kept through a write so `migrate-to-chats` can finish moving
-     * a task whose chat is still to be made.
-     */
-    taskThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
-    /**
-     * The chat each app was asked for in, by slug: what sends the news of
-     * a sign-in, a key, or a decline back to the chat that asked for it.
-     */
-    appChats: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 
@@ -112,11 +69,6 @@ export const TaskStateSchema = z.object({
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
   browserTabs: z.array(HeldTabSchema).optional(),
-  /**
-   * On the window's own record, the tab its user has on screen, which the
-   * conversation's own `agent-browser` drives.
-   */
-  browserTargetId: BrowserTargetIdSchema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
 });
@@ -139,7 +91,7 @@ export function migrateTaskState(state: unknown): unknown {
   if (!isRecord(state)) {
     return state;
   }
-  return migrateAttachedFolders(migrateChatKeys(state));
+  return migrateAttachedFolders(state);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -163,19 +115,4 @@ function migrateAttachedFolders(state: Record<string, unknown>) {
   );
 
   return { ...state, attachedFolders: Object.fromEntries(folders) };
-}
-
-// A conversation in the 2.0 window was a thread before it was a chat, and the
-// window's state named its maps for that.
-function migrateChatKeys(state: Record<string, unknown>) {
-  const { appThreads, threadSeen, ...rest } = state;
-  return {
-    ...rest,
-    ...(appThreads === undefined || rest.appChats !== undefined
-      ? {}
-      : { appChats: appThreads }),
-    ...(threadSeen === undefined || rest.chatSeen !== undefined
-      ? {}
-      : { chatSeen: threadSeen }),
-  };
 }

@@ -325,7 +325,7 @@ export const taskBrowserMachine = setup({
     },
     // One of the task's pages closed on its own (its tab closed, its window
     // went): the browser stops only once it was the last. A task holds a page
-    // per tab, and the window's own task holds every page the person has open,
+    // per tab, and the window holds every page the person has open,
     // so stopping on the first would close all the others with it.
     targetDestroyedExternally: [
       {

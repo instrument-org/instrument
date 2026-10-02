@@ -1,6 +1,5 @@
 import { type Draft } from "@/client/atoms/window";
 import { renderInBrowser } from "@/tests/render-browser";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -17,7 +16,6 @@ const WINDOW: WindowContextValue = {
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: vi.fn(),
-  taskId: TaskIdSchema.parse("chat"),
 };
 
 /** The moment every row is read at: a Wednesday afternoon. */

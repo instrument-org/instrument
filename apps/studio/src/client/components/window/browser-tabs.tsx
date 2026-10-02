@@ -30,6 +30,7 @@ import {
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -44,7 +45,6 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
-import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
@@ -236,7 +236,7 @@ type PageTabsUpdate = (current: {
 }) => { activeId: null | string; tabs: BrowserTab[] };
 
 /**
- * The window's pages: each page tab is a browser guest of the window's record,
+ * The window's pages: each page tab is a browser guest of the window's own,
  * like a task's browser and driven by the same machinery, so a task can be
  * handed one by id and drive it in the user's sight. The tabs themselves are
  * the window's, drawn by the window's strip; this holds their guests, keeps
@@ -272,7 +272,6 @@ export function BrowserTabs({
   /** The element beside the row's arrows that the page's reload is drawn into. */
   reloadInto?: HTMLElement | null;
 }) {
-  const { taskId } = useWindow();
   const { navigateScreen } = useWindowTabs();
   const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
     useAtom(windowTabsAtom);
@@ -286,12 +285,12 @@ export function BrowserTabs({
   // task page holds its browser: subscribing is the hold.
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: taskId, level: "retained" },
+      input: { id: WINDOW_ID, level: "retained" },
     }),
   );
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: taskId, level: "visible" },
+      input: { id: WINDOW_ID, level: "visible" },
     }),
   );
 
@@ -302,7 +301,6 @@ export function BrowserTabs({
     const stray = strayWindowGuests({
       attached,
       heldIds: everyTabId,
-      windowTaskId: taskId,
     });
     for (const target of closingGuests.current) {
       if (!attached.has(target)) {
@@ -321,11 +319,11 @@ export function BrowserTabs({
           closingGuests.current.delete(target);
         });
     }
-  }, [attached, everyTabId, taskId]);
+  }, [attached, everyTabId]);
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     encodeBrowserTargetId(
-      tab.taskId ?? taskId,
+      tab.taskId ?? WINDOW_ID,
       StoreId.SessionSchema.parse(tab.id),
     );
   const active = tabs.find((tab) => tab.id === activeId);
@@ -385,10 +383,9 @@ export function BrowserTabs({
   }, [activeTarget]);
   useEffect(() => {
     void rpcClient.workspace.window.setActiveTab.call({
-      id: taskId,
       targetId: activeTarget,
     });
-  }, [activeTarget, taskId]);
+  }, [activeTarget]);
 
   // The tabs a launch restored, taken once: only these are sent back to the
   // page they held, and a tab opened later is navigated by its own open.
@@ -426,7 +423,7 @@ export function BrowserTabs({
       ),
     }));
     void rpcClient.workspace.browser.open.call({
-      id: tab.taskId ?? taskId,
+      id: tab.taskId ?? WINDOW_ID,
       sessionId: StoreId.SessionSchema.parse(tab.id),
       url: tab.url,
     });
@@ -437,7 +434,7 @@ export function BrowserTabs({
     }
     // Fired once per restored tab, when it first comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, activeUrl, taskId]);
+  }, [active?.id, activeUrl]);
   // A tab whose page is gone while the tab stays, such as a task's page after
   // the task's browser closed, comes up with nothing to draw it, and reload
   // and the address field have nothing to act on. Given a moment to attach,
@@ -454,7 +451,7 @@ export function BrowserTabs({
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, isActiveAttached, taskId]);
+  }, [active?.id, isActiveAttached]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -484,7 +481,7 @@ export function BrowserTabs({
       // strip: a task browsing behind a screen already has one.
       if (
         !decoded ||
-        decoded.id === taskId ||
+        decoded.id === WINDOW_ID ||
         everyTabId.has(decoded.sessionId)
       ) {
         return [];
@@ -519,7 +516,7 @@ export function BrowserTabs({
       ...current,
       tabs: [...current.tabs, ...arriving],
     }));
-  }, [attached, everyTabId, setAllTabs, taskId, chatOfTask]);
+  }, [attached, everyTabId, setAllTabs, chatOfTask]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -554,7 +551,7 @@ export function BrowserTabs({
         return;
       }
       const target = encodeBrowserTargetId(
-        owner ? (owner as TaskId) : taskId,
+        owner ? (owner as TaskId) : WINDOW_ID,
         StoreId.SessionSchema.parse(id),
       );
       if (!attached.has(target)) {
@@ -724,7 +721,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setAllTabs, setRecents, setVisited, tabIds, taskId]);
+  }, [attached, setAllTabs, setRecents, setVisited, tabIds]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -816,7 +813,7 @@ export function BrowserTabs({
       }));
     }
     void rpcClient.workspace.browser.open.call({
-      id: taskId,
+      id: WINDOW_ID,
       sessionId: StoreId.SessionSchema.parse(id),
       ...(url ? { url } : {}),
     });
@@ -868,7 +865,7 @@ export function BrowserTabs({
           return;
         }
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? taskId,
+          id: tab.taskId ?? WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           url,
         });
@@ -890,7 +887,7 @@ export function BrowserTabs({
           ],
         }));
         void rpcClient.workspace.browser.open.call({
-          id: taskId,
+          id: WINDOW_ID,
           sessionId: id,
           ...(url ? { url } : {}),
         });
@@ -955,7 +952,7 @@ export function BrowserTabs({
           ),
         }));
         void rpcClient.workspace.browser.open.call({
-          id: taskId,
+          id: WINDOW_ID,
           sessionId: id,
           url,
         });
@@ -1034,7 +1031,7 @@ export function BrowserTabs({
           return false;
         }
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? taskId,
+          id: tab.taskId ?? WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           ...(tab.url && tab.url !== "about:blank" ? { url: tab.url } : {}),
         });
@@ -1045,7 +1042,7 @@ export function BrowserTabs({
     // screen and what its history allows are read here, so the handle is
     // remade, and the row above told, whenever either changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [taskId, activeTarget, canStep],
+    [activeTarget, canStep],
   );
 
   const taskIdsWithTabs = [
@@ -1159,7 +1156,7 @@ export function BrowserTabs({
                 },
               })}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          taskId={active.taskId ?? taskId}
+          taskId={active.taskId ?? WINDOW_ID}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -1189,7 +1186,7 @@ export function BrowserTabs({
               }));
             }}
             tab={up}
-            taskId={taskId}
+            taskId={WINDOW_ID}
           />
         ) : null;
       })}

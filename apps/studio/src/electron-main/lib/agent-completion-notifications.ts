@@ -111,7 +111,7 @@ export function startAgentCompletionNotifications({
       if (task.parentTaskId !== undefined) {
         return;
       }
-      isChat = task.kind === "chat";
+      isChat = task.isChat;
       taskTitle = task.title;
     } catch (error) {
       logger

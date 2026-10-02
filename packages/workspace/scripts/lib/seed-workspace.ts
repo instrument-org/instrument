@@ -132,8 +132,8 @@ export async function seedWorkspace({
     for (const { files, session: taskSession, task } of tasks) {
       const id = await seedTask({
         files,
+        chatId,
         now,
-        parentTaskId: chatId,
         session: taskSession,
         task,
         workspaceConfig,
@@ -282,20 +282,20 @@ function rebaseTimestamps<T extends Record<string, unknown>>(
 
 /**
  * Seeds one record: a task no chat owns, a task inside the chat named by
- * `parentTaskId`, or a chat's own record when `task` is a chat, which holds
+ * `chatId`, or a chat's own record when `task` is a chat, which holds
  * its session as the chat's and takes no task scaffold.
  */
 async function seedTask({
+  chatId,
   files,
   now,
-  parentTaskId,
   session,
   task,
   workspaceConfig,
 }: {
+  chatId?: TaskId;
   files: FixtureFile[];
   now: Date;
-  parentTaskId?: TaskId;
   session: Session.WithMessagesAndParts;
   task: FixtureChat | FixtureChatTask | FixtureTask;
   workspaceConfig: WorkspaceConfig;
@@ -344,13 +344,10 @@ async function seedTask({
   const result = await safeTry(async function* () {
     yield* await initializeTask(
       {
+        ...(chatId ? { chatId } : {}),
         initialSettings: isChat
-          ? {
-              chatSessionId: chatSession.id,
-              kind: "chat",
-              name: task.name,
-            }
-          : { name: task.name, ...(parentTaskId ? { parentTaskId } : {}) },
+          ? { chatSessionId: chatSession.id, name: task.name }
+          : { name: task.name },
         taskId: id,
         workspaceConfig,
       },

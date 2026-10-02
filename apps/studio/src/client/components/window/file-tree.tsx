@@ -18,7 +18,10 @@ import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { type ComputerListing } from "@instrument-org/workspace/client";
+import {
+  type ComputerListing,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { ChevronRight } from "lucide-react";
@@ -245,7 +248,6 @@ function Folder({
   path: string;
   rows: Rows;
 }) {
-  const { taskId } = useWindow();
   const showsHidden = useAtomValue(computerHiddenFilesAtom);
   const open = rows.isOpen(path);
   // The Instrument folder wears its own glyph here as it does in the Finder.
@@ -256,7 +258,7 @@ function Folder({
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
       enabled: open,
-      input: { id: taskId, path },
+      input: { id: WINDOW_ID, path },
     }),
   );
   const entries = (listing.data?.entries ?? [])

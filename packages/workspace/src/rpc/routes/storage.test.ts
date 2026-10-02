@@ -29,10 +29,6 @@ vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   chatActivity: () => Promise.resolve({ running: [] }),
 }));
-vi.mock(import("../../lib/chat/ensure"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  windowTaskId: () => Promise.resolve(TaskIdSchema.parse("window")),
-}));
 vi.mock(import("../../lib/workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
     ({

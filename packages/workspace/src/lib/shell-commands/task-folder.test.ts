@@ -135,19 +135,13 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  for (const [id, settings] of [
-    [
-      CHAT_ID,
-      {
-        chatSessionId: CHAT_SESSION,
-        kind: "chat" as const,
-        name: "Conversation",
-      },
-    ],
-    [CHILD_ID, { name: "Find the vault", parentTaskId: CHAT_ID }],
+  for (const [id, settings, chatId] of [
+    [CHAT_ID, { chatSessionId: CHAT_SESSION, name: "Conversation" }, undefined],
+    [CHILD_ID, { name: "Find the vault" }, CHAT_ID],
   ] as const) {
     const created = await initializeTask(
       {
+        ...(chatId ? { chatId } : {}),
         initialSettings: settings,
         taskId: id,
         workspaceConfig: getWorkspaceConfig(),

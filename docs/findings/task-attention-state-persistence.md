@@ -1,6 +1,6 @@
 # Task attention state (unread / needs-input) must be persisted per task, not derived from live status
 
-**Status:** moot: per-task unread marks (`unreadIndicator`, `schemas/task-indicator.ts`, landed in 8cd75214b) were removed with the classic window in a73917f45, merged in 2d90d6270. 2.0 chats keep a persisted seen watermark instead (`chatSeen` in `schemas/task-state.ts`; unread is every non-user message after it), which keeps the persisted-not-live rule below. No needs-input projection or mid-run restart reconciliation was built. Checked 2026-10-02. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161).
+**Status:** moot: per-task unread marks (`unreadIndicator`, `schemas/task-indicator.ts`, landed in 8cd75214b) were removed with the classic window in a73917f45, merged in 2d90d6270. 2.0 chats keep a persisted seen watermark instead (`chatSeen` in the window's state, `lib/window-state.ts`; unread is every non-user message after it), which keeps the persisted-not-live rule below. No needs-input projection or mid-run restart reconciliation was built. Checked 2026-10-02. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161).
 
 ## Context
 

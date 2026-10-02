@@ -16,7 +16,13 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
-import { chatDirs, chatTaskDirs, recordDir } from "./record-folders";
+import {
+  chatDirs,
+  chatIdOfTask,
+  chatTaskDirs,
+  isChatId,
+  recordDir,
+} from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
 export interface TaskListOptions {
@@ -89,8 +95,8 @@ async function readTask({ dir }: { dir: TaskDir }) {
     ...(await taskTimestamps(dir, settings)),
     apps: settings?.apps,
     id,
-    kind: settings?.kind,
-    parentTaskId: settings?.parentTaskId,
+    isChat: isChatId(id),
+    parentTaskId: chatIdOfTask(id),
     projectId: settings?.projectId,
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,

@@ -38,7 +38,6 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-const taskId = TaskIdSchema.parse("chat");
 const sessionId = StoreId.newSessionId();
 const TITLE = "Grocery list for the week";
 
@@ -90,7 +89,6 @@ async function renderTitle() {
         openPage: vi.fn(),
         openPath: vi.fn(),
         openScreen: vi.fn(),
-        taskId,
       }}
     >
       <Title />

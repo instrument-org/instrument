@@ -10,7 +10,7 @@ import {
 } from "../lib/workspace-config";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { mainAgent } from "./main";
 
@@ -28,7 +28,7 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function systemPromptFor(parentTaskId?: TaskId): Promise<string> {
+async function systemPromptFor(): Promise<string> {
   const taskId = TaskIdSchema.parse(`who-reads-you-${++taskCount}`);
   createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
   setWorkspaceConfig({
@@ -39,11 +39,7 @@ async function systemPromptFor(parentTaskId?: TaskId): Promise<string> {
   });
   const created = await initializeTask(
     {
-      initialSettings: {
-        kind: "task",
-        name: "Who reads you",
-        ...(parentTaskId ? { parentTaskId } : {}),
-      },
+      initialSettings: { name: "Who reads you" },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -66,7 +62,7 @@ async function systemPromptFor(parentTaskId?: TaskId): Promise<string> {
 describe("mainAgent.getMessages", () => {
   // Every task is started by a chat's assistant and reports to it.
   it("reports to the assistant that started the task", async () => {
-    const prompt = await systemPromptFor(TaskIdSchema.parse("the-parent"));
+    const prompt = await systemPromptFor();
     expect(prompt).toContain("Nobody is watching this transcript.");
     expect(prompt).toContain("Your last message is a receipt, not a report");
     expect(prompt).not.toContain("# Showing Files to the User");
@@ -103,7 +99,7 @@ async function contextFor(user: {
   });
   const created = await initializeTask(
     {
-      initialSettings: { kind: "task", name: "Whose work" },
+      initialSettings: { name: "Whose work" },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },

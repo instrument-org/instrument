@@ -15,7 +15,7 @@ import {
   TASKS_DIR_NAME,
 } from "../constants";
 import { MOUNT } from "../mount-points";
-import { RelativePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
@@ -23,7 +23,6 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
-import { assignMountNames } from "./assign-mount-names";
 import { chatFolderName } from "./generate-task-folder-name";
 import { translateTaskFolderPaths } from "./chat/mount-paths";
 import {
@@ -37,12 +36,12 @@ import {
 } from "./chat/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
+import { windowStatePath } from "./window-paths";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
-// Where what the move leaves behind is kept, beside the window record's
-// backup from the move to chats, so a migration that went wrong can be undone
-// by hand: the projects, once their topics are written, and the tasks with
-// nothing the user said in them.
+// Where what the move leaves behind is kept, so a migration that went wrong
+// can be undone by hand: the projects, once their topics are written, and the
+// tasks with nothing the user said in them.
 const BACKUP_DIR_NAME = ".pre-chats";
 const LEGACY_PROJECTS_DIR_NAME = "projects";
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
@@ -50,10 +49,6 @@ const EMPTY_TASKS_DIR_NAME = "empty-tasks";
 
 // The model the tutorial's replay ran on, which marks a task as the tutorial.
 const TUTORIAL_MODEL = "tutorial-task-replay";
-
-// The app window's record, as `ensureWindowRecord` names and titles it.
-const WINDOW_RECORD_NAME = "instrument";
-const WINDOW_RECORD_TITLE = "Instrument";
 
 // A Markdown link or image whose target is a path relative to the task, which
 // in a chat has to name the task's folder: not a URL, an anchor, or a path
@@ -130,9 +125,9 @@ interface StoreRow {
  * joins the topic already called that, and its instructions become the
  * topic's; the chats of its tasks carry that topic.
  *
- * Runs on every boot and decides from the data, like the move to chats: a
- * task under `tasks/` with no parent that is not a window record is one to
- * adopt, and `projects/` holding a project is one to turn into a topic.
+ * Runs on every boot and decides from the data: a task under `tasks/` that
+ * no chat started is one to adopt, and `projects/` holding a project is one
+ * to turn into a topic.
  * Synchronous and file-level, with no store open and no workspace config.
  *
  * A chat is written under a hidden name inside `chats/`, the task moved into
@@ -185,7 +180,6 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     ),
     ...readDirs(tasksDir),
   ]);
-  const folders = grantedFolders(rootDir);
   const seen = new Map<StoreId.Session, StoreId.Message | undefined>();
   const stagedDirs: string[] = [];
 
@@ -193,7 +187,6 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     try {
       const adopted = adoptTask({
         chatsDir,
-        folders,
         rootDir,
         taken,
         taskDir: path.join(tasksDir, name),
@@ -214,7 +207,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
   // Where each chat was last read is written before any of them is listed,
   // so none shows up unread for a moment, or for good if the boot stops here.
   try {
-    markSeen(tasksDir, seen);
+    markSeen(rootDir, seen);
   } catch {
     // The chats are listed anyway, each with every reply unread, which the
     // user clears by opening it.
@@ -264,14 +257,12 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
  */
 function adoptTask({
   chatsDir,
-  folders,
   rootDir,
   taken,
   taskDir,
   topicOf,
 }: {
   chatsDir: string;
-  folders: Record<string, unknown>;
   rootDir: string;
   taken: Set<string>;
   taskDir: string;
@@ -345,12 +336,6 @@ function adoptTask({
       ...(topicId ? { topics: [topicId] } : {}),
       updatedAt: lastActivityAt,
     };
-    // The task's own folders too, so a reply naming `/mnt/<folder>/…` reaches
-    // the same file from the chat that it did from the task.
-    const chatFolders = withTaskFolders(
-      folders,
-      isRecord(settings.state) ? settings.state.attachedFolders : undefined,
-    );
     const privateDir = path.join(stagingDir, TASK_PRIVATE_FOLDER_NAME);
     fs.mkdirSync(privateDir, { recursive: true });
     fs.mkdirSync(path.join(stagingDir, TASK_FOLDER_NAMES.attachments), {
@@ -362,11 +347,12 @@ function adoptTask({
       ...(typeof settings.createdWithAppVersion === "string"
         ? { createdWithAppVersion: settings.createdWithAppVersion }
         : {}),
-      kind: "chat",
       lastActivityAt: lastActivityAt.toISOString(),
       name: title,
       state: {
-        attachedFolders: chatFolders.folders,
+        attachedFolders: chatFoldersOf(
+          isRecord(settings.state) ? settings.state.attachedFolders : undefined,
+        ),
         ...(isRecord(settings.state) &&
         typeof settings.state.selectedModelURI === "string"
           ? { selectedModelURI: settings.state.selectedModelURI }
@@ -378,7 +364,6 @@ function adoptTask({
       dbPath: path.join(privateDir, TASK_DB_FILE_NAME),
       files: heldFiles(taskDir, taskId, conversation.changedFiles),
       messages: conversation.messages,
-      mountRenames: chatFolders.renames,
       session,
       taskId,
     });
@@ -421,9 +406,10 @@ function copyAttachments(from: string, to: string, attachments: string[]) {
 }
 
 /**
- * Gives a staged chat its name once the task is inside it, pointing the task
- * at it first; one cut short before its task moved in is discarded, since the
- * task is still under `tasks/` and is adopted again.
+ * Gives a staged chat its name once the task is inside it, taking the task's
+ * project off it first, since the project is a topic on the chat now; one cut
+ * short before its task moved in is discarded, since the task is still under
+ * `tasks/` and is adopted again.
  */
 function finishStagedChat(stagingDir: string) {
   const chatName = path.basename(stagingDir).slice(1, -".partial".length);
@@ -441,10 +427,7 @@ function finishStagedChat(stagingDir: string) {
   );
   const { projectId: _projectId, ...taskSettings } =
     readJson(taskSettingsPath) ?? {};
-  writeJsonFileSync(taskSettingsPath, {
-    ...taskSettings,
-    parentTaskId: chatName,
-  });
+  writeJsonFileSync(taskSettingsPath, taskSettings);
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
 
@@ -470,65 +453,6 @@ function firstLine(text: string): string {
       .map((line) => line.trim())
       .find(Boolean)
       ?.slice(0, 80) ?? ""
-  );
-}
-
-/**
- * Every folder granted to the window or any chat, one entry per path at the
- * widest access given, named the way a new chat names them: what a chat made
- * today starts with.
- */
-function grantedFolders(rootDir: string): Record<string, unknown> {
-  const holders = [
-    ...readDirs(path.join(rootDir, TASKS_DIR_NAME)).map((name) =>
-      path.join(rootDir, TASKS_DIR_NAME, name),
-    ),
-    ...readDirs(path.join(rootDir, CHATS_DIR_NAME)).map((name) =>
-      path.join(rootDir, CHATS_DIR_NAME, name),
-    ),
-  ];
-  const byPath = new Map<string, Record<string, unknown>>();
-  for (const holder of holders) {
-    const settings = readJson(
-      path.join(holder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
-    );
-    if (settings?.kind !== "chat" || !isRecord(settings.state)) {
-      continue;
-    }
-    const attached = settings.state.attachedFolders;
-    for (const folder of isRecord(attached) ? Object.values(attached) : []) {
-      if (
-        !isRecord(folder) ||
-        typeof folder.path !== "string" ||
-        typeof folder.id !== "string" ||
-        typeof folder.createdAt !== "number"
-      ) {
-        continue;
-      }
-      const known = byPath.get(folder.path);
-      if (
-        !known ||
-        (known.access === "read-only" && folder.access !== "read-only")
-      ) {
-        byPath.set(folder.path, folder);
-      }
-    }
-  }
-  const sorted = [...byPath.values()].toSorted(
-    (a, b) => Number(a.createdAt) - Number(b.createdAt),
-  );
-  const names = assignMountNames(
-    sorted.map((folder) => ({
-      id: String(folder.id),
-      path: String(folder.path),
-    })),
-  );
-  return Object.fromEntries(
-    sorted.map((folder) => {
-      const mountName =
-        names.get(String(folder.id)) ?? String(folder.mountName ?? folder.id);
-      return [mountName, { ...folder, mountName }];
-    }),
   );
 }
 
@@ -560,9 +484,9 @@ function heldFiles(
 }
 
 /**
- * A task no chat owns and that is no chat: one an earlier version ran on its
- * own. Not a window record, a chat's record, or a project folder that ended up
- * among the tasks.
+ * A task no chat owns: one an earlier version ran on its own. Not a project
+ * folder that ended up among the tasks, and not a record a 2.0 build wrote
+ * there, which names a chat's session or the chat that started it.
  */
 function isLegacyTask(taskDir: string): boolean {
   if (!TaskIdSchema.safeParse(path.basename(taskDir)).success) {
@@ -580,7 +504,6 @@ function isLegacyTask(taskDir: string): boolean {
       : undefined;
   return (
     settings !== undefined &&
-    (settings.kind === undefined || settings.kind === "task") &&
     settings.parentTaskId === undefined &&
     settings.chatSessionId === undefined &&
     !ProjectIdSchema.safeParse(settings.id).success
@@ -595,74 +518,35 @@ function isProjectFolder(folder: string): boolean {
 }
 
 /**
- * Writes where each adopted chat was last read onto the window records, so a
- * chat reads as unread only where its task did. Merged into what each window
+ * Writes where each adopted chat was last read into the window's state, so a
+ * chat reads as unread only where its task did. Merged into what the window
  * already holds, and a chat whose task read as unread gets no mark, or one
  * short of its newest reply, the way marking a chat unread leaves it.
  */
 function markSeen(
-  tasksDir: string,
+  rootDir: string,
   seen: Map<StoreId.Session, StoreId.Message | undefined>,
 ) {
   if (seen.size === 0) {
     return;
   }
-  const windows = readDirs(tasksDir).filter((name) => {
-    const settings = readJson(
-      path.join(
-        tasksDir,
-        name,
-        TASK_PRIVATE_FOLDER_NAME,
-        TASK_SETTINGS_FILE_NAME,
-      ),
-    );
-    return settings?.kind === "chat" && settings.chatSessionId === undefined;
-  });
-  // A 1.x user who never opened the app window has no record for it yet, and
-  // the marks would have nowhere to go. It is made the way the app would first
-  // make it, and the app takes it as the window's.
-  if (
-    windows.length === 0 &&
-    !present(path.join(tasksDir, WINDOW_RECORD_NAME))
-  ) {
-    const windowPrivateDir = path.join(
-      tasksDir,
-      WINDOW_RECORD_NAME,
-      TASK_PRIVATE_FOLDER_NAME,
-    );
-    fs.mkdirSync(windowPrivateDir, { recursive: true });
-    writeJsonFileSync(path.join(windowPrivateDir, TASK_SETTINGS_FILE_NAME), {
-      createdAt: new Date().toISOString(),
-      kind: "chat",
-      name: WINDOW_RECORD_TITLE,
-    });
-    windows.push(WINDOW_RECORD_NAME);
-  }
-  for (const name of windows) {
-    const settingsPath = path.join(
-      tasksDir,
-      name,
-      TASK_PRIVATE_FOLDER_NAME,
-      TASK_SETTINGS_FILE_NAME,
-    );
-    const settings = readJson(settingsPath) ?? {};
-    const state = isRecord(settings.state) ? settings.state : {};
-    const marks = new Map<string, unknown>(
-      Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
-    );
-    for (const [sessionId, messageId] of seen) {
-      if (messageId === undefined) {
-        marks.delete(sessionId);
-      } else {
-        marks.set(sessionId, messageId);
-      }
+  const statePath = windowStatePath(AbsolutePathSchema.parse(rootDir));
+  const state = readJson(statePath) ?? {};
+  const marks = new Map<string, unknown>(
+    Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
+  );
+  for (const [sessionId, messageId] of seen) {
+    if (messageId === undefined) {
+      marks.delete(sessionId);
+    } else {
+      marks.set(sessionId, messageId);
     }
-    const chatSeen = Object.fromEntries(marks);
-    writeJsonFileSync(settingsPath, {
-      ...settings,
-      state: { ...state, chatSeen },
-    });
   }
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  writeJsonFileSync(statePath, {
+    ...state,
+    chatSeen: Object.fromEntries(marks),
+  });
 }
 
 /** Moves a folder into the backup, beside any earlier one of the same name. */
@@ -953,18 +837,6 @@ function readProjects(rootDir: string): LegacyProject[] {
   );
 }
 
-/** The text with each `/mnt/<old>/` a chat knows by another name spelled that way. */
-function renameMounts(text: string, renames: Map<string, string>): string {
-  let renamed = text;
-  for (const [from, to] of renames) {
-    renamed = renamed.replaceAll(
-      `${MOUNT.attachedFolders}/${from}/`,
-      `${MOUNT.attachedFolders}/${to}/`,
-    );
-  }
-  return renamed;
-}
-
 /**
  * Where a chat was last read: its newest message for a task the user had
  * seen, or the message before its newest reply for one marked unread, so
@@ -1079,46 +951,24 @@ function validDate(value: unknown): Date | undefined {
 }
 
 /**
- * The chat's folders with the task's added: a folder the chat already has by
- * path is kept under the chat's name for it, and a new one takes the task's
- * name, or the next free one when the chat already uses that name for another
- * folder. Returns the names that differ, so the copied replies can be spelled
- * the way the chat reaches them. A folder a project lent the task is the
+ * The task's folders as the chat holds them, under the names the task knew
+ * them by, so a reply naming `/mnt/<folder>/…` reaches the same file from the
+ * chat that it did from the task. A folder a project lent the task is the
  * chat's own from here, since the project it came from is gone.
  */
-function withTaskFolders(
-  chatFolders: Record<string, unknown>,
-  taskFolders: unknown,
-): { folders: Record<string, unknown>; renames: Map<string, string> } {
-  const folders: Record<string, unknown> = { ...chatFolders };
-  const renames = new Map<string, string>();
-  for (const [key, folder] of Object.entries(
-    isRecord(taskFolders) ? taskFolders : {},
-  )) {
-    if (!isRecord(folder) || typeof folder.path !== "string") {
-      continue;
-    }
-    const taskName =
-      typeof folder.mountName === "string" ? folder.mountName : key;
-    const known = Object.entries(folders).find(
-      ([, existing]) => isRecord(existing) && existing.path === folder.path,
-    );
-    if (known) {
-      if (known[0] !== taskName) {
-        renames.set(taskName, known[0]);
-      }
-      continue;
-    }
-    let name = taskName;
-    for (let suffix = 2; name in folders; suffix += 1) {
-      name = `${taskName}-${suffix}`;
-    }
-    folders[name] = { ...folder, mountName: name, source: "user" };
-    if (name !== taskName) {
-      renames.set(taskName, name);
-    }
-  }
-  return { folders, renames };
+function chatFoldersOf(taskFolders: unknown): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(isRecord(taskFolders) ? taskFolders : {}).flatMap(
+      ([key, folder]) => {
+        if (!isRecord(folder) || typeof folder.path !== "string") {
+          return [];
+        }
+        const mountName =
+          typeof folder.mountName === "string" ? folder.mountName : key;
+        return [[mountName, { ...folder, mountName, source: "user" }]];
+      },
+    ),
+  );
 }
 
 /**
@@ -1130,15 +980,12 @@ function writeChatRows({
   dbPath,
   files,
   messages,
-  mountRenames,
   session,
   taskId,
 }: {
   dbPath: string;
   files: string[];
   messages: ConversationMessage[];
-  /** Mount names the chat knows a task's folder by, where they differ from the task's. */
-  mountRenames: Map<string, string>;
   session: Session.Type;
   taskId: ReturnType<typeof TaskIdSchema.parse>;
 }) {
@@ -1182,10 +1029,7 @@ function writeChatRows({
       state: "done",
       text:
         message.role === "assistant"
-          ? renameMounts(
-              translateTaskFolderPaths(part.text, taskId),
-              mountRenames,
-            ).replaceAll(
+          ? translateTaskFolderPaths(part.text, taskId).replaceAll(
               RELATIVE_LINK,
               (_match, open: string, target: string) =>
                 `${open}${MOUNT.tasks}/${taskId}/${target.replace(/^\.\//, "")}`,

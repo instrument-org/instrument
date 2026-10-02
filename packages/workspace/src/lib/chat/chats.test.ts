@@ -12,7 +12,6 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { placeChatTask } from "../record-folders";
 import { Store } from "../store";
-import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
@@ -72,8 +71,8 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // id reused across runs would read the last run's chats.
 let counter = 0;
 /**
- * The window's record, in a workspace of its own: chats, topics and the
- * window's record all live under the root, so each test gets one.
+ * A workspace of its own: chats, topics and the window's state all live
+ * under the root, so each test gets one.
  */
 const freshTask = async () => {
   const taskId = createMockTaskConfig(
@@ -85,11 +84,6 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
-  const made = await updateTaskSettings(taskId, {
-    kind: "chat",
-    name: "Instrument",
-  });
-  expect(made.isOk()).toBe(true);
   return taskId;
 };
 

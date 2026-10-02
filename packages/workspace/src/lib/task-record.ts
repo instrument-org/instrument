@@ -155,8 +155,8 @@ export async function updateTaskRecord(
  * queue.
  *
  * For the fields that are read-modify-write on one value with several writers
- * at once: the window records what has been seen in a chat while the agent
- * tags it and a task files itself from it. Reading before the queue means the
+ * at once: the tabs a task holds, as the chat hands it one while the task
+ * opens another. Reading before the queue means the
  * slower writer restores the value the faster one had just changed.
  */
 export async function updateTaskState(
@@ -254,12 +254,12 @@ function recordWithState(
  * Windows fails a rename with EPERM while another process holds either file
  * open, and something always does on a real machine: a virus scanner reads what
  * was just written, a search indexer walks the directory. This file is rewritten
- * as the user types and as the window records what it has seen, so it draws that
+ * as the user types and as a chat hands its tasks tabs, so it draws that
  * attention more than most. The handle is held for a moment, so retrying turns a
  * write that was lost outright into one that is late. POSIX has no such failure
  * and loses nothing by asking again.
  */
-async function renameWhenAllowed(
+export async function renameWhenAllowed(
   temporary: string,
   target: AbsolutePath,
 ): Promise<void> {

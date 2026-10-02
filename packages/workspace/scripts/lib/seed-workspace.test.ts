@@ -127,7 +127,6 @@ describe("seedWorkspace", () => {
     const { session } = await readSeededSession(chatId);
     expect(chatSettings).toMatchObject({
       chatSessionId: session.id,
-      kind: "chat",
       name: chat.chat.name,
     });
     // Named by the manifest, so the app never renames it.
@@ -138,7 +137,7 @@ describe("seedWorkspace", () => {
         path.join(path.dirname(taskDir(chatId)), chatId, "tasks", task.id),
       );
       const settings = await getTaskSettings(taskDir(task.id));
-      expect(settings).toMatchObject({ name: task.name, parentTaskId: chatId });
+      expect(settings).toMatchObject({ name: task.name });
     }
   });
 

@@ -5,6 +5,7 @@ import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { type HeldTab } from "../../../schemas/task-state";
+import { WINDOW_ID } from "../../../schemas/window-id";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
   type BrowserTargetId,
@@ -15,7 +16,6 @@ import { type WorkspaceServerParentRef } from "../types";
 import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
 
 const TASK_ID = TaskIdSchema.parse("read-the-pages");
-const WINDOW_ID = TaskIdSchema.parse("instrument");
 
 // The task's record, in memory: which tabs it holds.
 const record: { browserTabs?: HeldTab[] } = {};
@@ -29,9 +29,6 @@ vi.mock("../../../lib/task-record", () => ({
 vi.mock("../../../lib/task-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
   taskDir: (id: string) => `/tmp/tasks/${id}`,
-}));
-vi.mock("../../../lib/chat/ensure", () => ({
-  windowTaskId: () => Promise.resolve(TaskIdSchema.parse("instrument")),
 }));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout } =
@@ -54,9 +51,7 @@ vi.mock("../../../lib/chat/window-tab", () => ({
     return Promise.resolve({ requestId: "r" });
   },
   chatSessionOfTask: () =>
-    Promise.resolve(
-      StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
-    ),
+    StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
   requestWindowTab: (options: { show: boolean; url?: string }) => {
     asked.push({
       kind: "open",

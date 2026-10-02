@@ -1,13 +1,13 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
+import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { childTasksOptions } from "./child-tasks-query";
-import { useWindow } from "./context";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
 const TASKS_NAMED = 5;
@@ -31,10 +31,9 @@ export function DeleteChatDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const { taskId } = useWindow();
   const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
-  const children = useQuery({ ...childTasksOptions(taskId), enabled: open });
+  const children = useQuery({ ...childTasksOptions(WINDOW_ID), enabled: open });
   const tasks = (children.data ?? []).filter(
     (task) => task.chatSessionId === chat.id,
   );

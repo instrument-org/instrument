@@ -267,7 +267,6 @@ describe("Markdown links", () => {
       openPage: vi.fn(),
       openPath: vi.fn(),
       openScreen,
-      taskId: TASK_ID,
     } satisfies WindowContextValue;
     renderWithProviders(
       <WindowContext value={context}>

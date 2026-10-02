@@ -39,7 +39,6 @@ import { type SessionMessageDataPart } from "../src/schemas/session/message-data
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
-import { type TaskKind } from "../src/schemas/task-kind";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type Choose } from "../src/tools/choose";
@@ -223,7 +222,7 @@ export interface EvalCase {
    * creates inside the same workspace, so a run of that kind produces the
    * chat's transcript plus one per task it made.
    */
-  kind?: TaskKind;
+  kind?: "chat" | "task";
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the
@@ -452,7 +451,7 @@ export async function runEvals(
           {
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
-            kind: evalCase.kind,
+            chat: evalCase.kind === "chat",
             modelURI: uri,
             name: evalCase.name,
             projectId,

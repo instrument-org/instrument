@@ -74,7 +74,6 @@ beforeEach(async () => {
     {
       initialSettings: {
         chatSessionId: CHAT_SESSION,
-        kind: "chat",
         name: "Instrument",
       },
       taskId: CHAT_ID,
@@ -87,9 +86,9 @@ beforeEach(async () => {
   }
   const created = await initializeTask(
     {
+      chatId: CHAT_ID,
       initialSettings: {
         name: "Find the vault",
-        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),

@@ -55,6 +55,7 @@ import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
   StoreId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -384,7 +385,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                 tabs={tabs}
                 targetOf={(tab) =>
                   encodeBrowserTargetId(
-                    tab.taskId ?? shell.ids.taskId,
+                    tab.taskId ?? WINDOW_ID,
                     StoreId.SessionSchema.parse(tab.id),
                   )
                 }

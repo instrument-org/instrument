@@ -8,7 +8,7 @@ import {
   takeBrowserClosed,
 } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
-import { windowTaskId } from "./chat/ensure";
+import { WINDOW_ID } from "../schemas/window-id";
 import { taskFsLayout } from "./resolve-workspace-file-path";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState } from "./task-record";
@@ -184,7 +184,7 @@ async function heldTabsStatus(
   if (heldTabs.length === 0 || browser.hasNoWindow) {
     return null;
   }
-  const windowTargets = await browser.listTargets(await windowTaskId());
+  const windowTargets = await browser.listTargets(WINDOW_ID);
   const titles = new Map(
     windowTargets.map((target) => [target.id, target.title]),
   );

@@ -36,7 +36,7 @@ const PAGE_READ_MS = ms("5 seconds");
 /**
  * The window as the readers see it: its tabs, the screen that is up and what
  * it says it shows, the drafts and what their windows have up, the names an
- * address alone cannot say, and the window record's state, without which
+ * address alone cannot say, and the folders the window reaches, without which
  * nothing is described.
  */
 export interface SendContextWindow {
@@ -57,8 +57,8 @@ export interface SendContextWindow {
   paneOpenByGroup: Record<string, boolean>;
   /** What the screen that is up says it shows, or nothing while none has said. */
   screenView: null | ScreenView;
-  /** The window record's state, whose folder grants say how the conversation reaches a file. */
-  state: RPCOutput["workspace"]["task"]["state"]["get"] | undefined;
+  /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
+  state: RPCOutput["workspace"]["window"]["ensure"] | undefined;
   /** What each draft window's band has up, by the draft's group. */
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<

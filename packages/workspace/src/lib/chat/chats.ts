@@ -8,6 +8,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
@@ -17,8 +18,8 @@ import { pathsNamedInMessage } from "../paths-named-in-message";
 import { chatOfSession, chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
-import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
+import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
@@ -29,7 +30,6 @@ import {
   chatActivity,
 } from "./activity";
 import { listChatIds } from "./chat-records";
-import { windowTaskId } from "./ensure";
 import { latestSessionId } from "./latest-session";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
@@ -291,7 +291,7 @@ export async function markChatSeen(sessionId: StoreId.Session): Promise<void> {
   if (!newest) {
     return;
   }
-  await updateTaskState(taskDir(await windowTaskId()), (state) => ({
+  await updateWindowState((state) => ({
     chatSeen: { ...state.chatSeen, [sessionId]: newest },
   }));
   // What was seen is a fact about the session as the window shows it, and the
@@ -323,7 +323,7 @@ export async function markChatUnseen(
   const before = ordered
     .slice(0, ordered.indexOf(newest))
     .findLast((message) => message.role !== "session-context");
-  await updateTaskState(taskDir(await windowTaskId()), (state) => {
+  await updateWindowState((state) => {
     const { [sessionId]: _seen, ...rest } = state.chatSeen ?? {};
     return {
       chatSeen: before ? { ...rest, [sessionId]: before.id } : rest,
@@ -902,10 +902,9 @@ function latestFor({
 }
 
 async function loadShared(): Promise<Shared> {
-  const windowId = await windowTaskId();
-  const state = await getTaskState(taskDir(windowId));
+  const state = await getWindowState();
   return {
-    activity: await chatActivity(windowId),
+    activity: await chatActivity(WINDOW_ID),
     knownApps: await knownAppSlugs(),
     seen: state.chatSeen ?? {},
   };

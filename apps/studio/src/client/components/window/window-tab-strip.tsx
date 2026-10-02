@@ -7,13 +7,13 @@ import {
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
-import { useWindow } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
@@ -89,7 +89,6 @@ export function WindowTabStrip({
   ];
   // And which of the window's own tabs a task is driving, having been handed
   // it: those shimmer too, keyed by the tab rather than by a task.
-  const { taskId: ownTaskId } = useWindow();
   const [driven, setDriven] = useState<ReadonlySet<string>>(new Set());
   const ownPageTabs = tabs.flatMap((tab) =>
     tab.kind === "page" && !tab.taskId ? [tab.id] : [],
@@ -124,7 +123,7 @@ export function WindowTabStrip({
           onChange={reportDriven}
           tabId={id}
           targetId={encodeBrowserTargetId(
-            ownTaskId,
+            WINDOW_ID,
             StoreId.SessionSchema.parse(id),
           )}
         />

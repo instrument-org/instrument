@@ -12,7 +12,12 @@ import {
   sessionOfChat,
 } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
-import { INSTRUMENT_TITLE } from "./ensure";
+
+/**
+ * The name on a chat's record. A chat's title is its session's; this is
+ * what the record answers with where a task's name would be read.
+ */
+const CHAT_RECORD_NAME = "Instrument";
 
 /**
  * A chat's record, made the first time something is sent in it, and named on
@@ -40,8 +45,7 @@ export async function ensureChat(
     {
       initialSettings: {
         chatSessionId: sessionId,
-        kind: "chat",
-        name: INSTRUMENT_TITLE,
+        name: CHAT_RECORD_NAME,
       },
       taskId: chatId,
       workspaceConfig: getWorkspaceConfig(),

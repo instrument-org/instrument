@@ -40,7 +40,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
@@ -205,7 +205,7 @@ export function Omnibar({
   resting?: ReactNode;
 }) {
   const mode = omnibarModeOf(location);
-  const { openPage, taskId } = useWindow();
+  const { openPage } = useWindow();
   const router = useRouter();
   const queryClient = useQueryClient();
   const routerLocation = useRouterState({
@@ -307,7 +307,7 @@ export function Omnibar({
     try {
       await queryClient.fetchQuery(
         rpcClient.workspace.computer.list.queryOptions({
-          input: { id: taskId, path: host },
+          input: { id: WINDOW_ID, path: host },
           retry: false,
         }),
       );
@@ -333,7 +333,6 @@ export function Omnibar({
     location,
     mode,
     open: { openFolder, openPath, openSite, visit },
-    taskId,
     typed,
   });
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
@@ -572,7 +571,6 @@ function useRows({
   location,
   mode,
   open,
-  taskId,
   typed,
 }: {
   canComplete: boolean;
@@ -584,7 +582,6 @@ function useRows({
     openSite: (url: string) => void;
     visit: (href: string) => void;
   };
-  taskId: TaskId;
   typed: string;
 }): { completion: string; empty?: string; rows: OmniRow[] } {
   const home = window.api.homeDir;
@@ -639,7 +636,7 @@ function useRows({
     rpcClient.workspace.computer.list.queryOptions({
       input:
         mode === "files" && words !== ""
-          ? { id: taskId, path: path.folder }
+          ? { id: WINDOW_ID, path: path.folder }
           : skipToken,
       retry: false,
       staleTime: ms("10 seconds"),
@@ -656,7 +653,7 @@ function useRows({
     rpcClient.workspace.skill.list.queryOptions({ enabled: mode === "skills" }),
   );
   const tasks = useQuery(
-    childTasksOptions(mode === "tasks" && shell ? shell.ids.taskId : skipToken),
+    childTasksOptions(mode === "tasks" ? WINDOW_ID : skipToken),
   );
 
   // A switch asked for by its word is all the words mean.

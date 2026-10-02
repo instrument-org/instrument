@@ -7,6 +7,7 @@ import {
   encodeBrowserTargetId,
   type SessionMessageDataPart,
   StoreId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -317,7 +318,7 @@ export function ChatWindow({
       tabs={tabs}
       targetOf={(tab) =>
         encodeBrowserTargetId(
-          tab.taskId ?? appWindow.taskId,
+          tab.taskId ?? WINDOW_ID,
           StoreId.SessionSchema.parse(tab.id),
         )
       }

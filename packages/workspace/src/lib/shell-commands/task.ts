@@ -45,7 +45,7 @@ import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../chat/activity";
 import { childTaskMounts, listChildTasks } from "../chat/children";
 import { describeHoldings } from "../chat/describe-holdings";
-import { windowTaskId } from "../chat/ensure";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { taskFolderHoldings } from "../chat/folder-holdings";
 import { folderReach } from "../chat/folder-reach";
 import { stepInFlight } from "../chat/in-flight";
@@ -610,11 +610,10 @@ export async function runNew(
     : parentSettings?.reasoningEffort;
   const initialized = await initializeTask(
     {
+      chatId: context.chatId,
       initialSettings: {
         apps,
-        kind: "task",
         name,
-        parentTaskId: context.chatId,
         ...(effort ? { reasoningEffort: effort } : {}),
       },
       taskId,
@@ -1503,8 +1502,8 @@ async function resolveModel(rawName: string, context: TaskCommandContext) {
 }
 
 async function resolveTab(tab: string): Promise<BrowserTargetId> {
-  // The window's tabs are the window record's, whichever chat names one.
-  const windowId = await windowTaskId();
+  // The window's tabs are the window's, whichever chat names one.
+  const windowId = WINDOW_ID;
   const sessionId = StoreId.SessionSchema.safeParse(tab);
   if (!sessionId.success) {
     throw new Error(
@@ -1664,7 +1663,7 @@ async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
       `"${tab}" is not a tab id; the note on the user's message lists them.`,
     );
   }
-  return encodeBrowserTargetId(await windowTaskId(), sessionId.data);
+  return encodeBrowserTargetId(WINDOW_ID, sessionId.data);
 }
 
 /**

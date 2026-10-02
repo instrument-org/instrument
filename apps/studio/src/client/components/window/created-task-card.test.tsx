@@ -55,7 +55,6 @@ function renderCard() {
         openPage: vi.fn(),
         openPath: vi.fn(),
         openScreen,
-        taskId: CHAT_ID,
       }}
     >
       <CreatedTaskCard taskId={TASK_ID} />

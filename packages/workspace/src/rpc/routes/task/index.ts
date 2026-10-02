@@ -33,7 +33,6 @@ import { SessionMessageDataPart } from "../../../schemas/session/message-data-pa
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
-import { TaskKindSchema } from "../../../schemas/task-kind";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { liveTaskActivity, taskActivity } from "./activity";
@@ -92,7 +91,7 @@ const create = base
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
       // A chat is created this way only by the eval harness, and it
       // is made a chat, the way the window's first send makes one.
-      kind: TaskKindSchema.optional(),
+      chat: z.boolean().optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       projectId: ProjectIdSchema.nullish(),
@@ -112,10 +111,10 @@ const create = base
       context,
       errors,
       input: {
+        chat,
         files,
         folders,
         intent,
-        kind,
         modelURI,
         name,
         projectId,
@@ -151,7 +150,7 @@ const create = base
 
       // Made the way the window's first send makes a chat: a record of its
       // own, named for the words it opens with.
-      const chatSession = kind === "chat" ? StoreId.newSessionId() : undefined;
+      const chatSession = chat ? StoreId.newSessionId() : undefined;
       const initialTaskName = name ?? defaultTaskName(prompt);
       let taskId: TaskId;
       let result: Result<unknown, TypedError.Type> = ok(undefined);
@@ -165,7 +164,6 @@ const create = base
         result = await initializeTask(
           {
             initialSettings: {
-              kind,
               name: initialTaskName,
               projectId: projectId ?? undefined,
             },
@@ -321,7 +319,7 @@ const create = base
       context.workspaceRef.send({
         type: "createSession",
         value: {
-          agentName: await agentNameForTask(taskId),
+          agentName: agentNameForTask(taskId),
           id: taskId,
           message,
           model,

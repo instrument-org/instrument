@@ -1,7 +1,7 @@
 // Where each gesture over a link sends the page.
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +17,6 @@ vi.mock("@/client/hooks/use-open-external-link", () => ({
   useOpenExternalLink: () => openExternalLink,
 }));
 
-const TASK_ID = TaskIdSchema.parse("a-task");
 const SESSION_ID = StoreId.newSessionId();
 
 /** A surface that says where a page goes. */
@@ -49,7 +48,6 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
     openPath: vi.fn(),
     openScreen: vi.fn(),
     sessionId: SESSION_ID,
-    taskId: TASK_ID,
     ...surface,
   } satisfies WindowContextValue;
   return {

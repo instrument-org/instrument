@@ -26,6 +26,7 @@ import {
   AGENT_MESSAGE_LANGUAGE,
   isMessageDocument,
   parseMessage,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
@@ -200,11 +201,11 @@ function FenceView({
   language: string;
   onEditSource: (anchor: HTMLElement) => void;
 }) {
-  // A files fence names paths as the conversation's task sees them; the
-  // window's own task is the one that can place them on this computer.
+  // A files fence names paths as the conversation sees them; the window's
+  // reach is what can place them on this computer.
   const appWindow = useContext(WindowContext);
   return (
-    <MarkdownTaskContext value={{ taskId: appWindow?.taskId }}>
+    <MarkdownTaskContext value={{ taskId: appWindow ? WINDOW_ID : undefined }}>
       <div className="group/fence relative">
         {language === AGENT_MESSAGE_LANGUAGE ? (
           <MessageCard message={parseMessage(content)} />

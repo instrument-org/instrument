@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { encodeBrowserTargetId } from "../../types";
@@ -26,9 +27,6 @@ const context: TaskCommandContext = {
   chatId: CHAT_ID,
   remainingYieldMs: () => 0,
 };
-
-// The window's own record, whose tabs a chat hands to its tasks.
-const WINDOW_ID = TaskIdSchema.parse("instrument");
 
 let rootDir: string;
 let openTab: StoreId.Session;
@@ -62,7 +60,7 @@ function tabsAreOpen(...sessionIds: StoreId.Session[]) {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-tab-"));
-  for (const id of [WINDOW_ID, CHILD_ID]) {
+  for (const id of [CHILD_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
@@ -75,20 +73,10 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(CHAT_SESSION, CHAT_ID);
-  const window = await initializeTask(
-    {
-      initialSettings: { kind: "chat", name: "Instrument" },
-      taskId: WINDOW_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (window.isErr()) {
-    throw window.error;
-  }
   const created = await initializeTask(
     {
-      initialSettings: { name: "Read the page", parentTaskId: CHAT_ID },
+      chatId: CHAT_ID,
+      initialSettings: { name: "Read the page" },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
     },

@@ -57,9 +57,9 @@ beforeEach(async () => {
   chatFor(CHAT_SESSION, CHAT_ID);
   const created = await initializeTask(
     {
+      chatId: CHAT_ID,
       initialSettings: {
         name: "Audit the runtime",
-        parentTaskId: CHAT_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),

@@ -3,13 +3,16 @@ import {
   ChatTaskList,
   type TaskListItem,
 } from "@/client/components/window/chat-task-list";
-import { useWindow } from "@/client/components/window/context";
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { useScreenTab } from "@/client/components/window/screen-tab";
 import { taskHref } from "@/client/components/window/tab-location";
 import { TaskPage } from "@/client/components/window/task-page";
 import { type RPCOutput } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type StoreId,
+  type TaskId,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
@@ -96,6 +99,5 @@ function describe(child: Child) {
 
 /** The conversation's tasks, re-read while a tasks screen is up. */
 function useChildren() {
-  const appWindow = useWindow();
-  return useQuery(childTasksOptions(appWindow.taskId));
+  return useQuery(childTasksOptions(WINDOW_ID));
 }

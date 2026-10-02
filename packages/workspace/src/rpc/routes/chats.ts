@@ -24,6 +24,7 @@ import { listChildTasks } from "../../lib/chat/children";
 import { retitleChat } from "../../lib/chat/retitle";
 import { taskStanding } from "../../lib/chat/standing";
 import {
+  chatIdOfTask,
   chatOfSession,
   chatTaskIds,
   isChatId,
@@ -31,7 +32,6 @@ import {
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
-import { getTaskSettings } from "../../lib/task-settings";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
@@ -238,26 +238,13 @@ export function chatChanges(signal: AbortSignal | undefined) {
       }
     }
   }
-  const parents = new Map<TaskId, Promise<TaskId | undefined>>();
-  const parentOf = (taskId: TaskId) => {
-    const known = parents.get(taskId);
-    if (known) {
-      return known;
-    }
-    const read = getTaskSettings(taskDir(taskId)).then(
-      (settings) => settings?.parentTaskId,
-    );
-    parents.set(taskId, read);
-    return read;
-  };
   async function* childSteps() {
     for await (const { id: childId, part } of partUpdates) {
       if (
-        !isChatId(childId) &&
         part.type.startsWith("tool-") &&
         "state" in part &&
         part.state === "input-available" &&
-        isChatId((await parentOf(childId)) ?? "")
+        chatIdOfTask(childId) !== undefined
       ) {
         yield null;
       }

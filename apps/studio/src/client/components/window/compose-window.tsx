@@ -92,6 +92,7 @@ import {
 } from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { FilesScreen } from "./files-screen";
+import { PageAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
 import { type Idea } from "./ideas";
@@ -1118,10 +1119,16 @@ export function GroupItem({
                 />
               ),
               trailing: (
-                <div
-                  className="flex shrink-0 items-center gap-0.5"
-                  ref={setControlsSlot}
-                />
+                <>
+                  {/* A page's file has the file's own Ask among its actions. */}
+                  {before && location.kind === "page" && (
+                    <PageAskButton onAsk={appWindow.focusComposer} />
+                  )}
+                  <div
+                    className="flex shrink-0 items-center gap-0.5"
+                    ref={setControlsSlot}
+                  />
+                </>
               ),
             }
           : isFileScreen

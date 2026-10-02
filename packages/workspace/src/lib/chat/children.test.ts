@@ -49,7 +49,7 @@ async function make(id: string, chatId?: TaskId) {
 }
 
 describe("listChildTasks", () => {
-  it("gives a chat its own tasks, the window every chat's, and a task none", async () => {
+  it("gives a chat its own tasks, and the window or a task none", async () => {
     const one = chatFor();
     const two = chatFor();
     const first = await make("2026-09-26-first", one);
@@ -61,9 +61,31 @@ describe("listChildTasks", () => {
     };
 
     expect(await ids(one)).toEqual([first]);
-    expect(await ids(WINDOW_ID)).toEqual([first, second]);
-    // A task is not the window: asking it for its tasks never walks back into
-    // every chat, which is a loop for anything that walks the tree.
+    expect(await ids(two)).toEqual([second]);
+    // No id stands for every chat's tasks, and a task asked for its tasks
+    // never walks back into its chat.
+    expect(await ids(WINDOW_ID)).toEqual([]);
     expect(await ids(first)).toEqual([]);
+  });
+
+  it("leaves out a task whose settings cannot be read, and makes nothing in it", async () => {
+    const chat = chatFor();
+    const kept = await make("2026-09-26-kept", chat);
+    const broken = path.join(
+      rootDir,
+      "chats",
+      chat,
+      "tasks",
+      "2026-09-26-broken",
+      ".instrument",
+    );
+    await fs.mkdir(broken, { recursive: true });
+    await fs.writeFile(path.join(broken, "settings.json"), "{ not json");
+    forgetRecordFolders();
+
+    const tasks = await listChildTasks(chat);
+
+    expect(tasks.map((task) => task.id)).toEqual([kept]);
+    expect(await fs.readdir(broken)).toEqual(["settings.json"]);
   });
 });

@@ -166,26 +166,25 @@ export function leftRunning(taskId: TaskId, now = Date.now()): LeftRunning[] {
  * too, waiting on what holds it, since it is the user's move either way.
  */
 export async function chatActivity(chatId: TaskId): Promise<ChatActivity> {
-  const children = await listChildTasks(chatId);
+  const children = await listChildTasks(
+    chatId,
+    (id) => isWorking(id) || taskHold(id) !== undefined,
+  );
   const running = await Promise.all(
-    children
-      .filter((child) => isWorking(child.id) || taskHold(child.id))
-      .map(async (child) => {
-        const chat =
-          child.parentTaskId === undefined
-            ? undefined
-            : sessionOfChat(child.parentTaskId);
-        const held = taskHold(child.id);
-        return {
-          ...(held
-            ? { waiting: held.userReason }
-            : await runningLines(child.id)),
-          taskId: child.id,
-          ...(chat ? { chat } : {}),
-          title: child.title,
-          updatedAt: child.updatedAt.getTime(),
-        };
-      }),
+    children.map(async (child) => {
+      const chat =
+        child.parentTaskId === undefined
+          ? undefined
+          : sessionOfChat(child.parentTaskId);
+      const held = taskHold(child.id);
+      return {
+        ...(held ? { waiting: held.userReason } : await runningLines(child.id)),
+        taskId: child.id,
+        ...(chat ? { chat } : {}),
+        title: child.title,
+        updatedAt: child.updatedAt.getTime(),
+      };
+    }),
   );
   return { running };
 }

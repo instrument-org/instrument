@@ -7,7 +7,6 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { getTasks } from "../get-tasks";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { chatIdOfTask, chatOfSession, sessionOfChat } from "../record-folders";
@@ -20,6 +19,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { chatOfTask } from "./attribution";
 import { listChatIds } from "./chat-records";
+import { listChildTasks } from "./children";
 import { taskFolderHoldings } from "./folder-holdings";
 import { stepInFlight } from "./in-flight";
 import {
@@ -200,13 +200,22 @@ export async function wakeChatForApp(
 }
 
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
-  const workspaceConfig = getWorkspaceConfig();
-  const { tasks } = await getTasks(workspaceConfig);
   const now = Date.now();
-  for (const task of tasks) {
+  // Only a chat's task reports in, and only one at work is read.
+  const working = (
+    await Promise.all(
+      listChatIds().map((chatId) => listChildTasks(chatId, isWorking)),
+    )
+  ).flat();
+  const workingIds = new Set(working.map((task) => task.id));
+  for (const id of overdueReportedAt.keys()) {
+    if (!workingIds.has(id)) {
+      overdueReportedAt.delete(id);
+    }
+  }
+  for (const task of working) {
     const parentTaskId = task.parentTaskId;
-    if (parentTaskId === undefined || !isWorking(task.id)) {
-      overdueReportedAt.delete(task.id);
+    if (parentTaskId === undefined) {
       continue;
     }
     // The conversation said when it wants to look; the clock stays quiet.

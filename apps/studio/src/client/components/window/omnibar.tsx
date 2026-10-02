@@ -10,7 +10,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { childTasksOptions } from "@/client/components/window/child-tasks-query";
+import { useChatTasks } from "@/client/components/window/child-tasks-query";
 import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
@@ -652,8 +652,11 @@ function useRows({
   const skills = useQuery(
     rpcClient.workspace.skill.list.queryOptions({ enabled: mode === "skills" }),
   );
-  const tasks = useQuery(
-    childTasksOptions(mode === "tasks" ? WINDOW_ID : skipToken),
+  // The tasks of the chat the tasks screen or the task's page is for.
+  const tasks = useChatTasks(
+    mode === "tasks" && (location.kind === "task" || location.kind === "tasks")
+      ? location.chat
+      : undefined,
   );
 
   // A switch asked for by its word is all the words mean.
@@ -878,17 +881,16 @@ function useRows({
           location.kind === "task" || location.kind === "tasks"
             ? location.chat
             : undefined;
-        const ofChat = (tasks.data ?? []).filter(
-          (task) => chat === undefined || task.chatSessionId === chat,
+        return matchNames(words, tasks.data ?? [], (task) => task.title).map(
+          (task) => ({
+            icon: <CheckSquareIcon className="size-4" />,
+            id: `task:${task.id}`,
+            name: task.title,
+            run: () => {
+              open.visit(taskHref(task.id, chat));
+            },
+          }),
         );
-        return matchNames(words, ofChat, (task) => task.title).map((task) => ({
-          icon: <CheckSquareIcon className="size-4" />,
-          id: `task:${task.id}`,
-          name: task.title,
-          run: () => {
-            open.visit(taskHref(task.id, chat));
-          },
-        }));
       }
     }
   })().slice(0, MATCHES_SHOWN);

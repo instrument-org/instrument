@@ -1,7 +1,7 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { WINDOW_ID } from "../schemas/window-id";
-import { childTaskMounts } from "./chat/children";
+import { childTaskMounts, windowTaskMounts } from "./chat/children";
 import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
@@ -66,9 +66,10 @@ export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   const taskHostRoot = taskDir(taskId);
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
-    extraMounts:
-      isChatId(taskId) || taskId === WINDOW_ID
-        ? await childTaskMounts(taskId)
+    extraMounts: isChatId(taskId)
+      ? await childTaskMounts(taskId)
+      : taskId === WINDOW_ID
+        ? windowTaskMounts()
         : undefined,
     taskHostRoot,
   });

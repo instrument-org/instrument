@@ -58,7 +58,6 @@ import {
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
-  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -95,7 +94,6 @@ import {
 } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { childTasksOptions } from "./child-tasks-query";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
@@ -109,6 +107,7 @@ import {
   ShellContext,
 } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { ideasQueryOptions } from "./use-ideas";
@@ -265,15 +264,7 @@ function WindowShell({
     }),
   );
   const opened = ensure.data;
-  const children = useQuery(childTasksOptions(opened ? WINDOW_ID : skipToken));
-  const childTitles = new Map<TaskId, string>(
-    children.data?.map((child) => [child.id, child.title]) ?? [],
-  );
-  // The chat each task was filed from, which is the group its browsing
-  // lands in.
-  const childChats = new Map<TaskId, string | undefined>(
-    children.data?.map((child) => [child.id, child.chatSessionId]) ?? [],
-  );
+  const childTitles = useTaskTitles();
   const chats = useQuery(chatListOptions());
   const chatTitles = new Map<StoreId.Session, string>(
     chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
@@ -492,7 +483,6 @@ function WindowShell({
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,
-    chatOfTask: (id) => childChats.get(id),
     chats: chats.data,
     chatTitles,
     isOpen: opened !== undefined,
@@ -946,7 +936,6 @@ function WindowShell({
             {createPortal(
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
-                  chatOfTask={childChats}
                   chromeInto={pageSlot?.chrome?.into ?? null}
                   compose={[...compose.hosts, ...slotHosts]}
                   ref={setBrowser}

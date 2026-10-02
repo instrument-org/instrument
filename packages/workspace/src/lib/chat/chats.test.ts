@@ -10,7 +10,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { placeChatTask } from "../record-folders";
+import { placeChatTask, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -46,7 +46,12 @@ vi.mock(import("./wake"), () => ({
 // have a live agent. Neither exists in a test, so both are dials.
 vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  chatActivity: () => Promise.resolve({ running: running.value }),
+  chatActivity: (chatId: TaskId) =>
+    Promise.resolve({
+      running: running.value.filter(
+        (task) => task.chat === sessionOfChat(chatId),
+      ),
+    }),
 }));
 vi.mock(import("../workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>

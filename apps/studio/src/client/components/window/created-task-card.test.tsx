@@ -26,6 +26,19 @@ vi.mock("@/client/rpc/client", () => ({
           mutationOptions: () => ({ mutationFn: stopSessions }),
         },
       },
+      // The task's record, which names the chat whose list it is read from.
+      task: {
+        byId: {
+          queryOptions: () => ({
+            queryFn: () =>
+              Promise.resolve({
+                id: "lisbon-hotel",
+                parentTaskId: "instrument",
+              }),
+            queryKey: ["task", "lisbon-hotel"],
+          }),
+        },
+      },
     },
   },
 }));

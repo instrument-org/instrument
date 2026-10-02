@@ -1,7 +1,7 @@
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { TaskIdSchema, WINDOW_ID } from "@instrument-org/workspace/client";
+import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import ms from "ms";
@@ -10,7 +10,7 @@ import { type MouseEvent } from "react";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { StopProcessButton } from "../task/stop-process-button";
-import { childTasksOptions } from "./child-tasks-query";
+import { useChildTask } from "./child-tasks-query";
 import { useWindow } from "./context";
 
 /** How often the row re-reads where the task stands while it works. */
@@ -43,13 +43,12 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
     }),
   );
   // The line a finished task ends on: what it made, what it asks for, or how
-  // it stopped. Read from the list of every task the conversation started, and
-  // only once this one is done, which is the moment the line is settled.
-  const children = useQuery({
-    ...childTasksOptions(WINDOW_ID),
-    enabled: status.data?.isWorking === false && !status.data.held,
-  });
-  const standing = children.data?.find((child) => child.id === id)?.standing;
+  // it stopped. Read from the list of the chat it was filed in, and only once
+  // this one is done, which is the moment the line is settled.
+  const standing = useChildTask(
+    id,
+    status.data?.isWorking === false && !status.data.held,
+  )?.standing;
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
 
   const href = `/tasks/${id}`;

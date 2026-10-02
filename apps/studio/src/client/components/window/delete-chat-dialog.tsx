@@ -1,7 +1,6 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
-import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -33,10 +32,11 @@ export function DeleteChatDialog({
 }) {
   const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
-  const children = useQuery({ ...childTasksOptions(WINDOW_ID), enabled: open });
-  const tasks = (children.data ?? []).filter(
-    (task) => task.chatSessionId === chat.id,
-  );
+  const children = useQuery({
+    ...childTasksOptions(chat.taskId),
+    enabled: open,
+  });
+  const tasks = children.data ?? [];
   const named = tasks.slice(0, TASKS_NAMED);
   const more = tasks.length - named.length;
 

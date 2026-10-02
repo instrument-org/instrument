@@ -45,6 +45,7 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
+import { useTaskChats } from "./child-tasks-query";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
@@ -246,22 +247,12 @@ type PageTabsUpdate = (current: {
  * every message.
  */
 export function BrowserTabs({
-  chatOfTask,
   chromeInto,
   compose,
   onPageChange,
   ref,
   reloadInto,
 }: {
-  /**
-   * The chat each task the conversation started was filed from, by its
-   * session id, which is the group the task's browsing lands in; a task
-   * filed outside any chat is in the map with no chat. A task not in
-   * it is one the window has not read yet, since the list is polled while
-   * a guest's arrival is live, and its guest waits for the next read rather
-   * than landing in no group.
-   */
-  chatOfTask: ReadonlyMap<TaskId, string | undefined>;
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
   /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
@@ -280,6 +271,20 @@ export function BrowserTabs({
   const setVisited = useSetAtom(visitedPagesAtom);
   const setRecents = useSetAtom(recentsAtom);
   const attached = useBrowserTargets();
+  // The chat each browsing task was filed from, by its session id, which is
+  // the group its browsing lands in; a task filed outside any chat is in the
+  // map with no chat. A task not in it is one not read yet, and its guest
+  // waits for that read rather than landing in no group.
+  const chatOfTask = useTaskChats(
+    [
+      ...new Set(
+        [...attached].flatMap((target) => {
+          const decoded = decodeBrowserTargetId(target);
+          return decoded && decoded.id !== WINDOW_ID ? [decoded.id] : [];
+        }),
+      ),
+    ].toSorted(),
+  );
 
   // Holds every tab's guest for as long as the window is open, the way the
   // task page holds its browser: subscribing is the hold.

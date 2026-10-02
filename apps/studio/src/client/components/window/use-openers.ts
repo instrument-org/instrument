@@ -5,7 +5,6 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   isFolderPath,
   StoreId,
-  type TaskId,
   WINDOW_ID,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
@@ -20,6 +19,7 @@ import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
 import { visitInTab } from "./tab-history";
+import { taskRecordOptions } from "./child-tasks-query";
 import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import {
   chatOfHref,
@@ -37,7 +37,6 @@ import {
 export function useOpeners({
   appTabs,
   browser,
-  chatOfTask,
   chats,
   chatTitles,
   isOpen,
@@ -49,8 +48,6 @@ export function useOpeners({
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
-  /** The chat a task was filed from, which is the group its tab lands in. */
-  chatOfTask: (id: TaskId) => string | undefined;
   /** The chats the window has, once the list has been read. */
   chats: Chat[] | undefined;
   chatTitles: Map<StoreId.Session, string>;
@@ -154,7 +151,9 @@ export function useOpeners({
       ownTab = false,
       show = false,
     }: OpenOptions = {},
-  ) => {
+    /** Whether a task's chat has already been looked for, found or not. */
+    resolved = false,
+  ): void => {
     // A whole id, or the start of one the way a reply's link carries it,
     // among the chats the window has: a whole id that names none of them
     // is a link to a chat since deleted, not a chat with nothing in it.
@@ -190,13 +189,29 @@ export function useOpeners({
     // A tasks tab already up in that chat walks there in place, the way its
     // crumbs do; anything else gets the tab at that address, or a new one.
     const tasks = tasksOfHref(href);
-    const tasksChat = tasks
-      ? StoreId.SessionSchema.safeParse(
-          (tasks.task === undefined ? undefined : chatOfTask(tasks.task)) ??
-            tasks.chat ??
-            into ??
-            windowTabs.group,
+    if (tasks?.task !== undefined && tasks.chat === undefined && !resolved) {
+      // A task's address that names no chat is opened once its record says
+      // which chat it was filed in, a read kept for as long as the window
+      // is open.
+      const task = tasks.task;
+      void queryClient
+        .fetchQuery(taskRecordOptions(task))
+        .then(
+          (record) =>
+            chats?.find((known) => known.taskId === record.parentTaskId)?.id,
+          () => undefined,
         )
+        .then((filedIn) => {
+          openScreen(
+            taskHref(task, filedIn),
+            { activate, behind, group: into, newTab, ownTab, show },
+            true,
+          );
+        });
+      return;
+    }
+    const tasksChat = tasks
+      ? StoreId.SessionSchema.safeParse(tasks.chat ?? into ?? windowTabs.group)
       : undefined;
     if (tasks && tasksChat?.success) {
       const owner = tasksChat.data;
@@ -515,5 +530,11 @@ export function useOpeners({
       controller.abort();
     };
   }, [isOpen]);
-  return { openNamedPath, openPage, openScreen };
+  return {
+    openNamedPath,
+    openPage,
+    openScreen: (href: string, options?: OpenOptions) => {
+      openScreen(href, options);
+    },
+  };
 }

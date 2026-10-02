@@ -8,7 +8,6 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
-import { WINDOW_ID } from "../../schemas/window-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
@@ -181,7 +180,6 @@ publisher.subscribe("task.removed", ({ id }) => {
 
 /** What every chat of a conversation is read against, loaded once per list. */
 interface Shared {
-  activity: ChatActivity;
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
   seen: Record<string, StoreId.Message>;
@@ -230,21 +228,6 @@ export async function chatIsWorking(
   }
   const { running } = await chatActivity(taskId);
   return running.some((task) => !task.waiting);
-}
-
-/**
- * A chat's title as its record holds it, read from its digest so a chat
- * whose store has not changed is not opened to answer.
- */
-export async function chatRecordTitle(
-  sessionId: StoreId.Session,
-): Promise<string | undefined> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return undefined;
-  }
-  const digest = await chatDigest(taskId, sessionId);
-  return digest?.session.title;
 }
 
 /**
@@ -589,9 +572,7 @@ async function chatFor(
 ): Promise<Chat> {
   const { root, session } = digest;
   const filedTasks = chatTaskIds(taskId);
-  const filed = shared.activity.running.filter(
-    (task) => task.chat === session.id,
-  );
+  const { running: filed } = await chatActivity(taskId);
   const runningTasks = filed.map((task) => ({
     id: task.taskId,
     ...(task.step ? { step: task.step } : {}),
@@ -910,7 +891,6 @@ function latestFor({
 async function loadShared(): Promise<Shared> {
   const state = await getWindowState();
   return {
-    activity: await chatActivity(WINDOW_ID),
     knownApps: await knownAppSlugs(),
     seen: state.chatSeen ?? {},
     ...(state.seenFloor ? { seenFloor: state.seenFloor } : {}),

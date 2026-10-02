@@ -9,7 +9,6 @@ import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
-  chatRecordTitle,
   ChatSchema,
   listChats,
   markChatSeen,
@@ -28,7 +27,6 @@ import {
   chatOfSession,
   chatTaskIds,
   isChatId,
-  sessionOfChat,
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
@@ -78,10 +76,6 @@ const ChildTaskSchema = TaskSchema.extend({
     kind: z.enum(["done", "failed", "running", "waiting"]),
     line: z.string(),
   }),
-  /** The chat it was filed from, absent for a task filed outside a turn. */
-  chatSessionId: StoreId.SessionSchema.optional(),
-  /** That chat's title, as the user knows it. */
-  chatTitle: z.string().optional(),
   /** Whether a stop has something to end: an agent at work, or a hold on its start. */
   stoppable: z.boolean(),
 });
@@ -93,21 +87,12 @@ async function childTasks(id: TaskId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
-      const chatSessionId =
-        task.parentTaskId === undefined
-          ? undefined
-          : sessionOfChat(task.parentTaskId);
-      const chatTitle = chatSessionId
-        ? await chatRecordTitle(chatSessionId)
-        : undefined;
       const running = isWorking(task.id);
       return {
         ...task,
         dir: taskDir(task.id),
         standing: await taskStanding({ isRunning: running, taskId: task.id }),
         stoppable: running || taskHold(task.id) !== undefined,
-        ...(chatSessionId ? { chatSessionId } : {}),
-        ...(chatTitle === undefined ? {} : { chatTitle }),
       };
     }),
   );
@@ -162,11 +147,28 @@ function childTaskChanges(signal: AbortSignal | undefined) {
   return collapsed(merged());
 }
 
+/**
+ * A chat's tasks once, as the live list's first answer. The id must be a
+ * chat's: nothing lists every chat's tasks.
+ */
+const childTasksRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(ChildTaskSchema.array())
+  .handler(async ({ errors, input }) => {
+    if (!isChatId(input.id)) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
+    return await childTasks(input.id);
+  });
+
 /** A chat's tasks, re-read whenever one of them may have changed. */
 const liveChildTasksRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
-  .handler(async function* ({ input, signal }) {
+  .handler(async function* ({ errors, input, signal }) {
+    if (!isChatId(input.id)) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
     const changes = childTaskChanges(signal);
     try {
       yield await childTasks(input.id);
@@ -506,6 +508,7 @@ export const chats = {
   seen: seenChatRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
+  tasks: childTasksRoute,
   taskStatus: childStatus,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,

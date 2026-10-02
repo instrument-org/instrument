@@ -1,3 +1,4 @@
+import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,9 +13,11 @@ import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { type WorkspaceRPCContext } from "../base";
 import { publisher } from "../publisher";
-import { announceChatRemoved, chatChanges } from "./chats";
+import { announceChatRemoved, chatChanges, chats } from "./chats";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
 // folder under a workspace root of this file's own.
@@ -152,5 +155,34 @@ describe("chatChanges", () => {
     expect(await fired(next)).toBe(expected);
     controller.abort();
     await changes.return();
+  });
+});
+
+describe("chats.tasks", () => {
+  const context: WorkspaceRPCContext = {
+    workspaceConfig: getWorkspaceConfig(),
+    // Listing never reaches the actor ref for a task it leaves out, so the
+    // cast spares the test booting a workspace machine it would not use.
+    workspaceRef: undefined as unknown as WorkspaceRPCContext["workspaceRef"],
+  };
+
+  it("refuses the window and a task, since nothing lists every chat's tasks", async () => {
+    for (const id of [WINDOW_ID, otherTaskId, childTaskId]) {
+      await expect(call(chats.tasks, { id }, { context })).rejects.toThrow(
+        "That chat is not there any more.",
+      );
+    }
+  });
+
+  it("leaves out a task with no settings, and makes nothing inside it", async () => {
+    expect(await call(chats.tasks, { id: taskId }, { context })).toEqual([]);
+    const childDir = path.join(
+      getWorkspaceConfig().rootDir,
+      "chats",
+      taskId,
+      "tasks",
+      childTaskId,
+    );
+    expect(fs.readdirSync(childDir)).toEqual([]);
   });
 });

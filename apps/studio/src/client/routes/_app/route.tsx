@@ -50,6 +50,7 @@ import {
 } from "@/client/components/window/window-tabs";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
@@ -520,20 +521,37 @@ function SiteView({ group }: { group: string }) {
     if (!stashed) {
       return;
     }
+    // Its guest went with it, and is opened again at the page it held the
+    // way a launch opens a restored tab's: from blank, so with none of the
+    // page's own history behind it.
+    const pages = stashed.map((tab) =>
+      tab.kind === "page" ? { ...tab, pageBackSteps: 0 } : tab,
+    );
     setWindowTabs((current) => ({
       ...current,
       // Up at once when its group is the one on screen, which it is, being
       // this tab's.
       activeId:
         current.group === group
-          ? (stashed[0]?.id ?? current.activeId)
+          ? (pages[0]?.id ?? current.activeId)
           : current.activeId,
-      tabs: [...current.tabs.filter((tab) => tab.group !== group), ...stashed],
+      tabs: [...current.tabs.filter((tab) => tab.group !== group), ...pages],
     }));
+    for (const tab of pages) {
+      if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
+        void rpcClient.workspace.browser.open.call({
+          id: tab.taskId ?? shell.ids.taskId,
+          sessionId: StoreId.SessionSchema.parse(tab.id),
+          url: tab.url,
+        });
+      }
+    }
     setPutAway((current) => {
       const { [group]: _restored, ...rest } = current;
       return rest;
     });
+    // Once per group put back; the task it opens under does not change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, setPutAway, setWindowTabs, stashed]);
   // Back from the page's start is the window tab's own back, to where the
   // site was opened from.

@@ -6,7 +6,7 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 
 ## Index
 
-- [system-overview.md](system-overview.md) — the top-level map: packages and layering, main-vs-renderer topology, on-disk layout, and how an agent turn flows end to end. **Start here.**
+- [system-overview.md](system-overview.md) — the top-level map: packages and layering, chats, tasks, and the app window, main-vs-renderer topology, on-disk layout, and how an agent turn flows end to end. **Start here.**
 - [ai-gateway.md](ai-gateway.md) — model access: the mounted provider-proxy Hono app, plus the model discovery and identity library that workspace and studio consume.
 - [agent-sandbox.md](agent-sandbox.md) — how agent tools are contained: path-scoped file I/O, the just-bash virtual filesystem, the agent-browser allowlist, and the real-binary escape hatches. Userland, not OS-level isolation.
 - [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) — the `/task` + `/skills` + `/mnt` mount layout, the virtual-to-host path bridge, and the quirks that follow from it.

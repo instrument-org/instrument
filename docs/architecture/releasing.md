@@ -4,7 +4,7 @@ Where a build comes from and where it goes. [auto-updater.md](auto-updater.md) i
 
 ## Cutting one
 
-`pnpm tag:release:patch` from `apps/studio`, or `:minor`, each with a `:beta` variant, runs [`tag-release.ts`](../../apps/studio/scripts/tag-release.ts). It fetches tags, verifies the `registry` submodule has nothing newer on its remote (the pointer a tag captures is the bundled content that ships), bumps `apps/studio/package.json`, commits `release: vX.Y.Z` with that file alone staged, and tags it. Nothing is pushed. Push `main` and the tag yourself; the tag is what starts the build.
+`pnpm tag:release:patch` from `apps/studio`, or `:minor`, each with a `:beta` variant, runs [`tag-release.ts`](../../apps/studio/scripts/tag-release.ts). It fetches tags, verifies the `registry` submodule has nothing newer on its remote (the pointer a tag captures is the bundled content that ships), bumps `apps/studio/package.json`, stages that file, commits `release: vX.Y.Z`, and tags it. The commit takes the whole index, so anything already staged rides along: start from an empty index. Nothing is pushed. Push `main` and the tag yourself; the tag is what starts the build.
 
 ## What the tag starts
 

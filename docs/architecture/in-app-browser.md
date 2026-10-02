@@ -121,4 +121,4 @@ Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-or
 
 - [agent-sandbox.md](agent-sandbox.md) — the `agent-browser` argv allowlist.
 - [in-app-browser-full-page-screenshots](../findings/in-app-browser-full-page-screenshots.md) — why full-page capture is not just a CDP flag.
-- [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md) — the artifact iframe, which is a different surface from this one.
+- [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md) — the sandboxed iframe HTML files were shown in before they opened in a guest at their `file://` address.

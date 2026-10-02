@@ -20,7 +20,7 @@ bash(command, yieldMs = 30s)
                                         └── agent uses `jobs` / `fg` / `kill`
 ```
 
-`&`, `nohup` and `disown` are **not** how something goes to the background. They are unsupported, and outliving `yieldMs` is the only route. That is stated in the tool description at [`create-bash-env.ts:378`](../../packages/workspace/src/lib/create-bash-env.ts#L378).
+`&`, `nohup` and `disown` are **not** how something goes to the background. They are unsupported, and outliving `yieldMs` is the only route. That is stated in the tool description at [`create-bash-env.ts:535`](../../packages/workspace/src/lib/create-bash-env.ts#L535).
 
 ## What the model sees change
 
@@ -86,9 +86,9 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 | Trigger | Reaches | Where |
 |---|---|---|
 | `kill bg_1` | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
-| Session removed | that session's processes | [`rpc/routes/session.ts:110`](../../packages/workspace/src/rpc/routes/session.ts#L110) |
-| Task trashed | the whole task's processes | [`lib/trash-task.ts:47`](../../packages/workspace/src/lib/trash-task.ts#L47) |
-| App quits | everything | [`create-workspace-actor.ts:362`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L362) |
+| Session removed | that session's processes | [`rpc/routes/session.ts:117`](../../packages/workspace/src/rpc/routes/session.ts#L117) |
+| Task trashed | the whole task's processes | [`lib/trash-task.ts:89`](../../packages/workspace/src/lib/trash-task.ts#L89) |
+| App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
 | **Turn ends** | **nothing — deliberate** | — |
 

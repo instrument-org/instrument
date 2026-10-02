@@ -24,7 +24,7 @@ interface RenderWithProvidersResult {
  * `useStore()` resolves to the default store.
  *
  * Use this whenever the code under test writes through `getDefaultStore()`
- * rather than through a hook -- every `openX()` modal setter does. Under
+ * rather than through a hook, as every `openX()` modal setter does. Under
  * {@link renderWithProviders} those writes land in a store the returned one
  * knows nothing about, so an assertion that the modal opened fails for a reason
  * that has nothing to do with the code, and an assertion that it *didn't* open

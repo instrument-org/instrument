@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import {
   settingsModalAtom,
   type SettingsTab,
@@ -5,7 +6,9 @@ import {
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
+import { MemorySection } from "@/client/components/settings/memory-section";
 import { ProvidersSection } from "@/client/components/settings/providers-section";
+import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -27,14 +30,16 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 
 interface NavItem {
   icon: React.ElementType;
@@ -44,7 +49,7 @@ interface NavItem {
 }
 
 /**
- * App-wide settings modal, mounted once at the app-chrome root. Reads
+ * App-wide settings modal, mounted once at the window root. Reads
  * `settingsModalAtom` (opened via `openSettings`). The visible section is the
  * atom's `tab`, so a second `openSettings({ tab })` while open retargets the
  * modal instead of no-oping. Providers can deep-link straight to the
@@ -182,8 +187,14 @@ function SettingsSectionBody({
     case "General": {
       return <GeneralSection />;
     }
+    case "Memory": {
+      return <MemorySection />;
+    }
     case "Providers": {
       return <ProvidersSection autoOpenAddProvider={autoAddProvider} />;
+    }
+    case "Skills": {
+      return <SkillsSection />;
     }
     case "Storage": {
       return <StorageSection />;
@@ -197,6 +208,7 @@ function SettingsSectionBody({
 
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
+  const features = useAtomValue(featuresAtom);
   const { data: invalidFolders } = useQuery(
     rpcClient.workspace.storage.invalidFolders.list.queryOptions(),
   );
@@ -209,10 +221,24 @@ function useNavItems(): NavItem[] {
       title: "General",
     },
     {
+      icon: BrainIcon,
+      tab: "Memory",
+      title: "Memory",
+    },
+    {
       icon: CpuIcon,
       tab: "Providers",
       title: "Providers",
     },
+    ...(features.skills
+      ? [
+          {
+            icon: GraduationCapIcon,
+            tab: "Skills" as const,
+            title: "Skills",
+          },
+        ]
+      : []),
     ...(hasUnrecognizedFolders
       ? [
           {

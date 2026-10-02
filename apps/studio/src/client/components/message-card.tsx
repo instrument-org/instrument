@@ -1,0 +1,342 @@
+import { CopyButton } from "@/client/components/copy-button";
+import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { useOpenInApp } from "@/client/hooks/use-open-in-app";
+import { useTimedFlag } from "@/client/hooks/use-timed-flag";
+import { isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import {
+  type MessageDraft,
+  type MessageKind,
+  parseMessage,
+} from "@instrument-org/workspace/client";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { ExportIcon } from "@phosphor-icons/react/Export";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { type ReactNode, useContext, useState } from "react";
+
+import { MarkdownTaskContext } from "./markdown-task-context";
+import { messageKindOf } from "./message-kind";
+
+const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+
+/** Gmail's own address, which is all the browser row needs to name the browser. */
+const GMAIL_HOME = "https://mail.google.com/";
+
+/**
+ * The ways out of a message: Copy takes the whole, and Send opens an email
+ * filled in, in the mail app or in Gmail, or shares anything else. The
+ * message is read when a button is pressed, so a surface whose message is
+ * being edited hands over what it says at that moment.
+ */
+export function MessageActions({
+  disabled = false,
+  getMessage,
+  kind,
+}: {
+  disabled?: boolean;
+  getMessage: () => MessageDraft;
+  kind: MessageKind;
+}) {
+  const openExternal = useOpenExternalLink();
+  const share = useMutation(rpcClient.utils.shareText.mutationOptions());
+  const { data: targets } = useQuery(
+    rpcClient.utils.sendTargets.queryOptions({
+      enabled: kind === "email",
+      staleTime: Infinity,
+    }),
+  );
+  // Named and marked the way every "Open in" names the browser.
+  const browser = useOpenInApp(
+    kind === "email" ? { url: GMAIL_HOME } : undefined,
+  );
+  const { active: copied, trigger: showCopied } = useTimedFlag();
+  const canShare = isMacOS();
+
+  const shareIt = () => {
+    share.mutate({ text: getMessage().body });
+  };
+
+  const copyWhole = async () => {
+    await navigator.clipboard.writeText(wholeOf(getMessage()));
+    showCopied();
+  };
+
+  return (
+    <>
+      <Button
+        disabled={disabled}
+        onClick={() => void copyWhole()}
+        size="xs"
+        variant="outline"
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+        {copied ? "Copied" : "Copy"}
+      </Button>
+      {kind === "email" ? (
+        // Not modal: a modal menu takes focus and the page from under it, and
+        // a card drawn inside the Markdown editor is redrawn when the editor
+        // loses them, taking the menu's trigger, and so the menu, with it.
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button disabled={disabled} size="xs" variant="brand">
+              Send
+              <CaretDownIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuItem
+              onSelect={() => {
+                openExternal(mailtoOf(getMessage()), { addReferral: false });
+              }}
+            >
+              <AppIcon
+                fallback={<EnvelopeSimpleIcon />}
+                target={targets?.mail}
+              />
+              Open in {targets?.mail?.name ?? "Mail"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                openExternal(gmailOf(getMessage()), { addReferral: false });
+              }}
+            >
+              <AppIcon fallback={<ArrowUpRightIcon />} target={browser} />
+              {browser.appName
+                ? `Open Gmail in ${browser.appName}`
+                : "Open in Gmail"}
+            </DropdownMenuItem>
+            {canShare && (
+              <DropdownMenuItem onSelect={shareIt}>
+                <ExportIcon className="size-4" />
+                Share…
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        canShare && (
+          <Button
+            disabled={disabled}
+            onClick={shareIt}
+            size="xs"
+            variant="brand"
+          >
+            <ExportIcon />
+            Share
+          </Button>
+        )
+      )}
+    </>
+  );
+}
+
+/**
+ * Words the user will send as their own, drawn as the thing they are rather
+ * than as prose: what it is and who it is for, the subject and body in the
+ * reply's own type, and the ways out. The subject and body each copy from the
+ * control that shows while they are hovered, an address copies when clicked,
+ * and Copy takes the whole.
+ *
+ * Nothing sends from here. An email opens filled in, in the mail app or in
+ * Gmail in the browser, each named with its icon, and on macOS anything shares
+ * to Messages or wherever the user picks.
+ */
+export function MessageCard({
+  file,
+  isStreaming = false,
+  message,
+}: {
+  /** The file the message lives in, when it has one, opened from the head. */
+  file?: { name: string; open: () => void };
+  isStreaming?: boolean;
+  message: MessageDraft;
+}) {
+  const kind = messageKindOf(message.kind);
+  const settled = !isStreaming && message.body !== "";
+
+  return (
+    <div className="not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs">
+      <div className="flex min-w-0 items-center gap-2 border-b border-border px-3.5 py-2 text-xs text-muted-foreground [&_svg]:size-3.5">
+        {kind.icon}
+        <span className="min-w-0 truncate">
+          {message.via
+            ? `${message.via} ${kind.label.toLowerCase()}`
+            : kind.label}
+          {message.to && (
+            <>
+              {" to "}
+              <Recipient to={message.to} />
+            </>
+          )}
+        </span>
+        {file && (
+          <button
+            className="ml-auto flex min-w-0 items-center gap-1 rounded-sm px-1 hover:text-foreground"
+            onClick={file.open}
+            type="button"
+          >
+            <span className="truncate">{file.name}</span>
+            <ArrowUpRightIcon className="shrink-0" />
+          </button>
+        )}
+      </div>
+      {message.subject && (
+        <div className="border-b border-border px-1.5 py-1">
+          <CopyablePart label="Copy subject" value={message.subject}>
+            <p className="text-sm">
+              <span className="mr-1 text-muted-foreground">Subject</span>{" "}
+              <span className="font-semibold">{message.subject}</span>
+            </p>
+          </CopyablePart>
+        </div>
+      )}
+      <div className="px-1.5 py-1.5">
+        <CopyablePart label="Copy body" value={message.body}>
+          <p className="text-sm/[1.55] whitespace-pre-wrap">
+            {message.body || " "}
+          </p>
+        </CopyablePart>
+      </div>
+      <div className="flex items-center justify-end gap-1.5 px-3.5 pb-3">
+        <MessageActions
+          disabled={!settled}
+          getMessage={() => message}
+          kind={message.kind}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A ```message fence in a reply, drawn as the card while it streams in. */
+export function MessageFence({ code }: { code: string }) {
+  const { isStreaming } = useContext(MarkdownTaskContext);
+  return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
+}
+
+/** The icon of the app a Send row opens, or a glyph where there is none. */
+function AppIcon({
+  fallback,
+  target,
+}: {
+  fallback: ReactNode;
+  target?: null | { iconUrl: null | string };
+}) {
+  return target?.iconUrl ? (
+    <img alt="" className="size-4" src={target.iconUrl} />
+  ) : (
+    <span className="flex size-4 items-center justify-center [&_svg]:size-4">
+      {fallback}
+    </span>
+  );
+}
+
+/** An address that copies when clicked, saying so in its tooltip. */
+function CopyableAddress({ address }: { address: string }) {
+  const [open, setOpen] = useState(false);
+  const { active: copied, trigger } = useTimedFlag();
+  return (
+    // A press closes a tooltip, so it is held open while it says the copy
+    // happened.
+    <Tooltip onOpenChange={setOpen} open={open || copied}>
+      <TooltipTrigger asChild>
+        <button
+          className="text-foreground underline decoration-muted-foreground decoration-dotted underline-offset-2"
+          onClick={() => {
+            void navigator.clipboard.writeText(address).then(trigger);
+          }}
+          type="button"
+        >
+          {address}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{copied ? "Copied" : "Copy address"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * A part of the message with its own copy control, floated in the part's top
+ * corner while hovered so the text keeps the card's full width.
+ */
+function CopyablePart({
+  children,
+  label,
+  value,
+}: {
+  children: ReactNode;
+  /** What the control copies, as its name: "Copy subject". */
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="group/part relative min-w-0 px-2 py-1.5">
+      {children}
+      <CopyButton
+        className="absolute top-1 right-1 rounded-sm bg-card p-1 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border group-hover/part:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        iconSize={13}
+        label={label}
+        onCopy={() => navigator.clipboard.writeText(value)}
+      />
+    </div>
+  );
+}
+
+function gmailOf(message: MessageDraft): string {
+  const to = (message.to?.match(ADDRESS) ?? []).join(",");
+  return `https://mail.google.com/mail/?${query({ body: message.body, fs: "1", su: message.subject, to, view: "cm" })}`;
+}
+
+function mailtoOf(message: MessageDraft): string {
+  const to = (message.to?.match(ADDRESS) ?? []).join(",");
+  return `mailto:${to}?${query({ body: message.body, subject: message.subject })}`;
+}
+
+/** The query a mail link carries, encoded the way mail apps read it. */
+function query(params: Record<string, string | undefined>): string {
+  return Object.entries(params)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}=${encodeURIComponent(value ?? "")}`)
+    .join("&");
+}
+
+/**
+ * Who the message is for, as written. A name or a team is only read, so only
+ * an email address copies: it is the one part the user would paste somewhere.
+ */
+function Recipient({ to }: { to: string }) {
+  // A capturing split leaves every address at an odd index.
+  const parts = to.split(new RegExp(`(${ADDRESS.source})`));
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <CopyableAddress address={part} key={index} />
+    ) : (
+      <span className="text-foreground" key={index}>
+        {part}
+      </span>
+    ),
+  );
+}
+
+/** Everything, the way it pastes: an email's subject over its body. */
+function wholeOf(message: MessageDraft): string {
+  return message.subject
+    ? `Subject: ${message.subject}\n\n${message.body}`
+    : message.body;
+}

@@ -327,7 +327,7 @@ function getBadgeState({
 
 function renderTriggerIcon(state: UpdateStatusBadgeState) {
   if (state.type === "checking") {
-    return <Spinner className="size-3" />;
+    return <Spinner className="size-3" delay={0} />;
   }
 
   if (state.type === "downloading") {
@@ -340,7 +340,7 @@ function renderTriggerIcon(state: UpdateStatusBadgeState) {
   }
 
   if (state.type === "installing") {
-    return <Spinner className="size-3" />;
+    return <Spinner className="size-3" delay={0} />;
   }
 
   if (state.type === "error") {

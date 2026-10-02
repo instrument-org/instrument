@@ -1,6 +1,9 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
-import { applyCommandLineToolsEnv } from "@instrument-org/workspace/electron";
+import {
+  applyCommandLineToolsEnv,
+  installAISDKWarningLogger,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fixPath from "fix-path";
 import path from "node:path";
@@ -15,7 +18,17 @@ import {
   OZONE_PLATFORMS,
   resolveOzonePlatform,
 } from "./lib/ozone-platform";
+import {
+  migrateMachineSettings,
+  migrateWorkspaceSettings,
+} from "./lib/settings-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
+import {
+  markWorkspaceOpen,
+  releaseOpenMark,
+  resolveWorkspace,
+  setResolvedWorkspace,
+} from "./lib/workspaces";
 
 /**
  * Configures the Electron app's userData directory.
@@ -24,21 +37,10 @@ import { setupDBusEnvironment } from "./lib/setup-dbus-env";
  */
 function configureUserDataDirectory() {
   if (process.env.ELECTRON_USER_DATA_DIR) {
-    // eslint-disable-next-line no-console
     console.log(
       `Using custom user data dir: ${process.env.ELECTRON_USER_DATA_DIR}`,
     );
     app.setPath("userData", process.env.ELECTRON_USER_DATA_DIR);
-    return;
-  }
-
-  if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
-    const folderName = `${APP_NAME} (${Date.now().toString()})`;
-    const newDir = path.join(app.getPath("userData"), "..", folderName);
-    // eslint-disable-next-line no-console
-    console.log(`Using new user folder: ${newDir}`);
-    app.setPath("userData", newDir);
-    app.setName(folderName);
     return;
   }
 
@@ -49,7 +51,6 @@ function configureUserDataDirectory() {
     }
     const DEV_APP_NAME = `${APP_NAME} (Dev${suffix})`;
     if (suffix) {
-      // eslint-disable-next-line no-console
       console.log(`Using user folder ${DEV_APP_NAME}`);
     }
     // Must be done as soon as possible because it's stateful
@@ -64,6 +65,43 @@ function configureUserDataDirectory() {
 configureUserDataDirectory();
 
 initializeElectronLogging();
+installAISDKWarningLogger();
+
+/**
+ * Settles which workspace this process runs and brings its settings up to this
+ * build, before any store opens: every workspace store reads its folder from
+ * the resolved workspace when it is first asked for.
+ */
+function openWorkspace() {
+  const userDataDir = app.getPath("userData");
+  const { problems, workspace } = resolveWorkspace({
+    pin: process.env.INSTRUMENT_WORKSPACE,
+    userDataDir,
+  });
+  for (const problem of problems) {
+    logger.warn(problem);
+  }
+  setResolvedWorkspace(workspace);
+  logger.info(
+    `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
+  );
+
+  for (const step of [
+    ...migrateMachineSettings(userDataDir),
+    ...migrateWorkspaceSettings({ userDataDir, workspace }),
+  ]) {
+    logger.info(`Settings migration: ${step}`);
+  }
+
+  markWorkspaceOpen(workspace.path);
+  // On process exit rather than `will-quit`: the quit teardown ends in
+  // `app.exit`, which skips `will-quit`.
+  process.on("exit", () => {
+    releaseOpenMark(workspace.path);
+  });
+}
+
+openWorkspace();
 
 // Suppress Unstorage dB0 experimental warning
 // Remove when stable https://github.com/unjs/unstorage/blob/main/src/drivers/db0.ts

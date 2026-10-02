@@ -1,47 +1,61 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   isQuitGuardForcedInDev,
   requestQuitApproval,
   setQuitApproval,
 } from "@/electron-main/lib/quit-guard";
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
-import { isFeatureEnabled } from "@/electron-main/stores/features";
-import { diskModelCache } from "@/electron-main/stores/model-cache";
-import { ensureMainWindowVisible } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
+import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
+import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
+import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
+  attachOrchestrator,
+  BACKGROUND_PROCESS_TEARDOWN_MS,
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
+  killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   pruneExternalBrowserTmp,
+  setBashWorkerFactory,
   stopWorkspaceSkillWatcher,
+  warmBashWorker,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
+import ms from "ms";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
 import { searchWeb } from "../platform-api/web-search";
+import { createAppsConfig, rememberAppsDir } from "./apps";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
+import { ensureOutputFolderIcon } from "./output-folder-icon";
+import { getRegistryDir } from "./registry-dir";
+import { quitExitCode } from "./relaunch";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
-const REGISTRY_DIR_NAME = "registry";
 const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
-let UNPACKAGED_REGISTRY_DIR = path.resolve(
-  import.meta.dirname,
-  `../../../../${REGISTRY_DIR_NAME}`,
-);
+
+/**
+ * What quit teardown allows the skills watcher and the telemetry flush on top of
+ * the slowest thing it waits for. Enough that a background process taking its
+ * whole grace period does not spend the other two's budget as well.
+ */
+const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
 const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/templates/default",
@@ -50,14 +64,6 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-
-const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
-
-if (ENV_REGISTRY_DIR) {
-  const absolutePath = path.resolve(ENV_REGISTRY_DIR);
-  logger.info("Using custom registry directory:", absolutePath);
-  UNPACKAGED_REGISTRY_DIR = absolutePath;
-}
 
 export function createWorkspaceActor({
   isQuitAlreadyConfirmed,
@@ -78,6 +84,26 @@ export function createWorkspaceActor({
     );
     if (migration.movedTaskCount > 0) {
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
+    }
+    if (migration.chats.leftOver > 0) {
+      logger.warn(
+        `Left ${migration.chats.leftOver} chat item(s) in the old layout to move on the next boot`,
+      );
+    }
+    if (migration.chats.chatCount > 0) {
+      logger.info(
+        `Gave ${migration.chats.chatCount} chat(s) folders of their own, moved ${migration.chats.movedTaskCount} task(s) into them, and wrote ${migration.chats.topicCount} topic(s) as files`,
+      );
+    }
+    if (migration.legacyTasks.adoptedCount > 0) {
+      logger.info(
+        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.topicCount} topic(s) from projects`,
+      );
+    }
+    if (migration.legacyTasks.leftOver > 0) {
+      logger.warn(
+        `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
+      );
     }
     if (migration.removedBrowserProfileCloneCount > 0) {
       logger.info(
@@ -110,11 +136,17 @@ export function createWorkspaceActor({
     );
   });
 
+  // The build emits the worker as its own chunk. Every agent shell runs there,
+  // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
+  setBashWorkerFactory(createBashWorker);
+  warmBashWorker();
+
   const browserViewManager = createBrowserViewManager();
 
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
@@ -122,7 +154,13 @@ export function createWorkspaceActor({
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
+      ensureOutputFolderIcon,
       getAIProviderConfigs,
+      getUser: getSignedInUser,
+      // Beside the other per-machine state rather than in the workspace: the
+      // index is derived, and a workspace may sit in a synced folder.
+      indexesDir: path.join(app.getPath("userData"), "indexes"),
+      isActivityHeadingsEnabled: () => isFeatureEnabled("activity_headings"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,
       nodeExecEnv: {
@@ -135,18 +173,8 @@ export function createWorkspaceActor({
       // set is prepared per machine, so several workspaces or a workspace the
       // user moves all source from one copy of it.
       preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
-      registryDir: app.isPackaged
-        ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
-        : UNPACKAGED_REGISTRY_DIR,
+      registryDir: getRegistryDir(),
       rootDir,
-      shimClientDir: app.isPackaged
-        ? path.resolve(process.resourcesPath, "shim-client")
-        : import.meta.env.MAIN_VITE_USE_BUILT_SHIM_CLIENT
-          ? path.resolve(
-              import.meta.dirname,
-              "../../../../packages/shim-client/dist",
-            )
-          : "dev-server",
       systemSkillsDir: app.isPackaged
         ? path.join(process.resourcesPath, SYSTEM_SKILLS_DIR_NAME)
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
@@ -155,62 +183,8 @@ export function createWorkspaceActor({
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },
-    inspect(event) {
-      if (!is.dev) {
-        return;
-      }
-      /* eslint-disable no-console */
-      switch (event.type) {
-        case "@xstate.action": {
-          if (
-            !event.action.type.startsWith("xstate.") &&
-            event.action.type !== "actions" &&
-            event.action.type !== "publishLogs"
-          ) {
-            console.groupCollapsed(
-              `%c[XState Action] ${event.action.type}`,
-              "color: #4caf50",
-            );
-            if (event.action.params) {
-              console.log("params:", event.action.params);
-            }
-            console.groupEnd();
-          }
-
-          break;
-        }
-        case "@xstate.event": {
-          if (!event.event.type.startsWith("xstate.")) {
-            if (
-              event.event.type === "llmRequest.chunkReceived" ||
-              event.event.type.toLowerCase().includes("heartbeat") ||
-              event.event.type === "spawnRuntime.log"
-            ) {
-              return;
-            }
-
-            const eventValue: unknown =
-              "value" in event.event ? event.event.value : undefined;
-            const hasDetails = eventValue !== undefined;
-
-            if (hasDetails) {
-              console.groupCollapsed(
-                `%c[XState Event] ${event.event.type}`,
-                "color: #9e9e9e",
-              );
-              console.log("value:", eventValue);
-              console.groupEnd();
-            } else {
-              console.log(`%c[Event] ${event.event.type}`, "color: #9e9e9e");
-            }
-          }
-
-          break;
-        }
-      }
-      /* eslint-enable no-console */
-    },
   });
+  attachOrchestrator(actor);
   actor.start();
 
   const snapshot = actor.getSnapshot();
@@ -223,6 +197,7 @@ export function createWorkspaceActor({
   }
 
   const workspaceConfig = snapshot.context.config;
+  rememberAppsDir(workspaceConfig.appsDir);
 
   // Reconcile task -> project references against disk. A project folder can be
   // deleted outside the app (or while it is closed), leaving tasks pointing at
@@ -279,7 +254,7 @@ export function createWorkspaceActor({
     // Parent the dialog on the window that is being closed so it is
     // window-modal, rather than a detached app-modal box that can end up behind
     // the window it is asking about.
-    const parentWindow = getMainWindow();
+    const parentWindow = getForegroundWindow();
     const { response } = await (parentWindow
       ? dialog.showMessageBox(parentWindow, options)
       : dialog.showMessageBox(options));
@@ -318,7 +293,7 @@ export function createWorkspaceActor({
           // Canceling has to leave the user somewhere. This quit may have
           // started from a window close, and outside macOS a process whose last
           // window is gone can't be reached again at all.
-          void ensureMainWindowVisible();
+          ensureForegroundWindowVisible();
           return;
         }
 
@@ -351,15 +326,27 @@ export function createWorkspaceActor({
             logger.info("Quit teardown: stopping the workspace actor");
             actor.stop();
             logger.info("Quit teardown: exiting");
-            app.exit(0);
+            app.exit(quitExitCode());
           };
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
           // is torn down while Node frees the environment, so stop the skills
           // watcher and await its unsubscribe before app.exit. Bounded so a
           // stuck unsubscribe can't wedge the quit.
-          const forceFinalize = setTimeout(finalize, 2000);
+          //
+          // The three below run concurrently, so the deadline is the slowest
+          // one's own bound plus room for the other two. Killing background
+          // processes is that slowest one, and it is derived rather than
+          // restated here: a hand-picked number would go quietly wrong the next
+          // time the termination grace moves.
+          const forceFinalize = setTimeout(
+            finalize,
+            BACKGROUND_PROCESS_TEARDOWN_MS + QUIT_TEARDOWN_SLACK_MS,
+          );
           void Promise.all([
             stopWorkspaceSkillWatcher().catch(noop),
+            // Agent-started servers and watchers outlive the turn that started
+            // them, so quitting is what ends them.
+            killAllBackgroundProcesses().catch(noop),
             telemetryFinalized,
           ]).finally(() => {
             logger.info("Quit teardown: skills watcher and telemetry settled");

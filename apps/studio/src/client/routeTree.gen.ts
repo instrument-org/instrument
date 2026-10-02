@@ -10,48 +10,58 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
+import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
+import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
-import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
+import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
+import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
+import { Route as DebugComponentsRouteImport } from './routes/debug/components'
+import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
-import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
-import { Route as AppSkillsRouteRouteImport } from './routes/_app/skills/route'
-import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
-import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
+import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppBrowserRouteImport } from './routes/_app/browser'
+import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
-import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
+import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
+import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
+import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
+import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
+import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
+import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
+import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
+import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/components/onboarding'
+import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
+import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
+import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
+import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
+import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
+import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
+import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
 import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
-import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
-import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
-import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
-import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
-import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
-import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
-import { Route as AppProjectsIdIndexRouteImport } from './routes/_app/projects/$id/index'
-import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
-import { Route as AppDebugComponentsTypographyRouteImport } from './routes/_app/debug/components/typography'
-import { Route as AppDebugComponentsTranscriptRouteImport } from './routes/_app/debug/components/transcript'
-import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
-import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
-import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
-import { Route as AppDebugComponentsFormElementsRouteImport } from './routes/_app/debug/components/form-elements'
-import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
-import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
-import { Route as AppDebugComponentsAlertsRouteImport } from './routes/_app/debug/components/alerts'
-import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
-import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
-import { Route as AppDebugComponentsOnboardingThemeRouteImport } from './routes/_app/debug/components/onboarding/theme'
-import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './routes/_app/debug/components/onboarding/providers'
-import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
-import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
+import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
+import { Route as AppDiscoverIdRouteImport } from './routes/_app/discover/$id'
+import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
+import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
+import { Route as DebugComponentsOnboardingIndexRouteImport } from './routes/debug/components/onboarding/index'
+import { Route as DebugComponentsOnboardingThemeRouteImport } from './routes/debug/components/onboarding/theme'
+import { Route as DebugComponentsOnboardingProvidersRouteImport } from './routes/debug/components/onboarding/providers'
+import { Route as DebugComponentsOnboardingLoginRouteImport } from './routes/debug/components/onboarding/login'
+import { Route as DebugComponentsOnboardingCompleteRouteImport } from './routes/debug/components/onboarding/complete'
 
 const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebugRouteRoute = DebugRouteRouteImport.update({
+  id: '/debug',
+  path: '/debug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRouteRoute = AppRouteRouteImport.update({
@@ -68,6 +78,11 @@ const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OnboardingRouteRoute,
 } as any)
+const DebugIndexRoute = DebugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
 const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
   id: '/theme',
   path: '/theme',
@@ -78,34 +93,45 @@ const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => OnboardingRouteRoute,
 } as any)
-const AppTutorialTaskRoute = AppTutorialTaskRouteImport.update({
-  id: '/tutorial-task',
-  path: '/tutorial-task',
-  getParentRoute: () => AppRouteRoute,
+const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugErrorsRoute = DebugErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugComponentsRoute = DebugComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
+  id: '/browser-views',
+  path: '/browser-views',
+  getParentRoute: () => DebugRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
   path: '/release-notes',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppNewTabRoute = AppNewTabRouteImport.update({
-  id: '/new-tab',
-  path: '/new-tab',
+const AppFilesRoute = AppFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppSkillsRouteRoute = AppSkillsRouteRouteImport.update({
-  id: '/skills',
-  path: '/skills',
+const AppBrowserRoute = AppBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
-  id: '/debug',
-  path: '/debug',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppAuthenticatedRouteRoute = AppAuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => AppRouteRoute,
+const DebugComponentsIndexRoute = DebugComponentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DebugComponentsRoute,
 } as any)
 const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   id: '/tasks/',
@@ -113,302 +139,328 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppSkillsRouteRoute,
-} as any)
-const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
-const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
-  id: '/$name',
-  path: '/$name',
-  getParentRoute: () => AppSkillsRouteRoute,
-} as any)
-const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
-const AppDebugErrorsRoute = AppDebugErrorsRouteImport.update({
-  id: '/errors',
-  path: '/errors',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
-const AppDebugComponentsRoute = AppDebugComponentsRouteImport.update({
-  id: '/components',
-  path: '/components',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
-const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
-  id: '/browser-views',
-  path: '/browser-views',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
-const AppAuthenticatedSubscribeRoute =
-  AppAuthenticatedSubscribeRouteImport.update({
-    id: '/subscribe',
-    path: '/subscribe',
-    getParentRoute: () => AppAuthenticatedRouteRoute,
-  } as any)
-const AppTasksIdIndexRoute = AppTasksIdIndexRouteImport.update({
-  id: '/tasks/$id/',
-  path: '/tasks/$id/',
+  id: '/skills/',
+  path: '/skills/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppProjectsIdIndexRoute = AppProjectsIdIndexRouteImport.update({
-  id: '/projects/$id/',
-  path: '/projects/$id/',
+const AppDiscoverIndexRoute = AppDiscoverIndexRouteImport.update({
+  id: '/discover/',
+  path: '/discover/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppDebugComponentsRoute,
+const AppChatsIndexRoute = AppChatsIndexRouteImport.update({
+  id: '/chats/',
+  path: '/chats/',
+  getParentRoute: () => AppRouteRoute,
 } as any)
-const AppDebugComponentsTypographyRoute =
-  AppDebugComponentsTypographyRouteImport.update({
+const AppAppsIndexRoute = AppAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const DebugComponentsTypographyRoute =
+  DebugComponentsTypographyRouteImport.update({
     id: '/typography',
     path: '/typography',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsTranscriptRoute =
-  AppDebugComponentsTranscriptRouteImport.update({
+const DebugComponentsTranscriptRoute =
+  DebugComponentsTranscriptRouteImport.update({
     id: '/transcript',
     path: '/transcript',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsSpinnerRoute =
-  AppDebugComponentsSpinnerRouteImport.update({
-    id: '/spinner',
-    path: '/spinner',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
-const AppDebugComponentsProviderIconsRoute =
-  AppDebugComponentsProviderIconsRouteImport.update({
+const DebugComponentsSpinnerRoute = DebugComponentsSpinnerRouteImport.update({
+  id: '/spinner',
+  path: '/spinner',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugComponentsQuestionRoute = DebugComponentsQuestionRouteImport.update({
+  id: '/question',
+  path: '/question',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugComponentsProviderIconsRoute =
+  DebugComponentsProviderIconsRouteImport.update({
     id: '/provider-icons',
     path: '/provider-icons',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsOnboardingRoute =
-  AppDebugComponentsOnboardingRouteImport.update({
+const DebugComponentsOnboardingRoute =
+  DebugComponentsOnboardingRouteImport.update({
     id: '/onboarding',
     path: '/onboarding',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsFormElementsRoute =
-  AppDebugComponentsFormElementsRouteImport.update({
+const DebugComponentsFormElementsRoute =
+  DebugComponentsFormElementsRouteImport.update({
     id: '/form-elements',
     path: '/form-elements',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsErrorCardRoute =
-  AppDebugComponentsErrorCardRouteImport.update({
+const DebugComponentsFileIconsRoute =
+  DebugComponentsFileIconsRouteImport.update({
+    id: '/file-icons',
+    path: '/file-icons',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
+const DebugComponentsErrorCardRoute =
+  DebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
     path: '/error-card',
-    getParentRoute: () => AppDebugComponentsRoute,
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppDebugComponentsColorsRoute =
-  AppDebugComponentsColorsRouteImport.update({
-    id: '/colors',
-    path: '/colors',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
-const AppDebugComponentsAlertsRoute =
-  AppDebugComponentsAlertsRouteImport.update({
-    id: '/alerts',
-    path: '/alerts',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
-const AppDebugBrowserViewTargetIdRoute =
-  AppDebugBrowserViewTargetIdRouteImport.update({
+const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
+  id: '/colors',
+  path: '/colors',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugComponentsAlertsRoute = DebugComponentsAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugBrowserViewTargetIdRoute =
+  DebugBrowserViewTargetIdRouteImport.update({
     id: '/browser-view/$targetId',
     path: '/browser-view/$targetId',
-    getParentRoute: () => AppDebugRouteRoute,
+    getParentRoute: () => DebugRouteRoute,
   } as any)
-const AppDebugComponentsOnboardingIndexRoute =
-  AppDebugComponentsOnboardingIndexRouteImport.update({
+const AppTasksIdRoute = AppTasksIdRouteImport.update({
+  id: '/tasks/$id',
+  path: '/tasks/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
+  id: '/skills/$name',
+  path: '/skills/$name',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSitesIdRoute = AppSitesIdRouteImport.update({
+  id: '/sites/$id',
+  path: '/sites/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppDiscoverIdRoute = AppDiscoverIdRouteImport.update({
+  id: '/discover/$id',
+  path: '/discover/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppChatsIdRoute = AppChatsIdRouteImport.update({
+  id: '/chats/$id',
+  path: '/chats/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppAppsSlugRoute = AppAppsSlugRouteImport.update({
+  id: '/apps/$slug',
+  path: '/apps/$slug',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const DebugComponentsOnboardingIndexRoute =
+  DebugComponentsOnboardingIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+    getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const AppDebugComponentsOnboardingThemeRoute =
-  AppDebugComponentsOnboardingThemeRouteImport.update({
+const DebugComponentsOnboardingThemeRoute =
+  DebugComponentsOnboardingThemeRouteImport.update({
     id: '/theme',
     path: '/theme',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+    getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const AppDebugComponentsOnboardingProvidersRoute =
-  AppDebugComponentsOnboardingProvidersRouteImport.update({
+const DebugComponentsOnboardingProvidersRoute =
+  DebugComponentsOnboardingProvidersRouteImport.update({
     id: '/providers',
     path: '/providers',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+    getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const AppDebugComponentsOnboardingLoginRoute =
-  AppDebugComponentsOnboardingLoginRouteImport.update({
+const DebugComponentsOnboardingLoginRoute =
+  DebugComponentsOnboardingLoginRouteImport.update({
     id: '/login',
     path: '/login',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+    getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const AppDebugComponentsOnboardingCompleteRoute =
-  AppDebugComponentsOnboardingCompleteRouteImport.update({
+const DebugComponentsOnboardingCompleteRoute =
+  DebugComponentsOnboardingCompleteRouteImport.update({
     id: '/complete',
     path: '/complete',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+    getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/debug': typeof DebugRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/debug': typeof AppDebugRouteRouteWithChildren
-  '/skills': typeof AppSkillsRouteRouteWithChildren
-  '/new-tab': typeof AppNewTabRoute
+  '/browser': typeof AppBrowserRoute
+  '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/tutorial-task': typeof AppTutorialTaskRoute
+  '/debug/browser-views': typeof DebugBrowserViewsRoute
+  '/debug/components': typeof DebugComponentsRouteWithChildren
+  '/debug/errors': typeof DebugErrorsRoute
+  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/debug/': typeof DebugIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
-  '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/debug/components': typeof AppDebugComponentsRouteWithChildren
-  '/debug/errors': typeof AppDebugErrorsRoute
-  '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/apps/$slug': typeof AppAppsSlugRoute
+  '/chats/$id': typeof AppChatsIdRoute
+  '/discover/$id': typeof AppDiscoverIdRoute
+  '/sites/$id': typeof AppSitesIdRoute
   '/skills/$name': typeof AppSkillsNameRoute
-  '/debug/': typeof AppDebugIndexRoute
+  '/tasks/$id': typeof AppTasksIdRoute
+  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
+  '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
+  '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
+  '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
+  '/debug/components/question': typeof DebugComponentsQuestionRoute
+  '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/typography': typeof DebugComponentsTypographyRoute
+  '/apps/': typeof AppAppsIndexRoute
+  '/chats/': typeof AppChatsIndexRoute
+  '/discover/': typeof AppDiscoverIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
-  '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
-  '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
-  '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
-  '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
-  '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
-  '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
-  '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
-  '/debug/components/': typeof AppDebugComponentsIndexRoute
-  '/projects/$id/': typeof AppProjectsIdIndexRoute
-  '/tasks/$id/': typeof AppTasksIdIndexRoute
-  '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
-  '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
-  '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
-  '/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
+  '/debug/components/': typeof DebugComponentsIndexRoute
+  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
+  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
+  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
+  '/debug/components/onboarding/': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/new-tab': typeof AppNewTabRoute
+  '/browser': typeof AppBrowserRoute
+  '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/tutorial-task': typeof AppTutorialTaskRoute
+  '/debug/browser-views': typeof DebugBrowserViewsRoute
+  '/debug/errors': typeof DebugErrorsRoute
+  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/debug': typeof DebugIndexRoute
   '/onboarding': typeof OnboardingIndexRoute
-  '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/debug/errors': typeof AppDebugErrorsRoute
-  '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/apps/$slug': typeof AppAppsSlugRoute
+  '/chats/$id': typeof AppChatsIdRoute
+  '/discover/$id': typeof AppDiscoverIdRoute
+  '/sites/$id': typeof AppSitesIdRoute
   '/skills/$name': typeof AppSkillsNameRoute
-  '/debug': typeof AppDebugIndexRoute
+  '/tasks/$id': typeof AppTasksIdRoute
+  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
+  '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
+  '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
+  '/debug/components/question': typeof DebugComponentsQuestionRoute
+  '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/typography': typeof DebugComponentsTypographyRoute
+  '/apps': typeof AppAppsIndexRoute
+  '/chats': typeof AppChatsIndexRoute
+  '/discover': typeof AppDiscoverIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
-  '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
-  '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
-  '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
-  '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
-  '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
-  '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
-  '/debug/components': typeof AppDebugComponentsIndexRoute
-  '/projects/$id': typeof AppProjectsIdIndexRoute
-  '/tasks/$id': typeof AppTasksIdIndexRoute
-  '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
-  '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
-  '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
-  '/debug/components/onboarding': typeof AppDebugComponentsOnboardingIndexRoute
+  '/debug/components': typeof DebugComponentsIndexRoute
+  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
+  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
+  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
+  '/debug/components/onboarding': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
+  '/debug': typeof DebugRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
-  '/_app/debug': typeof AppDebugRouteRouteWithChildren
-  '/_app/skills': typeof AppSkillsRouteRouteWithChildren
-  '/_app/new-tab': typeof AppNewTabRoute
+  '/_app/browser': typeof AppBrowserRoute
+  '/_app/files': typeof AppFilesRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
-  '/_app/tutorial-task': typeof AppTutorialTaskRoute
+  '/debug/browser-views': typeof DebugBrowserViewsRoute
+  '/debug/components': typeof DebugComponentsRouteWithChildren
+  '/debug/errors': typeof DebugErrorsRoute
+  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/debug/': typeof DebugIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
-  '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
-  '/_app/debug/errors': typeof AppDebugErrorsRoute
-  '/_app/debug/notifications': typeof AppDebugNotificationsRoute
+  '/_app/apps/$slug': typeof AppAppsSlugRoute
+  '/_app/chats/$id': typeof AppChatsIdRoute
+  '/_app/discover/$id': typeof AppDiscoverIdRoute
+  '/_app/sites/$id': typeof AppSitesIdRoute
   '/_app/skills/$name': typeof AppSkillsNameRoute
-  '/_app/debug/': typeof AppDebugIndexRoute
+  '/_app/tasks/$id': typeof AppTasksIdRoute
+  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
+  '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
+  '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
+  '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
+  '/debug/components/question': typeof DebugComponentsQuestionRoute
+  '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/typography': typeof DebugComponentsTypographyRoute
+  '/_app/apps/': typeof AppAppsIndexRoute
+  '/_app/chats/': typeof AppChatsIndexRoute
+  '/_app/discover/': typeof AppDiscoverIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
-  '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
-  '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/_app/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
-  '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
-  '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
-  '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
-  '/_app/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
-  '/_app/debug/components/typography': typeof AppDebugComponentsTypographyRoute
-  '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
-  '/_app/projects/$id/': typeof AppProjectsIdIndexRoute
-  '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
-  '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
-  '/_app/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
-  '/_app/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/_app/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
-  '/_app/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
+  '/debug/components/': typeof DebugComponentsIndexRoute
+  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
+  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
+  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
+  '/debug/components/onboarding/': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/onboarding'
     | '/debug'
-    | '/skills'
-    | '/new-tab'
+    | '/onboarding'
+    | '/browser'
+    | '/files'
     | '/release-notes'
-    | '/tutorial-task'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
-    | '/onboarding/'
-    | '/subscribe'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/skills/$name'
+    | '/onboarding/providers'
+    | '/onboarding/theme'
     | '/debug/'
-    | '/skills/'
-    | '/tasks/'
+    | '/onboarding/'
+    | '/apps/$slug'
+    | '/chats/$id'
+    | '/discover/$id'
+    | '/sites/$id'
+    | '/skills/$name'
+    | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/colors'
     | '/debug/components/error-card'
+    | '/debug/components/file-icons'
     | '/debug/components/form-elements'
     | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
+    | '/debug/components/question'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
     | '/debug/components/typography'
+    | '/apps/'
+    | '/chats/'
+    | '/discover/'
+    | '/skills/'
+    | '/tasks/'
     | '/debug/components/'
-    | '/projects/$id/'
-    | '/tasks/$id/'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
@@ -417,32 +469,39 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/new-tab'
+    | '/browser'
+    | '/files'
     | '/release-notes'
-    | '/tutorial-task'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
-    | '/onboarding'
-    | '/subscribe'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/skills/$name'
+    | '/onboarding/providers'
+    | '/onboarding/theme'
     | '/debug'
-    | '/skills'
-    | '/tasks'
+    | '/onboarding'
+    | '/apps/$slug'
+    | '/chats/$id'
+    | '/discover/$id'
+    | '/sites/$id'
+    | '/skills/$name'
+    | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/colors'
     | '/debug/components/error-card'
+    | '/debug/components/file-icons'
     | '/debug/components/form-elements'
     | '/debug/components/provider-icons'
+    | '/debug/components/question'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
     | '/debug/components/typography'
+    | '/apps'
+    | '/chats'
+    | '/discover'
+    | '/skills'
+    | '/tasks'
     | '/debug/components'
-    | '/projects/$id'
-    | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
@@ -452,48 +511,54 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_app'
+    | '/debug'
     | '/onboarding'
-    | '/_app/_authenticated'
-    | '/_app/debug'
-    | '/_app/skills'
-    | '/_app/new-tab'
+    | '/_app/browser'
+    | '/_app/files'
     | '/_app/release-notes'
-    | '/_app/tutorial-task'
+    | '/debug/browser-views'
+    | '/debug/components'
+    | '/debug/errors'
+    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
+    | '/debug/'
     | '/onboarding/'
-    | '/_app/_authenticated/subscribe'
-    | '/_app/debug/browser-views'
-    | '/_app/debug/components'
-    | '/_app/debug/errors'
-    | '/_app/debug/notifications'
+    | '/_app/apps/$slug'
+    | '/_app/chats/$id'
+    | '/_app/discover/$id'
+    | '/_app/sites/$id'
     | '/_app/skills/$name'
-    | '/_app/debug/'
+    | '/_app/tasks/$id'
+    | '/debug/browser-view/$targetId'
+    | '/debug/components/alerts'
+    | '/debug/components/colors'
+    | '/debug/components/error-card'
+    | '/debug/components/file-icons'
+    | '/debug/components/form-elements'
+    | '/debug/components/onboarding'
+    | '/debug/components/provider-icons'
+    | '/debug/components/question'
+    | '/debug/components/spinner'
+    | '/debug/components/transcript'
+    | '/debug/components/typography'
+    | '/_app/apps/'
+    | '/_app/chats/'
+    | '/_app/discover/'
     | '/_app/skills/'
     | '/_app/tasks/'
-    | '/_app/debug/browser-view/$targetId'
-    | '/_app/debug/components/alerts'
-    | '/_app/debug/components/colors'
-    | '/_app/debug/components/error-card'
-    | '/_app/debug/components/form-elements'
-    | '/_app/debug/components/onboarding'
-    | '/_app/debug/components/provider-icons'
-    | '/_app/debug/components/spinner'
-    | '/_app/debug/components/transcript'
-    | '/_app/debug/components/typography'
-    | '/_app/debug/components/'
-    | '/_app/projects/$id/'
-    | '/_app/tasks/$id/'
-    | '/_app/debug/components/onboarding/complete'
-    | '/_app/debug/components/onboarding/login'
-    | '/_app/debug/components/onboarding/providers'
-    | '/_app/debug/components/onboarding/theme'
-    | '/_app/debug/components/onboarding/'
+    | '/debug/components/'
+    | '/debug/components/onboarding/complete'
+    | '/debug/components/onboarding/login'
+    | '/debug/components/onboarding/providers'
+    | '/debug/components/onboarding/theme'
+    | '/debug/components/onboarding/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
+  DebugRouteRoute: typeof DebugRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
 }
 
@@ -504,6 +569,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug': {
+      id: '/debug'
+      path: '/debug'
+      fullPath: '/debug'
+      preLoaderRoute: typeof DebugRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -527,6 +599,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingIndexRouteImport
       parentRoute: typeof OnboardingRouteRoute
     }
+    '/debug/': {
+      id: '/debug/'
+      path: '/'
+      fullPath: '/debug/'
+      preLoaderRoute: typeof DebugIndexRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
     '/onboarding/theme': {
       id: '/onboarding/theme'
       path: '/theme'
@@ -541,12 +620,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingProvidersRouteImport
       parentRoute: typeof OnboardingRouteRoute
     }
-    '/_app/tutorial-task': {
-      id: '/_app/tutorial-task'
-      path: '/tutorial-task'
-      fullPath: '/tutorial-task'
-      preLoaderRoute: typeof AppTutorialTaskRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/notifications': {
+      id: '/debug/notifications'
+      path: '/notifications'
+      fullPath: '/debug/notifications'
+      preLoaderRoute: typeof DebugNotificationsRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/errors': {
+      id: '/debug/errors'
+      path: '/errors'
+      fullPath: '/debug/errors'
+      preLoaderRoute: typeof DebugErrorsRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/components': {
+      id: '/debug/components'
+      path: '/components'
+      fullPath: '/debug/components'
+      preLoaderRoute: typeof DebugComponentsRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/browser-views': {
+      id: '/debug/browser-views'
+      path: '/browser-views'
+      fullPath: '/debug/browser-views'
+      preLoaderRoute: typeof DebugBrowserViewsRouteImport
+      parentRoute: typeof DebugRouteRoute
     }
     '/_app/release-notes': {
       id: '/_app/release-notes'
@@ -555,33 +655,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReleaseNotesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/new-tab': {
-      id: '/_app/new-tab'
-      path: '/new-tab'
-      fullPath: '/new-tab'
-      preLoaderRoute: typeof AppNewTabRouteImport
+    '/_app/files': {
+      id: '/_app/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/skills': {
-      id: '/_app/skills'
-      path: '/skills'
-      fullPath: '/skills'
-      preLoaderRoute: typeof AppSkillsRouteRouteImport
+    '/_app/browser': {
+      id: '/_app/browser'
+      path: '/browser'
+      fullPath: '/browser'
+      preLoaderRoute: typeof AppBrowserRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug': {
-      id: '/_app/debug'
-      path: '/debug'
-      fullPath: '/debug'
-      preLoaderRoute: typeof AppDebugRouteRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/_authenticated': {
-      id: '/_app/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppAuthenticatedRouteRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/components/': {
+      id: '/debug/components/'
+      path: '/'
+      fullPath: '/debug/components/'
+      preLoaderRoute: typeof DebugComponentsIndexRouteImport
+      parentRoute: typeof DebugComponentsRoute
     }
     '/_app/tasks/': {
       id: '/_app/tasks/'
@@ -592,321 +685,312 @@ declare module '@tanstack/react-router' {
     }
     '/_app/skills/': {
       id: '/_app/skills/'
-      path: '/'
+      path: '/skills'
       fullPath: '/skills/'
       preLoaderRoute: typeof AppSkillsIndexRouteImport
-      parentRoute: typeof AppSkillsRouteRoute
+      parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug/': {
-      id: '/_app/debug/'
-      path: '/'
-      fullPath: '/debug/'
-      preLoaderRoute: typeof AppDebugIndexRouteImport
-      parentRoute: typeof AppDebugRouteRoute
+    '/_app/discover/': {
+      id: '/_app/discover/'
+      path: '/discover'
+      fullPath: '/discover/'
+      preLoaderRoute: typeof AppDiscoverIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/chats/': {
+      id: '/_app/chats/'
+      path: '/chats'
+      fullPath: '/chats/'
+      preLoaderRoute: typeof AppChatsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/apps/': {
+      id: '/_app/apps/'
+      path: '/apps'
+      fullPath: '/apps/'
+      preLoaderRoute: typeof AppAppsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/debug/components/typography': {
+      id: '/debug/components/typography'
+      path: '/typography'
+      fullPath: '/debug/components/typography'
+      preLoaderRoute: typeof DebugComponentsTypographyRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/transcript': {
+      id: '/debug/components/transcript'
+      path: '/transcript'
+      fullPath: '/debug/components/transcript'
+      preLoaderRoute: typeof DebugComponentsTranscriptRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/spinner': {
+      id: '/debug/components/spinner'
+      path: '/spinner'
+      fullPath: '/debug/components/spinner'
+      preLoaderRoute: typeof DebugComponentsSpinnerRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/question': {
+      id: '/debug/components/question'
+      path: '/question'
+      fullPath: '/debug/components/question'
+      preLoaderRoute: typeof DebugComponentsQuestionRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/provider-icons': {
+      id: '/debug/components/provider-icons'
+      path: '/provider-icons'
+      fullPath: '/debug/components/provider-icons'
+      preLoaderRoute: typeof DebugComponentsProviderIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/onboarding': {
+      id: '/debug/components/onboarding'
+      path: '/onboarding'
+      fullPath: '/debug/components/onboarding'
+      preLoaderRoute: typeof DebugComponentsOnboardingRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/form-elements': {
+      id: '/debug/components/form-elements'
+      path: '/form-elements'
+      fullPath: '/debug/components/form-elements'
+      preLoaderRoute: typeof DebugComponentsFormElementsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/file-icons': {
+      id: '/debug/components/file-icons'
+      path: '/file-icons'
+      fullPath: '/debug/components/file-icons'
+      preLoaderRoute: typeof DebugComponentsFileIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/error-card': {
+      id: '/debug/components/error-card'
+      path: '/error-card'
+      fullPath: '/debug/components/error-card'
+      preLoaderRoute: typeof DebugComponentsErrorCardRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/colors': {
+      id: '/debug/components/colors'
+      path: '/colors'
+      fullPath: '/debug/components/colors'
+      preLoaderRoute: typeof DebugComponentsColorsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/alerts': {
+      id: '/debug/components/alerts'
+      path: '/alerts'
+      fullPath: '/debug/components/alerts'
+      preLoaderRoute: typeof DebugComponentsAlertsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/browser-view/$targetId': {
+      id: '/debug/browser-view/$targetId'
+      path: '/browser-view/$targetId'
+      fullPath: '/debug/browser-view/$targetId'
+      preLoaderRoute: typeof DebugBrowserViewTargetIdRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/_app/tasks/$id': {
+      id: '/_app/tasks/$id'
+      path: '/tasks/$id'
+      fullPath: '/tasks/$id'
+      preLoaderRoute: typeof AppTasksIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/skills/$name': {
       id: '/_app/skills/$name'
-      path: '/$name'
+      path: '/skills/$name'
       fullPath: '/skills/$name'
       preLoaderRoute: typeof AppSkillsNameRouteImport
-      parentRoute: typeof AppSkillsRouteRoute
-    }
-    '/_app/debug/notifications': {
-      id: '/_app/debug/notifications'
-      path: '/notifications'
-      fullPath: '/debug/notifications'
-      preLoaderRoute: typeof AppDebugNotificationsRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/debug/errors': {
-      id: '/_app/debug/errors'
-      path: '/errors'
-      fullPath: '/debug/errors'
-      preLoaderRoute: typeof AppDebugErrorsRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/debug/components': {
-      id: '/_app/debug/components'
-      path: '/components'
-      fullPath: '/debug/components'
-      preLoaderRoute: typeof AppDebugComponentsRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/debug/browser-views': {
-      id: '/_app/debug/browser-views'
-      path: '/browser-views'
-      fullPath: '/debug/browser-views'
-      preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/_authenticated/subscribe': {
-      id: '/_app/_authenticated/subscribe'
-      path: '/subscribe'
-      fullPath: '/subscribe'
-      preLoaderRoute: typeof AppAuthenticatedSubscribeRouteImport
-      parentRoute: typeof AppAuthenticatedRouteRoute
-    }
-    '/_app/tasks/$id/': {
-      id: '/_app/tasks/$id/'
-      path: '/tasks/$id'
-      fullPath: '/tasks/$id/'
-      preLoaderRoute: typeof AppTasksIdIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/projects/$id/': {
-      id: '/_app/projects/$id/'
-      path: '/projects/$id'
-      fullPath: '/projects/$id/'
-      preLoaderRoute: typeof AppProjectsIdIndexRouteImport
+    '/_app/sites/$id': {
+      id: '/_app/sites/$id'
+      path: '/sites/$id'
+      fullPath: '/sites/$id'
+      preLoaderRoute: typeof AppSitesIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug/components/': {
-      id: '/_app/debug/components/'
-      path: '/'
-      fullPath: '/debug/components/'
-      preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
+    '/_app/discover/$id': {
+      id: '/_app/discover/$id'
+      path: '/discover/$id'
+      fullPath: '/discover/$id'
+      preLoaderRoute: typeof AppDiscoverIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug/components/typography': {
-      id: '/_app/debug/components/typography'
-      path: '/typography'
-      fullPath: '/debug/components/typography'
-      preLoaderRoute: typeof AppDebugComponentsTypographyRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
+    '/_app/chats/$id': {
+      id: '/_app/chats/$id'
+      path: '/chats/$id'
+      fullPath: '/chats/$id'
+      preLoaderRoute: typeof AppChatsIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug/components/transcript': {
-      id: '/_app/debug/components/transcript'
-      path: '/transcript'
-      fullPath: '/debug/components/transcript'
-      preLoaderRoute: typeof AppDebugComponentsTranscriptRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
+    '/_app/apps/$slug': {
+      id: '/_app/apps/$slug'
+      path: '/apps/$slug'
+      fullPath: '/apps/$slug'
+      preLoaderRoute: typeof AppAppsSlugRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/_app/debug/components/spinner': {
-      id: '/_app/debug/components/spinner'
-      path: '/spinner'
-      fullPath: '/debug/components/spinner'
-      preLoaderRoute: typeof AppDebugComponentsSpinnerRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/provider-icons': {
-      id: '/_app/debug/components/provider-icons'
-      path: '/provider-icons'
-      fullPath: '/debug/components/provider-icons'
-      preLoaderRoute: typeof AppDebugComponentsProviderIconsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/onboarding': {
-      id: '/_app/debug/components/onboarding'
-      path: '/onboarding'
-      fullPath: '/debug/components/onboarding'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/form-elements': {
-      id: '/_app/debug/components/form-elements'
-      path: '/form-elements'
-      fullPath: '/debug/components/form-elements'
-      preLoaderRoute: typeof AppDebugComponentsFormElementsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/error-card': {
-      id: '/_app/debug/components/error-card'
-      path: '/error-card'
-      fullPath: '/debug/components/error-card'
-      preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/colors': {
-      id: '/_app/debug/components/colors'
-      path: '/colors'
-      fullPath: '/debug/components/colors'
-      preLoaderRoute: typeof AppDebugComponentsColorsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/alerts': {
-      id: '/_app/debug/components/alerts'
-      path: '/alerts'
-      fullPath: '/debug/components/alerts'
-      preLoaderRoute: typeof AppDebugComponentsAlertsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/browser-view/$targetId': {
-      id: '/_app/debug/browser-view/$targetId'
-      path: '/browser-view/$targetId'
-      fullPath: '/debug/browser-view/$targetId'
-      preLoaderRoute: typeof AppDebugBrowserViewTargetIdRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/debug/components/onboarding/': {
-      id: '/_app/debug/components/onboarding/'
+    '/debug/components/onboarding/': {
+      id: '/debug/components/onboarding/'
       path: '/'
       fullPath: '/debug/components/onboarding/'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingIndexRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
+      preLoaderRoute: typeof DebugComponentsOnboardingIndexRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/_app/debug/components/onboarding/theme': {
-      id: '/_app/debug/components/onboarding/theme'
+    '/debug/components/onboarding/theme': {
+      id: '/debug/components/onboarding/theme'
       path: '/theme'
       fullPath: '/debug/components/onboarding/theme'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingThemeRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
+      preLoaderRoute: typeof DebugComponentsOnboardingThemeRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/_app/debug/components/onboarding/providers': {
-      id: '/_app/debug/components/onboarding/providers'
+    '/debug/components/onboarding/providers': {
+      id: '/debug/components/onboarding/providers'
       path: '/providers'
       fullPath: '/debug/components/onboarding/providers'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingProvidersRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
+      preLoaderRoute: typeof DebugComponentsOnboardingProvidersRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/_app/debug/components/onboarding/login': {
-      id: '/_app/debug/components/onboarding/login'
+    '/debug/components/onboarding/login': {
+      id: '/debug/components/onboarding/login'
       path: '/login'
       fullPath: '/debug/components/onboarding/login'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingLoginRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
+      preLoaderRoute: typeof DebugComponentsOnboardingLoginRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/_app/debug/components/onboarding/complete': {
-      id: '/_app/debug/components/onboarding/complete'
+    '/debug/components/onboarding/complete': {
+      id: '/debug/components/onboarding/complete'
       path: '/complete'
       fullPath: '/debug/components/onboarding/complete'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingCompleteRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
+      preLoaderRoute: typeof DebugComponentsOnboardingCompleteRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
     }
   }
 }
 
-interface AppAuthenticatedRouteRouteChildren {
-  AppAuthenticatedSubscribeRoute: typeof AppAuthenticatedSubscribeRoute
-}
-
-const AppAuthenticatedRouteRouteChildren: AppAuthenticatedRouteRouteChildren = {
-  AppAuthenticatedSubscribeRoute: AppAuthenticatedSubscribeRoute,
-}
-
-const AppAuthenticatedRouteRouteWithChildren =
-  AppAuthenticatedRouteRoute._addFileChildren(
-    AppAuthenticatedRouteRouteChildren,
-  )
-
-interface AppDebugComponentsOnboardingRouteChildren {
-  AppDebugComponentsOnboardingCompleteRoute: typeof AppDebugComponentsOnboardingCompleteRoute
-  AppDebugComponentsOnboardingLoginRoute: typeof AppDebugComponentsOnboardingLoginRoute
-  AppDebugComponentsOnboardingProvidersRoute: typeof AppDebugComponentsOnboardingProvidersRoute
-  AppDebugComponentsOnboardingThemeRoute: typeof AppDebugComponentsOnboardingThemeRoute
-  AppDebugComponentsOnboardingIndexRoute: typeof AppDebugComponentsOnboardingIndexRoute
-}
-
-const AppDebugComponentsOnboardingRouteChildren: AppDebugComponentsOnboardingRouteChildren =
-  {
-    AppDebugComponentsOnboardingCompleteRoute:
-      AppDebugComponentsOnboardingCompleteRoute,
-    AppDebugComponentsOnboardingLoginRoute:
-      AppDebugComponentsOnboardingLoginRoute,
-    AppDebugComponentsOnboardingProvidersRoute:
-      AppDebugComponentsOnboardingProvidersRoute,
-    AppDebugComponentsOnboardingThemeRoute:
-      AppDebugComponentsOnboardingThemeRoute,
-    AppDebugComponentsOnboardingIndexRoute:
-      AppDebugComponentsOnboardingIndexRoute,
-  }
-
-const AppDebugComponentsOnboardingRouteWithChildren =
-  AppDebugComponentsOnboardingRoute._addFileChildren(
-    AppDebugComponentsOnboardingRouteChildren,
-  )
-
-interface AppDebugComponentsRouteChildren {
-  AppDebugComponentsAlertsRoute: typeof AppDebugComponentsAlertsRoute
-  AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
-  AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
-  AppDebugComponentsFormElementsRoute: typeof AppDebugComponentsFormElementsRoute
-  AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
-  AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
-  AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
-  AppDebugComponentsTranscriptRoute: typeof AppDebugComponentsTranscriptRoute
-  AppDebugComponentsTypographyRoute: typeof AppDebugComponentsTypographyRoute
-  AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
-}
-
-const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
-  AppDebugComponentsAlertsRoute: AppDebugComponentsAlertsRoute,
-  AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
-  AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
-  AppDebugComponentsFormElementsRoute: AppDebugComponentsFormElementsRoute,
-  AppDebugComponentsOnboardingRoute:
-    AppDebugComponentsOnboardingRouteWithChildren,
-  AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
-  AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
-  AppDebugComponentsTranscriptRoute: AppDebugComponentsTranscriptRoute,
-  AppDebugComponentsTypographyRoute: AppDebugComponentsTypographyRoute,
-  AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
-}
-
-const AppDebugComponentsRouteWithChildren =
-  AppDebugComponentsRoute._addFileChildren(AppDebugComponentsRouteChildren)
-
-interface AppDebugRouteRouteChildren {
-  AppDebugBrowserViewsRoute: typeof AppDebugBrowserViewsRoute
-  AppDebugComponentsRoute: typeof AppDebugComponentsRouteWithChildren
-  AppDebugErrorsRoute: typeof AppDebugErrorsRoute
-  AppDebugNotificationsRoute: typeof AppDebugNotificationsRoute
-  AppDebugIndexRoute: typeof AppDebugIndexRoute
-  AppDebugBrowserViewTargetIdRoute: typeof AppDebugBrowserViewTargetIdRoute
-}
-
-const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
-  AppDebugBrowserViewsRoute: AppDebugBrowserViewsRoute,
-  AppDebugComponentsRoute: AppDebugComponentsRouteWithChildren,
-  AppDebugErrorsRoute: AppDebugErrorsRoute,
-  AppDebugNotificationsRoute: AppDebugNotificationsRoute,
-  AppDebugIndexRoute: AppDebugIndexRoute,
-  AppDebugBrowserViewTargetIdRoute: AppDebugBrowserViewTargetIdRoute,
-}
-
-const AppDebugRouteRouteWithChildren = AppDebugRouteRoute._addFileChildren(
-  AppDebugRouteRouteChildren,
-)
-
-interface AppSkillsRouteRouteChildren {
-  AppSkillsNameRoute: typeof AppSkillsNameRoute
-  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
-}
-
-const AppSkillsRouteRouteChildren: AppSkillsRouteRouteChildren = {
-  AppSkillsNameRoute: AppSkillsNameRoute,
-  AppSkillsIndexRoute: AppSkillsIndexRoute,
-}
-
-const AppSkillsRouteRouteWithChildren = AppSkillsRouteRoute._addFileChildren(
-  AppSkillsRouteRouteChildren,
-)
-
 interface AppRouteRouteChildren {
-  AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
-  AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
-  AppSkillsRouteRoute: typeof AppSkillsRouteRouteWithChildren
-  AppNewTabRoute: typeof AppNewTabRoute
+  AppBrowserRoute: typeof AppBrowserRoute
+  AppFilesRoute: typeof AppFilesRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
-  AppTutorialTaskRoute: typeof AppTutorialTaskRoute
+  AppAppsSlugRoute: typeof AppAppsSlugRoute
+  AppChatsIdRoute: typeof AppChatsIdRoute
+  AppDiscoverIdRoute: typeof AppDiscoverIdRoute
+  AppSitesIdRoute: typeof AppSitesIdRoute
+  AppSkillsNameRoute: typeof AppSkillsNameRoute
+  AppTasksIdRoute: typeof AppTasksIdRoute
+  AppAppsIndexRoute: typeof AppAppsIndexRoute
+  AppChatsIndexRoute: typeof AppChatsIndexRoute
+  AppDiscoverIndexRoute: typeof AppDiscoverIndexRoute
+  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
-  AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
-  AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
-  AppAuthenticatedRouteRoute: AppAuthenticatedRouteRouteWithChildren,
-  AppDebugRouteRoute: AppDebugRouteRouteWithChildren,
-  AppSkillsRouteRoute: AppSkillsRouteRouteWithChildren,
-  AppNewTabRoute: AppNewTabRoute,
+  AppBrowserRoute: AppBrowserRoute,
+  AppFilesRoute: AppFilesRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
-  AppTutorialTaskRoute: AppTutorialTaskRoute,
+  AppAppsSlugRoute: AppAppsSlugRoute,
+  AppChatsIdRoute: AppChatsIdRoute,
+  AppDiscoverIdRoute: AppDiscoverIdRoute,
+  AppSitesIdRoute: AppSitesIdRoute,
+  AppSkillsNameRoute: AppSkillsNameRoute,
+  AppTasksIdRoute: AppTasksIdRoute,
+  AppAppsIndexRoute: AppAppsIndexRoute,
+  AppChatsIndexRoute: AppChatsIndexRoute,
+  AppDiscoverIndexRoute: AppDiscoverIndexRoute,
+  AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
-  AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,
-  AppTasksIdIndexRoute: AppTasksIdIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
+)
+
+interface DebugComponentsOnboardingRouteChildren {
+  DebugComponentsOnboardingCompleteRoute: typeof DebugComponentsOnboardingCompleteRoute
+  DebugComponentsOnboardingLoginRoute: typeof DebugComponentsOnboardingLoginRoute
+  DebugComponentsOnboardingProvidersRoute: typeof DebugComponentsOnboardingProvidersRoute
+  DebugComponentsOnboardingThemeRoute: typeof DebugComponentsOnboardingThemeRoute
+  DebugComponentsOnboardingIndexRoute: typeof DebugComponentsOnboardingIndexRoute
+}
+
+const DebugComponentsOnboardingRouteChildren: DebugComponentsOnboardingRouteChildren =
+  {
+    DebugComponentsOnboardingCompleteRoute:
+      DebugComponentsOnboardingCompleteRoute,
+    DebugComponentsOnboardingLoginRoute: DebugComponentsOnboardingLoginRoute,
+    DebugComponentsOnboardingProvidersRoute:
+      DebugComponentsOnboardingProvidersRoute,
+    DebugComponentsOnboardingThemeRoute: DebugComponentsOnboardingThemeRoute,
+    DebugComponentsOnboardingIndexRoute: DebugComponentsOnboardingIndexRoute,
+  }
+
+const DebugComponentsOnboardingRouteWithChildren =
+  DebugComponentsOnboardingRoute._addFileChildren(
+    DebugComponentsOnboardingRouteChildren,
+  )
+
+interface DebugComponentsRouteChildren {
+  DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
+  DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
+  DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
+  DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
+  DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
+  DebugComponentsOnboardingRoute: typeof DebugComponentsOnboardingRouteWithChildren
+  DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
+  DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
+  DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
+  DebugComponentsTranscriptRoute: typeof DebugComponentsTranscriptRoute
+  DebugComponentsTypographyRoute: typeof DebugComponentsTypographyRoute
+  DebugComponentsIndexRoute: typeof DebugComponentsIndexRoute
+}
+
+const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
+  DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
+  DebugComponentsColorsRoute: DebugComponentsColorsRoute,
+  DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
+  DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
+  DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,
+  DebugComponentsOnboardingRoute: DebugComponentsOnboardingRouteWithChildren,
+  DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
+  DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,
+  DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
+  DebugComponentsTranscriptRoute: DebugComponentsTranscriptRoute,
+  DebugComponentsTypographyRoute: DebugComponentsTypographyRoute,
+  DebugComponentsIndexRoute: DebugComponentsIndexRoute,
+}
+
+const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
+  DebugComponentsRouteChildren,
+)
+
+interface DebugRouteRouteChildren {
+  DebugBrowserViewsRoute: typeof DebugBrowserViewsRoute
+  DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
+  DebugErrorsRoute: typeof DebugErrorsRoute
+  DebugNotificationsRoute: typeof DebugNotificationsRoute
+  DebugIndexRoute: typeof DebugIndexRoute
+  DebugBrowserViewTargetIdRoute: typeof DebugBrowserViewTargetIdRoute
+}
+
+const DebugRouteRouteChildren: DebugRouteRouteChildren = {
+  DebugBrowserViewsRoute: DebugBrowserViewsRoute,
+  DebugComponentsRoute: DebugComponentsRouteWithChildren,
+  DebugErrorsRoute: DebugErrorsRoute,
+  DebugNotificationsRoute: DebugNotificationsRoute,
+  DebugIndexRoute: DebugIndexRoute,
+  DebugBrowserViewTargetIdRoute: DebugBrowserViewTargetIdRoute,
+}
+
+const DebugRouteRouteWithChildren = DebugRouteRoute._addFileChildren(
+  DebugRouteRouteChildren,
 )
 
 interface OnboardingRouteRouteChildren {
@@ -928,6 +1012,7 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
+  DebugRouteRoute: DebugRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport

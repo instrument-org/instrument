@@ -4,8 +4,38 @@ import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import {
+  type WindowTabAnswer,
+  type WindowTabRequest,
+} from "../schemas/window-tab";
+import { type BrowserTargetId } from "../types";
 
 export const publisher = new EventPublisher<{
+  /**
+   * The user acted on an app outside the conversation: finished a sign-in,
+   * saved a key, declined, disconnected. Published by the host app, which
+   * owns those surfaces; the orchestrator is woken with it.
+   */
+  "app.event": {
+    detail?: string;
+    event: "connected" | "declined" | "disconnected" | "failed" | "removed";
+    name: string;
+    slug: string;
+  };
+  /**
+   * An app's folder or connection record changed. Carries no payload because
+   * every listener re-reads the list.
+   */
+  "app.updated": null;
+  /**
+   * A background process in this task appeared, ended, or was removed. Carries
+   * no detail because every listener re-reads the list, and deliberately not
+   * published per chunk of output: what a viewer needs is whether the process
+   * is still there, not what it just printed.
+   */
+  "backgroundProcesses.changed": {
+    id: TaskId;
+  };
   /**
    * The agent sent a command to this task's browser. One per command rather
    * than a start/stop pair: the agent's browser work arrives as separate tool
@@ -14,7 +44,23 @@ export const publisher = new EventPublisher<{
    */
   "browser.agentActivity": {
     id: TaskId;
+    /** The guest the command went to: a task's own, or a tab of the window's it was handed. */
+    targetId: BrowserTargetId;
   };
+  /**
+   * A chat was deleted with everything in it. Its own event rather than
+   * `session.removed`, because by the time anything hears that the index has
+   * already forgotten the chat, so a listener cannot tell it was one.
+   */
+  "chat.removed": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  /**
+   * A memory was saved, corrected, or forgotten. Carries no payload because
+   * every listener re-reads the folder.
+   */
+  "memory.changed": null;
   "message.removed": {
     id: TaskId;
     messageId: StoreId.Message;
@@ -30,11 +76,6 @@ export const publisher = new EventPublisher<{
     part: SessionMessagePart.Type;
   };
   "project.updated": null;
-  "replay.changed": {
-    id: TaskId;
-    isActive: boolean;
-    sessionId: StoreId.Session;
-  };
   "runtime.log.updated": {
     id: TaskId;
   };
@@ -81,6 +122,19 @@ export const publisher = new EventPublisher<{
   "task.updated": {
     id: TaskId;
   };
+  /**
+   * An agent asking the window to act on its tabs: open one (on screen, or
+   * behind whatever is up), point one at something else, close one, or bring
+   * one forward. Each ask carries a request id, which the window's answer
+   * comes back under.
+   */
+  "window.tab": WindowTabRequest & { id: TaskId };
+  /**
+   * The window answering an ask: the tab it acted on or made, by the id the
+   * conversation names it with and a task can be handed, or why it did
+   * nothing.
+   */
+  "window.tabDone": WindowTabAnswer & { id: TaskId };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({
   maxBufferedEvents: 1, // Holds only last event in memory

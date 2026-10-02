@@ -21,6 +21,26 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+// A folder listing the system refused, or asked for at a path that names a
+// file or nothing at all, is an answer the folder view shows (or the
+// typed-path field opens the file for, or offers nothing for), not a bug.
+// Rethrow for the client, skip the capture.
+function isHandledFolderAnswer(error: unknown): boolean {
+  return (
+    error instanceof ORPCError &&
+    (error.code === "NOT_A_FOLDER" ||
+      error.code === "NOT_FOUND" ||
+      error.code === "NOT_PERMITTED")
+  );
+}
+
+// INVALID_INPUT is input the person typed and the app refused (e.g. a project
+// name with a character Windows forbids in a file name). The UI shows it by the
+// field, so it is theirs to fix rather than a bug; rethrow, skip the capture.
+function isHandledInvalidInput(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "INVALID_INPUT";
+}
+
 // Clicking a link with a malformed or non-allowlisted-protocol URL (often
 // agent-generated markdown) makes openExternalLink throw INVALID_URL. The client
 // handles it as control flow (toasts and copies the URL to the clipboard), and
@@ -46,6 +66,14 @@ function isHandledOpenError(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "ERROR_OPENING_FILE";
 }
 
+// UNAUTHORIZED means signed out, developer mode off, or a provider refusing the
+// key or URL the person typed in. The UI shows it, and a rejected provider key
+// is already counted as a `provider.verification_failed` event; rethrow, skip
+// the capture.
+function isHandledUnauthorized(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "UNAUTHORIZED";
+}
+
 // Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
 // errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
 // still rethrow them to the client so the UI can show a retry, but skip the
@@ -53,8 +81,11 @@ function isHandledOpenError(error: unknown): boolean {
 function shouldSkipCapture(error: unknown): boolean {
   return (
     isHandledNotFound(error) ||
+    isHandledUnauthorized(error) ||
+    isHandledFolderAnswer(error) ||
     isHandledOpenError(error) ||
     isHandledInvalidUrl(error) ||
+    isHandledInvalidInput(error) ||
     isExpectedNetworkError(error)
   );
 }

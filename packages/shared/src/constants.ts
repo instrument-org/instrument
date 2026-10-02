@@ -55,14 +55,6 @@ export const PORTS = {
     prod: 47_893,
   },
   electronDebug: 48_160,
-  // Starting port for PortManager, which increments upward (up to 1000 attempts)
-  // to assign a port to each running user app.
-  runtimeBase: {
-    dev: 48_400,
-    prod: 48_200,
-    test: 48_600,
-  },
-  shimClient: 48_350,
 } as const;
 
 const OUR_MODELS_GROUP_ID = "instrument";
@@ -88,4 +80,16 @@ export const OUR_PROVIDER_CONFIG = {
   cacheIdentifier: OUR_MODELS.cacheIdentifier,
   id: OUR_MODELS_GROUP_ID,
   type: OUR_MODELS.providerType,
+} as const;
+
+/**
+ * The one config a signed-in ChatGPT account stands behind. Like our own, it
+ * is synthesized in the main process rather than stored, and its key is the
+ * account's current OAuth access token.
+ */
+export const CHATGPT_PLAN_PROVIDER_CONFIG = {
+  cacheIdentifier: "chatgpt-plan",
+  displayName: "ChatGPT plan",
+  id: "chatgpt-plan",
+  type: "chatgpt",
 } as const;

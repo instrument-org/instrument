@@ -1,4 +1,7 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+  namesSameModel,
+} from "@instrument-org/ai-gateway";
 import { type ProviderMetadata } from "ai";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -24,17 +27,15 @@ export function removeCrossModelReasoningDetails({
   const sourceProviderIds = new Set<string>();
 
   const sanitizedMessages = messages.map((message) => {
-    if (
-      message.role !== "assistant" ||
-      message.metadata.aiGatewayModel?.uri === model.uri
-    ) {
+    if (message.role !== "assistant" || answeredBySameModel(message, model)) {
       return message;
     }
 
-    // OpenRouter encrypted reasoning is provider-private continuation state.
-    // It is only safe to replay for the exact same stored model URI.
+    // Encrypted reasoning, OpenRouter's or OpenAI's, is provider-private
+    // continuation state. It is only safe to replay to the model that wrote
+    // it.
     const sanitizedParts = message.parts.map((part) => {
-      const result = removeOpenRouterReasoningDetailsFromPart(part);
+      const result = removeEncryptedReasoningFromPart(part);
       redactedReasoningDetailsCount += result.redactedReasoningDetailsCount;
       return result.part;
     });
@@ -60,8 +61,99 @@ export function removeCrossModelReasoningDetails({
   };
 }
 
+/**
+ * Whether the model that answered `message` is the one about to be asked.
+ *
+ * The stored model URI has to match. For a model that stands for another,
+ * such as `instrument/auto`, the URI can stay the same while the model behind
+ * it changes, so the model that actually answered has to be the one the alias
+ * resolves to now. Without a current resolution (a gateway that does not
+ * report one) or a record of who answered, the URI is all there is to go on.
+ */
+function answeredBySameModel(
+  message: SessionMessage.AssistantWithParts,
+  model: AIGatewayModel.Type,
+): boolean {
+  if (message.metadata.aiGatewayModel?.uri !== model.uri) {
+    return false;
+  }
+  const served = message.metadata.modelIdServed;
+  if (model.sourceModelId === undefined || served === undefined) {
+    return true;
+  }
+  return namesSameModel(model.sourceModelId, served);
+}
+
 function hasDefinedValues(record: Record<string, unknown>) {
   return Object.values(record).some((value) => value !== undefined);
+}
+
+function removeEncryptedReasoningFromPart(part: SessionMessagePart.Type): {
+  part: SessionMessagePart.Type;
+  redactedReasoningDetailsCount: number;
+} {
+  let result = part;
+  let redactedReasoningDetailsCount = 0;
+
+  if ("providerMetadata" in result) {
+    const removeResult = removeOpenRouterReasoningDetails(
+      result.providerMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, providerMetadata: removeResult.metadata };
+    }
+  }
+
+  if (result.type === "reasoning") {
+    const removeResult = removeOpenAIEncryptedReasoning(
+      result.providerMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, providerMetadata: removeResult.metadata };
+    }
+  }
+
+  if (isToolPart(result)) {
+    const removeResult = removeOpenRouterReasoningDetails(
+      result.callProviderMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, callProviderMetadata: removeResult.metadata };
+    }
+  }
+
+  return { part: result, redactedReasoningDetailsCount };
+}
+
+// OpenAI's Responses API returns a reasoning item's content encrypted, keyed
+// by the item id it goes back under; a reasoning part carries nothing else in
+// its `openai` namespace, so the namespace goes whole.
+function removeOpenAIEncryptedReasoning(
+  metadata: ProviderMetadata | undefined,
+): {
+  metadata: ProviderMetadata | undefined;
+  redactedReasoningDetailsCount: number;
+} {
+  const openaiMetadata = metadata?.openai;
+
+  if (!openaiMetadata || !("reasoningEncryptedContent" in openaiMetadata)) {
+    return { metadata, redactedReasoningDetailsCount: 0 };
+  }
+
+  const { openai: _openai, ...remainingMetadata } = metadata;
+
+  return {
+    metadata: hasDefinedValues(remainingMetadata)
+      ? remainingMetadata
+      : undefined,
+    redactedReasoningDetailsCount: 1,
+  };
 }
 
 function removeOpenRouterReasoningDetails(
@@ -96,38 +188,4 @@ function removeOpenRouterReasoningDetails(
       : undefined,
     redactedReasoningDetailsCount,
   };
-}
-
-function removeOpenRouterReasoningDetailsFromPart(
-  part: SessionMessagePart.Type,
-): {
-  part: SessionMessagePart.Type;
-  redactedReasoningDetailsCount: number;
-} {
-  let result = part;
-  let redactedReasoningDetailsCount = 0;
-
-  if ("providerMetadata" in result) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.providerMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, providerMetadata: removeResult.metadata };
-    }
-  }
-
-  if (isToolPart(result)) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.callProviderMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, callProviderMetadata: removeResult.metadata };
-    }
-  }
-
-  return { part: result, redactedReasoningDetailsCount };
 }

@@ -1,9 +1,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateWorkspaceLayout } from "./migrate-workspace-layout";
+
+// The tasks here are 1.x-shaped on purpose, which is what the adoption into
+// chats looks for; it has tests of its own, and would move them out from under
+// the normalization these check.
+vi.mock("./migrate-legacy-tasks", () => ({
+  migrateLegacyTasks: () => ({
+    adoptedCount: 0,
+    emptyCount: 0,
+    leftOver: 0,
+    topicCount: 0,
+  }),
+}));
 
 let rootDir: string;
 
@@ -64,7 +76,15 @@ describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir, but still records the marker", () => {
     const result = migrateWorkspaceLayout({ rootDir });
     expect(result).toEqual({
+      chats: { chatCount: 0, leftOver: 0, movedTaskCount: 0, topicCount: 0 },
       conflictedTaskIds: [],
+      convertedTopicCount: 0,
+      legacyTasks: {
+        adoptedCount: 0,
+        emptyCount: 0,
+        leftOver: 0,
+        topicCount: 0,
+      },
       movedTaskCount: 0,
       removedBrowserProfileCloneCount: 0,
     });
@@ -76,7 +96,7 @@ describe("migrateWorkspaceLayout", () => {
 
   it("moves tasks and renames db + state files", () => {
     writeLegacyTask("abc", {
-      "project-state.json": `{"showTutorial":true}`,
+      "project-state.json": `{"promptDraft":"hi"}`,
       "sessions.db": "db-bytes",
     });
     // a settings file at the task root should travel with the folder and be
@@ -99,7 +119,7 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db-bytes");
     // The legacy state file is renamed, then folded into the settings file.
     expect(exists("tasks", "abc", ".instrument", "state.json")).toBe(false);
-    expect(readSettings("abc").state).toEqual({ showTutorial: true });
+    expect(readSettings("abc").state).toEqual({ promptDraft: "hi" });
     expect(readSettings("abc").name).toBe("My Task");
 
     // old names gone

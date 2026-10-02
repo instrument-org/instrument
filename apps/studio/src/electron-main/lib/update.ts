@@ -17,7 +17,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
+import { getMachinePreferences } from "../stores/machine/preferences";
+import { setLastUpdateCheck } from "../stores/machine/state";
 
 // Returns false to abort the install when the user cancels the running-agents
 // warning.
@@ -140,6 +141,13 @@ export function isDebInstall({
 // than exact text so a reworded upstream message still lands.
 const SQUIRREL_HANDOFF_LOG = /nativeUpdater|proxy server/i;
 
+export function installedFromDeb() {
+  return isDebInstall({
+    packageType: readPackageType(),
+    platform: os.platform(),
+  });
+}
+
 // electron-updater logs the handoff above at debug level, which the production
 // file transport drops, and those are the only lines separating an install that
 // could not take from one that never ran. Route them to info and keep a failed
@@ -176,10 +184,9 @@ function getChannel() {
     return MACOS_INTEL_CHANNEL;
   }
 
-  const preferencesStore = getPreferencesStore();
-  // Release channels are used internally for testing and must be set on the preferences
-  // store manually.
-  const channel = preferencesStore.get("releaseChannel");
+  // Release channels are used internally for testing and must be set on the
+  // machine preferences store manually.
+  const channel = getMachinePreferences().get("releaseChannel");
   if (!channel || channel === "latest") {
     // Use defaults
     return;
@@ -201,13 +208,6 @@ function getInstallNotice() {
     return;
   }
   return `${APP_NAME} will close and ask you to authenticate, then reopen once the update is installed.`;
-}
-
-function installedFromDeb() {
-  return isDebInstall({
-    packageType: readPackageType(),
-    platform: os.platform(),
-  });
 }
 
 function installStagedUpdate() {

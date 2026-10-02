@@ -1,12 +1,29 @@
-import { shortenHomePath } from "@instrument-org/shared";
+import { displayHostPath, folderNameFromPath } from "@instrument-org/shared";
 
-export { folderNameFromPath } from "@instrument-org/shared";
-
-/** A path as the user should read it: their own home directory spelled `~`. */
+/** A path as the user should read it: from their home folder's own name when it is in it. */
 export function displayPath(filePath: string): string {
-  return shortenHomePath(filePath, window.api.homeDir);
+  return displayHostPath(filePath, window.api.homeDir);
 }
 
 export function filenameFromFilePath(filePath: string): string {
   return filePath.split("/").pop() || filePath;
+}
+
+/**
+ * What a folder is called on screen: its own name, the home folder included,
+ * the way the file manager names it.
+ */
+export function folderLabel(folderPath: string): string {
+  return folderNameFromPath(folderPath);
+}
+
+/**
+ * The workspace folder, Documents/Instrument in the home folder: where a
+ * task's results go when nobody said where. Every task holds it, so it is
+ * never news on a task.
+ */
+export function isWorkspaceFolder(folderPath: string): boolean {
+  const home = window.api.homeDir;
+  const separator = home.includes("\\") ? "\\" : "/";
+  return folderPath === [home, "Documents", "Instrument"].join(separator);
 }

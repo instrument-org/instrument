@@ -1,0 +1,68 @@
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { captureException } from "@/client/lib/telemetry";
+import { rpcClient } from "@/client/rpc/client";
+import { sleep } from "radashi";
+import { toast } from "sonner";
+
+// Backoff before re-establishing a dropped stream so a hard transport failure
+// doesn't spin.
+const RECONNECT_DELAY_MS = 500;
+
+/**
+ * Says where a download a person started in a browser panel ended up.
+ *
+ * The guest is a `<webview>`, so a click on a download link in it shows
+ * nothing of its own: no bar, no sheet, no badge. The main process saves the
+ * file into the person's Downloads folder and reports it here, and the window
+ * hosting that guest is the one to say so, since it is the window the click
+ * happened in.
+ */
+export function initBrowserDownloadNotices(): () => void {
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  async function run() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription =
+          await rpcClient.browser.events.downloadFinished.call(undefined, {
+            signal,
+          });
+        for await (const download of subscription) {
+          const { folder, path } = download;
+          if (!download.completed || path === null || folder === null) {
+            toast.error(`Couldn't download ${download.filename}`);
+            continue;
+          }
+          toast.success(`Downloaded ${download.filename}`, {
+            action: {
+              label: showInFolderLabel("file"),
+              onClick: () => {
+                void showInFolder(path, { kind: "file" });
+              },
+            },
+            description: `Saved in ${folder}`,
+          });
+        }
+      } catch (error) {
+        // Read through `controller` so control-flow analysis doesn't narrow the
+        // loop-top guard's `signal.aborted` to a constant false here: abort can
+        // flip it across the await, which is exactly the teardown case.
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
+  void run();
+
+  return () => {
+    controller.abort();
+  };
+}

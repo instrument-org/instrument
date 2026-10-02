@@ -1,15 +1,10 @@
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
 import { ipcMain, nativeTheme } from "electron";
-
-import { getPreferencesStore } from "../stores/preferences";
 
 export function getBackgroundColor() {
   // Must be manually synced with globals.css var(--background) (gray-900 / gray-50).
   return shouldUseDarkMode() ? "#1c1917" : "#fafaf9";
-}
-
-export function getMainWindowBackgroundColor() {
-  return getBackgroundColor();
 }
 
 /**
@@ -28,7 +23,7 @@ export function serveResolvedTheme() {
 }
 
 export function watchThemePreferenceAndApply(callback?: () => void): void {
-  const preferencesStore = getPreferencesStore();
+  const preferencesStore = getWorkspacePreferences();
   applyNativeThemeFromPreferences();
   preferencesStore.onDidChange("theme", () => {
     applyNativeThemeFromPreferences();
@@ -37,13 +32,13 @@ export function watchThemePreferenceAndApply(callback?: () => void): void {
 }
 
 function applyNativeThemeFromPreferences(): void {
-  const preferencesStore = getPreferencesStore();
+  const preferencesStore = getWorkspacePreferences();
   const theme = preferencesStore.get("theme");
   nativeTheme.themeSource = theme;
 }
 
 function shouldUseDarkMode(): boolean {
-  const preferencesStore = getPreferencesStore();
+  const preferencesStore = getWorkspacePreferences();
   const theme = preferencesStore.get("theme");
 
   switch (theme) {

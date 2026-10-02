@@ -2,7 +2,7 @@ import { dedent } from "radashi";
 
 import { TOOL_NAMES } from "../tools/name";
 import { renderSkillCatalog } from "./skill-catalog";
-import { findSkills, getSkillSources } from "./skills";
+import { findSkills, getSkillSources, type SkillInfo } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -17,13 +17,17 @@ import { getWorkspaceConfig } from "./workspace-config";
  */
 export async function buildAvailableSkillsContext() {
   const skills = await findSkills(getSkillSources(getWorkspaceConfig()));
+  return renderAvailableSkillsContext(skills);
+}
+
+export function renderAvailableSkillsContext(skills: SkillInfo[]) {
   const catalog = renderSkillCatalog(
     skills.filter((skill) => skill.modelInvocable),
   );
 
-  const budgetNotes = [
+  const notes = [
     catalog.shortened > 0 &&
-      `${catalog.shortened} description(s) were shortened to fit the skills context budget; load a skill to see its full instructions.`,
+      `${catalog.shortened} description(s) were shortened to fit the skills context budget; a skill's full instructions come with loading it.`,
     catalog.omitted > 0 &&
       `${catalog.omitted} further skill(s) were left out of this list entirely. \`${TOOL_NAMES.loadSkill}\` still accepts them by name.`,
   ].filter((note) => typeof note === "string");
@@ -32,6 +36,6 @@ export async function buildAvailableSkillsContext() {
     The skills installed on this machine when this session started. Load one with \`${TOOL_NAMES.loadSkill}\` by the exact name shown here.
 
     ${catalog.xml}
-    ${budgetNotes.length > 0 ? `\n${budgetNotes.join("\n")}` : ""}
+    ${notes.length > 0 ? `\n${notes.join("\n")}` : ""}
   `.trim();
 }

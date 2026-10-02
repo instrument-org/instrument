@@ -1,5 +1,6 @@
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
 import {
   AIGatewayProviderConfig,
@@ -17,8 +18,7 @@ import ms from "ms";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { getAppStateStore } from "../../stores/app-state";
-import { getProviderConfigsStore } from "../../stores/provider-configs";
+import { getProviderConfigsStore } from "../../stores/workspace/provider-configs";
 import { cacheMiddleware } from "../middleware/cache";
 import { publisher } from "../publisher";
 
@@ -49,9 +49,6 @@ const remove = base
       "providers",
       providersStore.get("providers").filter((p) => p.id !== input.id),
     );
-
-    // Ensures environment variables inside the apps themselves are updated
-    context.workspaceRef.send({ type: "restartAllRuntimes" });
 
     context.workspaceConfig.captureEvent("provider.removed", {
       provider_type: providerConfig.type,
@@ -162,12 +159,9 @@ const create = base
 
       providersStore.set("providers", [...existingConfigs, configToSave]);
 
-      const appStateStore = getAppStateStore();
-      appStateStore.set("hasCompletedProviderSetup", true);
+      getWorkspaceState().set("hasCompletedProviderSetup", true);
 
       void setDefaultModel({ onlyIfUnset: true });
-      // Ensures environment variables inside the apps themselves are updated
-      context.workspaceRef.send({ type: "restartAllRuntimes" });
 
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: configToSave.type,

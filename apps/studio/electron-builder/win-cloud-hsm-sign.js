@@ -11,7 +11,6 @@ const KCV = process.env.WIN_GCP_KMS_KEY_VERSION;
 // Path to your EV cert chain (PEM or DER)
 const CERTFILE = process.env.WIN_CERT_PATH;
 
-// eslint-disable-next-line unicorn/no-anonymous-default-export
 export default function (cfg) {
   // oxlint-disable-next-line typescript/no-unsafe-member-access
   if (!cfg?.path) {

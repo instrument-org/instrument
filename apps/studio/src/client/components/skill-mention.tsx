@@ -1,4 +1,4 @@
-import { InternalLink } from "@/client/components/internal-link";
+import { SkillLink } from "@/client/components/skill-link";
 import {
   Tooltip,
   TooltipContent,
@@ -52,14 +52,13 @@ export function SkillMention({
   }
 
   const link = (
-    <InternalLink
+    <SkillLink
       className={cn(SKILL_TOKEN_CLASS_NAME, "hover:underline")}
-      params={{ name }}
+      name={name}
       tabIndex={tabIndex}
-      to="/skills/$name"
     >
       {label}
-    </InternalLink>
+    </SkillLink>
   );
 
   if (!summary) {

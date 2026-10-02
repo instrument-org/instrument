@@ -1,0 +1,166 @@
+import ms from "ms";
+import { ok } from "neverthrow";
+import { dedent } from "radashi";
+import { z } from "zod";
+
+import { recordConnection } from "../lib/apps/connection";
+import { APP_GUIDE_FILE_NAME } from "../lib/apps/manifest";
+import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
+import { appSiteFor } from "../lib/apps/site";
+import {
+  guidePlaceholdersLeft,
+  loadApp,
+  readAppGuide,
+} from "../lib/apps/store";
+import { recordAppChat } from "../lib/orchestrator/attribution";
+import { APP_COMMAND } from "../lib/shell-commands/app-command";
+import { getWorkspaceConfig } from "../lib/workspace-config";
+import { MOUNT } from "../mount-points";
+import { BaseInputSchema } from "./base";
+import { setupTool } from "./create-tool";
+
+/**
+ * Ask the user for the one thing only they can give an app: a sign-in, or a
+ * key. Not an interactive call: it puts a card in the conversation and
+ * returns at once, so the turn ends and the user can keep talking. What they
+ * do on the card reaches the agent later as an app event, the way a finishing
+ * task does, and the credential itself never passes through the model.
+ */
+export const ConnectApp = setupTool({
+  inputSchema: BaseInputSchema.extend({
+    reason: z.string().trim().min(1).max(300).meta({
+      description:
+        "One sentence, addressed to the user, saying what connecting it lets you do for them: 'So I can read and write your Notion pages.'",
+    }),
+    slug: z.string().meta({
+      description: `The app to connect: its folder name under ${MOUNT.apps}/, already written.`,
+    }),
+  }),
+  name: "connect_app",
+  outputSchema: z.discriminatedUnion("state", [
+    z.object({
+      /**
+       * What the card asks for: a browser sign-in, a key, leave to run a
+       * server on this machine, or nothing.
+       */
+      kind: z.enum(["key", "none", "run", "sign-in"]),
+      name: z.string(),
+      /** For a local app, what would run: the package, in words. */
+      runs: z.string().optional(),
+      /** The service's origin, for the card's icon. */
+      site: z.string().optional(),
+      slug: z.string(),
+      state: z.literal("asked"),
+    }),
+    z.object({
+      message: z.string(),
+      slug: z.string(),
+      state: z.literal("failure"),
+    }),
+  ]),
+}).create({
+  description: dedent`
+    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, and for an app whose server runs on this machine, what would run and a button to allow it. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
+  `,
+  execute: async ({ input, sessionId }) => {
+    const config = getWorkspaceConfig();
+    const loaded = await loadApp(config.appsDir, input.slug);
+    if (loaded.isErr()) {
+      return ok({
+        message: `${loaded.error.message} Write the app's folder first (\`${APP_COMMAND.name} new\`), then ask.`,
+        slug: input.slug,
+        state: "failure" as const,
+      });
+    }
+    const { dir, manifest, slug } = loaded.value;
+    // The test that runs once the user has acted fails on an API app's
+    // unwritten guide, so a card asked for before it is written puts that
+    // failure in front of the user, after their click, as something they
+    // cannot fix.
+    const guide = await readAppGuide(dir);
+    const unanswered =
+      guide === null ? [] : guidePlaceholdersLeft(manifest, guide);
+    if (manifest.type === "api" && (guide === null || unanswered.length > 0)) {
+      const write = `Write it yourself with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\` (the whole file on stdin), then ask again.`;
+      return ok({
+        message:
+          guide === null
+            ? `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is missing: what ${manifest.name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+            : `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${manifest.name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+        slug,
+        state: "failure" as const,
+      });
+    }
+    const kind =
+      manifest.type === "mcp-local"
+        ? "run"
+        : manifest.auth.kind === "oauth"
+          ? "sign-in"
+          : manifest.auth.kind === "none"
+            ? "none"
+            : "key";
+    if (kind === "sign-in" && !config.apps.oauth) {
+      return ok({
+        message: "Sign-in is not available in this context.",
+        slug,
+        state: "failure" as const,
+      });
+    }
+    if (kind !== "none") {
+      await recordConnection(slug, {
+        status:
+          kind === "key"
+            ? "needs-key"
+            : kind === "run"
+              ? "needs-approval"
+              : "needs-sign-in",
+      });
+      // What the user does on the card comes back as an app event with no
+      // chat of its own; this is what tells it which one asked.
+      await recordAppChat({ sessionId, slug });
+    }
+    return ok({
+      kind,
+      name: manifest.name,
+      ...(manifest.type === "mcp-local"
+        ? { runs: describeLocalLaunch(manifest) }
+        : {}),
+      site: appSiteFor(slug, manifest),
+      slug,
+      state: "asked" as const,
+    });
+  },
+  readOnly: false,
+  timeoutMs: ms("10 seconds"),
+  toModelOutput: ({ output }) => {
+    if (output.state === "failure") {
+      return { type: "error-text", value: output.message };
+    }
+    switch (output.kind) {
+      case "key": {
+        return {
+          type: "text",
+          value: `A card asking the user for a key for ${output.name} is in the conversation. Say one line and end your turn: you will be woken with a note when they save it or decline, and \`${APP_COMMAND.name} test ${output.slug}\` is the next step then. Do not poll, and do not test before the note.`,
+        };
+      }
+      case "none": {
+        return {
+          type: "text",
+          value: `${output.name} needs no sign-in. Run \`${APP_COMMAND.name} test ${output.slug}\` to connect it.`,
+        };
+      }
+      case "run": {
+        return {
+          type: "text",
+          value: `A card asking the user to let ${output.name}'s server run on this machine is in the conversation. Say one line and end your turn: you will be woken with a note when they allow it or decline, and the app installs and connects on its own when they do. Do not poll, and do not test before the note.`,
+        };
+      }
+      case "sign-in": {
+        return {
+          type: "text",
+          value: `A card asking the user to sign in to ${output.name} is in the conversation. Say one line and end your turn: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.`,
+        };
+      }
+    }
+  },
+});

@@ -13,7 +13,6 @@ const workspaceRequire = createRequire(
   ),
 );
 
-// oxlint-disable-next-line typescript/no-unsafe-assignment
 const binaries: { ffmpegPath: string; ffprobePath: string } = workspaceRequire(
   "ffmpeg-ffprobe-static",
 );

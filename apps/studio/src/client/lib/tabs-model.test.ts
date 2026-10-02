@@ -10,7 +10,6 @@ import {
   selectAdjacent,
   selectByIndex,
   selectTab,
-  setTabMeta,
   setTabPathname,
   type TabsModel,
 } from "./tabs-model";
@@ -169,18 +168,5 @@ describe("setTabPathname", () => {
     const next = setTabPathname(start, { id: id("b"), pathname: "/evals" });
     expect(next.tabs[0]?.pathname).toBe("/tasks/1");
     expect(next.tabs[1]?.pathname).toBe("/evals");
-  });
-});
-
-describe("setTabMeta", () => {
-  it("replaces the resolved meta, clearing a stale icon on navigation", () => {
-    // project (has an icon) -> task (no icon, uses its status ring) in one tab
-    const start = model(
-      [tab({ iconName: "project", id: id("a"), title: "My project" })],
-      id("a"),
-    );
-    const next = setTabMeta(start, { id: id("a"), title: "My task" });
-    expect(next.tabs[0]?.title).toBe("My task");
-    expect(next.tabs[0]?.iconName).toBeUndefined();
   });
 });

@@ -1,65 +1,57 @@
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  AgentCompletionNotificationModeSchema,
+  getMachinePreferences,
+  MachinePreferencesSchema,
+} from "@/electron-main/stores/machine/preferences";
+import {
   consumeRecentVersionBump,
-  getDefaultModelURI,
-  getPreferencesStore,
-  PreferencesStoreSchema,
+  getMachineState,
   setLastUpdateCheck,
-} from "@/electron-main/stores/preferences";
+} from "@/electron-main/stores/machine/state";
+import {
+  AgentCompletionNotificationModeSchema,
+  getDefaultModelURI,
+  getWorkspacePreferences,
+  WorkspacePreferencesSchema,
+} from "@/electron-main/stores/workspace/preferences";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
-import {
-  TaskIdSchema,
-  workspaceRouter,
-} from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
 import { app, shell } from "electron";
 import { z } from "zod";
 
-function getPreferencesData() {
-  const preferencesStore = getPreferencesStore();
+/** Both halves, as one settings screen reads them. */
+const PreferencesSchema = WorkspacePreferencesSchema.extend(
+  MachinePreferencesSchema.shape,
+).extend({ lastUpdateCheck: z.number().optional() });
+
+function getPreferencesData(): z.output<typeof PreferencesSchema> {
   return {
-    agentCompletionNotifications: preferencesStore.get(
-      "agentCompletionNotifications",
-    ),
-    developerMode: preferencesStore.get("developerMode"),
-    enableUsageMetrics: preferencesStore.get("enableUsageMetrics"),
-    lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
-    preferApiKeyOverAccount: preferencesStore.get("preferApiKeyOverAccount"),
-    releaseChannel: preferencesStore.get("releaseChannel"),
-    theme: preferencesStore.get("theme"),
+    ...getWorkspacePreferences().store,
+    ...getMachinePreferences().store,
+    lastUpdateCheck: getMachineState().get("lastUpdateCheck"),
   };
 }
-
-const setPreferApiKeyOverAccount = base
-  .input(z.object({ prefer: z.boolean() }))
-  .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
-    preferencesStore.set("preferApiKeyOverAccount", input.prefer);
-  });
 
 const setTheme = base
   .input(z.object({ theme: z.enum(["light", "dark", "system"]) }))
   .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
+    const preferencesStore = getWorkspacePreferences();
     preferencesStore.set("theme", input.theme);
   });
 
 const setEnableUsageMetrics = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
-    preferencesStore.set("enableUsageMetrics", input.enabled);
+    getMachinePreferences().set("enableUsageMetrics", input.enabled);
   });
 
 const setAgentCompletionNotifications = base
   .input(z.object({ mode: AgentCompletionNotificationModeSchema }))
   .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
+    const preferencesStore = getWorkspacePreferences();
     preferencesStore.set("agentCompletionNotifications", input.mode);
   });
 
@@ -101,14 +93,14 @@ const openNotificationSettings = base
 const setDeveloperMode = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
+    const preferencesStore = getWorkspacePreferences();
     preferencesStore.set("developerMode", input.enabled);
   });
 
 const setReleaseChannel = base
   .input(z.object({ channel: z.enum(["latest", "beta", "alpha"]).optional() }))
   .handler(({ context, input }) => {
-    const preferencesStore = getPreferencesStore();
+    const preferencesStore = getMachinePreferences();
     if (input.channel === undefined) {
       preferencesStore.delete("releaseChannel");
     } else {
@@ -146,43 +138,14 @@ const getRecentUpdate = base
     return consumeRecentVersionBump();
   });
 
-const ensureTaskDefaultModelURI = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
-  .handler(async ({ context, input }) => {
-    const taskState = await call(workspaceRouter.task.state.get, input, {
-      context,
-    });
-
-    if (taskState.selectedModelURI) {
-      return { modelURI: taskState.selectedModelURI };
-    }
-
-    await setDefaultModel({ onlyIfUnset: true });
-    const modelURI = getDefaultModelURI();
-
-    if (modelURI) {
-      await call(
-        workspaceRouter.task.state.set,
-        {
-          id: input.id,
-          state: { selectedModelURI: modelURI },
-        },
-        { context },
-      );
-    }
-
-    return { modelURI };
-  });
-
 const setDefaultModelURI = base
   .input(z.object({ modelURI: AIGatewayModelURI.Schema }))
   .handler(({ input }) => {
-    const preferencesStore = getPreferencesStore();
+    const preferencesStore = getWorkspacePreferences();
     preferencesStore.set("defaultModelURI", input.modelURI);
   });
 
-const get = base.output(PreferencesStoreSchema).handler(() => {
+const get = base.output(PreferencesSchema).handler(() => {
   return getPreferencesData();
 });
 
@@ -211,7 +174,6 @@ const live = {
 
 export const preferences = {
   checkForUpdates,
-  ensureTaskDefaultModelURI,
   get,
   getAppVersion,
   getRecentUpdate,
@@ -223,7 +185,6 @@ export const preferences = {
   setDefaultModelURI,
   setDeveloperMode,
   setEnableUsageMetrics,
-  setPreferApiKeyOverAccount,
   setReleaseChannel,
   setTheme,
 };

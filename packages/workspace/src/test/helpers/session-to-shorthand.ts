@@ -82,6 +82,15 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
   }
 
   switch (part.type) {
+    case "data-adoptedTask": {
+      return `<data-adoptedTask>${part.data.taskId}</data-adoptedTask>`;
+    }
+    case "data-appEvent": {
+      return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
+    }
+    case "data-asks": {
+      return `<data-asks count="${part.data.asks.length}" />`;
+    }
     case "data-attachedFolderChanges": {
       const foldersList = part.data.removed
         .map(
@@ -101,6 +110,22 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-attachments>\n${indent(filesList)}\n</data-attachments>`;
     }
+    case "data-backgroundProcesses": {
+      const describe = (
+        processes: { command: string; id: string }[],
+        tag: string,
+      ) =>
+        processes
+          .map(({ command, id }) => `<${tag} id="${id}">${command}</${tag}>`)
+          .join("\n");
+      const entries = [
+        describe(part.data.running, "running"),
+        describe(part.data.ended, "ended"),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return `<data-backgroundProcesses>\n${indent(entries)}\n</data-backgroundProcesses>`;
+    }
     case "data-browserStatus": {
       const target =
         part.data.status === "open"
@@ -111,6 +136,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           ? ` previousUrl="${part.data.previousTarget.url}"`
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
+    }
+    case "data-chatContext": {
+      return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
+    }
+    case "data-chatTopics": {
+      return `<data-chatTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-chatTopics>`;
     }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
@@ -132,8 +163,17 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }
+    case "data-memory": {
+      return `<data-memory>${part.data.memories.map((memory) => memory.name).join(",")}</data-memory>`;
+    }
+    case "data-messageGap": {
+      return `<data-messageGap minutes="${part.data.minutes}" />`;
+    }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
+    }
+    case "data-outputFormat": {
+      return `<data-outputFormat name="${part.data.name}">${part.data.title}</data-outputFormat>`;
     }
     case "data-paneTabs": {
       const tabs = part.data.tabs
@@ -161,6 +201,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       const instructions = part.data.instructions ? ` instructions` : "";
       return `<data-projectContext${projectName}${instructions} />`;
     }
+    case "data-reply": {
+      return `<data-reply>${part.data.text}</data-reply>`;
+    }
     case "data-skillChanges": {
       const created =
         part.data.created.length > 0
@@ -175,8 +218,24 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }
+    case "data-taskAppChanges": {
+      const appsList = [
+        ...part.data.added.map((app) => `<added slug="${app.slug}" />`),
+        ...part.data.removed.map((app) => `<removed slug="${app.slug}" />`),
+      ].join("\n");
+      return `<data-taskAppChanges>\n${indent(appsList)}\n</data-taskAppChanges>`;
+    }
+    case "data-taskEvent": {
+      const events = part.data.events
+        .map((event) => `${event.taskId}:${event.status}`)
+        .join(",");
+      return `<data-taskEvent>${events}</data-taskEvent>`;
+    }
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;
+    }
+    case "data-viewContext": {
+      return `<data-viewContext screen="${part.data.screen}"${part.data.folder ? ` folder="${part.data.folder.display}"` : ""}${part.data.page ? ` page="${part.data.page.url}"` : ""} />`;
     }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";

@@ -2,7 +2,7 @@ interface RpcProcedure {
   call: (input?: unknown) => Promise<unknown>;
 }
 
-// Walks a dot-separated path (e.g. "workspace.debug.replaySession") down the
+// Walks a dot-separated path (e.g. "workspace.debug.runBash") down the
 // RPC client's nested procedure tree. The tree's shape comes from the router
 // and can't be indexed by an arbitrary runtime string in its own types, so
 // this narrows with runtime checks at each step instead of casting through

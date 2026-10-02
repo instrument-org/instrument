@@ -5,11 +5,14 @@ import type { AnyAgentTool, ToolName } from "./types";
 
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
+import { ConnectApp } from "./connect-app";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
+import { RequestFolder } from "./request-folder";
 import { StartActivity } from "./start-activity";
+import { Task } from "./task";
 import { Unavailable } from "./unavailable";
 import { WebFetch } from "./web-fetch";
 import { WebSearch } from "./web-search";
@@ -18,11 +21,14 @@ import { WriteFile } from "./write-file";
 export const TOOLS = {
   BashTool,
   Choose,
+  ConnectApp,
   EditFile,
   GenerateImage,
   LoadSkill,
   ReadFile,
+  RequestFolder,
   StartActivity,
+  Task,
   Unavailable,
   WebFetch,
   WebSearch,
@@ -34,11 +40,14 @@ export type InternalToolName = keyof typeof TOOLS;
 export const TOOLS_BY_NAME = {
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
+  [TOOLS.ConnectApp.name]: TOOLS.ConnectApp,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
+  [TOOLS.RequestFolder.name]: TOOLS.RequestFolder,
   [TOOLS.StartActivity.name]: TOOLS.StartActivity,
+  [TOOLS.Task.name]: TOOLS.Task,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebFetch.name]: TOOLS.WebFetch,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,

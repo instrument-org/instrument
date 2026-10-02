@@ -2,20 +2,17 @@ import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
-import { openWelcome } from "@/client/atoms/welcome-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
-import { useTheme } from "@/client/components/theme-provider";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
+  ManageWorkspacesDialog,
+  NewWorkspaceDialog,
+  SwitchWorkspaceDialog,
+  type SwitchTarget,
+  WORKSPACE_COLOR_HEX,
+  WorkspaceMenu,
+} from "@/client/components/dev-panel-workspaces";
+import { useTheme } from "@/client/components/theme-provider";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -39,8 +36,8 @@ import {
   componentPages,
   debugNavigationRoutes,
   onboardingScreens,
-} from "@/client/routes/_app/debug/-debug-routes";
-import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
+} from "@/client/routes/debug/-debug-routes";
+import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
@@ -71,12 +68,9 @@ import { toast } from "sonner";
 type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
 
 const PAGES = [
-  { label: "/tasks", to: "/tasks" },
-  { label: "/tutorial-task", to: "/tutorial-task" },
-  { label: "/subscribe", to: "/subscribe" },
   { label: "/release-notes", to: "/release-notes" },
-  // No skill can answer to this, so it exercises the redirect a deleted skill
-  // takes: a toast, then the skills list.
+  // No skill can answer to this, so it exercises what a deleted skill's page
+  // shows.
   {
     label: "/skills/<missing>",
     params: { name: "no-such-skill" },
@@ -104,10 +98,10 @@ const pillTriggerClassName = `${controlClassName} gap-x-1.5 px-1.5`;
  * other, and the Flags menu prints them next to the flag they stand for.
  */
 const FEATURE_CODES: Record<FeatureName, string> = {
+  activity_headings: "a",
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",
-  prompt_queue: "q",
   skills: "s",
 };
 
@@ -196,11 +190,18 @@ export function DevPanel() {
     rpcClient.debug.openWorkspaceFolder.mutationOptions(),
   );
 
-  const { mutate: relaunchWithNewUserFolder } = useMutation(
-    rpcClient.debug.relaunchWithNewUserFolder.mutationOptions(),
+  const [switchTarget, setSwitchTarget] = useState<null | SwitchTarget>(null);
+  const [workspaceDialog, setWorkspaceDialog] = useState<
+    "manage" | "new" | null
+  >(null);
+
+  const { mutate: skipOnboarding } = useMutation(
+    rpcClient.debug.skipOnboarding.mutationOptions(),
   );
 
-  const [relaunchDialogOpen, setRelaunchDialogOpen] = useState(false);
+  const { data: currentWorkspace } = useQuery(
+    rpcClient.workspaces.current.queryOptions(),
+  );
 
   const isPackaged = appEnvironment?.isPackaged === true;
 
@@ -227,6 +228,22 @@ export function DevPanel() {
       {crash && <CrashProbe />}
       <div className="flex h-5 items-center gap-x-0.5 rounded-full bg-foreground/4 px-0.5 ring-1 ring-foreground/8 ring-inset">
         <ThemeToggle />
+        {/* Its own pill in its own color, apart from the instance label: which
+            workspace is open is a different fact from which checkout and port
+            this is. Nothing for the default workspace, which is what every
+            other one is a deviation from. */}
+        {currentWorkspace !== undefined && !currentWorkspace.isDefault && (
+          <span
+            className="flex h-4 items-center gap-x-1 rounded-full px-1.5 font-mono text-[9px] leading-none"
+            style={{
+              backgroundColor: `color-mix(in oklab, ${WORKSPACE_COLOR_HEX[currentWorkspace.color]} 16%, transparent)`,
+              color: WORKSPACE_COLOR_HEX[currentWorkspace.color],
+            }}
+            title={`Workspace: ${currentWorkspace.name}`}
+          >
+            {currentWorkspace.name}
+          </span>
+        )}
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
@@ -291,6 +308,17 @@ export function DevPanel() {
                     </span>
                   </>
                 )}
+                {currentWorkspace !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      workspace
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                      {currentWorkspace.name}
+                      {currentWorkspace.pinned ? " (pinned)" : ""}
+                    </span>
+                  </>
+                )}
                 {appEnvironment?.userData !== undefined && (
                   <>
                     <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
@@ -313,6 +341,22 @@ export function DevPanel() {
                 )}
               </div>
               <MenubarSeparator />
+              {/* Past the first-run screens without a provider, which is a
+                  state worth seeing too. Here rather than on those screens, so
+                  their layout stays the one people get. */}
+              {window.api.windowType === "onboarding" && (
+                <>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      skipOnboarding();
+                    }}
+                  >
+                    Skip onboarding
+                  </MenubarItem>
+                  <MenubarSeparator />
+                </>
+              )}
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Pages
@@ -552,6 +596,15 @@ export function DevPanel() {
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
+              <WorkspaceMenu
+                onCreate={() => {
+                  setWorkspaceDialog("new");
+                }}
+                onManage={() => {
+                  setWorkspaceDialog("manage");
+                }}
+                onSwitch={setSwitchTarget}
+              />
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Open folder
@@ -591,14 +644,6 @@ export function DevPanel() {
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      openWelcome();
-                    }}
-                  >
-                    Welcome
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
                       openSettings();
                     }}
                   >
@@ -610,7 +655,7 @@ export function DevPanel() {
               <MenubarItem
                 className="font-mono text-xs text-destructive focus:text-destructive"
                 onSelect={() => {
-                  // Trip the top-level ErrorBoundary in main-window.tsx by
+                  // Trip the top-level ErrorBoundary in app-window.tsx by
                   // throwing during render (event-handler throws aren't caught
                   // by boundaries), verifying the shell-crash fallback + report.
                   setCrash(true);
@@ -619,23 +664,6 @@ export function DevPanel() {
                 <WarningOctagonIcon className="size-3" />
                 Simulate crash
               </MenubarItem>
-              {isPackaged && (
-                <MenubarSub>
-                  <MenubarSubTrigger className="font-mono text-xs">
-                    Relaunch
-                  </MenubarSubTrigger>
-                  <MenubarSubContent>
-                    <MenubarItem
-                      className="font-mono text-xs text-warning-700 dark:text-warning-300"
-                      onSelect={() => {
-                        setRelaunchDialogOpen(true);
-                      }}
-                    >
-                      With new user folder...
-                    </MenubarItem>
-                  </MenubarSubContent>
-                </MenubarSub>
-              )}
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Zoom
@@ -758,30 +786,26 @@ export function DevPanel() {
         </Menubar>
       </div>
 
-      <AlertDialog
-        onOpenChange={setRelaunchDialogOpen}
-        open={isPackaged && relaunchDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Relaunch with new user folder?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The app will quit and restart using a fresh user data folder. Your
-              current session and preferences will not carry over.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                relaunchWithNewUserFolder();
-              }}
-            >
-              Relaunch
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <NewWorkspaceDialog
+        onOpenChange={(open) => {
+          setWorkspaceDialog(open ? "new" : null);
+        }}
+        open={workspaceDialog === "new"}
+      />
+      <SwitchWorkspaceDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSwitchTarget(null);
+          }
+        }}
+        target={switchTarget}
+      />
+      <ManageWorkspacesDialog
+        onOpenChange={(open) => {
+          setWorkspaceDialog(open ? "manage" : null);
+        }}
+        open={workspaceDialog === "manage"}
+      />
     </>
   );
 }

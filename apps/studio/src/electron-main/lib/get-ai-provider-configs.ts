@@ -1,9 +1,11 @@
+import { chatGPTPlanProviderConfig } from "@/electron-main/lib/chatgpt-plan";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
+import { getProviderConfigsStore } from "@/electron-main/stores/workspace/provider-configs";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
-// Helper to get stored configs and add our config if the user is logged in.
+// Helper to get stored configs and add our config if the user is logged in,
+// and the ChatGPT plan's if a ChatGPT account is signed in with it.
 export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
   const providerConfigsStore = getProviderConfigsStore();
   const keyBasedProviderConfigs = [...providerConfigsStore.get("providers")];
@@ -15,6 +17,11 @@ export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
       apiKey: token,
       baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/gateway/openrouter`,
     });
+  }
+
+  const chatGPTPlan = chatGPTPlanProviderConfig();
+  if (chatGPTPlan) {
+    keyBasedProviderConfigs.push(chatGPTPlan);
   }
 
   return keyBasedProviderConfigs;

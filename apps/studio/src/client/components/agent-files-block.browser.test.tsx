@@ -1,10 +1,28 @@
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
+import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
+
+// Where the task's files are, answered without a task: every path under one
+// folder, so the fence has somewhere to read a file from.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(
+      filePaths.map((filePath) => [
+        filePath,
+        `/Users/casey/tasks/quarterly-numbers/${filePath}`,
+      ]),
+    ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
+    `http://files.example.test${hostPath}`,
+  getComputerThumbnailUrl: () => "",
+}));
 
 /**
  * What a ```files fence lays out, which jsdom cannot answer: with no layout
@@ -31,22 +49,43 @@ const WIDE = 640;
 
 function drawFence(
   content: string,
-  { isStreaming = false, width = WIDE } = {},
+  {
+    isStreaming = false,
+    layout = "grid",
+    width = WIDE,
+  }: { isStreaming?: boolean; layout?: "grid" | "list"; width?: number } = {},
 ) {
   return renderInBrowser(
     <div style={{ width }}>
       <MarkdownTaskContext
         value={{
-          assetBaseUrl: "http://assets.example.test",
           isStreaming,
           taskId: TaskIdSchema.parse("quarterly-numbers"),
         }}
       >
-        <AgentFilesBlock content={content} />
+        <FilesLayoutContext.Provider value={layout}>
+          <AgentFilesBlock content={content} />
+        </FilesLayoutContext.Provider>
       </MarkdownTaskContext>
     </div>,
   );
 }
+
+/**
+ * A file channel that answers every probe the same way. The channel the tests
+ * name does not exist, so left alone a probe fails as a network error, which
+ * a card reads as "nothing known"; this is how a test says the file is gone.
+ */
+function originAnswering(status: number) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(new Response(null, { status }))),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 async function fenceHeight(content: string, isStreaming: boolean) {
   const { container } = await drawFence(content, { isStreaming });
@@ -88,6 +127,53 @@ test("names every file it draws, in the tree and not just on screen", async () =
     - text: notes.md Markdown
     - button "Actions for notes.md""
   `);
+});
+
+test("says a file is missing, keeps its line where the reply put it, and offers nothing to press", async () => {
+  // A transcript is a record of what a reply handed over; a file gone since
+  // is drawn as gone rather than dropped. Asked of the origin once the card is
+  // near the viewport, which every card in a test's viewport is. A press could
+  // only end in an error, so the line stops being a control.
+  originAnswering(404);
+  const { getByRole, getByText } = await drawFence(
+    "output/notes.md\noutput/here.txt",
+    { layout: "list" },
+  );
+
+  await expect.element(getByText("here.txt")).toBeInTheDocument();
+  await expect.element(getByText("Missing").first()).toBeInTheDocument();
+  expect(getByText("Missing").all()).toHaveLength(2);
+  await expect
+    .element(getByRole("button", { name: /here\.txt/ }))
+    .toBeDisabled();
+});
+
+test("draws a folder as a folder, in the place the fence gave it", async () => {
+  // The origin serves files, so it has no answer for a folder but a 404 -- the
+  // answer a file gives when it is gone. A folder drawn as a file is therefore
+  // a line reading "Missing", with nothing where the name should be, since the
+  // slash it ends in leaves the last segment empty.
+  originAnswering(404);
+  const { getByRole, getByText } = await drawFence(
+    "/mnt/Instrument/notes.md\n/mnt/Instrument/backups/",
+    { layout: "list" },
+  );
+
+  await expect.element(getByText("backups")).toBeInTheDocument();
+  await expect.element(getByText("Folder")).toBeInTheDocument();
+  await expect.element(getByRole("button", { name: /backups/ })).toBeEnabled();
+});
+
+test("names a file's kind beside it the way the row cards do", async () => {
+  // The line's right-hand text used to be the extension upper-cased, which is
+  // the filename said twice; it is the kind the row cards say.
+  originAnswering(206);
+  const { getByText } = await drawFence("output/notes.md\noutput/here.txt", {
+    layout: "list",
+  });
+
+  await expect.element(getByText("Markdown")).toBeInTheDocument();
+  await expect.element(getByText("Text file")).toBeInTheDocument();
 });
 
 test("lands a lone tile's edge on the column its file cards are laid out on", async () => {

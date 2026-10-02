@@ -1,22 +1,21 @@
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { isTypingInto } from "@/client/lib/is-typing-into";
-import { SHORTCUTS } from "@/shared/shortcuts";
+import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { useStore } from "jotai";
 import { useEffect } from "react";
 
 /**
  * Opens the shortcut guide on `?`. The chord lives here rather than in the
- * native menu (or the main-process binder) because it carries no modifier and is
- * layout-dependent: it is a character before it is a shortcut, so it has to
+ * native menu (or the main-process binder) because it carries no modifier and
+ * is layout-dependent: it is a character before it is a shortcut, so it has to
  * yield to whatever the user is typing into.
  *
  * It also yields to any modal. `?` is cheap to press by accident, and the
- * modals it could land on are ones the user is mid-way through (settings, a
- * delete confirmation) or must not lose (the onboarding gate) -- so while
- * anything is blocking, `?` does nothing and the Help menu item stays the way
- * in. Escape closes the guide; a second `?` doesn't toggle it, since by then
- * the guide itself is what's blocking.
+ * modals it could land on are ones the user is midway through (settings, a
+ * sign-in), so while anything is blocking, `?` does nothing and the Help menu
+ * item stays the way in. Escape closes the guide; a second `?` doesn't toggle
+ * it, since by then the guide itself is what's blocking.
  */
 export function useShortcutGuideHotkey() {
   const store = useStore();
@@ -24,7 +23,7 @@ export function useShortcutGuideHotkey() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
-        event.key !== SHORTCUTS.shortcutGuide.accelerator ||
+        event.key !== SHORTCUT_GUIDE.accelerator ||
         event.altKey ||
         event.ctrlKey ||
         event.metaKey ||

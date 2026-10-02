@@ -14,7 +14,7 @@ Recorded because the instrument is worth knowing about before anyone re-derives 
 
 ## What is built
 
-**A bottom-edge marker on the transcript page**, `/debug/components/transcript`, behind the "Bottom edge" toggle ([use-transcript-edge.ts](../../apps/studio/src/client/routes/_app/debug/-transcript/use-transcript-edge.ts), [transcript-edge.tsx](../../apps/studio/src/client/routes/_app/debug/-transcript/transcript-edge.tsx)). It draws a line where the last row ends and reports three numbers, in the overlay and again in the sidebar:
+**A bottom-edge marker on the transcript page**, `/debug/components/transcript`, behind the "Bottom edge" toggle ([use-transcript-edge.ts](../../apps/studio/src/client/routes/debug/-transcript/use-transcript-edge.ts), [transcript-edge.tsx](../../apps/studio/src/client/routes/debug/-transcript/transcript-edge.tsx)). It draws a line where the last row ends and reports three numbers, in the overlay and again in the sidebar:
 
 - the height of everything the transcript drew, the scroll frame's own padding aside
 - what that height did **since the previous frame**, keyed by frame index rather than by the last resize — a frame measures several times as fonts, images and the scroller settle, and only the last of those is that frame's answer

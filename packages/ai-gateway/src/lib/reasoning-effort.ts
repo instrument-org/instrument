@@ -54,7 +54,22 @@ const PROVIDERS: Record<string, ProviderReasoning> = {
       medium: "medium",
       none: "none",
     },
-    options: (effort) => ({ openai: { reasoningEffort: effort } }),
+    // The Responses provider turns reasoning summaries on whenever an effort is
+    // set. Nothing reads them from a call that sets one, and they are billed as
+    // output, so they stay off until a caller asks.
+    options: (effort) => ({
+      openai: { reasoningEffort: effort, reasoningSummary: null },
+    }),
+  },
+  // Every provider type without an SDK of its own, Workers AI among them, is
+  // reached through `@ai-sdk/openai-compatible`, whose family key is the
+  // config's own type. It reads the level from a `openaiCompatible` namespace
+  // rather than one named for the family, and refuses `xhigh`, which is
+  // OpenAI's word and not a value the endpoints behind this share -- so `max`
+  // asks for `high` here rather than for a word that would be rejected.
+  "openai-compatible": {
+    levels: { high: "high", low: "low", max: "high", medium: "medium" },
+    options: (effort) => ({ openaiCompatible: { reasoningEffort: effort } }),
   },
   openrouter: {
     levels: {
@@ -71,6 +86,29 @@ const PROVIDERS: Record<string, ProviderReasoning> = {
     options: (effort) => ({ xai: { reasoningEffort: effort } }),
   },
 };
+
+/**
+ * The level a model runs at when nobody chose one for the task.
+ *
+ * Only ever the model's own stated default, and only for a model that already
+ * reasons without being asked: naming the level it was going to use anyway
+ * makes it explicit, while sending one to a model whose reasoning is off by
+ * default would turn it on and charge for it. Both facts come from the
+ * catalog, which is also where the measurement that set the Workers AI default
+ * is recorded.
+ *
+ * The catalog's word is a provider's, so a rung outside our ladder -- OpenAI's
+ * `xhigh`, Google's `minimal` -- resolves to nothing rather than being coerced.
+ */
+export function catalogEffort(
+  model: AIGatewayModel.Type,
+): ReasoningEffort | undefined {
+  const reasoning = model.reasoning;
+  if (!reasoning?.enabledByDefault || reasoning.defaultEffort === undefined) {
+    return undefined;
+  }
+  return REASONING_EFFORTS.find((effort) => effort === reasoning.defaultEffort);
+}
 
 /**
  * The provider options that ask `model` to think at `effort`, or nothing when

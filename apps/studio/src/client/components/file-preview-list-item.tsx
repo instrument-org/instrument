@@ -1,12 +1,16 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { useState } from "react";
 
+import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
 import { PreviewListItem } from "./preview-list-item";
 import {
@@ -22,11 +26,11 @@ export function FilePreviewListItem({
   isSelected = false,
   onClick,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath, mimeType } = file;
+  const { filename, hostPath } = file;
   const fileType = getFileType(file);
   const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -34,6 +38,7 @@ export function FilePreviewListItem({
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(url);
 
   const content =
     url && fileType === "image" ? (
@@ -53,10 +58,13 @@ export function FilePreviewListItem({
               "transition-[outline] focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50",
               isSelected &&
                 "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
+              isMissing && "opacity-60",
             )}
+            disabled={isMissing}
             onClick={onClick}
+            ref={ref}
             type="button"
-            {...dragProps}
+            {...(isMissing ? {} : dragProps)}
           >
             <ImageWithFallback
               alt={filename}
@@ -76,27 +84,32 @@ export function FilePreviewListItem({
           collisionPadding={10}
           maxWidth="500px"
         >
-          {filePath}
+          {isMissing ? `${FILE_MISSING_LABEL}: ${hostPath}` : hostPath}
         </TooltipContent>
       </Tooltip>
     ) : (
       <PreviewListItem
+        className={cn(isMissing && "opacity-60")}
+        disabled={isMissing}
         dragProps={dragProps}
-        icon={
-          <FileIcon
-            className="size-5 shrink-0 text-muted-foreground"
-            filename={filename}
-            mimeType={mimeType}
-          />
-        }
+        icon={<FileTypeIcon className="size-5" fileName={filename} />}
         isSelected={isSelected}
         label={filename}
         onClick={onClick}
-        tooltipContent={filePath}
+        ref={ref}
+        rightElement={
+          isMissing ? (
+            <span className="text-[10px] text-muted-foreground">
+              {FILE_MISSING_LABEL}
+            </span>
+          ) : undefined
+        }
+        tooltipContent={hostPath}
       />
     );
 
-  if (!hasFileActions) {
+  // Nothing to copy, save, or reveal once the file is gone.
+  if (!hasFileActions || isMissing) {
     return content;
   }
 

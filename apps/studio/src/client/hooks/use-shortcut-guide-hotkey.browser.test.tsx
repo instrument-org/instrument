@@ -1,5 +1,4 @@
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
-import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { PromptEditor } from "@/client/components/prompt-editor";
 import { getDefaultStore } from "jotai";
@@ -29,6 +28,7 @@ function Host() {
       <button type="button">outside the editor</button>
       <PromptEditor
         actions={[]}
+        apps={[]}
         // Focus is what each test establishes for itself, since where the caret
         // is when `?` is pressed is the whole question.
         autoFocus={false}
@@ -50,10 +50,9 @@ const editor = () => page.getByLabelText("Prompt");
 const isGuideOpen = () => store.get(shortcutGuideModalAtom) !== null;
 
 describe("useShortcutGuideHotkey in a browser", () => {
-  // The browser project loads no shared setup, so this resets what the dom
-  // project's `setup-dom` would have.
+  // The modal slot is cleared after each test by the browser setup; the
+  // blocking count is this test's own doing, so it resets that itself.
   beforeEach(() => {
-    resetStudioModals();
     store.set(blockingModalCountAtom, 0);
   });
 

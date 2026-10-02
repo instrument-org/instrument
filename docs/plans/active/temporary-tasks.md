@@ -41,7 +41,7 @@ What this does **not** cover, and what the copy must therefore not imply:
 
 ### Identity: the id carries the flag
 
-A temporary task's id, which is also its folder name and the DNS label of its asset origin, takes the form:
+A temporary task's id, which is also its folder name, takes the form:
 
 ```
 2026-08-15--temporary-p7k3m9x2
@@ -53,12 +53,12 @@ Three properties, each load-bearing:
 
 **The double hyphen is unforgeable.** [`taskFolderSlug`](../../../packages/workspace/src/lib/task-folder-slug.ts) matches `/[a-z0-9]+/g` and joins tokens with exactly one hyphen; [`generateTaskFolderName`](../../../packages/workspace/src/lib/generate-task-folder-name.ts) joins the date prefix with exactly one hyphen and appends collision suffixes as `-N`. No path through the normal generator produces two adjacent hyphens, whatever the user types, so `id.includes("--")` is a total and unspoofable predicate. A prompt of literally "temporary p7k3m9x2" still yields `2026-08-15-temporary-p7k3m9x2`, one hyphen, correctly treated as a normal task. No reserved-word list, no escaping, no guard code. [`SubdomainPartSchema`](../../../packages/workspace/src/schemas/subdomain-part.ts) is `/^[a-z0-9-]+$/`, so the form validates with no schema change, and the punycode `xn--` reservation binds only at positions three and four, which a date prefix never occupies.
 
-**The suffix is opaque, not a prompt slug.** A normal task id is derived from the user's first message, which would put message content in the one place a delete-on-quit design cannot hide it, and in the asset origin's hostname. Temporary tasks get a generated identifier instead.
+**The suffix is opaque, not a prompt slug.** A normal task id is derived from the user's first message, which would put message content in the one place a delete-on-quit design cannot hide it. Temporary tasks get a generated identifier instead.
 
 Putting the flag in the id rather than in a settings field or a marker file is what makes the rest cheap:
 
 - **No extra disk reads.** [`get-tasks`](../../../packages/workspace/src/lib/get-tasks.ts) already globs `tasks/*/` and already parses each folder name into a `TaskId`. The predicate is a string test, not a `stat`.
-- **It cannot be toggled onto an existing task.** Turning it on would mean renaming the folder, which changes the primary key, the asset origin label, and every reference to the task. The property is structural rather than a bit somebody can flip into a data-loss bug.
+- **It cannot be toggled onto an existing task.** Turning it on would mean renaming the folder, which changes the primary key and every reference to the task. The property is structural rather than a bit somebody can flip into a data-loss bug.
 - **It cannot drift out of sync.** A settings field and a folder can disagree; a folder cannot disagree with itself.
 - **It survives when nothing else does.** Because settings live in memory (below), the name is the only thing left on disk after a crash, so it is the only viable candidate.
 
@@ -80,7 +80,7 @@ An Electron partition name without a `persist:` prefix is an in-memory session, 
 
 This replaces [`session.fromPath`](../../../apps/studio/src/electron-main/browser-view/manager.ts) for temporary tasks. The `partitionDir` field threaded through the browser view entry, manager, debug snapshot, and tests becomes a directory-or-name union. That is the one place this feature touches typed plumbing.
 
-If some Chromium capability turns out to require a real profile directory, the fallback is a per-task directory at `<task>/.instrument/browser-session/`, which is masked from the agent's filesystem and which [`export-task-zip`](../../../packages/workspace/src/lib/export-task-zip.ts) already excludes by that exact task-relative path. Taking the fallback moves tier 3 into tier 2 and reintroduces cleanup, so prefer the in-memory form.
+If some Chromium capability turns out to require a real profile directory, the fallback is a per-task directory at `<task>/.instrument/browser-session/`, which is masked from the agent's filesystem. Taking the fallback moves tier 3 into tier 2 and reintroduces cleanup, so prefer the in-memory form.
 
 ### Deletion: rename first, reap after
 
@@ -129,7 +129,7 @@ Item 1 first, because everything else reads the predicate.
 | 8 | Stale-task landing state after a restart; exclude from recently-closed tabs | [`atoms/tabs.ts`](../../../apps/studio/src/client/atoms/tabs.ts), router | Small |
 | 9 | Sidebar icon, header sentence, creation disclosure, new-task entry point | `client/components/` | Small to medium |
 
-Sizes are estimates from reading the code, not measurements. Nothing on this list reaches the agent, the tools, the sandbox, the asset origin, or `taskDir()`, which stays a pure join because temporary tasks live in the ordinary tasks directory.
+Sizes are estimates from reading the code, not measurements. Nothing on this list reaches the agent, the tools, the sandbox, or `taskDir()`, which stays a pure join because temporary tasks live in the ordinary tasks directory.
 
 ### The adjacent refactor
 
@@ -150,7 +150,6 @@ Worth resisting: reshaping the settings schema, which is a migration; the broade
 ## Risks
 
 - **Crash residue for tier 2.** Between a crash and the next launch, a temporary task's files sit in the workspace. This is a weaker promise than a browser makes, and it is the direct cost of the agent being able to run real work. The copy says "deleted when you quit" rather than "never written" for this tier, which is accurate.
-- **The asset origin serves temporary task files.** `assets.<taskId>` is reachable by any local reader while the app runs and is not authenticated. Not new and not made worse here, but it now sits inside a feature whose premise is privacy, so it belongs on the known-limitations list. The opaque id at least keeps the prompt out of the hostname.
 - **The storage plans would change this.** [conversation-storage.md](conversation-storage.md) moves conversations into a central index, at which point "delete the folder, delete the data" stops being true and temporary tasks need their entries excluded or purged. Build against the storage seam rather than the file layout, and add a line to that plan when this lands.
 
 ## Acceptance criteria

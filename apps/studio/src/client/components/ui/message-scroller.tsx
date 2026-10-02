@@ -6,13 +6,11 @@ import * as React from "react";
 import { Button } from "./button";
 import { Spinner } from "./spinner";
 
-/* eslint-disable react-refresh/only-export-components -- re-export scroller hooks from the primitive */
 export {
   useMessageScroller,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
-/* eslint-enable react-refresh/only-export-components */
 
 function MessageScroller({
   className,
@@ -49,10 +47,16 @@ function MessageScrollerButton({
     <MessageScrollerPrimitive.Button
       className={cn(
         "relative rounded-full bg-background hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
-        // The spinner ring stands in for the elevation hairline while busy;
-        // the soft shadow drops that hairline so the two never stack as
-        // concentric rings.
-        busy ? "shadow-lg-soft" : "shadow-lg",
+        // Spelled as a variable so `cn` knows it for a shadow and drops the
+        // button's own `shadow-xs`, whose translucent rings would otherwise
+        // sit outside the edge below.
+        "shadow-(--shadow-lg-soft)",
+        // The elevation hairline, mixed to an opaque color rather than drawn
+        // translucent: the button floats over the transcript, and a see-through
+        // edge shows every line scrolling under it. The busy spinner draws
+        // over this same pixel, so its faint track and the fading tail of its
+        // arc land on the hairline rather than on the transcript.
+        "ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,var(--background))] dark:ring-[color-mix(in_oklab,var(--foreground)_11%,var(--background))]",
         className,
       )}
       data-slot="message-scroller-button"
@@ -71,6 +75,7 @@ function MessageScrollerButton({
             // elevation ring sits at rest.
             <Spinner
               className="pointer-events-none absolute -inset-px size-auto text-muted-foreground"
+              delay={0}
               thickness={1.5}
             />
           ) : null}
@@ -134,6 +139,10 @@ function MessageScrollerProvider(
 // overflow buys a horizontal scrollbar across the foot of the conversation,
 // which is invisible where scrollbars are overlays and a permanent grey band
 // where they are not.
+//
+// `isolate` keeps what a message raises (a file card's `z-10` text) under the
+// scroller's own overlays, the jump-to-end button and the fades, which follow
+// the viewport in the tree without a z-index of their own.
 function MessageScrollerViewport({
   className,
   tabIndex = -1,
@@ -142,7 +151,7 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       className={cn(
-        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
+        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"

@@ -134,7 +134,6 @@ describe("Studio Smoke Test", () => {
           retryDelay: 200,
         });
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.warn(`Could not remove ${dir}:`, error);
       }
     }
@@ -181,11 +180,13 @@ describe("Studio Smoke Test", () => {
   // The agent's shell reaches its heavier commands through files resolved at
   // runtime -- a worker beside the bundle entry, a wasm blob next to it -- and
   // packaging decides whether those are still there. Nothing in the dev test
-  // suite can see that, because it runs against node_modules. So run one
-  // command through the archive the shipped app loads, under the shipped
+  // suite can see that, because it runs against node_modules. So run those
+  // commands through the archive the shipped app loads, under the shipped
   // runtime: sqlite3 needs its worker, a worker thread to load it, and sql.js
-  // to read wasm out of the archive, which is the whole chain at once.
-  it("runs a bash command from inside the packaged archive", async () => {
+  // to read wasm out of the archive; python3 needs its own worker and the
+  // vendored CPython wasm and stdlib zip; js-exec needs its worker and the one
+  // quickjs-emscripten variant the build keeps.
+  it("runs bash commands from inside the packaged archive", async () => {
     const executablePath = await resolveExecutablePath(distPath);
     const nodeModules = path.join(asarPath(executablePath), "node_modules");
 
@@ -203,11 +204,15 @@ describe("Studio Smoke Test", () => {
         const manifest = require(path.join(packageDir, "package.json"));
         const entry = path.join(packageDir, manifest.exports["."].import.default);
         const { Bash } = await import(pathToFileURL(entry).href);
-        const bash = new Bash({ commands: ["sqlite3"] });
+        const bash = new Bash({ commands: ["sqlite3"], javascript: true, python: true });
         const result = await bash.exec(
           "sqlite3 /db 'create table t(a); insert into t values(41); select a+1 from t;'",
         );
-        process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, result }) + "\\n");
+        const python = await bash.exec("python3 -c 'import json; print(json.dumps(6 * 7))'");
+        const jsExec = await bash.exec("js-exec -c 'console.log(6 * 7)'");
+        // js-exec keeps its worker for reuse past the end of the script, so
+        // the process has to be told it is finished.
+        process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, jsExec, python, result }) + "\\n", () => process.exit(0));
       })().catch((error) => {
         process.stdout.write("SANDBOX_SMOKE_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");
         process.exit(1);
@@ -223,14 +228,28 @@ describe("Studio Smoke Test", () => {
       `sandbox probe did not report a result.\nstdout: ${stdout}\nstderr: ${stderr}`,
     ).toBe(true);
 
+    interface Run {
+      exitCode: number;
+      stderr: string;
+      stdout: string;
+    }
     const parsed = JSON.parse((line ?? "").slice("SANDBOX_SMOKE ".length)) as {
       entry: string;
-      result: { exitCode: number; stderr: string; stdout: string };
+      jsExec: Run;
+      python: Run;
+      result: Run;
     };
 
     expect(parsed.entry).toContain("app.asar");
-    expect(parsed.result.stderr).toBe("");
-    expect(parsed.result.stdout.trim()).toBe("42");
+    for (const [name, run] of Object.entries({
+      "js-exec": parsed.jsExec,
+      python3: parsed.python,
+      sqlite3: parsed.result,
+    })) {
+      expect(run.stderr, `${name} stderr`).toBe("");
+      expect(run.stdout.trim(), `${name} stdout`).toBe("42");
+      expect(run.exitCode, `${name} exit code`).toBe(0);
+    }
     expect(code).toBe(0);
   }, 120_000);
 
@@ -345,17 +364,14 @@ describe("Studio Smoke Test", () => {
     const childProcess = electronApp.process();
 
     childProcess.stdout?.on("data", (data: Buffer | string) => {
-      // eslint-disable-next-line no-console
       console.log(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
     childProcess.stderr?.on("data", (data: Buffer | string) => {
-      // eslint-disable-next-line no-console
       console.error(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
     electronApp.on("console", (msg) => {
-      // eslint-disable-next-line no-console
       console.log(msg.text());
     });
 
@@ -412,8 +428,14 @@ describe("Studio Smoke Test", () => {
 
     const requiredPaths = [
       path.join(tempUserDataDir, "bin"),
-      path.join(tempUserDataDir, "preferences.json"),
-      path.join(tempUserDataDir, "app-state.json"),
+      path.join(tempUserDataDir, "machine-state.json"),
+      path.join(
+        tempUserDataDir,
+        "workspace",
+        ".instrument",
+        "settings",
+        "preferences.json",
+      ),
     ];
 
     for (const filePath of requiredPaths) {
@@ -426,9 +448,9 @@ describe("Studio Smoke Test", () => {
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
 
-    // Validate app-state.json has lastMigratedVersion set (migration ran)
+    // Validate machine-state.json has lastMigratedVersion set (migration ran)
     const appStateContent = await fs.readFile(
-      path.join(tempUserDataDir, "app-state.json"),
+      path.join(tempUserDataDir, "machine-state.json"),
       "utf8",
     );
     const appState = JSON.parse(appStateContent) as {
@@ -436,15 +458,15 @@ describe("Studio Smoke Test", () => {
     };
     expect(
       appState.lastMigratedVersion,
-      "app-state.json: lastMigratedVersion is set (migrations ran on first launch)",
+      "machine-state.json: lastMigratedVersion is set (migrations ran on first launch)",
     ).toBeDefined();
     expect(
       typeof appState.lastMigratedVersion,
-      "app-state.json: lastMigratedVersion is a string",
+      "machine-state.json: lastMigratedVersion is a string",
     ).toBe("string");
     expect(
       appState.lastMigratedVersion?.length,
-      "app-state.json: lastMigratedVersion is non-empty",
+      "machine-state.json: lastMigratedVersion is non-empty",
     ).toBeGreaterThan(0);
   });
 });

@@ -1,5 +1,10 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
-import { getFaviconUrl } from "@/client/lib/favicon-url";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  getFaviconUrl,
+  isIconlessThisSession,
+  markIconlessThisSession,
+} from "@/client/lib/favicon-url";
 import {
   destinationParts,
   mailtoAddress,
@@ -7,13 +12,25 @@ import {
   webUrl,
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
+import {
+  type InstrumentLink,
+  instrumentLinkOf,
+} from "@/shared/instrument-link";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { type ReactNode, useState } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
 import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { AppIcon } from "./window/app-icon";
+import { useAppsBySlug } from "./window/apps-by-slug";
+import { InstrumentGlyph } from "./wordmark";
 
 /**
  * A chip drawn inside a sentence: a small icon, then a short label naming what
@@ -111,11 +128,119 @@ export function InlineLink({
     );
   }
 
+  const link = instrumentLinkOf(href);
+  if (link) {
+    return (
+      <AppLink className={className} link={link}>
+        {children ?? label}
+      </AppLink>
+    );
+  }
+
   return (
     <WebLink {...props} className={className} href={href} label={label}>
       {children ?? label}
     </WebLink>
   );
+}
+
+/**
+ * An app's own icon at the chip's size, looked up by slug the way the tab
+ * strip looks one up; a slug the window has no app for gets the generic mark.
+ */
+function AppChipIcon({ slug }: { slug: string }) {
+  const app = useAppsBySlug().get(slug);
+  if (!app) {
+    return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+  }
+  return (
+    <AppIcon
+      className="size-3! rounded-xs"
+      name={app.name}
+      site={app.site}
+      size="sm"
+    />
+  );
+}
+
+/**
+ * A link to something inside the app, as a chip naming what kind of thing.
+ *
+ * A chip for the same reason a file is one: what it opens is not a page, and
+ * the glyph in front says which of the app's own things it is, a task or a
+ * memory or a chat, the way a site's icon says which site. Drawn from the
+ * address alone, with nothing asked of the server, so it renders as the reply
+ * streams; a memory since forgotten or a chat since gone is still a chip,
+ * and what it opens says so.
+ *
+ * The gestures are the ones every openable thing answers, so a middle click
+ * gives it a tab of its own and a right click offers the list. A surface with
+ * nowhere to open one -- a transcript outside the window the thing lives in
+ * -- draws the chip and nothing happens on it, which reads as a mention
+ * rather than a broken link.
+ */
+function AppLink({
+  children,
+  className,
+  link,
+}: {
+  children: ReactNode;
+  className?: string;
+  link: InstrumentLink;
+}) {
+  const gestures = useOpenGestures({ href: link.href, kind: "screen" });
+  const open = gestures.destinations.find((entry) => entry.id === "open");
+  const icon = <AppLinkIcon link={link} />;
+
+  if (!open) {
+    return (
+      <span
+        className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50", className)}
+      >
+        {icon}
+        <span className="truncate">{children}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+      onAuxClick={gestures.onAuxClick}
+      onClick={open.run}
+      onContextMenu={gestures.onContextMenu}
+      type="button"
+    >
+      {icon}
+      <span className="truncate">{children}</span>
+    </button>
+  );
+}
+
+/** The glyph for a kind of thing, and for an app, the app's own icon. */
+function AppLinkIcon({ link }: { link: InstrumentLink }) {
+  switch (link.kind) {
+    case "app": {
+      return <AppChipIcon slug={link.name} />;
+    }
+    case "chat": {
+      return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "idea":
+    case "ideas": {
+      return <CompassIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "memory": {
+      return <BrainIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "skill": {
+      return <GraduationCapIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    // A task wears the app's own mark, the way the tab's location row draws
+    // one: a task is the app at work rather than a thing it holds.
+    case "task": {
+      return <InstrumentGlyph className="size-3 shrink-0 text-brand-600" />;
+    }
+  }
 }
 
 /**
@@ -175,6 +300,59 @@ function MailLink({
       <EnvelopeSimpleIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
       <span className="truncate">{children}</span>
     </EmailLink>
+  );
+}
+
+/**
+ * The site's own icon, and nothing at all when the site has none.
+ *
+ * A stand-in glyph was the other option and says less than the space it takes:
+ * a globe in front of a link is a picture of the word link. Where an icon
+ * cannot be had, the label and the origin beside it were already carrying the
+ * whole message.
+ *
+ * Read the way every favicon is, from the app's own store, and a site found
+ * this session to have none draws none at once: a transcript naming one host
+ * repeatedly is the ordinary case, and each render after the first would
+ * otherwise hold the width of an icon about to be taken away again.
+ */
+function SiteIcon({ className, href }: { className?: string; href: string }) {
+  const [isIconless, setIconless] = useState(() => isIconlessThisSession(href));
+  const src = getFaviconUrl(href);
+  const {
+    attach,
+    className: arrivalClassName,
+    onLoad: arrived,
+  } = useImageArrival(src, "icon");
+
+  if (isIconless) {
+    return null;
+  }
+
+  return (
+    <img
+      alt=""
+      // A reply is rendered as prose, and prose gives every image a margin of
+      // over an em on each side. On a picture between two paragraphs that is
+      // right; on an icon inside a sentence it is a line twice the height of
+      // the ones around it. Important because the typography styles and a
+      // utility class carry the same specificity, so the plain utility only
+      // wins where prose was not applied in the first place -- which is to say,
+      // everywhere the margin was already zero.
+      className={cn(
+        "my-0! size-3 shrink-0 rounded-xs align-middle",
+        FAVICON_SURFACE_CLASS_NAME,
+        arrivalClassName,
+        className,
+      )}
+      onError={() => {
+        markIconlessThisSession(href);
+        setIconless(true);
+      }}
+      onLoad={arrived}
+      ref={attach}
+      src={src}
+    />
   );
 }
 
@@ -267,86 +445,5 @@ function WebLink({
         <LinkDestination url={url} />
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-/**
- * The largest a favicon can be and still be the lookup service saying it has
- * none.
- *
- * Asked for a host it does not know, the service answers 404 with a decodable
- * sixteen-pixel globe of its own. A browser paints an image whose bytes decode
- * whatever the status line said, so nothing about that reaches `onError`, and
- * the response carries no header this origin is allowed to read. What is left
- * is the size: a real icon comes back at the source's own resolution, which
- * this endpoint hands over without upscaling, and the placeholder is always
- * sixteen square.
- *
- * A site whose only icon is a sixteen-pixel one is therefore read as having
- * none. That is the better way to be wrong: what it costs is a link with no
- * icon in place of a sixteen-pixel image resampled into a twelve-pixel box.
- */
-const ABSENT_ICON_SIZE = 16;
-
-/**
- * Every source already known to have nothing behind it.
- *
- * A link with no icon draws none, so what a first render costs is the width of
- * one that is about to be taken away again. Remembering which sources those
- * were spares every later link to the same host that shuffle, and a transcript
- * naming one host repeatedly is the ordinary case rather than the exception.
- * Keyed by source and never evicted, the same as the arrival cache it sits
- * beside.
- */
-const absentIcons = new Set<string>();
-
-/**
- * The site's own icon, and nothing at all when the site has none.
- *
- * A stand-in glyph was the other option and says less than the space it takes:
- * a globe in front of a link is a picture of the word link. Where an icon
- * cannot be had, the label and the origin beside it were already carrying the
- * whole message.
- */
-function SiteIcon({ className, href }: { className?: string; href: string }) {
-  const src = getFaviconUrl(href);
-  const [absent, setAbsent] = useState(() => absentIcons.has(src));
-  const arrival = useImageArrival(src, "icon");
-
-  if (absent) {
-    return null;
-  }
-
-  const markAbsent = () => {
-    absentIcons.add(src);
-    setAbsent(true);
-  };
-
-  return (
-    <img
-      alt=""
-      // A reply is rendered as prose, and prose gives every image a margin of
-      // over an em on each side. On a picture between two paragraphs that is
-      // right; on an icon inside a sentence it is a line twice the height of
-      // the ones around it. Important because the typography styles and a
-      // utility class carry the same specificity, so the plain utility only
-      // wins where prose was not applied in the first place -- which is to say,
-      // everywhere the margin was already zero.
-      className={cn(
-        "my-0! size-3 shrink-0 rounded-xs align-middle",
-        FAVICON_SURFACE_CLASS_NAME,
-        arrival.className,
-        className,
-      )}
-      onError={markAbsent}
-      onLoad={(event) => {
-        if (event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE) {
-          markAbsent();
-          return;
-        }
-        arrival.onLoad();
-      }}
-      src={src}
-    />
   );
 }

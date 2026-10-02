@@ -3,17 +3,21 @@ import {
   browserStatusModelNote,
   isToolPart,
   type SessionMessage,
+  type SessionMessageDataPart,
   type SessionMessagePart,
   type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { getAssetBaseUrl } from "../lib/asset-base-url";
+import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
+import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
+import { ASSISTANT_BUBBLE } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
+import { ChatSeparatorRow } from "./chat-separator";
 import {
   renderChatPart,
   type RenderPartContext,
@@ -21,8 +25,12 @@ import {
 import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
-import { GroupHeading } from "./message-part/group-heading";
+import {
+  GroupHeading,
+  WorkingGroupHeading,
+} from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
+import { isAwaitingUser } from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -30,6 +38,7 @@ import {
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
 import { ProjectContextNote } from "./project-context-note";
+import { SentReplyQuote } from "./reply-quote";
 import {
   type TranscriptExpansion,
   TranscriptExpansionContext,
@@ -38,12 +47,15 @@ import {
   buildTranscriptLayout,
   generatedGroupHeading,
   groupCanExpand,
+  groupHasHeading,
   groupStandInRowId,
   isActiveToolPart,
   isPartBeingWritten,
+  isStepInFlight,
   isVisibleAssistantPart,
   planRow,
   type TranscriptGroup as TranscriptGroupData,
+  type TranscriptLayout,
   type TranscriptRow,
 } from "./transcript-layout";
 import { useHoldRowInPlace } from "./transcript-row-position";
@@ -68,6 +80,8 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 // The initial row has no message part of its own, so it needs a stable key as
 // empty assistant messages arrive before the first visible part.
 const PLANNING_ROW_ID = "planning";
+/** The dots at the conversation's end while it works without words. */
+const TYPING_TAIL_ID = "typing-tail";
 
 // What the agent said, held apart from what it did. 24px above a paragraph
 // written under a run of steps rather than the 8px the transcript puts between
@@ -129,10 +143,16 @@ interface ChatStreamProps {
   isDeveloperMode: boolean;
   messages: SessionMessage.WithParts[];
   onContinue: () => void;
-  onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Switches the chat to another model, where the reader can. */
+  onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain: () => void;
-  onStartNewTask: () => void;
+  /** Sends the last message again, where there is somewhere to send it. */
+  onRunAgain?: () => void;
+  /**
+   * The orchestrator's conversation is the one thing the user talks to, so
+   * it opens no turn with the wordmark: there is nobody else it could be.
+   */
+  presentation?: "chat";
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
@@ -160,11 +180,10 @@ export function ChatStream({
   onModelChange,
   onRetry,
   onRunAgain,
-  onStartNewTask,
+  presentation,
   renderAsItems = false,
   task,
 }: ChatStreamProps) {
-  const assetBaseUrl = getAssetBaseUrl(task.id);
   const releaseAutoScroll = useReleaseAutoScroll();
   const holdRowInPlace = useHoldRowInPlace();
 
@@ -199,21 +218,20 @@ export function ChatStream({
       return next;
     });
 
-    // A run the agent never named is headed by a copy of one of its own steps,
-    // so the click that opened it was a click on that step. Opening the run
-    // alone answers with the row the reader just clicked, shut, somewhere among
-    // its neighbors; opening the step too is what they asked for. Shutting takes
-    // both back, since the head line is the only thing left to shut the run
-    // with.
+    // A run too short for a heading is headed by a copy of one of its own
+    // steps, so the click that opened it was a click on that step. Opening the
+    // run alone answers with the row the reader just clicked, shut, somewhere
+    // among its neighbors; opening the step too is what they asked for.
+    // Shutting takes both back, since the head line is the only thing left to
+    // shut the run with.
     //
-    // A named phase is headed by its own title instead, and a click there asks
-    // for the phase's steps rather than any one of them. Its copy is an ordinary
-    // row that already opens itself and the phase around it; see
-    // `setRowExpanded`.
-    const headRowId =
-      group.headingRowId === undefined
-        ? groupStandInRowId({ group, isExpanded: !isOpening })
-        : undefined;
+    // A headed phase, named or generated, is headed by its title instead, and
+    // a click there asks for the phase's steps rather than any one of them. Its
+    // copy is an ordinary row that already opens itself and the phase around
+    // it; see `setRowExpanded`.
+    const headRowId = groupHasHeading(group)
+      ? undefined
+      : groupStandInRowId({ group, isExpanded: !isOpening });
     if (headRowId === undefined) {
       return;
     }
@@ -236,6 +254,11 @@ export function ChatStream({
   const regularMessages = messages.filter(
     (message) => message.role !== "session-context",
   );
+
+  // The conversation reads as a text chat, so it marks when it started and on
+  // what, a return after a quiet spell, and a switch of model.
+  const separators =
+    presentation === "chat" ? chatSeparators(regularMessages) : undefined;
 
   const lastMessageId = regularMessages.at(-1)?.id;
   const lastRegularMessage = regularMessages.at(-1);
@@ -266,12 +289,32 @@ export function ChatStream({
 
   // Precomputed over the whole transcript, since a group and the run edges
   // around it both cross message boundaries.
-  const layout = buildTranscriptLayout({
-    isAgentRunning,
-    isDeveloperMode,
-    isToolStreaming,
-    regularMessages,
-  });
+  // The conversation's transcript has no runs of steps to fold: its calls are
+  // not shown, and what is shown of them stands on its own as a row. A group
+  // headed by a copy of a hidden call would have no head line to shut it with.
+  const layout: TranscriptLayout =
+    presentation === "chat"
+      ? {
+          groups: new Map(),
+          rows: new Map(),
+          // A call waiting on the user still opens itself here, and so does
+          // the card asking to connect an app: the answer comes from the
+          // row, and a shut row reads as a stall.
+          selfOpeningRowIds: regularMessages.flatMap((message) =>
+            message.parts.flatMap((part) =>
+              isToolPart(part) &&
+              (isAwaitingUser(part) || part.type === "tool-connect_app")
+                ? [part.metadata.id]
+                : [],
+            ),
+          ),
+        }
+      : buildTranscriptLayout({
+          isAgentRunning,
+          isDeveloperMode,
+          isToolStreaming,
+          regularMessages,
+        });
 
   /**
    * Opens these steps, and the phases they sit in.
@@ -328,14 +371,22 @@ export function ChatStream({
   };
 
   const renderCtx: RenderPartContext = {
-    assetBaseUrl,
     isAgentRunning,
     isDeveloperMode,
     isToolStreaming,
     lastMessageId,
     onRetry,
+    presentation,
     task,
   };
+
+  // Ids of everything this task still has running, so a folded group can say
+  // that one of the commands behind it has outlived the turn that started it.
+  // The same query the task header reads, so a transcript full of promoted
+  // calls costs no extra request.
+  const runningProcessIds = new Set(
+    useTaskBackgroundProcesses(task.id).map((process) => process.id),
+  );
 
   // A group's head line copies the step the agent is on, which lives in some
   // later message than the one the group opens in. Rendering it means reaching
@@ -353,6 +404,23 @@ export function ChatStream({
       partsById.set(part.metadata.id, { message, part, partIndex });
     }
   }
+
+  /**
+   * How many commands started inside this group are still running. Read from the
+   * live registry rather than from `processId` alone, which a part records once
+   * and never clears: a settled phase from this morning would otherwise still
+   * be claiming its server was up.
+   */
+  const groupRunningProcessCount = (group: TranscriptGroupData): number =>
+    group.toolCalls.filter((call) => {
+      const part = partsById.get(call.rowId)?.part;
+      return (
+        part?.type === "tool-bash" &&
+        part.state === "output-available" &&
+        part.output.processId !== undefined &&
+        runningProcessIds.has(part.output.processId)
+      );
+    }).length;
 
   const renderStandIn = (group: TranscriptGroupData): React.ReactNode => {
     const rowId = groupStandInRowId({
@@ -390,12 +458,12 @@ export function ChatStream({
     // Under a heading the copy is one of the group's rows and sits where they
     // sit. With no heading it is the head line itself, so it takes the outer
     // edge and answers the clicks that open and close the group.
-    return group.headingRowId === undefined ? (
-      <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
-    ) : (
+    return groupHasHeading(group) ? (
       <div className={GROUP_INDENT} key="stand-in">
         {slot}
       </div>
+    ) : (
+      <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
     );
   };
 
@@ -413,8 +481,15 @@ export function ChatStream({
     // by the message that opened it.
     let turnRows: React.ReactNode[] = [];
     let turnId: StoreId.Message | undefined;
+    // The words the conversation last said in this turn. A model that retries
+    // a failed command says its line again before the retry, and the second
+    // copy is the same reply twice, not a second reply.
+    let lastSaidInTurn: string | undefined;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
+      if (message.role === "user") {
+        lastSaidInTurn = undefined;
+      }
       const messageRows: MessageRow[] = [];
 
       const nextMessage = regularMessages[messageIndex + 1];
@@ -425,9 +500,49 @@ export function ChatStream({
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
       let projectContextPart: SessionMessagePart.DataPart | undefined;
+      let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
       const seenSourceIds = new Set<string>();
 
-      for (const [partIndex, part] of message.parts.entries()) {
+      // The conversation's own replies land whole: while a step is still
+      // being composed its words are held back and the dots at the tail stand
+      // in, so what the user reads is what was sent, never what is being typed.
+      // A reply that was superseded before it finished is never shown.
+      const isComposing =
+        presentation === "chat" &&
+        message.role === "assistant" &&
+        ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
+          message.metadata.error?.kind === "aborted");
+
+      for (const [partIndex, stored] of message.parts.entries()) {
+        // What is drawn for the part: the part itself, or the part with the
+        // words the turn already said taken off it.
+        let part = stored;
+        if (isComposing && part.type === "text") {
+          continue;
+        }
+        if (
+          presentation === "chat" &&
+          message.role === "assistant" &&
+          part.type === "text"
+        ) {
+          const said = part.text.trim();
+          if (said !== "") {
+            if (
+              lastSaidInTurn !== undefined &&
+              said.startsWith(lastSaidInTurn)
+            ) {
+              // The line again, on its own or with something after it (a
+              // files fence, once the file exists): the line stands where it
+              // was, and only what follows it is new.
+              const rest = said.slice(lastSaidInTurn.length).trim();
+              if (rest === "") {
+                continue;
+              }
+              part = { ...part, text: rest };
+            }
+            lastSaidInTurn = said;
+          }
+        }
         let browserStatusContextAdded = false;
         if (part.type === "data-browserStatus") {
           const note = browserStatusModelNote(part.data);
@@ -450,6 +565,11 @@ export function ChatStream({
 
         if (message.role === "user" && part.type === "data-projectContext") {
           projectContextPart = part;
+          continue;
+        }
+
+        if (message.role === "user" && part.type === "data-reply") {
+          replyPart = part.data;
           continue;
         }
 
@@ -486,6 +606,16 @@ export function ChatStream({
           partIndex,
         });
         if (!node) {
+          // A step the group holds without drawing still takes its place in
+          // the run, since the group it belongs to may open on it.
+          if (row?.groupId !== undefined) {
+            messageRows.push({
+              groupId: row.groupId,
+              hasProseBoundaryAbove: row.hasProseBoundaryAbove,
+              id: rowId,
+              node: null,
+            });
+          }
           continue;
         }
 
@@ -502,6 +632,7 @@ export function ChatStream({
       }
 
       const messageElements = collectGroups({
+        groupRunningProcessCount,
         groups: layout.groups,
         isGroupExpanded,
         onToggle: toggleGroup,
@@ -511,7 +642,7 @@ export function ChatStream({
 
       // --- Per-message chrome ---
 
-      if (wordmarkMessageIds.has(message.id)) {
+      if (presentation !== "chat" && wordmarkMessageIds.has(message.id)) {
         messageElements.unshift(
           <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
@@ -545,7 +676,6 @@ export function ChatStream({
         if (files.length > 0) {
           messageElements.unshift(
             <AttachmentsCard
-              assetBaseUrl={assetBaseUrl}
               files={files}
               key={`attachments-${message.id}`}
               taskId={task.id}
@@ -573,9 +703,43 @@ export function ChatStream({
             />,
           );
         }
+
+        // Over everything the message carries, the way a reply reads in any
+        // messaging app: what it answers first.
+        if (replyPart && messageElements.length > 0) {
+          messageElements.unshift(
+            <SentReplyQuote key={`reply-${message.id}`} reply={replyPart} />,
+          );
+        }
+
+        const separator = separators?.get(message.id);
+        if (separator && messageElements.length > 0) {
+          messageElements.unshift(
+            <ChatSeparatorRow
+              key={`separator-${message.id}`}
+              separator={separator}
+            />,
+          );
+        }
       }
 
-      if (message.role === "assistant" && message.metadata.error) {
+      // A reply the conversation superseded is not an error to anyone; it
+      // is simply not shown, in developer mode too.
+      const superseded =
+        presentation === "chat" &&
+        message.role === "assistant" &&
+        message.metadata.error?.kind === "aborted";
+      // A run of the same refusal, one per retry, reads as one: only the
+      // latest is shown, outside developer mode.
+      const repeatedBelow =
+        !isDeveloperMode &&
+        isSameRefusal(message, regularMessages[messageIndex + 1]);
+      if (
+        message.role === "assistant" &&
+        message.metadata.error &&
+        !superseded &&
+        !repeatedBelow
+      ) {
         messageElements.push(
           <MessageError
             isAgentRunning={isAgentRunning}
@@ -586,7 +750,6 @@ export function ChatStream({
             onContinue={onContinue}
             onModelChange={onModelChange}
             onRunAgain={onRunAgain}
-            onStartNewTask={onStartNewTask}
           />,
         );
       }
@@ -608,11 +771,13 @@ export function ChatStream({
         const hasFooter =
           assistantMessages.length > 0 && visibleAssistantContentCount > 0;
 
-        if (hasFooter) {
+        if (
+          hasFooter && // The conversation's replies stand on their own: no footer of times and tokens under each.
+          presentation !== "chat"
+        ) {
           messageElements.push(
             <AssistantMessagesFooter
               alwaysVisible={alwaysShowFooter}
-              id={task.id}
               isTurnLive={
                 isLastMessage &&
                 (isAgentRunning || !lastAssistantMessageHasVisibleParts)
@@ -666,7 +831,9 @@ export function ChatStream({
               className={SENT_BOX}
               key={message.id}
               messageId={message.id}
-              scrollAnchor
+              // The conversation keeps to its end, the way a chat does; a
+              // turn brought to the top is for reading work back.
+              scrollAnchor={presentation !== "chat"}
             >
               {messageElements}
             </MessageScrollerItem>
@@ -684,7 +851,7 @@ export function ChatStream({
     // so the window outlasts it. Drawn at the tail they keep one identity across
     // that whole window, and the first real row replaces the planning line in a
     // single step rather than fading a second copy in beneath it.
-    if (isAwaitingFirstRow) {
+    if (isAwaitingFirstRow && presentation !== "chat") {
       const initialRows = [
         <TurnWordmark key={TURN_WORDMARK_ID} />,
         <AwaitingFirstRow key={PLANNING_ROW_ID} />,
@@ -699,6 +866,23 @@ export function ChatStream({
           </MessageScrollerItem>
         ) : (
           initialRows
+        ),
+      );
+    }
+
+    // The conversation at work: from the moment the user sends, through the
+    // words of a step being composed and the gaps between calls and steps, the
+    // dots stand at its end, since that is where the next thing comes out.
+    // One row under one key for the whole run, so going from one of those to
+    // the next never takes the dots away and fades a new copy in.
+    if (presentation === "chat" && (isAgentRunning || isAwaitingFirstRow)) {
+      elements.push(
+        renderAsItems ? (
+          <MessageScrollerItem key={TYPING_TAIL_ID}>
+            <TypingRow />
+          </MessageScrollerItem>
+        ) : (
+          <TypingRow key={TYPING_TAIL_ID} />
         ),
       );
     }
@@ -734,7 +918,7 @@ export function ChatStream({
   if (renderAsItems) {
     return (
       <TranscriptExpansionContext value={expansion}>
-        {chatElements}
+        <TailFirst items={chatElements} />
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
@@ -751,6 +935,36 @@ export function ChatStream({
         {continueNode}
       </div>
     </TranscriptExpansionContext>
+  );
+}
+
+/** How many of a transcript's last turns are drawn the moment it arrives. */
+const TAIL_ITEMS = 12;
+
+/** How many older turns are put back above them each time the window is idle. */
+const FILL_ITEMS = 6;
+
+/**
+ * The conversation is composing: three dots in a bubble of their own, the
+ * way a messaging app says someone is typing, in the place the reply will
+ * land. No words are shown until the reply is whole.
+ */
+export function TypingRow() {
+  return (
+    <div className="flex animate-in justify-start fill-mode-both fade-in">
+      <span
+        aria-label="Typing"
+        className={cn(ASSISTANT_BUBBLE, "flex h-9 items-center gap-1")}
+      >
+        {[0, 1, 2].map((index) => (
+          <span
+            className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+            key={index}
+            style={{ animationDelay: `${index * 150}ms` }}
+          />
+        ))}
+      </span>
+    </div>
   );
 }
 
@@ -811,12 +1025,14 @@ function AwaitingFirstRow() {
 // side of a boundary. A folded group draws in the slice it opened in and nowhere
 // else, which is what keeps it still while the agent works past it.
 function collectGroups({
+  groupRunningProcessCount,
   groups,
   isGroupExpanded,
   onToggle,
   renderStandIn,
   rows,
 }: {
+  groupRunningProcessCount: (group: TranscriptGroupData) => number;
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
   onToggle: (group: TranscriptGroupData) => void;
@@ -852,14 +1068,19 @@ function collectGroups({
 
     // With the group folded, a middle slice holds nothing that draws, and an
     // empty box is a blank gap down the transcript where the steps used to be.
-    if (nodes.length === 0 && heading === undefined && standIn === null) {
+    if (
+      nodes.length === 0 &&
+      heading === undefined &&
+      standIn === null &&
+      !(isOpeningSlice && group.phase === "working")
+    ) {
       return [];
     }
 
     // With a heading over it the copy of the step in flight is one of the
     // group's rows and follows them; with no heading it is the head line and
     // leads.
-    const standsAtHead = group.headingRowId === undefined;
+    const standsAtHead = !groupHasHeading(group);
 
     return (
       <TranscriptGroup
@@ -872,10 +1093,16 @@ function collectGroups({
         onToggle={() => {
           onToggle(group);
         }}
+        runningProcessCount={groupRunningProcessCount(group)}
       >
         {heading !== undefined && (
           <GroupHeading key="heading" title={heading} />
         )}
+        {isOpeningSlice &&
+          group.headingRowId === undefined &&
+          group.phase === "working" && (
+            <WorkingGroupHeading key="heading" startedAt={group.startedAt} />
+          )}
         {standsAtHead && standIn}
         {nodes}
         {!standsAtHead && standIn}
@@ -885,7 +1112,8 @@ function collectGroups({
 }
 
 /**
- * Whether the message holds a part that draws a row.
+ * Whether the message holds a part that draws a row, or a step in flight that
+ * the working group it opens will draw a heading for.
  *
  * Not the same question as how many rows the transcript loop went on to emit
  * for it. That is a count of what was drawn, and the fold sits between the two:
@@ -898,19 +1126,50 @@ function hasVisibleAssistantParts({
   lastMessageId,
   message,
 }: AssistantMessageCheck) {
-  return message.parts.some((part, partIndex) =>
-    isVisibleAssistantPart({
-      isDeveloperMode,
-      isLivePart: isPartBeingWritten({
+  return message.parts.some((part, partIndex) => {
+    const isStreaming = isToolPart(part)
+      ? isToolStreaming(part, message)
+      : false;
+    return (
+      isStepInFlight({
         isAgentRunning,
+        isStreaming,
         lastMessageId,
         message,
-        partIndex,
-      }),
-      isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
-      part,
-    }),
-  );
+        part,
+      }) ||
+      isVisibleAssistantPart({
+        isDeveloperMode,
+        isLivePart: isPartBeingWritten({
+          isAgentRunning,
+          lastMessageId,
+          message,
+          partIndex,
+        }),
+        isStreaming,
+        part,
+      })
+    );
+  });
+}
+
+function isSameRefusal(
+  message: SessionMessage.WithParts,
+  next: SessionMessage.WithParts | undefined,
+): boolean {
+  if (message.role !== "assistant" || next?.role !== "assistant") {
+    return false;
+  }
+  const error = message.metadata.error;
+  const nextError = next.metadata.error;
+  if (!error || !nextError || error.kind !== nextError.kind) {
+    return false;
+  }
+  const classification =
+    "classification" in error ? error.classification : undefined;
+  const nextClassification =
+    "classification" in nextError ? nextError.classification : undefined;
+  return classification !== undefined && classification === nextClassification;
 }
 
 /**
@@ -974,6 +1233,41 @@ function readTurnOpenings({
     isAgentRunning && regularMessages.length > 0 && !trailingTurnHasContent;
 
   return { isAwaitingFirstRow, wordmarkMessageIds };
+}
+
+/**
+ * A transcript's turns, drawn from the end: the last few at once, where the
+ * reader lands, and the older ones above them a few at a time while the
+ * window is idle, until the whole transcript is there. Drawing every turn of
+ * a long conversation at once holds the window for as long as the
+ * conversation is long, every time it is opened.
+ *
+ * The scroller keeps what is on screen in place as turns arrive above it, and
+ * each turn keeps its key, so the ones already drawn are never drawn again.
+ * Turns added at the end while it fills are shown as they come.
+ */
+function TailFirst({ items }: { items: React.ReactNode[] }) {
+  const [hidden, setHidden] = useState(() =>
+    Math.max(0, items.length - TAIL_ITEMS),
+  );
+
+  useEffect(() => {
+    if (hidden === 0) {
+      return;
+    }
+    // A deadline, so a window that is never idle still fills.
+    const handle = requestIdleCallback(
+      () => {
+        setHidden((count) => Math.max(0, count - FILL_ITEMS));
+      },
+      { timeout: 500 },
+    );
+    return () => {
+      cancelIdleCallback(handle);
+    };
+  }, [hidden]);
+
+  return items.slice(hidden);
 }
 
 // What opens an assistant turn, wherever the turn is opening from.

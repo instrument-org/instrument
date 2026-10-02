@@ -1,39 +1,25 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
-import { parallel } from "radashi";
+import { ok, type Result } from "neverthrow";
 import { z } from "zod";
 
-import { branchTask } from "../../../lib/branch-task";
+import { agentNameForTask } from "../../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
-import { changedTaskBatches } from "../../../lib/changed-task-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
-import { exportTaskZip } from "../../../lib/export-task-zip";
-import { findAvailableName } from "../../../lib/find-available-name";
+import { type TypedError } from "../../../lib/errors";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask, getTasks } from "../../../lib/get-tasks";
-import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
-import { LiveTasksSnapshot } from "../../../lib/live-tasks-snapshot";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
-import { pathExists } from "../../../lib/path-exists";
+import { ensureChat } from "../../../lib/orchestrator/chat-records";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
-import {
-  clearTaskIndicator,
-  setTaskIndicator,
-} from "../../../lib/task-indicators";
 import { setTaskState } from "../../../lib/task-record";
-import {
-  getTaskSettings,
-  updateTaskSettings,
-} from "../../../lib/task-settings";
-import { trashTask } from "../../../lib/trash-task";
-import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
+import { updateTaskSettings } from "../../../lib/task-settings";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getTaskUsageSummary,
@@ -41,79 +27,31 @@ import {
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
 import { SessionMessageDataPart } from "../../../schemas/session/message-data-part";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
+import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
+import { TaskKindSchema } from "../../../schemas/task-kind";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { liveTaskActivity, taskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
+import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
 import { taskState } from "./state";
 
 const byId = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
-  .handler(async ({ context, errors, input }) => {
-    const result = await getTask(input.id, context.workspaceConfig);
+  .handler(async ({ errors, input }) => {
+    const result = await getTask(input.id);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
 
     return result.value;
-  });
-
-const byIds = base
-  .input(z.object({ ids: TaskIdSchema.array() }))
-  .output(
-    z
-      .discriminatedUnion("ok", [
-        z.object({
-          data: TaskSchema,
-          ok: z.literal(true),
-        }),
-        z.object({
-          error: z.object({ type: z.literal("not-found") }),
-          id: TaskIdSchema,
-          ok: z.literal(false),
-        }),
-      ])
-      .array(),
-  )
-  .handler(async ({ context, errors, input }) => {
-    const taskResults = await parallel(
-      { limit: 12 },
-      input.ids,
-      async (id) => ({
-        id,
-        result: await getTask(id, context.workspaceConfig),
-      }),
-    );
-
-    const results = [];
-    for (const { id, result } of taskResults) {
-      if (result.isErr()) {
-        if (result.error.type === "workspace-not-found-error") {
-          results.push({
-            error: { type: "not-found" as const },
-            id,
-            ok: false as const,
-          });
-          continue;
-        }
-        throw toORPCError(result.error, errors);
-      }
-      results.push({
-        data: result.value,
-        ok: true as const,
-      });
-    }
-    return results;
   });
 
 const TasksWithTotalSchema = z.object({
@@ -152,10 +90,15 @@ const create = base
         )
         .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
+      // An orchestrator is created this way only by the eval harness, and it
+      // is made a chat, the way the window's first send makes one.
+      kind: TaskKindSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       projectId: ProjectIdSchema.nullish(),
       prompt: z.string(),
+      /** What the window had on screen, as the note on the first message: the eval harness's stand-in for a window. */
+      viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
   .output(
@@ -168,7 +111,17 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, intent, modelURI, name, projectId, prompt },
+      input: {
+        files,
+        folders,
+        intent,
+        kind,
+        modelURI,
+        name,
+        projectId,
+        prompt,
+        viewing,
+      },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -196,24 +149,33 @@ const create = base
         project = projectResult.value;
       }
 
-      const taskId = await newTaskId({
-        prompt,
-        workspaceConfig: context.workspaceConfig,
-      });
-
+      // An orchestrator made here is a chat, the way the window's first send
+      // makes one: a record of its own, named for the words it opens with.
+      const chatSession =
+        kind === "orchestrator" ? StoreId.newSessionId() : undefined;
       const initialTaskName = name ?? defaultTaskName(prompt);
-
-      const result = await initializeTask(
-        {
-          initialSettings: {
-            name: initialTaskName,
-            projectId: projectId ?? undefined,
-          },
-          taskId,
+      let taskId: TaskId;
+      let result: Result<unknown, TypedError.Type> = ok(undefined);
+      if (chatSession) {
+        taskId = await ensureChat(chatSession, prompt);
+      } else {
+        taskId = await newTaskId({
+          prompt,
           workspaceConfig: context.workspaceConfig,
-        },
-        { signal },
-      );
+        });
+        result = await initializeTask(
+          {
+            initialSettings: {
+              kind,
+              name: initialTaskName,
+              projectId: projectId ?? undefined,
+            },
+            taskId,
+            workspaceConfig: context.workspaceConfig,
+          },
+          { signal },
+        );
+      }
 
       if (result.isErr()) {
         context.workspaceConfig.captureException(result.error);
@@ -221,7 +183,7 @@ const create = base
       }
 
       const sessionResult = await createSession({
-        sessionId: StoreId.newSessionId(),
+        sessionId: chatSession ?? StoreId.newSessionId(),
         signal,
         taskId,
       });
@@ -291,6 +253,7 @@ const create = base
         prompt,
         sessionId: sessionResult.value.id,
         taskId,
+        ...(viewing ? { viewing } : {}),
       });
 
       if (messageResult.isErr()) {
@@ -359,7 +322,7 @@ const create = base
       context.workspaceRef.send({
         type: "createSession",
         value: {
-          agentName: "main",
+          agentName: await agentNameForTask(taskId),
           id: taskId,
           message,
           model,
@@ -380,269 +343,6 @@ const create = base
     },
   );
 
-const createTutorial = base
-  .input(z.object({ delayMs: z.number().int().min(0).optional() }).optional())
-  .output(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .handler(async ({ context, errors, input, signal }) => {
-    const result = await startTutorialTaskReplay({
-      delayMs: input?.delayMs,
-      signal,
-      workspaceConfig: context.workspaceConfig,
-    });
-
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-
-    return {
-      id: result.value.id,
-      sessionId: result.value.sessionId,
-    };
-  });
-
-const branch = base
-  .input(
-    z.object({
-      // When set, the branch keeps the conversation only up to and including
-      // this message. Omit to branch the whole task.
-      branchPoint: z
-        .object({
-          messageId: StoreId.MessageSchema,
-          sessionId: StoreId.SessionSchema,
-        })
-        .optional(),
-      sourceTaskId: TaskIdSchema,
-    }),
-  )
-  .output(TaskSchema)
-  .handler(
-    async ({
-      context,
-      errors,
-      input: { branchPoint, sourceTaskId },
-      signal,
-    }) => {
-      const result = await branchTask(
-        {
-          branchPoint,
-          sourceTaskId,
-          workspaceConfig: context.workspaceConfig,
-        },
-        { signal },
-      );
-
-      if (result.isErr()) {
-        context.workspaceConfig.captureException(result.error);
-        throw toORPCError(result.error, errors);
-      }
-
-      publisher.publish("task.updated", {
-        id: result.value.taskId,
-      });
-
-      const taskResult = await getTask(
-        result.value.taskId,
-        context.workspaceConfig,
-      );
-      if (taskResult.isErr()) {
-        context.workspaceConfig.captureException(taskResult.error);
-        throw toORPCError(taskResult.error, errors);
-      }
-
-      context.workspaceConfig.captureEvent("task.forked");
-
-      return taskResult.value;
-    },
-  );
-
-const importTask = base
-  .input(
-    z.object({
-      zipFileData: z.string(),
-    }),
-  )
-  .output(
-    z.object({
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(async ({ context, errors, input: { zipFileData }, signal }) => {
-    const result = await importTaskLib(
-      {
-        workspaceConfig: context.workspaceConfig,
-        zipFileData,
-      },
-      { signal },
-    );
-
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-
-    publisher.publish("task.updated", {
-      id: result.value.taskId,
-    });
-
-    context.workspaceConfig.captureEvent("task.imported");
-
-    return { id: result.value.taskId };
-  });
-
-const trash = base
-  .input(z.object({ id: TaskIdSchema }))
-  .handler(async ({ context, errors, input: { id } }) => {
-    const result = await trashTask({
-      id,
-      workspaceConfig: context.workspaceConfig,
-      workspaceRef: context.workspaceRef,
-    });
-
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-    publisher.publish("task.removed", {
-      id,
-    });
-
-    // The unread indicator lives in the task's settings.json, so it is gone
-    // with the folder -- no separate cleanup needed.
-
-    context.workspaceConfig.captureEvent("task.trashed");
-  });
-
-// Unread indicators: marked when an agent finishes (see the workspace machine's
-// session.done handler) and cleared once the user has viewed the task. Both
-// writes go through task settings, which publishes task.updated.
-const clearIndicator = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(z.void())
-  .handler(async ({ errors, input }) => {
-    const result = await clearTaskIndicator(input.id);
-    if (result.isErr()) {
-      throw toORPCError(result.error, errors);
-    }
-  });
-
-// Explicit "mark as unread". Flagged manual so viewing the task it was set from
-// does not clear it -- it holds until the user leaves and returns, or clears now
-// via clearIndicator ("mark as read").
-const markUnread = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(z.void())
-  .handler(async ({ errors, input }) => {
-    const result = await setTaskIndicator(input.id, "completed", {
-      manual: true,
-    });
-    if (result.isErr()) {
-      throw toORPCError(result.error, errors);
-    }
-  });
-
-const update = base
-  .input(
-    TaskSettingsUpdateSchema.extend({
-      id: TaskIdSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ context, errors, input: { id, ...updates } }) => {
-    const taskId = id;
-
-    if (updates.name !== undefined) {
-      const sessionsResult = await Store.getSessions(taskId);
-      if (sessionsResult.isOk()) {
-        const sessions = sessionsResult.value;
-        const session = sessions[0];
-        if (sessions.length === 1 && session !== undefined) {
-          await Store.saveSession(
-            { ...session, title: updates.name, updatedAt: new Date() },
-            taskId,
-          );
-        }
-      }
-    }
-
-    const result = await updateTaskSettings(taskId, updates);
-
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
-
-    context.workspaceConfig.captureEvent("task.updated");
-  });
-
-const exportZip = base
-  .errors({
-    EXPORT_FAILED: {
-      message: "Failed to export task",
-    },
-  })
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      outputPath: z.string(),
-    }),
-  )
-  .output(
-    z.object({
-      filename: z.string(),
-      filepath: z.string(),
-    }),
-  )
-  .handler(async ({ context, errors, input }) => {
-    try {
-      const taskId = input.id;
-
-      const settings = await getTaskSettings(taskDir(taskId));
-      const taskName = settings?.name ?? input.id;
-
-      const safeName = taskName
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9-]/g, "-")
-        .replaceAll(/-+/g, "-")
-        .replaceAll(/^-|-$/g, "")
-        .slice(0, 50);
-
-      const { name: filename } = await findAvailableName({
-        isTaken: (candidate) =>
-          pathExists(
-            AbsolutePathSchema.parse(`${input.outputPath}/${candidate}`),
-          ),
-        name: `${safeName}.zip`,
-        splitExtension: true,
-      });
-      const filepath = `${input.outputPath}/${filename}`;
-
-      const result = await exportTaskZip({
-        dir: taskDir(taskId),
-        outputPath: filepath,
-      });
-
-      if (result.isErr()) {
-        throw errors.EXPORT_FAILED({ message: result.error.message });
-      }
-
-      context.workspaceConfig.captureEvent("task.shared", {
-        share_type: "exported_zip",
-      });
-
-      return { filename, filepath };
-    } catch (error) {
-      throw errors.EXPORT_FAILED({
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  });
-
 const live = {
   byId: base
     .input(z.object({ id: TaskIdSchema }))
@@ -656,92 +356,6 @@ const live = {
         if (payload.id === input.id) {
           yield call(byId, input, { context, signal });
         }
-      }
-    }),
-  byIds: base
-    .input(z.object({ ids: TaskIdSchema.array() }))
-    .output(
-      eventIterator(
-        z
-          .discriminatedUnion("ok", [
-            z.object({
-              data: TaskSchema,
-              ok: z.literal(true),
-            }),
-            z.object({
-              error: z.object({ type: z.literal("not-found") }),
-              id: TaskIdSchema,
-              ok: z.literal(false),
-            }),
-          ])
-          .array(),
-      ),
-    )
-    .handler(async function* ({ context, input, signal }) {
-      yield call(byIds, input, { context, signal });
-
-      const taskUpdates = publisher.subscribe("task.updated", { signal });
-      const taskRemoved = publisher.subscribe("task.removed", { signal });
-
-      for await (const payload of mergeGenerators([taskUpdates, taskRemoved])) {
-        if (input.ids.includes(payload.id)) {
-          yield call(byIds, input, { context, signal });
-        }
-      }
-    }),
-  list: base
-    .input(ListInputSchema)
-    .output(eventIterator(TasksWithTotalSchema))
-    .handler(async function* ({ context, input, signal }) {
-      // Subscribing before the initial scan means no change can land
-      // unobserved between the two; an event for a task the scan already
-      // covered only costs a redundant re-read of that one task.
-      const batches = changedTaskBatches(signal);
-
-      try {
-        // The snapshot is per subscription rather than shared: the sidebar and
-        // the task list ask for their own sort and limit over the same set, so
-        // sharing would save one scan at boot and still have to order per
-        // subscriber. The scan per event is what this removes.
-        const initial = await getTasks(context.workspaceConfig);
-        const snapshot = new LiveTasksSnapshot(initial.tasks);
-        yield snapshot.list(input);
-
-        // Each batch re-reads only the tasks it names and splices them into the
-        // snapshot, so the work an event costs is proportional to the change
-        // rather than to the size of the workspace. An id the snapshot does not
-        // hold is a task that has just been created, and is added by the same
-        // read. Every yield is the complete list this subscriber asked for.
-        for await (const batch of batches) {
-          for (const taskId of batch.removed) {
-            snapshot.remove(taskId);
-          }
-
-          let rescan = false;
-          for (const taskId of batch.updated) {
-            const taskResult = await getTask(taskId, context.workspaceConfig);
-            if (taskResult.isOk()) {
-              snapshot.upsert(taskResult.value);
-            } else {
-              // A single-task read that fails answers nothing about the task:
-              // its folder may be gone, or its record may be mid-write. The
-              // scan answers both, since a task it does not find is a task that
-              // is no longer in the list.
-              rescan = true;
-            }
-          }
-
-          if (rescan) {
-            const rescanned = await getTasks(context.workspaceConfig);
-            snapshot.reset(rescanned.tasks);
-          }
-
-          yield snapshot.list(input);
-        }
-      } finally {
-        // for await only closes the iterator once the loop has been entered;
-        // this also unsubscribes when the initial scan throws.
-        await batches.return();
       }
     }),
 };
@@ -775,24 +389,16 @@ const liveUsageSummary = base
 export const task = {
   activity: taskActivity,
   agentStatus: taskAgentStatus,
-  branch,
+  backgroundProcesses: taskBackgroundProcesses,
   byId,
-  byIds,
-  clearIndicator,
   create,
-  createTutorial,
-  exportZip,
   files: taskFiles,
-  import: importTask,
   list,
   live: {
     ...live,
     activity: liveTaskActivity,
     usageSummary: liveUsageSummary,
   },
-  markUnread,
   state: taskState,
-  trash,
-  update,
   usageSummary,
 };

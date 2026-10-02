@@ -26,11 +26,11 @@ Two carve-outs to state before someone else finds them:
 
 Nothing has been removed. Both PostHog SDKs are live and default-on.
 
-- [preferences.ts:9-11](../../../apps/studio/src/electron-main/stores/preferences.ts#L9-L11) defaults `enableUsageMetrics` to on for every install except when `ELECTRON_USE_NEW_USER_FOLDER=true`, a dev flag.
+- [machine/preferences.ts](../../../apps/studio/src/electron-main/stores/machine/preferences.ts) defaults `enableUsageMetrics` to on for every install. It is machine-wide, so every workspace on a computer reports under the same choice.
 - [telemetry.ts](../../../apps/studio/src/client/lib/telemetry.ts) calls `posthog.init` and subscribes to the opt-out preference afterward. [main-window.tsx](../../../apps/studio/src/client/components/main-window.tsx) calls `capturePageView` on mount, so init happens at window open for opted-out users. Init fetches remote config from the PostHog host, and `capture_exceptions: true` loads the autocapture extension from a PostHog asset URL.
 - [telemetry.ts](../../../apps/studio/src/electron-main/lib/telemetry.ts) constructs the Node client at module load with `enableExceptionAutocapture: true`, before any preference is read.
 - [index.html:8-15](../../../apps/studio/src/index.html#L8-L15) permits `https://*.posthog.com` in `connect-src`, `script-src`, and `style-src`.
-- [app-state.ts:18](../../../apps/studio/src/electron-main/stores/app-state.ts#L18) persists a stable `telemetryId` sent as `distinctId` on every server event.
+- [machine/state.ts](../../../apps/studio/src/electron-main/stores/machine/state.ts) persists a stable `telemetryId`, one per computer whichever workspace is open, sent as `distinctId` on every server event.
 - [telemetry.ts](../../../packages/shared/src/types/telemetry.ts) permits raw model-search queries and external URLs, and an exception property bag carrying `rpc_path`, `session_id`, `message_id`, `tool_call_id`, `machine_state`.
 
 **Removal is a four-file change.** There are 38 event and 54 exception call sites, but none touch PostHog. `CaptureEventFunction` and `CaptureExceptionFunction` are already injected into workspace ([types.ts:111-112](../../../packages/workspace/src/types.ts#L111-L112)) and ai-gateway ([types.ts:7](../../../packages/ai-gateway/src/types.ts#L7)). Only Studio binds them to PostHog. Swapping the sink is a constructor argument, so there is no reason to delete the event catalog on the way out.
@@ -45,7 +45,7 @@ Nothing has been removed. Both PostHog SDKs are live and default-on.
 
 [user-chosen-working-folder.md](user-chosen-working-folder.md) and [conversation-storage.md](conversation-storage.md) change the payload this plan uploads. Four consequences:
 
-1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table. [export-task-zip.ts](../../../packages/workspace/src/lib/export-task-zip.ts) is not the primitive for this after all; it becomes an export feature, not a reporting one.
+1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table.
 2. **A conversation becomes one append-only file.** Under option D that file plus a byte range from the index _is_ the report payload. No archive walk, no multi-artifact manifest, and the zip-bomb and traversal surface drops out of the common case.
 3. **The superset risk sharpens.** The transcript already contains every file the agent read, every screenshot, every browser page, every command's output. With a writable user-chosen folder those are the user's real documents rather than sandbox copies. "Thumbs up sends the thread" reads to a user like sending a chat and behaves like sending a working folder.
 4. **The journal should match the conversation format.** Append-only plain text in application data, same delete story, same inspect story, rebuildable index. Do not introduce a second storage idiom for diagnostics.

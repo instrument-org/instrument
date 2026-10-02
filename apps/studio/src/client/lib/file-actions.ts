@@ -1,24 +1,21 @@
-import { type TaskId } from "@instrument-org/workspace/client";
+import { APP_PROTOCOL } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { toast } from "sonner";
 
-import { type TaskFileViewerFile } from "../atoms/task-file-viewer";
+import { type ViewerFile } from "../atoms/task-file-viewer";
 import { rpcClient } from "../rpc/client";
 import { downloadTaskFile } from "./download-task-file";
 
 export async function copyFileToClipboard({
-  filePath,
-  id,
+  hostPath,
   isImage,
 }: {
-  filePath: string;
-  id: TaskId;
+  hostPath: string;
   isImage: boolean;
 }) {
   const [error] = await safe(
     rpcClient.utils.copyFileToClipboard.call({
-      filePath,
-      id,
+      filePath: hostPath,
       isImage,
     }),
   );
@@ -36,7 +33,7 @@ export async function copyFileToClipboard({
   }
 }
 
-export async function downloadFile(file: TaskFileViewerFile) {
+export async function downloadFile(file: ViewerFile) {
   try {
     const response = await fetch(file.url);
     if (!response.ok) {
@@ -73,7 +70,9 @@ export function isFileDownloadable(url: string) {
   try {
     const urlObj = new URL(url);
     return (
-      urlObj.hostname === "localhost" || urlObj.hostname.endsWith(".localhost")
+      urlObj.protocol === `${APP_PROTOCOL}:` ||
+      urlObj.hostname === "localhost" ||
+      urlObj.hostname.endsWith(".localhost")
     );
   } catch {
     return false;

@@ -1,14 +1,18 @@
 import {
   type CaptureExceptionFunction,
+  isExpectedNetworkError,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { Result } from "typescript-result";
+import { z } from "zod";
 
+import { AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { demoteSupersededModels } from "./demote-superseded-models";
 import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 import { TypedError } from "./errors";
 import { fetchAndParseAnthropicModels } from "./fetch-models/anthropic";
+import { fetchAndParseChatGPTPlanModels } from "./fetch-models/chatgpt";
 import { fetchAndParseGoogleModels } from "./fetch-models/google";
 import { fetchAndParseOpenAIModels } from "./fetch-models/openai";
 import { fetchAndParseOpenAICompatibleModels } from "./fetch-models/openai-compatible";
@@ -34,6 +38,9 @@ export function fetchModelsForProvider(
       switch (config.type) {
         case "anthropic": {
           return fetchAndParseAnthropicModels(config);
+        }
+        case "chatgpt": {
+          return fetchAndParseChatGPTPlanModels(config);
         }
         case "google": {
           return fetchAndParseGoogleModels(config);
@@ -72,7 +79,9 @@ export function fetchModelsForProvider(
       // Variants go first, so a Pro or Fast build cannot stand as its series'
       // current release and demote the base model it is a step up from.
       const models = demoteSupersededModels(
-        demoteVariantsOfListedModels(rawModels),
+        demoteVariantsOfListedModels(
+          representableModels(rawModels, config, captureException),
+        ),
       );
 
       // Don't cache an empty list: a transient empty (or filtered-to-nothing)
@@ -84,10 +93,9 @@ export function fetchModelsForProvider(
       return models;
     })
     .onFailure((error) => {
-      const captureKey = getCaptureKey(config, error);
-      if (!capturedErrors.has(captureKey)) {
-        capturedErrors.add(captureKey);
-        captureException(error);
+      // An offline machine or a DNS miss is the user's network, not a bug.
+      if (!isExpectedNetworkError(error)) {
+        captureOnce(config, error, captureException);
       }
     })
     .recover((error) => {
@@ -99,6 +107,20 @@ export function fetchModelsForProvider(
     });
 }
 
+// Once per provider and message, so a catalog that keeps serving the same bad
+// entry is reported the first time rather than on every refetch.
+function captureOnce(
+  config: AIGatewayProviderConfig.Type,
+  error: Error,
+  captureException: CaptureExceptionFunction,
+) {
+  const captureKey = getCaptureKey(config, error);
+  if (!capturedErrors.has(captureKey)) {
+    capturedErrors.add(captureKey);
+    captureException(error);
+  }
+}
+
 function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
   return `${config.type}:${config.id}:${error.message}`;
 }
@@ -108,6 +130,35 @@ function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
 // not-found statuses stay loud because a bad key or URL needs the user.
 function isTransientHttpStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+/**
+ * The models this build can represent, dropping any it cannot.
+ *
+ * A list is validated as a whole where it leaves for the renderer, so one entry
+ * carrying a field that fails the model schema takes every other model in the
+ * response with it: the app then reports having no models at all, for a catalog
+ * that was almost entirely fine. A provider is worth more one model short than
+ * empty, so the entry is dropped here, where the failure can still name itself.
+ */
+function representableModels(
+  models: AIGatewayModel.Type[],
+  config: AIGatewayProviderConfig.Type,
+  captureException: CaptureExceptionFunction,
+) {
+  return models.filter((model) => {
+    const parsed = AIGatewayModel.Schema.safeParse(model);
+    if (!parsed.success) {
+      captureOnce(
+        config,
+        new TypedError.Parse(
+          `Dropped ${model.providerId} from ${config.type}: ${z.prettifyError(parsed.error)}`,
+        ),
+        captureException,
+      );
+    }
+    return parsed.success;
+  });
 }
 
 function shouldUseCachedModels(error: Error) {

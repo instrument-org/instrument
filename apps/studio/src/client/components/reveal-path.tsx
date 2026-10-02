@@ -1,21 +1,17 @@
+import { displayPath } from "@/client/lib/path-utils";
+import { hasFilesView, showInFolder } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { toast } from "sonner";
 
-// Collapse the user's home directory to ~ across platforms, so the username in
-// it never renders verbatim off-mac: macOS (/Users/<name>), Linux (/home/<name>),
-// and Windows (C:\Users\<name>).
-const HOME_PREFIX =
-  /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[/\\]Users[/\\][^/\\]+)/;
-
 /**
- * A path with the home directory collapsed, that reveals itself in Finder.
+ * A path read from the home folder's own name, that shows its folder: in Files
+ * where the window has it, in the Finder elsewhere.
  *
- * Paths are shown shortened because the full one is mostly noise, and the
- * username in it is the user's own name — fine on screen, needless in a
- * screenshot or a shared recording.
+ * Shortened because everything above the home folder is noise to the person
+ * whose folder it is.
  */
 export function RevealPath({
   allowWrap = false,
@@ -36,6 +32,10 @@ export function RevealPath({
         className,
       )}
       onClick={async () => {
+        if (hasFilesView()) {
+          await showInFolder(path, { kind: "folder" });
+          return;
+        }
         const [error] = await safe(
           rpcClient.utils.showFileInFolder.call({ filepath: path }),
         );
@@ -52,7 +52,7 @@ export function RevealPath({
           allowWrap ? "text-left break-all whitespace-normal" : "truncate",
         )}
       >
-        {path.replace(HOME_PREFIX, "~")}
+        {displayPath(path)}
       </span>
     </button>
   );

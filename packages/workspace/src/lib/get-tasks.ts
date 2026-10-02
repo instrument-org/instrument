@@ -16,6 +16,7 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
+import { chatDirs, chatTaskDirs, recordDir } from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
 export interface TaskListOptions {
@@ -26,14 +27,12 @@ export interface TaskListOptions {
 
 export async function getTask(
   id: TaskId,
-  workspaceConfig: WorkspaceConfig,
 ): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
   if (!isTaskId(id)) {
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  // For tasks the folder name is identical to the id.
-  const dir = TaskDirSchema.parse(path.resolve(workspaceConfig.tasksDir, id));
+  const dir = recordDir(id);
 
   // Check if the directory exists
   try {
@@ -49,7 +48,12 @@ export async function getTasks(
   workspaceConfig: WorkspaceConfig,
   options: TaskListOptions = {},
 ): Promise<{ tasks: Task[]; total: number }> {
-  const taskDirs = await taskDirsInRootDir(workspaceConfig.tasksDir);
+  // Chats and the tasks inside them, then every task no chat owns.
+  const taskDirs = [
+    ...chatDirs(),
+    ...chatTaskDirs(),
+    ...(await taskDirsInRootDir(workspaceConfig.tasksDir)),
+  ];
   // Read tasks concurrently; each readTask is several independent fs ops and a
   // workspace can hold many tasks, so a serial loop dominates list latency.
   const taskResults = await parallel({ limit: 12 }, taskDirs, (dir) =>
@@ -66,6 +70,34 @@ export async function getTasks(
   return sortTasks(tasks, options);
 }
 
+async function readTask({ dir }: { dir: TaskDir }) {
+  const rawFolderName = path.basename(dir);
+  const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
+
+  if (!taskIdResult.success) {
+    return err(
+      new TypedError.Parse("Invalid folder name", {
+        cause: taskIdResult.error,
+      }),
+    );
+  }
+
+  const id = taskIdResult.data;
+  const settings = await getTaskSettings(dir);
+
+  const task: Task = {
+    ...(await taskTimestamps(dir, settings)),
+    apps: settings?.apps,
+    id,
+    kind: settings?.kind,
+    parentTaskId: settings?.parentTaskId,
+    projectId: settings?.projectId,
+    reasoningEffort: settings?.reasoningEffort,
+    title: settings?.name ?? rawFolderName,
+  };
+  return ok(task);
+}
+
 /**
  * The order and window the task list asks for, over a set already read.
  *
@@ -73,7 +105,7 @@ export async function getTasks(
  * read and applies this per subscriber, so a list patched from one event and a
  * list from a full scan cannot order the same tasks differently.
  */
-export function sortTasks(
+function sortTasks(
   tasks: Task[],
   options: TaskListOptions = {},
 ): { tasks: Task[]; total: number } {
@@ -103,32 +135,6 @@ export function sortTasks(
   return { tasks: sortedTasks, total };
 }
 
-async function readTask({ dir }: { dir: TaskDir }) {
-  const rawFolderName = path.basename(dir);
-  const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
-
-  if (!taskIdResult.success) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: taskIdResult.error,
-      }),
-    );
-  }
-
-  const id = taskIdResult.data;
-  const settings = await getTaskSettings(dir);
-
-  const task: Task = {
-    ...(await taskTimestamps(dir, settings)),
-    id,
-    pinnedAt: settings?.pinnedAt,
-    projectId: settings?.projectId,
-    title: settings?.name ?? rawFolderName,
-    unreadIndicator: settings?.unreadIndicator,
-  };
-  return ok(task);
-}
-
 async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
   // First check if the root dir exists
   const rootDirExists = await fs
@@ -146,7 +152,6 @@ async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
     });
     return entries.map((dir) => TaskDirSchema.parse(dir));
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("Error reading apps folder", error);
     return [];
   }

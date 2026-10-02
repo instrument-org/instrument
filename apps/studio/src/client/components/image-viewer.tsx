@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
@@ -25,11 +25,11 @@ export function ImageViewer({
 }: {
   // Only the name and the bytes are certain: this also draws images a markdown
   // embed pointed at by URL, which name no file anyone could be handed.
-  file: Partial<Pick<TaskFileViewerFile, "filePath" | "taskId">> &
-    Pick<TaskFileViewerFile, "filename" | "url">;
+  file: Partial<Pick<ViewerFile, "hostPath">> &
+    Pick<ViewerFile, "filename" | "url">;
   onError: () => void;
 }) {
-  const { filename, filePath, taskId, url } = file;
+  const { filename, hostPath, url } = file;
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -41,9 +41,7 @@ export function ImageViewer({
   // panzoom hook, which stops cancelling the press once the image is zoomed all
   // the way out, and nowhere else. Setting it from the zoom level here as well
   // would be the same decision made twice, in two places that can disagree.
-  const dragProps = useFileDrag(
-    filePath && taskId ? { filePath, taskId } : undefined,
-  );
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   return (
     <div className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full`}>

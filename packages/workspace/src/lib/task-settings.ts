@@ -104,14 +104,6 @@ async function writeMergedSettings(
     if (updates.projectId === null) {
       delete merged.projectId;
     }
-    // Same for pinnedAt: `null` unpins by removing the key.
-    if (updates.pinnedAt === null) {
-      delete merged.pinnedAt;
-    }
-    // Same for unreadIndicator: `null` marks read by removing the key.
-    if (updates.unreadIndicator === null) {
-      delete merged.unreadIndicator;
-    }
 
     return merged;
   });

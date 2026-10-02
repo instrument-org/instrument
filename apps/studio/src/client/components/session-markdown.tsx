@@ -6,7 +6,6 @@ import { type Ref } from "react";
 import { Markdown } from "./markdown";
 
 export const SessionMarkdown = ({
-  assetBaseUrl,
   assetVersion,
   className,
   documentUrl,
@@ -17,7 +16,6 @@ export const SessionMarkdown = ({
   ref,
   taskId,
 }: {
-  assetBaseUrl?: string;
   assetVersion?: string;
   className?: string;
   documentUrl?: string;
@@ -37,7 +35,6 @@ export const SessionMarkdown = ({
       ref={ref}
     >
       <Markdown
-        assetBaseUrl={assetBaseUrl}
         assetVersion={assetVersion}
         documentUrl={documentUrl}
         hideImages={hideImages}

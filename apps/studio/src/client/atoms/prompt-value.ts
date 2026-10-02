@@ -2,6 +2,7 @@ import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type TabId } from "@/shared/tabs";
 import {
   MAX_PROMPT_STORAGE_LENGTH,
+  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -17,18 +18,26 @@ import { rpcClient } from "../rpc/client";
 //  - compose: the "new task" input on the new-tab / project pages, keyed by the
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
+//  - chat: the reply in one chat of the orchestrator's, kept in memory for
+//    the window's life so a reply left half-typed is there on coming back,
+//    and so the inbox can say the chat has one. The chats share a task,
+//    whose stored draft is the top-level field's, so none of them writes it.
 //  - transient: a composer that starts from a prefill and is meant to be thrown
 //    away, like the one on a skill page. Nothing is shared or retained, so
 //    walking away from the surface loses the draft instead of carrying it to
 //    the next skill and to the new-tab composer.
 export type PromptDraftKey =
   | { id: string; scope: "transient" }
+  | { scope: "chat"; sessionId: StoreId.Session }
   | { scope: "compose"; tabId: TabId }
   | { scope: "task"; taskId: TaskId };
 
 /** One string per draft, for keying anything that has to re-key with the scope. */
 export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
+    case "chat": {
+      return `chat:${key.sessionId}`;
+    }
     case "compose": {
       return `compose:${key.tabId}`;
     }
@@ -116,6 +125,11 @@ const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
+// Chat replies, one per chat, kept as long as the window is: read by the
+// chat's composer and by its row in the inbox alike, so the atom for a
+// chat is always the same one, whether or not its composer is mounted.
+const chatDraftFamily = atomFamily((_sessionId: StoreId.Session) => atom(""));
+
 // What the composer is editing, before any of it is written back.
 const taskDraftValueFamily = atomFamily((_taskId: TaskId) => atom(""));
 
@@ -138,6 +152,9 @@ const taskDraftFamily = atomFamily((taskId: TaskId) =>
 /** The value atom for a draft, resolving to the right backing store per scope. */
 export function promptDraftAtom(key: PromptDraftKey) {
   switch (key.scope) {
+    case "chat": {
+      return chatDraftFamily(key.sessionId);
+    }
     case "compose": {
       return composeDraftFamily(key.tabId);
     }
@@ -148,14 +165,6 @@ export function promptDraftAtom(key: PromptDraftKey) {
       return transientDraftFamily(key.id);
     }
   }
-}
-
-/** Drop a task's draft from memory, once its last edit is on its way out. */
-export function releaseTaskDraft(taskId: TaskId) {
-  draftSavers.get(taskId)?.dispose();
-  draftSavers.delete(taskId);
-  taskDraftFamily.remove(taskId);
-  taskDraftValueFamily.remove(taskId);
 }
 
 /**
@@ -185,37 +194,6 @@ export function removeTransientDraft(id: string) {
   promptDraftRefFamily.remove(draftKeyString({ id, scope: "transient" }));
 }
 
-// A per-tab focus signal, bumped whenever the active tab navigates in place (see
-// `navigateTab`). A sidebar click whose destination equals the current route is
-// a no-op navigation, so nothing remounts to re-run the prompt's focus effect;
-// the page's prompt watches this signal to re-assert focus on that click too.
-const promptFocusSignalFamily = atomFamily((_tabId: TabId) => atom(0));
-
-export function promptFocusSignalAtom(tabId: TabId) {
-  return promptFocusSignalFamily(tabId);
-}
-
-export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
-  const signal = promptFocusSignalFamily(tabId);
-  set(signal, get(signal) + 1);
-});
-
-// A per-tab nudge, bumped only when a navigation resolves to the location the
-// tab is already showing: "New task" pressed on the new task page, the chord
-// for it, the sidebar entry for the page under the cursor. Nothing about the
-// page can change to acknowledge that press, so the composer the page is built
-// around answers for it (see `nudgeOnReentry`).
-const promptNudgeSignalFamily = atomFamily((_tabId: TabId) => atom(0));
-
-export function promptNudgeSignalAtom(tabId: TabId) {
-  return promptNudgeSignalFamily(tabId);
-}
-
-export const bumpPromptNudgeAtom = atom(null, (get, set, tabId: TabId) => {
-  const signal = promptNudgeSignalFamily(tabId);
-  set(signal, get(signal) + 1);
-});
-
 /**
  * Add something to a draft from outside the composer: a file path, a folder.
  *
@@ -241,28 +219,5 @@ export const appendToPromptAtom = atom(
     }
     editor.focus();
     editor.insertText(text);
-  },
-);
-
-/**
- * Replace a draft's whole text from outside the composer: a prefill, a reset.
- *
- * The value atom is written too, not only the editor: it is what a composer
- * mounting later reads as its starting text, so a prefill that arrives before
- * anything is on screen still lands.
- */
-export const setPromptDraftAtom = atom(
-  null,
-  (
-    get,
-    set,
-    { key, update }: { key: PromptDraftKey; update: SetStateAction<string> },
-  ) => {
-    const editor = get(promptDraftRefAtom(key));
-    const valueAtom = promptDraftAtom(key);
-    const current = editor ? editor.getValue() : get(valueAtom);
-    const next = typeof update === "function" ? update(current) : update;
-    set(valueAtom, next);
-    editor?.setValue(next);
   },
 );

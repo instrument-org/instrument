@@ -1,7 +1,7 @@
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MessageError } from "./message-error";
@@ -23,6 +23,14 @@ vi.mock("@/client/rpc/client", () => ({
             }),
           },
         },
+      },
+    },
+    utils: {
+      openExternalLink: {
+        mutationOptions: (options: object) => ({
+          mutationFn: () => Promise.resolve(),
+          ...options,
+        }),
       },
     },
   },
@@ -54,6 +62,10 @@ function messageWithError(error: MessageErrorData, provider: null | string) {
   } as unknown as SessionMessage.Assistant;
 }
 
+function openDetails() {
+  fireEvent.click(screen.getByRole("button", { name: /details/i }));
+}
+
 function renderError({
   error = {
     classification: "rate-limit",
@@ -79,7 +91,6 @@ function renderError({
         onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRunAgain={vi.fn()}
-        onStartNewTask={vi.fn()}
       />
     </TooltipProvider>,
   );
@@ -96,6 +107,7 @@ describe("MessageError", () => {
 
   it("shows the provider's text under developer mode", () => {
     const { container } = renderError({ isDeveloperMode: true });
+    openDetails();
 
     expect(container.textContent).toContain("openrouter.ai");
   });
@@ -121,6 +133,9 @@ describe("MessageError", () => {
       },
       provider: "openai",
     });
+    // Behind Details, so the card leads with what to do about it.
+    expect(container.textContent).not.toContain("Limit: 30000");
+    openDetails();
 
     expect(container.textContent).toContain("Limit: 30000");
     expect(container.textContent).toContain("organization org-abc");
@@ -131,6 +146,7 @@ describe("MessageError", () => {
   it("treats a turn with no recorded provider as ours", () => {
     const { container } = renderError({ provider: null });
 
+    expect(screen.queryByRole("button", { name: /details/i })).toBeNull();
     expect(container.textContent).not.toContain("openrouter");
   });
 
@@ -156,6 +172,24 @@ describe("MessageError", () => {
     });
 
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeNull();
+  });
+
+  it("names ChatGPT when its plan's limit was reached", () => {
+    renderError({
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message:
+          "The ChatGPT user has reached their Subscription Sharing usage limit.",
+        name: "AI_APICallError",
+        statusCode: 400,
+        url: "http://localhost/ai-gateway/providers/chatgpt-plan/responses",
+      },
+      provider: "chatgpt",
+    });
+
+    expect(screen.getByText("ChatGPT usage limit reached")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
   });
 
   it("says nothing about a throttle the session already got past", () => {

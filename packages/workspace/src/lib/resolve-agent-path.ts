@@ -3,7 +3,7 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
@@ -13,6 +13,7 @@ import {
 import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
+import { type MaskedEntry } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
@@ -20,7 +21,7 @@ import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   hostPathEscapesMount,
-  isMaskedPrivatePath,
+  maskedEntryAt,
   nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
@@ -201,8 +202,9 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
     return executeError(`Path escapes the task directory: ${inputPath}`);
   }
 
-  if (isTaskPrivatePath(layout.task.hostRoot, absolutePath)) {
-    return privateDirError(displayPath);
+  const masked = taskMaskedEntryAt(layout.task, absolutePath);
+  if (masked !== undefined) {
+    return maskedEntryError(displayPath, masked);
   }
 
   return ok({ absolutePath, displayPath });
@@ -259,18 +261,14 @@ function fileExistsSync(filePath: string): boolean {
   }
 }
 
-// The private dir (.instrument) holds task internals -- the task db, state.json
-// (attached-folder host paths), and settings -- that the agent must never read
-// through the file tools. Agent-facing byproducts live under work/ instead.
-function isTaskPrivatePath(
-  taskHostRoot: AbsolutePath,
-  hostPath: string,
-): boolean {
-  const privateDir = absolutePathJoin(taskHostRoot, TASK_FOLDER_NAMES.private);
-  return hostPath === privateDir || pathIsWithin(hostPath, privateDir);
-}
-
-function privateDirError(displayPath: string) {
+function maskedEntryError(displayPath: string, entry: MaskedEntry) {
+  if (entry === TASKS_DIR_NAME) {
+    return executeError(
+      `"${displayPath}" is inside this chat's ${TASKS_DIR_NAME}/ directory, ` +
+        `which is not accessible from here. Each task's folder is mounted ` +
+        `read-only at ${MOUNT.tasks}/<id>.`,
+    );
+  }
   return executeError(
     `"${displayPath}" is inside the private ${TASK_FOLDER_NAMES.private} ` +
       `directory, which holds task internals and is not accessible. Agent ` +
@@ -318,8 +316,9 @@ function resolveVirtualAbsolutePath(
   // Asked of the mount that owns the path rather than of the task mount alone:
   // the project mount masks a private dir too, and the file tools reach it by
   // a route the bash sandbox's mask does not cover.
-  if (isMaskedPrivatePath(mount, virtualPath)) {
-    return privateDirError(normalizePath(virtualPath));
+  const masked = maskedEntryAt(mount, virtualPath);
+  if (masked !== null) {
+    return maskedEntryError(normalizePath(virtualPath), masked);
   }
 
   if (mount === layout.task) {
@@ -346,5 +345,23 @@ function resolveVirtualAbsolutePath(
     absolutePath: hostPath,
     displayPath: normalizePath(virtualPath),
     mount,
+  });
+}
+
+// The private dir (.instrument) holds task internals -- the task db, state.json
+// (attached-folder host paths), and settings -- that the agent must never read
+// through the file tools. Agent-facing byproducts live under work/ instead. A
+// chat's `tasks/` dir holds its tasks, which it reaches read-only at
+// /tasks/<id> and never through its own folder.
+function taskMaskedEntryAt(
+  task: WorkspaceFsLayout["task"],
+  hostPath: string,
+): MaskedEntry | undefined {
+  // Compared without case: on a case-insensitive disk `.INSTRUMENT` opens the
+  // same directory.
+  const candidate = hostPath.toLowerCase();
+  return task.maskedEntries.find((entry) => {
+    const dir = absolutePathJoin(task.hostRoot, entry).toLowerCase();
+    return candidate === dir || pathIsWithin(candidate, dir);
   });
 }

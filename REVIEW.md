@@ -20,7 +20,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 
 ## Do not report
 
-- Anything the `check-and-test` scripts already enforce: formatting, lint, type errors, spelling, markdownlint, knip, lockfile policy, dependency dedupe, Actions pinning, and the Electron/Node version check (see the root `package.json`).
+- Anything the `check-and-test` scripts already enforce: formatting, lint, type errors, spelling, knip, lockfile policy, dependency dedupe, Actions pinning, and the Electron/Node version check (see the root `package.json`).
 - Changes under `registry/`, which is a read-only git submodule.
 - Generated outputs: `apps/studio/src/client/routeTree.gen.ts`, `apps/studio/icons/.generated-hashes.json`, and `pnpm-lock.yaml`.
 - Version bumps in release commits.

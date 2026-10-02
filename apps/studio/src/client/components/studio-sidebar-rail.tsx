@@ -1,26 +1,17 @@
-import {
-  clampSidebarWidth,
-  SIDEBAR_COLLAPSE_THRESHOLD,
-  SIDEBAR_WIDTH_MAX,
-  SIDEBAR_WIDTH_MIN,
-  sidebarWidthAtom,
-} from "@/client/atoms/sidebar";
-import { zoomAtom } from "@/client/atoms/zoom";
-import { StudioSidebar } from "@/client/components/studio-sidebar";
+import { ResizeHandle } from "@/client/components/resize-handle";
 import {
   RAIL_FADE_TRANSITION,
   RAIL_SLIDE_TRANSITION,
 } from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
-import { SIDEBAR_WIDTH } from "@/shared/constants";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, type WritableAtom } from "jotai";
 import {
   animate,
   type AnimationPlaybackControls,
   motion,
   useMotionValue,
 } from "motion/react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
@@ -35,20 +26,49 @@ import { useEffect, useRef } from "react";
  *   sliding out, which is what prevents the squish.
  * - `panelX`: how far the panel is translated out of its clip.
  */
+/** How wide a rail may be, where a drag lets go of it, and where it opens. */
+export interface RailBounds {
+  /** Dragged narrower than this, the rail slides shut; with none, a drag stops at the min. */
+  collapse?: number;
+  initial: number;
+  max: number;
+  min: number;
+}
+
 export function StudioSidebarRail({
+  bounds,
+  children,
+  isAtOnce = false,
   isOpen,
+  label = "Resize sidebar",
   onCollapse,
+  panelClassName,
+  side = "left",
+  widthAtom,
 }: {
+  bounds: RailBounds;
+  children: ReactNode;
+  /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
+  isAtOnce?: boolean;
   isOpen: boolean;
+  label?: string;
   onCollapse: () => void;
+  panelClassName?: string;
+  /** Which edge of the window it hangs from; the handle is on the other. */
+  side?: "left" | "right";
+  /** Where its width is kept. */
+  widthAtom: WritableAtom<number, [number], void>;
 }) {
-  const storedWidth = useAtomValue(sidebarWidthAtom);
-  const setStoredWidth = useSetAtom(sidebarWidthAtom);
-  const zoom = useAtomValue(zoomAtom);
+  const storedWidth = useAtomValue(widthAtom);
+  const setStoredWidth = useSetAtom(widthAtom);
+  const clampWidth = (value: number) =>
+    Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
+  // The panel slides out toward its own edge.
+  const away = side === "left" ? -1 : 1;
 
   const layoutWidth = useMotionValue(isOpen ? storedWidth : 0);
   const panelWidth = useMotionValue(storedWidth);
-  const panelX = useMotionValue(isOpen ? 0 : -storedWidth);
+  const panelX = useMotionValue(isOpen ? 0 : away * storedWidth);
   const opacity = useMotionValue(isOpen ? 1 : 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,9 +80,11 @@ export function StudioSidebarRail({
   // their own animation, so re-running the slide spring on every width change
   // would fight them and jitter.
   const storedWidthRef = useRef(storedWidth);
+  const isAtOnceRef = useRef(isAtOnce);
   useEffect(() => {
     storedWidthRef.current = storedWidth;
-  }, [storedWidth]);
+    isAtOnceRef.current = isAtOnce;
+  }, [isAtOnce, storedWidth]);
 
   const applyWidth = (value: number) => {
     layoutWidth.set(value);
@@ -100,6 +122,18 @@ export function StudioSidebarRail({
       return;
     }
 
+    if (isAtOnceRef.current) {
+      for (const control of widthAnimationsRef.current) {
+        control.stop();
+      }
+      widthAnimationsRef.current = [];
+      const width = storedWidthRef.current;
+      layoutWidth.set(isOpen ? width : 0);
+      panelWidth.set(width);
+      panelX.set(isOpen ? 0 : away * width);
+      opacity.set(isOpen ? 1 : 0);
+      return;
+    }
     const controls: AnimationPlaybackControls[] = [];
     if (isOpen) {
       const width = storedWidthRef.current;
@@ -119,7 +153,7 @@ export function StudioSidebarRail({
     } else {
       controls.push(
         animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION),
-        animate(panelX, -panelWidth.get(), RAIL_SLIDE_TRANSITION),
+        animate(panelX, away * panelWidth.get(), RAIL_SLIDE_TRANSITION),
         animate(opacity, 0, RAIL_FADE_TRANSITION),
       );
     }
@@ -130,117 +164,7 @@ export function StudioSidebarRail({
       }
       widthAnimationsRef.current = [];
     };
-  }, [isOpen, layoutWidth, opacity, panelWidth, panelX]);
-
-  // Keyboard resize for the splitter (WAI-ARIA window-splitter pattern): arrows
-  // nudge a step, Home/End jump to the bounds. Base each step off the live
-  // panel width (not the render-time atom, which lags rapid presses) so repeated
-  // presses accumulate.
-  const KEYBOARD_STEP = 16;
-  function nextKeyboardWidth(key: string): number | undefined {
-    switch (key) {
-      case "ArrowLeft": {
-        return clampSidebarWidth(panelWidth.get() - KEYBOARD_STEP);
-      }
-      case "ArrowRight": {
-        return clampSidebarWidth(panelWidth.get() + KEYBOARD_STEP);
-      }
-      case "End": {
-        return SIDEBAR_WIDTH_MAX;
-      }
-      case "Home": {
-        return SIDEBAR_WIDTH_MIN;
-      }
-      default: {
-        return undefined;
-      }
-    }
-  }
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const next = nextKeyboardWidth(event.key);
-    if (next === undefined) {
-      return;
-    }
-    event.preventDefault();
-    stopWidthAnimations();
-    applyWidth(next);
-    setStoredWidth(next);
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-
-    const handle = event.currentTarget;
-    const { pointerId } = event;
-    const left = containerRef.current?.getBoundingClientRect().left ?? 0;
-    stopWidthAnimations();
-    handle.setPointerCapture(pointerId);
-    draggingRef.current = true;
-    collapsingRef.current = false;
-
-    const listeners = new AbortController();
-    const endDrag = () => {
-      draggingRef.current = false;
-      listeners.abort();
-      if (handle.hasPointerCapture(pointerId)) {
-        handle.releasePointerCapture(pointerId);
-      }
-    };
-
-    // clientX and the rail's left edge are both in the main window's zoomed coordinate
-    // space, so divide by the main-window zoom to recover the pre-zoom CSS width.
-    const rawWidthAt = (clientX: number) => (clientX - left) / zoom;
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      const raw = rawWidthAt(moveEvent.clientX);
-      if (raw < SIDEBAR_COLLAPSE_THRESHOLD && !collapsingRef.current) {
-        collapsingRef.current = true;
-        endDrag();
-        const frozenWidth = panelWidth.get();
-        animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
-        animate(panelX, -frozenWidth, RAIL_SLIDE_TRANSITION);
-        animate(opacity, 0, RAIL_FADE_TRANSITION);
-        onCollapse();
-        return;
-      }
-      applyWidth(clampSidebarWidth(raw));
-    };
-
-    const handleUp = () => {
-      endDrag();
-      if (!collapsingRef.current) {
-        // Commit the last width the drag applied, not one recomputed from the
-        // event: pointercancel carries zeroed coordinates, which would persist
-        // the min width regardless of where the drag actually ended.
-        const finalWidth = clampSidebarWidth(panelWidth.get());
-        applyWidth(finalWidth);
-        setStoredWidth(finalWidth);
-      }
-    };
-
-    handle.addEventListener("pointermove", handleMove, {
-      signal: listeners.signal,
-    });
-    handle.addEventListener("pointerup", handleUp, {
-      signal: listeners.signal,
-    });
-    handle.addEventListener("pointercancel", handleUp, {
-      signal: listeners.signal,
-    });
-    // Capture can end without a pointerup ever arriving -- the element is
-    // replaced, the window loses the device, the OS takes the gesture. Ending
-    // the same way keeps two things true: the move listener does not outlive
-    // the drag, so the rail cannot follow a pointer merely passing over the
-    // handle, and the width the drag reached is still the width that gets
-    // kept. Releasing the pointer also raises this, after `handleUp` has
-    // already torn the listeners down, so it runs once either way.
-    handle.addEventListener("lostpointercapture", handleUp, {
-      signal: listeners.signal,
-    });
-  }
+  }, [away, isOpen, layoutWidth, opacity, panelWidth, panelX]);
 
   return (
     <motion.div
@@ -252,38 +176,78 @@ export function StudioSidebarRail({
         {/* select-none only on chrome; content/modal text stays selectable
             so users can copy messages, code, and files. */}
         <motion.div
-          className="absolute inset-y-0 left-0 flex h-full flex-col border-r border-border bg-sidebar select-none"
+          className={cn(
+            "absolute inset-y-0 flex h-full flex-col border-border bg-sidebar select-none",
+            side === "left" ? "left-0 border-r" : "right-0 border-l",
+            panelClassName,
+          )}
+          // Put away while closed, so nothing clipped out of sight takes the
+          // keyboard.
+          inert={!isOpen}
           style={{ width: panelWidth, x: panelX }}
         >
-          <StudioSidebar className="min-h-0 w-full flex-1" />
+          {children}
         </motion.div>
       </div>
       {isOpen && (
-        <div
-          aria-label="Resize sidebar"
-          aria-orientation="vertical"
-          aria-valuemax={SIDEBAR_WIDTH_MAX}
-          aria-valuemin={SIDEBAR_WIDTH_MIN}
-          aria-valuenow={storedWidth}
-          className={cn(
-            "absolute inset-y-0 right-0 z-20 w-2 translate-x-1/2 cursor-col-resize select-none",
-            "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent",
-            "outline-hidden hover:after:bg-muted-foreground/40 focus-visible:after:w-0.5 focus-visible:after:bg-ring active:after:bg-primary/50",
-          )}
-          onDoubleClick={() => {
+        <ResizeHandle
+          anchor={() => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            return side === "left" ? rect?.left : rect?.right;
+          }}
+          className={
+            side === "left"
+              ? "right-0 translate-x-1/2"
+              : "left-0 -translate-x-1/2"
+          }
+          collapse={
+            bounds.collapse === undefined
+              ? undefined
+              : {
+                  below: bounds.collapse,
+                  onCollapse: () => {
+                    collapsingRef.current = true;
+                    draggingRef.current = false;
+                    const frozenWidth = panelWidth.get();
+                    animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
+                    animate(panelX, away * frozenWidth, RAIL_SLIDE_TRANSITION);
+                    animate(opacity, 0, RAIL_FADE_TRANSITION);
+                    onCollapse();
+                  },
+                }
+          }
+          getWidth={() => panelWidth.get()}
+          grows={side === "left" ? "right" : "left"}
+          label={label}
+          max={bounds.max}
+          min={bounds.min}
+          onReset={() => {
             stopWidthAnimations();
             // Tracked like the slide's own, so a drag that starts while this
             // is still springing takes the values back from it.
             widthAnimationsRef.current = [
-              animate(panelWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION),
-              animate(layoutWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION),
+              animate(panelWidth, bounds.initial, RAIL_SLIDE_TRANSITION),
+              animate(layoutWidth, bounds.initial, RAIL_SLIDE_TRANSITION),
             ];
-            setStoredWidth(SIDEBAR_WIDTH);
+            setStoredWidth(bounds.initial);
           }}
-          onKeyDown={handleKeyDown}
-          onPointerDown={handlePointerDown}
-          role="separator"
-          tabIndex={0}
+          onResize={(width) => {
+            applyWidth(clampWidth(width));
+          }}
+          onResizeEnd={() => {
+            draggingRef.current = false;
+            // The last width applied rather than one read off the event: a
+            // cancel carries zeroed coordinates.
+            const finalWidth = clampWidth(panelWidth.get());
+            applyWidth(finalWidth);
+            setStoredWidth(finalWidth);
+          }}
+          onResizeStart={() => {
+            stopWidthAnimations();
+            draggingRef.current = true;
+            collapsingRef.current = false;
+          }}
+          value={storedWidth}
         />
       )}
     </motion.div>

@@ -47,6 +47,29 @@ describe("ModelChangeNote", () => {
     expect(noteText()).toBe("Switched model from Auto to GPT-5.6 Luna");
   });
 
+  it("names the providers when the move was between them", () => {
+    renderWithProviders(
+      <ModelChangeNote
+        data={change(
+          {
+            modelId: "gpt-6-luna",
+            name: "GPT-6 Luna",
+            providerName: "Instrument",
+          },
+          {
+            modelId: "gpt-5.6-luna",
+            name: "GPT-5.6-Luna",
+            providerName: "ChatGPT plan",
+          },
+        )}
+      />,
+    );
+
+    expect(noteText()).toBe(
+      "Switched model from GPT-6 Luna on Instrument to GPT-5.6-Luna on ChatGPT plan",
+    );
+  });
+
   it("falls back to the id when no name was recorded", () => {
     renderWithProviders(
       <ModelChangeNote

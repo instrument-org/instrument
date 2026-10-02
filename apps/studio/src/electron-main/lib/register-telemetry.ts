@@ -3,7 +3,7 @@ import path from "node:path";
 import { noop } from "radashi";
 import { z } from "zod";
 
-import { getPreferencesStore } from "../stores/preferences";
+import { getMachinePreferences } from "../stores/machine/preferences";
 import { captureServerEvent } from "./capture-server-event";
 import { logger } from "./electron-logger";
 import { telemetry } from "./telemetry";
@@ -74,7 +74,7 @@ export function registerTelemetry(app: Electron.App) {
     });
   });
 
-  const preferencesStore = getPreferencesStore();
+  const preferencesStore = getMachinePreferences();
   const initialOptIn = preferencesStore.get("enableUsageMetrics");
   if (typeof initialOptIn === "boolean") {
     void updateOptInState(initialOptIn);
@@ -93,10 +93,8 @@ export function registerTelemetry(app: Electron.App) {
     }
     const { event } = parsed.data;
     if (event === "$exception") {
-      // eslint-disable-next-line no-console
       console.groupCollapsed("[Telemetry] Exception captured");
       logger.error(JSON.stringify(payload, null, 2));
-      // eslint-disable-next-line no-console
       console.groupEnd();
     }
   });

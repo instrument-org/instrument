@@ -15,7 +15,8 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "continue" };
   }
 
-  if (error.kind === "aborted") {
+  // Retrying cannot help until the user frees space.
+  if (error.kind === "aborted" || error.kind === "disk-full") {
     return { type: "stop" };
   }
 
@@ -27,6 +28,12 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     "classification" in error ? error.classification : undefined;
   if (classification === "rate-limit" || classification === "transient") {
     return { type: "retry" };
+  }
+
+  // A refused credential or a spent plan allowance answers every retry the
+  // same way; the user has to act before the next request can work.
+  if (classification === "auth" || classification === "usage-limit") {
+    return { type: "stop" };
   }
 
   if (error.kind === "unknown") {

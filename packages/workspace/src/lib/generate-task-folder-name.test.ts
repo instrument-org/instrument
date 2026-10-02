@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../schemas/paths";
-import {
-  generateBranchFolderName,
-  generateTaskFolderName,
-} from "./generate-task-folder-name";
+import { generateTaskFolderName } from "./generate-task-folder-name";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
 
@@ -55,38 +52,5 @@ describe("generateTaskFolderName", () => {
     });
     expect(name.length).toBeLessThanOrEqual(63);
     expect(name).toMatch(/^[a-z0-9-]+$/);
-  });
-});
-
-describe("generateBranchFolderName", () => {
-  it("appends -2 when the source base is taken", async () => {
-    vi.mocked(pathExists)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
-    const result = await generateBranchFolderName({
-      sourceFolderName: "2026-06-23-add-toggle",
-      tasksDir,
-    });
-    expect(result).toEqual({ name: "2026-06-23-add-toggle-2", suffix: 2 });
-  });
-
-  it("bumps an existing trailing integer instead of nesting", async () => {
-    vi.mocked(pathExists)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
-    const result = await generateBranchFolderName({
-      sourceFolderName: "2026-06-23-add-toggle-2",
-      tasksDir,
-    });
-    expect(result).toEqual({ name: "2026-06-23-add-toggle-3", suffix: 3 });
-  });
-
-  it("reuses the clean base when it is free", async () => {
-    const result = await generateBranchFolderName({
-      sourceFolderName: "2026-06-23-add-toggle-2",
-      tasksDir,
-    });
-    expect(result).toEqual({ name: "2026-06-23-add-toggle", suffix: 1 });
   });
 });

@@ -63,7 +63,7 @@ Measured by aliasing the subpaths back to the root and running both ways under o
 | browser, wall | 11.2s | 16.3s |
 | browser, CPU seconds | 32s | 55s |
 
-`@typescript-eslint/no-restricted-imports` in the shared React config holds the line, with `allowTypeImports` on: a type-only import is erased before anything runs, so `Icon` and `IconProps` stay on the root at no cost. `typescript.preferences.autoImportSpecifierExcludeRegexes` keeps the editor from suggesting the root in the first place, which is where the rule would otherwise keep firing.
+`no-restricted-imports` in the Studio oxlint config holds the line, with `allowTypeImports` on: a type-only import is erased before anything runs, so `Icon` and `IconProps` stay on the root at no cost. `typescript.preferences.autoImportSpecifierExcludeRegexes` keeps the editor from suggesting the root in the first place, which is where the rule would otherwise keep firing.
 
 ## The general shape
 

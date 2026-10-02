@@ -1,14 +1,17 @@
-import { sidebarWidthAtom } from "@/client/atoms/sidebar";
-import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
+import {
+  type RailBounds,
+  StudioSidebarRail,
+} from "@/client/components/studio-sidebar-rail";
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
+import { atomWithStorage } from "jotai/utils";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 
-// The sidebar's contents pull in the router and RPC, neither of which the rail's
-// drag mechanics touch.
-vi.mock("@/client/components/studio-sidebar", () => ({
-  StudioSidebar: () => <div />,
-}));
+const BOUNDS: RailBounds = { collapse: 160, initial: 250, max: 480, min: 200 };
+const WIDTH_KEY = "test.rail-width";
+const widthAtom = atomWithStorage(WIDTH_KEY, BOUNDS.initial, undefined, {
+  getOnInit: true,
+});
 
 // jsdom implements PointerEvent but not pointer capture. The rail only ever
 // asks for capture and checks whether it still holds it, so inert stubs are
@@ -20,8 +23,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  // The width and open atoms are storage-backed with `getOnInit`, so a value a
-  // test commits would otherwise become the next test's initial width.
+  // The width is storage-backed with `getOnInit`, so a value a test commits
+  // would otherwise become the next test's initial width.
   localStorage.clear();
 });
 
@@ -29,10 +32,22 @@ function handle() {
   return screen.getByLabelText("Resize sidebar");
 }
 
-function renderRail() {
-  const rendered = renderWithProviders(
-    <StudioSidebarRail isOpen onCollapse={vi.fn()} />,
+function railElement(isOpen: boolean) {
+  return (
+    <StudioSidebarRail
+      bounds={BOUNDS}
+      isOpen={isOpen}
+      label="Resize sidebar"
+      onCollapse={vi.fn()}
+      widthAtom={widthAtom}
+    >
+      <div />
+    </StudioSidebarRail>
   );
+}
+
+function renderRail() {
+  const rendered = renderWithProviders(railElement(true));
   const rail = rendered.container.firstElementChild;
   if (!(rail instanceof HTMLElement)) {
     throw new TypeError("rail did not render");
@@ -55,7 +70,7 @@ it("ends the drag and commits the width when pointer capture is lost", async () 
   // the window loses the device, the OS takes the gesture.
   fireEvent.lostPointerCapture(handle(), { pointerId: 1 });
 
-  expect(store.get(sidebarWidthAtom)).toBe(300);
+  expect(store.get(widthAtom)).toBe(300);
 
   // The drag is over, so a pointer merely passing over the handle must not
   // resize the rail. Motion flushes a set width to the DOM on the next frame,
@@ -66,10 +81,8 @@ it("ends the drag and commits the width when pointer capture is lost", async () 
 });
 
 it("lets a drag take the width back from the opening slide's springs", async () => {
-  const { container, rerender } = renderWithProviders(
-    <StudioSidebarRail isOpen={false} onCollapse={vi.fn()} />,
-  );
-  rerender(<StudioSidebarRail isOpen onCollapse={vi.fn()} />);
+  const { container, rerender } = renderWithProviders(railElement(false));
+  rerender(railElement(true));
   const rail = container.firstElementChild;
   if (!(rail instanceof HTMLElement)) {
     throw new TypeError("rail did not render");
@@ -88,7 +101,7 @@ it("lets a drag take the width back from the opening slide's springs", async () 
 it("lets a drag take the width back from the double-click reset's springs", async () => {
   // A stored width away from the default, so the double-click reset has
   // somewhere to spring to.
-  localStorage.setItem("studio.sidebar-width.v1", "480");
+  localStorage.setItem(WIDTH_KEY, "480");
   const { rail } = renderRail();
 
   fireEvent.doubleClick(handle());

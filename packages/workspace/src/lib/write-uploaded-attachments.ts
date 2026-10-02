@@ -50,7 +50,6 @@ export async function writeUploadedAttachments({
   dir: TaskDir;
   files?: FileUpload.Type[];
   folders?: {
-    access?: FolderAttachment.Access;
     path: string;
     source?: FolderAttachment.Source;
   }[];
@@ -70,8 +69,15 @@ export async function writeUploadedAttachments({
       for (const preparedFile of preparedFiles) {
         if (!preparedFile.isInTask) {
           if ("path" in preparedFile.input) {
+            // A copy-on-write clone where the filesystem has them (APFS,
+            // Btrfs, XFS), so a file handed from one task to another takes
+            // no space until a side changes it; elsewhere a plain copy.
             yield* ResultAsync.fromPromise(
-              fs.copyFile(preparedFile.input.path, preparedFile.filePath),
+              fs.copyFile(
+                preparedFile.input.path,
+                preparedFile.filePath,
+                fs.constants.COPYFILE_FICLONE,
+              ),
               (error) =>
                 new TypedError.FileSystem(
                   error instanceof Error ? error.message : "Unknown error",
@@ -127,28 +133,19 @@ export async function writeUploadedAttachments({
       const existingFolders = Object.values(taskState.attachedFolders ?? {});
 
       // A path already attached is not attached twice: two mounts over one
-      // directory get two names and can disagree about access, and the agent
-      // would be free to write through the permissive one. Attaching it again
-      // is instead how that one mount is re-granted, in either direction: the
-      // access the folder arrives with is the access the user just picked for
-      // it, and it replaces the one on record.
-      const existingByPath = new Map(
-        existingFolders.map((folder) => [folder.path, folder]),
+      // directory would give the agent two names for one folder.
+      const existingPaths = new Set(
+        existingFolders.map((folder) => folder.path),
       );
       const newFolders: FolderAttachment.Type[] = [];
-      const regranted = new Map<string, FolderAttachment.Access>();
       for (const folder of folders) {
         const folderPath = AbsolutePathSchema.parse(folder.path);
-        const access = folder.access ?? "read-only";
-        const existing = existingByPath.get(folderPath);
-        if (existing) {
-          if (existing.access !== access) {
-            regranted.set(folderPath, access);
-          }
+        if (existingPaths.has(folderPath)) {
           continue;
         }
+        existingPaths.add(folderPath);
         newFolders.push({
-          access,
+          access: "read-write",
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),
           mountName: "",
@@ -157,13 +154,9 @@ export async function writeUploadedAttachments({
         });
       }
 
-      const allFolders = [
-        ...existingFolders.map((folder) => {
-          const access = regranted.get(folder.path);
-          return access ? { ...folder, access } : folder;
-        }),
-        ...newFolders,
-      ].sort((a, b) => a.createdAt - b.createdAt);
+      const allFolders = [...existingFolders, ...newFolders].sort(
+        (a, b) => a.createdAt - b.createdAt,
+      );
       const names = assignMountNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
@@ -337,9 +330,7 @@ function validatePathUpload({ file }: { file: PathFileUpload }) {
     );
     if (!sourceStats.isFile()) {
       yield* err(
-        new TypedError.FileSystem(
-          `Uploaded path is not a file: ${file.filename}`,
-        ),
+        new TypedError.FileSystem(`Uploaded path is not a file: ${file.path}`),
       );
     }
     if (sourceStats.size !== file.size) {

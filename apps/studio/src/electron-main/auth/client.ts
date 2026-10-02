@@ -3,7 +3,7 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getSessionStore } from "@/electron-main/stores/session";
+import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import * as arctic from "arctic";
 import { createAuthClient } from "better-auth/client";

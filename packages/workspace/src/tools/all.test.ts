@@ -64,9 +64,9 @@ describe("all", () => {
           : tool.inputSchema;
 
       const result = hasDescription(schema);
+      // oxlint-disable-next-line vitest/valid-expect
       expect(
         result.isOk(),
-        // eslint-disable-next-line vitest/valid-expect
         result.isErr()
           ? `Missing description in ${toolName} at ${result.error.path} for ${result.error.key}`
           : "Expected schema to have descriptions",

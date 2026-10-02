@@ -1,17 +1,23 @@
 import {
+  type AIGatewayModel,
   AIGatewayModelURI,
   type AIGatewayProviderConfig,
+  fetchModelResultsForProviders,
   noopModelCache,
 } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
+  CHATGPT_PLAN_PROVIDER_CONFIG,
+  OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
@@ -44,6 +50,8 @@ export function buildReportWorkspaceConfig(
   absoluteWorkspaceDir: string,
 ): WorkspaceConfig {
   return {
+    apps: createMemoryAppsConfig(),
+    appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {
@@ -56,6 +64,8 @@ export function buildReportWorkspaceConfig(
       path.join(absoluteWorkspaceDir, "default-task-template"),
     ),
     getAIProviderConfigs: () => [],
+    isActivityHeadingsEnabled: () =>
+      process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
@@ -84,9 +94,9 @@ export function buildReportWorkspaceConfig(
 }
 
 /**
- * Approximate, and marked as such wherever it is printed: the token counts it
- * multiplies do not separate a cached read from a fresh one, and only
- * OpenRouter models have a price here at all. It is the difference between
+ * Approximate, and marked as such wherever it is printed: only OpenRouter
+ * models have a price here at all, and a provider that reports no cache detail
+ * is billed as if every input token were fresh. It is the difference between
  * knowing a suite cost roughly ten dollars and knowing only that it produced
  * four million tokens.
  */
@@ -140,14 +150,78 @@ const PROVIDER_MAP: {
   { envKey: "APP_GROQ_API_KEY", type: "groq" },
 ];
 
+/**
+ * Every model the configured providers can actually run, newest first.
+ *
+ * Asked live rather than kept in a list here, because the point of the listing
+ * is to be current: a model this project would want to test against today is
+ * one that shipped after whatever a constant in this repo was last edited. A
+ * restricted model is one this account cannot run, so it is left out rather
+ * than offered to a run that would fail on its first request.
+ */
+export async function listConfiguredModels(
+  pattern?: string,
+): Promise<AIGatewayModel.Type[]> {
+  const results = await fetchModelResultsForProviders(buildProviderConfigs(), {
+    captureException: () => {
+      return;
+    },
+    modelCache: noopModelCache,
+  });
+  const needle = pattern?.toLowerCase();
+  return results
+    .flatMap((result) => (result.ok ? result.value : []))
+    .filter((model) => model.restricted === undefined)
+    .filter(
+      (model) =>
+        !needle || `${model.uri} ${model.name}`.toLowerCase().includes(needle),
+    )
+    .toSorted(
+      (a, b) =>
+        (b.releasedAt ?? "").localeCompare(a.releasedAt ?? "") ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+/**
+ * Workers AI is an `openai-compatible` provider whose base URL names the
+ * Cloudflare account: that is the type whose model listing knows the
+ * models/search API, and the base URL is what the gateway matches on to apply
+ * the stream repair. Its own config id keeps it apart from any other
+ * OpenAI-compatible endpoint configured at the same time.
+ */
+const WORKERS_AI_CONFIG_ID = "workers-ai-config-id";
+
+/**
+ * How this model is spelled on the command line: the string that goes after
+ * `--model`, ready to copy. A listing whose ids have to be translated before
+ * they can be run is a listing nobody uses.
+ */
+export function modelFlagFor(uri: string): string {
+  const canonicalId = uri.split("?")[0] ?? uri;
+  if (uri.includes(`providerConfigId=${WORKERS_AI_CONFIG_ID}`)) {
+    return `cf:${canonicalId}`;
+  }
+  return uri.includes("provider=openrouter") ? canonicalId : uri;
+}
+
 function providerConfigId(type: AIGatewayProviderConfig.Type["type"]): string {
   return `${type}-config-id`;
+}
+
+function workersAiBaseURL(accountId: string): string {
+  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
 }
 
 export const modelURI = {
   openRouter: (model: string) =>
     AIGatewayModelURI.Schema.parse(
       `${model}?provider=openrouter&providerConfigId=${providerConfigId("openrouter")}`,
+    ),
+  /** `model` is a Workers AI id with the `@cf/` prefix already stripped. */
+  workersAi: (model: string) =>
+    AIGatewayModelURI.Schema.parse(
+      `${model}?provider=openai-compatible&providerConfigId=${WORKERS_AI_CONFIG_ID}`,
     ),
 };
 
@@ -159,8 +233,51 @@ export interface OpenRouterCatalog {
 
 /** Per-token USD, as OpenRouter states it. */
 interface ModelPrice {
+  cacheRead?: number;
+  cacheWrite?: number;
   completion: number;
   prompt: number;
+}
+
+/**
+ * What one run's tokens cost, each billed at its own rate. Cached reads are
+ * the bulk of an agent's input and bill at a tenth of a fresh token or less,
+ * so pricing them all at the prompt rate overstates a long run several times
+ * over and hides whether a change moved cost or only moved tokens.
+ *
+ * Providers disagree on whether `noCacheTokens` includes the cache write, so
+ * fresh input is what remains of the total after reads and writes.
+ */
+export function costOfUsage(
+  usage: Pick<
+    UsageSummary,
+    "inputTokenDetails" | "inputTokens" | "outputTokens"
+  >,
+  price: ModelPrice,
+): number {
+  const { cacheReadTokens, cacheWriteTokens } = usage.inputTokenDetails;
+  const fresh = Math.max(
+    0,
+    usage.inputTokens - cacheReadTokens - cacheWriteTokens,
+  );
+  return (
+    fresh * price.prompt +
+    cacheReadTokens * (price.cacheRead ?? price.prompt) +
+    cacheWriteTokens * (price.cacheWrite ?? price.prompt) +
+    usage.outputTokens * price.completion
+  );
+}
+
+/**
+ * Whether running this model spends metered credits.
+ *
+ * Workers AI is the one provider this project has credits sitting unused on, so
+ * it is the free side of the line and everything else is the paid side. The
+ * question is asked before a run starts rather than reported after it, since a
+ * bill is not a result you can decline once it arrives.
+ */
+export function isPaidModel(uri: string): boolean {
+  return !uri.includes(`providerConfigId=${WORKERS_AI_CONFIG_ID}`);
 }
 
 const NumericStringSchema = z
@@ -176,6 +293,8 @@ const OpenRouterModelListSchema = z.object({
       pricing: z
         .object({
           completion: NumericStringSchema,
+          input_cache_read: NumericStringSchema.optional(),
+          input_cache_write: NumericStringSchema.optional(),
           prompt: NumericStringSchema,
         })
         .nullish(),
@@ -214,6 +333,37 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
     }
   }
 
+  // The same config Studio builds for a signed-in user, so a run can go
+  // through the platform gateway the way production does: its model swap, its
+  // billing, and the request shape it forwards.
+  if (env.APP_AI_API_KEY && env.APP_AI_BASE_URL) {
+    configs.push({
+      ...OUR_PROVIDER_CONFIG,
+      apiKey: env.APP_AI_API_KEY,
+      baseURL: env.APP_AI_BASE_URL,
+    });
+  }
+
+  // The plan Studio signs in to with ChatGPT, under the config id the app
+  // uses, so a model URI copied from a real transcript runs here unchanged.
+  if (env.APP_CHATGPT_PLAN_TOKEN) {
+    configs.push({
+      ...CHATGPT_PLAN_PROVIDER_CONFIG,
+      apiKey: env.APP_CHATGPT_PLAN_TOKEN,
+    });
+  }
+
+  if (env.CLOUDFLARE_WORKERS_AI_API_KEY && env.CLOUDFLARE_ACCOUNT_ID) {
+    configs.push({
+      apiKey: env.CLOUDFLARE_WORKERS_AI_API_KEY,
+      baseURL: workersAiBaseURL(env.CLOUDFLARE_ACCOUNT_ID),
+      cacheIdentifier,
+      displayName: "Workers AI",
+      id: AIProviderConfigIdSchema.parse(WORKERS_AI_CONFIG_ID),
+      type: "openai-compatible",
+    });
+  }
+
   return configs;
 }
 
@@ -232,7 +382,12 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
 export async function fetchOpenRouterCatalog(
   modelURIs: string[],
 ): Promise<OpenRouterCatalog> {
-  const slugs = modelURIs.map((uri) => uri.split("?")[0] ?? uri);
+  // Only the models actually running through OpenRouter. Several Workers AI ids
+  // are also OpenRouter slugs (`openai/gpt-oss-120b`, `zai-org/glm-5.3`), so
+  // pricing them off this list bills a free run at another provider's rate.
+  const slugs = modelURIs
+    .filter((uri) => uri.includes("provider=openrouter"))
+    .map((uri) => uri.split("?")[0] ?? uri);
   if (slugs.length === 0) {
     return emptyOpenRouterCatalog;
   }
@@ -248,8 +403,20 @@ export async function fetchOpenRouterCatalog(
       ),
     );
     const prices = new Map(
-      parsed.data.flatMap((model) =>
-        model.pricing ? [[model.id, model.pricing]] : [],
+      parsed.data.flatMap(({ id, pricing }) =>
+        pricing
+          ? [
+              [
+                id,
+                {
+                  cacheRead: pricing.input_cache_read,
+                  cacheWrite: pricing.input_cache_write,
+                  completion: pricing.completion,
+                  prompt: pricing.prompt,
+                } satisfies ModelPrice,
+              ] as const,
+            ]
+          : [],
       ),
     );
 

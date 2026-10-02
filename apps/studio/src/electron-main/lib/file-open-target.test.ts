@@ -1,3 +1,4 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +11,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-01-01T00:00:00Z").getTime();
 // Matches CACHE_VERSION in the cache store.
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 9;
 
 interface ExecCall {
   args: string[];
@@ -59,6 +60,8 @@ vi.mock("./app-protocol", () => ({
     Promise.resolve(base64 ? `icon://${base64}` : null),
   storeFileOpenNativeImage: (image: { name: string }) =>
     Promise.resolve(`native://${image.name}`),
+  storeFileOpenSvgIcon: (svg: Buffer) =>
+    Promise.resolve(`svg://${svg.toString("utf8")}`),
 }));
 
 let userDataDir: string;
@@ -134,7 +137,11 @@ function defaultExecImpl(call: ExecCall) {
     }
     case "target": {
       return Promise.resolve(
-        JSON.stringify({ appName: "Editor.app", iconBase64: "png-target" }),
+        JSON.stringify({
+          appName: "Editor.app",
+          bundleId: "",
+          iconBase64: "png-target",
+        }),
       );
     }
   }
@@ -486,6 +493,29 @@ describe("getFileOpenTarget", () => {
       {
         "appName": "Editor",
         "iconUrl": "icon://png-target",
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("names the next app when the system would open the file in Instrument", async () => {
+    const { getFileOpenTarget } = await importModule();
+    execImpl = (call) =>
+      classify(call) === "target"
+        ? Promise.resolve(
+            JSON.stringify({
+              appName: "Instrument.app",
+              bundleId: APP_BUNDLE_ID,
+              iconBase64: "png-self",
+            }),
+          )
+        : defaultExecImpl(call);
+
+    expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
+      {
+        "appName": "Editor md",
+        "iconUrl": "icon://png-for-Editor-md.app",
+        "launchAppPath": "/Applications/Editor-md.app",
       }
     `);
   });
@@ -514,7 +544,9 @@ describe("getFileOpenTarget", () => {
   it("falls back to the file-type icon when no app is associated", async () => {
     const { getFileOpenTarget } = await importModule();
     execImpl = () =>
-      Promise.resolve(JSON.stringify({ appName: "", iconBase64: "" }));
+      Promise.resolve(
+        JSON.stringify({ appName: "", bundleId: "", iconBase64: "" }),
+      );
     fileIconImpl = () => Promise.resolve({ name: "file-type" });
 
     expect(await getFileOpenTarget("/tasks/a/notes.xyz"))
@@ -522,6 +554,7 @@ describe("getFileOpenTarget", () => {
         {
           "appName": null,
           "iconUrl": "native://file-type",
+          "launchAppPath": null,
         }
       `);
   });
@@ -532,11 +565,12 @@ describe("getFileOpenTarget", () => {
     fileIconImpl = () => Promise.resolve({ name: "file-type" });
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": null,
-          "iconUrl": "native://file-type",
-        }
-      `);
+      {
+        "appName": null,
+        "iconUrl": "native://file-type",
+        "launchAppPath": null,
+      }
+    `);
   });
 
   it("retries a failed target lookup on the next request", async () => {
@@ -549,7 +583,72 @@ describe("getFileOpenTarget", () => {
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toEqual({
       appName: "Editor",
       iconUrl: "icon://png-target",
+      launchAppPath: null,
     });
+  });
+});
+
+describe("getBrowserOpenTarget", () => {
+  it("names the app the system opens an https URL with", async () => {
+    execImpl = (call) =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: call.args[4]?.startsWith("https:") ? "Safari.app" : "",
+          bundleId: "com.apple.Safari",
+          iconBase64: "png-safari",
+        }),
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Safari",
+        "iconUrl": "icon://png-safari",
+        "launchAppPath": null,
+      }
+    `);
+    await getBrowserOpenTarget();
+    expect(execCalls).toHaveLength(1);
+  });
+
+  it("names no browser when the default one is Instrument", async () => {
+    execImpl = () =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: "Instrument.app",
+          bundleId: APP_BUNDLE_ID,
+          iconBase64: "png-instrument",
+        }),
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    const target = await getBrowserOpenTarget();
+
+    expect(target.appName).toBeNull();
+  });
+
+  it("names no browser rather than rejecting when the lookup fails", async () => {
+    execImpl = () => Promise.reject(new Error("osascript timed out"));
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": null,
+        "iconUrl": null,
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("keeps the browser apart from every file type in the cache", async () => {
+    const { getBrowserOpenTarget, getFileOpenTarget } = await importModule();
+
+    await getBrowserOpenTarget();
+    await getFileOpenTarget("/tasks/a/page.html");
+    await flushSave();
+
+    const { targets } = await readCache();
+    expect(Object.keys(targets).sort()).toEqual([".html", "https:"]);
   });
 });
 
@@ -566,6 +665,7 @@ describe("persisted cache", () => {
     expect(await second.getFileOpenTarget("/tasks/b/other.md")).toEqual({
       appName: "Editor",
       iconUrl: "icon://png-target",
+      launchAppPath: null,
     });
     expect(
       await second.getFileOpenCandidates("/tasks/b/other.md"),
@@ -606,7 +706,11 @@ describe("persisted cache", () => {
     const second = await importModule();
     execImpl = () =>
       Promise.resolve(
-        JSON.stringify({ appName: "Newer.app", iconBase64: "png-newer" }),
+        JSON.stringify({
+          appName: "Newer.app",
+          bundleId: "",
+          iconBase64: "png-newer",
+        }),
       );
 
     // The stale value comes back immediately, without waiting on the refresh.
@@ -626,7 +730,7 @@ describe("persisted cache", () => {
       targets[`.ext${i}`] = {
         // Older entries first, so trimming has a clear newest-wins ordering.
         resolvedAt: NOW - (300 - i) * 1000,
-        value: { appName: `App ${i}`, iconUrl: null },
+        value: { appName: `App ${i}`, iconUrl: null, launchAppPath: null },
       };
     }
     await writeCache({ targets, version: CACHE_VERSION });
@@ -851,11 +955,101 @@ describe("linux", () => {
     const { getFileOpenTarget } = await importModule();
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": "Example Viewer",
-          "iconUrl": null,
-        }
-      `);
+      {
+        "appName": "Example Viewer",
+        "iconUrl": null,
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("draws the app with its hicolor icon", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "org.example.Viewer.desktop"),
+      "[Desktop Entry]\nName=Example Viewer\nIcon=org.example.Viewer\n",
+      "utf8",
+    );
+    const iconDir = path.join(dataDir, "icons/hicolor/128x128/apps");
+    await fs.mkdir(iconDir, { recursive: true });
+    await fs.writeFile(path.join(iconDir, "org.example.Viewer.png"), "png");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.args[1] === "filetype"
+          ? "text/markdown"
+          : "org.example.Viewer.desktop",
+      );
+    const { getFileOpenTarget } = await importModule();
+
+    const target = await getFileOpenTarget("/tasks/a/notes.md");
+
+    expect(target.iconUrl).toBe(
+      `icon://${Buffer.from("png").toString("base64")}`,
+    );
+  });
+
+  it("draws an app that ships only a scalable SVG icon", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "org.example.Svg.desktop"),
+      "[Desktop Entry]\nName=Example Svg\nIcon=org.example.Svg\n",
+      "utf8",
+    );
+    const iconDir = path.join(dataDir, "icons/hicolor/scalable/apps");
+    await fs.mkdir(iconDir, { recursive: true });
+    await fs.writeFile(path.join(iconDir, "org.example.Svg.svg"), "<svg/>");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.args[1] === "filetype"
+          ? "application/pdf"
+          : "org.example.Svg.desktop",
+      );
+    const { getFileOpenTarget } = await importModule();
+
+    const target = await getFileOpenTarget("/tasks/a/report.pdf");
+
+    expect(target.iconUrl).toBe("svg://<svg/>");
+  });
+
+  it("resolves the default browser from xdg-settings", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "firefox.desktop"),
+      [
+        "[Desktop Entry]",
+        "Name=Firefox",
+        "Icon=firefox",
+        "",
+        "[Desktop Action new-window]",
+        "Name=New Window",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.mkdir(path.join(dataDir, "pixmaps"), { recursive: true });
+    await fs.writeFile(path.join(dataDir, "pixmaps", "firefox.png"), "fx");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.file === "xdg-settings" &&
+          call.args.join(" ") === "get default-web-browser"
+          ? "firefox.desktop\n"
+          : "",
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Firefox",
+        "iconUrl": "icon://Zng=",
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("names no browser when xdg-settings has none", async () => {
+    execImpl = () => Promise.reject(new Error("xdg-settings: not found"));
+    const { getBrowserOpenTarget } = await importModule();
+
+    const target = await getBrowserOpenTarget();
+
+    expect(target.appName).toBeNull();
   });
 
   it("falls back when the desktop entry is missing", async () => {
@@ -885,11 +1079,35 @@ describe("win32", () => {
     const { getFileOpenTarget } = await importModule();
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": "Example Editor",
-          "iconUrl": "native://exe-icon",
-        }
-      `);
+      {
+        "appName": "Example Editor",
+        "iconUrl": "native://exe-icon",
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("resolves the default browser from the https URL association", async () => {
+    execImpl = () =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: "Google Chrome",
+          exePath: "C:\\chrome.exe",
+        }),
+      );
+    fileIconImpl = () => Promise.resolve({ name: "chrome-icon" });
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Google Chrome",
+        "iconUrl": "native://chrome-icon",
+        "launchAppPath": null,
+      }
+    `);
+    expect(execCalls[0]?.script).toContain(
+      "AssocQueryString(0, $what, 'https'",
+    );
   });
 
   it("refuses to interpolate an extension that isn't a simple one", async () => {

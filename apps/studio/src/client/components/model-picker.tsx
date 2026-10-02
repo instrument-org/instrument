@@ -10,6 +10,7 @@ import {
 import { Label } from "@/client/components/ui/label";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
@@ -68,6 +69,16 @@ interface MatchedModel {
 }
 
 interface ModelPickerProps {
+  /**
+   * Render no button of its own: the panel hangs off an empty box the caller
+   * places, for a surface that offers the picker from a menu instead.
+   *
+   * Not the same as hiding the button, which is what this replaced. A trigger
+   * held at `opacity-0` keeps its place in the tab order, is announced as a
+   * combobox over whatever it covers, and paints at half opacity the moment it
+   * is disabled, since `disabled:opacity-50` outranks a plain `opacity-0`.
+   */
+  anchorOnly?: boolean;
   className?: string;
   disabled?: boolean;
   errors?: RPCOutput["gateway"]["models"]["list"]["errors"];
@@ -81,6 +92,8 @@ interface ModelPickerProps {
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
   onValueChange: (value: AIGatewayModelURI.Type) => void;
+  /** Open from outside, for a surface that offers the picker from a menu rather than its own button. */
+  open?: boolean;
   placeholder?: string;
   selectedModel?: AIGatewayModel.Type;
 }
@@ -90,6 +103,7 @@ type VirtualRow =
   | { matched: MatchedModel; type: "item" };
 
 export function ModelPicker({
+  anchorOnly = false,
   className = "",
   disabled = false,
   errors,
@@ -102,10 +116,12 @@ export function ModelPicker({
   onClose,
   onOpenChange,
   onValueChange,
+  open: openProp,
   placeholder = "Select a model",
   selectedModel,
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
+  const isOpen = openProp ?? open;
   const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -139,7 +155,6 @@ export function ModelPicker({
         joinFuzzyFields([m.providerName, m.name]),
       );
       const haystack = joined.map((j) => j.haystack);
-      // eslint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, searchQuery);
 
       if (!indexes || indexes.length === 0) {
@@ -181,7 +196,10 @@ export function ModelPicker({
 
   const hasModels = modelsWithoutAuto.length > 0;
   const hasErrors = !!errors?.length;
-  const isSelectDisabled = disabled || isLoading || isError;
+  // A failed list still opens. The panel is where the failure is explained and
+  // where a provider is added, so a picker that refuses to open over it leaves
+  // the user reading "Failed to load models" on a button that does nothing.
+  const isSelectDisabled = disabled || isLoading;
   const hasOurProviderError =
     errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
     false;
@@ -220,58 +238,64 @@ export function ModelPicker({
         }
         onOpenChange?.(newOpen);
       }}
-      open={open}
+      open={isOpen}
     >
-      <PopoverTrigger asChild>
-        <Button
-          aria-expanded={open}
-          aria-label="Model"
-          className={cn(
-            "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
-            "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
-            "max-w-full",
-            className,
-          )}
-          disabled={isSelectDisabled}
-          role="combobox"
-          size="sm"
-          variant="ghost"
-        >
-          <div className="flex w-full min-w-0 items-center">
-            {selectedName ? (
-              <div className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="shrink-0">
-                      {selectedModel && !isUnavailable ? (
-                        <AIProviderIcon
-                          className="size-4"
-                          type={selectedModel.params.provider}
-                        />
-                      ) : (
-                        <WarningIcon className="size-4 text-muted-foreground/60" />
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {selectedModel && !isUnavailable ? (
-                      <p>{selectedModel.providerName}</p>
-                    ) : (
-                      <p>{unavailableReason}</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
-              </div>
-            ) : (
-              <span className="text-xs leading-4 font-medium opacity-50">
-                {placeholderText}
-              </span>
+      {anchorOnly ? (
+        <PopoverAnchor className={className} />
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            aria-expanded={isOpen}
+            aria-label="Model"
+            className={cn(
+              "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
+              "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
+              "max-w-full",
+              className,
             )}
-          </div>
-          <CaretDownIcon className="size-3 shrink-0" />
-        </Button>
-      </PopoverTrigger>
+            disabled={isSelectDisabled}
+            role="combobox"
+            size="sm"
+            variant="ghost"
+          >
+            <div className="flex w-full min-w-0 items-center">
+              {selectedName ? (
+                <div className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="shrink-0">
+                        {selectedModel && !isUnavailable ? (
+                          <AIProviderIcon
+                            className="size-4"
+                            type={selectedModel.params.provider}
+                          />
+                        ) : (
+                          <WarningIcon className="size-4 text-muted-foreground/60" />
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {selectedModel && !isUnavailable ? (
+                        <p>{selectedModel.providerName}</p>
+                      ) : (
+                        <p>{unavailableReason}</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="min-w-0 flex-1 truncate">
+                    {selectedName}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs leading-4 font-medium opacity-50">
+                  {placeholderText}
+                </span>
+              )}
+            </div>
+            <CaretDownIcon className="size-3 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent
         align="start"
         className="flex w-80 flex-col p-0"

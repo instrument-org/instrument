@@ -4,10 +4,19 @@ import {
   setRasterBudget,
 } from "@/electron-main/browser-view/guest-surface";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import {
+  capturePageThumbnail,
+  forgetPageThumbnails,
+  keepOnlyPageThumbnails,
+  readPageThumbnail,
+} from "@/electron-main/browser-view/page-thumbnails";
+import { siteIconDeps } from "@/electron-main/lib/app-protocol";
+import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
 import { BrowserTargetIdSchema } from "@instrument-org/workspace/electron";
+import { app } from "electron";
 import { z } from "zod";
 
 // Every recorded target and whether its guest has attached yet. The renderer
@@ -19,8 +28,30 @@ function currentTargets(): BrowserGuestTarget[] {
 }
 
 const events = {
+  downloadFinished: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.download-finished", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
   focusGuest: base.handler(async function* ({ signal }) {
     for await (const event of publisher.subscribe("browser.focus-guest", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
+  navigationRefused: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe(
+      "browser.navigation-refused",
+      { signal },
+    )) {
+      yield event;
+    }
+  }),
+  openInNewTab: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.open-in-new-tab", {
       signal,
     })) {
       yield event;
@@ -127,12 +158,94 @@ const setEmulatedDevice = base
     getBrowserViewManager()?.setEmulatedDevice(input.targetId, input.device);
   });
 
+/**
+ * A browser tab's page named its own icon: kept for its site when the favicon
+ * proxy has none, so a site the person opened draws its real mark everywhere.
+ */
+const rememberPageIcon = base
+  .input(z.object({ iconUrl: z.string(), pageUrl: z.string() }))
+  .output(z.object({ stored: z.boolean() }))
+  .handler(async ({ input }) => ({
+    stored: await keepPageIcon(input, siteIconDeps()),
+  }));
+
+/**
+ * A browser tab's page as a picture, for the tiles that stand for it: taken
+ * of the guest by its contents id while it is on screen, and read back by the
+ * tab's id whenever the tile is drawn, including after a relaunch.
+ */
+const thumbnails = {
+  capture: base
+    .input(z.object({ key: z.string(), webContentsId: z.number() }))
+    .output(z.object({ url: z.string().nullable() }))
+    .handler(async ({ input }) => ({
+      url: await capturePageThumbnail(input),
+    })),
+  get: base
+    .input(z.object({ key: z.string() }))
+    .output(z.object({ url: z.string().nullable() }))
+    .handler(async ({ input }) => ({
+      url: await readPageThumbnail(input.key),
+    })),
+  /** The pictures of tabs that are gone, a closed tab's or a trashed chat's. */
+  forget: base
+    .input(z.object({ keys: z.array(z.string()) }))
+    .handler(async ({ input }) => {
+      await forgetPageThumbnails(input.keys);
+    }),
+  /** Every picture but those of the tabs the window holds, at startup. */
+  keepOnly: base
+    .input(z.object({ keys: z.array(z.string()) }))
+    .handler(async ({ input }) => {
+      await keepOnlyPageThumbnails(input.keys);
+    }),
+};
+
+/** The engine's answer: the words asked about, then what it would finish them as. */
+const SuggestionsSchema = z.tuple(
+  [z.string(), z.array(z.string())],
+  z.unknown(),
+);
+
+/**
+ * What the search engine would finish words typed into the address field as,
+ * asked the way a browser's own field asks it. From here rather than the
+ * renderer, whose page policy keeps every request at home. A slow or failed
+ * answer is no suggestions: the field still searches for what was typed.
+ */
+const searchSuggestions = base
+  .input(z.object({ query: z.string().min(1).max(200) }))
+  .output(z.array(z.string()))
+  .handler(async ({ input, signal }) => {
+    const url = new URL("https://suggestqueries.google.com/complete/search");
+    url.searchParams.set("client", "firefox");
+    url.searchParams.set("hl", app.getLocale());
+    url.searchParams.set("oe", "utf-8");
+    url.searchParams.set("q", input.query);
+    const timeout = AbortSignal.timeout(3000);
+    try {
+      const response = await fetch(url, {
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) {
+        return [];
+      }
+      const body = SuggestionsSchema.safeParse(await response.json());
+      return body.success ? body.data[1] : [];
+    } catch {
+      return [];
+    }
+  });
+
 export const browser = {
   events,
   live,
+  rememberPageIcon,
+  searchSuggestions,
   setEmulatedDevice,
   syncFocus,
   syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,
+  thumbnails,
 };

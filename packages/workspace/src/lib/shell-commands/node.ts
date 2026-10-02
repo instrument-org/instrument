@@ -72,9 +72,14 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available (\`js-exec\` reads them, without packages).`,
   name: "node",
 } as const;
+
+/** What the mount guard offers in place of copying, when no package is involved. */
+const SANDBOXED_ALTERNATIVE = {
+  alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
+};
 
 export function createNodeCommand(taskId: TaskId) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
@@ -161,7 +166,12 @@ export function createNodeCommand(taskId: TaskId) {
     }
 
     if (evalCode !== undefined) {
-      const bridged = bridgeInlineCodePaths(evalCode, taskId, taskCwd);
+      const bridged = bridgeInlineCodePaths(
+        evalCode,
+        taskId,
+        taskCwd,
+        SANDBOXED_ALTERNATIVE,
+      );
       if ("error" in bridged) {
         return { exitCode: 1, stderr: bridged.error, stdout: "" };
       }
@@ -188,7 +198,12 @@ export function createNodeCommand(taskId: TaskId) {
       // (`node --check < script.js`, heredocs), so bridge sandbox-virtual
       // paths in it the same way `-e` code is bridged.
       if (stdinProgram) {
-        const bridged = bridgeInlineCodePaths(stdinProgram, taskId, taskCwd);
+        const bridged = bridgeInlineCodePaths(
+          stdinProgram,
+          taskId,
+          taskCwd,
+          SANDBOXED_ALTERNATIVE,
+        );
         if ("error" in bridged) {
           return { exitCode: 1, stderr: bridged.error, stdout: "" };
         }
@@ -233,7 +248,11 @@ export function createNodeCommand(taskId: TaskId) {
 
     const { filePath, scriptArgs } = fileAndArgs;
 
-    const scanError = await scanScriptFileForVirtualPaths(taskCwd, filePath);
+    const scanError = await scanScriptFileForVirtualPaths(
+      taskCwd,
+      filePath,
+      SANDBOXED_ALTERNATIVE,
+    );
     if (scanError !== undefined) {
       return { exitCode: 1, stderr: scanError, stdout: "" };
     }

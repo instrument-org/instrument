@@ -7,12 +7,26 @@ import { describe, expect, it, vi } from "vitest";
 // report every one of these boxes as zero.
 import { ToolGenerateImage } from "./tool-generate-image";
 
+// Where the task's images are, answered without a task, at an address nothing
+// serves: the card is drawn for a file the browser cannot load.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(
+      filePaths.map((filePath) => [filePath, `/Users/casey/tasks/${filePath}`]),
+    ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
+    `http://assets.invalid${hostPath}`,
+  getComputerThumbnailUrl: () => "",
+}));
+
 const TASK_ID = "quarterly-numbers" as TaskId;
 
 /**
  * What the card takes, which the two fixtures below are written against.
  *
- * They go through `unknown` for the reason [frames.ts](../../routes/_app/debug/-transcript/frames.ts)
+ * They go through `unknown` for the reason [frames.ts](../../routes/debug/-transcript/frames.ts)
  * gives: a tool part is a union of per-tool shapes assembled from several
  * intersections, and narrowing a literal back into one of them takes more
  * scaffolding than the fixture is worth. What the fields have to be is settled
@@ -117,12 +131,7 @@ async function renderCards() {
     <div style={{ width: 420 }}>
       {[generating(), drawn()].map((part, index) => (
         <div data-testid={index === 0 ? "drawing" : "finished"} key={index}>
-          <ToolGenerateImage
-            assetBaseUrl="http://assets.invalid"
-            id={TASK_ID}
-            onRetry={vi.fn()}
-            part={part}
-          />
+          <ToolGenerateImage id={TASK_ID} onRetry={vi.fn()} part={part} />
         </div>
       ))}
     </div>,

@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FileEntry } from "@zip.js/zip.js";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { FileLoading } from "../file-loading";
 import { readArchiveEntries } from "./archive";
 import {
@@ -155,9 +155,9 @@ export function ArchiveViewer({ url }: { url: string }) {
                   transform: `translateY(${row.start}px)`,
                 }}
               >
-                <FileIcon
+                <FileTypeIcon
                   className="size-4 shrink-0 text-muted-foreground"
-                  filename={basename(entry.filename)}
+                  fileName={basename(entry.filename)}
                 />
                 <span
                   className="min-w-0 flex-1 truncate"

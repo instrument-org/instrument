@@ -1,9 +1,9 @@
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { app } from "electron";
 import { unique } from "radashi";
 
-import { getAppStateStore } from "../stores/app-state";
-import { isDeveloperMode } from "../stores/preferences";
+import { getMachineState } from "../stores/machine/state";
 import { describeCauses, describeError } from "./describe-error";
 import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
@@ -69,11 +69,9 @@ export const captureServerException: CaptureExceptionFunction = function (
   // that two reports of the same rejection group together.
   const capturedError = error instanceof Error ? error : new Error(message);
 
-  const appStateStore = getAppStateStore();
-  const telemetryId = appStateStore.get("telemetryId");
+  const telemetryId = getMachineState().get("telemetryId");
   telemetry?.captureException(capturedError, telemetryId, finalProperties);
   if (isDeveloperMode()) {
-    /* eslint-disable no-console */
     const pathPrefix = additionalProperties?.rpc_path
       ? `[${additionalProperties.rpc_path.join(".")}] `
       : "";
@@ -81,27 +79,18 @@ export const captureServerException: CaptureExceptionFunction = function (
       ? `${pathPrefix}[${errorCode}] ${message}`
       : `${pathPrefix}${message}`;
 
-    console.groupCollapsed(`%c[Exception] ${displayMessage}`, "color: #b71c1c");
-
-    if (details) {
-      logger.error(details);
-    }
-
-    if (error instanceof Error && error.cause) {
-      const cause = describeError(error.cause);
-      console.groupCollapsed("%c▶︎ Cause: " + cause.message, "color: #f44336");
-      logger.error(cause.details ?? cause.message);
-      console.groupEnd();
-    }
-
-    // Log additional error data if present (e.g., validation issues)
-    if (errorData) {
-      console.groupCollapsed("%c▶︎ Error Data", "color: #ff9800");
-      logger.error(errorData);
-      console.groupEnd();
-    }
-
-    console.groupEnd();
+    // One entry, so the dev log keeps the heading, cause, and data together.
+    const cause =
+      error instanceof Error && error.cause
+        ? describeError(error.cause)
+        : undefined;
+    logger.error(
+      `[Exception] ${displayMessage}`,
+      ...(details ? [details] : []),
+      ...(cause ? [`Cause: ${cause.details ?? cause.message}`] : []),
+      // e.g. validation issues
+      ...(errorData ? [errorData] : []),
+    );
 
     addServerException({
       code: errorCode,
@@ -111,7 +100,6 @@ export const captureServerException: CaptureExceptionFunction = function (
         ? additionalProperties.rpc_path.join(".")
         : undefined,
     });
-    /* eslint-enable no-console */
   } else {
     logger.error(error);
   }

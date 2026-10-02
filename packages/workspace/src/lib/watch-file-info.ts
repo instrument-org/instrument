@@ -112,6 +112,7 @@ export async function* watchFileInfo({
         ? {
             filename,
             filePath,
+            hostPath,
             mimeType: getMimeType(filename),
             modifiedAt: stats.mtimeMs,
           }

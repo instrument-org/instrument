@@ -31,11 +31,11 @@ const TASK_FILES_DIR_NAME = "files";
 const FixtureFileSchema = z.object({
   // Path inside the fixture's `files/` dir.
   from: RelativeTaskPathSchema,
-  // Where it lands inside the seeded task, e.g. `output/report.pdf`.
+  // Where it lands inside the seeded task, e.g. `work/report.pdf`.
   to: RelativeTaskPathSchema,
 });
 
-const FixtureTaskSchema = z.object({
+const FixtureChatTaskSchema = z.object({
   // Minutes between the transcript's last message and seed time. The whole
   // transcript shifts by the same amount, so recorded spacing is preserved and
   // the sidebar's relative dates ("5 minutes ago") stay put across seeds.
@@ -44,9 +44,45 @@ const FixtureTaskSchema = z.object({
   files: FixtureFileSchema.array().default([]),
   // Doubles as the fixture's task directory name and the seeded task's id, so
   // a driving script can address a task by a name that is in the diff.
+  // The chat's folders this task was handed, by mount name.
+  folders: z.string().array().default([]),
   key: SubdomainPartSchema,
   name: z.string().trim().min(1),
+});
+
+// One of the user's folders a chat was granted, which the seeder makes as a
+// real folder beside the workspace: where a task today hands over what it made,
+// as `/mnt/<mount>/…`, rather than inside its own folder.
+const FixtureFolderSchema = z.object({
+  // Paths inside the chat's `files/` dir, and where each lands in the folder.
+  files: FixtureFileSchema.array().default([]),
+  // The name it is mounted under, as the recorded transcripts spell it, and
+  // the folder's own name on disk: one path segment.
+  mount: z
+    .string()
+    .regex(/^(?!\.{1,2}$)[^/\\]+$/, "A mount is one folder name"),
+});
+
+// A task no chat owns: what a 1.x build made, and so what boot adopts into a
+// chat of its own. Kept for exercising that migration; a task that stands for
+// what the app makes today belongs under a chat.
+const FixtureTaskSchema = FixtureChatTaskSchema.omit({ folders: true }).extend({
+  // A 1.x pin, which the migration turns into a starred chat.
   pinned: z.boolean().default(false),
+});
+
+// A chat and the tasks it started, each with its own recorded transcript. The
+// tasks are seeded inside the chat, the way the chat's agent would have made
+// them, and the chat's transcript names them by their keys.
+const FixtureChatSchema = z.object({
+  // As for a task: minutes between the chat's last message and seed time.
+  agedMinutes: z.number().int().min(0).default(0),
+  folders: FixtureFolderSchema.array().default([]),
+  // The chat's folder name and id once seeded.
+  key: SubdomainPartSchema,
+  name: z.string().trim().min(1),
+  starred: z.boolean().default(false),
+  tasks: FixtureChatTaskSchema.array().default([]),
 });
 
 // Anything the app persists under `userData`, keyed by store file name. Only
@@ -65,31 +101,76 @@ const FixtureSettingsSchema = z
   .record(StoreNameSchema, z.record(z.string(), z.unknown()))
   .default({});
 
-const FixtureManifestSchema = z.object({
-  description: z.string().trim().min(1),
-  settings: FixtureSettingsSchema,
-  tasks: FixtureTaskSchema.array().min(1),
-});
+const FixtureManifestSchema = z
+  .object({
+    chats: FixtureChatSchema.array().default([]),
+    description: z.string().trim().min(1),
+    settings: FixtureSettingsSchema,
+    tasks: FixtureTaskSchema.array().default([]),
+  })
+  .refine((manifest) => manifest.chats.length + manifest.tasks.length > 0, {
+    message: "A fixture declares at least one chat or task",
+  });
 
+export type FixtureChat = z.output<typeof FixtureChatSchema>;
+export type FixtureChatTask = z.output<typeof FixtureChatTaskSchema>;
 export type FixtureTask = z.output<typeof FixtureTaskSchema>;
 
 export interface WorkspaceFixture {
+  chats: {
+    chat: FixtureChat;
+    folders: { files: { from: string; to: string }[]; mount: string }[];
+    session: Session.WithMessagesAndParts;
+    tasks: LoadedTask<FixtureChatTask>[];
+  }[];
   description: string;
   dir: string;
   name: string;
   settings: Record<string, Record<string, unknown>>;
-  tasks: {
-    files: { from: string; to: string }[];
-    session: Session.WithMessagesAndParts;
-    task: FixtureTask;
-  }[];
+  tasks: LoadedTask<FixtureTask>[];
 }
 
-/** Where `record-fixture-session` writes, and `loadWorkspaceFixture` reads. */
-export function fixtureSessionPath(fixtureName: string, taskKey: string) {
+interface LoadedTask<T> {
+  files: { from: string; to: string }[];
+  session: Session.WithMessagesAndParts;
+  task: T;
+}
+
+/** Where a chat's transcript is recorded to and read from. */
+export function fixtureChatSessionPath(fixtureName: string, chatKey: string) {
   return path.join(
     FIXTURES_DIR,
     fixtureName,
+    "chats",
+    chatKey,
+    SESSION_FILE_NAME,
+  );
+}
+
+/** Every chat and task key a fixture seeds, which are its folder names. */
+export function fixtureKeys(fixture: WorkspaceFixture): string[] {
+  return [
+    ...fixture.tasks.map(({ task }) => task.key),
+    ...fixture.chats.flatMap(({ chat, tasks }) => [
+      chat.key,
+      ...tasks.map(({ task }) => task.key),
+    ]),
+  ];
+}
+
+/**
+ * Where `record-fixture-session` writes a task's transcript, and
+ * `loadWorkspaceFixture` reads it: under its chat when it has one.
+ */
+export function fixtureSessionPath(
+  fixtureName: string,
+  taskKey: string,
+  chatKey?: string,
+) {
+  return path.join(
+    FIXTURES_DIR,
+    fixtureName,
+    ...(chatKey ? ["chats", chatKey] : []),
     "tasks",
     taskKey,
     SESSION_FILE_NAME,
@@ -128,25 +209,72 @@ export async function loadWorkspaceFixture(
   }
   const manifest = parsed.data;
 
+  // One namespace: a chat and a task are both folders the record index
+  // addresses by name.
   const keys = new Set<string>();
-  for (const task of manifest.tasks) {
-    if (keys.has(task.key)) {
-      throw new Error(`${manifestPath} declares task "${task.key}" twice`);
+  for (const key of [
+    ...manifest.tasks.map((task) => task.key),
+    ...manifest.chats.flatMap((chat) => [
+      chat.key,
+      ...chat.tasks.map((task) => task.key),
+    ]),
+  ]) {
+    if (keys.has(key)) {
+      throw new Error(`${manifestPath} declares "${key}" twice`);
     }
-    keys.add(task.key);
+    keys.add(key);
   }
+
+  const loadTask = async <T extends FixtureChatTask | FixtureTask>(
+    task: T,
+    taskDir: string,
+  ): Promise<LoadedTask<T>> => ({
+    files: await resolveTaskFiles({ dir: taskDir, task }),
+    session: await readFixtureSession(path.join(taskDir, SESSION_FILE_NAME)),
+    task,
+  });
 
   const tasks = [];
   for (const task of manifest.tasks) {
-    const taskDir = path.join(dir, "tasks", task.key);
-    tasks.push({
-      files: await resolveTaskFiles({ dir: taskDir, task }),
-      session: await readFixtureSession(path.join(taskDir, SESSION_FILE_NAME)),
-      task,
+    tasks.push(await loadTask(task, path.join(dir, "tasks", task.key)));
+  }
+
+  const chats = [];
+  for (const chat of manifest.chats) {
+    const chatDir = path.join(dir, "chats", chat.key);
+    const mounts = new Set<string>(chat.folders.map((folder) => folder.mount));
+    const chatTasks = [];
+    for (const task of chat.tasks) {
+      const unknown = task.folders.filter((mount) => !mounts.has(mount));
+      if (unknown.length > 0) {
+        throw new Error(
+          `${manifestPath}: task "${task.key}" is handed ${unknown.join(", ")}, which chat "${chat.key}" does not declare`,
+        );
+      }
+      chatTasks.push(
+        await loadTask(task, path.join(chatDir, "tasks", task.key)),
+      );
+    }
+    const folders = [];
+    for (const folder of chat.folders) {
+      folders.push({
+        files: await resolveTaskFiles({
+          dir: chatDir,
+          task: { files: folder.files, key: chat.key },
+        }),
+        mount: folder.mount,
+      });
+    }
+    chats.push({
+      chat,
+      folders,
+      session: await readFixtureSession(path.join(chatDir, SESSION_FILE_NAME)),
+      tasks: chatTasks,
     });
   }
 
   return {
+    chats,
     description: manifest.description,
     dir,
     name,
@@ -190,7 +318,7 @@ async function resolveTaskFiles({
   task,
 }: {
   dir: string;
-  task: FixtureTask;
+  task: Pick<FixtureChatTask, "files" | "key">;
 }) {
   const filesDir = path.join(dir, TASK_FILES_DIR_NAME);
   const files = [];

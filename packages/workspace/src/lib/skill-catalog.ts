@@ -1,11 +1,19 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { sum } from "radashi";
 
+import { truncateAtWordBoundary } from "./sanitize-model-text";
+import { SKILL_NAMES } from "./skill-names";
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
+/**
+ * One element per skill, its name as an attribute and its description as the
+ * content: `<skill name="…">…</skill>`. Every character of markup comes out of
+ * the same budget the descriptions share, and a child element for each field
+ * cost 71 characters an entry, which on a machine with fifty-odd skills was
+ * more than a third of the whole catalog before a single description.
+ */
 const CATALOG_TAGS = {
   availableSkills: "available_skills",
-  description: "description",
   name: "name",
   skill: "skill",
 } as const;
@@ -17,11 +25,36 @@ const CATALOG_TAGS = {
  * many skills they happen to have installed across every agent vendor -- an
  * unbounded list would quietly eat the context window before the task starts.
  * Characters rather than tokens because no tokenizer is right for every
- * provider we run against: this is roughly 1,700 tokens of prose, and about
- * 2,500 once the tag markup around short descriptions is counted. See
- * docs/findings/character-budgets-are-a-token-proxy.md.
+ * provider we run against: this is roughly 1,700 tokens of prose, plus the tag
+ * around each entry. See docs/findings/character-budgets-are-a-token-proxy.md.
  */
 const CATALOG_CHAR_BUDGET = 8000;
+
+/**
+ * Share of the description budget the skills kept whole may hold before the
+ * reservation is given up.
+ *
+ * Two groups are kept whole ahead of the rest, the wider one first. The skills
+ * the app ships are the ones a task needs to do its work at all, so they keep
+ * their descriptions before any other agent's home directory does. Within them,
+ * the skills named in prompts and tool descriptions are the ones the product
+ * steers the model toward by name, and a description cut to the flat cap loses
+ * the clause saying when to reach for it, which is the one clause the steering
+ * depends on. Half leaves every other skill at least half of what the flat cap
+ * alone would have given it; a group past that falls back to the narrower one,
+ * then to the flat cap, rather than starving the rest.
+ */
+const WHOLE_SKILL_RESERVE_SHARE = 0.5;
+
+/** Sources whose skills ship with the app. */
+const BUNDLED_SOURCES = new Set<SkillSourceKind>([APP_NAME_SLUG, "system"]);
+
+/**
+ * Matched against `qualifiedName`, which is the plain name exactly when
+ * `load_skill` given that plain name resolves to this entry: the one the
+ * prompt's constant actually refers to, not a namesake from another source.
+ */
+const NAMED_SKILLS = new Set<string>(Object.values(SKILL_NAMES));
 
 /** The `<available_skills>` open and close tags plus the newline between them. */
 const WRAPPER_COST =
@@ -30,9 +63,11 @@ const WRAPPER_COST =
   `</${CATALOG_TAGS.availableSkills}>`.length;
 
 /**
- * Order the catalog degrades in: skills we ship or the user authored here
- * outrank whatever a co-installed agent left in the home directory, so those
- * are the last to lose their descriptions and the first to be dropped.
+ * Order the catalog lists skills in, and the order the names-only step keeps
+ * them in: skills we ship or the user authored here outrank whatever a
+ * co-installed agent left in the home directory, so those are the last to be
+ * dropped. It has no say in description length; that is `BUNDLED_SOURCES` and
+ * `NAMED_SKILLS`.
  */
 const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   agents: 3,
@@ -61,10 +96,16 @@ interface SkillCatalog {
   xml: string;
 }
 
+interface WeightedEntry {
+  bundled: boolean;
+  named: boolean;
+}
+
 /**
  * Render the agent-facing skill catalog within a character budget, degrading in
  * three steps: every description in full, then descriptions shortened to a fair
- * share of what is left, then names alone.
+ * share of what is left (the app's own skills, or failing that the ones it
+ * names by constant, keeping theirs whole while they fit), then names alone.
  */
 export function renderSkillCatalog(
   skills: SkillInfo[],
@@ -81,7 +122,9 @@ export function renderSkillCatalog(
       descriptionCost: escapedLength(skill.description),
       // Stable identity, because catalog entries can be copied into persisted
       // messages and must not retarget when a namesake is installed later.
+      bundled: BUNDLED_SOURCES.has(skill.source),
       name: skill.id,
+      named: NAMED_SKILLS.has(skill.qualifiedName),
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
       nameOnlyCost: renderEntry(skill.id, "").length + 1,
@@ -109,14 +152,30 @@ export function renderSkillCatalog(
 
   const nameOnlyCost = sum(entries.map((entry) => entry.nameOnlyCost));
   if (nameOnlyCost <= entryBudget) {
+    const available = entryBudget - nameOnlyCost;
+    const reserveFits = (keep: (entry: WeightedEntry) => boolean) =>
+      sum(entries.filter(keep).map((entry) => entry.descriptionCost)) <=
+      available * WHOLE_SKILL_RESERVE_SHARE;
+    const keptWhole =
+      [
+        (entry: WeightedEntry) => entry.bundled || entry.named,
+        (entry: WeightedEntry) => entry.named,
+      ].find(reserveFits) ?? (() => false);
+    const reserved = sum(
+      entries.filter(keptWhole).map((entry) => entry.descriptionCost),
+    );
     const cap = fairShareLength(
-      entries.map((entry) => entry.descriptionCost),
-      entryBudget - nameOnlyCost,
+      entries
+        .filter((entry) => !keptWhole(entry))
+        .map((entry) => entry.descriptionCost),
+      available - reserved,
     );
     return build(
       entries.map((entry) => ({
         ...entry,
-        shown: trimDescriptionToEscapedLength(entry.description, cap),
+        shown: keptWhole(entry)
+          ? entry.description
+          : trimDescriptionToEscapedLength(entry.description, cap),
       })),
       0,
     );
@@ -167,14 +226,19 @@ function escapedLength(value: string) {
  * Neutralize markup in a discovered string before it is embedded in the
  * catalog. A name or description comes from arbitrary SKILL.md frontmatter,
  * including a co-installed agent's home directory that nothing here validated,
- * so a `</description></skill>` in one would otherwise inject fabricated
- * structure into the catalog the tool description puts in the system prompt.
+ * so a `</skill><skill name="…">` in one would otherwise inject fabricated
+ * structure into the catalog the session's context message carries.
  */
 function escapeXml(value: string) {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+/** A name sits in a quoted attribute, where a quote of its own would end it. */
+function escapeXmlAttribute(value: string) {
+  return escapeXml(value).replaceAll('"', "&quot;");
 }
 
 /**
@@ -198,12 +262,7 @@ function fairShareLength(lengths: number[], budget: number): number {
 }
 
 function renderEntry(name: string, description: string) {
-  return [
-    `  <${CATALOG_TAGS.skill}>`,
-    `    <${CATALOG_TAGS.name}>${escapeXml(name)}</${CATALOG_TAGS.name}>`,
-    `    <${CATALOG_TAGS.description}>${escapeXml(description)}</${CATALOG_TAGS.description}>`,
-    `  </${CATALOG_TAGS.skill}>`,
-  ].join("\n");
+  return `  <${CATALOG_TAGS.skill} ${CATALOG_TAGS.name}="${escapeXmlAttribute(name)}">${escapeXml(description)}</${CATALOG_TAGS.skill}>`;
 }
 
 function trimDescriptionToEscapedLength(value: string, cap: number) {
@@ -220,5 +279,5 @@ function trimDescriptionToEscapedLength(value: string, cap: number) {
     remaining -= cost;
     rawLength += char.length;
   }
-  return value.slice(0, rawLength).trimEnd();
+  return truncateAtWordBoundary(value, rawLength);
 }

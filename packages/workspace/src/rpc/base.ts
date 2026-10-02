@@ -14,6 +14,7 @@ const ORPC_ERRORS = {
   FILE_SYSTEM_ERROR: {},
   GATEWAY_FETCH_ERROR: {},
   GIT_ERROR: {},
+  INVALID_INPUT: {},
   NOT_FOUND: {},
   PARSE_ERROR: {},
   STORAGE_ERROR: {},
@@ -52,6 +53,9 @@ export function toORPCError(
     }
     case "workspace-git-error": {
       return orpcErrors.GIT_ERROR(options);
+    }
+    case "workspace-invalid-input-error": {
+      return orpcErrors.INVALID_INPUT(options);
     }
     case "workspace-storage-error": {
       return orpcErrors.STORAGE_ERROR(options);

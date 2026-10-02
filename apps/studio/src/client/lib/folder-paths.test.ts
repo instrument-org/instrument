@@ -1,4 +1,10 @@
-import { folderNameFromPath, shortenHomePath } from "@instrument-org/shared";
+import {
+  displayHostPath,
+  expandHomePath,
+  folderLabelFromPath,
+  folderNameFromPath,
+  shortenHomePath,
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 describe("folderNameFromPath", () => {
@@ -78,5 +84,117 @@ describe("shortenHomePath", () => {
     },
   ])("shortens $label", ({ expected, filePath, home }) => {
     expect(shortenHomePath(filePath, home)).toBe(expected);
+  });
+});
+
+describe("folderLabelFromPath", () => {
+  it.each([
+    {
+      expected: "Home",
+      folderPath: "/Users/sam",
+      home: "/Users/sam",
+      label: "the home folder itself",
+    },
+    {
+      expected: "Home",
+      folderPath: "/Users/sam/",
+      home: "/Users/sam",
+      label: "the home folder with a trailing separator",
+    },
+    {
+      expected: "Home",
+      folderPath: String.raw`C:\Users\sam`,
+      home: String.raw`C:\Users\sam`,
+      label: "a Windows home folder",
+    },
+    {
+      expected: "Documents",
+      folderPath: "/Users/sam/Documents",
+      home: "/Users/sam",
+      label: "a folder inside home",
+    },
+    {
+      // The account name is only ever swapped for the folder that really is
+      // home, never for a sibling whose name starts the same way.
+      expected: "samantha",
+      folderPath: "/Users/samantha",
+      home: "/Users/sam",
+      label: "a sibling sharing a name prefix",
+    },
+    {
+      expected: "sam",
+      folderPath: "/Users/sam",
+      home: undefined,
+      label: "the home folder with no home directory known",
+    },
+  ])("calls $label $expected", ({ expected, folderPath, home }) => {
+    expect(folderLabelFromPath(folderPath, home)).toBe(expected);
+  });
+});
+
+describe("displayHostPath", () => {
+  it.each([
+    {
+      expected: "sam/Documents/Photos",
+      home: "/Users/sam",
+      label: "a path inside home",
+      path: "/Users/sam/Documents/Photos",
+    },
+    {
+      expected: "sam",
+      home: "/Users/sam",
+      label: "home itself",
+      path: "/Users/sam",
+    },
+    {
+      expected: "sam/Documents",
+      home: "/Users/sam",
+      label: "a path written from `~`",
+      path: "~/Documents",
+    },
+    {
+      expected: String.raw`sam\Documents`,
+      home: String.raw`C:\Users\sam`,
+      label: "a Windows path inside home",
+      path: String.raw`C:\Users\sam\Documents`,
+    },
+    {
+      expected: "/Users/samantha/Documents",
+      home: "/Users/sam",
+      label: "a sibling sharing a name prefix",
+      path: "/Users/samantha/Documents",
+    },
+    {
+      expected: "/Volumes/Backup",
+      home: "/home/sam",
+      label: "a path outside home",
+      path: "/Volumes/Backup",
+    },
+  ])("reads $label as $expected", ({ expected, home, path }) => {
+    expect(displayHostPath(path, home)).toBe(expected);
+  });
+});
+
+describe("expandHomePath", () => {
+  it.each([
+    { expected: "/Users/sam", home: "/Users/sam", path: "~" },
+    {
+      expected: "/Users/sam/Documents",
+      home: "/Users/sam/",
+      path: "~/Documents",
+    },
+    {
+      expected: String.raw`C:\Users\sam\Documents`,
+      home: String.raw`C:\Users\sam`,
+      path: "~/Documents",
+    },
+    { expected: "~user/x", home: "/Users/sam", path: "~user/x" },
+    {
+      expected: "/Volumes/Backup",
+      home: "/Users/sam",
+      path: "/Volumes/Backup",
+    },
+  ])("writes $path out as $expected", ({ expected, home, path }) => {
+    expect(expandHomePath(path, home)).toBe(expected);
   });
 });

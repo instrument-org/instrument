@@ -1,6 +1,5 @@
-import type { Tool } from "ai";
+import type { Tool, ToolResultPart } from "ai";
 
-import { type LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type Result } from "neverthrow";
 import { type z } from "zod";
@@ -59,7 +58,7 @@ export interface AgentTool<
     input: z.output<TInputSchema>;
     output: z.output<TOutputSchema>;
     toolCallId: string;
-  }) => LanguageModelV2ToolResultOutput;
+  }) => ToolResultPart["output"];
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any

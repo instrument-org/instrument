@@ -57,7 +57,7 @@ The browser-view manager is a process singleton with one `hostWebContents`, boun
 ### 5. Minor single-window assumptions
 
 - `activate` recreation checks `BrowserWindow.getAllWindows().length === 0` (`apps/studio/src/electron-main/index.ts`).
-- The window-state store persists a single window's bounds (`apps/studio/src/electron-main/stores/window-state.ts`); new windows should cascade rather than all restore identical bounds.
+- The window-state store persists a single window's bounds (`apps/studio/src/electron-main/stores/workspace/window-state.ts`); new windows should cascade rather than all restore identical bounds.
 - `focusForegroundWindow` / deep-link focus and `second-instance` handling assume one main window (`apps/studio/src/electron-main/index.ts`).
 
 All small.
@@ -76,13 +76,13 @@ Trivially adjustable — accelerator strings live in that one menu file. All the
 
 ## Feature flag
 
-Flags are an enum + metadata in `apps/studio/src/shared/features.ts`, persisted in an electron-store (`apps/studio/src/electron-main/stores/features.ts`), exposed over RPC (`apps/studio/src/electron-main/rpc/routes/features.ts`), and toggled in Settings → Features and the dev panel. Add `multi_window`.
+Flags are an enum + metadata in `apps/studio/src/shared/features.ts`, persisted in an electron-store (`apps/studio/src/electron-main/stores/workspace/features.ts`), exposed over RPC (`apps/studio/src/electron-main/rpc/routes/features.ts`), and toggled in Settings → Features and the dev panel. Add `multi_window`.
 
-Caveat: flags are normally consumed in the **renderer**, but window creation and the menu/accelerators are **main-process**. The main process should read the store directly — there is a commented-out `isFeatureEnabled` helper in `apps/studio/src/electron-main/stores/features.ts` ready to un-comment. Gate both the accelerator remap and the New Window action on that main-side read.
+Caveat: flags are normally consumed in the **renderer**, but window creation and the menu/accelerators are **main-process**. The main process should read the store directly — there is a commented-out `isFeatureEnabled` helper in `apps/studio/src/electron-main/stores/workspace/features.ts` ready to un-comment. Gate both the accelerator remap and the New Window action on that main-side read.
 
 ## Implementation steps
 
-1. Add `multi_window` to `shared/features.ts` (enum + metadata) and a main-process `isFeatureEnabled` helper in `stores/features.ts`.
+1. Add `multi_window` to `shared/features.ts` (enum + metadata) and a main-process `isFeatureEnabled` helper in `stores/workspace/features.ts`.
 2. Introduce a per-window id: mint it in `createMainWindow()`, pass via preload `additionalArguments`, expose on `window.api`, and namespace `tabsAtom`'s storage key on it. Audit other per-window `localStorage` atoms.
 3. Convert `windows/main/instance.ts` from a single var to a registry; update `controls.ts`, `menus/index.ts`, and `agent-completion-notifications.ts` to resolve the sender/focused window.
 4. Route app commands to the focused window: add a target `webContentsId` to the command payload and filter in `use-app-commands.ts`.

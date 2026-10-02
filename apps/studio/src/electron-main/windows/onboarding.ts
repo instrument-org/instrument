@@ -1,3 +1,4 @@
+import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
@@ -5,7 +6,8 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { getAppWindow } from "@/electron-main/windows/app-window";
+import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 
@@ -48,28 +50,22 @@ export function openOnboardingWindow(): BrowserWindow {
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
+      session: getAppSession(),
     },
     width: ONBOARDING_WIDTH,
     x: bounds.x + Math.round((bounds.width - ONBOARDING_WIDTH) / 2),
     y: bounds.y + Math.round((bounds.height - ONBOARDING_HEIGHT) / 2),
   });
 
-  onboardingWindow.once("ready-to-show", () => {
+  showWhenReady(onboardingWindow, () => {
     onboardingWindow?.show();
   });
 
   onboardingWindow.on("closed", () => {
     onboardingWindow = null;
     publisher.publish("window.focus-changed", null);
-    // If the main window hasn't been created yet (i.e. onboarding was
-    // dismissed without completing), quit the app on all platforms.
-    const mainWindow = getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      app.quit();
-      return;
-    }
-    if (!mainWindow.isVisible()) {
-      mainWindow.close();
+    // Onboarding dismissed without completing leaves no window, and quits.
+    if (!getAppWindow()) {
       app.quit();
     }
   });

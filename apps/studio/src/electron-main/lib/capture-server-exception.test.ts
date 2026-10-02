@@ -1,4 +1,3 @@
-import { noop } from "radashi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { addServerException, captureException, logger } = vi.hoisted(() => ({
@@ -8,10 +7,12 @@ const { addServerException, captureException, logger } = vi.hoisted(() => ({
 }));
 
 vi.mock("electron", () => ({ app: { getVersion: () => "1.6.0-beta.3" } }));
-vi.mock("../stores/app-state", () => ({
-  getAppStateStore: () => ({ get: () => "telemetry-id" }),
+vi.mock("../stores/machine/state", () => ({
+  getMachineState: () => ({ get: () => "telemetry-id" }),
 }));
-vi.mock("../stores/preferences", () => ({ isDeveloperMode: () => true }));
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
+  isDeveloperMode: () => true,
+}));
 vi.mock("./electron-logger", () => ({ logger }));
 vi.mock("./server-exceptions", () => ({ addServerException }));
 vi.mock("./system-properties", () => ({ getSystemProperties: () => ({}) }));
@@ -31,8 +32,6 @@ const STREAMED_THROTTLE = {
 describe("captureServerException", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "groupCollapsed").mockImplementation(noop);
-    vi.spyOn(console, "groupEnd").mockImplementation(noop);
   });
 
   it("gives the exception list a sentence when the throw is not an Error", () => {

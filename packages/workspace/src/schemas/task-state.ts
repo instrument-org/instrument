@@ -1,8 +1,22 @@
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
+import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
+import { StoreId } from "./store-id";
 import { TaskPane } from "./task-pane";
+
+/**
+ * A tab of the window a task holds: one the conversation handed it, which is
+ * the user's and outlives the task, or one the task opened itself, which stays
+ * in the chat after the task is done.
+ */
+const HeldTabSchema = z.object({
+  id: BrowserTargetIdSchema,
+  openedBy: z.enum(["handed", "task"]),
+});
+
+export type HeldTab = z.output<typeof HeldTabSchema>;
 
 // Where the user left off in a task: the draft they were typing, what the pane
 // has open, the model they picked, the folders attached. Per-task and read on
@@ -24,10 +38,43 @@ import { TaskPane } from "./task-pane";
 // it.
 export const StoredTaskStateSchema = z
   .object({
+    // The apps whose guide this task has read, so `app request` hands the
+    // guide over once and then gets out of the way.
+    appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    browserTabs: z.array(HeldTabSchema).optional(),
+    browserTargetId: BrowserTargetIdSchema.optional(),
+    /**
+     * The orchestrator's topics, in the order they were made: the tags a
+     * chat carries, many chats to many topics. Which chats carry one is
+     * on each chat's own session record (`Session.topics`), so retiring a
+     * topic touches no chat and a filter is a predicate over the list.
+     */
+    topics: z
+      .array(
+        z.object({
+          /** The agent's line about what goes here, for later. */
+          about: z.string().optional(),
+          /** The tint its mark is drawn on, as a hex string. */
+          color: z.string().optional(),
+          createdAt: z.number(),
+          /** What stands for it: one emoji, chosen when it was made. */
+          emoji: z.string().optional(),
+          id: z.string(),
+          name: z.string(),
+          /** Out of the menus, with the chats that carry it left alone. */
+          retired: z.boolean().optional(),
+        }),
+      )
+      .optional(),
+    /**
+     * The newest settled message the user has seen in each chat, by session
+     * id. Window state, kept off the session record; unread is every non-user
+     * message after it.
+     */
+    chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
-    // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
     pane: TaskPane.Schema.optional().catch(undefined),
     // The project's folders, path to access, as this task last saw them. What
     // makes a task's own edit to an inherited folder survive the next message:
@@ -44,7 +91,18 @@ export const StoredTaskStateSchema = z
     projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
-    showTutorial: z.boolean().optional(),
+    /**
+     * The one-conversation layout's map of the chat each task was filed
+     * from, by task id, under the name that layout gave it. Nothing writes
+     * it; it is kept through a write so `migrate-to-chats` can finish moving
+     * a task whose chat is still to be made.
+     */
+    taskThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
+    /**
+     * The chat each app was asked for in, by slug: what sends the news of
+     * a sign-in, a key, or a decline back to the chat that asked for it.
+     */
+    appChats: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 
@@ -53,10 +111,19 @@ export const StoredTaskStateSchema = z
 // it is not something a client should be able to set.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+  /**
+   * The window's tabs a task drives, first one first: tabs the conversation
+   * handed it and tabs it opened itself. `agent-browser` connects to them.
+   */
+  browserTabs: z.array(HeldTabSchema).optional(),
+  /**
+   * On the window's own record, the tab its user has on screen, which the
+   * conversation's own `agent-browser` drives.
+   */
+  browserTargetId: BrowserTargetIdSchema.optional(),
   pane: TaskPane.Schema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
-  showTutorial: z.boolean().optional(),
 });
 
 export type TaskState = z.output<typeof StoredTaskStateSchema>;
@@ -74,7 +141,18 @@ export type TaskState = z.output<typeof StoredTaskStateSchema>;
  * every caller either writes back or does not care.
  */
 export function migrateTaskState(state: unknown): unknown {
-  if (!isRecord(state) || !isRecord(state.attachedFolders)) {
+  if (!isRecord(state)) {
+    return state;
+  }
+  return migrateAttachedFolders(migrateChatKeys(state));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function migrateAttachedFolders(state: Record<string, unknown>) {
+  if (!isRecord(state.attachedFolders)) {
     return state;
   }
 
@@ -92,6 +170,17 @@ export function migrateTaskState(state: unknown): unknown {
   return { ...state, attachedFolders: Object.fromEntries(folders) };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+// A conversation in the 2.0 window was a thread before it was a chat, and the
+// window's state named its maps for that.
+function migrateChatKeys(state: Record<string, unknown>) {
+  const { appThreads, threadSeen, ...rest } = state;
+  return {
+    ...rest,
+    ...(appThreads === undefined || rest.appChats !== undefined
+      ? {}
+      : { appChats: appThreads }),
+    ...(threadSeen === undefined || rest.chatSeen !== undefined
+      ? {}
+      : { chatSeen: threadSeen }),
+  };
 }

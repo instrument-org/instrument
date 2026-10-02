@@ -361,7 +361,8 @@ describe("nodeCommand", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Copy the file into the task first");
+    expect(result.stderr).toContain("Run it with `js-exec` instead");
+    expect(result.stderr).toContain("copy the file into the task first");
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
   });
 
@@ -379,7 +380,8 @@ describe("nodeCommand", () => {
       const result = await command.execute(["work/bad.js"], mockCtx);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("Copy the file into the task first");
+      expect(result.stderr).toContain("Run it with `js-exec` instead");
+      expect(result.stderr).toContain("copy the file into the task first");
       expect(vi.mocked(execa)).not.toHaveBeenCalled();
     } finally {
       await fs.rm(scriptPath, { force: true });

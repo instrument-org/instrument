@@ -2,17 +2,6 @@
 
 Learnings from driving Studio live to reproduce and verify a browser-panel layout bug. Read this before hand-rolling a reproduction with `fill`/`click`/ `evaluate_script` from scratch -- most of the friction below has a working recipe already.
 
-## Prefer replay over driving the agent live
-
-If the bug involves a specific task/session that already ran (an agent tool call sequence, not a fresh scenario), **replay it** instead of re-typing a prompt and waiting for a live LLM turn. Replay re-executes the same tool calls (via `workspace.debug.replaySession`, a `replay-stub` model -- no real LLM call) deterministically, in seconds, for free.
-
-1. Turn on **Developer Mode** first (Settings -> General). The task actions menu only shows "Replay chat" when `useDeveloperMode()` is true (`actions-menu.tsx`).
-2. Open the task, click the `...` actions menu -> **Replay chat**.
-3. Choose **New task** (isolates the repro from the original) or **New session** (same task), and a playback speed (**Instant** for repro work).
-4. The replay lands you on the new task/session automatically.
-
-Only fall back to live-driving the chat (typing a prompt and waiting for a real agent turn) when the bug needs fresh, non-deterministic agent behavior -- e.g. testing whether an agent _chooses_ a different workaround now that a path is blocked, which is not something a replay of an old transcript can show.
-
 ## Check the debug pages before hand-inspecting the DOM
 
 Developer Mode also unlocks `#/debug/*` routes -- check these before reaching for `evaluate_script` archaeology:
@@ -51,7 +40,7 @@ Never `sleep` for this, and never regex the page text for a spinner. Both are gu
 node $DRIVE wait --idle --task <task-id>
 ```
 
-It blocks on the same status the app's own indicators read (`task.agentStatus.byIds`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means, the `sawBusy` field, and why a replay needs `workspace.replay.status` instead.
+It blocks on the same status the app's own indicators read (`task.agentStatus.byIds`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
 
 ## Inspecting a `<webview>` guest's real internal state
 

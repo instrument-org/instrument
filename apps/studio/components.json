@@ -17,5 +17,8 @@
     "lib": "@/client/lib",
     "hooks": "@/client/hooks"
   },
-  "iconLibrary": "lucide"
+  "iconLibrary": "lucide",
+  "registries": {
+    "@extend": "https://ui.extend.ai/r/{name}.json"
+  }
 }

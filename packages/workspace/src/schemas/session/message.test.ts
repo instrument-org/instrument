@@ -158,7 +158,7 @@ describe("SessionMessage.toModelMessages", () => {
             input: {
               command: "sleep 5",
               explanation: "Test command",
-              timeoutMs: 5000,
+              yieldMs: 5000,
             },
             metadata: {
               createdAt: mockDate,
@@ -173,6 +173,7 @@ describe("SessionMessage.toModelMessages", () => {
               commands: ["sleep"],
               durationMs: 0,
               exitCode: 0,
+              omittedBytes: 0,
               output: "",
             },
             preliminary: true,
@@ -199,7 +200,7 @@ describe("SessionMessage.toModelMessages", () => {
               "input": {
                 "command": "sleep 5",
                 "explanation": "Test command",
-                "timeoutMs": 5000,
+                "yieldMs": 5000,
               },
               "providerExecuted": true,
               "toolCallId": "call_789",
@@ -521,6 +522,62 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  // The same screen on two messages in a row is one note, the way the
+  // browser status and the pane's tabs are: the second message says nothing
+  // the agent has not already read, and a page's excerpt is the longest
+  // thing a message carries.
+  it("does not repeat an unchanged screen note", async () => {
+    const viewing = (metadata: ReturnType<typeof baseMetadata>) => ({
+      data: { screen: "home" as const, url: "/new-tab" },
+      metadata: { ...metadata.partMetadata, id: StoreId.newPartId() },
+      type: "data-viewContext" as const,
+    });
+    const first = baseMetadata();
+    const second = baseMetadata();
+    const third = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: first.messageId,
+          metadata: first.messageMetadata,
+          parts: [
+            { metadata: first.partMetadata, text: "one", type: "text" },
+            viewing(first),
+          ],
+          role: "user",
+        },
+        {
+          id: second.messageId,
+          metadata: second.messageMetadata,
+          parts: [
+            { metadata: second.partMetadata, text: "two", type: "text" },
+            viewing(second),
+          ],
+          role: "user",
+        },
+        {
+          id: third.messageId,
+          metadata: third.messageMetadata,
+          parts: [
+            { metadata: third.partMetadata, text: "three", type: "text" },
+            {
+              ...viewing(third),
+              data: { screen: "tasks" as const, tasks: [] },
+            },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const notes = result.map((message) =>
+      JSON.stringify(message.content).includes("When the user sent this"),
+    );
+    expect(notes).toEqual([true, false, true]);
+  });
+
   it("normalizes a skill mention to /name and footnotes it", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
@@ -706,6 +763,172 @@ describe("SessionMessage.toModelMessages", () => {
     const text = JSON.stringify(result);
     expect(text).toContain("/mnt/Home-Downloads");
     expect(text).not.toContain("/mnt/undefined");
+  });
+
+  function attachedFoldersPart(
+    partMetadata: ReturnType<typeof baseMetadata>["partMetadata"],
+  ) {
+    return SessionMessagePart.coerce({
+      data: {
+        files: [],
+        folders: [
+          {
+            access: "read-write",
+            createdAt: 1_718_198_400_000,
+            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
+            mountName: "Reports",
+            path: "/Users/sam/Reports",
+            source: "user",
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+  }
+
+  // A folder attached with the first message is mounted before the session's
+  // baseline is written, so the baseline already carries it with the rules for
+  // using it. The note on the message lists the folder and stops there.
+  it("lists a folder attached with the first message without repeating the rules", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("-> `/mnt/Reports` (read and write)");
+    expect(text).not.toContain("Read, list, and search by mount path");
+  });
+
+  // A folder attached later may be the first the session has heard of, so
+  // the rules ride with it.
+  it("carries the folder rules on a folder attached after the first message", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
+          role: "user",
+        },
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("Read, list, and search by mount path");
+    expect(text).toContain("write_file");
+  });
+
+  // The conversation's agent has no file tools, so its copy of the rules says
+  // a task writes and never names a tool it has not got.
+  it("tells the conversation's agent a task writes into an attached folder", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
+          role: "user",
+        },
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+      { agentName: "instrument" },
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain(
+      "a task reaches one only when you pass it with --folder",
+    );
+    expect(text).toContain("written by a task handed the folder with --folder");
+    expect(text).not.toContain("write_file");
+    expect(text).not.toContain("read_file");
+  });
+
+  // A file sent to the conversation lands in its own folder, which no task can
+  // see, and it cannot read a picture itself: the note says how to hand the
+  // file on rather than calling it available "in the task".
+  it("tells the conversation's agent to hand a sent file to a task with --file", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const sentFile = SessionMessagePart.coerce({
+      data: {
+        files: [
+          {
+            filename: "screen.png",
+            filePath: "attachments/screen.png",
+            mimeType: "image/png",
+            modifiedAt: 1_718_198_400_000,
+            size: 18_545,
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+    const messages = [
+      {
+        id: StoreId.newMessageId(),
+        metadata: messageMetadata,
+        parts: [
+          sentFile,
+          { metadata: partMetadata, text: "what is this", type: "text" },
+        ],
+        role: "user",
+      },
+    ] satisfies SessionMessage.WithParts[];
+
+    const forConversation = JSON.stringify(
+      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT, {
+        agentName: "instrument",
+      }),
+    );
+    expect(forConversation).toContain("The user sent these files");
+    expect(forConversation).toContain(
+      "put --file <path> on the task new or task send that needs it",
+    );
+    expect(forConversation).toContain("- /task/attachments/screen.png (18KB)");
+    expect(forConversation).not.toContain("available in the task");
+
+    const forTask = JSON.stringify(
+      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
+    );
+    expect(forTask).toContain("now available in the task");
+    expect(forTask).not.toContain("--file");
   });
 
   // A tool's output schema outgrows the sessions already recorded against it,
@@ -898,14 +1121,6 @@ describe("SessionMessage.toModelMessages", () => {
 
     expect(result).toMatchInlineSnapshot(`
       [
-        {
-          "content": [],
-          "role": "assistant",
-        },
-        {
-          "content": [],
-          "role": "assistant",
-        },
         {
           "content": [
             {

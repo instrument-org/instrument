@@ -176,7 +176,7 @@ export const WebSearch = setupTool({
 
     Results close with a \`Sources:\` list of \`[Title](URL)\`. Carry the ones you relied on into your reply, as links on what they describe or as a \`Sources:\` list of your own.
   `,
-  async *execute({ input, model, signal }) {
+  async *execute({ input, model, sessionId, signal }) {
     if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
       yield ok({
         errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
@@ -192,6 +192,7 @@ export const WebSearch = setupTool({
       callingModel: model,
       configs: getWorkspaceConfig().getAIProviderConfigs(),
       prompt: input.query,
+      sessionId,
       signal,
       workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),

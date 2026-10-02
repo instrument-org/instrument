@@ -50,7 +50,14 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
 
 const MountedWorkspacePathSchema = z
   .string()
-  .startsWith(`${MOUNT.attachedFolders}/`)
+  .refine(
+    (val) =>
+      val.startsWith(`${MOUNT.attachedFolders}/`) ||
+      // An orchestrator's read-only view of a task it created; resolved by the
+      // same layout the attached folders are, for a task of that kind only.
+      val.startsWith(`${MOUNT.tasks}/`),
+    `Mounted path must be under ${MOUNT.attachedFolders}/ or ${MOUNT.tasks}/`,
+  )
   .brand("MountedWorkspacePath")
   .refine(
     (val) =>

@@ -31,7 +31,7 @@ Safe by contrast:
 
 - **rect-vs-rect** (`a.getBoundingClientRect().top - b.getBoundingClientRect().top`) cancels the zoom factor. Only when that delta is then added to a layout-px value (e.g. `scrollTop`) does it become a hazard.
 - Values passed to a **native** scroll (`scrollIntoView`, `scrollTo({top:0})`) or a native Electron overlay are already in the space the engine expects.
-- Pointer coordinate mixing (`event.clientX - rect.left`) inside a zoomed subtree needs a `/ zoom` correction; see `studio-sidebar-rail.tsx` for the reference pattern.
+- Pointer coordinate mixing (`event.clientX - rect.left`) inside a zoomed subtree needs a `/ zoom` correction; see `studio-sidebar-rail.tsx` for the reference pattern. Placing something at that point rather than measuring from it is the same correction: `useWindowPointStyle` (`hooks/use-app-zoom.ts`) turns a window coordinate into the `left`/`top` an element inside the zoom root needs, and `window-point.browser.test.tsx` presses a real button in real Chromium to hold it.
 
 ## Known sites
 

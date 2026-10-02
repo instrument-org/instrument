@@ -73,7 +73,6 @@ function chatPartNode(
   } as SessionMessage.WithParts;
 
   const ctx = {
-    assetBaseUrl: "https://assets.test",
     isAgentRunning,
     isDeveloperMode: false,
     isToolStreaming: () => isAgentRunning,
@@ -104,7 +103,6 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
   } as SessionMessage.WithParts;
 
   const ctx = {
-    assetBaseUrl: "https://assets.test",
     isAgentRunning: true,
     isDeveloperMode: false,
     isToolStreaming: () => true,

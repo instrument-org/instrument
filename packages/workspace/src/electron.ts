@@ -2,18 +2,73 @@ export {
   closeAllAgentBrowserSessions,
   pruneExternalBrowserTmp,
 } from "./lib/agent-browser-cleanup";
+export {
+  type AppCatalogEntry,
+  catalogEntryMcpEndpoint,
+  catalogEntrySupportsApiKey,
+  getAppCatalog,
+} from "./lib/apps/catalog";
+export {
+  type AppConnection,
+  AppConnectionSchema,
+  type AppConnectionStore,
+  isConnected,
+  recordConnection,
+} from "./lib/apps/connection";
+export {
+  type AppManifest,
+  AppSlugSchema,
+  isMcpManifest,
+} from "./lib/apps/manifest";
+export {
+  callMcpTool,
+  listMcpTools,
+  withMcpClient,
+} from "./lib/apps/mcp/client";
+export { mcpConnectionConfig } from "./lib/apps/mcp/connection-config";
+export {
+  describeLocalLaunch,
+  removeLocalServer,
+} from "./lib/apps/mcp/local-server";
+export {
+  beginMcpOAuth,
+  cancelMcpOAuth,
+  completeMcpOAuth,
+  pendingMcpOAuthSlug,
+  type SignInOpensIn,
+} from "./lib/apps/mcp/oauth-flow";
+export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
+export { withAppMcpClient } from "./lib/apps/mcp/run";
+export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
+export { appHomeFor, appSiteFor } from "./lib/apps/site";
+export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
+export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
+export {
+  BACKGROUND_PROCESS_TEARDOWN_MS,
+  killAllBackgroundProcesses,
+} from "./lib/background-processes";
+export {
+  type BashWorkerFactory,
+  setBashWorkerFactory,
+  warmBashWorker,
+} from "./lib/bash-worker/client";
+export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
+export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
 export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
+export { attachOrchestrator } from "./lib/orchestrator/attach";
+export { FILES_FENCE } from "./lib/parse-files-block";
 export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";
 export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
+export { serveStaticFile } from "./logic/server/serve-static";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,
@@ -48,3 +103,7 @@ export {
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";
+export {
+  type OAuthClientInformationFull,
+  type OAuthTokens,
+} from "@modelcontextprotocol/sdk/shared/auth.js";

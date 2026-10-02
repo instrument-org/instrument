@@ -5,11 +5,12 @@ import {
   type Task,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatStream } from "./chat-stream";
+import { ReplyContext } from "./reply-context";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 import {
   MessageScroller,
@@ -31,6 +32,23 @@ vi.mock("@/client/components/theme-provider", () => ({
   }),
 }));
 
+// The grid a ```files fence resolves to is a router-bound tree of preview
+// cards with its own tests; what is asked here is only that the fence reached
+// it.
+vi.mock("./files-grid", () => ({
+  FilesGrid: ({
+    files,
+  }: {
+    files: { hostPath: string; taskFile?: { filePath: string } }[];
+  }) => (
+    <ul>
+      {files.map((file) => (
+        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
+      ))}
+    </ul>
+  ),
+}));
+
 // What `GROUP_INDENT` puts on a row drawn inside a group. Matched as a class
 // token rather than written `.pl-6.5`, which a selector parser reads as two
 // classes and finds nothing.
@@ -50,6 +68,7 @@ interface RenderOptions {
   alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
+  presentation?: "chat";
   releaseAutoScroll?: () => void;
   renderAsItems?: boolean;
 }
@@ -114,6 +133,7 @@ function chatStream(
     alwaysShowFooter = false,
     isAgentRunning = false,
     isDeveloperMode = false,
+    presentation,
     releaseAutoScroll,
     renderAsItems = false,
   }: RenderOptions = {},
@@ -129,7 +149,7 @@ function chatStream(
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
-        onStartNewTask={vi.fn()}
+        {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
         task={task}
       />
@@ -162,10 +182,10 @@ function chatStream(
  * group is open that step is on screen twice: once heading it, once in its place
  * in the run. The first is the head.
  */
-function clickRow(text: string) {
+function clickRow(text: RegExp | string) {
   const [row] = screen.getAllByText(text);
   if (!row) {
-    throw new Error(`no row labeled ${text}`);
+    throw new Error(`no row labeled ${String(text)}`);
   }
   fireEvent.click(row);
 }
@@ -229,7 +249,7 @@ function imageCall(explanation: string) {
  * and so is always above it. Which one is asked matters, because the copy is on
  * its way out at exactly the moment this is worth asking.
  */
-function isRowOpen(text: string) {
+function isRowOpen(text: RegExp | string) {
   const row = screen.getAllByText(text).at(-1);
   // Read off the state rather than off the content: a collapsible that has been
   // opened once keeps its content mounted and hides it, so its presence says
@@ -340,6 +360,16 @@ function renderTranscript({
   );
 }
 
+/** A reasoning block the model finished, with something written under it. */
+function thought(text: string) {
+  return {
+    metadata: { ...metadata(new Date(1)), endedAt: new Date(2) },
+    state: "done",
+    text,
+    type: "reasoning",
+  };
+}
+
 function userMessage(text: string) {
   return {
     id: StoreId.newMessageId(),
@@ -435,83 +465,92 @@ describe("ChatStream groups the agent never named", () => {
     expect(screen.queryByText("Reading the first quarter")).toBeNull();
   });
 
-  it("opens from the row heading it, since there is nothing else to click", () => {
+  // The same shape a named phase takes. Nothing is known yet about what the
+  // phase amounts to, so the heading says the agent is working and for how
+  // long.
+  it("heads the run in flight with the working clock and the call under it", () => {
     inFlight();
 
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
-
-    clickRow("Reading the third quarter");
-
-    expect(screen.getByText("Reading the first quarter")).toBeDefined();
-    expect(screen.getByText("Reading the second quarter")).toBeDefined();
+    expect(screen.getByText(/^Working/)).toBeDefined();
+    const [step] = screen.getAllByText("Reading the third quarter");
+    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
+    expect(step?.closest(INDENTED)).not.toBeNull();
   });
 
-  it("shuts again from that same row, which opening leaves in place", () => {
-    inFlight();
-
-    clickRow("Reading the third quarter");
-    clickRow("Reading the third quarter");
-
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
-  });
-
-  it("heads the open run with a copy of the step, which keeps its own place", () => {
-    inFlight();
-
-    clickRow("Reading the third quarter");
-
-    // Once heading the group, once where it falls in the run.
-    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(2);
-  });
-
-  // The run's head line is a copy of one of its own steps, so the click that
-  // opens the run landed on that step; see `toggleGroup`. Nothing is in flight
-  // here, which is what leaves the head line on the last step the run finished.
-  const betweenSteps = () => [
-    assistantMessage([read({ explanation: "Reading the first quarter" })]),
-    assistantMessage([read({ explanation: "Reading the second quarter" })]),
-    assistantMessage([read({ explanation: "Reading the third quarter" })]),
-  ];
-
-  it("opens the step its head line copies, not only the run behind it", () => {
-    renderMessages(betweenSteps(), { isAgentRunning: true });
-
-    clickRow("Reading the third quarter");
-
-    expect(screen.getByText("Reading the first quarter")).toBeDefined();
-    expect(isRowOpen("Reading the third quarter")).toBe(true);
-    // That one and no other: the rest of the run comes up shut, the way it
-    // would have if the reader had opened the run from anywhere else.
-    expect(isRowOpen("Reading the first quarter")).toBe(false);
-  });
-
-  it("shuts that step again along with the run, and leaves it shut", () => {
-    const messages = betweenSteps();
-    const { rerender } = renderMessages(messages, { isAgentRunning: true });
-
-    clickRow("Reading the third quarter");
-    clickRow("Reading the third quarter");
-
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
-
-    // The agent takes another step, which is what the run is headed by now.
-    // Opening it again answers with that step alone: what the reader shut is
-    // still shut behind it rather than coming back with it.
-    rerender(
-      chatStream(
-        [
-          ...messages,
-          assistantMessage([
-            read({ explanation: "Reading the fourth quarter" }),
-          ]),
-        ],
-        { isAgentRunning: true },
-      ),
+  // Most of a working run is the gap between one call ending and the next
+  // starting, and a heading that went quiet for it would flicker every step.
+  it("says it is working through the heading, between steps too", () => {
+    renderSteps(
+      [
+        [read({ explanation: "Reading the first quarter" })],
+        [read({ explanation: "Reading the second quarter" })],
+      ],
+      { isAgentRunning: true },
     );
-    clickRow("Reading the fourth quarter");
 
-    expect(isRowOpen("Reading the fourth quarter")).toBe(true);
-    expect(isRowOpen("Reading the third quarter")).toBe(false);
+    expect(screen.getByText(/^Working/).className).toContain(
+      "brand-shiny-text",
+    );
+    expect(
+      screen.getByText("Reading the second quarter").className,
+    ).not.toContain("brand-shiny-text");
+  });
+
+  // Every call in a batch streamed in and waiting its turn, so none of them
+  // draws: the run is still working, and still says so.
+  it("stays on screen while every call it holds waits for the queue", () => {
+    renderParts(
+      [
+        blankThinking(),
+        queued("Reading the first quarter"),
+        queued("Reading the second quarter"),
+      ],
+      { isAgentRunning: true },
+    );
+
+    expect(screen.getByText(/^Working/)).toBeDefined();
+    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+  });
+
+  it("counts up how long the run has been working", () => {
+    vi.useFakeTimers({ now: new Date(0) });
+    try {
+      inFlight();
+      expect(screen.getByText("Working")).toBeDefined();
+
+      act(() => {
+        vi.advanceTimersByTime(12_000);
+      });
+
+      expect(screen.getByText("Working for 12s")).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens from the heading, which the steps then replace the copy under", () => {
+    inFlight();
+
+    fireEvent.click(screen.getByText(/^Working/));
+
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
+  });
+
+  // A finished run with one call in it is headed by that call, since a summary
+  // would say less than its row does; see `toggleGroup`.
+  it("opens the step a finished run's head line copies, not only the run", () => {
+    renderParts([
+      thought("Weighing up the quarters"),
+      read({ explanation: "Reading the third quarter" }),
+      prose("Revenue grew in the north."),
+    ]);
+
+    clickRow("Reading the third quarter");
+
+    expect(screen.getByText(/^Thought/)).toBeDefined();
+    expect(isRowOpen("Reading the third quarter")).toBe(true);
+    expect(isRowOpen(/^Thought/)).toBe(false);
   });
 
   it("names the finished run from what it turned out to contain", () => {
@@ -790,8 +829,7 @@ describe("ChatStream and the space around what the agent said", () => {
 // a band of blank it cannot fill in reads as the transcript having gone wrong.
 describe("ChatStream and the footer of a finished turn", () => {
   const footerRow = (container: HTMLElement) =>
-    screen.getByLabelText("Branch from here").closest(".flex.min-w-0") ??
-    container;
+    screen.getByLabelText("Copy").closest(".flex.min-w-0") ?? container;
 
   it("leaves the footer to hover by default", () => {
     const { container } = renderSteps([
@@ -1038,9 +1076,9 @@ describe("ChatStream and the step that opens itself", () => {
     expect(isRowOpen("Drawing the cover")).toBe(false);
   });
 
-  // Drawn without a phase announced first, the image heads a run of its own:
-  // the head line is a copy of the row itself, so opening the run puts the same
-  // call on screen twice. The picture belongs to the row in the run, not both.
+  // Drawn without a phase announced first, the image opens a run headed by the
+  // working clock, and opening the run takes the copy under it away, so the
+  // call and its picture are on screen once.
   it("draws the picture once when the run it opens has no heading", () => {
     const image = imageCall("Drawing the cover");
 
@@ -1048,7 +1086,8 @@ describe("ChatStream and the step that opens itself", () => {
       isAgentRunning: true,
     });
 
-    expect(screen.getAllByText("Drawing the cover")).toHaveLength(2);
+    expect(screen.getByText(/^Working/)).toBeDefined();
+    expect(screen.getAllByText("Drawing the cover")).toHaveLength(1);
     expect(screen.getAllByText("Generating")).toHaveLength(1);
   });
 
@@ -1094,5 +1133,131 @@ describe("ChatStream and a reasoning block that never wrote anything", () => {
     });
 
     expect(screen.getByText("Reading Q1")).toBeTruthy();
+  });
+});
+
+// The conversation's replies are one bubble per line said. A model that
+// retries a failed command says its line again before the retry, so the
+// same words landed twice in one turn; the second copy is not shown.
+describe("ChatStream in the conversation, and a line said twice in one turn", () => {
+  it("draws the line once within a turn, and again in the next turn", () => {
+    renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(2),
+        }),
+        userMessage("Thanks"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(3),
+        }),
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(screen.getAllByText("Rechecking the listing now.")).toHaveLength(2);
+  });
+
+  // The line again with the files fence after it, which is how a reply that
+  // linked its file after a command lands: the words are not drawn a second
+  // time, and the file is.
+  it("draws only what a repeated line adds after itself", () => {
+    const { container } = renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("It is out of stock.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage(
+          [prose("It is out of stock.\n\n```files\nwork/listing.md\n```")],
+          { finishedAt: new Date(2) },
+        ),
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(screen.getAllByText("It is out of stock.")).toHaveLength(1);
+    // The grid stands in for the cards; the paths reach it through a lookup
+    // this environment has no answer for.
+    expect(container.querySelector("ul")).not.toBeNull();
+  });
+
+  it("keeps a line that differs from the one before it", () => {
+    renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage([prose("It is out of stock.")], {
+          finishedAt: new Date(2),
+        }),
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(screen.getByText("Rechecking the listing now.")).toBeTruthy();
+    expect(screen.getByText("It is out of stock.")).toBeTruthy();
+  });
+});
+
+describe("ChatStream in the conversation, and a reply", () => {
+  it("draws what a reply answers over the user's words", () => {
+    const replied = prose("Want me to book the 7:30 or the 8:15?");
+    renderMessages(
+      [
+        assistantMessage([replied], { finishedAt: new Date(1) }),
+        {
+          ...userMessage("The 8:15"),
+          parts: [
+            prose("The 8:15"),
+            {
+              data: {
+                messageId,
+                partId: replied.metadata.id,
+                text: "Want me to book the 7:30 or the 8:15?",
+              },
+              metadata: metadata(),
+              type: "data-reply",
+            },
+          ],
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    const quote = screen.getByRole("button", {
+      name: "Want me to book the 7:30 or the 8:15?",
+    });
+    const words = screen.getByText("The 8:15");
+    expect(
+      quote.compareDocumentPosition(words) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("offers a bubble's reply with its ids and the start of its words", () => {
+    const startReply = vi.fn();
+    const replied = prose("Want me to book the 7:30 or the 8:15?");
+    renderWithProviders(
+      <ReplyContext value={startReply}>
+        {chatStream(
+          [assistantMessage([replied], { finishedAt: new Date(1) })],
+          {
+            presentation: "chat",
+          },
+        )}
+      </ReplyContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(startReply).toHaveBeenCalledWith({
+      messageId,
+      partId: replied.metadata.id,
+      text: "Want me to book the 7:30 or the 8:15?",
+    });
   });
 });

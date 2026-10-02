@@ -12,6 +12,9 @@ const NETWORK_ERROR_NAMES = new Set([
   "ConnectTimeoutError",
   "HeadersTimeoutError",
   "SocketError",
+  // `AbortSignal.timeout()` rejects with a DOMException of this name: the
+  // server never answered within the deadline the caller set.
+  "TimeoutError",
 ]);
 
 const NETWORK_ERROR_CODES = new Set([
@@ -29,6 +32,11 @@ const NETWORK_ERROR_CODES = new Set([
   "UND_ERR_HEADERS_TIMEOUT",
   "UND_ERR_SOCKET",
 ]);
+
+// Chromium's network stack, behind Electron's `net` module (which
+// electron-updater downloads through), fails with its own error name as the
+// whole message: `net::ERR_NAME_NOT_RESOLVED`, `net::ERR_NETWORK_CHANGED`.
+const CHROMIUM_NET_ERROR_PREFIX = "net::ERR_";
 
 const MAX_CAUSE_DEPTH = 10;
 
@@ -50,6 +58,10 @@ export function isExpectedNetworkError(error: unknown): boolean {
       current instanceof TypeError &&
       FETCH_FAILURE_MESSAGES.has(current.message)
     ) {
+      return true;
+    }
+
+    if (current.message.startsWith(CHROMIUM_NET_ERROR_PREFIX)) {
       return true;
     }
 

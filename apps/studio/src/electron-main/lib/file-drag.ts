@@ -1,22 +1,15 @@
 import { START_FILE_DRAG_CHANNEL } from "@/shared/constants";
-import {
-  type AbsolutePath,
-  resolveWorkspaceFilePath,
-  type TaskId,
-  TaskIdSchema,
-  WorkspaceFilePathSchema,
-} from "@instrument-org/workspace/electron";
 import { app, ipcMain, type NativeImage, nativeImage } from "electron";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
 import { captureServerException } from "./capture-server-exception";
 
 // The drag has to be handed to the OS while the pointer is still down, and
-// everything it needs is asynchronous: resolving the file's host path reads
-// task state off disk, and rendering a drag image goes through QuickLook. So
-// both are done ahead of the gesture, on hover and again on press, and what the
-// press leaves behind is what the drag itself reads.
+// rendering a drag image goes through QuickLook, which is asynchronous. So the
+// image is made ahead of the gesture, on hover and again on press, and what
+// the press leaves behind is what the drag itself reads.
 const MAX_ENTRIES = 128;
 // Requested at twice the drag image's point size, then tagged 2x below.
 const THUMBNAIL_PX = 128;
@@ -43,60 +36,31 @@ const THUMBNAILED_EXTENSIONS = new Set([
   ".webp",
 ]);
 
-const resolvedPaths = new Map<string, AbsolutePath>();
-const icons = new Map<AbsolutePath, NativeImage>();
+const icons = new Map<string, NativeImage>();
 // Whatever the app icon is, resized. Only ever seen when a file is dragged
 // before its own icon finished rendering, since a missing icon is not a drag
 // macOS will start at all.
 let fallbackIcon: NativeImage | undefined;
 
-const FileRefSchema = z.object({
-  filePath: WorkspaceFilePathSchema,
-  taskId: TaskIdSchema,
-});
+const HostPathSchema = z.string().refine((value) => path.isAbsolute(value));
 
 const StartFileDragSchema = z.object({
-  files: z.array(FileRefSchema).min(1),
+  files: z.array(HostPathSchema).min(1),
 });
 
-type FileRef = z.output<typeof FileRefSchema>;
-
 /**
- * Resolve a task file's host path and render its drag image, so a drag starting
- * moments from now is a synchronous lookup.
- *
- * Called on every hover and press rather than once per file: the path is
- * re-resolved each time so a file that moved does not drag its old location,
- * while the icon, which is the slow half, is kept.
+ * Render a file's drag image, so a drag starting moments from now is a
+ * synchronous lookup. Called on every hover and press rather than once per
+ * file; the icon, which is the slow half, is kept.
  */
-export async function prepareFileDrag({
-  filePath,
-  taskId,
-}: {
-  filePath: string;
-  taskId: TaskId;
-}) {
-  const parsed = FileRefSchema.safeParse({ filePath, taskId });
-  if (!parsed.success) {
+export async function prepareFileDrag({ filePath }: { filePath: string }) {
+  const parsed = HostPathSchema.safeParse(filePath);
+  if (!parsed.success || icons.has(parsed.data)) {
     return;
   }
-
-  const key = entryKey(parsed.data);
-  const fullPath = await resolveWorkspaceFilePath(parsed.data);
-  if (!fullPath) {
-    // Resolves outside everything the task can reach, or is gone. Drop any
-    // earlier answer rather than leaving a stale path draggable.
-    resolvedPaths.delete(key);
-    return;
-  }
-
-  remember(resolvedPaths, key, fullPath);
-
-  if (!icons.has(fullPath)) {
-    const icon = await buildDragImage(fullPath);
-    if (icon) {
-      remember(icons, fullPath, icon);
-    }
+  const icon = await buildDragImage(parsed.data);
+  if (icon) {
+    remember(icons, parsed.data, icon);
   }
 }
 
@@ -108,31 +72,24 @@ export function registerFileDragHandler() {
     if (!parsed.success) {
       return;
     }
-
-    // Only paths this process resolved itself can be dragged. The renderer
-    // names a file the way it already names one everywhere else, and never
-    // holds or hands back the host path, so there is nothing here to point
-    // somewhere it should not reach.
-    const files = parsed.data.files
-      .map((file) => resolvedPaths.get(entryKey(file)))
-      .filter((fullPath) => fullPath !== undefined);
-
+    // Synchronous to the end: the drag has to be handed to the OS while the
+    // pointer is still down. A file that has gone since it was drawn is left
+    // out, so a drop target is never handed a path to nothing.
+    const files = parsed.data.files.filter((file) => existsSync(file));
     const first = files[0];
     if (!first) {
       return;
     }
-
     const icon = icons.get(first) ?? fallbackIcon;
     if (!icon) {
       return;
     }
-
     event.sender.startDrag({ file: first, files, icon });
   });
 }
 
 async function buildDragImage(
-  fullPath: AbsolutePath,
+  fullPath: string,
 ): Promise<NativeImage | undefined> {
   if (hasLegibleThumbnail(fullPath)) {
     // The preview Finder and Explorer show for the file itself. Unsupported on
@@ -153,7 +110,7 @@ async function buildDragImage(
   return typeIcon && !typeIcon.isEmpty() ? typeIcon : undefined;
 }
 
-async function createThumbnail(fullPath: AbsolutePath) {
+async function createThumbnail(fullPath: string) {
   try {
     return await nativeImage.createThumbnailFromPath(fullPath, {
       height: THUMBNAIL_PX,
@@ -164,15 +121,11 @@ async function createThumbnail(fullPath: AbsolutePath) {
   }
 }
 
-function entryKey({ filePath, taskId }: FileRef) {
-  return `${taskId}\u0000${filePath}`;
-}
-
 // `"normal"` is the largest size this can ask for on macOS. `"large"` maps to
 // one Chromium documents as unsupported there, and its icon loader answers with
 // a NOTREACHED that kills the process from a thread pool worker, where the catch
 // below never sees it. So a type icon drags at 32pt against a thumbnail's 64.
-async function getFileIcon(fullPath: AbsolutePath) {
+async function getFileIcon(fullPath: string) {
   try {
     return await app.getFileIcon(fullPath, { size: "normal" });
   } catch {
@@ -191,7 +144,7 @@ async function getFileIcon(fullPath: AbsolutePath) {
  * So the thumbnail is for what stays recognizable, and everything else takes
  * the icon.
  */
-function hasLegibleThumbnail(fullPath: AbsolutePath) {
+function hasLegibleThumbnail(fullPath: string) {
   return THUMBNAILED_EXTENSIONS.has(path.extname(fullPath).toLowerCase());
 }
 

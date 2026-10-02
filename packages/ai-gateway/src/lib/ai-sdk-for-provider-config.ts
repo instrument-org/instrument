@@ -9,8 +9,11 @@ import {
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { getPackageForProviderType } from "./bundled-providers";
+import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import { createOpenRouterLanguageModel } from "./openrouter-language-model";
+import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
 export async function aiSDKForProviderConfig(
   config: AIGatewayProviderConfig.Type,
@@ -62,6 +65,12 @@ export async function aiSDKForProviderConfig(
       return createOpenAICompatible({
         apiKey,
         baseURL,
+        // Workers AI is reached as an OpenAI-compatible provider, because that
+        // is the only type whose model listing knows its models/search API.
+        // Its stream needs the same repair here as on the `openai` path.
+        ...(isWorkersAiProviderConfig(config)
+          ? { fetch: repairWorkersAiStream() }
+          : {}),
         name: config.type,
       });
     }
@@ -77,7 +86,11 @@ export async function aiSDKForProviderConfig(
       return createXAISDK(config, workspaceServerURL);
     }
     case "@openrouter/ai-sdk-provider": {
-      return createOpenRouterSDK(config, workspaceServerURL);
+      return createOpenRouterLanguageModel({
+        chat: await createOpenRouterSDK(config, workspaceServerURL),
+        config,
+        workspaceServerURL,
+      });
     }
     case "ai-sdk-ollama": {
       const { createOllama } = await import("ai-sdk-ollama");
@@ -125,8 +138,8 @@ export async function createGoogleSDK(
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
-  const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-  return createGoogleGenerativeAI({ apiKey, baseURL });
+  const { createGoogle } = await import("@ai-sdk/google");
+  return createGoogle({ apiKey, baseURL });
 }
 
 export async function createOpenAISDK(
@@ -136,7 +149,14 @@ export async function createOpenAISDK(
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey, baseURL });
+  return createOpenAI({
+    apiKey,
+    baseURL,
+    // Workers AI streams what the SDK refuses; see the repair for what.
+    ...(isWorkersAiProviderConfig(config)
+      ? { fetch: repairWorkersAiStream() }
+      : {}),
+  });
 }
 
 export async function createOpenRouterSDK(

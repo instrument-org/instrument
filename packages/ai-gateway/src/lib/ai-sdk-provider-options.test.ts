@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { type LanguageModelV3 } from "@ai-sdk/provider";
+import { type LanguageModelV4 } from "@ai-sdk/provider";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { describe, expect, it } from "vitest";
 
@@ -26,7 +26,7 @@ const HELLO = [
   { content: [{ text: "hi", type: "text" as const }], role: "user" as const },
 ];
 
-function model(provider: string, modelId: string): LanguageModelV3 {
+function model(provider: string, modelId: string): LanguageModelV4 {
   const unused = () => {
     throw new Error("not called");
   };
@@ -35,7 +35,7 @@ function model(provider: string, modelId: string): LanguageModelV3 {
     doStream: unused,
     modelId,
     provider,
-    specificationVersion: "v3",
+    specificationVersion: "v4",
     supportedUrls: {},
   };
 }
@@ -45,6 +45,12 @@ describe("providerOptionsForModel", () => {
     expect(
       providerOptionsForModel(model("openrouter", "openai/gpt-5.6-luna")),
     ).toEqual({});
+  });
+
+  it("keeps xAI responses off its servers", () => {
+    expect(providerOptionsForModel(model("xai.responses", "grok-4"))).toEqual({
+      xai: { store: false },
+    });
   });
 
   it("carries a level alongside the flags a model already needed", () => {
@@ -57,6 +63,7 @@ describe("providerOptionsForModel", () => {
       openai: {
         include: ["reasoning.encrypted_content"],
         reasoningEffort: "low",
+        reasoningSummary: null,
         store: false,
       },
     });
@@ -70,6 +77,52 @@ describe("providerOptionsForModel", () => {
     ).toEqual({
       openai: { include: ["reasoning.encrypted_content"], store: false },
     });
+  });
+
+  it.each(["gpt-5-mini", "gpt-5.6-luna", "gpt-6-luna", "o3", "o4-mini"])(
+    "asks %s for its encrypted reasoning",
+    (modelId) => {
+      expect(
+        providerOptionsForModel(model("openai.responses", modelId)),
+      ).toEqual({
+        openai: { include: ["reasoning.encrypted_content"], store: false },
+      });
+    },
+  );
+
+  it.each(["gpt-4.1", "gpt-4o-mini", "omni-moderation-latest"])(
+    "asks %s for no reasoning it cannot produce",
+    (modelId) => {
+      expect(
+        providerOptionsForModel(model("openai.responses", modelId)),
+      ).toEqual({});
+    },
+  );
+
+  it("tells the SDK a model behind OpenRouter reasons when the catalog says so", () => {
+    expect(
+      providerOptionsForModel(
+        model("openai.responses", "openai/gpt-5.6-luna"),
+        {
+          effort: "low",
+          reasoning: { efforts: [], enabledByDefault: true, mandatory: false },
+        },
+      ),
+    ).toEqual({
+      openai: {
+        forceReasoning: true,
+        reasoningEffort: "low",
+        reasoningSummary: "auto",
+      },
+    });
+  });
+
+  it("asks nothing of a model behind OpenRouter the catalog does not say reasons", () => {
+    expect(
+      providerOptionsForModel(model("openai.responses", "openai/gpt-4.1"), {
+        effort: "low",
+      }),
+    ).toEqual({});
   });
 
   it("names the model's own provider rather than the one asking", () => {

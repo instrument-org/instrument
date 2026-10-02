@@ -3,7 +3,12 @@ import { createStorage } from "unstorage";
 import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
 
-import { wrapStorage } from "../wrap-storage";
+import { type TaskId } from "../../schemas/task-id";
+import {
+  bumpEveryStoreGeneration,
+  bumpStoreGeneration,
+} from "../store-generation";
+import { type WrappedStorage, wrapStorage } from "../wrap-storage";
 
 const mockStorage = createStorage({
   driver: memoryDriver(),
@@ -11,10 +16,27 @@ const mockStorage = createStorage({
 
 const wrappedMockStorage = wrapStorage(mockStorage);
 
-export function getSessionsStoreStorage() {
-  return ok(wrappedMockStorage);
+/** The shared storage, counting each write against the task it was made for, as the real one does. */
+export function getSessionsStoreStorage(taskId: TaskId) {
+  const counted: WrappedStorage = {
+    ...wrappedMockStorage,
+    removeItem: (key, options) => {
+      bumpStoreGeneration(taskId);
+      return wrappedMockStorage.removeItem(key, options).andTee(() => {
+        bumpStoreGeneration(taskId);
+      });
+    },
+    setItemRaw: (key, value, options) => {
+      bumpStoreGeneration(taskId);
+      return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
+        bumpStoreGeneration(taskId);
+      });
+    },
+  };
+  return ok(counted);
 }
 
 beforeEach(async () => {
   await mockStorage.clear();
+  bumpEveryStoreGeneration();
 });

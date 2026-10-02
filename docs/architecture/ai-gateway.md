@@ -26,7 +26,15 @@ The package has four entry points (`package.json` `exports`): the root [`index.t
 - **Model identity & metadata** — `schemas/model-uri` and `image-capabilities`, which give one canonical identity for a model across providers. (Naming and feature detection — `canonicalize-model-id`, `generate-model-name`, `is-model-new`, `get-model-features` — are internals of the fetch stack, not exports.)
 - **Which model answered** — `names-same-model` decides whether a provider's answer names the model that was asked for, `is-router-model` says whether the request named a decision rather than a model, and `find-cached-model` resolves a provider's own id to a record without a network fetch. Together they let a caller tell a router picking a model apart from a provider substituting one. See [Requested and served models](#requested-and-served-models).
 - **Image & web search** — `get-ai-sdk-image-model`, `stream-image`, `get-ai-sdk-web-search-model`.
-- **AI SDK glue** — `ai-sdk-provider-options`.
+- **AI SDK glue** — `ai-sdk-for-provider-config` picks the SDK package for a config's type, `openrouter-language-model` picks the request shape for a model behind an OpenRouter-shaped config, and `ai-sdk-provider-options` builds the per-request options from the catalog. See [Two request shapes behind OpenRouter](#two-request-shapes-behind-openrouter).
+
+## Two request shapes behind OpenRouter
+
+OpenRouter answers on two APIs: Chat Completions, one string per reply, and the Responses API, a list of typed items. The `openrouter` and first-party configs use both, chosen per model by [`openrouter-language-model.ts`](../../packages/ai-gateway/src/lib/openrouter-language-model.ts): OpenAI's models and our own aliases (`instrument/auto`, which the platform gateway resolves to an OpenAI model) go to `/responses` through `@ai-sdk/openai`'s Responses model, and every other vendor goes to `/chat/completions` through `@openrouter/ai-sdk-provider`, which carries that vendor's reasoning fixes. Both reach the same gateway URL, so the proxy, auth, and attribution do not change.
+
+The reason is `phase`. GPT-5 models write a reply as message items tagged `commentary` and `final_answer`, and OpenAI says a history that drops the tag degrades them. Chat Completions cannot represent two message items, so OpenRouter's bridge concatenates their text with a blank line, the phase is gone, and a turn whose commentary and final answer are the same words arrives as one line said twice. On the Responses path each item is its own text part with `providerMetadata.openai.phase`, which the store keeps and hands back as `providerOptions` on the next turn. [A reply that arrives twice](../findings/a-reply-that-arrives-twice.md) has the measurements.
+
+Three things the Responses path has to carry that Chat Completions did not: `store: false` on every request, since OpenRouter keeps nothing and the SDK would otherwise replay an earlier reply as a reference to its item id; `forceReasoning` for a model the catalog says reasons, since the SDK reads reasoning support off a bare `gpt-5` id and ours carry a vendor prefix; and `reasoningSummary: "auto"`, so the transcript keeps showing the model's thinking the way the Chat Completions path did, even on a turn that sets an effort. The first is a middleware on the model itself (`defaultSettingsMiddleware`), so no caller can leave it off; the other two come from `providerOptionsForModel`, which knows the catalog. With storage off on a model it treats as reasoning, the SDK asks for `reasoning.encrypted_content` on its own, so the model's reasoning comes back encrypted and replays on the next turn. Encrypted reasoning is bound to the model that produced it, so `remove-cross-model-reasoning-details` in workspace strips it, as it strips OpenRouter's, when a session's model changes.
 
 ## Requested and served models
 
@@ -44,5 +52,5 @@ The same rule covers images and web search. Our image alias (`OUR_MODELS.image.i
 
 ## Consumers
 
-- **workspace** — mounts the app into its server, uses `env-for-provider-configs` when spawning runtimes, and calls model/image helpers from agents and tools.
-- **studio** — persists the model cache (`stores/model-cache`), supplies provider configs, and drives model-picker / model-badge UI from the model library and schemas.
+- **workspace** — mounts the app into its server, and points every in-process model and image call at it (`internalURL`), which is where a provider's credentials are added.
+- **studio** — persists the model cache (`stores/machine/model-cache`), supplies provider configs, and drives model-picker / model-badge UI from the model library and schemas.

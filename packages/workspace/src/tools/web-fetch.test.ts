@@ -321,13 +321,14 @@ describe("WebFetch page cache", () => {
     }
     expect(second.text).toContain("The article body.");
     expect(second.cachedAgeMs).toBeGreaterThanOrEqual(0);
-    expect(
-      WebFetch.toModelOutput({
-        input: { url: "https://93.184.216.34/article" },
-        output: second,
-        toolCallId: "test",
-      }).value,
-    ).toContain("served from a local cache");
+    const modelOutput = WebFetch.toModelOutput({
+      input: { url: "https://93.184.216.34/article" },
+      output: second,
+      toolCallId: "test",
+    });
+    expect(modelOutput.type === "text" ? modelOutput.value : "").toContain(
+      "served from a local cache",
+    );
   });
 
   it("re-renders the held body for the second call's own parameters", async () => {

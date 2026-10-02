@@ -12,6 +12,14 @@ export namespace StorageKey {
     return ["attached-folders-baseline", sessionId].join(SEPARATOR);
   }
 
+  // Per-session record of the background processes the agent was last told
+  // about. The registry itself is in memory, so this is the only thing that
+  // survives a restart to say what the session believes is running -- which is
+  // what makes "the server you started is gone" sayable at all.
+  export function backgroundProcessesReported(sessionId: StoreId.Session) {
+    return ["background-processes-reported", sessionId].join(SEPARATOR);
+  }
+
   // Per-session latch for whether reaching a page has already taken the pane
   // during the turn now running. Lowered as each user message is composed, so a
   // turn takes the pane at most once however many pages it visits.
@@ -29,12 +37,27 @@ export namespace StorageKey {
     return StoreId.MessageSchema.parse(messageKey.split(SEPARATOR).at(-1));
   }
 
+  // The session segment of a message key, for a listing that spans sessions.
+  export function extractMessageSessionId(messageKey: string): StoreId.Session {
+    return StoreId.SessionSchema.parse(messageKey.split(SEPARATOR).at(1));
+  }
+
   export function extractPartId(partKey: string): StoreId.Part {
     return StoreId.PartSchema.parse(partKey.split(SEPARATOR).at(-1));
   }
 
   export function extractSessionId(sessionKey: string): StoreId.Session {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
+  }
+
+  // Per-session record of the pane tabs the agent was last told about, so a
+  // turn only carries the list when it has changed. Keyed by session because
+  // what a given conversation has been told is a fact about that conversation.
+  // The revision of memory a session was last told, so a turn only carries the
+  // list when something changed since. Keyed by session for the same reason
+  // the pane report is.
+  export function memoryReported(sessionId: StoreId.Session) {
+    return ["memory-reported", sessionId].join(SEPARATOR);
   }
 
   export function message(
@@ -48,9 +71,6 @@ export namespace StorageKey {
     return [MESSAGES_KEY, sessionId].join(SEPARATOR);
   }
 
-  // Per-session record of the pane tabs the agent was last told about, so a
-  // turn only carries the list when it has changed. Keyed by session because
-  // what a given conversation has been told is a fact about that conversation.
   export function paneTabsReported(sessionId: StoreId.Session) {
     return ["pane-tabs-reported", sessionId].join(SEPARATOR);
   }
@@ -76,5 +96,13 @@ export namespace StorageKey {
 
   export function sessions() {
     return "sessions";
+  }
+
+  // Per-session baseline of the apps the task may reach, diffed against its
+  // settings when composing a user message so an app handed to it (or taken
+  // back) after it started reaches the model at all. Keyed by session for the
+  // same reason the folder baseline is.
+  export function taskAppsBaseline(sessionId: StoreId.Session) {
+    return ["task-apps-baseline", sessionId].join(SEPARATOR);
   }
 }

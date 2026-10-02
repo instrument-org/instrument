@@ -2,24 +2,28 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { scheduleRefresh as scheduleChatGPTPlanRefresh } from "@/electron-main/lib/chatgpt-plan";
 import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
+import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
-  createMainWindow,
-  ensureMainWindowVisible,
-  updateMainWindowBackgroundColor,
-} from "@/electron-main/windows/main";
-import { focusMainContents } from "@/electron-main/windows/main/controls";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+  getAppWindow,
+  openAppFile,
+  openAppScreen,
+  openAppWindow,
+  updateAppWindowBackgroundColor,
+} from "@/electron-main/windows/app-window";
+import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import {
-  getOnboardingWindow,
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
+import { revealTask } from "@/electron-main/windows/reveal-task";
+import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -32,12 +36,13 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
-import { registerAppProtocol } from "./lib/app-protocol";
+import { configureAppSession } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
@@ -47,8 +52,8 @@ import {
   serveResolvedTheme,
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
-import { applyStandardUserAgent } from "./lib/user-agent";
 import { configurePlatformAuthenticator } from "./lib/web-authn";
+import { servePageEditorBoot } from "./page-editor/sessions";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: AppUpdaterHandle | undefined;
 
@@ -86,9 +91,28 @@ if (gotTheLock) {
     if (url) {
       handleDeepLink(url);
     }
+    for (const filePath of filesInArgv(commandLine, {
+      defaultApp: process.defaultApp,
+    })) {
+      openAppFile(filePath);
+    }
   });
 
-  // eslint-disable-next-line unicorn/prefer-top-level-await
+  // A file handed over from the Finder: a double click where Instrument is
+  // the default, or Open With. Listened for before ready, because a file that
+  // launches the app arrives before it is; the screen waits for the window.
+  app.on("open-file", (event, filePath) => {
+    event.preventDefault();
+    openAppFile(filePath);
+  });
+
+  // The same hand-over on Windows and Linux, for a launch that starts the app.
+  for (const filePath of filesInArgv(process.argv, {
+    defaultApp: process.defaultApp,
+  })) {
+    openAppFile(filePath);
+  }
+
   void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
 } else {
   // A lock loser has no application state to tear down. Exit synchronously so
@@ -102,8 +126,6 @@ async function bootstrapPrimaryInstance() {
     app.quit();
     return;
   }
-
-  registerAppProtocol();
 
   if (
     process.platform === "darwin" &&
@@ -144,26 +166,13 @@ async function bootstrapPrimaryInstance() {
     }
   }
 
-  // Present the identity of an ordinary Chromium-derived browser, with matching
-  // client hints, for the app's own remote requests (user avatars, embedded
-  // remote images), for compatibility with services that respond differently to
-  // the Electron UA.
-  applyStandardUserAgent(session.defaultSession);
+  // The app's windows run on the workspace's own session (getAppSession); the
+  // default one still makes the main process's own requests.
+  configureAppSession(session.defaultSession);
 
   // Let a site's passkey prompt reach an authenticator, in the task browser and
   // here. Nothing services one until this runs.
   configurePlatformAuthenticator();
-
-  session.defaultSession.setPermissionRequestHandler(
-    (_webContents, permission, callback) => {
-      // Disable fullscreen API for things like video players
-      if (permission === "fullscreen") {
-        callback(false);
-      } else {
-        callback(true);
-      }
-    },
-  );
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -177,6 +186,7 @@ async function bootstrapPrimaryInstance() {
   nativeTheme.on("updated", applyThemeToWindows);
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
+  servePageEditorBoot();
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 
@@ -198,7 +208,15 @@ async function bootstrapPrimaryInstance() {
     }),
   );
 
-  startAgentCompletionNotifications({ workspaceConfig, workspaceRef });
+  // A signed-in ChatGPT plan's access token lasts an hour.
+  scheduleChatGPTPlanRefresh();
+
+  startAgentCompletionNotifications({
+    hasAppWindow: () => getAppWindow() !== null,
+    revealTask,
+    workspaceConfig,
+    workspaceRef,
+  });
 
   const updater = createStudioAppUpdater({
     confirmQuit: confirmQuitWithRunningAgents,
@@ -221,9 +239,8 @@ async function bootstrapPrimaryInstance() {
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
-    void createMainWindow({ reveal: false });
   } else {
-    await timeBootStep("createMainWindow", () => createMainWindow());
+    openAppWindow();
   }
 
   // Let the initial window render before running the best-effort cache warmup.
@@ -245,7 +262,7 @@ async function bootstrapPrimaryInstance() {
       if (shouldShowOnboarding()) {
         openOnboardingWindow();
       } else {
-        void createMainWindow();
+        openAppWindow();
       }
     }
   });
@@ -256,28 +273,19 @@ async function bootstrapPrimaryInstance() {
 }
 
 /**
- * Bring the active foreground window forward. The main window is the target
- * once visible; while it is still hidden (e.g. prepared during onboarding),
- * onboarding stays the foreground target so focus never lands on nothing.
+ * Bring the active foreground window forward.
  *
- * With no window left at all this opens one. Relaunching the app is how a user
- * asks for a window back, and the single-instance lock routes that launch here
- * instead of starting a process that could serve it.
+ * With no window to come forward this opens one. Relaunching the app is how a
+ * user asks for a window back, and the single-instance lock routes that launch
+ * here instead of starting a process that could serve it.
  */
 function focusForegroundWindow() {
-  const mainWindow = getMainWindow();
-  if (mainWindow?.isVisible()) {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
+  const target = getForegroundWindow();
+  if (target?.isVisible()) {
+    if (target.isMinimized()) {
+      target.restore();
     }
-    mainWindow.focus();
-    focusMainContents();
-    return;
-  }
-
-  const onboardingWindow = getOnboardingWindow();
-  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
-    onboardingWindow.focus();
+    target.focus();
     return;
   }
 
@@ -290,19 +298,27 @@ function focusForegroundWindow() {
     openOnboardingWindow();
     return;
   }
-  void ensureMainWindowVisible();
+  ensureForegroundWindowVisible();
 }
 
-function handleDeepLink(_url: string) {
+/**
+ * A link from outside the app: the website's "Try in Instrument", a reply's
+ * address pasted somewhere else. What it names is a screen of the window,
+ * read the way a reply's link is.
+ */
+function handleDeepLink(url: string) {
   focusForegroundWindow();
+  const link = instrumentLinkOf(url);
+  if (link) {
+    openAppScreen(link.href);
+  }
 }
 
 function shouldShowOnboarding(): boolean {
   if (process.env.SKIP_ONBOARDING === "true") {
     return false;
   }
-  const appStateStore = getAppStateStore();
-  return !appStateStore.get("hasCompletedProviderSetup");
+  return !getWorkspaceState().get("hasCompletedProviderSetup");
 }
 
 // Closing the last window quits, on macOS too. Staying resident is the macOS
@@ -315,6 +331,6 @@ app.on("window-all-closed", () => {
 });
 
 function applyThemeToWindows() {
-  updateMainWindowBackgroundColor();
   updateOnboardingWindowBackgroundColor();
+  updateAppWindowBackgroundColor();
 }

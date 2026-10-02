@@ -5,12 +5,9 @@ import { resolveRpcProcedure } from "./resolve-rpc-procedure";
 describe("resolveRpcProcedure", () => {
   it("resolves a nested procedure by dot path and forwards the call", async () => {
     const call = vi.fn().mockResolvedValue("ok");
-    const root = { workspace: { debug: { replaySession: { call } } } };
+    const root = { workspace: { debug: { runBash: { call } } } };
 
-    const procedure = resolveRpcProcedure(
-      root,
-      "workspace.debug.replaySession",
-    );
+    const procedure = resolveRpcProcedure(root, "workspace.debug.runBash");
     const result = await procedure.call({ id: "task-1" });
 
     expect(call).toHaveBeenCalledWith({ id: "task-1" });

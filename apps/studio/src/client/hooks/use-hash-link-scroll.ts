@@ -1,4 +1,5 @@
 import { zoomAtom } from "@/client/atoms/zoom";
+import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 
@@ -57,6 +58,7 @@ export const useHashLinkScroll = () => {
 
         const element = findFragmentTarget(searchRoot, href.slice(1));
         if (element) {
+          flashJumpTarget(element);
           // The smooth scroll below is programmatic, so the transcript's
           // scroller never counts it as the reader taking over: left following
           // the live end, the next content growth pulls the view back to the

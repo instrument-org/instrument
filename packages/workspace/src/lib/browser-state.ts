@@ -34,9 +34,34 @@ const BrowserStateSchema = z.object({
   lastTitle: z.string().optional(),
   lastUrl: z.string().optional(),
   lastUsedAt: z.date(),
+  /**
+   * The hosts this session's browser has been on, oldest first, each once,
+   * the newest visit moving its host to the end. What a chat shows as the
+   * sites its work used: the pages themselves are too many to keep and too
+   * many to draw, and a host is the mark a person recognizes.
+   */
+  visitedHosts: z.array(z.string()).optional(),
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;
+
+/** How many hosts a session remembers; a long crawl keeps its newest. */
+const VISITED_HOSTS_MAX = 40;
+
+/** The hosts with one more visit at the end, that host said once. */
+function withVisit(hosts: string[] | undefined, url: string): string[] {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return hosts ?? [];
+  }
+  if (host === "") {
+    return hosts ?? [];
+  }
+  const rest = (hosts ?? []).filter((known) => known !== host);
+  return [...rest, host].slice(-VISITED_HOSTS_MAX);
+}
 
 const RevealedThisTurnSchema = z.boolean();
 
@@ -186,6 +211,9 @@ export function recordBrowserUse({
           }
         : {}),
       lastUsedAt: new Date(),
+      ...(isNewPage
+        ? { visitedHosts: withVisit(current?.visitedHosts, nextUrl) }
+        : {}),
     };
     yield* setParsedStorageItem(
       StorageKey.browserState(sessionId),
@@ -203,6 +231,52 @@ export function recordBrowserUse({
     if (isNewPage) {
       await revealBrowserTab({ sessionId, signal, storage, taskId });
     }
+    return ok(undefined);
+  });
+}
+
+/**
+ * Add the hosts of pages a session's work is on to what it has visited,
+ * without the rest of {@link recordBrowserUse}: a chat's task works in tabs
+ * of the chat, opened behind whatever the user has up, so neither the page it
+ * lands on nor the pane is this session's to record or move.
+ */
+export function recordVisitedHosts({
+  sessionId,
+  signal,
+  taskId,
+  urls,
+}: {
+  sessionId: StoreId.Session;
+  signal?: AbortSignal;
+  taskId: TaskId;
+  urls: string[];
+}) {
+  return safeTry(async function* () {
+    const current = yield* getBrowserState(taskId, sessionId, { signal });
+    const known = new Set(current?.visitedHosts);
+    // Every command runs through here with every tab it holds, so only a host
+    // the session has not been on is worth a write; one it has been on stays
+    // where its first visit put it. A blank page or a file has no host.
+    const fresh = urls.filter((url) => {
+      const host = hostnameOf(url);
+      return host !== "" && !known.has(host);
+    });
+    if (fresh.length === 0) {
+      return ok(undefined);
+    }
+    let visitedHosts = current?.visitedHosts ?? [];
+    for (const url of fresh) {
+      visitedHosts = withVisit(visitedHosts, url);
+    }
+    const storage = yield* getSessionsStoreStorage(taskId);
+    yield* setParsedStorageItem(
+      StorageKey.browserState(sessionId),
+      { ...current, lastUsedAt: new Date(), visitedHosts },
+      BrowserStateSchema,
+      storage,
+      { signal },
+    );
     return ok(undefined);
   });
 }
@@ -278,6 +352,14 @@ export function takeBrowserClosed(
     );
     return ok(current);
   });
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 /**

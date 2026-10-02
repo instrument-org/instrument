@@ -5,16 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "../ui/skeleton";
 import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
-export function TaskUsageSummary({
-  id,
-  onClick,
-}: {
-  id: TaskId;
-  onClick?: () => void;
-}) {
+/**
+ * A task's messages and tokens across every session it ran, for a developer
+ * reading the task header. Live, so a running task's totals climb as it
+ * streams; the tooltip breaks the tokens down and adds the time spent.
+ */
+export function TaskUsageSummary({ taskId }: { taskId: TaskId }) {
   const { data } = useQuery(
     rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({
-      input: { id },
+      input: { id: taskId },
     }),
   );
 
@@ -22,9 +21,7 @@ export function TaskUsageSummary({
     <div className="flex min-w-0 items-center gap-2 text-[10px] text-dev-700/60 dark:text-dev-300/60">
       {data ? (
         <UsageStatsTooltip
-          aria-label={onClick ? "View transcript" : undefined}
           messageCount={data.messageCount}
-          onClick={onClick}
           stats={{
             activeDuration: data.activeMs,
             generationDuration: data.msToFinish,

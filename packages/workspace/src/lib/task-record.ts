@@ -172,6 +172,25 @@ export async function updateTaskRecord(
   });
 }
 
+/**
+ * Applies a change to the state, reading the current one inside the write
+ * queue.
+ *
+ * For the fields that are read-modify-write on one value with several writers
+ * at once: the window records what has been seen in a chat while the agent
+ * tags it and a task files itself from it. Reading before the queue means the
+ * slower writer restores the value the faster one had just changed.
+ */
+export async function updateTaskState(
+  dir: TaskDir,
+  update: (state: TaskState) => Partial<TaskState>,
+): Promise<TaskState> {
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, update(record.state)),
+  );
+  return written.state;
+}
+
 function emptyRecord(unreadable: boolean): TaskRecord {
   return {
     raw: {},
@@ -179,6 +198,16 @@ function emptyRecord(unreadable: boolean): TaskRecord {
     state: StoredTaskStateSchema.parse({}),
     unreadable,
   };
+}
+
+function isBusy(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "EPERM" ||
+      error.code === "EACCES" ||
+      error.code === "EBUSY")
+  );
 }
 
 function isNotFound(error: unknown): boolean {
@@ -222,53 +251,23 @@ function recordPath(dir: TaskDir): AbsolutePath {
  * matters more, since the top level is a closed set and `state` is the half
  * that keeps growing.
  *
- * The parsed view still wins over raw, so a value `migrateTaskState` rewrote is
- * not overwritten by the old shape sitting beneath it.
+ * The raw state goes through `migrateTaskState` too, so a key it renamed is
+ * written under its new name only rather than kept beside it, and the parsed
+ * view still wins over raw.
  */
 function recordWithState(
   record: TaskRecord,
   changes: Partial<TaskState>,
 ): Record<string, unknown> {
+  const raw = migrateTaskState(record.raw.state);
   return {
     ...record.raw,
     state: {
-      ...(isRecord(record.raw.state) ? record.raw.state : {}),
+      ...(isRecord(raw) ? raw : {}),
       ...record.state,
       ...changes,
     },
   };
-}
-
-/**
- * Writes through a temporary file and renames it into place.
- *
- * One file now carries the title, the sort key and the draft, and the draft is
- * rewritten as the user types. Writing over the live file leaves a window where
- * a crash truncates it, and a truncated file does not read as damaged: the
- * parse fails, the task answers as though it has no settings, and it loses its
- * name and its position in the list. Rename is atomic within a directory, so a
- * reader sees the old file or the new one.
- */
-async function writeTaskRecord(
-  dir: TaskDir,
-  record: Record<string, unknown>,
-): Promise<void> {
-  const target = recordPath(dir);
-  // Named per process so two app instances sharing a workspace cannot write
-  // each other's temporary file. That is all it buys: the writes are still
-  // unordered across instances and the last rename wins. Within one process the
-  // queue orders them.
-  const temporary = `${target}.${process.pid}.tmp`;
-
-  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
-
-  try {
-    await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
-    await renameWhenAllowed(temporary, target);
-  } catch (error) {
-    await fs.rm(temporary, { force: true });
-    throw error;
-  }
 }
 
 /**
@@ -303,12 +302,34 @@ async function renameWhenAllowed(
   }
 }
 
-function isBusy(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "EPERM" ||
-      error.code === "EACCES" ||
-      error.code === "EBUSY")
-  );
+/**
+ * Writes through a temporary file and renames it into place.
+ *
+ * One file now carries the title, the sort key and the draft, and the draft is
+ * rewritten as the user types. Writing over the live file leaves a window where
+ * a crash truncates it, and a truncated file does not read as damaged: the
+ * parse fails, the task answers as though it has no settings, and it loses its
+ * name and its position in the list. Rename is atomic within a directory, so a
+ * reader sees the old file or the new one.
+ */
+async function writeTaskRecord(
+  dir: TaskDir,
+  record: Record<string, unknown>,
+): Promise<void> {
+  const target = recordPath(dir);
+  // Named per process so two app instances sharing a workspace cannot write
+  // each other's temporary file. That is all it buys: the writes are still
+  // unordered across instances and the last rename wins. Within one process the
+  // queue orders them.
+  const temporary = `${target}.${process.pid}.tmp`;
+
+  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
+
+  try {
+    await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
+    await renameWhenAllowed(temporary, target);
+  } catch (error) {
+    await fs.rm(temporary, { force: true });
+    throw error;
+  }
 }

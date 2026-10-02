@@ -30,7 +30,9 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 
 import { TASK_FOLDER_NAMES } from "../src/constants";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { assignMountNames } from "../src/lib/assign-mount-names";
+import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { FolderAttachment } from "../src/schemas/folder-attachment";
@@ -39,6 +41,7 @@ import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 
 function parseArgs(argv: string[]) {
   const attach: { access: FolderAttachment.Access; path: string }[] = [];
@@ -109,6 +112,8 @@ const uvBinPath = AbsolutePathSchema.parse(
 );
 
 setWorkspaceConfig({
+  apps: createMemoryAppsConfig(),
+  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
   captureEvent: () => {
@@ -121,6 +126,8 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
+  isActivityHeadingsEnabled: () =>
+    process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
   isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
@@ -145,17 +152,18 @@ setWorkspaceConfig({
   webSearch: unavailableWebSearchClient,
 });
 
+// On this thread unless INSTRUMENT_BASH_WORKER=1 asks for the bash worker.
+if (process.env.INSTRUMENT_BASH_WORKER === "1") {
+  setBashWorkerFactory(createTsxBashWorker);
+}
+
 const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());
 
 const taskDir = path.join(tasksDir, taskId);
 await fs.mkdir(taskDir, { recursive: true });
-// Match initializeTask's guarantee: the agent-visible triad always exists
+// Match initializeTask's guarantee: the agent-visible pair always exists
 // (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [
-  TASK_FOLDER_NAMES.attachments,
-  TASK_FOLDER_NAMES.output,
-  TASK_FOLDER_NAMES.work,
-]) {
+for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
   await fs.mkdir(path.join(taskDir, dirName), { recursive: true });
 }
 
@@ -183,6 +191,15 @@ const bash = await createBashEnv({
 process.stderr.write(
   `task dir: ${taskDir}\ntask: ${taskId}  session: ${sessionId}\n\n`,
 );
+
+// js-exec keeps its QuickJS worker for reuse past the end of a command, and
+// the port behind it holds the process open, so the exit has to be explicit,
+// once both pipes (asynchronous on macOS) have drained.
+function exit(exitCode: number) {
+  process.stdout.write("", () => {
+    process.stderr.write("", () => process.exit(exitCode));
+  });
+}
 
 async function runCommand(cmd: string) {
   const started = performance.now();
@@ -233,7 +250,7 @@ async function runCommands(commands: string[], { bail }: { bail: boolean }) {
 }
 
 if (args.commands.length > 0) {
-  process.exitCode = await runCommands(args.commands, { bail: args.bail });
+  exit(await runCommands(args.commands, { bail: args.bail }));
 } else {
   const isInteractive = process.stdin.isTTY;
   const rl = readline.createInterface({
@@ -273,5 +290,5 @@ if (args.commands.length > 0) {
   }
 
   rl.close();
-  process.exitCode = exitCode;
+  exit(exitCode);
 }

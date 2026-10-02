@@ -1,28 +1,53 @@
 export type { AgentName } from "./agents/types";
 export {
   AGENT_FILES_LANGUAGE,
+  AGENT_MESSAGE_LANGUAGE,
   MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
-export { attachedFolderChangesModelNote } from "./lib/attached-folder-changes-model-text";
+export { appEventModelNote } from "./lib/app-event-model-text";
+export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
+export { chatContextModelNote } from "./lib/chat-context-model-text";
+export { chatTopicsModelNote } from "./lib/chat-topics-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
+export { describeMessageError } from "./lib/describe-message-error";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";
 export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
+export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
+export type { ComputerListing } from "./lib/orchestrator/computer";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
+export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
+export {
+  isMessageDocument,
+  MESSAGE_FENCE,
+  MESSAGE_KINDS,
+  type MessageDraft,
+  type MessageKind,
+  parseMessage,
+} from "./lib/parse-message";
+export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
+export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
-export { isAddressableTaskFilePath } from "./lib/task-file-path";
+export { taskEventModelNote } from "./lib/task-event-model-text";
+export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";
+export {
+  isAddressableTaskFilePath,
+  isFolderPath,
+  nameOfPath,
+} from "./lib/task-file-path";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,
 } from "./lib/usage-summary-compute";
+export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
@@ -38,6 +63,7 @@ export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export { TaskPane } from "./schemas/task-pane";
+export type { WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {
   type BrowserTargetId,

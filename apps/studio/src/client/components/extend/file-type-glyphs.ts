@@ -1,0 +1,348 @@
+// File-type glyphs for the types the @pierre/trees "complete" set leaves on its
+// generic page: media, office documents, mail, calendars, contacts, links,
+// keys, 3D models, compiled binaries, spreadsheets, and code without a brand
+// glyph. Drawn
+// in that set's vocabulary (16×16, the dog-eared page at 40% behind a solid
+// mark in the same color) so they sit beside the built-ins as one family.
+// Markup is the inside of a <symbol viewBox="0 0 16 16">.
+
+const PAGE = `<path fill="currentColor" d="M8 1v3a3 3 0 0 0 3 3h3v5.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 12.5v-9A2.5 2.5 0 0 1 4.5 1z" opacity=".4"/><path fill="currentColor" d="M9.5 1a.5.5 0 0 1 .354.146l4 4A.5.5 0 0 1 14 5.5V6h-3a2 2 0 0 1-2-2V1z"/>`;
+
+export const FILE_TYPE_GLYPHS = {
+  audio: {
+    // Built-in palette: indigo.
+    colors: ["#693acf", "#9d6afb"],
+    extensions: [
+      "aac",
+      "aif",
+      "aifc",
+      "aiff",
+      "caf",
+      "flac",
+      "m4a",
+      "mid",
+      "midi",
+      "mp3",
+      "oga",
+      "ogg",
+      "opus",
+      "wav",
+      "weba",
+      "wma",
+    ],
+    markup: `${PAGE}<path fill="currentColor" d="M8.25 12.5V8.1a.5.5 0 0 1 .68-.47l2.5.94a.5.5 0 0 1 .32.47v.9a.5.5 0 0 1-.68.47l-1.82-.68v2.77z"/><circle cx="7.5" cy="12.25" r="1.75" fill="currentColor"/>`,
+  },
+  binary: {
+    // Built-in palette: indigo. Compiled objects and libraries; installers
+    // and disk images borrow the zip glyph instead (FILE_TYPE_ALIASES).
+    colors: ["#693acf", "#9d6afb"],
+    extensions: ["a", "bin", "dll", "dylib", "lib", "o", "so"],
+    markup: `${PAGE}<rect width="1" height="4.5" x="5" y="8" fill="currentColor" rx=".5"/><rect width="2.5" height="3.5" x="8.25" y="8.5" fill="none" stroke="currentColor" rx="1.25"/>`,
+  },
+  calendar: {
+    // Built-in palette: red.
+    colors: ["#d52c36", "#ff6762"],
+    extensions: ["ics", "ical", "icalendar", "ifb", "vcs"],
+    markup: `<path fill="currentColor" d="M2 6h12v5.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5z" opacity=".4"/><path fill="currentColor" d="M4.5 3h7A2.5 2.5 0 0 1 14 5.5V6H2v-.5A2.5 2.5 0 0 1 4.5 3M5 1.5a.5.5 0 0 1 1 0V4a.5.5 0 0 1-1 0zm5 0a.5.5 0 0 1 1 0V4a.5.5 0 0 1-1 0zM4 8h2v1.5H4zm3 0h2v1.5H7zm3 0h2v1.5h-2zm-6 2.5h2V12H4zm3 0h2V12H7z"/>`,
+  },
+  code: {
+    // Built-in palette: teal. The mark is code-block-duo from Pierre's
+    // @pierre/vscode-icons (MIT, The Pierre Computer Company), for languages
+    // the set has no brand glyph for.
+    colors: ["#17a5af", "#64d1db"],
+    extensions: [
+      "abap",
+      "ada",
+      "atom",
+      "clj",
+      "cljc",
+      "cljs",
+      "cmake",
+      "coffee",
+      "cs",
+      "dart",
+      "edn",
+      "elm",
+      "erl",
+      "ex",
+      "exs",
+      "fs",
+      "fsx",
+      "gd",
+      "gleam",
+      "glsl",
+      "gml",
+      "gpx",
+      "groovy",
+      "haml",
+      "hbs",
+      "hlsl",
+      "hs",
+      "hx",
+      "java",
+      "jl",
+      "kml",
+      "kt",
+      "kts",
+      "latex",
+      "lisp",
+      "lua",
+      "m",
+      "ml",
+      "nim",
+      "nix",
+      "objc",
+      "pas",
+      "perl",
+      "php",
+      "pl",
+      "pm",
+      "proto",
+      "pug",
+      "r",
+      "rss",
+      "scala",
+      "scheme",
+      "scm",
+      "sol",
+      "sty",
+      "tcl",
+      "tex",
+      "vb",
+      "vim",
+      "xml",
+      "xsl",
+    ],
+    markup: `<path fill="currentColor" fill-rule="evenodd" d="M8 1q1.99-.02 3.35.27c.91.2 1.67.54 2.26 1.130s.92 1.34 1.12 2.25Q15.01 6.01 15 8a13 13 0 0 1-.27 3.35c-.2.91-.54 1.67-1.12 2.26s-1.34.92-2.26 1.12Q9.99 15.01 8 15a13 13 0 0 1-3.35-.27 4.4 4.4 0 0 1-2.25-1.12 4.4 4.4 0 0 1-1.13-2.26Q.99 9.99 1 8c.01-1.99.07-2.44.27-3.350S1.8 2.98 2.4 2.4a4.4 4.4 0 0 1 2.25-1.13Q6.01.99 8 1" clip-rule="evenodd" opacity=".2"/><path fill="currentColor" d="M6.15 5.15a.5.5 0 1 1 .7.7L4.71 8l2.14 2.15a.5.5 0 1 1-.7.7l-2.5-2.5a.5.5 0 0 1 0-.7zm3 0a.5.5 0 0 1 .7 0l2.5 2.5a.5.5 0 0 1 0 .7l-2.5 2.5a.5.5 0 1 1-.7-.7L11.29 8 9.15 5.850a.5.5 0 0 1 0-.7"/>`,
+  },
+  contact: {
+    // Built-in palette: green.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: ["vcard", "vcf"],
+    markup: `<path fill="currentColor" d="M3.5 3h9A2.5 2.5 0 0 1 15 5.5v5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 10.5v-5A2.5 2.5 0 0 1 3.5 3" opacity=".4"/><path fill="currentColor" d="M7 6.75a1.75 1.75 0 1 1-3.5 0 1.75 1.75 0 0 1 3.5 0M2.75 11c0-1.38 1.12-2.25 2.5-2.25s2.5.87 2.5 2.25a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5M9.5 6h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1m0 2.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1"/>`,
+  },
+  document: {
+    // Built-in palette: blue.
+    colors: ["#1a85d4", "#69b1ff"],
+    extensions: [
+      "doc",
+      "docm",
+      "docx",
+      "dot",
+      "dotx",
+      "epub",
+      "mobi",
+      "odt",
+      "ott",
+      "pages",
+      "wpd",
+    ],
+    markup: `${PAGE}<path fill="currentColor" d="M4.5 8h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1m0 2h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1m0 2h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1"/>`,
+  },
+  key: {
+    // Built-in palette: yellow. ".key" stays with presentation: Keynote
+    // decks outnumber private keys on the computers this runs on.
+    colors: ["#d5a910", "#ffd452"],
+    extensions: ["cer", "crt", "csr", "der", "p12", "p7b", "pem", "pfx"],
+    markup: `<path fill="currentColor" d="M7.5 7.25h6a.75.75 0 0 1 .75.75v2.25a.5.5 0 0 1-.5.5h-.5a.5.5 0 0 1-.5-.5V9h-1v1.75a.5.5 0 0 1-.5.5h-.5a.5.5 0 0 1-.5-.5V9h-2.75z" opacity=".6"/><path fill="currentColor" fill-rule="evenodd" d="M4.75 4.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5m0 2.5a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5"/>`,
+  },
+  link: {
+    // Built-in palette: blue.
+    colors: ["#1a85d4", "#69b1ff"],
+    extensions: ["desktop", "inetloc", "lnk", "url", "webloc"],
+    markup: `${PAGE}<g fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(-45 8 10.5)"><rect width="4.4" height="2.2" x="4.3" y="9.4" rx="1.1"/><rect width="4.4" height="2.2" x="7.3" y="9.4" rx="1.1"/></g>`,
+  },
+  mail: {
+    // Built-in palette: cyan.
+    colors: ["#1ca1c7", "#68cdf2"],
+    extensions: ["eml", "emlx", "mbox", "msg", "oft"],
+    markup: `<path fill="currentColor" d="M3.5 3h9A2.5 2.5 0 0 1 15 5.5v5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 10.5v-5A2.5 2.5 0 0 1 3.5 3" opacity=".4"/><path fill="currentColor" d="M3.21 5.09a.5.5 0 0 1 .7-.12L8 7.89l4.09-2.92a.5.5 0 1 1 .58.81l-4.38 3.13a.5.5 0 0 1-.58 0L3.33 5.78a.5.5 0 0 1-.12-.7"/>`,
+  },
+  model: {
+    // Built-in palette: yellow.
+    colors: ["#d5a910", "#ffd452"],
+    extensions: [
+      "3ds",
+      "3mf",
+      "blend",
+      "dae",
+      "fbx",
+      "glb",
+      "gltf",
+      "obj",
+      "ply",
+      "reality",
+      "stl",
+      "usd",
+      "usda",
+      "usdc",
+      "usdz",
+    ],
+    markup: `<path fill="currentColor" d="M7.55 1.62a1 1 0 0 1 .9 0l5 2.5a.5.5 0 0 1 0 .9L8 7.75 2.55 5.02a.5.5 0 0 1 0-.9z" opacity=".4"/><path fill="currentColor" d="M2 6.06 7.5 8.6v6.1a.5.5 0 0 1-.72.45l-4.23-2.12A1 1 0 0 1 2 12.14z" opacity=".7"/><path fill="currentColor" d="M14 6.06 8.5 8.6v6.1a.5.5 0 0 0 .72.45l4.23-2.12a1 1 0 0 0 .55-.89z"/>`,
+  },
+  numbers: {
+    // Built-in palette: green, as spreadsheet, but bars rather than a grid:
+    // Numbers files are as often charts and layouts as they are tables.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: ["numbers"],
+    markup: `${PAGE}<rect width="2" height="2.5" x="4.5" y="10.5" fill="currentColor" rx=".5"/><rect width="2" height="5" x="7" y="8" fill="currentColor" rx=".5"/><rect width="2" height="3.75" x="9.5" y="9.25" fill="currentColor" rx=".5"/>`,
+  },
+  pdf: {
+    // Built-in palette: red.
+    colors: ["#d52c36", "#ff6762"],
+    extensions: ["pdf"],
+    markup: `${PAGE}<path fill="currentColor" d="M4.5 8h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1m0 2h7a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5"/>`,
+  },
+  presentation: {
+    // Built-in palette: orange.
+    colors: ["#d47628", "#ffa359"],
+    extensions: [
+      "key",
+      "odp",
+      "otp",
+      "pot",
+      "potx",
+      "pps",
+      "ppsx",
+      "ppt",
+      "pptm",
+      "pptx",
+    ],
+    markup: `${PAGE}<path fill="currentColor" fill-rule="evenodd" d="M4.5 8h7a.5.5 0 0 1 .5.5V12a.5.5 0 0 1-.5.5h-7A.5.5 0 0 1 4 12V8.5a.5.5 0 0 1 .5-.5M5.5 11.25h1v-1h-1zm2 0h1v-2h-1zm2 0h1V9.75h-1z"/>`,
+  },
+  spreadsheet: {
+    // Built-in palette: green, apart from the teal of the set's table glyph,
+    // which plain delimited text (csv, tsv) keeps. A solid header row over
+    // three columns of cells.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: [
+      "ods",
+      "ots",
+      "xls",
+      "xlsb",
+      "xlsm",
+      "xlsx",
+      "xlt",
+      "xltm",
+      "xltx",
+    ],
+    markup: `${PAGE}<path fill="currentColor" d="M4.5 7.5h7a.5.5 0 0 1 .5.5v1H4V8a.5.5 0 0 1 .5-.5"/><path fill="currentColor" d="M4 9.5h2.25V11H4zm2.75 0h2.5V11h-2.5zm3 0H12V11H9.75zM4 11.5h2.25V13H4.5a.5.5 0 0 1-.5-.5zm2.75 0h2.5V13h-2.5zm3 0H12v1a.5.5 0 0 1-.5.5H9.75z" opacity=".75"/>`,
+  },
+  video: {
+    // Built-in palette: purple.
+    colors: ["#a631be", "#d568ea"],
+    extensions: [
+      "3g2",
+      "3gp",
+      "avi",
+      "flv",
+      "m2ts",
+      "m4v",
+      "mkv",
+      "mov",
+      "mp4",
+      "mpeg",
+      "mpg",
+      "ogv",
+      "qt",
+      "webm",
+      "wmv",
+    ],
+    markup: `${PAGE}<path fill="currentColor" d="M6 8.38v3.74a.5.5 0 0 0 .76.43l3.1-1.87a.5.5 0 0 0 0-.86l-3.1-1.87A.5.5 0 0 0 6 8.38"/>`,
+  },
+} satisfies Record<
+  string,
+  {
+    colors: [light: string, dark: string];
+    extensions: string[];
+    markup: string;
+  }
+>;
+
+// Types the complete set already has a glyph for but does not map, keyed by
+// the built-in token whose glyph they borrow.
+export const FILE_TYPE_ALIASES = {
+  bash: ["bat", "cmd", "makefile", "mk", "ps1", "psm1"],
+  docker: ["docker", "dockerfile"],
+  html: ["mht", "mhtml"],
+  image: [
+    "acorn",
+    "afphoto",
+    "arw",
+    "cr2",
+    "cr3",
+    "dng",
+    "heic",
+    "heics",
+    "heif",
+    "jfif",
+    "jxl",
+    "kra",
+    "nef",
+    "orf",
+    "procreate",
+    "psd",
+    "pxd",
+    "pxm",
+    "raf",
+    "raw",
+    "rw2",
+    "xcf",
+  ],
+  json: ["geojson", "har", "ndjson", "topojson", "webmanifest"],
+  markdown: ["mdown", "mkd", "mkdn"],
+  python: ["ipynb"],
+  svg: ["afdesign", "ai", "eps", "fig", "sketch"],
+  table: ["arrow", "avro", "feather", "orc", "parquet"],
+  text: [
+    "ass",
+    "bib",
+    "diff",
+    "lock",
+    "patch",
+    "plist",
+    "properties",
+    "ris",
+    "srt",
+    "ssa",
+    "strings",
+    "toml",
+    "vtt",
+  ],
+  zip: [
+    "apk",
+    "appimage",
+    "appx",
+    "br",
+    "deb",
+    "dmg",
+    "exe",
+    "iso",
+    "lz",
+    "lz4",
+    "lzma",
+    "msi",
+    "msix",
+    "pkg",
+    "rpm",
+    "xip",
+    "zst",
+  ],
+} satisfies Record<string, string[]>;
+
+// Whole file names that carry no extension, keyed like FILE_TYPE_ALIASES by
+// the built-in token whose glyph they borrow. Matched case-insensitively.
+export const FILE_NAME_ALIASES = {
+  bash: ["gnumakefile", "justfile", "makefile"],
+  docker: ["containerfile"],
+  text: [
+    "authors",
+    "changelog",
+    "contributors",
+    "copying",
+    "licence",
+    "license",
+    "notice",
+    "readme",
+  ],
+} satisfies Partial<Record<keyof typeof FILE_TYPE_ALIASES, string[]>>;

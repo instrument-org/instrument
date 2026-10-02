@@ -1,14 +1,8 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import { TASK_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
-import {
-  type AbsolutePath,
-  type TaskDir,
-  TaskDirSchema,
-} from "../schemas/paths";
+import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { recordDir } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export function getBrowserSessionDir(): AbsolutePath {
@@ -31,8 +25,8 @@ export function getDownloadsDir(dir: TaskDir): AbsolutePath {
 // clone the user's real Chrome profile -- cookies, login data, the full
 // browsing history -- into the temp dir. A task is the one place that clone
 // must not land: everything task-scoped picks it up, from the file index and
-// the task layout in the system prompt through the per-turn change list, the
-// export zip, and the agent's own reads.
+// the task layout in the system prompt through the per-turn change list and
+// the agent's own reads.
 export function getExternalBrowserTmpDir(
   rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
 ): AbsolutePath {
@@ -74,19 +68,13 @@ export function getTaskWorkDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.work);
 }
 
-export function isRunnable(dir: TaskDir): Promise<boolean> {
-  return fs
-    .access(path.join(dir, "package.json"))
-    .then(() => true)
-    .catch(() => false);
-}
-
 export function sessionStorePath(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(getTaskPrivateDir(dir), TASK_DB_FILE_NAME);
 }
 
-// The on-disk directory for a task. The id doubles as the folder name, so this
-// is a pure path derivation off the workspace singleton — no carrier object.
+// The on-disk directory for a task or a chat. The id doubles as the folder
+// name; where that folder sits (flat under `tasks/`, a chat's own under
+// `chats/`, or inside the chat that started it) is `recordDir`'s to say.
 export function taskDir(id: TaskId): TaskDir {
-  return TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id));
+  return recordDir(id);
 }

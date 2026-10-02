@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -6,18 +6,18 @@ import {
   type DragEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent,
   useEffect,
   useRef,
 } from "react";
 
 export type FileDragProps = ReturnType<typeof useFileDrag>;
 
-type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
+type FileRef = Pick<ViewerFile, "hostPath">;
 
-// Starting a drag cannot wait on anything, so the main process resolves the
-// file and renders its drag image before the gesture (see
-// electron-main/lib/file-drag). Deduped only while a request is open, not by
-// result: the point of asking again on press is that the answer is current.
+// Starting a drag cannot wait on anything, so the main process renders the
+// file's drag image before the gesture (see electron-main/lib/file-drag).
+// Deduped only while a request is open, not by result.
 const preparing = new Map<string, Promise<unknown>>();
 
 // How far the pointer travels before a press is read as a drag. Blink's own
@@ -49,6 +49,104 @@ interface Gesture {
  */
 export function useFileDrag(file: FileRef | undefined) {
   const canDrag = Boolean(file && window.api.startFileDrag);
+  const gesture = useDragGesture();
+
+  return {
+    draggable: canDrag,
+    onClickCapture: gesture.onClickCapture,
+    onDragStart: (event: DragEvent) => {
+      // Cancelled either way: left alone Blink drags its own idea of the
+      // element, a thumbnail's image URL or nothing at all, and neither means
+      // anything to another app. What it does not do any more is start the real
+      // drag, which waits for the pointer to travel far enough to mean it.
+      event.preventDefault();
+      gesture.arm();
+    },
+    onPointerDown: (event: ReactPointerEvent) => {
+      // Hover is what makes the first drag work: the icon behind it is rendered
+      // by the OS, which is far slower than the few pixels of movement between
+      // pressing and dragging.
+      void prepare(file);
+      gesture.press(event, canDrag ? file : undefined);
+    },
+    onPointerEnter: () => {
+      void prepare(file);
+    },
+  };
+}
+
+/**
+ * The same gesture for a surface that draws many files itself, a list or a
+ * grid of them: one set of handlers on the container, and the file under a
+ * press is looked up along the event's path. The rows are what carry
+ * `draggable`, since a container that is draggable itself takes text
+ * selection away from any field inside it; `draggable` here says whether they
+ * should, which is false wherever there is no OS to hand a file to.
+ *
+ * A drag that started on nothing named is left to Blink, so a selection in a
+ * field inside the container still drags as text.
+ */
+export function useFileDragArea(
+  resolve: ((event: SyntheticEvent) => FileRef | undefined) | undefined,
+) {
+  const canDrag = Boolean(resolve && window.api.startFileDrag);
+  const gesture = useDragGesture();
+  // The last file the pointer was over, so crossing from a row's icon to its
+  // name is not a second ask for the same drag image.
+  const hoveredRef = useRef<string>(undefined);
+
+  return {
+    draggable: canDrag,
+    onClickCapture: gesture.onClickCapture,
+    onDragStart: (event: DragEvent) => {
+      if (!gesture.isPressed()) {
+        return;
+      }
+      event.preventDefault();
+      gesture.arm();
+    },
+    onPointerDown: (event: ReactPointerEvent) => {
+      const file = resolve?.(event);
+      void prepare(file);
+      gesture.press(event, canDrag ? file : undefined);
+    },
+    onPointerOver: (event: ReactPointerEvent) => {
+      const file = resolve?.(event);
+      if (file?.hostPath === hoveredRef.current) {
+        return;
+      }
+      hoveredRef.current = file?.hostPath;
+      void prepare(file);
+    },
+  };
+}
+
+function prepare(file: FileRef | undefined) {
+  if (!file) {
+    return;
+  }
+
+  const key = file.hostPath;
+  const open = preparing.get(key);
+  if (open) {
+    return open;
+  }
+
+  const request = safe(
+    rpcClient.utils.prepareDrag.call({ filePath: file.hostPath }),
+  ).finally(() => {
+    preparing.delete(key);
+  });
+
+  preparing.set(key, request);
+  return request;
+}
+
+/**
+ * One press at a time, from the pointer going down on a file to either the
+ * drag being handed to the OS or the pointer coming back up.
+ */
+function useDragGesture() {
   // Cancelling the dragstart keeps Blink out of a drag state, so it never
   // applies its own rule that a drag suppresses the click after it. A press and
   // release on one element is a click by every measure Blink has left, which
@@ -65,22 +163,14 @@ export function useFileDrag(file: FileRef | undefined) {
   // its listeners on the window.
   useEffect(() => endGesture, []);
 
-  const beginDrag = () => {
-    if (!file) {
-      return;
-    }
-    endGesture();
-    // Both set before the drag exists rather than after, so a release quick
-    // enough to beat the OS still finds them.
-    trackSelfFileDrag();
-    draggedRef.current = true;
-    window.api.startFileDrag?.([
-      { filePath: file.filePath, taskId: file.taskId },
-    ]);
-  };
-
   return {
-    draggable: canDrag,
+    arm: () => {
+      const gesture = gestureRef.current;
+      if (gesture) {
+        gesture.armed = true;
+      }
+    },
+    isPressed: () => gestureRef.current !== null,
     onClickCapture: (event: MouseEvent) => {
       if (!draggedRef.current) {
         return;
@@ -92,27 +182,12 @@ export function useFileDrag(file: FileRef | undefined) {
       event.preventDefault();
       event.stopPropagation();
     },
-    onDragStart: (event: DragEvent) => {
-      // Cancelled either way: left alone Blink drags its own idea of the
-      // element, a thumbnail's image URL or nothing at all, and neither means
-      // anything to another app. What it does not do any more is start the real
-      // drag, which waits for the pointer to travel far enough to mean it.
-      event.preventDefault();
-      const gesture = gestureRef.current;
-      if (gesture) {
-        gesture.armed = true;
-      }
-    },
-    onPointerDown: (event: ReactPointerEvent) => {
+    /** A press on `file`, or on nothing that drags when it is left out. */
+    press: (event: ReactPointerEvent, file: FileRef | undefined) => {
       // A fresh press is a fresh gesture, whatever the last one turned into.
       draggedRef.current = false;
       endGesture();
-      // Hover is what makes the first drag work: the icon behind it is rendered
-      // by the OS, which is far slower than the few pixels of movement between
-      // pressing and dragging.
-      void prepare(file);
-
-      if (!canDrag) {
+      if (!file) {
         return;
       }
 
@@ -130,7 +205,12 @@ export function useFileDrag(file: FileRef | undefined) {
         if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
           return;
         }
-        beginDrag();
+        endGesture();
+        // Both set before the drag exists rather than after, so a release quick
+        // enough to beat the OS still finds them.
+        trackSelfFileDrag();
+        draggedRef.current = true;
+        window.api.startFileDrag?.([file.hostPath]);
       };
 
       gestureRef.current = {
@@ -148,32 +228,5 @@ export function useFileDrag(file: FileRef | undefined) {
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleEnd);
     },
-    onPointerEnter: () => {
-      void prepare(file);
-    },
   };
-}
-
-function prepare(file: FileRef | undefined) {
-  if (!file) {
-    return;
-  }
-
-  const key = `${file.taskId} ${file.filePath}`;
-  const open = preparing.get(key);
-  if (open) {
-    return open;
-  }
-
-  const request = safe(
-    rpcClient.utils.prepareTaskFileDrag.call({
-      filePath: file.filePath,
-      id: file.taskId,
-    }),
-  ).finally(() => {
-    preparing.delete(key);
-  });
-
-  preparing.set(key, request);
-  return request;
 }

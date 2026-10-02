@@ -9,7 +9,10 @@ const MAX_SLUG_LENGTH = 40;
 // mention counts as the `/name` it reads as, since slugging its wire form would
 // spend the budget on markup and on the name twice over. Returns an empty string
 // when the prompt has no usable characters (e.g. emoji/CJK only).
-export function taskFolderSlug(prompt: string): string {
+export function taskFolderSlug(
+  prompt: string,
+  maxLength = MAX_SLUG_LENGTH,
+): string {
   const tokens = renderSkillMentionsAsText(prompt)
     // NFKD + diacritic strip folds accented characters to ASCII (é -> e)
     .normalize("NFKD")
@@ -24,12 +27,12 @@ export function taskFolderSlug(prompt: string): string {
   let slug = "";
   for (const token of tokens) {
     const next = slug ? `${slug}-${token}` : token;
-    if (next.length > MAX_SLUG_LENGTH) {
+    if (next.length > maxLength) {
       break;
     }
     slug = next;
   }
 
   // A single first token longer than the cap gets hard-truncated.
-  return slug || tokens[0].slice(0, MAX_SLUG_LENGTH);
+  return slug || tokens[0].slice(0, maxLength);
 }

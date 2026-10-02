@@ -1,4 +1,4 @@
-import { type ImageModelV3 } from "@ai-sdk/provider";
+import { type ImageModelV4 } from "@ai-sdk/provider";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,12 +30,12 @@ const doGenerate = vi.fn().mockResolvedValue({
   warnings: [],
 });
 
-const mockImageModel: ImageModelV3 = {
+const mockImageModel: ImageModelV4 = {
   doGenerate,
   maxImagesPerCall: undefined,
   modelId: "mock-image-model",
   provider: "mock-provider",
-  specificationVersion: "v3",
+  specificationVersion: "v4",
 };
 
 const model = createMockAIGatewayModel();
@@ -93,7 +93,7 @@ function makeExecuteArgs(
 function sentSourceImageFormats() {
   // `vi.fn()` records its arguments untyped; this names what the call holds.
   const options = doGenerate.mock.calls[0]?.[0] as
-    | Parameters<ImageModelV3["doGenerate"]>[0]
+    | Parameters<ImageModelV4["doGenerate"]>[0]
     | undefined;
   return options?.files?.map((file) =>
     file.type === "file" ? measureImage(Buffer.from(file.data))?.format : "url",

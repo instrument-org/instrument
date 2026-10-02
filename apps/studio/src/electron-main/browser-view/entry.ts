@@ -16,6 +16,10 @@ import { log } from "./log";
 let generationCounter = 0;
 
 export interface BrowserEntry {
+  // The folders on this computer the agent driving this guest can read, set
+  // by the CDP bridge; null until an agent has driven it. See
+  // `mayPageNavigateTo`.
+  agentFileRoots: null | readonly string[];
   // Resolves when the guest attaches, rejects if the entry is removed first.
   attach: AttachSignal;
   authorizedDownloadPath: null | string;
@@ -88,6 +92,7 @@ export function createEntry({
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
+    agentFileRoots: null,
     attach: createAttachSignal(),
     authorizedDownloadPath: null,
     destructionListeners: new Set(),

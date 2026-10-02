@@ -129,7 +129,6 @@ export function captureException(
   error: unknown,
   properties?: Record<string, unknown>,
 ) {
-  // eslint-disable-next-line no-console -- foundational failures should be loud in dev too
   console.error(error);
   void getTelemetry().then((telemetry) => {
     telemetry?.captureException(error, properties);
@@ -142,7 +141,7 @@ export function capturePageView(path?: string) {
       telemetry?.capture("$pageview");
       return;
     }
-    // The main window's per-tab routers use in-memory history, so
+    // The app window's per-tab routers use in-memory history, so
     // window.location never reflects the active route. Report the tab's route
     // as a canonical URL directly; before_send derives $pathname from it.
     telemetry?.capture("$pageview", {

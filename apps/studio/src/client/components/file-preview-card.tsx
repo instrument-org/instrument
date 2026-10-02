@@ -1,22 +1,28 @@
 import type { RefObject } from "react";
 
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
+import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { nameOfPath } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useRef, useState } from "react";
 
-import { usePrefetchTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
+import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
+import { MacFolderIcon } from "./icons/mac-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
@@ -37,7 +43,7 @@ export function FilePreviewCard({
   onClick,
   shape,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -84,25 +90,27 @@ export function FilePreviewCard({
     }
   };
 
-  if (fileType === "image") {
-    return (
+  // The card stays whatever became of the file; it is drawn as gone once the
+  // origin says so, which is asked only once the card is near the viewport.
+  const { isMissing, ref } = useFilePresence<HTMLDivElement>(file.url);
+
+  const card =
+    fileType === "image" ? (
       <ImagePreviewCard
         file={file}
         hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
         isSelected={isSelected}
         onClick={onClick}
         shape={shape}
       />
-    );
-  }
-
-  if (fileType === "video") {
-    return (
+    ) : fileType === "video" ? (
       <VideoPreviewCard
         file={file}
         handleMouseEnter={handleMouseEnter}
         handleMouseLeave={handleMouseLeave}
         hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
         isPlaying={isPlaying}
         isSelected={isSelected}
         onClick={onClick}
@@ -120,31 +128,72 @@ export function FilePreviewCard({
         videoProgress={videoProgress}
         videoRef={videoRef}
       />
+    ) : (
+      <FileRowCard
+        file={file}
+        hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
+        isSelected={isSelected}
+        onClick={onClick}
+      />
     );
-  }
 
+  return <div ref={ref}>{card}</div>;
+}
+
+/**
+ * A folder a reply names, as a row card: the file cards' surface, the folder's
+ * mark where a file's picture stands, and what it is under its name, so a
+ * folder and a file side by side read as the same kind of thing.
+ */
+export function FolderRowCard({
+  onClick,
+  path,
+}: {
+  onClick: () => void;
+  path: string;
+}) {
+  const name = nameOfPath(path);
   return (
-    <FileRowCard
-      file={file}
-      hideActionsMenu={hideActionsMenu}
-      isSelected={isSelected}
-      onClick={onClick}
-    />
+    <div className="group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 shadow-xs select-none hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40">
+      <button
+        aria-label={`Open ${name}`}
+        className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        onClick={onClick}
+        type="button"
+      />
+      <span className="pointer-events-none relative z-10 grid h-11.5 w-9 shrink-0 place-items-center">
+        <MacFolderIcon className="size-9" />
+      </span>
+      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
+        <span
+          className="truncate text-sm leading-5 text-foreground"
+          title={path}
+        >
+          {name}
+        </span>
+        <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
+          Folder
+        </span>
+      </div>
+    </div>
   );
 }
 
 function FileRowCard({
   file,
   hideActionsMenu,
+  isMissing,
   isSelected,
   onClick,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath } = file;
+  const { filename, hostPath } = file;
   const dragProps = useFileDrag(file);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
@@ -152,7 +201,7 @@ function FileRowCard({
     fileActions.showDownload ||
     fileActions.showOpen ||
     fileActions.showReveal;
-  const prefetchOpenTarget = usePrefetchTaskFileOpenTarget();
+  const prefetchOpenTarget = usePrefetchFileOpenTarget();
 
   const row = (
     <div
@@ -160,13 +209,17 @@ function FileRowCard({
         "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 select-none",
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
-          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
+          : isMissing
+            ? "bg-card opacity-60 shadow-xs dark:border dark:border-black/5"
+            : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
-      onClick={onClick}
+      onClick={isMissing ? undefined : onClick}
       onMouseEnter={() => {
-        prefetchOpenTarget(file);
+        if (!isMissing) {
+          prefetchOpenTarget(file);
+        }
       }}
-      {...dragProps}
+      {...(isMissing ? {} : dragProps)}
     >
       {/* The row is what opens the file, and a row is not a control: without
           this it could be clicked and nothing else -- no tab stop, no name, no
@@ -177,6 +230,7 @@ function FileRowCard({
       <button
         aria-label={`Open ${filename}`}
         className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        disabled={isMissing}
         type="button"
       />
       <FileThumbnail
@@ -192,16 +246,22 @@ function FileRowCard({
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <span className="break-all">{filePath}</span>
+            <span className="break-all">{hostPath}</span>
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {getFileKindLabel(file)}
+          {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
         </span>
       </div>
-      {!hideActionsMenu && hasFileActions && (
+      {/* No width until the row is hovered or has focus, so a name in a
+          narrow grid cell has the whole row to itself until the menu is
+          wanted. Collapsed rather than removed: it stays in the tab order,
+          and focus reaching it is what opens it back up. Held open while
+          its menu is, which the pointer has left the row to reach. */}
+      {!hideActionsMenu && hasFileActions && !isMissing && (
         <div
-          className="relative z-10 flex shrink-0 items-center opacity-0 group-hover:opacity-100"
+          className="relative z-10 -ml-3 flex w-0 shrink-0 items-center overflow-hidden opacity-0 group-focus-within:ml-0 group-focus-within:w-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:ml-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:ml-0 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
+          data-slot="file-row-actions"
           onClick={(e) => {
             e.stopPropagation();
           }}
@@ -212,7 +272,7 @@ function FileRowCard({
     </div>
   );
 
-  if (!hasFileActions) {
+  if (!hasFileActions || isMissing) {
     return row;
   }
 
@@ -238,12 +298,14 @@ function formatTime(seconds: number): string {
 function ImagePreviewCard({
   file,
   hideActionsMenu,
+  isMissing,
   isSelected,
   onClick,
   shape,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isSelected?: boolean;
   onClick: () => void;
   shape?: MediaCardShape;
@@ -252,17 +314,14 @@ function ImagePreviewCard({
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
-  const openControl = useTaskFileOpenControl(
-    resolveOpenTarget ? file : undefined,
-  );
+  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const showCopy = fileActions.showCopy && !imageLoadError;
 
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath: file.filePath,
-        id: file.taskId,
+        hostPath: file.hostPath,
         isImage: getFileType(file) === "image",
       });
       triggerCopied();
@@ -277,7 +336,10 @@ function ImagePreviewCard({
 
   return (
     <MediaCardShell
+      bottomBar={isMissing ? <MissingBadge /> : undefined}
       canCopy={!imageLoadError}
+      className={cn(isMissing && "opacity-60")}
+      disabled={isMissing}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -286,7 +348,7 @@ function ImagePreviewCard({
         setResolveOpenTarget(true);
       }}
       overlayActions={
-        hasActions ? (
+        hasActions && !isMissing ? (
           <>
             {showCopy && (
               <MediaOverlayButton
@@ -349,11 +411,25 @@ function ImagePreviewCard({
   );
 }
 
+/**
+ * What a media tile says of a file the origin no longer has, over whatever
+ * the thumbnail fell back to. Always on, unlike the tile's hover chrome: it is
+ * the state, not a control.
+ */
+function MissingBadge() {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+      {FILE_MISSING_LABEL}
+    </div>
+  );
+}
+
 function VideoPreviewCard({
   file,
   handleMouseEnter,
   handleMouseLeave,
   hideActionsMenu,
+  isMissing,
   isPlaying,
   isSelected,
   onClick,
@@ -365,10 +441,11 @@ function VideoPreviewCard({
   videoProgress,
   videoRef,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isPlaying: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -383,9 +460,7 @@ function VideoPreviewCard({
   const { url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
-  const openControl = useTaskFileOpenControl(
-    resolveOpenTarget ? file : undefined,
-  );
+  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
 
   const hasActions =
     !hideActionsMenu && (fileActions.showDownload || openControl.showOpen);
@@ -396,7 +471,9 @@ function VideoPreviewCard({
   return (
     <MediaCardShell
       bottomBar={
-        displayTime === null ? undefined : (
+        isMissing ? (
+          <MissingBadge />
+        ) : displayTime === null ? undefined : (
           <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
             <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
               {formatTime(displayTime)}
@@ -410,6 +487,8 @@ function VideoPreviewCard({
           </div>
         )
       }
+      className={cn(isMissing && "opacity-60")}
+      disabled={isMissing}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -420,7 +499,7 @@ function VideoPreviewCard({
       }}
       onMouseLeave={handleMouseLeave}
       overlayActions={
-        hasActions ? (
+        hasActions && !isMissing ? (
           <>
             {fileActions.showDownload && (
               <MediaOverlayButton

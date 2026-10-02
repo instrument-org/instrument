@@ -1,21 +1,28 @@
 import {
+  backgroundProcessesModelNote,
   browserStatusModelNote,
   dateChangeModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
+  messageGapModelNote,
   paneTabsModelNote,
   type SessionMessagePart,
-  TASK_FOLDER_NAMES,
+  viewContextModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
 import { FilePathsGrid } from "./agent-files-block";
+import { AppEventNote } from "./app-event-note";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
+import { TaskAppChangesNote } from "./task-app-changes-note";
+import { TaskEventNote } from "./task-event-note";
+import { SentAsksNote } from "./window/ask-pills";
+import { OutputFormatNote } from "./window/output-format-note";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
 
@@ -28,8 +35,17 @@ type DataPartType = SessionMessagePart.DataPart["type"];
 type DataPartVisibility = "always" | "dev" | "hidden";
 
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
+  "data-appEvent": "always",
+  // The places the user marked in their files, as the pills they sent.
+  "data-asks": "always",
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
+  // Deliberately not "always". This part is a persisted record of what was
+  // running when the turn began, and a card in the transcript saying "2 still
+  // running" is wrong the moment one stops -- the same staleness that kept live
+  // status out of tool results. The header pill is the live surface; this is
+  // context for the model, and a debug peek for us.
+  "data-backgroundProcesses": "dev",
   "data-browserStatus": "dev",
   // Developer-mode only, deliberately. What happens here is a rollover, not a
   // compaction: assembly stops sending the model's own earlier turns and
@@ -48,16 +64,44 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  // What the agent is told it remembers about the user. Context for the
+  // model; the user's copy is the Memory section of Settings.
+  "data-memory": "dev",
+  // The same treatment the date correction gets, and for the same reason: a
+  // note telling the model how long the user was away, which the user knows
+  // better than the model does.
+  "data-messageGap": "dev",
   // Shown to everyone, unlike the rollover above it. The model a task runs on
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
+  // What the user asked to get back, on the record under their words.
+  "data-outputFormat": "always",
   "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
+  // Drawn by the chat stream over the user's bubble, not in the part's place
+  // under it.
+  "data-reply": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
+  // Shown for the same reason the folder note is: the change was made in a
+  // conversation the reader of this transcript is not looking at, and it is
+  // usually what the task had stopped and waited for.
+  "data-taskAppChanges": "always",
+  // The reason an orchestrator woke, shown so a reply that follows nothing the
+  // user typed has a visible cause.
+  "data-taskEvent": "always",
+  // What the agent is told about the chats around this one: the other
+  // chats at the moment this one opened, and the topics this one is filed
+  // under. Context for the model; the head of the chat is the user's copy.
+  "data-chatContext": "dev",
+  "data-chatTopics": "dev",
+  // Which earlier version's task a chat was made from. Context for the
+  // model; the user sees the conversation it carried on.
+  "data-adoptedTask": "dev",
   "data-unknown": "dev",
+  "data-viewContext": "dev",
 };
 
 export function dataPartVisibility(
@@ -96,15 +140,53 @@ export function renderDataPart({
     return null;
   }
 
+  // The narrow transcript draws a developer note as one line.
+  const compact = ctx.presentation === "chat";
+  const noteClassName = compact ? "mt-1" : "mt-2";
+
   switch (part.type) {
+    case "data-adoptedTask": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={`Made from task ${part.data.taskId}`}
+        />
+      );
+    }
+    case "data-appEvent": {
+      if (ctx.presentation === "chat") {
+        return null;
+      }
+      return <AppEventNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-asks": {
+      return <SentAsksNote data={part.data} key={part.metadata.id} />;
+    }
     case "data-attachedFolderChanges": {
       return (
-        <AttachedFolderChangesNote data={part.data} key={part.metadata.id} />
+        <AttachedFolderChangesNote
+          data={part.data}
+          isDeveloperMode={ctx.isDeveloperMode}
+          key={part.metadata.id}
+        />
       );
     }
     case "data-attachments":
-    case "data-projectContext": {
+    case "data-projectContext":
+    case "data-reply": {
       return null;
+    }
+    case "data-backgroundProcesses": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={backgroundProcessesModelNote(part.data)}
+        />
+      );
     }
     case "data-browserStatus": {
       if (!browserStatusContextAdded) {
@@ -112,16 +194,46 @@ export function renderDataPart({
       }
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
+        />
+      );
+    }
+    case "data-chatContext": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.chats.length === 0
+              ? "The first chat"
+              : `Other chats: ${part.data.chats.map((chat) => chat.title).join(" · ")}`
+          }
+        />
+      );
+    }
+    case "data-chatTopics": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.topics.length === 0
+              ? "No topics on this chat"
+              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
+          }
         />
       );
     }
     case "data-contextRollover": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
         />
@@ -130,16 +242,18 @@ export function renderDataPart({
     case "data-dateChange": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={dateChangeModelNote(part.data)}
         />
       );
     }
     case "data-fileChanges": {
-      // Only `output/`. The watcher behind this part reported everything a turn
-      // touched, and the overwhelming majority of that is `work/`: the scripts
-      // the agent wrote to make the deliverable, not the deliverable. Showing
+      // Only the `output/` folder tasks wrote deliverables to when this part
+      // was live. The watcher behind it reported everything a turn touched,
+      // and the overwhelming majority of that is `work/`: the scripts the
+      // agent wrote to make the deliverable, not the deliverable. Showing
       // those is what made the card worth deleting in the first place.
       //
       // A deleted file has nothing to show, and one the reply already fenced or
@@ -148,7 +262,7 @@ export function renderDataPart({
         .filter(
           (file) =>
             file.status !== "deleted" &&
-            file.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`) &&
+            file.filePath.startsWith("output/") &&
             isAddressableTaskFilePath(file.filePath) &&
             pathsAlreadyShown?.has(file.filePath) !== true,
         )
@@ -161,7 +275,8 @@ export function renderDataPart({
     case "data-intent": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={part.data.text}
         />
@@ -170,19 +285,55 @@ export function renderDataPart({
     case "data-maxSteps": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
+        />
+      );
+    }
+    case "data-memory": {
+      const count = part.data.memories.length + part.data.more;
+      const texts = part.data.memories.map((memory) => memory.text);
+      const text =
+        part.data.tells === "changes"
+          ? `Memory changed: ${[
+              ...texts,
+              ...part.data.forgotten.map((name) => `forgot ${name}`),
+            ].join(" · ")}`
+          : count === 0
+            ? "Memory is empty"
+            : `Memory (${count}): ${texts.join(" · ")}`;
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={text}
+        />
+      );
+    }
+    case "data-messageGap": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={messageGapModelNote(part.data)}
         />
       );
     }
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
     }
+    case "data-outputFormat": {
+      return <OutputFormatNote data={part.data} key={part.metadata.id} />;
+    }
     case "data-paneTabs": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={paneTabsModelNote(part.data)}
         />
@@ -206,11 +357,22 @@ export function renderDataPart({
     case "data-skillMentions": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
       );
+    }
+    case "data-taskAppChanges": {
+      return <TaskAppChangesNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-taskEvent": {
+      // The conversation was woken by it; what it says about it is its reply.
+      if (ctx.presentation === "chat") {
+        return null;
+      }
+      return <TaskEventNote data={part.data} key={part.metadata.id} />;
     }
     case "data-unknown": {
       // Not a failure the reader can do anything about, so it stays a
@@ -218,9 +380,20 @@ export function renderDataPart({
       // cannot read, and the reason is the useful half.
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
+        />
+      );
+    }
+    case "data-viewContext": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={viewContextModelNote(part.data)}
         />
       );
     }

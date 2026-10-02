@@ -11,6 +11,7 @@ import { summarizeToolRun } from "../lib/tool-display";
 import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import {
   isActivityHeadingVisible,
+  isAwaitingUser,
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
@@ -32,13 +33,16 @@ const MIN_INFERRED_GROUP_CALLS = 2;
  * A group is `working` until something closes it and `settled` after, and
  * between them that is the whole of how it draws:
  *
- * |          | working                                  | settled                        |
- * | -------- | ---------------------------------------- | ------------------------------ |
- * | declared | heading, and the step in flight under it | heading, rows folded behind it |
- * | inferred | the step in flight, standing for the run | generated heading, rows folded |
+ * |          | working                                            | settled                        |
+ * | -------- | -------------------------------------------------- | ------------------------------ |
+ * | declared | heading, and the step in flight under it           | heading, rows folded behind it |
+ * | inferred | "Working for 12s", and the step in flight under it | generated heading, rows folded |
  *
- * So a phase of work costs one line whether or not the agent named it, and
- * while it runs that line is whatever the agent is doing at that moment.
+ * So a phase of work reads the same whether or not the agent named it: a
+ * heading that carries the live indicator for as long as it runs, and under it
+ * whatever the agent is doing at that moment. An unnamed phase has nothing to
+ * say about what it is until it is over, so while it runs its heading says how
+ * long it has been going, which is the thing that shows it is still moving.
  *
  * The step in flight is drawn as a *copy*, in a slot the group owns, and its own
  * row stays folded with the rest. A group reaches across many messages -- a turn
@@ -78,6 +82,11 @@ export interface TranscriptGroup {
   lastRowId?: StoreId.Part;
   phase: "settled" | "working";
   /**
+   * When the row it opens on was created, which is what a working inferred
+   * group's heading counts up from.
+   */
+  startedAt: Date;
+  /**
    * Its tool calls in order: the names a generated heading is built from, and
    * the row each one sits in, for the run that ends up folding under a copy of
    * its own single call rather than under a phrase.
@@ -113,6 +122,12 @@ export interface TranscriptRow {
    */
   hasProseBoundaryAbove?: boolean;
   id: StoreId.Part;
+  /**
+   * A step the group holds without drawing: a call streamed in and queued, or
+   * a thought with nothing under it. It keeps its place in the run, so the
+   * group can open on it, and counts for nothing else.
+   */
+  isHeld?: boolean;
   /**
    * What kind of thing it is, which is the whole of how it behaves in a group.
    *
@@ -184,15 +199,23 @@ export function buildTranscriptLayout({
   let inAssistantMessage = false;
 
   // Every row joins through here, so a group's own tally of what it holds can
-  // never fall behind the rows attributed to it.
-  const push = (id: StoreId.Part, kind: TranscriptRow["kind"]) => {
+  // never fall behind the rows attributed to it. A held row (see below) is a
+  // member that draws nothing, so it is left out of the tally.
+  const push = (
+    id: StoreId.Part,
+    kind: TranscriptRow["kind"],
+    { isHeld = false }: { isHeld?: boolean } = {},
+  ) => {
     const row: TranscriptRow = { groupId: open?.id, id, kind };
+    if (isHeld) {
+      row.isHeld = true;
+    }
     if (inAssistantMessage && rowAbove && isProseBoundary(rowAbove, row)) {
       row.hasProseBoundaryAbove = true;
     }
     rowAbove = inAssistantMessage ? row : undefined;
     flat.push(row);
-    if (!open || id === open.headingRowId) {
+    if (!open || id === open.headingRowId || isHeld) {
       return;
     }
     open.foldedRowCount++;
@@ -236,9 +259,7 @@ export function buildTranscriptLayout({
         }
         settle();
         if (isHeading) {
-          open = emptyGroup(part.metadata.id, {
-            headingRowId: part.metadata.id,
-          });
+          open = emptyGroup(part, { headingRowId: part.metadata.id });
           push(part.metadata.id, "step");
         }
         continue;
@@ -255,6 +276,20 @@ export function buildTranscriptLayout({
           part,
         })
       ) {
+        // A step that draws nothing is still a step of the run, and is held
+        // in it: a call streamed in and queued behind another, or a thought
+        // that opened with nothing under it. Membership read off what draws
+        // moves under a run in flight, because what draws changes as the
+        // agent works -- a batch of calls each shows while its input streams,
+        // hides while it waits its turn, and shows again once it runs. The
+        // group opens on whichever of its rows comes first, so it would be
+        // opened on a different row at every one of those moments, drawn
+        // afresh each time, and between two of them it would have no row
+        // at all and leave the transcript.
+        if (isToolPart(part) || part.type === "reasoning") {
+          open ??= emptyGroup(part);
+          push(part.metadata.id, "step", { isHeld: true });
+        }
         continue;
       }
 
@@ -296,13 +331,22 @@ export function buildTranscriptLayout({
           push(id, kind);
           continue;
         }
-        open = emptyGroup(id);
+        open = emptyGroup(part);
       }
 
       push(id, kind);
       if (isToolPart(part)) {
         open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
-        if (isStreaming && isToolPartRunning(part) && opensOnSight(part)) {
+        // A call waiting on the user opens itself whatever the session is
+        // doing: the buttons on it are how the turn goes on, and a reader who
+        // has to find and open the row first reads a pause as a stall. The
+        // card asking to connect an app is the same kind of thing, though the
+        // call itself returned at once: the answer comes from the card.
+        if (
+          (isStreaming && isToolPartRunning(part) && opensOnSight(part)) ||
+          isAwaitingUser(part) ||
+          part.type === "tool-connect_app"
+        ) {
           selfOpeningRowIds.push(id);
         }
       }
@@ -336,13 +380,15 @@ export function buildTranscriptLayout({
 }
 
 /**
- * The heading an inferred group draws above its rows, or undefined when it has
- * none.
+ * The summary a settled inferred group draws above its rows, or undefined when
+ * it has none.
  *
- * A declared group draws its own `start_activity` row instead, so it returns
- * nothing here. An inferred one earns a heading only once it has settled -- a
- * run still in progress is represented by the row in flight -- and only if it
- * holds enough calls for a summary to say more than the rows it replaces.
+ * A declared group draws its own `start_activity` row instead, and a working
+ * one draws how long it has been going, so both return nothing here. A settled
+ * one earns a summary only if it holds enough calls for it to say more than
+ * the rows it replaces. The count is read once the run is over and never
+ * while it works: a call still unfinished is a row only while it is in the
+ * newest message, so a tally taken mid-run goes down as well as up.
  */
 export function generatedGroupHeading(
   group: TranscriptGroup,
@@ -372,21 +418,33 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
   // holds more than that one; everywhere else the head line is not a row, and a
   // single row behind it is still a row hidden.
   const isHeadedByOwnRow =
-    group.headingRowId === undefined &&
-    (group.phase === "working" || soleToolCallRowId(group) !== undefined);
+    !groupHasHeading(group) && soleToolCallRowId(group) !== undefined;
 
   return isHeadedByOwnRow ? group.foldedRowCount > 1 : group.foldedRowCount > 0;
 }
 
 /**
- * The row a working group copies into the slot it draws in place of its
- * contents, or undefined when it has none.
+ * Whether the group's head line is a heading -- the agent's, the working
+ * clock, or a generated summary -- rather than a copy of one of its own steps.
+ * Under a heading the copy of the step in flight is one of the group's rows;
+ * without one it is the head line.
+ */
+export function groupHasHeading(group: TranscriptGroup): boolean {
+  return (
+    group.headingRowId !== undefined ||
+    group.phase === "working" ||
+    generatedGroupHeading(group) !== undefined
+  );
+}
+
+/**
+ * The row a group copies into the slot it draws in place of its contents, or
+ * undefined when it has none.
  *
- * A declared group draws the copy under its heading while folded: the heading
- * says what the phase is and the copy says where it has got to. Opening it shows
- * the steps themselves, so the copy goes. An inferred group has no heading, so
- * the copy is its head line and stays whether it is open or shut -- open, it is
- * also the only thing that can shut it again.
+ * A working group draws the copy under its heading while folded: the heading
+ * says the phase is still going and the copy says where it has got to. Opening
+ * it shows the steps themselves, so the copy goes. A settled run with one call
+ * in it is headed by a copy of that call instead; see `soleToolCallRowId`.
  */
 export function groupStandInRowId({
   group,
@@ -398,8 +456,8 @@ export function groupStandInRowId({
   if (group.phase !== "working") {
     return soleToolCallRowId(group);
   }
-  // Opening a named phase shows the steps themselves, so the copy goes.
-  if (isExpanded && group.headingRowId !== undefined) {
+  // Opening the phase shows the steps themselves, so the copy goes.
+  if (isExpanded) {
     return undefined;
   }
   // The step in flight, or the last one the group finished while the agent
@@ -447,6 +505,37 @@ export function isPartBeingWritten({
     isAgentRunning &&
     message.id === lastMessageId &&
     partIndex === message.parts.length - 1
+  );
+}
+
+/**
+ * Whether this part is a step the agent is at work on in the message being
+ * written, whether or not it draws a row yet: a call streaming in or queued, or
+ * a thought still open. The turn it is in has begun, which is what the
+ * transcript needs to know before any of its steps draws.
+ */
+export function isStepInFlight({
+  isAgentRunning,
+  isStreaming,
+  lastMessageId,
+  message,
+  part,
+}: {
+  isAgentRunning: boolean;
+  isStreaming: boolean;
+  lastMessageId: string | undefined;
+  message: SessionMessage.WithParts;
+  part: SessionMessagePart.Type;
+}): boolean {
+  if (isToolPart(part)) {
+    // A heading with no title yet is not a step, and draws nothing.
+    return isStreaming && part.type !== "tool-start_activity";
+  }
+  return (
+    part.type === "reasoning" &&
+    part.state === "streaming" &&
+    isAgentRunning &&
+    message.id === lastMessageId
   );
 }
 
@@ -514,14 +603,15 @@ export function planRow({
 }
 
 function emptyGroup(
-  id: StoreId.Part,
+  part: SessionMessagePart.Type,
   { headingRowId }: { headingRowId?: StoreId.Part } = {},
 ): TranscriptGroup {
   return {
     foldedRowCount: 0,
     headingRowId,
-    id,
+    id: part.metadata.id,
     phase: "working",
+    startedAt: part.metadata.createdAt,
     toolCalls: [],
   };
 }

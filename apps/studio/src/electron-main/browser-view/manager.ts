@@ -29,6 +29,7 @@ import {
   applyStandardUserAgent,
 } from "../lib/user-agent";
 import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
+import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -48,23 +49,33 @@ import {
   createFocusGuard,
   isAgentDrivenCommand,
 } from "./focus-guard";
+import { committedDocumentOf } from "./frame-documents";
 import { attachGuestInteractions } from "./guest-interactions";
+import {
+  confineLocalPagesToTheirFolder,
+  mayPageNavigateTo,
+  refuseLocalFilesInPopups,
+} from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
   guestWindowOpenHandler,
+  isFileUrl,
+  newTabOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
-// and Electron to fire `did-attach-webview`. The main-window renderer is alive
+// and Electron to fire `did-attach-webview`. The app window's renderer is alive
 // whenever the agent runs, so attach normally completes in well under a second;
 // the timeout only fires if no renderer is available to host the guest.
 const ATTACH_TIMEOUT_MS = 15_000;
 
 export interface BrowserViewManager {
-  // Register the `<webview>` attach lifecycle on the main window's webContents.
-  // Called once the window exists; the manager itself is created earlier.
+  // Register the `<webview>` attach lifecycle on a window's webContents.
+  // Called once the window exists; the manager itself is created earlier. Each
+  // window that mounts guests binds under its own name, and gets only the
+  // guests meant for it.
   bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
@@ -78,8 +89,7 @@ export interface BrowserViewManager {
   // (mouse buttons are handled by the guest's own app-command).
   navigateFocusedGuest: (direction: "back" | "forward") => boolean;
   // If a browser guest has focus, reload its own web content and return true.
-  // Lets keyboard Cmd+R reload the focused guest instead of the whole renderer
-  // (which the app-level reload command would otherwise do).
+  // Lets Cmd+R reload the focused guest rather than the window.
   reloadFocusedGuest: () => boolean;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
@@ -99,26 +109,67 @@ export interface BrowserViewManager {
   setHostFocus: () => void;
   teardown: () => void;
   // If a browser guest has focus, zoom its own web content and return true.
-  // Lets keyboard Cmd+/-/0 target the focused guest instead of the main window
-  // (main-window zoom is CSS-only and never reaches the guest's webContents).
+  // Lets keyboard Cmd+/-/0 target the focused guest instead of the window
+  // (app zoom is CSS-only and never reaches the guest's webContents).
   zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
 let managerInstance: BrowserViewManager | undefined;
 
+// Whether the host renderer is showing a guest: `parked` when it or an
+// ancestor is at the pool's near-zero parking opacity, `offscreen` when laid
+// out outside the window, `missing` when no mounted webview holds it.
+const describeTabScript = (guestId: number) => `(() => {
+  const webview = [...document.querySelectorAll("webview")].find((w) => {
+    try { return w.getWebContentsId() === ${guestId}; } catch { return false; }
+  });
+  if (!webview) return "missing";
+  for (let el = webview; el; el = el.parentElement) {
+    if (Number(getComputedStyle(el).opacity) < 0.01) return "parked";
+  }
+  const r = webview.getBoundingClientRect();
+  const onScreen = r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+  return onScreen ? "shown" : "offscreen";
+})()`;
+
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  // FIFO of target ids accepted in `will-attach-webview`, drained in
-  // `did-attach-webview` (Electron pairs the two events in order).
-  const pendingAttachQueue: BrowserTargetId[] = [];
   // The guest the renderer last reported real DOM focus on (see setGuestFocus).
   let focusedTargetId: BrowserTargetId | null = null;
-  let hostWebContents: null | WebContents = null;
+  // The app window's renderer, which mounts every guest.
+  let hostContents: null | WebContents = null;
+  const hostOf = (targetId: BrowserTargetId) =>
+    entries.has(targetId) ? hostContents : null;
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
 
+  // Whether the user could have seen a target's guest: its window's state, and
+  // whether the host renderer shows its tab or parks it (see browser-pool.ts).
+  // Written into the log line for each agent press.
+  async function describeHost(targetId: BrowserTargetId): Promise<string> {
+    const host = hostOf(targetId);
+    const guestId = entries.get(targetId)?.webContents?.id;
+    if (!host || host.isDestroyed() || guestId === undefined) {
+      return "window=none";
+    }
+    const win = BrowserWindow.fromWebContents(host);
+    const window = win
+      ? win.isMinimized()
+        ? "minimized"
+        : win.isVisible()
+          ? win.isFocused()
+            ? "focused"
+            : "unfocused"
+          : "hidden"
+      : "none";
+    const tab: unknown = await host
+      .executeJavaScript(describeTabScript(guestId))
+      .catch(() => "unknown");
+    return `window=${window} tab=${String(tab)}`;
+  }
+
   function restoreHostFocus(targetId: BrowserTargetId) {
-    const host = hostWebContents;
+    const host = hostOf(targetId);
     if (
       !host ||
       host.isDestroyed() ||
@@ -178,6 +229,39 @@ export function createBrowserViewManager(): BrowserViewManager {
     entry.webContents = guest;
     const { targetId } = entry;
 
+    // Where a link on the page may take a tab: a file only from a page on
+    // the computer, as Chromium itself allows, and within what an agent
+    // driving the tab may reach.
+    const mayOpenFromPage = (url: string) => {
+      const from = committedDocumentOf(guest.id, guest.mainFrame);
+      return (
+        (!isFileUrl(url) || (from !== undefined && isFileUrl(from))) &&
+        mayPageNavigateTo(entry.agentFileRoots, from, url)
+      );
+    };
+
+    // A page the agent can read may not take its tab to a file the agent
+    // cannot; see `mayPageNavigateTo`. Fires only for navigations the page
+    // starts, never for the address bar or the agent's own `Page.navigate`.
+    guest.on("will-frame-navigate", (details) => {
+      if (
+        details.isMainFrame &&
+        !mayPageNavigateTo(
+          entry.agentFileRoots,
+          committedDocumentOf(guest.id, guest.mainFrame),
+          details.url,
+        )
+      ) {
+        log.warn(
+          `refused a page taking its tab outside the agent's folders targetId=${targetId}`,
+        );
+        details.preventDefault();
+        publisher.publish("browser.navigation-refused", {
+          targetId,
+        });
+      }
+    });
+
     // Allow only genuine sign-in popups, and only when the user -- not agent CDP
     // activity -- is driving this guest. A popup the agent triggers would be a
     // separate window it can neither see nor control (no CDP debugger, not in
@@ -191,6 +275,21 @@ export function createBrowserViewManager(): BrowserViewManager {
         ? { action: "deny" }
         : guestWindowOpenHandler(details);
       if (response.action === "deny") {
+        // A tab-open gets a tab of its own, as a browser does, while a person
+        // rather than an agent is driving the page.
+        const newTab = focusGuard.isGuarded(targetId)
+          ? null
+          : newTabOpenOf(
+              details,
+              committedDocumentOf(guest.id, guest.mainFrame),
+            );
+        if (newTab && mayOpenFromPage(newTab.url)) {
+          publisher.publish("browser.open-in-new-tab", {
+            ...newTab,
+            targetId,
+          });
+          return response;
+        }
         // A denied open leaves the click with nowhere to go, so send the ones
         // that mean "show me this page" to the page it came from. This runs
         // even while the guest is agent-guarded, where it is the only way a
@@ -214,31 +313,45 @@ export function createBrowserViewManager(): BrowserViewManager {
     // flows); keep the shape policy on the child so those don't hang either.
     guest.on("did-create-window", (child) => {
       child.webContents.setWindowOpenHandler(guestWindowOpenHandler);
+      refuseLocalFilesInPopups(child.webContents);
     });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
-    // Keep the guest compositing when the whole Studio window is
-    // minimized/occluded (e.g. the agent captures while the user is in another
-    // app). A visible window already keeps the paint-host guest painting via its
-    // visibility:visible layout regardless of this flag; guest visibility is
-    // window-driven, not element-CSS-driven. This only matters once the window
-    // itself is hidden, when Chromium would otherwise mark the page hidden and
-    // stop producing the frames capture/Input.dispatch need.
+    // Keep the guest's timers and animations running while the Studio window
+    // is minimized or occluded (e.g. the agent works while the user is in
+    // another app). It does not guarantee frames: a guest in a window covered
+    // by another app's, or minimized, can render nothing while still reporting
+    // itself visible. Captures and input make the window draw instead
+    // (embedder-draw.ts).
     guest.setBackgroundThrottling(false);
 
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
-    attachGuestInteractions(guest);
-
-    attachDownloadHandler({
-      entries,
-      session: guest.session,
-      targetId,
+    attachGuestInteractions(guest, {
+      mayOpen: mayOpenFromPage,
+      openInNewTab: (url: string) => {
+        publisher.publish("browser.open-in-new-tab", {
+          background: false,
+          targetId,
+          url,
+        });
+      },
     });
+
+    attachDownloadHandler({ entries, session: guest.session });
 
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         focusGuard.onNavigationStart(targetId);
         markNavigated(entry, details.url);
+      }
+    });
+    // The blank page every guest is born on is not somewhere the page has
+    // been: once it has somewhere real, that start leaves its history, so
+    // back from its first page is the tab's back rather than a step onto
+    // an empty page.
+    guest.on("did-navigate", (_event, url) => {
+      if (url !== "about:blank") {
+        dropBlankStart(guest);
       }
     });
     guest.on("dom-ready", () => {
@@ -315,7 +428,10 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function bindHost(host: WebContents) {
-    hostWebContents = host;
+    hostContents = host;
+    // A FIFO of target ids accepted in `will-attach-webview`, drained in
+    // `did-attach-webview` (Electron pairs the two events in order).
+    const pendingAttachQueue: BrowserTargetId[] = [];
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
@@ -360,6 +476,9 @@ export function createBrowserViewManager(): BrowserViewManager {
       // behavior, which also covers the gap before a page paints its own
       // background (runtime-compiled CSS, slow loads, about:blank).
       webPreferences.transparent = false;
+      // Inert on every page but a file being edited in place, where it hands
+      // the editor to the guest's isolated world; see page-editor/sessions.ts.
+      webPreferences.preload = pageEditorPreloadPath();
 
       pendingAttachQueue.push(entry.targetId);
     });
@@ -400,7 +519,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing).then(() => ({ targetId }));
     }
 
-    const entry = createEntry({ id, partitionDir, sessionId, targetId });
+    const entry = createEntry({
+      id,
+      partitionDir,
+      sessionId,
+      targetId,
+    });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,
@@ -499,6 +623,13 @@ export function createBrowserViewManager(): BrowserViewManager {
         sessionId: entry.sessionId,
       };
     },
+    getTargetUrl: (targetId) => {
+      const entry = entries.get(targetId);
+      const guest = entry?.webContents;
+      return guest && !guest.isDestroyed()
+        ? committedDocumentOf(guest.id, guest.mainFrame)
+        : undefined;
+    },
     listTargets,
     onTargetDestroyed,
     sendCommand: (async (
@@ -508,6 +639,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     ) => {
       const dispatch = () =>
         sendCommand({
+          describeHost,
           ensureDebuggerAttached,
           entries,
           method,
@@ -520,7 +652,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       const settle = focusGuard.armCommand(
         targetId,
-        hostWebContents?.isFocused() ?? false,
+        hostOf(targetId)?.isFocused() ?? false,
         bouncesGuestFocus(method),
       );
       try {
@@ -529,6 +661,12 @@ export function createBrowserViewManager(): BrowserViewManager {
         settle();
       }
     }) satisfies BrowserConfig["sendCommand"],
+    setAgentFileRoots: (targetId, roots) => {
+      const entry = entries.get(targetId);
+      if (entry) {
+        entry.agentFileRoots = roots;
+      }
+    },
     stopScreencast: (targetId) => {
       const entry = entries.get(targetId);
       if (entry) {
@@ -650,6 +788,20 @@ export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
 
+/** Removes the blank entries behind where a guest stands in its history. */
+function dropBlankStart(wc: WebContents) {
+  if (wc.isDestroyed()) {
+    return;
+  }
+  const history = wc.navigationHistory;
+  const entries = history.getAllEntries();
+  for (let index = history.getActiveIndex() - 1; index >= 0; index -= 1) {
+    if (entries[index]?.url === "about:blank") {
+      history.removeEntryAtIndex(index);
+    }
+  }
+}
+
 // Record that a guest has started loading a real page, and republish so the UI
 // can surface it. `about:blank` doesn't count: bindGuest loads it to materialize
 // the RenderFrame, and agent-browser's own page bootstrap lands there too, so
@@ -692,11 +844,18 @@ function sessionForEntry(entry: BrowserEntry) {
   // Electron auto-approves every permission request (camera, mic, geolocation,
   // notifications, ...) when no handler is set. There's no browser chrome here
   // to show a native prompt, so deny everything rather than silently granting
-  // it to whatever site the guest navigates to.
-  guestSession.setPermissionRequestHandler((_wc, _permission, callback) => {
-    callback(false);
+  // it to whatever site the guest navigates to. The one exception is writing
+  // text to the clipboard, which ordinary browsers grant without a prompt and
+  // which a page's copy button needs: `navigator.clipboard.writeText` rejects
+  // under a denial, and most pages swallow that rejection, so the button does
+  // nothing. Reading the clipboard stays denied; a page overwriting it is a
+  // click the user made, a page reading it is the user's clipboard handed over.
+  guestSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "clipboard-sanitized-write");
   });
-  guestSession.setPermissionCheckHandler(() => false);
+  guestSession.setPermissionCheckHandler(
+    (_wc, permission) => permission === "clipboard-sanitized-write",
+  );
   // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
   // browser ships (and matching client hints) so third-party services treat it
   // like one. Branded with the app's own name because the guest's pages get the
@@ -705,6 +864,7 @@ function sessionForEntry(entry: BrowserEntry) {
   // Required, not optional: a passkey sign-in that finds more than one
   // credential is cancelled outright when nothing answers this.
   selectWebAuthnAccountOnRequest(guestSession);
+  confineLocalPagesToTheirFolder(guestSession);
   return guestSession;
 }
 

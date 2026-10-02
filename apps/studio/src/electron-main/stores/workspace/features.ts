@@ -1,0 +1,71 @@
+import { logger } from "@/electron-main/lib/electron-logger";
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { type FeatureName, FeatureNameSchema } from "@/shared/features";
+import Store from "electron-store";
+import { z } from "zod";
+
+const PermissiveFeaturesSchema = z.record(z.string(), z.boolean().catch(false));
+
+const FeaturesStoreSchema = z.record(
+  FeatureNameSchema,
+  z.boolean().catch(false),
+);
+
+type FeaturesStore = z.output<typeof FeaturesStoreSchema>;
+
+const parseFeatures = (data: unknown): FeaturesStore => {
+  const permissiveParsed = PermissiveFeaturesSchema.safeParse(data);
+
+  if (!permissiveParsed.success) {
+    return FeaturesStoreSchema.parse({});
+  }
+
+  const validFeatures: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(permissiveParsed.data)) {
+    const featureNameParsed = FeatureNameSchema.safeParse(key);
+    if (featureNameParsed.success) {
+      validFeatures[key] = value;
+    }
+  }
+
+  return FeaturesStoreSchema.parse(validFeatures);
+};
+
+let FEATURES_STORE: null | Store<FeaturesStore> = null;
+
+// Every feature, off. Parsing `{}` would satisfy the record type while leaving
+// each key absent, so a read would return undefined where the type promises a
+// boolean, and a switch bound to one would render uncontrolled.
+const allFeaturesOff = (): FeaturesStore =>
+  parseFeatures(
+    Object.fromEntries(FeatureNameSchema.options.map((name) => [name, false])),
+  );
+
+export const getFeaturesStore = (): Store<FeaturesStore> => {
+  if (FEATURES_STORE === null) {
+    const defaultFeatures = allFeaturesOff();
+    FEATURES_STORE = new Store<FeaturesStore>({
+      cwd: workspaceSettingsDir(),
+      defaults: defaultFeatures,
+      deserialize: (value) => {
+        try {
+          return parseFeatures(JSON.parse(value));
+        } catch (error) {
+          logger.error("Failed to parse features", error);
+          return defaultFeatures;
+        }
+      },
+      name: "features",
+    });
+
+    FEATURES_STORE.onDidAnyChange(() => {
+      publisher.publish("features.updated", null);
+    });
+  }
+
+  return FEATURES_STORE;
+};
+
+export const isFeatureEnabled = (feature: FeatureName): boolean =>
+  getFeaturesStore().get(feature);

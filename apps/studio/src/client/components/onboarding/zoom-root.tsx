@@ -1,6 +1,7 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
+import { useSyncZoom } from "@/client/hooks/use-sync-zoom";
 import { rpcClient } from "@/client/rpc/client";
 import { steppedZoom } from "@/shared/zoom";
 import { useSetAtom } from "jotai";
@@ -10,19 +11,20 @@ import { type ReactNode, useEffect } from "react";
 const RECONNECT_DELAY_MS = 500;
 
 /**
- * Drives the onboarding window's zoom. Onboarding runs its own web contents (the
- * single-router {@link App}, not MainWindow), so it doesn't get MainWindow's
- * `useAppCommands`. This subscribes to the same main-process command stream and
- * handles only the zoom commands the onboarding menu emits (ignoring
- * tab/navigation commands), then renders the shared {@link ZoomRoot} so
- * onboarding zoom uses the identical CSS-`zoom` mechanism as the main window
- * (clamped range, portalled-popover compensation via `useAppZoomStyle`) rather
- * than Electron's native page zoom. `zoomAtom` is `localStorage`-backed at the
- * same origin, so a zoom set here is already applied when the main window mounts
- * (and syncs live via storage events while both are open).
+ * Drives a window's zoom: the onboarding window's and the app window's. This
+ * subscribes to the main-process command stream the View menu's zoom items
+ * publish on, then renders the shared {@link ZoomRoot} so zoom uses the CSS
+ * `zoom` mechanism (clamped range, portalled-popover compensation via
+ * `useAppZoomStyle`) rather than Electron's native page zoom, and reports the
+ * level back for the window's macOS traffic lights. `zoomAtom` is
+ * `localStorage`-backed at the same origin, so a zoom set in one window is
+ * already applied when the other mounts (and syncs live via storage events
+ * while both are open).
  */
 export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
   const setZoom = useSetAtom(zoomAtom);
+
+  useSyncZoom();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,9 +63,6 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
               }
               case "zoomReset": {
                 setZoom(1);
-                break;
-              }
-              default: {
                 break;
               }
             }

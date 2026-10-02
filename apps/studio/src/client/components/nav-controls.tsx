@@ -23,7 +23,7 @@ export function NavControls() {
   // which leaves the arrows themselves 12px apart.
   return (
     <div className="flex items-center">
-      <ToolbarTooltip shortcut="goBack">
+      <ToolbarTooltip chord="back">
         <Button
           className="size-7 text-foreground/80"
           disabled={!canGoBack}
@@ -36,7 +36,7 @@ export function NavControls() {
           <ArrowLeftIcon className="size-4" />
         </Button>
       </ToolbarTooltip>
-      <ToolbarTooltip shortcut="goForward">
+      <ToolbarTooltip chord="forward">
         <Button
           className="size-7 text-foreground/80"
           disabled={!canGoForward}

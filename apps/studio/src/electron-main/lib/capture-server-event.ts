@@ -4,8 +4,8 @@ import {
 } from "@instrument-org/shared";
 import { app } from "electron";
 
-import { getAppStateStore } from "../stores/app-state";
-import { getPreferencesStore } from "../stores/preferences";
+import { getMachinePreferences } from "../stores/machine/preferences";
+import { getMachineState } from "../stores/machine/state";
 import { logger } from "./electron-logger";
 import { getSystemProperties } from "./system-properties";
 import { telemetry } from "./telemetry";
@@ -18,8 +18,7 @@ export const captureServerEvent: CaptureEventFunction = function <
     ? []
     : [properties: AnalyticsEvents[T]]
 ) {
-  const appStateStore = getAppStateStore();
-  const telemetryId = appStateStore.get("telemetryId");
+  const telemetryId = getMachineState().get("telemetryId");
   telemetry?.capture({
     distinctId: telemetryId,
     event: type,
@@ -31,8 +30,8 @@ export const captureServerEvent: CaptureEventFunction = function <
     },
   });
   if (import.meta.env.VITE_DEBUG_TELEMETRY === "true") {
-    const preferencesStore = getPreferencesStore();
-    const enableUsageMetrics = preferencesStore.get("enableUsageMetrics");
+    const enableUsageMetrics =
+      getMachinePreferences().get("enableUsageMetrics");
 
     let logPrefix: string;
     if (telemetry === null) {

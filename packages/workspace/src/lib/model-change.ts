@@ -39,7 +39,14 @@ export function modelChangeSincePreviousTurn({
       continue;
     }
 
-    if (message.metadata.modelId === model.canonicalId) {
+    // By address where one was recorded, since the same model from another
+    // provider is a different model to ask; by id for a turn from before.
+    const asked = message.metadata.aiGatewayModel?.uri;
+    if (
+      asked === undefined
+        ? message.metadata.modelId === model.canonicalId
+        : asked === model.uri
+    ) {
       return undefined;
     }
 
@@ -48,11 +55,13 @@ export function modelChangeSincePreviousTurn({
         contextLength: message.metadata.aiGatewayModel?.contextLength,
         modelId: message.metadata.modelId,
         name: message.metadata.aiGatewayModel?.name,
+        providerName: message.metadata.aiGatewayModel?.providerName,
       },
       to: {
         contextLength: model.contextLength,
         modelId: model.canonicalId,
         name: model.name,
+        providerName: model.providerName,
       },
     };
   }

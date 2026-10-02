@@ -173,7 +173,6 @@ function parseChecksum(text: string): string {
 // cross-arch package build (e.g. mac x64 on an arm runner) vendors the right
 // binary; fall back to the host arch otherwise.
 function resolveArch(): NodeArch {
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
   const arch = process.env.ARCH ?? process.arch;
   if (arch === "arm64" || arch === "x64") {
     return arch;
@@ -185,7 +184,6 @@ function resolveArch(): NodeArch {
 // cross-platform package build (e.g. a Windows `--dir` build on macOS) vendors
 // the right binary; fall back to the host platform otherwise.
 function resolvePlatform(): NodePlatform {
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
   const platform = process.env.TARGET_PLATFORM ?? process.platform;
   if (platform === "darwin" || platform === "linux" || platform === "win32") {
     return platform;

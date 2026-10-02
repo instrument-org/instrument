@@ -2,14 +2,12 @@ export type { AIGatewayApp } from "./app";
 export { aiGatewayApp } from "./app";
 export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
-export {
-  envForProviderConfig,
-  envForProviderConfigs,
-} from "./lib/env-for-provider-configs";
+export * from "./lib/decision-model";
 export type { TypedError as AIGatewayTypedError } from "./lib/errors";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
+export { chatGPTPlanDefaultModel } from "./lib/fetch-models/chatgpt";
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";
@@ -25,6 +23,7 @@ export {
 } from "./lib/providers/metadata";
 export type { ImageGenerationProviderType } from "./lib/providers/metadata";
 export {
+  catalogEffort,
   REASONING_EFFORTS,
   type ReasoningEffort,
 } from "./lib/reasoning-effort";

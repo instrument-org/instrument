@@ -1,23 +1,19 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
-import { rpcClient } from "@/client/rpc/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 
-import { useOpenTaskFile } from "../hooks/use-open-task-file";
-import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
+import { useFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import { getRevealInFolderLabel } from "../lib/utils";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
-import { OpenTargetIcon } from "./open-target-icon";
-import { OpenWithMenu } from "./open-with-menu";
+import { showInFolder, showInFolderLabel } from "../lib/show-in-files";
+import { isMacOS } from "../lib/utils";
+import { ShowInFolderIcon } from "./icons/reveal-in-folder";
+import { OpenInAppMenuItems } from "./open-in-app";
 import { Button, type ButtonVariant } from "./ui/button";
 import {
   DropdownMenu,
@@ -34,12 +30,12 @@ export function FileActionsMenu({
   onAddToChat,
   variant = "ghost",
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   onAddToChat?: () => void;
   variant?: ButtonVariant;
 }) {
   const fileActions = useFileActionVisibility(file);
-  const { showOpen } = useTaskFileOpenTarget(file);
+  const { showOpen } = useFileOpenTarget(file);
 
   if (
     !onAddToChat &&
@@ -86,35 +82,24 @@ export function FileActionsMenuItems({
   // (e.g. a TIFF Chromium can't render) even though the file's mime type would
   // otherwise mark it copyable.
   canCopy?: boolean;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   menuComponents: MenuComponents;
   onAddToChat?: () => void;
 }) {
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
   const showCopy = fileActions.showCopy && canCopy;
-  const openTaskFile = useOpenTaskFile();
-  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
-
-  const showTaskFileInFolderMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lowercasedLabel}`, {
-          description: error.message,
-        });
-      },
-    }),
-  );
+  const { showOpen } = useFileOpenTarget(file);
+  // The Mac lists the apps once the submenu opens, so the row is there from
+  // the first frame; elsewhere there is a row only once an app is named.
+  const showOpenIn = isMacOS() || showOpen;
 
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
 
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath: file.filePath,
-        id: file.taskId,
+        hostPath: file.hostPath,
         // A hint only: the main process sniffs the bytes it just read and
         // treats this as the answer to "image or text" for a file that really
         // is binary.
@@ -131,14 +116,14 @@ export function FileActionsMenuItems({
   };
 
   const handleRevealInFolder = () => {
-    showTaskFileInFolderMutation.mutate({
-      filePath: file.filePath,
-      id: file.taskId,
-    });
+    void showInFolder(file.hostPath, { kind: "file" });
   };
 
   const hasFileActions =
-    showOpen || showCopy || fileActions.showDownload || fileActions.showReveal;
+    showOpenIn ||
+    showCopy ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
 
   if (!onAddToChat && !hasFileActions) {
     return null;
@@ -146,19 +131,15 @@ export function FileActionsMenuItems({
 
   return (
     <>
-      {showOpen && (
+      {showOpenIn && (
         <>
-          <Item
-            onClick={() => {
-              openTaskFile(file);
-            }}
-          >
-            <OpenTargetIcon className="size-4" file={file} />
-            <span>{openLabel}</span>
-          </Item>
-          {showOpenWith && (
-            <OpenWithMenu file={file} menuComponents={menuComponents} />
-          )}
+          <OpenInAppMenuItems
+            // A file Studio cannot show is opened elsewhere to be seen at
+            // all, so its app keeps a row of its own.
+            defaultRow={getFileType(file) === "unknown"}
+            menuComponents={menuComponents}
+            target={{ hostPath: file.hostPath }}
+          />
           {(onAddToChat != null || hasFileActions) && <Separator />}
         </>
       )}
@@ -192,8 +173,8 @@ export function FileActionsMenuItems({
       )}
       {fileActions.showReveal && (
         <Item onClick={handleRevealInFolder}>
-          <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
+          <ShowInFolderIcon className="size-4" kind="file" />
+          <span>{showInFolderLabel("file")}</span>
         </Item>
       )}
     </>

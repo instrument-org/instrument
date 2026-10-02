@@ -1,0 +1,185 @@
+diff --git a/dev/lib/edit-map.d.ts b/dev/lib/edit-map.d.ts
+index 02da6f3ec111888fc55dc5e4e6ac71878d3cf44d..c375a2ca41935dc6a64e8cdb4309f79552e7827f 100644
+--- a/dev/lib/edit-map.d.ts
++++ b/dev/lib/edit-map.d.ts
+@@ -15,6 +15,13 @@ export class EditMap {
+      * @type {Array<Change>}
+      */
+     map: Array<Change>;
++    /**
++     * The change recorded for each place, so merging into an existing change
++     * does not have to search for it.
++     *
++     * @type {Map<number, Change>}
++     */
++    index: Map<number, Change>;
+     /**
+      * Create an edit: a remove and/or add at a certain place.
+      *
+diff --git a/dev/lib/edit-map.js b/dev/lib/edit-map.js
+index 983d0556e2713dc92982faa6a09b1093ef4d02db..5db8c7ab8f5c41e2d8a1062c1360d627b4a5fe1b 100644
+--- a/dev/lib/edit-map.js
++++ b/dev/lib/edit-map.js
+@@ -34,6 +34,14 @@ export class EditMap {
+      * @type {Array<Change>}
+      */
+     this.map = []
++
++    /**
++     * The change recorded for each place, so merging into an existing change
++     * does not have to search for it.
++     *
++     * @type {Map<number, Change>}
++     */
++    this.index = new Map()
+   }
+ 
+   /**
+@@ -124,6 +132,7 @@ export class EditMap {
+ 
+     // Truncate everything.
+     this.map.length = 0
++    this.index.clear()
+   }
+ }
+ 
+@@ -137,32 +146,31 @@ export class EditMap {
+  * @returns {undefined}
+  */
+ function addImplementation(editMap, at, remove, add) {
+-  let index = 0
+-
+   /* c8 ignore next 3 -- `resolve` is never called without tables, so without edits. */
+   if (remove === 0 && add.length === 0) {
+     return
+   }
+ 
+-  while (index < editMap.map.length) {
+-    if (editMap.map[index][0] === at) {
+-      editMap.map[index][1] += remove
++  const existing = editMap.index.get(at)
+ 
+-      // To do: before not used by tables, use when moving to micromark.
+-      // if (before) {
+-      //   add.push(...editMap.map[index][2])
+-      //   editMap.map[index][2] = add
+-      // } else {
+-      editMap.map[index][2].push(...add)
+-      // }
++  if (existing) {
++    existing[1] += remove
+ 
+-      return
+-    }
++    // To do: before not used by tables, use when moving to micromark.
++    // if (before) {
++    //   add.push(...existing[2])
++    //   existing[2] = add
++    // } else {
++    existing[2].push(...add)
++    // }
+ 
+-    index += 1
++    return
+   }
+ 
+-  editMap.map.push([at, remove, add])
++  /** @type {Change} */
++  const change = [at, remove, add]
++  editMap.index.set(at, change)
++  editMap.map.push(change)
+ }
+ 
+ // /**
+diff --git a/lib/edit-map.d.ts b/lib/edit-map.d.ts
+index 02da6f3ec111888fc55dc5e4e6ac71878d3cf44d..c375a2ca41935dc6a64e8cdb4309f79552e7827f 100644
+--- a/lib/edit-map.d.ts
++++ b/lib/edit-map.d.ts
+@@ -15,6 +15,13 @@ export class EditMap {
+      * @type {Array<Change>}
+      */
+     map: Array<Change>;
++    /**
++     * The change recorded for each place, so merging into an existing change
++     * does not have to search for it.
++     *
++     * @type {Map<number, Change>}
++     */
++    index: Map<number, Change>;
+     /**
+      * Create an edit: a remove and/or add at a certain place.
+      *
+diff --git a/lib/edit-map.js b/lib/edit-map.js
+index ecc8bce784d29a48e0869be1c4a2dd5ccf1d3d01..8da2364171e15e79f76cd8d2b25cacee1c6591a7 100644
+--- a/lib/edit-map.js
++++ b/lib/edit-map.js
+@@ -34,6 +34,14 @@ export class EditMap {
+      * @type {Array<Change>}
+      */
+     this.map = [];
++
++    /**
++     * The change recorded for each place, so merging into an existing change
++     * does not have to search for it.
++     *
++     * @type {Map<number, Change>}
++     */
++    this.index = new Map();
+   }
+ 
+   /**
+@@ -117,6 +125,7 @@ export class EditMap {
+ 
+     // Truncate everything.
+     this.map.length = 0;
++    this.index.clear();
+   }
+ }
+ 
+@@ -130,29 +139,29 @@ export class EditMap {
+  * @returns {undefined}
+  */
+ function addImplementation(editMap, at, remove, add) {
+-  let index = 0;
+-
+   /* c8 ignore next 3 -- `resolve` is never called without tables, so without edits. */
+   if (remove === 0 && add.length === 0) {
+     return;
+   }
+-  while (index < editMap.map.length) {
+-    if (editMap.map[index][0] === at) {
+-      editMap.map[index][1] += remove;
+-
+-      // To do: before not used by tables, use when moving to micromark.
+-      // if (before) {
+-      //   add.push(...editMap.map[index][2])
+-      //   editMap.map[index][2] = add
+-      // } else {
+-      editMap.map[index][2].push(...add);
+-      // }
++  const existing = editMap.index.get(at);
++  if (existing) {
++    existing[1] += remove;
++
++    // To do: before not used by tables, use when moving to micromark.
++    // if (before) {
++    //   add.push(...existing[2])
++    //   existing[2] = add
++    // } else {
++    existing[2].push(...add);
++    // }
+ 
+-      return;
+-    }
+-    index += 1;
++    return;
+   }
+-  editMap.map.push([at, remove, add]);
++
++  /** @type {Change} */
++  const change = [at, remove, add];
++  editMap.index.set(at, change);
++  editMap.map.push(change);
+ }
+ 
+ // /**

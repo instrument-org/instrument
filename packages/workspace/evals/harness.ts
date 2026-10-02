@@ -3,6 +3,7 @@ import {
   aiGatewayApp,
   AIGatewayModelURI,
   noopModelCache,
+  type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
@@ -13,13 +14,19 @@ import path from "node:path";
 import * as _ from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
+import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
-import { workspaceMachine } from "../src/electron";
+import { attachOrchestrator, workspaceMachine } from "../src/electron";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
+import { isWorking } from "../src/lib/orchestrator/activity";
+import { listChildTasks } from "../src/lib/orchestrator/children";
+import { outputFolderPath } from "../src/lib/orchestrator/output-folder";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
+import { updateTaskSettings } from "../src/lib/task-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -28,18 +35,23 @@ import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type ProjectId } from "../src/schemas/project-id";
+import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
+import { type TaskKind } from "../src/schemas/task-kind";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { type Choose } from "../src/tools/choose";
+import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
+import { createStandInWindow } from "./lib/stand-in-window";
 import {
   buildProviderConfigs,
   c,
+  costOfUsage,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
-  modelURI,
   resolveRegistryDir,
   write,
 } from "./utils";
@@ -60,25 +72,28 @@ function evalPrefix(name: string): string {
 }
 
 /**
- * What a change is validated against by default: the current frontier model
- * from each closed provider, plus the strongest open-weights one, because a
- * harness affordance that only one family finds is not built yet.
+ * There is no default model set, on purpose.
  *
- * OpenRouter's `~author/<name>-latest` aliases move as new builds ship, so this list
- * does not need editing to stay representative -- and `runEvals` prints what
- * each one resolved to, since a result against "latest" is otherwise
- * unattributable a month later. OpenAI is the exception and stays pinned:
- * `~openai/gpt-latest` resolves to the reasoning line, not the model the app's
- * auto setting actually sends users to.
+ * A list living in this file is a list nobody re-reads: it goes stale as
+ * providers ship, and it answers the question it was written for rather than
+ * the one being asked now. Worse, a default is what an unattended agent takes,
+ * so the models a change is validated against end up chosen by whoever last
+ * edited a constant, months ago, for something else.
+ *
+ * So `--model` is required, and `eval models` lists what the configured
+ * providers can actually run today. Whoever runs the harness picks from that
+ * and says why they picked it.
+ *
+ * The one hint: this is the model the project is usually tested against, named
+ * in the error a bare `run` produces so the cheapest reasonable choice is one
+ * copy away. Nothing reads it otherwise, so it going stale costs a sentence in
+ * an error message rather than a run against a model nobody chose.
  */
-export const MODELS = [
-  modelURI.openRouter("~anthropic/claude-sonnet-latest"),
-  modelURI.openRouter("~google/gemini-pro-latest"),
-  modelURI.openRouter("openai/gpt-5.6-luna"),
-  modelURI.openRouter("~moonshotai/kimi-latest"),
-];
+export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
+  /** Every task this run's task started, however deep. Empty unless it delegated. */
+  childTaskIds: TaskId[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
@@ -97,8 +112,11 @@ export interface CompletedRun {
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   taskId: TaskId;
+  /** This task plus every task it started. Equal to `usage` when it delegated nothing. */
+  treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
+  /** This task alone, which for an orchestrator is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
@@ -146,7 +164,50 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
 
+/**
+ * How long every task in an orchestrator's tree has to sit idle before the run
+ * is called finished.
+ *
+ * An orchestrator's own turn ends the moment it hands work off, which is the
+ * middle of the run rather than the end of it: the children are still working,
+ * and the wake carrying their results back into the conversation is on a 1.5s
+ * debounce behind them. A run that stopped at the first `session.done` would
+ * score the hand-off and never see the report, which is the half that matters.
+ * This has to stay comfortably above that debounce, since the gap between a
+ * child finishing and its wake starting a turn reads as quiet.
+ */
+const TREE_QUIET_MS = 6000;
+
+/** How often the tree is sampled while waiting for it to go quiet. */
+const TREE_POLL_MS = 500;
+
 export interface EvalCase {
+  /**
+   * What the user answers to each `choose` the agent puts to them, in the
+   * order it asks, sent through the same route the card answers with. A
+   * function gets the question as asked, for an answer that picks one of the
+   * choices the model wrote. A question asked past the end of the list stops
+   * the run, since nothing else would answer it and the turn would wait out
+   * the clock.
+   */
+  answers?: (
+    | ((
+        input: Extract<
+          SessionMessagePart.ToolPartInputAvailable,
+          { type: "tool-choose" }
+        >["input"],
+      ) => ChooseAnswer)
+    | ChooseAnswer
+  )[];
+  /**
+   * Connected apps to stand up before the run, each a real loopback server with
+   * a real manifest and a connection on record. For the paths that only exist
+   * once a service is reachable: handing one to a task, and calling it.
+   *
+   * One apps directory serves every case in a run, so these are listed in every
+   * case's context, not only this one's. Run an app case on its own.
+   */
+  apps?: AppFixture[];
   assertions?: Assertion[];
   files?: FileUpload.Type[];
   folders?: { access?: FolderAttachment.Access; path: string }[];
@@ -157,6 +218,12 @@ export interface EvalCase {
    * rather than re-derive. Assertions see every session the run produced.
    */
   followUps?: string[];
+  /**
+   * Which agent answers the prompt. An orchestrator delegates to tasks it
+   * creates inside the same workspace, so a run of that kind produces the
+   * orchestrator's transcript plus one per task it made.
+   */
+  kind?: TaskKind;
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the
@@ -169,12 +236,34 @@ export interface EvalCase {
     part: SessionMessagePart.Type,
     taskId: TaskId,
   ) => boolean | Promise<boolean>;
+  /**
+   * What the window showed as the case's message was sent, as the note on it:
+   * the tabs open, by their ids, and the page or screen up. The tabs it names
+   * are open in a stand-in window for the run, which answers `tab` and makes
+   * `--tab` accept a page tab's id.
+   */
+  viewing?: SessionMessageDataPart.ViewContextDataPart;
 }
 
 interface AssertionContext {
+  /**
+   * Every task this one started, with its sessions: what an orchestrator case
+   * needs, since the work it is scored on happened in those rather than in the
+   * conversation. A function because reading them costs a directory scan per
+   * task and most assertions never ask.
+   */
+  childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
   taskId: TaskId;
 }
+
+interface ChildTaskSessions {
+  sessions: Session.WithMessagesAndParts[];
+  taskId: TaskId;
+  title: string;
+}
+
+type ChooseAnswer = z.output<typeof Choose.outputSchema>;
 
 export function defineEval(evalCase: EvalCase): EvalCase {
   return evalCase;
@@ -197,16 +286,19 @@ export async function runEvals(
     dryRun = false,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
-    models = MODELS,
+    models,
+    reasoningEffort,
     repeat = 1,
   }: {
     concurrency?: number;
     dryRun?: boolean;
     maxRunSeconds?: number;
     maxRunTokens?: number;
-    models?: string[];
+    models: string[];
+    /** Asked of every task this run creates, the conversation's own included. */
+    reasoningEffort?: ReasoningEffort;
     repeat?: number;
-  } = {},
+  },
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
     os.tmpdir(),
@@ -229,16 +321,24 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
+  const appsConfig = createMemoryAppsConfig();
+  const standInWindow = createStandInWindow();
+  const stopStandInWindow = standInWindow.listen();
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      apps: appsConfig,
       appVersion: "0.0.0-test",
-      browser: createStubBrowserConfig(),
+      // No window, so a task starts a browser of its own; the stand-in
+      // answers for the window's tabs the conversation names.
+      browser: standInWindow.browser({
+        ...createStubBrowserConfig(),
+        hasNoWindow: true,
+      }),
       captureEvent: () => {
         return;
       },
       captureException: (...args: unknown[]) => {
-        // eslint-disable-next-line no-console
         console.error("captureException", ...args);
       },
       defaultTaskTemplateDir: path.resolve(
@@ -246,6 +346,8 @@ export async function runEvals(
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
+      isActivityHeadingsEnabled: () =>
+        process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
       isExternalBrowserEnabled: () => true,
       modelCache: noopModelCache,
       nodeExecEnv: {},
@@ -255,7 +357,6 @@ export async function runEvals(
       preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
-      shimClientDir: "dev-server",
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(
@@ -266,6 +367,7 @@ export async function runEvals(
     },
   });
 
+  attachOrchestrator(actor);
   actor.start();
 
   const runs = models
@@ -284,6 +386,24 @@ export async function runEvals(
 
   const totalRuns = runs.length;
   let finishedRuns = 0;
+
+  // Seeded once, before any case starts, because the apps a task may reach are
+  // read into the session context the first time a session needs model input.
+  // One apps directory serves the whole run, so an app a case declares is
+  // listed for every case in that run: score an app case on its own.
+  const declaredApps = _.unique(
+    runs.flatMap((run) => run.evalCase.apps ?? []),
+    (app) => app.slug,
+  );
+  const appFixtures = await seedConnectedApps(declaredApps, {
+    apps: appsConfig,
+    appsDir: path.join(workspaceRootDir, "apps"),
+  });
+  for (const app of declaredApps) {
+    write(
+      `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
+    );
+  }
 
   // A task id is slugified from the prompt, and the name is claimed by creating
   // the directory. Running one case against several models means several runs
@@ -310,6 +430,7 @@ export async function runEvals(
       // case name, because the project name reaches the agent as "this task
       // belongs to the X project" -- a case named for what it is checking would
       // be telling the model the answer.
+      standInWindow.seed(evalCase.viewing);
       const created = creating.then(async () => {
         let projectId: ProjectId | undefined;
         if (evalCase.project) {
@@ -322,15 +443,21 @@ export async function runEvals(
           }
           projectId = project.value.id;
         }
+        if (evalCase.kind === "orchestrator") {
+          ensureWorkspaceFolder();
+        }
+        const folders = privateFoldersFor(evalCase, index) ?? [];
         return call(
           taskRoute.create,
           {
             files: evalCase.files,
-            folders: privateFoldersFor(evalCase, index),
+            folders: folders.length > 0 ? folders : undefined,
+            kind: evalCase.kind,
             modelURI: uri,
             name: evalCase.name,
             projectId,
             prompt: evalCase.prompt,
+            viewing: evalCase.viewing,
           },
           { context },
         );
@@ -340,6 +467,13 @@ export async function runEvals(
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
 
+      // Written straight onto the task rather than passed through `create`,
+      // which has no input for it: every turn of this run then reads it, the
+      // conversation's and each of its tasks'.
+      if (reasoningEffort) {
+        await updateTaskSettings(id, { reasoningEffort });
+      }
+
       write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
       );
@@ -348,6 +482,8 @@ export async function runEvals(
       const startedAt = Date.now();
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
+      // Each question once: a part is published again on every update.
+      const askedIds = new Set<string>();
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -395,6 +531,43 @@ export async function runEvals(
             const part = event.part;
 
             if (
+              part.type === "tool-choose" &&
+              part.state === "input-available" &&
+              !askedIds.has(part.toolCallId)
+            ) {
+              askedIds.add(part.toolCallId);
+              const scripted = evalCase.answers?.[askedIds.size - 1];
+              const answer =
+                typeof scripted === "function"
+                  ? scripted(part.input)
+                  : scripted;
+              write(
+                `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${part.input.question}${c.reset}\n`,
+              );
+              if (answer) {
+                write(
+                  `${evalPrefix(label)}${c.dim}Answering: ${JSON.stringify(answer)}${c.reset}\n`,
+                );
+                void call(
+                  sessionRoute.answerToolCall,
+                  {
+                    id,
+                    output: answer,
+                    toolCallId: part.toolCallId,
+                    toolName: "choose",
+                  },
+                  { context },
+                );
+              } else {
+                stoppedBy ??= "case";
+                write(
+                  `${evalPrefix(label)}${c.yellow}No scripted answer for question ${askedIds.size}, stopping session...${c.reset}\n`,
+                );
+                void call(sessionRoute.stop, { id }, { context });
+              }
+            }
+
+            if (
               isToolPart(part) &&
               part.state !== "input-streaming" &&
               part.state !== "input-available"
@@ -434,10 +607,22 @@ export async function runEvals(
 
       // A stop that never takes effect would otherwise hold the whole suite
       // behind this one run for as long as the process lives.
-      const doneTimeoutMs =
-        maxRunSeconds > 0 ? maxRunSeconds * 1000 + STOP_GRACE_MS : undefined;
+      //
+      // One deadline for the whole run rather than one per wait. A case with a
+      // follow-up waits three times -- first turn, follow-up turn, then the
+      // tree going quiet -- and a per-wait cap let a run take three times the
+      // number the operator set, which is how `--max-run-seconds 900` produced
+      // a run still going three quarters of an hour later.
+      const runDeadline =
+        maxRunSeconds > 0
+          ? startedAt + maxRunSeconds * 1000 + STOP_GRACE_MS
+          : undefined;
+      const remainingMs = () =>
+        runDeadline === undefined
+          ? undefined
+          : Math.max(0, runDeadline - Date.now());
       let outcome = await waitForSessionDone(sessionId, id, {
-        timeoutMs: doneTimeoutMs,
+        timeoutMs: remainingMs(),
       });
 
       // Follow-ups run before the teardown below, so the caps timer and the
@@ -459,8 +644,22 @@ export async function runEvals(
           { context },
         );
         outcome = await waitForSessionDone(sessionId, id, {
-          timeoutMs: doneTimeoutMs,
+          timeoutMs: remainingMs(),
         });
+      }
+
+      // The children and the wake they trigger are the rest of an orchestrator
+      // run. Everything above this line has only watched the conversation.
+      if (evalCase.kind === "orchestrator" && !stoppedBy) {
+        const settled = await waitForTreeQuiet(id, {
+          timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+        });
+        if (settled === "timeout") {
+          stoppedBy = "timeout";
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
+          );
+        }
       }
 
       clearInterval(enforcementTimer);
@@ -474,18 +673,34 @@ export async function runEvals(
       }
 
       const usage = await getTaskUsageSummary(id);
+      // What a delegating run actually spent is the conversation plus every
+      // task it started; the conversation's own total is a fraction of it, and
+      // reporting only that would make delegation look free.
+      const childTaskIds = await treeTaskIds(id);
+      const childUsages = await Promise.all(
+        childTaskIds.map((childId) => getTaskUsageSummary(childId)),
+      );
+      const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+      for (const one of [usage, ...childUsages]) {
+        treeUsage.inputTokens += one.inputTokens;
+        treeUsage.outputTokens += one.outputTokens;
+        treeUsage.totalTokens += one.totalTokens;
+      }
       const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const costUSD = price
-        ? usage.inputTokens * price.prompt +
-          usage.outputTokens * price.completion
+        ? [usage, ...childUsages].reduce(
+            (sum, one) => sum + costOfUsage(one, price),
+            0,
+          )
         : undefined;
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(usage.totalTokens)} tokens${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childTaskIds.length > 0 ? ` across ${childTaskIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
       );
 
       return {
+        childTaskIds,
         costUSD,
         label,
         modelLabel,
@@ -495,6 +710,7 @@ export async function runEvals(
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
         stoppedBy,
         taskId: id,
+        treeUsage,
         trial,
         usage: {
           inputTokens: usage.inputTokens,
@@ -505,6 +721,8 @@ export async function runEvals(
     },
   );
 
+  await appFixtures.close();
+  stopStandInWindow();
   actor.stop();
 
   return { runs: completed, workspaceRootDir };
@@ -549,20 +767,43 @@ export async function sessionsFor(
 }
 
 /**
+ * The workspace folder results go to when nobody said where, made the way
+ * `window.ensure` makes it in the app. A chat reaches it and the home folder
+ * without being sent either (folder-reach.ts), so neither rides on a message:
+ * sent, they would arrive as folders the user attached, which the app never
+ * says.
+ *
+ * Both derive from `$HOME`, sandboxed away from the developer's real files by
+ * `evals/lib/sandbox-home` but shared across runs in one process, so run
+ * orchestrator cases at low concurrency and give a separate process its own
+ * `INSTRUMENT_EVAL_HOME` when two runs must not see each other's output.
+ */
+function ensureWorkspaceFolder() {
+  fs.mkdirSync(outputFolderPath(), { recursive: true });
+}
+
+/**
  * A run's own copy of each folder the case attaches.
  *
  * One case runs against every model at once, and they would otherwise share a
  * single directory: a read-write attachment means each run sees the files the
  * others just wrote, and a model that finds three charts it did not make
- * behaves nothing like one working in the folder the user actually has. The
- * copy is cheap next to an agent turn, so it is unconditional rather than
- * limited to writable attachments.
+ * behaves nothing like one working in the folder the user actually has.
+ *
+ * A read-only attachment is shared instead. Nothing a run does can change it,
+ * so the isolation the copy buys is worth nothing there, while the copy itself
+ * is a per-run walk of the whole tree: a case that attaches a folder large
+ * enough to be interesting spends longer copying it than the agent spends
+ * working in it.
  *
  * The basename is preserved because it becomes the mount name, which the case's
  * own prompt refers to ("my Reports folder").
  */
 function privateFoldersFor(evalCase: EvalCase, index: number) {
   return evalCase.folders?.map((folder) => {
+    if (folder.access === "read-only") {
+      return folder;
+    }
     const root = path.join(
       os.tmpdir(),
       `${APP_NAME_SLUG}-eval-folders-${ulid()}-${index}`,
@@ -575,6 +816,23 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
+}
+
+/** Every task descended from this one, however deep. */
+async function treeTaskIds(rootTaskId: TaskId): Promise<TaskId[]> {
+  const found: TaskId[] = [];
+  const frontier = [rootTaskId];
+  while (frontier.length > 0) {
+    const next = frontier.pop();
+    if (next === undefined) {
+      break;
+    }
+    for (const child of await listChildTasks(next)) {
+      found.push(child.id);
+      frontier.push(child.id);
+    }
+  }
+  return found;
 }
 
 async function waitForSessionDone(
@@ -613,4 +871,36 @@ async function waitForSessionDone(
       }
     })();
   });
+}
+
+/**
+ * Waits until no task in this run's tree has been working for a continuous
+ * stretch, so a lull between a child finishing and its wake reaching the
+ * orchestrator is not mistaken for the end.
+ *
+ * Scoped to the tree rather than the workspace because one workspace holds
+ * every concurrent run of a suite, and waiting on all of them would make each
+ * run as long as the slowest.
+ */
+async function waitForTreeQuiet(
+  rootTaskId: TaskId,
+  { timeoutMs }: { timeoutMs: number },
+): Promise<"quiet" | "timeout"> {
+  const deadline = Date.now() + timeoutMs;
+  let quietSince: number | undefined;
+  while (Date.now() < deadline) {
+    const working = [rootTaskId, ...(await treeTaskIds(rootTaskId))].some(
+      (taskId) => isWorking(taskId),
+    );
+    if (working) {
+      quietSince = undefined;
+    } else {
+      quietSince ??= Date.now();
+      if (Date.now() - quietSince >= TREE_QUIET_MS) {
+        return "quiet";
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
+  }
+  return "timeout";
 }

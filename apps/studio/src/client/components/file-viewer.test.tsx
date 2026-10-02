@@ -1,5 +1,4 @@
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -7,8 +6,8 @@ import { FileViewer } from "./file-viewer";
 
 // What is under test is the markdown preview; the header's open-with
 // affordances ask the main process questions a jsdom test has no answers to.
-vi.mock("../hooks/use-task-file-open-control", () => ({
-  useTaskFileOpenControl: () => ({}),
+vi.mock("../hooks/use-file-open-control", () => ({
+  useFileOpenControl: () => ({}),
 }));
 vi.mock("./open-task-file-button", () => ({
   OpenTaskFileButton: () => null,
@@ -28,14 +27,12 @@ vi.mock("@/client/rpc/client", () => ({
           mutationFn: openExternalLinkSpy,
         }),
       },
-      showTaskFileInFolder: {
+      showFileInFolder: {
         mutationOptions: (options: object) => options,
       },
     },
   },
 }));
-
-const TASK_ID = TaskIdSchema.parse("a-task");
 
 // A `.md` that arrived in the task folder: one image of every kind the agent's
 // own markdown would be allowed to fetch, plus the embedded one that stays and
@@ -54,10 +51,9 @@ function renderMarkdownFile() {
     <FileViewer
       file={{
         filename: "notes.md",
-        filePath: "output/notes.md",
+        hostPath: "/Users/casey/tasks/a-task/output/notes.md",
         mimeType: "text/markdown",
-        taskId: TASK_ID,
-        url: "http://assets.a-task.localhost:1234/output/notes.md",
+        url: "instrument://computer-test/Users/casey/tasks/a-task/output/notes.md",
       }}
     />,
   );
@@ -90,7 +86,7 @@ describe("FileViewer markdown preview", () => {
     );
     expect(sources).toEqual([
       "data:image/png;base64,QUJD",
-      "http://assets.a-task.localhost:1234/output/chart.png",
+      "instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
     ]);
   });
 
@@ -128,7 +124,7 @@ describe("FileViewer markdown preview", () => {
     );
     expect(sources).toEqual([
       "data:image/png;base64,QUJD",
-      "http://assets.a-task.localhost:1234/output/chart.png",
+      "instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
     ]);
   });
 });

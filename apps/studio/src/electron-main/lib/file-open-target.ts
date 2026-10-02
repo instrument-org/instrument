@@ -1,3 +1,4 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -10,8 +11,14 @@ import {
   renderDarwinIcons,
   resolveDarwinTarget,
 } from "./file-open-target/resolve-darwin";
-import { resolveLinuxTarget } from "./file-open-target/resolve-linux";
-import { resolveWin32Target } from "./file-open-target/resolve-win32";
+import {
+  resolveLinuxBrowserTarget,
+  resolveLinuxTarget,
+} from "./file-open-target/resolve-linux";
+import {
+  resolveWin32BrowserTarget,
+  resolveWin32Target,
+} from "./file-open-target/resolve-win32";
 import {
   type CandidateApp,
   type FileOpenCandidate,
@@ -38,6 +45,28 @@ const COMMON_FILE_EXTENSIONS = [
   ".pptx",
 ];
 
+// The browser is keyed apart from every file type: a scheme, where a file type
+// is an extension, so the two can never collide in the targets cache.
+const BROWSER_TARGET_KEY = "https:";
+
+// What the Mac is asked to open when naming the browser: any https URL
+// resolves to the same app, so the page on screen never leaves the process.
+const BROWSER_PROBE_URL = "https://example.com/";
+
+// Every folder is opened by the same apps, whatever its name: Launch Services
+// answers for the folder type, so one entry serves them all. Not an extension
+// and not a path, so it collides with neither.
+const FOLDER_CANDIDATES_KEY = "folder/";
+
+const FINDER_APP_PATH = "/System/Library/CoreServices/Finder.app";
+
+// What a platform that cannot name the browser answers.
+const UNRESOLVED_BROWSER: FileOpenTarget = {
+  appName: null,
+  iconUrl: null,
+  launchAppPath: null,
+};
+
 // Resolution results that only make sense for this process: promises in flight,
 // and per-path entries for files that have no extension to key on. Everything
 // worth keeping across launches lives in cache-store.
@@ -47,17 +76,48 @@ const candidatesCache = new Map<string, Promise<CandidateApp[]>>();
 const iconCache = new Map<string, Promise<null | string>>();
 const iconRefreshes = new Set<string>();
 
+/**
+ * The default browser's name and icon, for "Open in {browser}" on a web page.
+ * Cached like a file type, and null fields when the platform cannot say,
+ * which is the caller's cue to offer a generic way out instead.
+ */
+export async function getBrowserOpenTarget(): Promise<FileOpenTarget> {
+  return getCachedTarget(BROWSER_TARGET_KEY, resolveBrowserTarget, () =>
+    Promise.resolve(UNRESOLVED_BROWSER),
+  );
+}
+
+// The Finder, with its own icon rendered the way every candidate app's is, for
+// the row that hands a file to it. Null elsewhere, where no Open in list is
+// drawn.
+export async function getFileManagerApp(): Promise<{
+  appPath: null | string;
+  iconUrl: null | string;
+}> {
+  if (process.platform !== "darwin") {
+    return { appPath: null, iconUrl: null };
+  }
+  const icons = await resolveIcons([FINDER_APP_PATH]);
+  return {
+    appPath: FINDER_APP_PATH,
+    iconUrl: icons.get(FINDER_APP_PATH) ?? null,
+  };
+}
+
 // Rejects when the lookup itself failed, so callers can tell "this file type
 // has no alternate apps" apart from "we could not find out". Collapsing the two
 // silently hides the picker with no way for the user to retry.
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const apps = await getCandidateApps(fullPath);
-  const candidates = curateCandidates(
-    apps,
-    path.extname(fullPath).toLowerCase(),
-  );
+  const isFolder = await fs
+    .stat(fullPath)
+    .then((stats) => stats.isDirectory())
+    .catch(() => false);
+  // A folder's name can carry a dot without that being a type of its own.
+  const ext = isFolder ? "" : path.extname(fullPath).toLowerCase();
+  const apps = await getCandidateApps(fullPath, { ext, isFolder });
+  const candidates = curateCandidates(apps, ext);
   if (candidates.length === 0) {
     return [];
   }
@@ -96,23 +156,11 @@ export async function getFileOpenTarget(
     return pending.catch(() => fallbackTarget(fullPath));
   }
 
-  const cached = await cacheStore.getTarget(ext);
-  if (cached) {
-    if (cached.isStale) {
-      // Serve the cached value immediately but refresh in the background so a
-      // changed default app is picked up without ever blocking the caller.
-      refreshTargetInBackground(ext, fullPath);
-    }
-    return cached.value;
-  }
-
-  const inFlight = inFlightTargets.get(ext);
-  if (inFlight) {
-    return inFlight.catch(() => fallbackTarget(fullPath));
-  }
-  const pending = resolveAndStoreTarget(ext, fullPath);
-  inFlightTargets.set(ext, pending);
-  return pending.catch(() => fallbackTarget(fullPath));
+  return getCachedTarget(
+    ext,
+    () => resolveTarget(fullPath),
+    () => fallbackTarget(fullPath),
+  );
 }
 
 // Seeds the persisted caches for the file types most commonly produced or
@@ -163,25 +211,60 @@ export async function warmCommonFileOpenTargets() {
 }
 
 async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
-  return { appName: null, iconUrl: await getFileTypeIconUrl(fullPath) };
+  return {
+    appName: null,
+    iconUrl: await getFileTypeIconUrl(fullPath),
+    launchAppPath: null,
+  };
+}
+
+// Serves a target from the persisted cache, refreshing a stale one behind the
+// caller, and otherwise resolves it once however many callers ask at a time.
+// Never rejects: a failed lookup answers with `fallback`, and is not cached,
+// so the next request retries.
+async function getCachedTarget(
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
+  fallback: () => Promise<FileOpenTarget>,
+): Promise<FileOpenTarget> {
+  const cached = await cacheStore.getTarget(key);
+  if (cached) {
+    if (cached.isStale) {
+      // Serve the cached value immediately but refresh in the background so a
+      // changed default app is picked up without ever blocking the caller.
+      refreshTargetInBackground(key, resolve);
+    }
+    return cached.value;
+  }
+
+  const inFlight = inFlightTargets.get(key);
+  if (inFlight) {
+    return inFlight.catch(fallback);
+  }
+  const pending = resolveAndStoreTarget(key, resolve);
+  inFlightTargets.set(key, pending);
+  return pending.catch(fallback);
 }
 
 // The raw enumeration for a file type, before curation. Persisted in this form
 // so a policy change takes effect on the next read.
-async function getCandidateApps(fullPath: string): Promise<CandidateApp[]> {
+async function getCandidateApps(
+  fullPath: string,
+  { ext, isFolder }: { ext: string; isFolder: boolean },
+): Promise<CandidateApp[]> {
   if (process.platform !== "darwin") {
     // Only macOS has a portable enumeration of every app that can open a file.
     return [];
   }
-  const ext = path.extname(fullPath).toLowerCase();
-  const key = ext || fullPath;
+  const key = isFolder ? FOLDER_CANDIDATES_KEY : ext || fullPath;
   const existing = candidatesCache.get(key);
   if (existing) {
     return existing;
   }
-  const pending = ext
-    ? getOrResolveCandidates(key, fullPath)
-    : enumerateDarwinCandidates(fullPath);
+  const pending =
+    isFolder || ext
+      ? getOrResolveCandidates(key, fullPath)
+      : enumerateDarwinCandidates(fullPath);
   candidatesCache.set(key, pending);
   // Launch Services occasionally rejects a file even when its default app is
   // resolvable. Drop the failure so a later request retries rather than serving
@@ -260,12 +343,15 @@ function refreshIconsInBackground(appPaths: string[]) {
     });
 }
 
-function refreshTargetInBackground(ext: string, fullPath: string) {
-  if (inFlightTargets.has(ext)) {
+function refreshTargetInBackground(
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
+) {
+  if (inFlightTargets.has(key)) {
     return;
   }
-  const pending = resolveAndStoreTarget(ext, fullPath);
-  inFlightTargets.set(ext, pending);
+  const pending = resolveAndStoreTarget(key, resolve);
+  inFlightTargets.set(key, pending);
   // Background refresh failures are non-fatal; the stale value stays cached.
   void pending.catch(() => null);
 }
@@ -292,15 +378,15 @@ async function resolveAndStoreIcons(appPaths: string[]) {
 }
 
 async function resolveAndStoreTarget(
-  ext: string,
-  fullPath: string,
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
 ): Promise<FileOpenTarget> {
   try {
-    const target = await resolveTarget(fullPath);
-    await cacheStore.setTarget(ext, target);
+    const target = await resolve();
+    await cacheStore.setTarget(key, target);
     return target;
   } finally {
-    inFlightTargets.delete(ext);
+    inFlightTargets.delete(key);
   }
 }
 
@@ -316,6 +402,36 @@ async function resolveAssociatedApp(
     }
     case "win32": {
       return resolveWin32Target(fullPath);
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
+async function resolveBrowserTarget(): Promise<FileOpenTarget> {
+  const resolved = await resolveDefaultBrowser();
+  // A browser that is Instrument itself is no way out of Instrument.
+  if (!resolved || resolved.bundleId === APP_BUNDLE_ID) {
+    return UNRESOLVED_BROWSER;
+  }
+  return {
+    appName: resolved.appName,
+    iconUrl: resolved.iconUrl,
+    launchAppPath: null,
+  };
+}
+
+async function resolveDefaultBrowser(): Promise<null | ResolvedApp> {
+  switch (process.platform) {
+    case "darwin": {
+      return resolveDarwinTarget(BROWSER_PROBE_URL);
+    }
+    case "linux": {
+      return resolveLinuxBrowserTarget();
+    }
+    case "win32": {
+      return resolveWin32BrowserTarget();
     }
     default: {
       return null;
@@ -377,8 +493,28 @@ async function resolveIcons(appPaths: string[]) {
   return resolved;
 }
 
+// The system would open the file in Instrument, so the button offers whichever
+// app curation promoted in its place.
+async function resolvePromotedTarget(
+  fullPath: string,
+): Promise<FileOpenTarget> {
+  const candidates = await getFileOpenCandidates(fullPath);
+  const promoted = candidates.find((candidate) => candidate.isDefault);
+  if (!promoted) {
+    return fallbackTarget(fullPath);
+  }
+  return {
+    appName: promoted.appName,
+    iconUrl: promoted.iconUrl ?? (await getFileTypeIconUrl(fullPath)),
+    launchAppPath: promoted.appPath,
+  };
+}
+
 async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
   const resolved = await resolveAssociatedApp(fullPath);
+  if (resolved?.bundleId === APP_BUNDLE_ID) {
+    return resolvePromotedTarget(fullPath);
+  }
   const iconUrl = resolved?.iconUrl ?? (await getFileTypeIconUrl(fullPath));
-  return { appName: resolved?.appName ?? null, iconUrl };
+  return { appName: resolved?.appName ?? null, iconUrl, launchAppPath: null };
 }

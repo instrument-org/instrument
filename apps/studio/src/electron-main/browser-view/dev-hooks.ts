@@ -4,7 +4,7 @@
 // isDeveloperMode() returns false.
 
 import { publisher } from "@/electron-main/rpc/publisher";
-import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 
 import { type BrowserEntry } from "./entry";
 

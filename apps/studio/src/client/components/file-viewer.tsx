@@ -1,5 +1,6 @@
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   LazyArchiveViewer,
   LazyCsvViewer,
@@ -15,40 +16,56 @@ import {
 } from "@/client/lib/document-viewers";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
+import { flushFileWrites } from "@/client/lib/file-flush";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import {
+  hasFilesView,
+  showInFolder,
+  showInFolderLabel,
+} from "@/client/lib/show-in-files";
+import { cn } from "@/client/lib/utils";
+import {
+  isMessageDocument,
+  parseMessage,
+} from "@instrument-org/workspace/client";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { CheckIcon } from "@phosphor-icons/react/Check";
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
-import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { XIcon } from "@phosphor-icons/react/X";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";
+import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
-import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
-import { useTimedFlag } from "../hooks/use-timed-flag";
+import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
+import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
+import { MarkdownDocument } from "./markdown-outline";
+import { MessageCard } from "./message-card";
+import { OpenInAppMenuItems } from "./open-in-app";
 import { OpenTaskFileButton } from "./open-task-file-button";
-import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -62,17 +79,31 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { contextMenuComponents } from "./ui/menu-components";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+} from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+// The editor and everything under it (Milkdown, CodeMirror's languages) load
+// the first time a Markdown file is opened for editing, not with the viewer.
+const MarkdownEditor = lazy(() =>
+  import("./markdown-editor/markdown-editor").then((module) => ({
+    default: module.MarkdownEditor,
+  })),
+);
+
+// The code editor (CodeMirror and its languages) loads the first time a code
+// or text file is opened where it can be edited.
+const CodeFileEditor = lazy(() =>
+  import("./code-editor/code-file-editor").then((module) => ({
+    default: module.CodeFileEditor,
+  })),
+);
 
 /**
  * Wrapping is entirely ours to decide: the highlighter hands back tokens as
@@ -172,6 +203,16 @@ function MarkdownPreview({ url }: { url: string }) {
     return <FileTextError error={error} />;
   }
 
+  // A file whose front matter says `message:` is words to send, drawn as the
+  // card a reply draws for them rather than as a document.
+  if (data !== undefined && isMessageDocument(data)) {
+    return (
+      <div className="mx-auto w-full max-w-2xl p-8">
+        <MessageCard message={parseMessage(data)} />
+      </div>
+    );
+  }
+
   // The file's own pictures and nothing else: a `.md` in the task folder is a
   // file someone else may have written -- a cloned repo, an attachment, agent
   // output -- and an `<img>` naming a host is a request the moment the preview
@@ -253,17 +294,24 @@ function useFileText(url: string) {
 // space they have, so there is no intrinsic-size variant left to pick. Exported
 // for the panel's placeholder frame, which stands in while a file is being
 // looked up and has to be the same card.
-export const fileViewerClassName =
-  "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
+//
+// The card is a different ground from the one markdown is drawn on everywhere
+// else, so it names itself: anything inside that has to paint its own
+// background -- a table's scroll fade, the controls that stand on it -- reads
+// `--markdown-surface` rather than assuming the window's.
+const fileViewerClassName =
+  "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm [--markdown-surface:var(--card)]";
 
 interface ViewerContext {
+  /** Whether the file opens as a live editor (code, text, CSV) rather than a view. */
+  editable: boolean;
   fallback: ReactNode;
-  file: TaskFileViewerFile;
-  htmlReloadNonce: number;
+  file: ViewerFile;
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
-  viewMode: "preview" | "raw";
+  /** A page's file drawn as its page, when the surface around the viewer can draw one. */
+  page?: ReactNode;
   wrapLines: boolean;
 }
 
@@ -301,7 +349,7 @@ const VIEWERS = {
   archive: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyArchiveViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -314,7 +362,7 @@ const VIEWERS = {
         <audio
           className="w-full max-w-2xl"
           controls
-          key={file.filePath}
+          key={file.hostPath}
           onError={() => {
             onMediaError("mp3");
           }}
@@ -324,12 +372,24 @@ const VIEWERS = {
     ),
     scrolls: "container",
   },
-  code: { hasToolbar: false, render: renderCode, scrolls: "container" },
+  code: {
+    hasToolbar: false,
+    render: (context) =>
+      context.editable
+        ? renderCodeEditor(context, "code")
+        : renderCode(context),
+    scrolls: "container",
+  },
   csv: {
     hasToolbar: true,
-    render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
-        <LazyCsvViewer filename={file.filename} url={file.url} />
+    render: ({ editable, fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+        <LazyCsvViewer
+          editable={editable}
+          filename={file.filename}
+          hostPath={file.hostPath}
+          url={file.url}
+        />
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -337,25 +397,24 @@ const VIEWERS = {
   docx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
-        <LazyDocxViewer filename={file.filename} url={file.url} />
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+        <AskSelection path={file.hostPath}>
+          <LazyDocxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
   },
+  // A page is what a browser is for, and a file tab shows one in a guest.
+  // Here the file is its text, edited where the surface allows it, unless the
+  // surface around the viewer hands over the page drawn.
   html: {
     hasToolbar: false,
     render: (context) =>
-      context.viewMode === "raw" ? (
-        renderCode(context)
-      ) : (
-        <SandboxedHtmlIframe
-          className="absolute inset-0 size-full border-0"
-          key={context.htmlReloadNonce}
-          src={context.file.url}
-          title={context.file.filename}
-        />
-      ),
+      context.page ??
+      (context.editable
+        ? renderCodeEditor(context, "code")
+        : renderCode(context)),
     scrolls: "container",
   },
   image: {
@@ -370,7 +429,7 @@ const VIEWERS = {
           <ContextMenuTrigger className="size-full">
             <ImageViewer
               file={file}
-              key={file.filePath}
+              key={file.hostPath}
               onError={onImageError}
             />
           </ContextMenuTrigger>
@@ -387,7 +446,7 @@ const VIEWERS = {
   iwork: {
     hasToolbar: false,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyIWorkViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -396,7 +455,7 @@ const VIEWERS = {
   jsonl: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyJsonlViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -404,13 +463,23 @@ const VIEWERS = {
   },
   markdown: {
     hasToolbar: false,
+    // Keyed on the file rather than its URL: the URL carries the mtime, so a
+    // save of the file being read would reset its scroll position, while a
+    // different file should start at the top with an outline of its own.
     render: (context) =>
-      context.viewMode === "raw" ? (
-        renderCode(context)
+      context.editable ? (
+        <Suspense fallback={<FileLoading />}>
+          <MarkdownEditor
+            hostPath={context.file.hostPath}
+            key={context.file.hostPath}
+          />
+        </Suspense>
       ) : (
-        <MarkdownPreview url={context.file.url} />
+        <MarkdownDocument key={context.file.hostPath}>
+          <MarkdownPreview url={context.file.url} />
+        </MarkdownDocument>
       ),
-    scrolls: "container",
+    scrolls: "self",
   },
   notebook: {
     hasToolbar: true,
@@ -424,7 +493,7 @@ const VIEWERS = {
   parquet: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyParquetViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -434,8 +503,10 @@ const VIEWERS = {
   pptx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
-        <LazyPptxViewer filename={file.filename} url={file.url} />
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+        <AskSelection path={file.hostPath}>
+          <LazyPptxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -443,7 +514,7 @@ const VIEWERS = {
   sqlite: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazySqliteViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -451,9 +522,12 @@ const VIEWERS = {
   },
   text: {
     hasToolbar: false,
-    render: ({ file, wrapLines }) => (
-      <PlainTextView url={file.url} wrapLines={wrapLines} />
-    ),
+    render: (context) =>
+      context.editable ? (
+        renderCodeEditor(context, "text")
+      ) : (
+        <PlainTextView url={context.file.url} wrapLines={context.wrapLines} />
+      ),
     scrolls: "container",
   },
   unknown: {
@@ -477,7 +551,7 @@ const VIEWERS = {
             autoPlay
             className="size-full object-contain"
             controls
-            key={file.filePath}
+            key={file.hostPath}
             muted
             onError={() => {
               onMediaError("mp4");
@@ -499,13 +573,25 @@ const VIEWERS = {
   xlsx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
-        <LazyXlsxViewer filename={file.filename} url={file.url} />
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+        <AskSelection path={file.hostPath}>
+          <LazyXlsxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
   },
 } satisfies Record<FileType, ViewerEntry>;
+
+/**
+ * A file that is text under the covers shown as that text, in the code
+ * editor, in place of the view its type gets.
+ */
+const SOURCE_VIEWER: ViewerEntry = {
+  hasToolbar: false,
+  render: (context) => renderCodeEditor(context, "code"),
+  scrolls: "container",
+};
 
 function renderCode({ file, wrapLines }: ViewerContext) {
   return (
@@ -513,12 +599,71 @@ function renderCode({ file, wrapLines }: ViewerContext) {
   );
 }
 
+/**
+ * A code or text file as a live editor. It fills the scroll container and
+ * scrolls itself, which is what lets it draw only the lines in view of a
+ * long file. Keyed on the file for the same reason the Markdown editor is.
+ */
+function renderCodeEditor(
+  { file, wrapLines }: ViewerContext,
+  variant: "code" | "text",
+) {
+  return (
+    <div className="absolute inset-0">
+      <Suspense fallback={<FileLoading />}>
+        <CodeFileEditor
+          filename={file.filename}
+          hostPath={file.hostPath}
+          key={file.hostPath}
+          variant={variant}
+          wrapLines={wrapLines}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
 function renderPdf({ fallback, file }: ViewerContext) {
   return (
-    <ViewerSurface fallback={fallback} resetKey={file.filePath}>
-      <LazyPdfViewer filename={file.filename} url={file.url} />
+    <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+      <AskSelection path={file.hostPath}>
+        <LazyPdfViewer filename={file.filename} url={file.url} />
+      </AskSelection>
     </ViewerSurface>
   );
+}
+
+/**
+ * What a file that is text under the covers is shown as when it is not shown
+ * as its text, for the menu's way back from the source; absent for a file
+ * whose only view is its text, or whose view is not text.
+ */
+function richViewName(
+  fileType: FileType,
+  filename: string,
+  hasPage: boolean,
+): string | undefined {
+  switch (fileType) {
+    case "csv":
+    case "jsonl": {
+      return "table";
+    }
+    case "html": {
+      return hasPage ? "page" : undefined;
+    }
+    case "image": {
+      return /\.svg$/i.test(filename) ? "image" : undefined;
+    }
+    case "markdown": {
+      return "document";
+    }
+    case "notebook": {
+      return "notebook";
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 const fileViewerHeaderActionClassName = toolbarClassName({
@@ -551,64 +696,106 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 });
 
 export function FileViewer({
+  actionsInto,
+  actionsLead,
   className,
+  editable = false,
   file,
   onClose,
   onExpand,
+  onLeaveSource,
+  page,
 }: {
+  /**
+   * Where the file's actions go when the surface around the viewer has a row
+   * of its own for them: the viewer then wears no head, and draws its actions
+   * there once the element is up.
+   */
+  actionsInto?: HTMLElement | null;
+  /** Buttons of the caller's own, ahead of the viewer's in its head. */
+  actionsLead?: ReactNode;
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
-  file: TaskFileViewerFile;
+  /**
+   * Whether a Markdown file opens as a live editor; a code, plain text or
+   * HTML file as a live code editor; and a CSV as an editable grid. A file
+   * that is text under the covers but has a view of its own (Markdown, a
+   * page, a table, an SVG) also offers its source in the code editor, from
+   * the menu. For a surface that is the file's own place (its tab); a glance
+   * at a file (Quick Look) keeps the static views.
+   */
+  editable?: boolean;
+  file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
+  /**
+   * Set by a surface showing a page's file as its source because it was
+   * asked to, where the page is shown elsewhere: the menu's way back from
+   * the source calls it.
+   */
+  onLeaveSource?: () => void;
+  /**
+   * A page's file drawn as its page, from a surface that can draw one; the
+   * viewer shows it, and offers the source from the menu. Consulted for an
+   * HTML file alone.
+   */
+  page?: ReactNode;
 }) {
-  const { filename, filePath, mimeType, taskId, url } = file;
-  const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  const { filename, hostPath, mimeType, url } = file;
+  const [sourceChosen, setSourceChosen] = useState(false);
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
-  // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
-  // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
-  // reloading `src` is the only way to escape an in-page link navigation.
-  const [htmlReloadNonce, setHtmlReloadNonce] = useState(0);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
-  const { active: copied, trigger: triggerCopied } = useTimedFlag();
-  const openControl = useTaskFileOpenControl(file);
-  const revealFileMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lowercasedLabel}`, {
-          description: error.message,
-        });
-      },
-    }),
-  );
+  // In a row of its own the file's app is the address field's, and the menu
+  // offers the others; the viewer's own head keeps the split button.
+  const isInRow = actionsInto !== undefined;
+  const openControl = useFileOpenControl(file, { loadCandidates: !isInRow });
+
+  const fileType = getFileType(file);
+  // The source is where a file with a view of its own goes to be edited as
+  // its text; it is out of the way, in the menu, because the view is how the
+  // file is meant to be read and edited.
+  const richView = editable
+    ? richViewName(
+        fileType,
+        filename,
+        page !== undefined || onLeaveSource !== undefined,
+      )
+    : undefined;
+  const showsSource =
+    richView !== undefined && (sourceChosen || onLeaveSource !== undefined);
 
   useEffect(() => {
     contentRef.current?.scrollTo({ behavior: "instant", top: 0 });
-  }, [viewMode]);
+  }, [showsSource]);
 
-  const fileType = getFileType(file);
-  const hasPreview = fileType === "markdown" || fileType === "html";
   // What is on screen is the file's own text, so the wrap preference governs
-  // it: the code and plain text viewers always, a markdown or HTML file only
-  // while its own view mode is showing the source.
+  // it: the code and plain text viewers always, an HTML file with no page
+  // drawn for it, and any file while its source is showing.
   const showsFileText =
     fileType === "code" ||
     fileType === "text" ||
-    (hasPreview && viewMode === "raw");
+    (fileType === "html" && page === undefined) ||
+    showsSource;
   const fileActions = useFileActionVisibility(file);
+  // Copying the whole file is rare enough to live in the menu rather than
+  // take a place in the head beside opening it.
+  const canCopy = fileActions.showCopy && !imageLoadError;
   const hasHeaderMenuActions =
-    onExpand != null || fileActions.showDownload || fileActions.showReveal;
+    onExpand != null ||
+    canCopy ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
   const showOverflowMenu =
+    isInRow ||
+    canCopy ||
     fileActions.showDownload ||
     fileActions.showReveal ||
-    hasPreview ||
+    richView !== undefined ||
     showsFileText ||
     Boolean(onExpand);
 
@@ -619,31 +806,38 @@ export function FileViewer({
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath,
-        id: taskId,
+        hostPath,
         isImage: fileType === "image",
       });
-      triggerCopied();
+      toast.success("Copied");
     } catch {
       // copyFileToClipboard already toasts on error
     }
   };
 
-  const handleViewModeChange = (value: string) => {
-    if (value === "preview" || value === "raw") {
-      setViewMode(value);
+  // The view giving way writes what it holds first, so the one taking over
+  // reads the file as it was left.
+  const handleSourceChange = async (next: boolean) => {
+    await flushFileWrites(hostPath);
+    if (!next && onLeaveSource) {
+      onLeaveSource();
+    } else {
+      setSourceChosen(next);
     }
   };
 
   const handleRevealInFolder = () => {
-    revealFileMutation.mutate({
-      filePath,
-      id: taskId,
-    });
+    void showInFolder(hostPath, { kind: "file" });
+    // The folder opens as a tab of the window's own, which a viewer over the
+    // window would stand in front of.
+    if (hasFilesView()) {
+      onClose?.();
+    }
   };
 
-  const viewer: ViewerEntry = VIEWERS[fileType];
+  const viewer: ViewerEntry = showsSource ? SOURCE_VIEWER : VIEWERS[fileType];
   const viewerContext: ViewerContext = {
+    editable,
     fallback: (
       <FilePreviewFallback
         // Only consulted when the filename carries no recognizable extension,
@@ -657,7 +851,6 @@ export function FileViewer({
       />
     ),
     file,
-    htmlReloadNonce,
     imageLoadError,
     onImageError: () => {
       setImageErrorUrl(url);
@@ -666,148 +859,151 @@ export function FileViewer({
       setMediaLoadError(true);
       setMediaErrorType(fallbackExtension);
     },
-    viewMode,
+    ...(page === undefined ? {} : { page }),
     wrapLines,
   };
 
-  return (
-    <div className={cn(fileViewerClassName, className)}>
-      <FileViewerHeader
-        actions={
-          <>
-            <OpenTaskFileButton
-              className={fileViewerHeaderActionClassName}
-              control={openControl}
-              dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
-              file={file}
-              iconClassName="size-4"
-              labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
-              size="sm"
+  const actions = (
+    <>
+      {actionsLead}
+      {showsSource && (
+        // Where the source was left from: the menu took the person here, and
+        // this takes them back without a trip through it.
+        <ToolbarTooltip label={`Show ${richView}`}>
+          <Button
+            aria-label={`Leave the source and show the ${richView}`}
+            className="gap-1 px-1.5 text-xs text-muted-foreground"
+            onClick={() => {
+              void handleSourceChange(false);
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            <CodeIcon className="size-3.5" />
+            Source
+            <XIcon className="size-3" />
+          </Button>
+        </ToolbarTooltip>
+      )}
+      {!isInRow && (
+        <OpenTaskFileButton
+          className={fileViewerHeaderActionClassName}
+          control={openControl}
+          dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
+          file={file}
+          iconClassName="size-4"
+          labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
+          size="sm"
+          variant="ghost"
+        />
+      )}
+      {showOverflowMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label="More actions"
+              className={fileViewerHeaderMenuTriggerClassName}
+              size="icon-sm"
               variant="ghost"
-            />
-            {fileType === "html" && viewMode === "preview" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label="Reload"
-                    className={fileViewerHeaderIconActionClassName}
-                    onClick={() => {
-                      setHtmlReloadNonce((nonce) => nonce + 1);
-                    }}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <ArrowClockwiseIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Reload</TooltipContent>
-              </Tooltip>
+            >
+              <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isInRow && (
+              <>
+                <OpenInAppMenuItems
+                  menuComponents={dropdownMenuComponents}
+                  target={{ hostPath }}
+                />
+                {(hasHeaderMenuActions ||
+                  richView !== undefined ||
+                  showsFileText) && <DropdownMenuSeparator />}
+              </>
             )}
-            {fileActions.showCopy && !imageLoadError && (
-              <Button
-                className={fileViewerHeaderActionClassName}
-                onClick={() => void handleCopy()}
-                size="sm"
-                variant="ghost"
+            {onExpand && (
+              <DropdownMenuItem onClick={onExpand}>
+                <ArrowsOutSimpleIcon className="size-4" />
+                <span>Expand</span>
+              </DropdownMenuItem>
+            )}
+            {fileActions.showDownload && (
+              <DropdownMenuItem onClick={() => void handleDownload()}>
+                <ArrowLineDownIcon className="size-4" />
+                <span>Save as…</span>
+              </DropdownMenuItem>
+            )}
+            {canCopy && (
+              <DropdownMenuItem onClick={() => void handleCopy()}>
+                <CopyIcon className="size-4" />
+                <span>Copy file</span>
+              </DropdownMenuItem>
+            )}
+            {fileActions.showReveal && (
+              <DropdownMenuItem onClick={handleRevealInFolder}>
+                <ShowInFolderIcon className="size-4" kind="file" />
+                <span>{showInFolderLabel("file")}</span>
+              </DropdownMenuItem>
+            )}
+            {hasHeaderMenuActions &&
+              (richView !== undefined || showsFileText) && (
+                <DropdownMenuSeparator />
+              )}
+            {richView !== undefined && (
+              <DropdownMenuItem
+                onClick={() => void handleSourceChange(!showsSource)}
               >
-                {copied ? (
-                  <CheckIcon className="size-4" />
+                {showsSource ? (
+                  <ArrowUUpLeftIcon className="size-4" />
                 ) : (
-                  <CopyIcon className="size-4" />
+                  <CodeIcon className="size-4" />
                 )}
-                <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                  Copy
-                </span>
-              </Button>
+                <span>{showsSource ? `Show ${richView}` : "Edit source"}</span>
+              </DropdownMenuItem>
             )}
-            {showOverflowMenu && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    className={fileViewerHeaderMenuTriggerClassName}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <DotsThreeOutlineVerticalIcon
-                      className="size-4"
-                      weight="fill"
-                    />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {onExpand && (
-                    <DropdownMenuItem onClick={onExpand}>
-                      <ArrowsOutSimpleIcon className="size-4" />
-                      <span>Expand</span>
-                    </DropdownMenuItem>
-                  )}
-                  {fileActions.showDownload && (
-                    <DropdownMenuItem onClick={() => void handleDownload()}>
-                      <ArrowLineDownIcon className="size-4" />
-                      <span>Save as…</span>
-                    </DropdownMenuItem>
-                  )}
-                  {fileActions.showReveal && (
-                    <DropdownMenuItem onClick={handleRevealInFolder}>
-                      <RevealInFolderIcon className="size-4" />
-                      <span>{getRevealInFolderLabel()}</span>
-                    </DropdownMenuItem>
-                  )}
-                  {hasHeaderMenuActions && (hasPreview || showsFileText) && (
-                    <DropdownMenuSeparator />
-                  )}
-                  {hasPreview && (
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        {viewMode === "preview" ? (
-                          <EyeIcon className="size-4" />
-                        ) : (
-                          <CodeIcon className="size-4" />
-                        )}
-                        <span>View mode</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="min-w-36">
-                        <DropdownMenuRadioGroup
-                          onValueChange={handleViewModeChange}
-                          value={viewMode}
-                        >
-                          <DropdownMenuRadioItem value="preview">
-                            <EyeIcon className="size-4" />
-                            <span>Preview</span>
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="raw">
-                            <CodeIcon className="size-4" />
-                            <span>Code</span>
-                          </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  )}
-                  {showsFileText && (
-                    <DropdownMenuCheckboxItem
-                      checked={wrapLines}
-                      onCheckedChange={setWrapLines}
-                      // The menu would otherwise close on the first toggle, and
-                      // seeing the file rewrap is the whole point of the item.
-                      onSelect={(event) => {
-                        event.preventDefault();
-                      }}
-                    >
-                      <ArrowElbowDownLeftIcon className="size-4" />
-                      <span>Wrap lines</span>
-                    </DropdownMenuCheckboxItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {showsFileText && (
+              <DropdownMenuCheckboxItem
+                checked={wrapLines}
+                onCheckedChange={setWrapLines}
+                // The menu would otherwise close on the first toggle, and
+                // seeing the file rewrap is the whole point of the item.
+                onSelect={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                <ArrowElbowDownLeftIcon className="size-4" />
+                <span>Wrap lines</span>
+              </DropdownMenuCheckboxItem>
             )}
-          </>
-        }
-        filename={filename}
-        filePath={filePath}
-        mimeType={mimeType}
-        onClose={onClose}
-        taskId={taskId}
-      />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(fileViewerClassName, className)}
+      // Read by a format's toolbar, which sits under the head when there is
+      // one and stands alone as the first row when there is not.
+      data-headless={isInRow || undefined}
+    >
+      {actionsInto === undefined ? (
+        <FileViewerHeader
+          actions={actions}
+          filename={filename}
+          hostPath={hostPath}
+          mimeType={mimeType}
+          onClose={onClose}
+          path={hostPath}
+        />
+      ) : (
+        actionsInto &&
+        createPortal(
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>,
+          actionsInto,
+        )
+      )}
 
       {mediaLoadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -847,30 +1043,30 @@ export function FileViewer({
  * so the answer holds from the first frame -- including in the placeholder,
  * which knows the path and nothing else yet.
  */
-export function FileViewerHeader({
+function FileViewerHeader({
   actions,
   filename,
-  filePath,
+  hostPath,
   mimeType,
   onClose,
-  taskId,
+  path,
 }: {
   actions?: ReactNode;
   filename: string;
-  filePath: string;
+  // Absent while the panel is still resolving what it is about to show, where
+  // there is no file to hand anyone yet.
+  hostPath?: string;
   mimeType?: string;
   // Absent in the pane, where the tab strip owns closing. Present in the
   // expanded modal, whose close is a collapse back to the pane.
   onClose?: () => void;
-  // Absent while the panel is still resolving what it is about to show, where
-  // there is no file to hand anyone yet.
-  taskId?: TaskId;
+  /** What the name stands for, in full: the path the tooltip says. */
+  path: string;
 }) {
   // The filename, not the viewer below it, is what drags the file out. Every
   // viewer's surface already answers to a gesture -- an image pans, a PDF and a
-  // table select, an HTML preview is a sandboxed iframe whose events never
-  // reach us -- and the one row that is chrome in all of them is this one.
-  const dragProps = useFileDrag(taskId ? { filePath, taskId } : undefined);
+  // table select -- and the one row that is chrome in all of them is this one.
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   return (
     // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
@@ -903,7 +1099,7 @@ export function FileViewerHeader({
             collisionPadding={10}
             maxWidth="500px"
           >
-            {filePath}
+            {path}
           </TooltipContent>
         </Tooltip>
       </div>

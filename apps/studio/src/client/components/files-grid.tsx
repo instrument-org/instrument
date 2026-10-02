@@ -1,5 +1,5 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import {
   type FileType,
   getFileType,
@@ -10,8 +10,7 @@ import {
   isRootTaskFile,
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
-import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
-import { useParams } from "@tanstack/react-router";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { fork } from "radashi";
 
 import { FilePreviewCard } from "./file-preview-card";
@@ -19,10 +18,19 @@ import { FilePreviewListItem } from "./file-preview-list-item";
 import { MEDIA_CARD_ASPECT } from "./media-card-shape";
 import { Skeleton } from "./ui/skeleton";
 
+/**
+ * The columns row cards stand in, the same the media tiles above take, so a
+ * lone tile's edge lands on one of these. Three only once there is room for a
+ * filename beside a thumbnail in a third of the column. Shared with the
+ * folders a reply names, which stand as row cards of their own.
+ */
+export const ROW_CARD_GRID =
+  "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3";
+
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
-  files: TaskFileViewerFile[];
+  files: ViewerFile[];
   /**
    * A path still being typed, drawn as an empty tile in the place its card will
    * take.
@@ -54,18 +62,12 @@ export function FilesGrid({
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  // Absent outside the task route -- a previewed conversation, the debug
-  // scenarios -- where a card is still worth drawing and clicking it has
-  // nowhere to go.
-  const taskId = useParams({
-    from: "/_app/tasks/$id/",
-    shouldThrow: false,
-  })?.id;
-  const pane = useTaskPane(taskId);
-  const { openFiles } = useTaskPaneActions(taskId);
+  const showTaskFile = useShowTaskFile(undefined);
 
-  const handleFileClick = (file: TaskFileViewerFile) => {
-    openFiles([file.filePath]);
+  // A card here always came from a task's transcript, so the task's own path
+  // is what the pane and the conversation address it by.
+  const handleFileClick = (file: ViewerFile) => {
+    showTaskFile(taskPathOf(file));
   };
 
   const mainFiles = preserveOrder
@@ -125,11 +127,10 @@ export function FilesGrid({
               <div
                 className={mediaTileWidth}
                 data-slot="files-grid-media"
-                key={file.filePath}
+                key={file.hostPath}
               >
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, pane)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -158,19 +159,13 @@ export function FilesGrid({
       {rowCardFiles.length > 0 && (
         <div className="@container">
           <div
-            className={cn(
-              // The same columns the media tiles above take, so a lone tile's
-              // edge lands on one of these. Three only once there is room for
-              // a filename beside a thumbnail in a third of the column.
-              "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3",
-              alignEnd && "justify-items-end",
-            )}
+            className={cn(ROW_CARD_GRID, alignEnd && "justify-items-end")}
+            data-slot="files-grid-cards"
           >
             {rowCardFiles.map((file) => (
-              <div data-slot="files-grid-card" key={file.filePath}>
+              <div data-slot="files-grid-card" key={file.hostPath}>
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, pane)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -189,10 +184,9 @@ export function FilesGrid({
           )}
         >
           {otherFiles.map((file) => (
-            <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
+            <div className="h-12 max-w-48 min-w-0" key={file.hostPath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isPaneFileSelected(file, pane)}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -219,43 +213,25 @@ export function FilesGrid({
 
 // Groups a turn's changed files into the folders that reach the user, richest
 // preview first within each. Root files cover a deliverable an agent saved to
-// the task root instead of `output/`; see `isSurfacedTaskFile` for which paths
-// reach the user at all.
-function bucketByTaskFolder(
-  files: TaskFileViewerFile[],
-  prioritizeUserFiles: boolean,
-) {
-  const [outputFiles, nonOutputFiles] = fork(files, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.output),
-  );
-  const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.attachments),
+// the task root; see `isSurfacedTaskFile` for which paths reach the user at all.
+function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
+  const [attachmentFiles, nonAttachmentFiles] = fork(files, (file) =>
+    isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.attachments),
   );
   const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.downloads),
+    isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.downloads),
   );
   const [rootFiles] = fork(nonDownloadFiles, (file) =>
-    isRootTaskFile(file.filePath),
+    isRootTaskFile(taskPathOf(file)),
   );
 
-  const sortedOutputFiles = sortByRichPreview(outputFiles);
   const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
   const sortedDownloadFiles = sortByRichPreview(downloadFiles);
   const sortedRootFiles = sortByRichPreview(rootFiles);
 
   return prioritizeUserFiles
-    ? [
-        ...sortedAttachmentFiles,
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedDownloadFiles,
-      ]
-    : [
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedAttachmentFiles,
-        ...sortedDownloadFiles,
-      ];
+    ? [...sortedAttachmentFiles, ...sortedRootFiles, ...sortedDownloadFiles]
+    : [...sortedRootFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
 }
 
 // Which types get a full-width preview row rather than a compact chip. Images
@@ -287,30 +263,17 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   xlsx: true,
 };
 
-function hasRowCardPreview(file: TaskFileViewerFile) {
+function hasRowCardPreview(file: ViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];
 }
 
-// Which card the pane is showing. The path decides it: an mtime in the
-// comparison meant a card lost its own highlight the moment the file it points
-// at changed underneath it.
-//
-// A closed pane shows nothing, so nothing is highlighted -- its selection is
-// kept for the reopen, not a claim about what the user is looking at.
-//
-// Against the stored key rather than `selectedTab`, whose fallback to the last
-// tab is right for deciding what to render and wrong for deciding what looks
-// chosen: with the browser selected it names a file tab, and a card would sit
-// highlighted while the pane showed a web page.
-function isPaneFileSelected(file: TaskFileViewerFile, pane: TaskPane.Type) {
-  return (
-    pane.open &&
-    pane.selected === TaskPane.tabKey(TaskPane.fileTab(file.filePath))
-  );
-}
-
-function sortByRichPreview(files: TaskFileViewerFile[]) {
+function sortByRichPreview(files: ViewerFile[]) {
   const [media, rest] = fork(files, isMediaFile);
   const [rowCard, other] = fork(rest, hasRowCardPreview);
   return [...media, ...rowCard, ...other];
+}
+
+/** The path the task wrote for a file, which every card in this grid has. */
+function taskPathOf(file: ViewerFile) {
+  return file.taskFile?.filePath ?? file.hostPath;
 }

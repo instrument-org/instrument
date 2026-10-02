@@ -21,9 +21,18 @@ const OpenRouterModelSchema = z.object({
   // Namespaced so our additions cannot collide with a field OpenRouter adds
   // later. Only our own gateway sends this; a user's OpenRouter key will not.
   instrument: z
-    .object({ restricted: AIGatewayModel.RestrictionSchema.optional() })
+    .object({
+      restricted: AIGatewayModel.RestrictionSchema.optional(),
+      sourceModelId: z.string().optional(),
+    })
     .optional(),
   name: z.string(),
+  pricing: z
+    .object({
+      completion: z.string().nullish(),
+      prompt: z.string().nullish(),
+    })
+    .nullish(),
   reasoning: z
     .object({
       default_effort: z.string().nullish(),

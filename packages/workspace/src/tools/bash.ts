@@ -6,22 +6,175 @@ import { z } from "zod";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import {
+  promoteBackgroundProcess,
+  startBackgroundRun,
+} from "../lib/background-processes";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
-import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { executeError } from "../lib/execute-error";
+import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { childTaskMounts } from "../lib/orchestrator/children";
+import { folderReach } from "../lib/orchestrator/folder-reach";
+import {
+  FG_COMMAND,
+  JOBS_COMMAND,
+  KILL_COMMAND,
+} from "../lib/shell-commands/background-jobs";
+import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../lib/task-project-folder";
-import { getTaskState } from "../lib/task-record";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
   truncateMiddle,
 } from "../lib/truncate-buffer";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
-const DEFAULT_TIMEOUT_MS = ms("30 seconds");
+const DEFAULT_YIELD_MS = ms("30 seconds");
+const MIN_YIELD_MS = 250;
+/**
+ * Beyond this, holding a tool call open is worse than polling. Chosen to still
+ * cover a cold dependency install inline, the longest thing a foreground call
+ * routinely does.
+ */
+const MAX_YIELD_MS = ms("10 minutes");
+/**
+ * The tool-call machine cancels a call that outlives its own timeout, which
+ * would abort the run before this tool can promote it. That timeout is derived
+ * from `yieldMs` plus this slack so promotion always wins the race.
+ */
+const YIELD_TIMEOUT_SLACK_MS = ms("30 seconds");
+
+/** What the orchestrator's shell runs: the two commands that are its job, and filters to read their output with. */
+// Its commands, and the file commands for putting a finished file where it
+// belongs and looking at one: a task's folder is mounted read-only under the
+// orchestrator's view and the user's folders read and write, so a copy out of
+// one into the other is the whole of what these can do to a file.
+const ORCHESTRATOR_COMMANDS = new Set([
+  "app",
+  "cat",
+  "chat",
+  "cp",
+  "du",
+  "fg",
+  "file",
+  "find",
+  "head",
+  "jobs",
+  "kill",
+  "ls",
+  "memory",
+  "mkdir",
+  "mv",
+  "stat",
+  "tab",
+  "tail",
+  "task",
+  "wc",
+]);
+const ORCHESTRATOR_FILTERS = new Set([
+  "awk",
+  "cut",
+  "echo",
+  "grep",
+  "head",
+  "jq",
+  "rg",
+  "sed",
+  "sort",
+  "tail",
+  "true",
+  "uniq",
+  "wc",
+]);
+// The two filters that only ever read, so a path of their own is the same read
+// `cat` already allows. Refusing `grep <pattern> <file>` while allowing
+// `cat <file> | grep <pattern>` buys no containment and costs a turn every
+// time: measured, the conversation's agent reaches for the first form, loses
+// the read, and answers from a task's one-line summary instead of the file.
+// The rest stay downstream of a pipe because they can write from inside their
+// own arguments -- `sed -i`, and `awk 'BEGIN{print > "..."}'` -- which the
+// redirect guard above does not see.
+const ORCHESTRATOR_SEARCH = new Set(["grep", "rg"]);
+
+/**
+ * The first word of every command in a script, heredoc bodies skipped, and
+ * whether the command follows a pipe: a command that starts with a quoted
+ * heredoc marker owns the lines up to the marker, and those lines are a
+ * brief, not commands.
+ */
+export function leadingWords(
+  script: string,
+): { piped: boolean; word: string }[] {
+  const words: { piped: boolean; word: string }[] = [];
+  const lines = script.split("\n");
+  let terminator: string | undefined;
+  for (const line of lines) {
+    if (terminator !== undefined) {
+      if (line.trim() === terminator) {
+        terminator = undefined;
+      }
+      continue;
+    }
+    for (const { piped, stage } of stages(line)) {
+      const word = stage.trim().split(/\s+/)[0];
+      if (word) {
+        words.push({ piped, word });
+      }
+    }
+    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
+    if (heredoc) {
+      terminator = heredoc[1];
+    }
+  }
+  return words;
+}
+
+/**
+ * The conversation's agent does no work of its own: every command it runs
+ * is `task` or `app`, and a filter is allowed only downstream of one, on
+ * their output. Anything else is refused with the way to do it instead, so
+ * the agent never becomes busy doing what a task exists for.
+ */
+export function orchestratorRefusal(script: string): string | undefined {
+  // Checked before the command names, because this is the hole they leave: the
+  // list is a list of things safe to *read* with, and every one of them writes
+  // a file the moment its output is redirected. Measured, a model finds it on
+  // its own -- gpt-oss-120b answered a "put a summary in my folder" ask with
+  // `cat > /mnt/Instrument/summary.md <<'EOF'` and wrote the deliverable from
+  // the conversation, which is the one thing this shell exists to prevent.
+  if (redirectsOutput(script)) {
+    return `Redirecting output to a file is not yours to do: this shell reads files and never writes one. Work that writes a file's contents is a task's: start one with \`task new\`.`;
+  }
+  const outside = leadingWords(script).find(
+    ({ piped, word }) =>
+      !ORCHESTRATOR_COMMANDS.has(word) &&
+      !ORCHESTRATOR_SEARCH.has(word) &&
+      !(piped && ORCHESTRATOR_FILTERS.has(word)),
+  );
+  if (outside === undefined) {
+    return;
+  }
+  // A filter run without one is a rewrite away from working, so say the
+  // rewrite: a refusal that only names the rule leaves the agent to guess at
+  // the form, and the guess is usually another refusal.
+  if (ORCHESTRATOR_FILTERS.has(outside.word)) {
+    return `\`${outside.word}\` reads what a command before it printed, so give it one: \`cat <file> | ${outside.word} ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one.`;
+  }
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, du, cp, mv, mkdir), \`jobs\`/\`fg\`/\`kill\` on what it sent to the background, and \`grep\`/\`rg\` on a path, with the other filters (${[...ORCHESTRATOR_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
+}
+
+function bashToolCallTimeoutMs(yieldMs: number) {
+  return clampYieldMs(yieldMs) + YIELD_TIMEOUT_SLACK_MS;
+}
+
+function clampYieldMs(yieldMs: number) {
+  return Math.min(MAX_YIELD_MS, Math.max(MIN_YIELD_MS, yieldMs));
+}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) {
@@ -33,17 +186,112 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Resolves with the run's outcome, or with `"still-running"` once `yieldMs` has
+ * passed. The run is never cancelled here: a command that outlives its yield
+ * window is promoted rather than killed, because the work it has already done is
+ * worth more than a tidy tool result.
+ */
+async function raceYield<T>(
+  promise: Promise<T>,
+  yieldMs: number,
+): Promise<"still-running" | T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<"still-running">((resolve) => {
+        timer = setTimeout(() => {
+          resolve("still-running");
+        }, yieldMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * A line cut into its commands (at `;`, `&&`, `||`) and each command into
+ * the stages of its pipeline (at `|`), with quoted text left whole: a `|`
+ * inside a grep pattern or an app call's JSON is data, and cutting there
+ * would refuse the command for a word from the middle of its argument.
+ */
+function stages(line: string): { piped: boolean; stage: string }[] {
+  const result: { piped: boolean; stage: string }[] = [];
+  let quote: string | undefined;
+  let start = 0;
+  let piped = false;
+  const cut = (end: number, next: number, nextPiped: boolean) => {
+    result.push({ piped, stage: line.slice(start, end) });
+    start = next;
+    piped = nextPiped;
+  };
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (quote !== undefined) {
+      if (quote === '"' && character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    switch (character) {
+      case '"':
+      case "'": {
+        quote = character;
+        break;
+      }
+      case "&": {
+        if (line[index + 1] === "&") {
+          cut(index, index + 2, false);
+          index += 1;
+        }
+        break;
+      }
+      case ";": {
+        cut(index, index + 1, false);
+        break;
+      }
+      case "\\": {
+        index += 1;
+        break;
+      }
+      case "|": {
+        if (line[index + 1] === "|") {
+          cut(index, index + 2, false);
+          index += 1;
+        } else {
+          cut(index, index + 1, true);
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  result.push({ piped, stage: line.slice(start) });
+  return result;
+}
+
 export const BashTool = setupTool({
   inputSchema: BaseInputSchema.extend({
     command: z.string().meta({ description: "The bash command to run" }),
-    timeoutMs: z
+    yieldMs: z
       .number()
       .optional()
-      .default(DEFAULT_TIMEOUT_MS)
+      .default(DEFAULT_YIELD_MS)
       .meta({
         description: [
-          "Timeout in ms; on expiry the command is killed and you must re-run with a higher value.",
-          `Default ${DEFAULT_TIMEOUT_MS}.`,
+          "How long to wait for the command before yielding.",
+          "A command that finishes sooner returns its output as usual; one that",
+          "does not is NOT killed -- it keeps running and you get a process id",
+          `to follow with the \`${FG_COMMAND.name}\` command.`,
+          `Default ${DEFAULT_YIELD_MS}; range ${MIN_YIELD_MS}-${MAX_YIELD_MS}.`,
+          "Pass a small value (e.g. 1000) when you are deliberately starting a",
+          "long-lived process such as a server and want its id promptly.",
         ].join(" "),
       }),
   }),
@@ -52,50 +300,127 @@ export const BashTool = setupTool({
     command: z.string(),
     commands: z.array(z.string()),
     durationMs: z.number().default(0),
-    exitCode: z.number(),
+    /** Absent when the command was still running when the call returned. */
+    exitCode: z.number().optional(),
+    /** Set when the command was promoted; holds its bounded process log. */
+    logFilePath: RelativePathSchema.optional(),
+    logOmittedBytes: z.number().optional(),
+    logWriteError: z.string().optional(),
+    /** Output dropped because a promoted command outpaced the pending buffer. */
+    omittedBytes: z.number().default(0),
     output: z.string(),
+    /** Set when the command outlived `yieldMs` and is still running. */
+    processId: z.string().optional(),
     spillFilePath: RelativePathSchema.optional(),
   }),
 }).create({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
-  description: () => createBashDescription(),
-  async execute({ input, partId, sessionId, signal, taskId }) {
-    const taskState = await getTaskState(taskDir(taskId));
+  description: ({ agentName }) =>
+    createBashDescription({ orchestrator: agentName === "instrument" }),
+  async execute({ agentName, input, partId, sessionId, signal, taskId }) {
+    if (agentName === "instrument") {
+      const refused = orchestratorRefusal(input.command);
+      if (refused) {
+        return executeError(refused);
+      }
+    }
+    const attachedFolders = await folderReach(taskId);
+    const yieldMs = clampYieldMs(input.yieldMs);
+    const startedAt = performance.now();
+    const childMounts =
+      agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
+    const projectFolderName = await resolveTaskProjectFolder(taskId);
     const bash = await createBashEnv({
-      attachedFolders: taskState.attachedFolders,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
+      attachedFolders,
+      orchestrator: childMounts ? { childMounts } : undefined,
+      projectFolderName,
+      // `fg` waits inside this call, so what is left of the window is its
+      // ceiling. Measured from here rather than from the race below, which only
+      // makes it return sooner than it strictly has to.
+      remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
       taskId,
     });
-    const startedAt = performance.now();
-    let result;
-    try {
-      result = await bash.exec(input.command, { signal });
-    } catch (error) {
-      if (signal.aborted) {
-        throw error;
+    // The mounts the native shims map their own output through, so the live
+    // copy a promoted command streams names them the way the foreground copy
+    // does.
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders,
+      extraMounts: childMounts,
+      projectFolderName,
+      taskHostRoot: taskDir(taskId),
+    });
+    // Interpreter metadata, only available once the run finishes. A promoted
+    // command reports none, which is what the empty default stands for.
+    let commands: string[] = [];
+
+    const handle = startBackgroundRun({
+      callerSignal: signal,
+      command: input.command,
+      explanation: input.explanation,
+      run: async ({ signal: runSignal }) => {
+        try {
+          const result = await bash.exec(input.command, { signal: runSignal });
+          commands = Array.isArray(result.metadata?.commands)
+            ? result.metadata.commands.filter(
+                (command): command is string => typeof command === "string",
+              )
+            : [];
+          return {
+            exitCode: result.exitCode,
+            output: [result.stdout, result.stderr].filter(Boolean).join("\n"),
+          };
+        } catch (error) {
+          if (runSignal.aborted) {
+            throw error;
+          }
+          // just-bash surfaces some filesystem failures (e.g. a redirect into a
+          // read-only mount) as thrown errors instead of exit codes. Report them
+          // like a failed command so the agent adjusts its command instead of
+          // treating the tool itself as broken.
+          return {
+            exitCode: 1,
+            output: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
+      taskId,
+      virtualizePaths: (text) => virtualizeOutput(text, layout),
+    });
+
+    const outcome = await raceYield(handle.completion, yieldMs);
+    const durationMs = Math.round(performance.now() - startedAt);
+
+    if (outcome === "still-running") {
+      const promoted = promoteBackgroundProcess({ handle, sessionId, taskId });
+      if ("error" in promoted) {
+        handle.abort();
+        return executeError(promoted.error);
       }
-      // just-bash surfaces some filesystem failures (e.g. a redirect into a
-      // read-only mount) as thrown errors instead of exit codes. Report them
-      // like a failed command so the agent adjusts its command instead of
-      // treating the tool itself as broken.
+      const { omittedBytes, text } = handle.buffer.drain();
       return ok({
         command: input.command,
         commands: [],
-        durationMs: Math.round(performance.now() - startedAt),
-        exitCode: 1,
-        output: error instanceof Error ? error.message : String(error),
+        durationMs,
+        logFilePath: promoted.info.logFilePath,
+        logOmittedBytes: promoted.info.logOmittedBytes,
+        ...(promoted.info.logWriteError
+          ? { logWriteError: promoted.info.logWriteError }
+          : {}),
+        omittedBytes,
+        output: text,
+        processId: promoted.info.id,
       });
     }
-    const durationMs = Math.round(performance.now() - startedAt);
-    const commands = Array.isArray(result.metadata?.commands)
-      ? result.metadata.commands
-      : [];
 
-    const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    if ("errorMessage" in outcome) {
+      return executeError(
+        outcome.errorMessage || "The command was stopped before it finished.",
+      );
+    }
 
-    const { truncated } = truncateMiddle(combined);
+    const { truncated } = truncateMiddle(outcome.output);
 
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
@@ -104,23 +429,25 @@ export const BashTool = setupTool({
       );
       const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
-      await fs.writeFile(absPath, combined, { encoding: "utf8", signal });
+      await fs.writeFile(absPath, outcome.output, {
+        encoding: "utf8",
+        signal,
+      });
     }
 
     return ok({
       command: input.command,
       commands,
       durationMs,
-      exitCode: result.exitCode,
-      output: combined,
+      exitCode: outcome.exitCode,
+      omittedBytes: 0,
+      output: outcome.output,
       spillFilePath,
     });
   },
   readOnly: false,
-  timeoutMs: ({ input }) => input.timeoutMs,
+  timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
   toModelOutput: ({ output }) => {
-    const hasErrors = output.exitCode !== 0;
-
     const { content, omittedLines, totalBytes, totalLines, truncated } =
       truncateMiddle(output.output);
 
@@ -133,14 +460,52 @@ export const BashTool = setupTool({
       const stats =
         `showing first ${headKB} and last ${tailKB} of ${formatBytes(totalBytes)}` +
         ` (${totalLines} lines total, ${omittedLines} omitted)`;
+      // Not "full": a native binary's output reaches this bounded by the shim's
+      // stream collector, which keeps a head and a tail and marks the gap. The
+      // file is longer than what is shown and says where it was cut.
       const spillLine = output.spillFilePath
-        ? `\nFull output saved to: ${output.spillFilePath}`
+        ? `\nOutput saved to: ${output.spillFilePath}`
         : "";
       truncationNotice = `[Output truncated: ${stats}.${spillLine}]\n`;
     }
 
-    const exitLine = `Exit code: ${output.exitCode}`;
     const durationLine = `Duration: ${ms(output.durationMs, { long: true })}`;
+
+    if (output.processId) {
+      const promotedSkippedBuilds = ignoredBuildsNote(displayOutput);
+      const dropNotice =
+        output.omittedBytes > 0
+          ? `[${formatBytes(output.omittedBytes)} of earlier output was dropped: the command wrote faster than this call could hold, and this happened before the log file existed, so it is gone. Use a smaller yieldMs to start reading sooner.]\n`
+          : "";
+      const logNotice = output.logWriteError
+        ? `[The process log could not be written: ${output.logWriteError}]\n`
+        : (output.logOmittedBytes ?? 0) > 0
+          ? `[The bounded process log omitted ${formatBytes(output.logOmittedBytes ?? 0)}.]\n`
+          : "";
+      return {
+        type: "text",
+        value: [
+          `Still running after ${ms(output.durationMs, { long: true })}, so it moved to the background.`,
+          `Process id: ${output.processId}`,
+          "",
+          displayOutput
+            ? `Live subprocess output so far:\n\n${(dropNotice + logNotice + truncationNotice + displayOutput).replace(/\n+$/, "")}`
+            : "No output yet.",
+          // Spread rather than defaulted to "", which would join into a stray
+          // blank line. Keyed on the text alone: the interpreter only reports
+          // which commands ran once it finishes, and this call returns before
+          // that.
+          ...(promotedSkippedBuilds ? [promotedSkippedBuilds] : []),
+          systemNote`
+            ${output.processId} is still running. Follow it with \`${FG_COMMAND.name} ${output.processId}\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`${KILL_COMMAND.name} ${output.processId}\`. \`${JOBS_COMMAND.name}\` lists everything still running. Its bounded process log is at ${output.logFilePath}.
+            Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.
+          `,
+        ].join("\n"),
+      };
+    }
+
+    const hasErrors = output.exitCode !== 0;
+    const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
 
     // Say that the command printed nothing rather than leaving a gap where the
     // output would be. Silence otherwise reads as a swallowed result, and the
@@ -164,30 +529,11 @@ export const BashTool = setupTool({
       (truncationNotice + displayOutput).replace(/\n+$/, ""),
     ];
 
-    // Matches both spellings pnpm uses: a warning box when strictDepBuilds is
-    // off, and ERR_PNPM_IGNORED_BUILDS when it is on. Only the shared
-    // "Ignored build scripts:" prefix is common to the two.
-    if (
-      output.commands.includes("pnpm") &&
-      displayOutput.includes("Ignored build scripts:")
-    ) {
-      outputParts.push(
-        systemNote`
-          Some packages were not built during installation.
-          If you encounter "Cannot find module" errors or the package doesn't work:
-
-          1. Read pnpm-workspace.yaml from the workspace root.
-          2. Add the package names from the warning to the \`allowBuilds\` mapping.
-          \`\`\`yaml
-          allowBuilds:
-            esbuild: true
-            sharp: true
-          \`\`\`
-          3. Run \`${PNPM_COMMAND.name} rebuild <package-name>\` for each package you added.
-
-          All three steps are required. Running rebuild without first modifying pnpm-workspace.yaml will not fix the issue.
-        `,
-      );
+    const skippedBuilds = output.commands.includes("pnpm")
+      ? ignoredBuildsNote(displayOutput)
+      : undefined;
+    if (skippedBuilds) {
+      outputParts.push(skippedBuilds);
     }
 
     return {
@@ -196,3 +542,54 @@ export const BashTool = setupTool({
     };
   },
 });
+
+/**
+ * Whether the script sends output to a file anywhere the shell would act on it.
+ *
+ * Walks the characters rather than matching a pattern, because the two places a
+ * `>` means nothing are exactly the places a pattern gets wrong: inside quotes
+ * (`rg '>' notes.md`, `task new --name 'a > b'`) and inside a heredoc body,
+ * which is a brief rather than a command. A `>` followed by `&` is duplicating
+ * a file descriptor (`2>&1`, `>&2`) and writes no file, so it stays allowed.
+ */
+function redirectsOutput(script: string): boolean {
+  let quote: string | undefined;
+  let terminator: string | undefined;
+  for (const line of script.split("\n")) {
+    if (terminator !== undefined) {
+      if (line.trim() === terminator) {
+        terminator = undefined;
+      }
+      continue;
+    }
+    quote = undefined;
+    // Indexed rather than iterated: every character that matters to a shell is
+    // ASCII, and the surrounding text is only ever skipped over.
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (quote) {
+        if (character === quote) {
+          quote = undefined;
+        }
+        continue;
+      }
+      if (character === "'" || character === '"') {
+        quote = character;
+        continue;
+      }
+      if (character === ">" && line[index + 1] !== "&") {
+        // Throwing a stream away is not writing a file: `2>/dev/null` is
+        // how a command's noise is dropped, and refusing it costs a turn.
+        const target = /^>?\s*(\S+)/.exec(line.slice(index + 1))?.[1];
+        if (target !== "/dev/null") {
+          return true;
+        }
+      }
+    }
+    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
+    if (heredoc) {
+      terminator = heredoc[1];
+    }
+  }
+  return false;
+}

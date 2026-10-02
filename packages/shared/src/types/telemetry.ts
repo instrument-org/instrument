@@ -72,8 +72,6 @@ export interface AnalyticsEvents {
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "pin.added": never;
-  "pin.removed": never;
   "project.created": never;
   "project.invalid_folder_trashed": never;
   "project.removed": never;
@@ -94,7 +92,6 @@ export interface AnalyticsEvents {
   };
   "session.created": never;
   "session.removed": never;
-  "session.replay_started": never;
   "session.run": never;
   "session.stopped": never;
   "subscribe.billing_cycle_changed": {
@@ -116,16 +113,9 @@ export interface AnalyticsEvents {
     files_count: number;
   }>;
   "task.forked": never;
-  "task.imported": never;
   "task.invalid_folder_trashed": never;
-  "task.opened_in": {
-    app_name: string;
-  };
   "task.restored_version": never;
   "task.share_menu_opened": never;
-  "task.shared": {
-    share_type: "copied_screenshot" | "exported_zip" | "saved_screenshot";
-  };
   "task.trashed": never;
   "task.updated": never;
   "upgrade.clicked": {
@@ -154,6 +144,8 @@ export type CaptureExceptionFunction = (
     machine_state?: string;
     message_id?: string;
     modelId?: string;
+    // The process event that delivered an error nothing else caught.
+    origin?: "uncaughtException" | "unhandledRejection";
     part_has_input?: boolean;
     part_id?: string;
     provider_executed?: boolean;
@@ -197,6 +189,9 @@ type LLMAnalyticsError =
     }
   | {
       error_type: "api-key";
+    }
+  | {
+      error_type: "disk-full";
     }
   | {
       error_type: "invalid-tool-input";

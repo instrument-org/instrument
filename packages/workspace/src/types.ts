@@ -10,7 +10,8 @@ import {
 } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { type TASK_STATUSES } from "./constants";
+import { type AppConnectionStore } from "./lib/apps/connection";
+import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -28,6 +29,24 @@ export interface BrowserConfig {
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;
   };
+  /**
+   * The address of the document in the guest's main frame, as the main process
+   * saw it arrive; undefined for a target with no live guest. What the CDP
+   * bridge judges a command against, rather than the last navigation event it
+   * happened to see, and never an address a page gave itself with
+   * `history.pushState`.
+   */
+  getTargetUrl: (targetId: BrowserTargetId) => string | undefined;
+  /**
+   * True where there is no window behind this config, so a task should be left
+   * to start a browser of its own rather than pointed at the CDP bridge.
+   *
+   * Only the eval harness sets it. Without it a run stubs `sendCommand` to an
+   * empty object, the bridge answers `Page.navigate` with no `frameId`, and
+   * every attempt a task makes to look at what it wrote dies on a protocol
+   * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
+   */
+  hasNoWindow?: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   onTargetDestroyed: (
     targetId: BrowserTargetId,
@@ -43,6 +62,17 @@ export interface BrowserConfig {
     method: string,
     params: unknown,
   ): Promise<unknown>;
+  /**
+   * The folders on this computer the agent driving a guest can read, or null
+   * once no agent is connected. While they are set, a page the agent can read
+   * may not take the tab to a file outside them (a link, a script setting
+   * `location`), so the agent cannot use a page of its own to open a file it
+   * could not open itself.
+   */
+  setAgentFileRoots: (
+    targetId: BrowserTargetId,
+    roots: null | readonly string[],
+  ) => void;
   stopScreencast: (targetId: BrowserTargetId) => void;
   subscribeEvents: (
     targetId: BrowserTargetId,
@@ -57,8 +87,6 @@ export interface BrowserTarget {
   type: "page";
   url: string;
 }
-
-export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 // The bridge routing key for a single browser view: a (id, sessionId)
 // tuple encoded as `${id}/${sessionId}`. The schema delegates to the
@@ -105,13 +133,58 @@ export const BrowserTargetIdSchema = z
 
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
+/**
+ * What the host app keeps about apps, outside every mount: the credentials,
+ * the OAuth tokens, and the connection records. The workspace reads and
+ * writes them through this, never through a file the agent can reach.
+ */
+export interface WorkspaceAppsConfig {
+  connections: AppConnectionStore;
+  /** Take an app's credential, tokens, and connection away, and tell the UI. */
+  disconnect: (slug: string) => Promise<void>;
+  getCredential: (slug: string) => Promise<null | string>;
+  /** Called after a connection record changes, so every list of apps re-reads. */
+  notifyChanged?: () => void;
+  /**
+   * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
+   * store. Optional so headless and test contexts run without sign-in. The
+   * redirect URL is read per sign-in, from the port the callback server bound.
+   */
+  oauth?: {
+    redirectUrl: () => string;
+    store: McpOAuthStore;
+  };
+}
+
 export interface WorkspaceConfig {
+  apps: WorkspaceAppsConfig;
+  appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
+  /** Desktop decoration after the default output folder exists. */
+  ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   getAIProviderConfigs: GetProviderConfigs;
+  /**
+   * Who is signed in, for the agents to know whose work it is: the account's
+   * name and email, or undefined while nobody is. Read when a session's
+   * context is built rather than at boot, since a sign-in comes and goes;
+   * absent altogether where there is no account to read (scripts, evals).
+   */
+  getUser?: () => Promise<undefined | { email: string; name: string }>;
+  /**
+   * Where each workspace's index of its chats and tasks is kept: derived,
+   * rebuilt from the workspace whenever it is missing or out of date, and
+   * outside the workspace so a workspace in a synced folder never carries a
+   * live database. Absent where nothing should persist (tests, scripts), and
+   * then every read derives from the stores.
+   */
+  indexesDir?: AbsolutePath;
+  // Whether the main agent gets `start_activity`. Read when its tools and its
+  // session context are built; see `activityHeadingsEnabled` in agents/main.ts.
+  isActivityHeadingsEnabled: () => boolean;
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;

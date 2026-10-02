@@ -63,7 +63,7 @@ function PaginationLink({
   ...props
 }: PaginationLinkProps) {
   return (
-    // eslint-disable-next-line no-restricted-syntax
+    // oxlint-disable-next-line studio/no-raw-anchor
     <a
       aria-current={isActive ? "page" : undefined}
       className={cn(

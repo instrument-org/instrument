@@ -61,6 +61,7 @@ function EditorHost({
       style={{ display: "flex", flexDirection: "column", height: 200 }}
     >
       <PromptEditor
+        apps={[]}
         {...editorProps}
         actions={actions}
         autoFocus

@@ -7,6 +7,11 @@ import { proxy } from "hono/proxy";
 
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { apiURL } from "../lib/providers/api-url";
+import {
+  collapseResponsesStream,
+  rewriteChatGPTPlanResponsesBody,
+  withoutRetryOnSpentLimit,
+} from "../lib/providers/chatgpt-plan-request";
 import { setProviderAuthHeaders } from "../lib/providers/set-auth-headers";
 import { setAttributionHeaders } from "../lib/set-attribution-headers";
 import { setClientHeaders } from "../lib/set-client-headers";
@@ -53,6 +58,25 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   setProviderAuthHeaders(headers, config);
   if (config.type === OUR_PROVIDER_CONFIG.type) {
     setClientHeaders(headers, context.var.clientInfo, sessionId);
+  }
+
+  if (
+    config.type === "chatgpt" &&
+    context.req.raw.method === "POST" &&
+    pathResult.data === "/responses"
+  ) {
+    const { body, streamed } = rewriteChatGPTPlanResponsesBody(
+      await context.req.json<Record<string, unknown>>(),
+      { sessionId },
+    );
+    headers.delete("content-length");
+    const upstream = await proxy(targetUrl.toString(), {
+      body: JSON.stringify(body),
+      headers,
+      method: "POST",
+    });
+    const answered = await withoutRetryOnSpentLimit(upstream);
+    return streamed ? answered : collapseResponsesStream(answered);
   }
 
   return proxy(targetUrl.toString(), {

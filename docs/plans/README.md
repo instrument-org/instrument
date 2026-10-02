@@ -9,7 +9,7 @@ Every plan starts with a `Status:` line directly under the title, saying where t
 
 When a plan moves, fix the links pointing at it. Sibling links inside one directory become `../active/…` or `../completed/…` across the boundary.
 
-`wireframes-*.html` files beside the plans are gitignored working artifacts: generated locally for a plan's design exploration, deliberately untracked, and absent in a fresh clone.
+Wireframes are working artifacts drawn with `create-page`'s wireframe template and the Studio kit in [`.agents/wireframe-kit/`](../../.agents/wireframe-kit/KIT.md), and live outside the repository. A plan says in its own prose what a wireframe settled rather than linking one. `wireframes-*.html` beside the plans stays gitignored, so one written here by habit is never committed.
 
 ## Active
 
@@ -32,6 +32,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | [Shortcut table, menu bar, and guide](active/shortcut-table-menu-bar-and-guide.md) | phases 1-3 landed |
 | [Chat stream turn-model refactor](active/chat-stream-turn-model-refactor.md) | proposed |
 | [Incremental live transcript updates](active/incremental-live-transcript-updates.md) | proposed |
+| [Block-split markdown](active/block-split-markdown.md) — a streaming reply reparses itself once per chunk | proposed |
 | [Full-height transcript scrollbar](active/full-height-transcript-scrollbar.md) | proposed |
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills, rest deferred |
@@ -50,10 +51,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 
 | Plan | Status |
 | --- | --- |
-| [One browser abstraction, many tabs](active/one-browser-many-tabs.md), the product-level frame over the two plans below | proposal |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
-| [Lazy browser targets, and multiple tabs](active/lazy-browser-targets-and-multiple-tabs.md) | proposal |
-| [Browser popups as agent-drivable tabs](active/browser-popups-as-agent-drivable-tabs.md) | proposal |
 | [Agent browser ad blocking](active/agent-browser-ad-blocking.md) | draft |
 
 ### Platform and product
@@ -83,6 +81,11 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 
 | Plan | Outcome |
 | --- | --- |
+| [Agent browsing across several tabs](completed/agent-browser-multiple-tabs.md) — a chat's task holds several of the chat's tabs; the conversation's `tab` command | landed, cursor dropped |
+| [One browser abstraction, many tabs](completed/one-browser-many-tabs.md) | superseded |
+| [Lazy browser targets, and multiple tabs](completed/lazy-browser-targets-and-multiple-tabs.md) | superseded |
+| [Browser popups as agent-drivable tabs](completed/browser-popups-as-agent-drivable-tabs.md) | not built; the starting point for popups |
+| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |
 | [Anchor the submitted turn](completed/anchor-the-submitted-turn.md) | landed |

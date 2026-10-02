@@ -64,7 +64,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64data",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },
@@ -135,7 +135,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64data",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },
@@ -171,7 +171,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64data",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },
@@ -237,7 +237,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64data",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },
@@ -291,7 +291,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },
@@ -398,7 +398,7 @@ describe("splitMultipartToolResults", () => {
                 {
                   data: "base64data",
                   mediaType: "image/png",
-                  type: "media",
+                  type: "file-data",
                 },
               ],
             },

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { FolderAttachment } from "./folder-attachment";
 import { ProjectIdSchema } from "./project-id";
 
-export const ProjectFolderSchema = z.object({
+const ProjectFolderSchema = z.object({
   access: FolderAttachment.AccessSchema,
   path: z.string(),
 });

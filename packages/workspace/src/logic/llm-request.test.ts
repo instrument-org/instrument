@@ -1,7 +1,7 @@
 import {
   APICallError,
-  type LanguageModelV3Prompt,
-  type LanguageModelV3StreamPart,
+  type LanguageModelV4Prompt,
+  type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import {
@@ -9,7 +9,7 @@ import {
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { errAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -24,6 +24,7 @@ import { TypedError } from "../lib/errors";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
@@ -69,7 +70,7 @@ describe("llmRequestLogic", () => {
     outputTokens: 3,
     totalTokens: 5,
   };
-  let prompts: LanguageModelV3Prompt[] = [];
+  let prompts: LanguageModelV4Prompt[] = [];
   const mockDate = new Date("2013-08-31T12:00:00.000Z");
   const mockMessageId = StoreId.newMessageId();
   const mockMessages: SessionMessage.ContextWithParts[] = [
@@ -111,12 +112,12 @@ describe("llmRequestLogic", () => {
   }: {
     beforeStream?: () => Promise<void>;
     catalog?: AIGatewayModel.Type[];
-    chunks: LanguageModelV3StreamPart[];
+    chunks: LanguageModelV4StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
   }) {
-    const mockLanguageModel = new MockLanguageModelV3({
+    const mockLanguageModel = new MockLanguageModelV4({
       doStream: async ({ prompt }) => {
         if (beforeStream) {
           await beforeStream();
@@ -295,7 +296,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -378,7 +379,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -463,7 +464,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -550,7 +551,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -641,7 +642,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -735,7 +736,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -813,7 +814,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -903,7 +904,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -982,7 +983,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1020,7 +1021,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, edit_file, generate_image, load_skill, read_file, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, task, unavailable, web_fetch, web_search, write_file.",
               "input": undefined,
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
@@ -1066,7 +1067,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1104,7 +1105,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, edit_file, generate_image, load_skill, read_file, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, task, unavailable, web_fetch, web_search, write_file.",
               "input": undefined,
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
@@ -1145,7 +1146,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1183,7 +1184,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, edit_file, generate_image, load_skill, read_file, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, task, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "filePath": "test.txt",
               },
@@ -1242,7 +1243,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1330,7 +1331,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 1,
+              "contextVersion": 39,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1406,7 +1407,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 1,
+              "contextVersion": 39,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1473,7 +1474,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 1,
+              "contextVersion": 39,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1545,7 +1546,7 @@ describe("llmRequestLogic", () => {
         {
           "classification": "rate-limit",
           "kind": "unknown",
-          "message": "{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","metadata":{"error_type":"rate_limit_exceeded"}}",
+          "message": "openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
         }
       `);
     });
@@ -2350,7 +2351,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZV8888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 1,
+              "contextVersion": 39,
               "createdAt": 2013-08-31T10:00:00.000Z,
               "realRole": "system",
               "sessionId": "ses_00000000018888888888888888",
@@ -2456,7 +2457,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 1,
+            "contextVersion": 39,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -2944,6 +2945,60 @@ describe("llmRequestLogic", () => {
       );
       const textPart = assistant?.parts.find((part) => part.type === "text");
       expect(textPart?.text).toBe(fullText);
+    });
+
+    it("ends the request on a full disk, reporting it once", async () => {
+      let nowMs = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => {
+        nowMs += 1000;
+        return nowMs;
+      });
+      const savePart = Store.savePart;
+      const savePartSpy = vi
+        .spyOn(Store, "savePart")
+        .mockImplementation((part, taskId, options) =>
+          part.type === "text"
+            ? errAsync(
+                new TypedError.Storage("unable to open database file", {
+                  cause: Object.assign(
+                    new Error("unable to open database file"),
+                    { code: "ERR_SQLITE_ERROR", errcode: 14 },
+                  ),
+                }),
+              )
+            : savePart(part, taskId, options),
+        );
+      const testMachine = await createTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...Array.from({ length: 50 }, (_, index) => ({
+            delta: `word-${index} `,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { id: "1", type: "text-end" },
+        ],
+      });
+      const captureException = vi.spyOn(
+        getWorkspaceConfig(),
+        "captureException",
+      );
+
+      const { messages } = await runTestMachine(testMachine);
+
+      expect(captureException).toHaveBeenCalledTimes(1);
+      expect(
+        savePartSpy.mock.calls.filter(([part]) => part.type === "text"),
+      ).toHaveLength(1);
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.metadata.error).toMatchInlineSnapshot(`
+        {
+          "kind": "disk-full",
+          "message": "unable to open database file",
+        }
+      `);
     });
 
     it("flushes the unsaved tail when the request is aborted", async () => {

@@ -13,7 +13,10 @@ vi.mock("electron", () => ({
   clipboard: { writeText: vi.fn() },
   Menu: { buildFromTemplate },
 }));
-vi.mock("@/electron-main/stores/preferences", () => ({
+vi.mock("@/electron-main/lib/open-external", () => ({
+  openExternal: vi.fn(),
+}));
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
 }));
 
@@ -22,6 +25,7 @@ vi.mock("@/electron-main/stores/preferences", () => ({
 function buildMenu(linkURL: string) {
   const handlers = new Map<string, (event: unknown, params: unknown) => void>();
   const loadURL = vi.fn(() => Promise.resolve());
+  const openInNewTab = vi.fn();
   const guest = {
     executeJavaScript: vi.fn(() => Promise.resolve()),
     loadURL,
@@ -32,7 +36,7 @@ function buildMenu(linkURL: string) {
     reload: vi.fn(),
   } as unknown as WebContents;
 
-  attachGuestInteractions(guest);
+  attachGuestInteractions(guest, { mayOpen: () => true, openInNewTab });
   handlers.get("context-menu")?.(null, {
     editFlags: { canCopy: true, canCut: false, canPaste: false },
     isEditable: false,
@@ -46,7 +50,11 @@ function buildMenu(linkURL: string) {
   return {
     labels: items.flatMap((item) => (item.label ? [item.label] : [])),
     loadURL,
+    openInNewTab,
     openLink: items.find((item) => item.label === "Open Link"),
+    openLinkInNewTab: items.find(
+      (item) => item.label === "Open Link in New Tab",
+    ),
   };
 }
 
@@ -73,6 +81,16 @@ describe("the guest context menu", () => {
     expect(loadURL).toHaveBeenCalledWith(
       "https://www.amazon.com/gp/product/B0B8F29SP8",
     );
+  });
+
+  it("offers the link in a tab of the window's own", () => {
+    const { openInNewTab, openLinkInNewTab } = buildMenu(
+      "file:///Users/me/site/b.html",
+    );
+
+    (openLinkInNewTab?.click as (() => void) | undefined)?.();
+
+    expect(openInNewTab).toHaveBeenCalledWith("file:///Users/me/site/b.html");
   });
 
   it("omits Open Link for a link the guest cannot navigate to", () => {

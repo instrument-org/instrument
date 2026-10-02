@@ -1,18 +1,30 @@
 import { APP_PROTOCOL } from "@instrument-org/shared";
-import { app, type NativeImage, nativeImage, protocol } from "electron";
+import {
+  app,
+  type NativeImage,
+  nativeImage,
+  net,
+  type Session,
+} from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import {
+  handleComputerFileRequest,
+  isComputerFileHost,
+} from "./computer-files";
 import { getResourcePath } from "./resource-path";
+import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
+const SITE_ICON_HOST = "site-icon";
 // The renderer runs from `file://` in production, where bundled assets cannot
 // be fetched, so the document viewers load their wasm engines from here
 // instead.
 const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
-const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
+const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.(?:png|svg)$/;
 // Deliberately narrow: these paths come from the renderer, and the only ones
 // that need to work are the payloads copied in at build time. Every dot has to
 // be followed by more of the segment, which is what makes `..` unspellable, so
@@ -26,21 +38,41 @@ const VENDOR_CONTENT_TYPES: Record<string, string> = {
 };
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
-export function registerAppProtocol() {
-  protocol.handle(APP_PROTOCOL, async (request) => {
+/**
+ * Serve `app:` on a session. The default session and the workspace's app
+ * session each need it: protocol handlers belong to a session, not to the app.
+ */
+export function registerAppProtocol(ses: Session) {
+  ses.protocol.handle(APP_PROTOCOL, async (request) => {
     const url = new URL(request.url);
     switch (url.hostname) {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
       }
+      case SITE_ICON_HOST: {
+        return handleSiteIconRequest({ request, url });
+      }
       case VENDOR_HOST: {
         return handleVendorRequest({ request, url });
       }
       default: {
+        // The person's file channel, whose host carries a per-launch token.
+        if (isComputerFileHost(url.hostname)) {
+          return handleComputerFileRequest(request);
+        }
         return new Response(null, { status: 404 });
       }
     }
   });
+}
+
+/** Where site icons are kept, and the network they are fetched over. */
+export function siteIconDeps(): SiteIconDeps {
+  return {
+    dir: path.join(app.getPath("userData"), "site-icons"),
+    fetch: (target, init) => net.fetch(target, init),
+    now: Date.now,
+  };
 }
 
 export async function storeFileOpenIcon(base64: string) {
@@ -65,6 +97,15 @@ export async function storeFileOpenNativeImage(image: NativeImage) {
   );
 }
 
+/**
+ * An app icon that exists only as SVG, which nativeImage cannot decode (most
+ * GNOME apps ship no PNG). Kept as it is and served as SVG; the renderer only
+ * ever draws it as an image, where an SVG's scripts do not run.
+ */
+export async function storeFileOpenSvgIcon(svg: Buffer) {
+  return svg.length === 0 ? null : storeIcon(svg, "svg");
+}
+
 async function handleFileOpenIconRequest({
   request,
   url,
@@ -84,11 +125,48 @@ async function handleFileOpenIconRequest({
         // The URL hashes the response bytes, so changed icons get a new URL.
         // This finite lifetime only bounds retention of unchanged content.
         "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
-        "Content-Type": "image/png",
+        ...(filename.endsWith(".svg")
+          ? {
+              "Content-Security-Policy":
+                "default-src 'none'; style-src 'unsafe-inline'",
+              "Content-Type": "image/svg+xml",
+            }
+          : { "Content-Type": "image/png" }),
       },
     });
   } catch {
     return new Response(null, { status: 404 });
+  }
+}
+
+/**
+ * A site's icon by host, from the copy kept on disk (see `site-icons.ts`). A
+ * 404 is the proxy saying the site has none; a 503 is a request that could not
+ * be made, which the renderer must not take as an answer about the site.
+ */
+async function handleSiteIconRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  if (request.method !== "GET") {
+    return new Response(null, { status: 404 });
+  }
+  const host = decodeURIComponent(url.pathname.slice(1)).toLowerCase();
+  try {
+    const icon = await siteIconFor(host, siteIconDeps());
+    if (!icon) {
+      return new Response(null, { status: 404 });
+    }
+    return new Response(new Uint8Array(icon.bytes), {
+      // The disk copy is the cache; the page's own memory of an image covers a
+      // row drawn twice, and a new launch reads the disk again.
+      headers: { "Cache-Control": "no-cache", "Content-Type": icon.type },
+    });
+  } catch {
+    return new Response(null, { status: 503 });
   }
 }
 
@@ -140,9 +218,9 @@ function iconDirectory() {
 // process; a leftover `.tmp` from a crash is harmless and never served.
 let tempFileCounter = 0;
 
-async function storePng(png: Buffer) {
+async function storeIcon(png: Buffer, extension: "png" | "svg") {
   const digest = createHash("sha256").update(png).digest("hex");
-  const filename = `${digest}.png`;
+  const filename = `${digest}.${extension}`;
   const iconPath = path.join(iconDirectory(), filename);
   try {
     // Content addressing means an existing file already holds these exact bytes.
@@ -164,4 +242,8 @@ async function storePng(png: Buffer) {
     }
   }
   return `${APP_PROTOCOL}://${FILE_OPEN_ICON_HOST}/${filename}`;
+}
+
+async function storePng(png: Buffer) {
+  return storeIcon(png, "png");
 }

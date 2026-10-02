@@ -1,9 +1,12 @@
+import "./lib/sandbox-home";
 import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
+import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { z } from "zod";
 
 import { EVALS } from "./cases";
 import {
@@ -11,7 +14,7 @@ import {
   DEFAULT_MAX_RUN_SECONDS,
   DEFAULT_MAX_RUN_TOKENS,
   defineEval,
-  MODELS,
+  HOUSE_FLOOR,
   runEvals,
 } from "./harness";
 import { generateReport } from "./report";
@@ -19,6 +22,9 @@ import {
   c,
   formatCost,
   formatNumber,
+  isPaidModel,
+  listConfiguredModels,
+  modelFlagFor,
   modelURI,
   setHumanOutputStream,
   write,
@@ -35,12 +41,15 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
+    effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
     "max-run-seconds": { type: "string" },
     "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
     name: { type: "string" },
+    orchestrator: { default: false, type: "boolean" },
+    paid: { default: false, type: "boolean" },
     prompt: { type: "string" },
     repeat: { default: "1", type: "string" },
     yes: { default: false, short: "y", type: "boolean" },
@@ -99,15 +108,67 @@ const matchesPattern = (name: string) =>
 const patternLabel = namePatterns.join(", ");
 
 /**
- * A bare model name is the common case, so it is read as an OpenRouter slug;
- * pass a full model URI when you need a specific provider or provider config.
+ * How hard every task in the run is asked to think. Recorded on each task the
+ * run creates, so the conversation and the tasks it starts all take it.
  */
-const models =
-  values.model && values.model.length > 0
-    ? values.model.map((model) =>
-        model.includes("?") ? model : modelURI.openRouter(model),
-      )
-    : MODELS;
+const reasoningEffort = values.effort
+  ? z.enum(REASONING_EFFORTS).parse(values.effort)
+  : undefined;
+
+/**
+ * A `cf:` prefix reads the name as a Workers AI id (with or without its
+ * `@cf/`), which is what this project has credits on; a bare name is an
+ * OpenRouter slug, and a full model URI pins any configured provider. The last
+ * two are metered, and metered needs `--paid`.
+ */
+const models = (values.model ?? []).map((model) => {
+  if (model.includes("?")) {
+    return model;
+  }
+  if (model.startsWith("cf:")) {
+    return modelURI.workersAi(model.slice(3).replace(/^@cf\//, ""));
+  }
+  return modelURI.openRouter(model);
+});
+
+/**
+ * No model, no run. There is no default set to fall back on, because a default
+ * is what an unattended agent takes, and a list in a source file goes stale
+ * between the day it was written and the day it decides what a change was
+ * tested against.
+ */
+if (subcommand === "run" && models.length === 0) {
+  write(`${c.red}--model is required.${c.reset}\n\n`);
+  write(
+    `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
+  );
+  write(
+    `Workers AI carries this project's credits, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+  );
+  process.exit(1);
+}
+
+/**
+ * Metered models are opt-in, one flag, every time.
+ *
+ * Not a warning: a warning is read after the money is gone. Agents run this
+ * harness unattended and a suite is one case times one model list, so the
+ * difference between spending by accident and spending on purpose is the
+ * difference between a free run and a bill nobody chose.
+ */
+const paidModels = models.filter((model) => isPaidModel(model));
+if (paidModels.length > 0 && !values.paid) {
+  write(
+    `${c.red}These models are metered and --paid was not passed:${c.reset}\n`,
+  );
+  for (const model of paidModels) {
+    write(`  ${model.split("?")[0] ?? model}\n`);
+  }
+  write(
+    `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
+  );
+  process.exit(1);
+}
 
 /**
  * An ad-hoc prompt runs the real agent against one throwaway case, which is the
@@ -115,11 +176,24 @@ const models =
  * committing an eval case for it.
  */
 const adHocEval = values.prompt
-  ? defineEval({ name: values.name ?? "ad-hoc", prompt: values.prompt })
+  ? defineEval({
+      // `--orchestrator` runs the prompt through the agent the user talks to
+      // in the app window, which delegates to tasks of its own.
+      kind: values.orchestrator ? "orchestrator" : undefined,
+      name: values.name ?? "ad-hoc",
+      prompt: values.prompt,
+    })
   : undefined;
 
-if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
-  process.stderr.write("Usage: tsx evals/run.ts <run|report|list> [options]\n");
+if (
+  subcommand !== "run" &&
+  subcommand !== "report" &&
+  subcommand !== "list" &&
+  subcommand !== "models"
+) {
+  process.stderr.write(
+    "Usage: tsx evals/run.ts <run|report|list|models> [options]\n",
+  );
   process.stderr.write(
     "  run [pattern...] Run evals matching any name pattern, then generate report\n",
   );
@@ -133,16 +207,31 @@ if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
     "                   --repeat <n> runs every case n times per model\n",
   );
   process.stderr.write(
+    `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
+  );
+  process.stderr.write(
+    "                   --model <cf:id|slug|uri>, repeatable; default is the free Workers AI set\n",
+  );
+  process.stderr.write(
+    "                   --paid allows a metered model, which is refused without it\n",
+  );
+  process.stderr.write(
     "                   --json prints the report as one line on stdout (see summary.json)\n",
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
   );
   process.stderr.write("  list [pattern]   List available evals\n");
+  process.stderr.write(
+    "  models [pattern] List what the configured providers can run right now\n",
+  );
   throw new Error(`Unknown subcommand: "${subcommand ?? "(none)"}"`);
 }
 
-const timestamp = new Date().toISOString().replaceAll(/[:.]/gu, "-");
+// Timestamped, and then stamped with the pid: comparing two conditions means
+// starting two runs at once, and several started inside the same millisecond
+// resolved to one directory and quietly overwrote each other's results.
+const timestamp = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${process.pid}`;
 const outputDir = path.resolve(
   import.meta.dirname,
   "..",
@@ -282,142 +371,191 @@ function provenanceLines(provenance: Rollup["provenance"]): string[] {
   ];
 }
 
-if (subcommand === "list") {
-  const filtered = EVALS.filter((e) => matchesPattern(e.name));
+switch (subcommand) {
+  case "list": {
+    const filtered = EVALS.filter((e) => matchesPattern(e.name));
 
-  if (filtered.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-    process.exit(1);
-  }
-
-  write(
-    [
-      "",
-      `${c.dim}Available evals (${filtered.length}):${c.reset}`,
-      ...filtered.map((e) => `  ${c.dim}-${c.reset} ${e.name}`),
-      "",
-    ].join("\n"),
-  );
-} else if (subcommand === "report") {
-  const workspaceRootDir = positionals[1];
-
-  if (!workspaceRootDir) {
-    process.stderr.write(
-      "Error: report subcommand requires a workspace directory argument\n",
-    );
-    throw new Error(
-      "report subcommand requires a workspace directory argument",
-    );
-  }
-
-  const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
-  write(`Workspace: ${absoluteWorkspaceDir}\n`);
-
-  const rollup = await generateReport({
-    evalCases: EVALS,
-    includeContextMessages,
-    outputDir,
-    workspaceRootDir: absoluteWorkspaceDir,
-  });
-
-  printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
-  if (values.json) {
-    emitReport(`${JSON.stringify(rollup)}\n`);
-  }
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-  process.exit(exitCodeFor(rollup));
-} else {
-  const filteredEvals = adHocEval
-    ? [adHocEval]
-    : EVALS.filter((e) => matchesPattern(e.name));
-
-  if (filteredEvals.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
-    throw new Error(`No evals matched pattern: "${patternLabel}"`);
-  }
-
-  const totalRuns = filteredEvals.length * models.length * repeat;
-
-  write(
-    [
-      "",
-      `${c.dim}┌─ Eval Plan ─────────────────────────────────────────${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Evals       :${c.reset} ${c.yellow}${filteredEvals.length}${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Models      :${c.reset} ${c.yellow}${models.length}${c.reset}`,
-      ...(repeat > 1
-        ? [
-            `${c.dim}│${c.reset}  ${c.dim}Repeat      :${c.reset} ${c.yellow}${repeat}${c.reset}`,
-          ]
-        : []),
-      `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
-      `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
-      `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
-      `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
-      `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
-      ...filteredEvals.map(
-        (e) => `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${e.name}`,
-      ),
-      `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
-      ...models.map(
-        (m) =>
-          `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${c.cyan}${m}${c.reset}`,
-      ),
-      `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
-      "",
-    ].join("\n"),
-  );
-
-  // Nothing is watching a piped or backgrounded run, so a prompt there is a
-  // hang rather than a safeguard. It is worth having when a person is present
-  // and could still say no, which is exactly when stdin is a terminal.
-  if (!dryRun && !values.yes && process.stdin.isTTY) {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-    });
-    const answer = await rl.question("Proceed? (y/N) ");
-    rl.close();
-    if (answer.toLowerCase() !== "y") {
-      write("Aborted.\n");
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-      process.exit(0);
+    if (filtered.length === 0) {
+      process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
+      process.exit(1);
     }
-    write("\n");
-  }
 
-  const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
-    concurrency,
-    dryRun,
-    maxRunSeconds,
-    maxRunTokens,
-    models,
-    repeat,
-  });
-
-  reportStopped(runs);
-
-  if (!dryRun) {
     write(
-      `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
+      [
+        "",
+        `${c.dim}Available evals (${filtered.length}):${c.reset}`,
+        ...filtered.map((e) => `  ${c.dim}-${c.reset} ${e.name}`),
+        "",
+      ].join("\n"),
     );
+    break;
+  }
+  case "models": {
+    const rows = await listConfiguredModels(patternLabel);
+    if (rows.length === 0) {
+      process.stderr.write(
+        patternLabel
+          ? `No models matched pattern: "${patternLabel}"\n`
+          : "No models. Check the provider keys in packages/workspace/.env\n",
+      );
+      process.exit(1);
+    }
+    // Split by what running one costs, since that is the first thing the choice
+    // turns on, and each row carries the spelling that runs it.
+    const section = (title: string, entries: typeof rows) => {
+      if (entries.length === 0) return [];
+      const cells: [string, string, string][] = entries.map((model) => [
+        modelFlagFor(model.uri),
+        model.releasedAt ?? "",
+        model.name,
+      ]);
+      const width = Math.max(...cells.map(([flag]) => flag.length));
+      return [
+        "",
+        `${c.dim}${title}${c.reset}`,
+        ...cells.map(
+          ([flag, released, name]) =>
+            `  ${flag.padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
+        ),
+      ];
+    };
+    write(
+      [
+        ...section(
+          "Free, on this project's Cloudflare credits:",
+          rows.filter((model) => !isPaidModel(model.uri)),
+        ),
+        ...section(
+          "Metered, refused without --paid:",
+          rows.filter((model) => isPaidModel(model.uri)),
+        ),
+        "",
+        `${c.dim}Newest first. Pick for the question being asked, and say which you picked and why.${c.reset}`,
+        "",
+      ].join("\n"),
+    );
+    break;
+  }
+  case "report": {
+    const workspaceRootDir = positionals[1];
+
+    if (!workspaceRootDir) {
+      process.stderr.write(
+        "Error: report subcommand requires a workspace directory argument\n",
+      );
+      throw new Error(
+        "report subcommand requires a workspace directory argument",
+      );
+    }
+
+    const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
+    write(`Workspace: ${absoluteWorkspaceDir}\n`);
 
     const rollup = await generateReport({
-      evalCases: filteredEvals,
+      evalCases: EVALS,
       includeContextMessages,
       outputDir,
-      runs,
-      workspaceRootDir,
+      workspaceRootDir: absoluteWorkspaceDir,
     });
 
-    printSummary({ outputDir, rollup, workspaceRootDir });
-    printTranscripts({ outputDir, rollup });
+    printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
     if (values.json) {
       emitReport(`${JSON.stringify(rollup)}\n`);
     }
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(exitCodeFor(rollup));
+    break;
+  }
+  default: {
+    const filteredEvals = adHocEval
+      ? [adHocEval]
+      : EVALS.filter((e) => matchesPattern(e.name));
+
+    if (filteredEvals.length === 0) {
+      process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
+      throw new Error(`No evals matched pattern: "${patternLabel}"`);
+    }
+
+    const totalRuns = filteredEvals.length * models.length * repeat;
+
+    write(
+      [
+        "",
+        `${c.dim}┌─ Eval Plan ─────────────────────────────────────────${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Evals       :${c.reset} ${c.yellow}${filteredEvals.length}${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Models      :${c.reset} ${c.yellow}${models.length}${c.reset}`,
+        ...(repeat > 1
+          ? [
+              `${c.dim}│${c.reset}  ${c.dim}Repeat      :${c.reset} ${c.yellow}${repeat}${c.reset}`,
+            ]
+          : []),
+        `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
+        `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
+        `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
+        ...filteredEvals.map(
+          (e) => `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${e.name}`,
+        ),
+        `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
+        ...models.map(
+          (m) =>
+            `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${c.cyan}${m}${c.reset}`,
+        ),
+        `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+        "",
+      ].join("\n"),
+    );
+
+    // Nothing is watching a piped or backgrounded run, so a prompt there is a
+    // hang rather than a safeguard. It is worth having when a person is present
+    // and could still say no, which is exactly when stdin is a terminal.
+    if (!dryRun && !values.yes && process.stdin.isTTY) {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      });
+      const answer = await rl.question("Proceed? (y/N) ");
+      rl.close();
+      if (answer.toLowerCase() !== "y") {
+        write("Aborted.\n");
+        process.exit(0);
+      }
+      write("\n");
+    }
+
+    const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
+      concurrency,
+      dryRun,
+      maxRunSeconds,
+      maxRunTokens,
+      models,
+      reasoningEffort,
+      repeat,
+    });
+
+    reportStopped(runs);
+
+    if (!dryRun) {
+      write(
+        `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
+      );
+
+      const rollup = await generateReport({
+        evalCases: filteredEvals,
+        includeContextMessages,
+        outputDir,
+        runs,
+        workspaceRootDir,
+      });
+
+      printSummary({ outputDir, rollup, workspaceRootDir });
+      printTranscripts({ outputDir, rollup });
+      if (values.json) {
+        emitReport(`${JSON.stringify(rollup)}\n`);
+      }
+      process.exit(exitCodeFor(rollup));
+    }
   }
 }
 

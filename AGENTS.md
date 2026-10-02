@@ -6,13 +6,12 @@ pnpm monorepo for the Instrument desktop app platform.
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
 - `packages/ai-gateway`: Model proxy (Hono app the workspace server mounts) plus the model discovery/identity library
 - `packages/shared`: Types, constants, and utilities used everywhere
-- `packages/shim-client`: Client-side runtime injected into user apps
-- `packages/eslint-config`, `packages/typescript-config`: Shared tool config
+- `packages/typescript-config`: Shared tool config
 
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,settings.json}`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
+- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
 
 ## Local references
 
@@ -50,15 +49,15 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 - `pnpm exec turbo run check:types check:lint` — all packages, or `--filter=@instrument-org/{workspace,studio}` for one
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
-- `pnpm check-and-test:ci` — what CI runs (drops format/spelling/markdown, adds `check:packages:dedupe`, so it is not a strict subset). Formatting is deliberately not a merge gate: `pnpm fix` applies it unattended, so holding types, lint, build, and tests red behind a blank line costs more than the blank line does
+- `pnpm check-and-test:ci` — what CI runs (drops format/spelling, adds `check:packages:dedupe`, so it is not a strict subset). Formatting is deliberately not a merge gate: `pnpm fix` applies it unattended, so holding types, lint, build, and tests red behind a blank line costs more than the blank line does
 - `pnpm turbo:fix:lint` — fix lint
-- `pnpm fix` — spelling + format over the whole repo in ~5s, which is how a file the hook never saw gets formatted. `pnpm fix --lint` adds the lint fixers on top, a minute at full CPU across every package, so run that one deliberately rather than in a checkout other agents are working in
+- `pnpm fix` — spelling + format over the whole repo in ~5s, which is how a file the hook never saw gets formatted. `pnpm fix --lint` adds a type-aware oxlint fix across every package at full CPU, so run that one deliberately rather than in a checkout other agents are working in
 
-`check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-hooks, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, the React Compiler analysis via `react/react-compiler`, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
+`check:lint` / `fix:lint` run `oxlint --type-aware` alone, with no ESLint. The rules are deliberately few: oxlint's correctness category, the type-aware rules that catch real bugs (floating and misused promises, the `no-unsafe-*` family that keeps `any` out), import cycles, the React hook and React Compiler checks, Tailwind's unknown and conflicting classes, and the repo's own guardrails as local plugins (`apps/studio/oxlint-rules.ts`, `packages/workspace/oxlint-rules.ts`). Nothing checks ordering or naming style; do not add rules that only ask for a different spelling of working code.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --fix` + `eslint --fix` on Stop over the files that session edited. Anything ESLint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited. Any error oxlint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
 
-What the hook does not cover: type errors, `oxlint --type-aware` problems that `--fix` can't resolve, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
+What the hook does not cover: type errors, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions
 
@@ -85,7 +84,8 @@ Multiple worktrees can run Studio at once: dev skips the single-instance lock, a
 
 ## Tests
 
-- Run one file or a whole package with `cd packages/<name> && pnpm test run [path/to/file.test.ts]` (same shape in `apps/studio`).
+- Run one file, a directory, or a whole package **from the repo root**, with the package-relative path: `pnpm --filter @instrument-org/workspace exec vitest run [src/path/to/file.test.ts]` (`@instrument-org/studio` for `apps/studio`).
+- Do not reach for `cd packages/<name> && …`. An agent shell keeps its working directory between commands, so the second such command in a session resolves against `packages/workspace/packages/workspace` and dies on "no such file or directory", and with `&&` the rest of the chain is skipped silently. `--filter` is idempotent across calls and is the same shape whether you run one file or the package. Where a command genuinely has to run inside a package, `cd` to its absolute path.
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
 - Use `it.each` for repetitive cases.
 
@@ -114,8 +114,8 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
 - `docs/architecture/asset-origin.md` — The per-task `assets.<taskId>` HTTP origin: how the host header routes it, why its path space is the virtual FS path space, who builds its URLs, its cache policy and containment, and what it does not authenticate.
 - `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
+- `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
-- `docs/architecture/studio-in-the-browser.md` — `apps/studio/web/`: Studio's real renderer served as a plain web page with the Electron boundary replaced by fixtures, for development only. How to add a fixture, and the live-query rules that make one work.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.

@@ -23,7 +23,7 @@ export type FileType =
   | "video"
   | "xlsx";
 
-function fileKindLabel(fileType: FileType): string {
+export function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
     case "archive": {
       return "ZIP archive";
@@ -229,6 +229,70 @@ export function getFileKindLabel({
   return fileKindLabel(getFileType({ filename, mimeType }));
 }
 
+// Files whose whole name is the type, because there is no extension to read one
+// from: a leading-dot config file, or one of the build files a project keeps at
+// its root. Both are text, and both reached the fallback card before this --
+// which in a folder listing is most of what sits beside the code.
+//
+// A named list rather than a rule. "Every dotfile is text" is the rule the
+// workspace server uses, and it is wrong often enough to matter: `.DS_Store` is
+// a binary, and so is whatever the next tool writes beside it. A name earns its
+// way on here by being a file someone opens to read.
+//
+// Prose is `text` and everything else is `code`, which is the difference between
+// the reading typeface at a measure and monospace at full width. A license or a
+// changelog is read; a Makefile's tabs and columns are load-bearing.
+const NAMED_FILE_TYPES: Record<string, FileType> = {
+  ".babelrc": "code",
+  ".bash_profile": "code",
+  ".bashrc": "code",
+  ".browserslistrc": "code",
+  ".dockerignore": "code",
+  ".editorconfig": "code",
+  ".eslintignore": "code",
+  ".eslintrc": "code",
+  ".gitattributes": "code",
+  ".gitconfig": "code",
+  ".gitignore": "code",
+  ".gitmodules": "code",
+  ".htaccess": "code",
+  ".inputrc": "code",
+  ".npmignore": "code",
+  ".npmrc": "code",
+  ".nvmrc": "code",
+  ".prettierignore": "code",
+  ".prettierrc": "code",
+  ".python-version": "code",
+  ".ruby-version": "code",
+  ".tool-versions": "code",
+  ".vimrc": "code",
+  ".yarnrc": "code",
+  ".zprofile": "code",
+  ".zshrc": "code",
+  authors: "text",
+  brewfile: "code",
+  caddyfile: "code",
+  changelog: "text",
+  codeowners: "code",
+  containerfile: "code",
+  contributing: "text",
+  contributors: "text",
+  copying: "text",
+  dockerfile: "code",
+  gemfile: "code",
+  gnumakefile: "code",
+  jenkinsfile: "code",
+  justfile: "code",
+  license: "text",
+  makefile: "code",
+  notice: "text",
+  procfile: "code",
+  rakefile: "code",
+  readme: "text",
+  todo: "text",
+  vagrantfile: "code",
+};
+
 // Extensions each document viewer can actually parse, checked before the
 // text/code fallbacks so `.csv` does not land in the syntax highlighter.
 //
@@ -238,7 +302,7 @@ export function getFileKindLabel({
 // than their OOXML equivalents but more than the "preview unavailable" card,
 // and a hard parse failure still degrades to it. `.doc` is absent because
 // `@extend-ai/react-docx` reads OOXML only.
-const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
+export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
   // A database has no registered mime type of its own, so the extension is the
   // only thing that identifies one. `.db` is the loosest of the three and does
@@ -282,7 +346,7 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
 // `ts` is deliberately absent. It is a registered video extension (MPEG
 // transport stream) and a TypeScript file everywhere it actually turns up here,
 // so it belongs to the code table instead.
-const MEDIA_EXTENSIONS: Record<string, FileType> = {
+export const MEDIA_EXTENSIONS: Record<string, FileType> = {
   aac: "audio",
   aiff: "audio",
   avif: "image",
@@ -320,6 +384,13 @@ export function getFileType({
   mimeType?: string;
 }): FileType {
   const lowerFilename = filename.toLowerCase();
+
+  // Ahead of the extension, since the name of a dotfile is read as one: the
+  // extension of `.gitignore` is `gitignore`, which is nobody's extension.
+  const namedType = NAMED_FILE_TYPES[lowerFilename];
+  if (namedType) {
+    return namedType;
+  }
 
   const extensionStart = lowerFilename.lastIndexOf(".");
   const extension =
@@ -440,7 +511,9 @@ function isReadableText({
   const lowerFilename = filename.toLowerCase();
   const hasNoExtension = !lowerFilename.includes(".");
   const isTextFile =
-    lowerFilename.endsWith(".txt") || lowerFilename.endsWith(".text");
+    lowerFilename.endsWith(".txt") ||
+    lowerFilename.endsWith(".text") ||
+    lowerFilename.endsWith(".log");
 
   return (
     isTextFile ||

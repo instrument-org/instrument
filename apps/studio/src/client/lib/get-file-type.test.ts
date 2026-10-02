@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { EXTENSION_MAP } from "./file-extension-to-language";
 import { getFileType } from "./get-file-type";
 
 describe("getFileType", () => {
@@ -88,6 +89,13 @@ describe("resolving from the extension alone", () => {
     ["script.py", "code"],
     ["styles.css", "code"],
     ["config.yaml", "code"],
+    ["idea.json", "code"],
+    ["tsconfig.jsonc", "code"],
+    ["bundle.js", "code"],
+    ["feed.xml", "code"],
+    [".env", "code"],
+    ["settings.ini", "code"],
+    ["Cargo.lock", "code"],
     ["notes.md", "markdown"],
     ["index.html", "html"],
     ["notes.txt", "text"],
@@ -95,10 +103,39 @@ describe("resolving from the extension alone", () => {
     expect(getFileType({ filename })).toBe(expected);
   });
 
+  // A file the syntax highlighter has a language for is a file the code viewer
+  // can show, so leaving one unknown puts it on the download card instead --
+  // which is what `.json` did for want of an entry in the extension table.
+  // `.wasm` is the exception: its language reads the text disassembly, not the
+  // binary a task stores.
+  it.each(
+    Object.keys(EXTENSION_MAP).filter((extension) => extension !== "wasm"),
+  )("previews .%s rather than leaving it unknown", (extension) => {
+    expect(getFileType({ filename: `file.${extension}` })).not.toBe("unknown");
+  });
+
   // `.ts` is a registered video extension (MPEG transport stream) and a
   // TypeScript file everywhere it turns up here.
   it("reads .ts as TypeScript rather than a transport stream", () => {
     expect(getFileType({ filename: "main.ts" })).toBe("code");
+  });
+
+  // A name with no extension in it, or one whose "extension" is the whole name.
+  // Prose reads as text and the rest as code; anything unlisted stays unknown,
+  // which is what keeps `.DS_Store` out of a text viewer.
+  it.each([
+    [".gitignore", "code"],
+    [".npmrc", "code"],
+    [".prettierrc", "code"],
+    ["Makefile", "code"],
+    ["Dockerfile", "code"],
+    ["CODEOWNERS", "code"],
+    ["LICENSE", "text"],
+    ["README", "text"],
+    ["CHANGELOG", "text"],
+    [".DS_Store", "unknown"],
+  ] as const)("resolves %s to %s", (filename, expected) => {
+    expect(getFileType({ filename })).toBe(expected);
   });
 
   // The server labels a response's Content-Type from the same table, so a file

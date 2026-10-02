@@ -3,7 +3,6 @@
 // Kept as a single file for now so we can easily merge changes from upstream.
 import { createTwoFilesPatch } from "diff";
 import ms from "ms";
-/* eslint-disable unicorn/prefer-string-slice */
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import { dedent } from "radashi";
@@ -384,7 +383,6 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
 };
 
 const WhitespaceNormalizedReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const normalizeWhitespace = (text: string) =>
     text.replaceAll(/\s+/g, " ").trim();
   const normalizedFind = normalizeWhitespace(find);
@@ -431,7 +429,6 @@ const WhitespaceNormalizedReplacer: Replacer = function* (content, find) {
 };
 
 const IndentationFlexibleReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const removeIndentation = (text: string) => {
     const lines = text.split("\n");
     const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
@@ -464,7 +461,6 @@ const IndentationFlexibleReplacer: Replacer = function* (content, find) {
 };
 
 const EscapeNormalizedReplacer: Replacer = function* (content, find) {
-  // eslint-disable-next-line unicorn/consistent-function-scoping
   const unescapeString = (str: string): string => {
     return str.replaceAll(/\\([ntr'"`\\\n$])/g, (match, capturedChar) => {
       switch (capturedChar) {
@@ -768,18 +764,19 @@ export const EditFile = setupTool({
     Performs exact string replacements in files. 
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.output}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.work}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Read the file with \`${ReadFile.name}\` before editing it, so \`${INPUT_PARAMS.oldString}\` matches what is actually on disk.
     - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number left-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ input, signal, taskId, taskState }) => {
+  execute: async ({ agentName, input, signal, taskId, taskState }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
     const layout = buildWorkspaceFsLayout({
+      apps: agentName === "instrument",
       attachedFolders: taskState.attachedFolders,
       projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
@@ -881,5 +878,3 @@ export const EditFile = setupTool({
     };
   },
 });
-
-/* eslint-enable unicorn/prefer-string-slice */

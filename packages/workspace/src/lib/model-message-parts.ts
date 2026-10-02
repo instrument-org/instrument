@@ -4,6 +4,7 @@ import type {
   FilePart,
   ImagePart,
   ModelMessage,
+  ProviderReference,
   ToolModelMessage,
   ToolResultPart,
   UserModelMessage,
@@ -25,6 +26,9 @@ type AssistantPart = Extract<
   unknown[]
 >[number];
 
+/** Every shape a file or image part's payload can take. */
+type MediaSource = FilePart["data"] | ImagePart["image"];
+
 /** One media part, as a pass sees it whatever shape it had in the message. */
 interface ModelMediaPart {
   /** Decoded bytes, or undefined for media the provider fetches itself. */
@@ -41,7 +45,6 @@ interface ModelMediaPart {
 type ToolOutputContent = Extract<ToolResultPart["output"], { type: "content" }>;
 
 type ToolOutputItem = ToolOutputContent["value"][number];
-
 /** A tool output item reduced to what a pass can act on, plus how to put it back. */
 type ToolOutputItemView =
   | {
@@ -53,6 +56,7 @@ type ToolOutputItemView =
   | { kind: "opaque" }
   | { kind: "text"; replace: (text: string) => ToolOutputItem; text: string };
 type ToolPart = ToolModelMessage["content"][number];
+
 type UserPart = Extract<UserModelMessage["content"], unknown[]>[number];
 
 /**
@@ -92,16 +96,40 @@ export function viewToolOutputItem(item: ToolOutputItem): ToolOutputItemView {
   switch (item.type) {
     case "custom":
     case "file-id":
+    case "file-reference":
     case "file-url":
     case "image-file-id":
+    case "image-file-reference":
     case "image-url": {
       // A reference rather than content: no bytes we hold, and no media type to
       // route on, so there is nothing for a pass to act on.
       return { kind: "opaque" };
     }
+    case "file": {
+      // Only inline bytes are content a pass can act on; a URL, a provider
+      // reference, or inline text is left for the provider.
+      if (item.data.type !== "data") {
+        return { kind: "opaque" };
+      }
+      const { data } = item.data;
+      return {
+        data:
+          typeof data === "string"
+            ? data
+            : Buffer.from(
+                data instanceof ArrayBuffer ? new Uint8Array(data) : data,
+              ).toString("base64"),
+        kind: "media",
+        mediaType: item.mediaType,
+        replace: ({ bytes, mediaType }) => ({
+          ...item,
+          data: { data: bytes.toString("base64"), type: "data" },
+          mediaType,
+        }),
+      };
+    }
     case "file-data":
-    case "image-data":
-    case "media": {
+    case "image-data": {
       return {
         data: item.data,
         kind: "media",
@@ -127,7 +155,14 @@ export function viewToolOutputItem(item: ToolOutputItem): ToolOutputItemView {
   }
 }
 
-function decodeMediaData(data: DataContent | URL) {
+function decodeMediaData(data: MediaSource): Buffer | undefined {
+  if (isTaggedFileData(data)) {
+    return data.type === "data" ? decodeMediaData(data.data) : undefined;
+  }
+  if (isProviderReference(data)) {
+    // Held by the provider, so there are no bytes here to act on.
+    return;
+  }
   if (data instanceof URL) {
     // The provider fetches it, so there is nothing here to measure or resize.
     return;
@@ -150,7 +185,7 @@ function decodeMediaData(data: DataContent | URL) {
 
 /** Turn bytes back into the form the slot they came from carries. */
 function encodeLikeSource(
-  source: DataContent | URL,
+  source: ImagePart["image"],
   bytes: Buffer,
   mediaType: string,
 ): DataContent {
@@ -159,10 +194,32 @@ function encodeLikeSource(
       ? `data:${mediaType};base64,${bytes.toString("base64")}`
       : bytes.toString("base64");
   }
-  if (source instanceof URL) {
+  if (source instanceof URL || isProviderReference(source)) {
     return bytes.toString("base64");
   }
   return new Uint8Array(bytes);
+}
+
+function isProviderReference(data: MediaSource): data is ProviderReference {
+  return (
+    typeof data === "object" &&
+    !(data instanceof URL) &&
+    !(data instanceof Uint8Array) &&
+    !(data instanceof ArrayBuffer) &&
+    data.type === undefined
+  );
+}
+
+function isTaggedFileData(
+  data: MediaSource,
+): data is Extract<FilePart["data"], { type: string }> {
+  return (
+    typeof data === "object" &&
+    !(data instanceof URL) &&
+    !(data instanceof Uint8Array) &&
+    !(data instanceof ArrayBuffer) &&
+    typeof data.type === "string"
+  );
 }
 
 async function mapAssistantPart(
@@ -170,6 +227,13 @@ async function mapAssistantPart(
   visit: ModelPartVisitor,
 ): Promise<AssistantPart> {
   switch (part.type) {
+    case "custom":
+    case "reasoning-file": {
+      // Provider-specific content and reasoning output replayed as-is. Nothing
+      // stores either today (see llm-request), so this is only reached by a
+      // caller that builds them itself.
+      return part;
+    }
     case "file": {
       return mapFilePart(part, visit);
     }
@@ -212,9 +276,18 @@ async function mapFilePart(
     return { text: edit.note, type: "text" };
   }
   if (edit.state === "replaced") {
+    const { data } = part;
     return {
       ...part,
-      data: encodeLikeSource(part.data, edit.bytes, edit.mediaType),
+      data: isTaggedFileData(data)
+        ? {
+            data:
+              data.type === "data" && typeof data.data === "string"
+                ? encodeLikeSource(data.data, edit.bytes, edit.mediaType)
+                : new Uint8Array(edit.bytes),
+            type: "data",
+          }
+        : encodeLikeSource(data, edit.bytes, edit.mediaType),
       mediaType: edit.mediaType,
     };
   }
@@ -411,7 +484,7 @@ async function visitMedia({
   mediaType,
   visit,
 }: {
-  data: DataContent | URL;
+  data: MediaSource;
   mediaType: string | undefined;
   visit: ModelPartVisitor;
 }): Promise<ModelMediaEdit> {

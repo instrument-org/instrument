@@ -12,8 +12,11 @@
   position: relative;
 }
 
+/* The line box a surface wants: the block's 24px unless it says otherwise,
+   which a one-row pill does to center a 20px line. A variable rather than a
+   utility because this rule is unlayered, and no utility could beat it. */
 .prompt-editor p {
-  min-height: 1.5rem;
+  min-height: var(--prompt-editor-line, 1.5rem);
   margin: 0;
 }
 
@@ -97,6 +100,7 @@ body {
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
+  --color-ground: var(--ground);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -234,6 +238,8 @@ body {
   --input: var(--gray-200);
   --ring: var(--gray-400);
   --sidebar: var(--background);
+  /* The window's own plane, under the rail and the bar, which the app's card stands inset on. */
+  --ground: var(--gray-200);
   --sidebar-foreground: var(--gray-950);
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
@@ -376,6 +382,7 @@ body {
   --ring: rgb(255 255 255 / 30%);
   --brand-text: var(--brand-400);
   --sidebar: var(--gray-900);
+  --ground: #0f0d0c;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
@@ -500,8 +507,9 @@ body {
   /* Tailwind Typography gives an image 2em of air above and below, enough that
      it reads as a section of its own. An image here is nearly always the answer
      to the sentence that introduces it, so it sits on the same rhythm as a
-     paragraph instead. */
-  img {
+     paragraph instead. Like Typography's own rules it stops at `not-prose`,
+     where an image is a card's thumbnail sized by its frame. */
+  img:not(:where(.not-prose *)) {
     margin-top: 1.25em;
     margin-bottom: 1.25em;
   }
@@ -776,6 +784,76 @@ body {
   }
 }
 
+/* A surface tinted by a topic's color: its mark, a swatch in the picker, the tab being read.
+ * Set `--topic-color` to the topic's palette hex (`topicTint()` writes
+ * that declaration, with the tier's chroma) and paint with the colors this
+ * publishes: `--topic-tint-surface` for the fill, `--topic-tint-edge` for the
+ * hairline, ring, or hover around it, `--topic-tint-ink` for a letter or a
+ * glyph drawn on the fill, `--topic-tint-raised` for something sitting on the
+ * fill and standing off it, such as the tab being read, and
+ * `--topic-tint-base` for the swatch that shows the color itself.
+ *
+ * The hue of the chosen color survives, and the tier it was picked from; every
+ * other thing about it is rebuilt at a fixed lightness and chroma per theme,
+ * so every hue lands exactly as far from the ground as every other and two
+ * topics are told apart at a glance in either theme. Rebuilt rather than mixed
+ * into the ground: a mix at the strength a light ground wants came out muddy
+ * over a dark one, where the same hue needs less lightness and more chroma to
+ * read as a color at all. Light surfaces are the pastel tiles of the design
+ * reference (L 0.93, C 0.05); dark ones are deep tiles of the same hue.
+ *
+ * The raised color still mixes into `--card`, since what stands on the fill
+ * is standing on the ground a card would, and lands clear of the fill beneath
+ * it while staying in the topic's hue.
+ *
+ * None of these resolves without a `--topic-color`, so a surface that is
+ * also drawn for a topic without one paints through a fallback:
+ * `var(--topic-tint-surface, var(--background))`. */
+@utility topic-tint {
+  /* Only the levels are themed, so the colors are written once here rather
+     than restated per theme. The tier's chroma scales each: a pale pick is
+     the same hue at a softer strength. */
+  --topic-tint-surface-l: 0.93;
+  --topic-tint-surface-c: 0.42;
+  --topic-tint-edge-l: 0.86;
+  --topic-tint-edge-c: 0.7;
+  --topic-tint-ink-l: 0.48;
+  --topic-tint-ink-c: 0.95;
+  --topic-tint-raised-strength: 16%;
+
+  --topic-tint-base: oklch(
+    from var(--topic-color) var(--topic-lightness, 0.62)
+      var(--topic-chroma, 0.11) h
+  );
+  --topic-tint-surface: oklch(
+    from var(--topic-color) var(--topic-tint-surface-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-surface-c)) h
+  );
+  --topic-tint-edge: oklch(
+    from var(--topic-color) var(--topic-tint-edge-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-edge-c)) h
+  );
+  --topic-tint-ink: oklch(
+    from var(--topic-color) var(--topic-tint-ink-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-ink-c)) h
+  );
+  --topic-tint-raised: color-mix(
+    in oklab,
+    var(--topic-tint-base) var(--topic-tint-raised-strength),
+    var(--card)
+  );
+
+  :is(.dark *) & {
+    --topic-tint-surface-l: 0.38;
+    --topic-tint-surface-c: 0.75;
+    --topic-tint-edge-l: 0.46;
+    --topic-tint-edge-c: 0.9;
+    --topic-tint-ink-l: 0.84;
+    --topic-tint-ink-c: 0.7;
+    --topic-tint-raised-strength: 45%;
+  }
+}
+
 /* Very subtle top-to-bottom sheen layered over a button's background color:
  * lightens the top edge and darkens the bottom edge a touch, giving a soft
  * physical depth. Works in both themes since it's a translucent overlay, and
@@ -943,6 +1021,33 @@ a.cursor-pointer {
   }
 }
 
+/* A heading the reader just jumped to; see `flashJumpTarget`, which puts the
+ * class there and takes it off when the animation ends.
+ *
+ * Held lit for the first third and faded over the rest: the hold is what makes
+ * it a mark rather than a flicker, and the fade is what keeps it from reading as
+ * a state the heading is now in. The fill reaches a few pixels past the box
+ * through the shadow, so a heading flush with the left edge of the prose is lit
+ * as a row and not clipped to its glyphs; a shadow rather than padding because
+ * padding would move the text. A tint of the foreground rather than a color of
+ * its own, so it is the same mark on both themes. */
+.jump-flash {
+  animation: jump-flash 1.2s ease-out both;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes jump-flash {
+  0%,
+  33% {
+    background-color: --alpha(var(--primary) / 12%);
+    box-shadow: 0 0 0 6px --alpha(var(--primary) / 12%);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
 /* A task's name arriving in place of the one before it; see `useTitleArrival`,
  * which puts the class there and only for a name the reader did not type.
  *
@@ -976,6 +1081,27 @@ a.cursor-pointer {
   }
   to {
     mask-position: 0 0;
+  }
+}
+
+/* The inbox row a draft just became; see `chat-row.tsx`, which puts the
+ * class on that row alone. It slides down into its place. Its ground is left
+ * alone, so the row never reads as the open one. */
+.chat-arrive {
+  animation: chat-arrive-in 320ms ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes chat-arrive-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
   }
 }
 
@@ -1020,92 +1146,6 @@ a.cursor-pointer {
 @media (prefers-reduced-motion: reduce) {
   .pane-tab-arriving {
     animation: none;
-  }
-}
-
-/* The composer answering a press that asked for the page it was already on; see
- * `nudgeOnReentry`, which mounts a ring on the box for one play of this.
- *
- * An outline that holds for a moment, with a brighter length of it traveling
- * the way the eye reads: the line alone is a border that blinked, and the glint
- * crossing it is what reads as an answer to something. Nothing moves and
- * nothing about the composer is repainted, so a draft mid-sentence is
- * undisturbed by the app agreeing with a click.
- *
- * On the press and not a moment after: the outline is at full strength in the
- * first frame, and the band comes in over the left edge right behind it at its
- * fastest, easing out into the far side. Anything at the front of this -- a
- * ramp onto the line, a slow start, a longer run in from off the box -- is time
- * in which the click looks like it did nothing, which is the one thing the
- * whole gesture is here to answer.
- *
- * Ink rather than the brand, and pale: this is the app noticing a press, not an
- * accent worth spending a color on, and `--foreground` inverts with the theme
- * so the line contrasts with the box it hugs in both.
- *
- * The ring is the whole element, the glint is a band of background lit through
- * it -- the mask keeps the border box and drops the padding box, leaving a 2px
- * ring for both to paint on. The band is three boxes wide so its lit stretch is
- * a fraction of a box, and it starts just off the left edge and ends just off
- * the right, which is what makes it a pass rather than a fade.
- *
- * Held long enough to be caught by an eye still on the button that was pressed,
- * short enough that a second press is a second pass and not an interruption.
- *
- * Under reduced motion the pass is dropped and the ring still answers: the band
- * is parked off the left edge, so what is left is the outline fading in and
- * out. */
-@utility composer-nudge {
-  --composer-nudge-line: color-mix(
-    in oklab,
-    var(--foreground) 12%,
-    transparent
-  );
-  --composer-nudge-glint: color-mix(
-    in oklab,
-    var(--foreground) 28%,
-    transparent
-  );
-
-  border: 2px solid var(--composer-nudge-line);
-  background: linear-gradient(
-      115deg,
-      transparent 45%,
-      var(--composer-nudge-glint) 50%,
-      transparent 55%
-    )
-    border-box;
-  background-position: 100% 0;
-  background-size: 300% 100%;
-  mask:
-    linear-gradient(#000 0 0) padding-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  animation:
-    composer-nudge-glint 550ms ease-out,
-    composer-nudge-ring 750ms ease-out both;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: composer-nudge-ring 750ms ease-out both;
-  }
-}
-
-@keyframes composer-nudge-glint {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0 0;
-  }
-}
-
-@keyframes composer-nudge-ring {
-  0%,
-  76% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
   }
 }
 
@@ -1201,7 +1241,12 @@ a.cursor-pointer {
    anything drawn inside it scrolls away with the table, and anything outside it
    cannot know how wide the frame ended up. Each one's negative margin on its
    far side keeps it out of the frame's own max-content width, so their presence
-   never widens the block. */
+   never widens the block.
+
+   A fade has to end in the ground it is drawn on, or it reads as a well the
+   table scrolls into rather than as the table continuing. Most markdown sits on
+   `--background`, so that is the fallback; a surface that is something else --
+   the document viewer's card -- says so with `--markdown-surface`. */
 .markdown-table-fade {
   position: sticky;
   flex: 0 0 auto;
@@ -1214,13 +1259,21 @@ a.cursor-pointer {
 .markdown-table-fade[data-edge="start"] {
   inset-inline-start: 0;
   margin-inline-end: calc(-1 * var(--table-fade));
-  background: linear-gradient(to right, var(--background), transparent);
+  background: linear-gradient(
+    to right,
+    var(--markdown-surface, var(--background)),
+    transparent
+  );
 }
 
 .markdown-table-fade[data-edge="end"] {
   inset-inline-end: 0;
   margin-inline-start: calc(-1 * var(--table-fade));
-  background: linear-gradient(to right, transparent, var(--background));
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--markdown-surface, var(--background))
+  );
 }
 
 .markdown-table-frame[data-scroll-start]
@@ -1304,12 +1357,12 @@ a.cursor-pointer {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: var(--radius-sm);
-  background: var(--background);
+  background: var(--markdown-surface, var(--background));
   color: var(--muted-foreground);
 }
 
 .markdown-table-control:hover {
-  background: var(--card);
+  background: var(--muted);
   color: var(--foreground);
 }
 

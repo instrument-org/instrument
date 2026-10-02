@@ -1,6 +1,6 @@
 import {
-  type LanguageModelV3,
-  type SharedV3ProviderOptions,
+  type LanguageModelV4,
+  type SharedV4ProviderOptions,
 } from "@ai-sdk/provider";
 import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { type ToolSet } from "ai";
@@ -20,6 +20,8 @@ import {
   createXAISDK,
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
+import { chatGPTPlanSearchModel } from "./fetch-models/chatgpt";
+import { type ModelCache } from "./model-cache";
 import {
   filterWebSearchConfigs,
   type WebSearchProviderType,
@@ -35,21 +37,27 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   "anthropic",
   "x-ai",
   "vercel",
+  // Last, so a search from a chat on another provider spends the user's
+  // plan only when nothing else can search.
+  "chatgpt",
 ];
 
 export interface AISDKWebSearchModelResult {
-  model: LanguageModelV3;
-  providerOptions?: SharedV3ProviderOptions;
+  model: LanguageModelV4;
+  providerOptions?: SharedV4ProviderOptions;
   tools?: ToolSet;
 }
 
 export async function getAISDKWebSearchModel({
   callingModel,
   config,
+  modelCache,
   workspaceServerURL,
 }: {
   callingModel: AIGatewayModel.Type;
   config: AIGatewayProviderConfig.Type & { type: WebSearchProviderType };
+  /** Where a provider's listed models are read from, for picking one by tier. */
+  modelCache?: ModelCache;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const testOverride = (
@@ -78,6 +86,32 @@ export async function getAISDKWebSearchModel({
       };
       break;
     }
+    case "chatgpt": {
+      const sdk = await createOpenAISDK(config, workspaceServerURL);
+      // Always the plan's lightest model, not thinking and reading little: a
+      // search is a lookup, and on the plan every search model's own
+      // searching counts against the user's limits and takes minutes at the
+      // chat model's depth. `none` is the lowest effort the plan accepts
+      // alongside web search (`minimal` is refused); the short reply the
+      // search prompt asks for is what most of the speed comes from, and
+      // `none` takes a little more off.
+      result = {
+        model: sdk(
+          // The account's own catalog decides, so a newer Luna is used the
+          // day the plan lists it. The chat's model stands in only when the
+          // catalog was never read.
+          chatGPTPlanSearchModel(modelCache?.read(config.cacheIdentifier) ?? [])
+            ?.providerId ?? callingModel.providerId,
+        ),
+        providerOptions: {
+          openai: { reasoningEffort: "none" },
+        },
+        tools: {
+          web_search: sdk.tools.webSearch({ searchContextSize: "low" }),
+        },
+      };
+      break;
+    }
     case "google": {
       const sdk = await createGoogleSDK(config, workspaceServerURL);
       result = {
@@ -93,7 +127,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("gpt-5.6-luna"),
+          : sdk("gpt-6-luna"),
         tools: {
           web_search: sdk.tools.webSearch(),
         },
@@ -158,10 +192,12 @@ export async function getAISDKWebSearchModel({
 export async function getWebSearchModel({
   callingModel,
   configs,
+  modelCache,
   workspaceServerURL,
 }: {
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
+  modelCache?: ModelCache;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const preferredProviderConfig = configs.find(
@@ -192,6 +228,7 @@ export async function getWebSearchModel({
     const result = await getAISDKWebSearchModel({
       callingModel,
       config,
+      modelCache,
       workspaceServerURL,
     });
     if (result.ok) {

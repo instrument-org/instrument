@@ -43,12 +43,12 @@ describe("FolderAttachmentsCard", () => {
     expect(screen.queryByText("Home-Downloads")).toBeNull();
   });
 
-  it("shortens a path under the home directory", () => {
+  it("reads a path under the home directory from the home folder's name", () => {
     renderWithProviders(
       <FolderAttachmentsCard folders={[folder("/Users/sam/Downloads")]} />,
     );
 
-    expect(screen.getByText("~/Downloads")).toBeTruthy();
+    expect(screen.getByText("sam/Downloads")).toBeTruthy();
   });
 
   it("shows a path outside the home directory in full", () => {

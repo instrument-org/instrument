@@ -89,13 +89,15 @@ describe("project lib", () => {
     await createProject({ name: "Acme" });
     const dup = await createProject({ name: "acme" });
     expect(dup.isErr()).toBe(true);
-    expect(dup._unsafeUnwrapErr().type).toBe("workspace-conflict-error");
+    expect(dup._unsafeUnwrapErr().type).toBe("workspace-invalid-input-error");
   });
 
   it("rejects an invalid name", async () => {
     const result = await createProject({ name: "bad/name" });
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("workspace-parse-error");
+    expect(result._unsafeUnwrapErr().type).toBe(
+      "workspace-invalid-input-error",
+    );
   });
 
   it("renames the folder but keeps the id stable", async () => {

@@ -3,8 +3,8 @@ import { z } from "zod";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
- * ordering, reopen-closed, single-tab-route dedupe. Lets the whole main window live
- * in one web contents.
+ * ordering, reopen-closed, single-tab-route dedupe. Lets the whole app window
+ * live in one web contents.
  *
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.
@@ -150,34 +150,6 @@ export function selectTab(model: TabsModel, { id }: { id: TabId }): TabsModel {
     return model;
   }
   return { ...model, selectedId: id };
-}
-
-/**
- * Apply the resolved head meta of a tab's route to the model. The caller always
- * passes the full snapshot for the deepest match, so this replaces rather than
- * merges: a route that declares no icon (e.g. a task, which uses its status
- * ring) clears an icon left over from the previous route (e.g. a project).
- */
-export function setTabMeta(
-  model: TabsModel,
-  {
-    iconName,
-    id,
-    taskId,
-    title,
-  }: {
-    iconName?: Tab["iconName"];
-    id: TabId;
-    taskId?: Tab["taskId"];
-    title?: string;
-  },
-): TabsModel {
-  return {
-    ...model,
-    tabs: model.tabs.map((tab) =>
-      tab.id === id ? { ...tab, iconName, taskId, title } : tab,
-    ),
-  };
 }
 
 /**

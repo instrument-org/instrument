@@ -171,12 +171,12 @@ describe("store migrations", () => {
   it("leaves a version written by a newer build alone", async () => {
     await seedStoredPart({ text: "hello", type: "text" });
     const seeded = unwrap(await getSessionsStoreStorage(taskId));
-    unwrap(await seeded.setItemRaw(VERSION_KEY, 2));
+    unwrap(await seeded.setItemRaw(VERSION_KEY, 3));
     unwrap(await disposeSessionsStoreStorage(id));
 
     const storage = unwrap(await getSessionsStoreStorage(taskId));
 
-    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(2);
+    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(3);
   });
 
   it("records the version so a migrated task does not scan again", async () => {
@@ -184,6 +184,61 @@ describe("store migrations", () => {
 
     const storage = unwrap(await getSessionsStoreStorage(taskId));
 
-    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(1);
+    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(2);
+  });
+
+  it.each([
+    {
+      after: {
+        data: { chats: [{ at: 1, title: "Groceries", topics: [] }], sentAt: 2 },
+        type: "data-chatContext",
+      },
+      before: {
+        data: {
+          sentAt: 2,
+          threads: [{ at: 1, title: "Groceries", topics: [] }],
+        },
+        type: "data-threadContext",
+      },
+      name: "the other chats' note",
+    },
+    {
+      after: { data: { topics: [{ name: "Home" }] }, type: "data-chatTopics" },
+      before: {
+        data: { topics: [{ name: "Home" }] },
+        type: "data-threadTopics",
+      },
+      name: "the topics note",
+    },
+    {
+      after: {
+        data: { chat: { id: "ses_1", title: "Groceries" }, screen: "chat" },
+        type: "data-viewContext",
+      },
+      before: {
+        data: { screen: "thread", thread: { id: "ses_1", title: "Groceries" } },
+        type: "data-viewContext",
+      },
+      name: "a view sent from a chat's screen",
+    },
+  ])(
+    "says chat in $name stored while chats were threads",
+    async ({ after, before }) => {
+      await seedStoredPart(before);
+
+      const stored = await openAndReadStoredPart();
+
+      expect(stored).toMatchObject(after);
+      expect(JSON.stringify(stored)).not.toContain("thread");
+    },
+  );
+
+  it("leaves a view sent from another screen alone", async () => {
+    const data = { screen: "tasks", url: "/orchestrator/tasks" };
+    await seedStoredPart({ data, type: "data-viewContext" });
+
+    const stored = await openAndReadStoredPart();
+
+    expect(stored?.data).toEqual(data);
   });
 });

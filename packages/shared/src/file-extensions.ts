@@ -1,18 +1,27 @@
-// The mime type an extension implies, for the extensions a mime database gets
-// wrong or does not know at all -- source files, above all, which are text but
-// resolve to `application/octet-stream` unless something says otherwise.
+// The mime type an extension implies.
 //
 // Two readers, deriving different things from the same knowledge. The workspace
 // server consults it ahead of the mime database when labeling a response's
 // `Content-Type`. The renderer consults it when it has a filename and no mime
 // type, which is every file reference drawn from a path alone.
 //
+// That second reader is why the table carries extensions a mime database
+// already answers correctly, `.json` and `.js` among them: the renderer has no
+// mime database to fall back to, so an extension missing here is a file it
+// cannot type at all, and an untyped file gets the "no preview" card rather
+// than a viewer. Every extension the syntax highlighter knows belongs here,
+// which `get-file-type.test.ts` holds it to. The one deliberate absence is
+// `.wasm`, whose highlighter reads the text disassembly rather than the binary
+// a task actually stores.
+//
 export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   abap: "text/plain",
   ada: "text/plain",
   astro: "text/plain",
+  bash: "text/plain",
   bat: "text/plain",
   c: "text/plain",
+  cc: "text/plain",
   cjs: "text/javascript",
   clj: "text/plain",
   cljs: "text/plain",
@@ -22,10 +31,13 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   cs: "text/plain",
   css: "text/css",
   cts: "text/typescript",
+  cxx: "text/plain",
   dart: "text/plain",
   diff: "text/plain",
+  docker: "text/plain",
   dockerfile: "text/plain",
   elm: "text/plain",
+  env: "text/plain",
   erl: "text/plain",
   ex: "text/plain",
   exs: "text/plain",
@@ -35,7 +47,9 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   gd: "text/plain",
   gleam: "text/plain",
   glsl: "text/plain",
+  gml: "application/gml+xml",
   go: "text/plain",
+  gql: "text/plain",
   graphql: "text/plain",
   groovy: "text/plain",
   h: "text/plain",
@@ -44,18 +58,27 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   hpp: "text/plain",
   hs: "text/plain",
   hx: "text/plain",
+  hxx: "text/plain",
+  ini: "text/plain",
   java: "text/plain",
   jl: "text/plain",
+  js: "text/javascript",
+  json: "application/json",
+  // Comments and trailing commas are what a `.jsonc` is for, so it parses as
+  // JSON nowhere. Text, the way the other configuration formats are.
+  jsonc: "text/plain",
   // Line-delimited JSON is text, but `mime-types` knows neither extension, so
   // both resolved to `application/octet-stream` and the viewer showed the
   // "no preview" card. Not `application/json`, which they are not: each line
   // parses on its own, the file as a whole does not.
   jsonl: "text/plain",
   jsx: "text/jsx",
+  kml: "application/vnd.google-earth.kml+xml",
   kt: "text/plain",
   latex: "text/plain",
   less: "text/plain",
   lisp: "text/plain",
+  lock: "text/plain",
   lua: "text/plain",
   m: "text/plain",
   makefile: "text/plain",
@@ -73,6 +96,7 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   perl: "text/plain",
   php: "text/plain",
   pl: "text/plain",
+  properties: "text/plain",
   proto: "text/plain",
   ps1: "text/plain",
   pug: "text/plain",
@@ -80,6 +104,7 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   r: "text/plain",
   rb: "text/plain",
   rs: "text/plain",
+  rss: "application/rss+xml",
   sass: "text/plain",
   scala: "text/plain",
   scheme: "text/plain",
@@ -98,6 +123,8 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   vb: "text/plain",
   vim: "text/plain",
   vue: "text/plain",
+  xhtml: "application/xhtml+xml",
+  xml: "application/xml",
   yaml: "text/plain",
   yml: "text/plain",
   zig: "text/plain",

@@ -6,6 +6,7 @@ import {
   type ActorRefFrom,
   type AnyMachineSnapshot,
   assign,
+  enqueueActions,
   fromPromise,
   log,
   setup,
@@ -22,6 +23,7 @@ import {
   type SpawnAgentResult,
 } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
+import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
@@ -34,6 +36,7 @@ import {
   type AgentParentEvent,
   type ToolCallUpdate,
 } from "./agent";
+import { type StopReason } from "./execute-tool-call";
 
 export type SessionMachineParentEvent =
   | {
@@ -65,15 +68,32 @@ type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 
 type SessionMachineEvent =
   | AgentParentEvent
-  | { type: "addMessage"; value: SessionMessage.UserWithParts }
+  | {
+      /** Stop the step in flight so the message runs as the next turn. */
+      interrupt?: boolean;
+      saved?: boolean;
+      type: "addMessage";
+      value: SessionMessage.UserWithParts;
+    }
+  | { reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
-  | { type: "stop" }
   | {
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;
     };
+
+/**
+ * Whether a message is the user's own words rather than a note the harness
+ * wrote for the agent: a task finishing, an app changing. Only the user's own
+ * words supersede a reply in flight.
+ */
+function isTypedByUser(message: SessionMessage.UserWithParts) {
+  return !message.parts.some(
+    (part) => part.type === "data-taskEvent" || part.type === "data-appEvent",
+  );
+}
 
 export const sessionMachine = setup({
   actions: {
@@ -107,9 +127,12 @@ export const sessionMachine = setup({
         }),
     }),
 
-    stopAgent: ({ context }) => {
+    stopAgent: ({ context, event }) => {
       if (context.agentRef) {
-        context.agentRef.send({ type: "stop" });
+        context.agentRef.send({
+          reason: event.type === "stop" ? event.reason : undefined,
+          type: "stop",
+        });
       }
     },
   },
@@ -139,6 +162,7 @@ export const sessionMachine = setup({
       SessionMessage.WithParts,
       {
         message: SessionMessage.UserWithParts;
+        saved: boolean;
         sessionId: StoreId.Session;
         taskId: TaskId;
       }
@@ -150,6 +174,9 @@ export const sessionMachine = setup({
         throw new Error(
           `Session ID mismatch: expected ${input.sessionId}, found parts with different session IDs`,
         );
+      }
+      if (input.saved) {
+        return input.message;
       }
       const result = await Store.saveMessageWithParts(
         input.message,
@@ -163,7 +190,6 @@ export const sessionMachine = setup({
     }),
 
     updateSession: fromPromise<
-      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         parentSessionId?: StoreId.Session;
@@ -234,6 +260,8 @@ export const sessionMachine = setup({
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested: boolean;
+      /** Queued messages the sender wrote to the store on arrival; see `addMessage`. */
+      savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       spawnAgent: SpawnAgentFunction;
@@ -252,6 +280,8 @@ export const sessionMachine = setup({
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested?: boolean;
+      /** Those of `queuedMessages` the sender wrote to the store on arrival. */
+      savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       taskId: TaskId;
@@ -357,6 +387,7 @@ export const sessionMachine = setup({
       parentSessionId: input.parentSessionId,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
+      savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
       sessionNamePrefix: input.sessionNamePrefix,
       spawnAgent,
@@ -377,12 +408,58 @@ export const sessionMachine = setup({
         });
       },
     },
+    // A sender that wrote the message to the store first says so: the
+    // transcript shows it the moment it was sent, the way a message app does,
+    // and whoever runs it later reads it rather than writing it again.
     addMessage: {
+      actions: [
+        assign({
+          queuedMessages: ({ context, event }) => [
+            ...context.queuedMessages,
+            event.value,
+          ],
+          savedMessageIds: ({ context, event }) =>
+            event.saved
+              ? [...context.savedMessageIds, event.value.id]
+              : context.savedMessageIds,
+        }),
+        // A running agent hears it at its next point between steps and then
+        // says so, which is what takes it back out of the queue. Until then it
+        // stays queued, so a turn that ends first runs it as a turn of its own.
+        // The conversation's own agent is superseded instead: a message the
+        // user typed while it was composing stops the turn, and the queue runs
+        // the message as a turn of its own, over everything said so far. A
+        // note from a task or an app steers, since the reply in flight is
+        // still the reply to what the user said. A sender that asks to
+        // interrupt supersedes any agent's step the same way.
+        enqueueActions(({ context, enqueue, event }) => {
+          const agentRef = context.agentRef;
+          if (agentRef?.getSnapshot().status !== "active") {
+            return;
+          }
+          if (
+            event.interrupt ||
+            (context.agent.name === "instrument" && isTypedByUser(event.value))
+          ) {
+            enqueue.raise({ reason: "superseded", type: "stop" });
+            return;
+          }
+          agentRef.send({
+            saved: event.saved,
+            type: "steer",
+            value: event.value,
+          });
+          // The next step may be minutes away inside a wait; end it.
+          interruptWaits(context.sessionId);
+        }),
+      ],
+    },
+    "agent.consumedSteer": {
       actions: assign({
-        queuedMessages: ({ context, event }) => [
-          ...context.queuedMessages,
-          event.value,
-        ],
+        queuedMessages: ({ context, event }) =>
+          context.queuedMessages.filter(
+            (message) => !event.value.messageIds.includes(message.id),
+          ),
       }),
     },
     runTurn: {
@@ -437,7 +514,10 @@ export const sessionMachine = setup({
         ],
       },
 
-      onDone: "Done",
+      // A message that arrived while the agent ran is waiting in the queue, and
+      // a turn that ends by finalizing the session would drop it. The queue
+      // decides whether this is the end: empty, it is.
+      onDone: "ProcessingQueuedMessages",
 
       states: {
         AgentDone: { type: "final" },
@@ -456,6 +536,11 @@ export const sessionMachine = setup({
               actions: "clearAgentRef",
               target: "AgentDone",
             },
+            // A stop that lands while the agent waits on an interactive tool
+            // makes it leave that wait on the way out, which reports a resume.
+            // The session is already stopping, so neither changes anything.
+            "agent.paused": {},
+            "agent.resumed": {},
           },
         },
 
@@ -565,6 +650,7 @@ export const sessionMachine = setup({
           invariant(message, "No message to save");
           return {
             message,
+            saved: context.savedMessageIds.includes(message.id),
             sessionId: context.sessionId,
             taskId: context.taskId,
           };

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
+import { StoreId } from "../store-id";
+import { TaskIdSchema } from "../task-id";
 import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
@@ -10,19 +12,22 @@ export namespace SessionMessageDataPart {
    * Every part below is one of three cadences, and which one it is decides
    * whether it needs to guard against repeating itself.
    *
-   * - **Event**: something that happened on this turn -- `attachments`,
-   *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
-   *   `skillMentions`, and `projectContext`, which is written once at
-   *   creation. A repeat is impossible by construction; nothing to guard.
+   * - **Event**: something that happened on this turn -- `asks`,
+   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
+   *   `reply`, `skillChanges`, `skillMentions`, and `projectContext` and
+   *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
+   *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
-   * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
+   * - **State**: the whole current picture -- `backgroundProcesses`,
+   *   `browserStatus`, `memory`, `paneTabs`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
    *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
-   *   different means; a new state part that forgets is not a failure anyone
-   *   sees, it just quietly spends context.
+   *   different means, and `toModelMessages` skips a topics or view note that
+   *   reads the same as the last one; a new state part that forgets is not a
+   *   failure anyone sees, it just quietly spends context.
    *
    * Adding a part? Decide which of the three it is first.
    *
@@ -30,8 +35,12 @@ export namespace SessionMessageDataPart {
    * `fileChanges`.
    */
   export const NameSchema = z.enum([
+    "adoptedTask",
+    "appEvent",
+    "asks",
     "attachedFolderChanges",
     "attachments",
+    "backgroundProcesses",
     "browserStatus",
     "contextRollover",
     "dateChange",
@@ -40,23 +49,42 @@ export namespace SessionMessageDataPart {
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "memory",
+    "messageGap",
     "modelChange",
+    "outputFormat",
     "paneTabs",
     "projectChanges",
     "projectContext",
+    "reply",
+    "taskAppChanges",
+    "taskEvent",
+    "chatContext",
+    "chatTopics",
     "unknown",
+    "viewContext",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Attached folders removed, renamed, or re-permissioned since the model last
-  // saw them -- attached to the user message that triggers the next turn so the
-  // model stops relying on stale names, removed folders, or an access level the
-  // user has since changed. The standing folder list lives in the session
-  // context, which is written once and never rewritten, so this is the only
-  // thing that gets a change to the model at all.
+  // Attached folders added, removed, renamed, or re-permissioned since the
+  // model last saw them -- attached to the user message that triggers the next
+  // turn so the model stops relying on stale names, removed folders, or an
+  // access level that has since changed, and knows about a folder handed to it
+  // mid-flight. The standing folder list lives in the session context, which is
+  // written once and never rewritten, so this is the only thing that gets a
+  // change to the model at all.
   const AttachedFolderChangesDataPartSchema = z.object({
     accessChanged: z
+      .array(
+        z.object({
+          access: FolderAttachment.AccessSchema,
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .default([]),
+    added: z
       .array(
         z.object({
           access: FolderAttachment.AccessSchema,
@@ -141,6 +169,31 @@ export namespace SessionMessageDataPart {
     typeof ProjectChangesDataPartSchema
   >;
 
+  /**
+   * What this session still has running at the start of a turn.
+   *
+   * The registry is in memory and the transcript is not, so without this the
+   * only record of `bg_1` is a tool result from an earlier turn that said it was
+   * running then. A turn twenty minutes later cannot tell whether that is still
+   * true, and after a restart it is definitely false -- which is why `ended`
+   * exists rather than the part simply going absent.
+   */
+  const BackgroundProcessesDataPartSchema = z.object({
+    /** Ids the session was told about that are no longer there. */
+    ended: z.array(z.object({ command: z.string(), id: z.string() })),
+    running: z.array(
+      z.object({
+        command: z.string(),
+        id: z.string(),
+        runningForMs: z.number(),
+      }),
+    ),
+  });
+
+  export type BackgroundProcessesDataPart = z.output<
+    typeof BackgroundProcessesDataPartSchema
+  >;
+
   const BrowserTargetSchema = z.object({
     title: z.string().optional(),
     url: z.string(),
@@ -158,6 +211,16 @@ export namespace SessionMessageDataPart {
     z.object({
       status: z.literal("reopened"),
       target: BrowserTargetSchema,
+    }),
+    /** The tabs of the user's chat a task holds, each by the id `agent-browser tab` takes. */
+    z.object({
+      status: z.literal("tabs"),
+      tabs: z.array(
+        BrowserTargetSchema.extend({
+          id: z.string(),
+          openedBy: z.enum(["handed", "task"]),
+        }),
+      ),
     }),
   ]);
 
@@ -239,17 +302,17 @@ export namespace SessionMessageDataPart {
    * Diff cadence, so a session that never switches carries none of these, and a
    * session that switches once carries one rather than one per later turn.
    */
+  const ModelChangeSideSchema = z.object({
+    contextLength: z.number().int().positive().optional(),
+    modelId: z.string(),
+    name: z.string().optional(),
+    // Who served it, so a move between two providers of one model reads as
+    // a move at all.
+    providerName: z.string().optional(),
+  });
   const ModelChangeDataPartSchema = z.object({
-    from: z.object({
-      contextLength: z.number().int().positive().optional(),
-      modelId: z.string(),
-      name: z.string().optional(),
-    }),
-    to: z.object({
-      contextLength: z.number().int().positive().optional(),
-      modelId: z.string(),
-      name: z.string().optional(),
-    }),
+    from: ModelChangeSideSchema,
+    to: ModelChangeSideSchema,
   });
 
   export type ModelChangeDataPart = z.output<typeof ModelChangeDataPartSchema>;
@@ -269,6 +332,68 @@ export namespace SessionMessageDataPart {
   });
 
   export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
+
+  /**
+   * Places in files the user marked and what they want changed at each,
+   * gathered on the file before sending and carried beside their words, so
+   * the request reads as a list of targets rather than quotes pasted into
+   * the message. Each names the file by its path (and the virtual path the
+   * agent reaches it by, when a granted folder covers it), where in the file
+   * in a reader's words, the words or source at that place, and what the
+   * user typed for it, which may be nothing.
+   */
+  export const AsksDataPartSchema = z.object({
+    asks: z
+      .array(
+        z.object({
+          /** What the surface knows about the place that its text alone does not say: that a script makes it, say. */
+          context: z.string().optional(),
+          excerpt: z.string().optional(),
+          file: z.object({
+            mount: z.string().optional(),
+            name: z.string(),
+            path: z.string(),
+          }),
+          instruction: z.string(),
+          /** Where in the file: "lines 12-14", "page 3", "Sales!A2:C3", "whole file". */
+          target: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
+
+  /**
+   * The earlier message the user is replying to: which bubble, by its message
+   * and part, so the transcript can draw the quote and find the original, and
+   * the start of its words, which is all the model is shown. The model already
+   * has the whole message in its history and knows it by no id, so the words
+   * are how it tells which one is meant.
+   */
+  export const ReplyDataPartSchema = z.object({
+    messageId: StoreId.MessageSchema,
+    partId: StoreId.PartSchema,
+    text: z.string().trim().min(1).max(1000),
+  });
+
+  export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
+
+  /**
+   * The kind of page the user asked to receive the response as, picked on
+   * the draft that opened the chat: a template of the page skill, by the
+   * name of its folder and the title the catalog gives it. Carried beside
+   * the user's own text so the agent briefs its task with it, and the record
+   * says what was asked for.
+   */
+  export const OutputFormatDataPartSchema = z.object({
+    name: z.string().trim().min(1),
+    title: z.string().trim().min(1),
+  });
+
+  export type OutputFormatDataPart = z.output<
+    typeof OutputFormatDataPartSchema
+  >;
 
   /**
    * Skills the agent installed or revised during the turn, detected by diffing
@@ -307,6 +432,315 @@ export namespace SessionMessageDataPart {
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
   /**
+   * Tasks an orchestrator created that finished a turn since it last heard.
+   *
+   * The one way work comes back to the orchestrator: a child never speaks in
+   * this conversation, so its completion has to arrive as something the
+   * orchestrator reads on a turn of its own. Written on a user message with no
+   * text, which starts that turn, so the model reads it as a note from the
+   * harness rather than as something the user said.
+   *
+   * Event cadence: one part per wake. Several children finishing inside the
+   * same moment are one part naming all of them, never one part for the newest,
+   * because a wake that names only the last finisher loses the rest.
+   */
+  export const TaskEventDataPartSchema = z.object({
+    events: z
+      .array(
+        z.object({
+          /** How long the child's agent has been at work in total. */
+          activeMs: z.number().nonnegative().optional(),
+          /**
+           * Set when the orchestrator asked to be woken about this task after
+           * a delay of its own, rather than the clock deciding. The delay it
+           * asked for, so the note can say so.
+           */
+          askedAfterMs: z.number().nonnegative().optional(),
+          /**
+           * How many of the input tokens were cache reads, which cost a
+           * fraction of the rest. Without it a long task's total reads as
+           * money spent at full price.
+           */
+          cachedTokens: z.number().nonnegative().optional(),
+          /**
+           * How the turn ended when it ended without words, in the line the
+           * task list shows for it: what it was stopped in the middle of, the
+           * step limit it hit, or what the model error was. Absent when the
+           * task said something, and on an overdue event.
+           */
+          ended: z.string().optional(),
+          /**
+           * What the task's folder holds when the note is composed: each
+           * top-level folder with the files under it, and the files at the
+           * root, the scaffold left out. Counts rather than names, so the
+           * orchestrator sees the shape of the folder without a listing of it.
+           */
+          holds: z
+            .array(
+              z.object({
+                capped: z.boolean().optional(),
+                files: z.number().nonnegative(),
+                name: z.string(),
+              }),
+            )
+            .optional(),
+          /**
+           * The files the task named in the files fence of its last message,
+           * in the paths the orchestrator can open. What the task said it
+           * made, not a reading of what its tools did: the card draws them as
+           * chips, and the note carries the message itself.
+           */
+          files: z.array(z.string()).optional(),
+          /**
+           * The step running as an overdue note is composed, in one line:
+           * how long the turn has run, when it last called a tool, and what
+           * it is doing this moment (writing with no tool call, or which tool
+           * is running and for how long). What tells a step that is working
+           * apart from one that will never end on its own.
+           */
+          inFlight: z.string().optional(),
+          /**
+           * What the child said it cannot go on without, one line each, read
+           * from the needs fence of its last message. Present only when the
+           * turn ended on one: the task is waiting on the chat or the user,
+           * not finished.
+           */
+          needs: z.array(z.string()).optional(),
+          /**
+           * What the child left running in the background as its turn ended:
+           * a server it started on purpose, or a scan it never stopped. Absent
+           * when nothing was, and on an overdue event, whose turn is still
+           * going.
+           */
+          running: z
+            .array(
+              z.object({
+                command: z.string(),
+                id: z.string(),
+                runningForMs: z.number().nonnegative(),
+              }),
+            )
+            .optional(),
+          /**
+           * Done and error end a turn, error being a model error rather than
+           * a stop; overdue is a task still at work past the point the
+           * orchestrator should look, and says so once.
+           */
+          status: z.enum(["done", "error", "overdue"]),
+          /**
+           * The activities the child's agent set this turn, oldest first and
+           * capped to the latest few. On an overdue event, so the conversation
+           * reads where the task has been going rather than one snapshot.
+           */
+          steps: z.array(z.string()).optional(),
+          /** What the child last said, shortened. Absent when it said nothing. */
+          summary: z.string().optional(),
+          taskId: TaskIdSchema,
+          title: z.string(),
+          /** Input and output tokens the child has spent in total. */
+          tokens: z.number().nonnegative().optional(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
+
+  /**
+   * An app the user acted on outside the conversation: a sign-in finished in
+   * the browser, a key saved on a card, a decline, a disconnect from the
+   * app's page. Like a task event, it wakes the orchestrator on a text-less
+   * user message, so the agent learns without anyone typing, and it draws as
+   * a product-event line in the transcript.
+   */
+  export const AppEventDataPartSchema = z.object({
+    events: z
+      .array(
+        z.object({
+          /** A line of detail: how many tools, what went wrong. */
+          detail: z.string().optional(),
+          event: z.enum([
+            "connected",
+            "declined",
+            "disconnected",
+            "failed",
+            "removed",
+          ]),
+          name: z.string(),
+          slug: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
+
+  /**
+   * What the user was looking at when they sent the message: the folder open
+   * in the window's folder view and what was selected in it, as virtual paths.
+   * Event cadence, written by the surface that sent the message and only when
+   * it had a folder on screen.
+   */
+  /** The task at work in a tab, stamped when the message is stored. */
+  const TabHolderSchema = z.object({ id: z.string(), title: z.string() });
+
+  /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
+  const ViewedPageSchema = z.object({
+    /** Where the user's cursor is on the page: the focused control, described. */
+    focus: z.string().optional(),
+    selection: z.string().optional(),
+    /** The tab on screen, by the id a task can be handed. */
+    tab: z.string().optional(),
+    /** Every tab open in the window's browser, on screen or not. */
+    tabs: z
+      .array(
+        z.object({
+          heldBy: TabHolderSchema.optional(),
+          id: z.string(),
+          title: z.string(),
+          url: z.string(),
+        }),
+      )
+      .optional(),
+    text: z.string().optional(),
+    title: z.string(),
+    url: z.string(),
+  });
+
+  const ViewedTaskSchema = z.object({
+    id: z.string(),
+    status: z.enum(["working", "done"]),
+    /** What the task is doing this moment, in its agent's own label. */
+    step: z.string().optional(),
+    title: z.string(),
+  });
+
+  /**
+   * What the window had on screen when the message was sent: which screen,
+   * and what was on it. One record for every screen, written by the screen
+   * itself, so "this", "here" and "these" in the message can be resolved
+   * against what the user was actually looking at and nothing else.
+   */
+  export const ViewContextDataPartSchema = z.object({
+    /** The app whose page is up on the Apps screen, and where it stands. */
+    app: z
+      .object({
+        name: z.string(),
+        /** The service's origin, for its icon. */
+        site: z.string().optional(),
+        /**
+         * The record open in the page's inspector, as the read that fetches
+         * it again: a pointer the agent can follow, never the record itself.
+         */
+        reading: z
+          .object({ args: z.string(), title: z.string(), tool: z.string() })
+          .optional(),
+        slug: z.string(),
+        /** Connected, or what is missing, in the words the Apps screen uses. */
+        standing: z.string(),
+      })
+      .optional(),
+    /**
+     * Files and folders the person picked to go with the message by name,
+     * from a menu or a button over them, rather than by having them on
+     * screen: each by its path, and the virtual path the agent reaches it by
+     * when a granted folder covers it.
+     */
+    chosen: z
+      .array(
+        z.object({
+          kind: z.enum(["file", "folder"]),
+          mount: z.string().optional(),
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .optional(),
+    /** A file open on This Mac, as the person writes its path. */
+    file: z
+      .object({
+        /** The virtual path the agent reaches it by, when a granted folder covers it. */
+        mount: z.string().optional(),
+        name: z.string(),
+        path: z.string(),
+      })
+      .optional(),
+    /** The folder on screen on This Mac, or the folder a file on screen sits in. */
+    folder: z
+      .object({
+        /** Whether the agent may write there, when it can reach it at all. */
+        access: z.enum(["read-only", "read-write"]).optional(),
+        /** As the person writes it: `~/Documents/Instrument`. */
+        display: z.string(),
+        /** The virtual path the agent reaches it by; absent means it cannot read it. */
+        mount: z.string().optional(),
+        /** The names selected in it, a folder's with a trailing slash. */
+        selected: z.array(z.string()).default([]),
+      })
+      .optional(),
+    /** The kind of page open on the Ideas screen: a template of the page skill. */
+    idea: z
+      .object({
+        /** The template's folder name under the page skill's `templates/`. */
+        name: z.string(),
+        tagline: z.string(),
+        title: z.string(),
+      })
+      .optional(),
+    page: ViewedPageSchema.optional(),
+    /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
+    tabs: z
+      .array(
+        z.object({
+          /** A page's address, a file's path, or a screen's route. */
+          at: z.string(),
+          heldBy: TabHolderSchema.optional(),
+          /** The tab's id, which `tab` names it by and a page's tab is handed to a task by. */
+          id: z.string().optional(),
+          title: z.string(),
+        }),
+      )
+      .optional(),
+    /** The screen up in the window, by the name the sidebar gives it. */
+    screen: z.enum([
+      "apps",
+      "browser",
+      "computer",
+      "file",
+      "home",
+      "ideas",
+      "skills",
+      "task",
+      "tasks",
+      "chat",
+    ]),
+    /** The one skill open on the Skills screen. */
+    skill: z
+      .object({
+        description: z.string(),
+        /** The exact name a task loads it by. */
+        name: z.string(),
+        title: z.string(),
+      })
+      .optional(),
+    /** The one task open on the Tasks screen. */
+    task: ViewedTaskSchema.optional(),
+    /** The tasks listed on the Tasks screen. */
+    tasks: z.array(ViewedTaskSchema).optional(),
+    /** The chat open beside the chat, when the message was sent from its screen. */
+    chat: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+      })
+      .optional(),
+    /** The screen's address in the window, the way a browser has one. */
+    url: z.string().optional(),
+  });
+
+  export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;
+
+  /**
    * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
    * the first user message sent on a later day than the one the session context
    * records. The session context is a startup snapshot and is never rewritten,
@@ -319,6 +753,125 @@ export namespace SessionMessageDataPart {
   });
 
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
+
+  /**
+   * Whole minutes since the user last wrote in this chat, written to a
+   * message they sent after a long enough silence to mean they went away and
+   * came back.
+   *
+   * The date correction above is the only other thing that says time has
+   * passed, and it answers a different question: it fires on a calendar
+   * rollover, so a session running through midnight gets one after two minutes
+   * and a session idle from morning to night gets none. This is the gap itself,
+   * measured only against messages the user actually sent -- a task finishing
+   * three minutes ago is the app talking to itself and would otherwise mask a
+   * day of silence.
+   *
+   * Stored as the number rather than as words or as the timestamp to subtract
+   * from: the wording is the renderer's to change, and a duration fixed at send
+   * time cannot drift the way `now - then` would every time the transcript is
+   * rebuilt.
+   */
+  const MessageGapDataPartSchema = z.object({
+    minutes: z.number(),
+  });
+
+  export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
+
+  /**
+   * The user's other chats at the moment a new chat opened,
+   * newest first: each one's title, topics, latest line, and when it last
+   * moved. Written once, onto the chat's root message, so a fresh three-word
+   * ask can find the chat it belongs to. Stored rather than read live, so
+   * the note reads the same every time the transcript is rebuilt; `sentAt`
+   * is what "when" is measured from.
+   */
+  const ChatContextDataPartSchema = z.object({
+    chats: z.array(
+      z.object({
+        at: z.number(),
+        /** The session id, which a link to the chat carries; absent on a note stored before the agent could link one. */
+        id: z.string().optional(),
+        latest: z.string().optional(),
+        title: z.string(),
+        /** Topic names, since the agent reads names and never ids. */
+        topics: z.array(z.string()),
+      }),
+    ),
+    sentAt: z.number(),
+  });
+
+  export type ChatContextDataPart = z.output<typeof ChatContextDataPartSchema>;
+
+  /**
+   * The task an earlier version of the app ran as the whole conversation,
+   * on the first message of the chat its words were copied into: which task
+   * it was, now one of the chat's own, and the files it made, as paths the
+   * chat reaches them by. Written once, when the chat is made.
+   */
+  const AdoptedTaskDataPartSchema = z.object({
+    files: z.array(z.string()).default([]),
+    taskId: TaskIdSchema,
+  });
+
+  export type AdoptedTaskDataPart = z.output<typeof AdoptedTaskDataPartSchema>;
+
+  /**
+   * What the conversation's agent remembers about the user, on a chat's
+   * user message when memory changed since the chat was last told: the
+   * whole of it the first time, and after that only what was saved,
+   * corrected, or forgotten since. Each memory is its first line, the chat
+   * it was learned in, and when. State cadence: attached only on a change,
+   * and rendered only when it differs from the note before it. `sentAt` is
+   * what "when" is measured from.
+   */
+  const MemoryDataPartSchema = z.object({
+    /** Names forgotten since the chat was last told; only on a change. */
+    forgotten: z.array(z.string()).default([]),
+    /**
+     * The whole of memory up to the note's ceiling, or, on a change, only the
+     * memories saved or corrected since the chat was last told.
+     */
+    memories: z.array(
+      z.object({
+        at: z.number(),
+        /** The title of the chat it was learned in, when a chat saved it. */
+        from: z.string().optional(),
+        name: z.string(),
+        /** The first line, cut to a note's width; the whole is read by name. */
+        text: z.string(),
+      }),
+    ),
+    /** How many memories a whole note left out past its ceiling. */
+    more: z.number().int().nonnegative().default(0),
+    sentAt: z.number(),
+    /** Whether the note carries the whole of memory or the change since the chat was last told. */
+    tells: z.enum(["whole", "changes"]).default("whole"),
+  });
+
+  export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
+
+  /**
+   * The topics the chat carries, on every user message sent in a chat
+   * that has any: each one's name, mark, and the line saying what goes
+   * there. State cadence: rendered only when it differs from the note before
+   * it, so a chat tagged once is told once.
+   */
+  const ChatTopicsDataPartSchema = z.object({
+    topics: z.array(
+      z.object({
+        about: z.string().optional(),
+        emoji: z.string().optional(),
+        /** Where the topic's folders are mounted in the chat, as `/mnt/<name>`. */
+        folders: z.array(z.string()).optional(),
+        /** The topic's instructions as they stood when the message was sent. */
+        instructions: z.string().optional(),
+        name: z.string(),
+      }),
+    ),
+  });
+
+  export type ChatTopicsDataPart = z.output<typeof ChatTopicsDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -360,11 +913,35 @@ export namespace SessionMessageDataPart {
           return parsed.success ? [parsed.data] : [];
         }),
       )
-      // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
       .catch([]),
   });
 
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
+
+  /**
+   * The apps this task may reach, changed since the model last looked --
+   * attached to the user message that carries the change in.
+   *
+   * A task reaches the apps it was handed and no others, and which those are is
+   * written into the session context, which is composed once and never
+   * rewritten. So a task handed an app after it started could call it while its
+   * standing context says it cannot, which reads to the model as a refusal
+   * rather than a capability. The usual reason one arrives late is that the app
+   * did not exist when the task did: the task needed a service, the
+   * conversation asked the user to sign in, and the task is still waiting on it.
+   */
+  const TaskAppChangesDataPartSchema = z.object({
+    added: z
+      .array(z.object({ name: z.string(), slug: z.string() }))
+      .default([]),
+    removed: z
+      .array(z.object({ name: z.string(), slug: z.string() }))
+      .default([]),
+  });
+
+  export type TaskAppChangesDataPart = z.output<
+    typeof TaskAppChangesDataPartSchema
+  >;
 
   /**
    * What a data part becomes when it cannot be read as the type it claims.
@@ -385,24 +962,36 @@ export namespace SessionMessageDataPart {
 
   export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
 
-  // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
+    [NameSchema.enum.adoptedTask]: AdoptedTaskDataPartSchema,
+    [NameSchema.enum.appEvent]: AppEventDataPartSchema,
+    [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
+    [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
+    [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.memory]: MemoryDataPartSchema,
+    [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
+    [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
+    [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
+    [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
+    [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 

@@ -23,17 +23,17 @@ allowBuilds:
 blockExoticSubdeps: true
 
 catalog:
-  "@orpc/client": ^1.14.3
-  "@orpc/contract": ^1.14.3
-  "@orpc/server": ^1.14.3
-  "@orpc/shared": ^1.14.3
-  "@orpc/tanstack-query": ^1.14.3
+  "@orpc/client": ^1.15.2
+  "@orpc/contract": ^1.15.2
+  "@orpc/server": ^1.15.2
+  "@orpc/shared": ^1.15.2
+  "@orpc/tanstack-query": ^1.15.2
   "@types/node": 24.13.1
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
   "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^6.0.5
-  ai: ^6.0.168
+  ai: ^7.0.107
   better-auth: ^1.6.25
   hono: ^4.12.32
   react: ^19.2.1
@@ -60,6 +60,46 @@ minimumReleaseAgeExclude:
   - "@extend-ai/react-xlsx"
   # Transitive, version-locked by @extend-ai/react-xlsx.
   - "@dukelib/sheets-wasm"
+  # Security release (GHSA-4p2c-m292-ghmh, DoS in RPCHandler deserialization)
+  # taken the day it shipped. Exact versions, so the age guard still covers
+  # every later oRPC release; the entries go inert once 1.15.2 passes the
+  # cutoff and can be dropped.
+  - "@orpc/client@1.15.2"
+  - "@orpc/contract@1.15.2"
+  - "@orpc/interop@1.15.2"
+  - "@orpc/server@1.15.2"
+  - "@orpc/shared@1.15.2"
+  - "@orpc/standard-server-aws-lambda@1.15.2"
+  - "@orpc/standard-server-fastify@1.15.2"
+  - "@orpc/standard-server-fetch@1.15.2"
+  - "@orpc/standard-server-node@1.15.2"
+  - "@orpc/standard-server-peer@1.15.2"
+  - "@orpc/standard-server@1.15.2"
+  - "@orpc/tanstack-query@1.15.2"
+  # The Markdown editor spike is written against this exact Milkdown release.
+  - "@milkdown/components@7.22.2"
+  - "@milkdown/core@7.22.2"
+  - "@milkdown/crepe@7.22.2"
+  - "@milkdown/ctx@7.22.2"
+  - "@milkdown/exception@7.22.2"
+  - "@milkdown/kit@7.22.2"
+  - "@milkdown/plugin-block@7.22.2"
+  - "@milkdown/plugin-clipboard@7.22.2"
+  - "@milkdown/plugin-cursor@7.22.2"
+  - "@milkdown/plugin-diff@7.22.2"
+  - "@milkdown/plugin-history@7.22.2"
+  - "@milkdown/plugin-indent@7.22.2"
+  - "@milkdown/plugin-listener@7.22.2"
+  - "@milkdown/plugin-slash@7.22.2"
+  - "@milkdown/plugin-streaming@7.22.2"
+  - "@milkdown/plugin-tooltip@7.22.2"
+  - "@milkdown/plugin-trailing@7.22.2"
+  - "@milkdown/plugin-upload@7.22.2"
+  - "@milkdown/preset-commonmark@7.22.2"
+  - "@milkdown/preset-gfm@7.22.2"
+  - "@milkdown/prose@7.22.2"
+  - "@milkdown/transformer@7.22.2"
+  - "@milkdown/utils@7.22.2"
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0
@@ -73,6 +113,8 @@ patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch
+  just-bash@3.4.1: patches/just-bash@3.4.1.patch
+  micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
   sonner@2.0.7: patches/sonner@2.0.7.patch
 
 sideEffectsCache: false

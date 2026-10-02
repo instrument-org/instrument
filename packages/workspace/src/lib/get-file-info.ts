@@ -12,6 +12,8 @@ import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 export const CurrentFileInfoSchema = z.object({
   filename: z.string(),
   filePath: z.string(),
+  /** Where the file is on the computer, which is what a viewer reads it by. */
+  hostPath: z.string(),
   mimeType: z.string(),
   modifiedAt: z.number(),
 });
@@ -51,6 +53,7 @@ export async function getCurrentFileInfo({
   return ok({
     filename,
     filePath,
+    hostPath: resolvedPath,
     mimeType,
     modifiedAt,
   });

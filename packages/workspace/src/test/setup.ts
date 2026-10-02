@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { createMemoryAppsConfig } from "../lib/apps/memory-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { unavailableWebSearchClient } from "../schemas/web-search";
@@ -32,14 +33,21 @@ const rejectBrowserTarget = () => {
 // runtime imports from `../types`, which would preload `store-id` before
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
+  apps: createMemoryAppsConfig(),
+  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),
     createTarget: rejectBrowserTarget,
     getTargetMeta: () => null,
+    getTargetUrl: (): string | undefined => {
+      // No guest is ever live here, so there is no address to report.
+      return;
+    },
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: noopCleanup,
     sendCommand: () => Promise.resolve({}),
+    setAgentFileRoots: noop,
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },
@@ -49,6 +57,7 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
+  isActivityHeadingsEnabled: () => false,
   isExternalBrowserEnabled: () => false,
   modelCache: noopModelCache,
   nodeExecEnv: {},
@@ -68,3 +77,14 @@ setWorkspaceConfig({
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
 });
+
+// Shells run on the test's own thread, where `vi.mock` reaches them, unless
+// INSTRUMENT_BASH_WORKER=1 asks for every one to run in the bash worker.
+// Imported only then: loading the worker client here would load modules a
+// test file mocks (`ulid` among them) before its mock is in place.
+if (process.env.INSTRUMENT_BASH_WORKER === "1") {
+  const [{ setBashWorkerFactory }, { createTsxBashWorker }] = await Promise.all(
+    [import("../lib/bash-worker/client"), import("./helpers/tsx-bash-worker")],
+  );
+  setBashWorkerFactory(createTsxBashWorker);
+}

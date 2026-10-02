@@ -1,0 +1,7 @@
+model,price_usd,boiler,portafilter_mm,pid_control,pressure_gauge,steam_wand,water_tank_l,warmup_s,weight_kg,warranty_years,notes
+Lumen Uno,349,single,54,no,no,panarello,1.4,240,7.1,1,entry model; plastic housing
+Lumen Duo Pro,799,dual,58,yes,yes,commercial,2.5,180,14.2,2,stainless housing; volumetric dosing
+Corvo Bar 9,649,heat exchanger,58,yes,yes,commercial,2.8,420,16.0,2,rotary pump; plumb-in optional
+Marlow M1,529,single,58,yes,no,commercial,2.0,300,11.4,2,brass group; no gauge
+Aster Compact,429,thermoblock,51,no,no,panarello,1.1,90,5.6,1,smallest footprint; fastest warmup
+Verano Studio,1149,dual,58,yes,yes,commercial,3.0,300,19.5,3,flow control paddle; shot timer

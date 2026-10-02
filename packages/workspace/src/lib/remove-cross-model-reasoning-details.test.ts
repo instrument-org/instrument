@@ -13,10 +13,12 @@ const mockDate = new Date("2026-05-27T16:45:28.214Z");
 function createAssistantMessage({
   aiGatewayModel,
   modelId,
+  modelIdServed,
   providerId,
 }: {
   aiGatewayModel?: AIGatewayModel.Type;
   modelId: string;
+  modelIdServed?: string;
   providerId: string;
 }): SessionMessage.AssistantWithParts {
   const sessionId = StoreId.newSessionId();
@@ -29,6 +31,7 @@ function createAssistantMessage({
       createdAt: mockDate,
       finishReason: "tool-calls",
       modelId,
+      modelIdServed,
       providerId,
       sessionId,
     },
@@ -182,6 +185,62 @@ describe("removeCrossModelReasoningDetails", () => {
     expect(hasOpenRouterReasoningDetails(modelMessages)).toBe(false);
   });
 
+  it("removes OpenAI encrypted reasoning, and keeps a reply's phase, when the model URI differs", () => {
+    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
+    const sourceMessage = createAssistantMessage({
+      modelId: "auto",
+      providerId: "instrument",
+    });
+    const [reasoningPart] = sourceMessage.parts;
+    if (reasoningPart?.type !== "reasoning") {
+      throw new Error("Expected a reasoning part");
+    }
+    const message: SessionMessage.AssistantWithParts = {
+      ...sourceMessage,
+      parts: [
+        {
+          ...reasoningPart,
+          providerMetadata: {
+            openai: {
+              itemId: "rs_source",
+              reasoningEncryptedContent: "encrypted-payload",
+            },
+          },
+        },
+        {
+          metadata: reasoningPart.metadata,
+          providerMetadata: {
+            openai: { itemId: "msg_source", phase: "final_answer" },
+          },
+          state: "done",
+          text: "The answer",
+          type: "text",
+        },
+      ],
+    };
+
+    const result = removeCrossModelReasoningDetails({
+      messages: [message],
+      model: targetModel,
+    });
+
+    expect(result.redactedMessageCount).toBe(1);
+    expect(result.redactedReasoningDetailsCount).toBe(1);
+
+    const [sanitized] = result.messages;
+    const [sanitizedReasoning, sanitizedText] = sanitized?.parts ?? [];
+    if (
+      sanitizedReasoning?.type !== "reasoning" ||
+      sanitizedText?.type !== "text"
+    ) {
+      throw new Error("Expected reasoning and text parts");
+    }
+    expect(sanitizedReasoning.providerMetadata).toBeUndefined();
+    expect(sanitizedText.providerMetadata).toEqual({
+      openai: { itemId: "msg_source", phase: "final_answer" },
+    });
+  });
+
   it("keeps reasoning details when the previous assistant turn has the exact target model URI", () => {
     const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
     const sourceMessage = createAssistantMessage({
@@ -202,6 +261,64 @@ describe("removeCrossModelReasoningDetails", () => {
 
     const [message] = result.messages;
     expect(message).toBe(sourceMessage);
+  });
+
+  describe("on a model that stands for another", () => {
+    const auto = (sourceModelId: string | undefined) => ({
+      ...createMockAIGatewayModel({
+        canonicalId: "auto",
+        provider: "instrument",
+        providerId: "instrument/auto",
+      }),
+      sourceModelId,
+    });
+    const answeredBy = (modelIdServed: string | undefined) =>
+      createAssistantMessage({
+        aiGatewayModel: auto(undefined),
+        modelId: "auto",
+        modelIdServed,
+        providerId: "instrument",
+      });
+
+    it.each([
+      {
+        case: "keeps reasoning while the alias resolves to the model that answered",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 0,
+        sourceModelId: "openai/gpt-6-luna",
+      },
+      {
+        case: "keeps reasoning from a dated build of the model it resolves to",
+        modelIdServed: "openai/gpt-6-luna-2026-09-14",
+        redacted: 0,
+        sourceModelId: "openai/gpt-6-luna",
+      },
+      {
+        case: "strips reasoning once the alias resolves to another model",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 1,
+        sourceModelId: "anthropic/claude-sonnet-5",
+      },
+      {
+        case: "keeps reasoning when the gateway reports no resolution, as before",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 0,
+        sourceModelId: undefined,
+      },
+      {
+        case: "keeps reasoning when the turn does not record who answered, as before",
+        modelIdServed: undefined,
+        redacted: 0,
+        sourceModelId: "anthropic/claude-sonnet-5",
+      },
+    ])("$case", ({ modelIdServed, redacted, sourceModelId }) => {
+      const result = removeCrossModelReasoningDetails({
+        messages: [answeredBy(modelIdServed)],
+        model: auto(sourceModelId),
+      });
+
+      expect(result.redactedMessageCount).toBe(redacted);
+    });
   });
 });
 

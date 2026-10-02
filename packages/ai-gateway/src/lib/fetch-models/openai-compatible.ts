@@ -10,6 +10,7 @@ import { fetchJson } from "../fetch-json";
 import { generateModelName } from "../generate-model-name";
 import { getModelFeatures } from "../get-model-features";
 import { isModelNew } from "../is-model-new";
+import { modelReleaseDate } from "../parse-model-date";
 import { getProviderMetadata } from "../providers/metadata";
 import { openAICompatibleURL } from "../providers/openai-compatible-url";
 import { setProviderAuthHeaders } from "../providers/set-auth-headers";
@@ -123,6 +124,7 @@ export function fetchAndParseOpenAICompatibleModels(
           params,
           providerId,
           providerName: config.displayName ?? metadata.name,
+          releasedAt: modelReleaseDate(model.created),
           tags,
           uri: AIGatewayModelURI.fromModel({
             author,

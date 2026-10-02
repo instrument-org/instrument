@@ -9,6 +9,16 @@ How to drive and inspect the Studio Electron app.
 
 `studio-drive.mjs` is the way in. The generic `chrome-devtools` / `chrome-devtools-cli` skills describe a tool that has never heard of Studio: it cannot derive this checkout's port, cannot tell a restart from a crash, and reports both as "Could not connect to Chrome. Check if Chrome is running", which sends a run off to hunt for a browser that was never involved. Read them when you need the profiler's own syntax ([The CLI, for what it alone can do](#the-cli-for-what-it-alone-can-do)), not to decide how to reach the app.
 
+The shape to reach for is a sequence, not a command:
+
+```bash
+node $DRIVE boot --purpose "skills dialog"    # once
+node $DRIVE run sequence.mjs                  # everything you came to do
+node $DRIVE stop                              # once
+```
+
+`boot` and `stop` bracket the work and [`run`](#a-sequence-run) is the work. One `studio-drive` invocation is one process and one connection, which is right for a single question and wrong for anything else: a primitive costs milliseconds over a held connection while deciding the next command costs seconds, so twelve steps measure at 1.2s as one `run` against roughly two minutes as twelve commands. Write the sequence first, and drop to single commands only when you have exactly one thing to ask. The per-command reference comes first below because `boot` lives in it, not because it is the default.
+
 ## Driving: `studio-drive.mjs`
 
 Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:
@@ -76,6 +86,15 @@ node $DRIVE goto /tasks/generated-pdf --workspace documents
 
 It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild) and reports the seeded task ids, so a script addresses a task by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
 
+`--clean-room <name>` is the other kind of isolation: a blank workspace with no chats, opened by a second process on the developer's own application data and pinned to it with `INSTRUMENT_WORKSPACE`, so the developer's instance keeps its own workspace. It shares the machine's toolchain and caches, so it boots as fast as a plain run, and `--with-sign-ins` copies the developer's Instrument account and API keys into it (not a ChatGPT plan, whose rotating refresh token would sign the developer's own instance out), so it can run a real agent turn, which a fixture cannot. Like `--workspace`, it goes on every command. Clean rooms live beside the fixture caches, are reaped after 14 days unbooted, and `--fresh` empties one first.
+
+```bash
+node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
+node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
+```
+
+Reach for a fixture when the run needs known content, a clean room when it needs an empty workspace that can talk to a model, and `ELECTRON_USER_DATA_DIR=<empty dir>` when it needs a first launch on a fresh machine. Never switch the developer's instance (`workspaces.switch`) to get isolation: that restarts the window they are using.
+
 ## A sequence: `run`
 
 `run` hands a script the app from `scripts/studio-app.mjs` over one held connection. The script default-exports `(app, args)` and returns whatever is worth reporting:
@@ -87,17 +106,16 @@ cat sequence.mjs | node $DRIVE run -          # or on stdin, no quoting to get w
 
 ```javascript
 export default async (app, args) => {
-  await app.goto("/skills");
-  await app.click("New skill");
+  await app.openModal("settings");
   await app.waitFor('document.querySelector("[role=dialog]")');
   await app.expect(
-    'window.__studioDrive.state().dialog === "New skill"',
+    'window.__studioDrive.state().dialog === "Settings"',
     "the dialog to open",
   );
 
   // branch on what you found, which a shell chain cannot do
   const { tasks } = await app.rpc("workspace.task.list", {});
-  if (tasks.length === 0) await app.click("New task");
+  if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}`);
 
   return { taskCount: tasks.length };
 };
@@ -169,15 +187,42 @@ Two things about that status are worth knowing before trusting a wait built on i
 - Busy is the `agent.alive` tag, carried by every non-final state of the session machine. A task whose turn is over reports **no sessions at all** rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
 - Which makes "no sessions" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
 
-A **replay** is not an agent turn and none of this sees it: it runs its own loop outside the session machine. Poll `workspace.replay.status '{"sessionId":"…"}'` for that one.
-
 ## Page model
 
-Studio is one window and one web contents: `AppChrome` and every open tab mount in the same page. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The app root carries `data-testid="app-page"`.
+The app window is one web contents: its chrome and every open tab mount in the same page, each tab a router of its own across the bar. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The onboarding window, on a first run, is a second page under `/renderer/`; commands drive the app window's.
 
-The renderer keeps the current route out of the window URL, and the main window restores its persisted tab session on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it — the restored tabs paint over it. Use `state` to read where you are and `goto` to move.
+The renderer keeps the current route out of the window URL, and the window restores its persisted tabs on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it. Use `state` to read where you are and `goto` to move: `goto` sends the tab up to the route, or a new tab with `--new-tab`, and `state` reports the tab up's `path`, the `tabs`, and `dialog`. A chat's own tabs (its browsers and files down its rail) are not routes; read them with `snapshot` or `eval`.
 
 In `state`, `path` is authoritative; `tabs[].pathname` mirrors it a moment later.
+
+### Sweeping its screens for errors
+
+`scripts/sweep-screens.mjs` walks every screen of the app window and reports the console errors, warnings and uncaught exceptions each one produced, named by screen:
+
+```bash
+node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs
+node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs --args '{"reload":true}'
+```
+
+It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it _mounts_; it costs the wait, so it is off by default.
+
+Enabling the `Runtime` domain replays the console buffer, so a run would otherwise open by reporting whatever the window logged earlier — an older run's errors, or a person's — as its own findings. Nothing is recorded until the walk starts, and the reload happens before the enable so the buffer it clears is not the one that replays.
+
+The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
+
+## Measuring the main thread
+
+Typing and pasting wait on the main process's thread twice: once for the key to reach the page and once for the paste's clipboard read. So input lag is a main-thread question, and the renderer's own timestamps cannot see it (`KeyboardEvent.timeStamp` is when the renderer got the event). Boot with the main process's inspector open and sample it:
+
+```bash
+node $DRIVE boot --purpose "main stalls" --inspect 9339
+node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15
+node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15 --profile main.cpuprofile
+```
+
+It drives nothing, so it is safe while someone is at the machine. Read `stallsOver.60` first: a paste-based dictation tool that restores the clipboard after 60 ms loses text on any stall past about 40 ms. A quiet main thread has none over 30 ms. `--profile` writes a CPU profile of the same window for DevTools' Performance panel, which names what held the thread.
+
+To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy. A copy has no provider credentials, so it measures the app, not a model turn.
 
 ## States a dev build otherwise cannot reach
 
@@ -192,9 +237,9 @@ The quit prompt is a native `showMessageBox`, outside the web contents. CDP cann
 
 - `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.
 - A control scrolled out of a long list is brought into view and then clicked, and the step reports `scrolledIntoView` so a capture taken afterward is not read as the same viewport. One still clipped after that (inside a collapsed pane, behind an overlay) fails saying so, with the coordinate, rather than dispatching at a point the window does not cover.
-- `press` takes combinations: `press 'Meta+k'`, `press 'Control+Shift+R'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+k` fires the shortcut without also typing a `k`.
+- `press` takes combinations: `press 'Meta+a'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+a` does not also type an `a`.
+- A chord the main process binds (Cmd+T, Cmd+W, Cmd+R, Cmd+,, the Developer chords) does nothing over CDP: injected keys never pass through `before-input-event` or the native menu. Drive what the chord does instead (`goto`, `modal`, `rpc`), and check the chord itself by hand.
 - `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately, and UI that only appears when scrolled off the live edge stays unreachable.
-- `?` opens the shortcut guide only when focus is outside an editable and nothing is blocking. Pressing it while the composer has focus does nothing and reads as the tool failing.
 - After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.
 - Studio sets Chromium's `allow-pre-commit-input` so CDP mouse input works against `<webview>` guests.
 
@@ -228,4 +273,4 @@ Which reloads the app, and therefore cannot answer what an in-page interaction c
 
 ## Reference
 
-[references/repro-recipes.md](references/repro-recipes.md): replaying a recorded task instead of live-driving the agent, the `#/debug/*` pages, the composer's controlled-input gotcha where `fill` leaves the send button disabled, reading a `<webview>` guest's internal state, and why screenshot pixel math should never be hand-converted.
+[references/repro-recipes.md](references/repro-recipes.md): the `#/debug/*` pages, the composer's controlled-input gotcha where `fill` leaves the send button disabled, reading a `<webview>` guest's internal state, and why screenshot pixel math should never be hand-converted.

@@ -116,7 +116,7 @@ describe("sanitizeModelText", () => {
               type: "content",
               value: [
                 { text: `caption ${HIGH}`, type: "text" },
-                { data: "abc", mediaType: "image/png", type: "media" },
+                { data: "abc", mediaType: "image/png", type: "file-data" },
               ],
             },
             toolCallId: "call-3",
@@ -149,7 +149,7 @@ describe("sanitizeModelText", () => {
           type: "content",
           value: [
             { text: "caption ", type: "text" },
-            { data: "abc", mediaType: "image/png", type: "media" },
+            { data: "abc", mediaType: "image/png", type: "file-data" },
           ],
         },
         toolCallId: "call-3",

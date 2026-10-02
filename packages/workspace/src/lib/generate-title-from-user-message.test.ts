@@ -1,5 +1,5 @@
 import { APICallError } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,7 @@ function createMockLanguageModel(
   options: { finishReason?: "length" | "stop"; reasoningTokens?: number } = {},
 ) {
   const finishReason = options.finishReason ?? "stop";
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: () =>
       Promise.resolve({
         content: [{ text, type: "text" }],
@@ -71,7 +71,7 @@ function createMockMessage(text: string) {
 const mockMessage = createMockMessage("Build a todo app");
 
 function createMockLanguageModelThatThrows(error: Error) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: () => Promise.reject(error),
   });
 }
@@ -114,7 +114,7 @@ function setupTest(
 }
 
 function setupTestWithModel(
-  languageModel: MockLanguageModelV3,
+  languageModel: MockLanguageModelV4,
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();
@@ -509,5 +509,45 @@ describe("generateTitleFromUserMessage", () => {
       expect(result.isErr()).toBe(true);
       expect(captureException).toHaveBeenCalledOnce();
     });
+  });
+});
+
+describe("generateTitleFromUserMessage with a current title", () => {
+  async function callWith(currentTitle?: string) {
+    const mockLanguageModel = createMockLanguageModel("Lentil soup for dinner");
+    const model = createMockAIGatewayModel();
+    createMockTaskConfig(TaskIdSchema.parse("mock"), {
+      aiSDKModel: mockLanguageModel,
+      model,
+    });
+    await generateTitleFromUserMessage({
+      currentTitle,
+      message: createMockMessage("what should I make for dinner"),
+      model,
+      reply: "Here is a lentil soup recipe.",
+      workspaceConfig: getWorkspaceConfig(),
+    });
+    const prompt = mockLanguageModel.doGenerateCalls[0]?.prompt ?? [];
+    const system = prompt.find((entry) => entry.role === "system");
+    return {
+      system: system?.role === "system" ? system.content : "",
+      user: JSON.stringify(prompt.filter((entry) => entry.role === "user")),
+    };
+  }
+
+  // Each call words the same subject its own way, so a chat renamed from
+  // scratch on every call would never hold a name.
+  it("hands the model the title and asks it to keep it", async () => {
+    const { system, user } = await callWith("Dinner ideas with lentils");
+
+    expect(user).toContain("Current title: Dinner ideas with lentils");
+    expect(system).toContain("<current_title>");
+  });
+
+  it("says nothing about keeping a title when there is none", async () => {
+    const { system, user } = await callWith();
+
+    expect(user).not.toContain("Current title:");
+    expect(system).not.toContain("<current_title>");
   });
 });

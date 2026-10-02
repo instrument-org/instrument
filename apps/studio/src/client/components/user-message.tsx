@@ -6,6 +6,7 @@ import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";
 
+import { BubbleActions } from "./bubble-actions";
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
 import { SkillMentionText } from "./skill-mention-text";
@@ -18,6 +19,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface UserMessageProps {
+  /** A tighter bubble with no footer under it, for a narrow transcript. */
+  compact?: boolean;
   part: SessionMessagePart.TextPart;
 }
 
@@ -30,6 +33,7 @@ interface UserMessageProps {
 const COLLAPSED_MAX_HEIGHT_PX = 216;
 
 export const UserMessage = memo(function UserMessage({
+  compact = false,
   part,
 }: UserMessageProps) {
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -71,82 +75,109 @@ export const UserMessage = memo(function UserMessage({
 
   return (
     <div className="group flex w-full flex-col items-end">
-      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 text-foreground shadow-sm dark:from-card dark:to-card">
-        <Collapsible
-          onOpenChange={(open) => {
-            releaseAutoScroll();
-            setIsExpanded(open);
-          }}
-          open={isExpanded}
+      {/* The bubble's row, full width so the bubble's share is of the column,
+          and the room beside it where the conversation puts its controls. */}
+      <div className="group/bubble-row flex w-full items-end justify-end gap-1">
+        {compact && <BubbleActions onCopy={handleCopy} />}
+        <div
+          className={cn(
+            "relative max-w-[80%] text-foreground",
+            // In the conversation the user's bubble wears the brand's tint,
+            // rebuilt light and soft from the brand's hue since no token of the
+            // scale sits there, with soft corners and the short one at the top
+            // right, facing the assistant's on the card's ground; on a task
+            // page it is a card of its own.
+            compact
+              ? "rounded-2xl rounded-tr-md bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]"
+              : "rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm dark:from-card dark:to-card",
+          )}
         >
-          <div
-            className={cn(
-              isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
-            )}
-            data-slot="user-message-content"
-            ref={contentRef}
-            style={
-              isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
-            }
+          <Collapsible
+            onOpenChange={(open) => {
+              releaseAutoScroll();
+              setIsExpanded(open);
+            }}
+            open={isExpanded}
           >
-            <div className="text-sm break-words whitespace-pre-wrap">
-              <SkillMentionText text={messageText} />
+            <div
+              className={cn(
+                isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
+              )}
+              data-slot="user-message-content"
+              ref={contentRef}
+              style={
+                isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
+              }
+            >
+              <div className="text-sm break-words whitespace-pre-wrap">
+                <SkillMentionText text={messageText} />
+              </div>
             </div>
-          </div>
 
-          {!isExpanded && isOverflowing && (
-            <CollapsibleTrigger asChild>
-              {/* Covers the clipped message so a press anywhere on it expands.
+            {!isExpanded && isOverflowing && (
+              <CollapsibleTrigger asChild>
+                {/* Covers the clipped message so a press anywhere on it expands.
                   It draws nothing, so the label is the only thing it is: with
                   no children and no `aria-label` it announced as a button with
                   no name at all. */}
-              <button
-                aria-label="Show the full message"
-                className="absolute inset-0 cursor-pointer"
-                data-slot="user-message-expand"
-                type="button"
+                <button
+                  aria-label="Show the full message"
+                  className="absolute inset-0 cursor-pointer"
+                  data-slot="user-message-expand"
+                  type="button"
+                />
+              </CollapsibleTrigger>
+            )}
+
+            {!isExpanded && isOverflowing && (
+              <div
+                className={cn(
+                  "pointer-events-none absolute right-0 bottom-0 left-0 h-12 bg-linear-to-t from-50%",
+                  compact ? "rounded-b-2xl" : "rounded-br-xl rounded-bl-xl",
+                  compact
+                    ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
+                    : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
+                )}
               />
-            </CollapsibleTrigger>
-          )}
+            )}
 
-          {!isExpanded && isOverflowing && (
-            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-gray-25 from-50% to-gray-25/0 dark:from-card dark:to-card/0" />
-          )}
-
-          <CollapsibleContent>
-            {/* The other half of the pair above, and it has to be a control for
+            <CollapsibleContent>
+              {/* The other half of the pair above, and it has to be a control for
                 the same reason: expanding was reachable and collapsing was not,
                 so a message opened from the keyboard could not be closed again.
                 The trigger carries the state, so no handler of its own. */}
-            <CollapsibleTrigger asChild>
-              <button
-                className="flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
-                data-slot="user-message-collapse"
-                type="button"
-              >
-                <span>Collapse</span>
-                <CaretUpIcon className="size-3" />
-              </button>
-            </CollapsibleTrigger>
-          </CollapsibleContent>
-        </Collapsible>
+              <CollapsibleTrigger asChild>
+                <button
+                  className="flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
+                  data-slot="user-message-collapse"
+                  type="button"
+                >
+                  <span>Collapse</span>
+                  <CaretUpIcon className="size-3" />
+                </button>
+              </CollapsibleTrigger>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
-      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
-        <RelativeTime
-          className="cursor-default"
-          date={part.metadata.createdAt}
-        />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <CopyButton
-              className={SHARED.messageFooterButton}
-              iconSize={MESSAGE_FOOTER_ICON_SIZE}
-              onCopy={handleCopy}
-            />
-          </TooltipTrigger>
-          <TooltipContent>Copy message</TooltipContent>
-        </Tooltip>
-      </div>
+      {compact ? null : (
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
+          <RelativeTime
+            className="cursor-default"
+            date={part.metadata.createdAt}
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CopyButton
+                className={SHARED.messageFooterButton}
+                iconSize={MESSAGE_FOOTER_ICON_SIZE}
+                onCopy={handleCopy}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Copy message</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 });

@@ -90,3 +90,34 @@ describe("fetchModelsForProvider on an HTTP error status", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("fetchModelsForProvider on a network failure", () => {
+  beforeEach(() => {
+    clearCachedResults();
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("serves cached models without reporting when DNS cannot resolve the host", async () => {
+    vi.mocked(fetch).mockRejectedValue(
+      new TypeError("fetch failed", {
+        cause: Object.assign(
+          new Error("getaddrinfo ENOTFOUND api.anthropic.com"),
+          { code: "ENOTFOUND" },
+        ),
+      }),
+    );
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: createMemoryCache(CACHED),
+    });
+
+    expect(result.getOrNull()).toEqual(CACHED);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+});

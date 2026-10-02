@@ -21,9 +21,14 @@ DOUB = "DOUB"
 # prose. Listed here rather than under extend-words so they only match a whole
 # token, never a fragment of a longer misspelling.
 caf = "caf"
+edn = "edn"
 ODF = "ODF"
 odf = "odf"
 styl = "styl"
+# The British name of a LICENSE file, matched as a file name.
+licence = "licence"
+# A chat title cut at its length cap in a migration test's snapshot.
+sprin = "sprin"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.
@@ -57,8 +62,8 @@ extend-exclude = [
   "apps/studio/resources/tailwind-browser.js",
   # Recorded agent sessions and the documents they produced. The text is model
   # output and extracted PDF glyph runs, not prose anyone maintains.
-  "fixtures/workspaces/*/tasks/*/session.json",
-  "fixtures/workspaces/*/tasks/*/files/",
+  "fixtures/workspaces/**/session.json",
+  "fixtures/workspaces/**/files/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
   "packages/workspace/evals/cases/project-instructions.ts",

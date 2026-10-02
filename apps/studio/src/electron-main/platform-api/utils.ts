@@ -1,4 +1,4 @@
-import { getSessionStore } from "@/electron-main/stores/session";
+import { getSessionStore } from "@/electron-main/stores/workspace/session";
 
 export function getToken() {
   return getSessionStore().get("apiBearerToken");

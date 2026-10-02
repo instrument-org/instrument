@@ -4,9 +4,18 @@ Status: proposal, not started. Owner: TBD. Split out from [user-chosen-working-f
 
 ## Problem
 
-Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. That makes any cross-task question expensive and any agent-driven one impractical: "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" all require opening every database in turn.
+Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. Any cross-task question — "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" — has to open every database in turn, and every such capability needs a bespoke fan-out tool.
 
-This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects. With per-task databases, every one of those capabilities needs a bespoke fan-out tool.
+This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects.
+
+**How expensive the fan-out actually is, measured.** Over a real workspace of 310 tasks and 198 MB of `task.db`, opening and closing every database read-only takes 21ms warm and 67ms cold. A content search — one `LIKE` over the 13,945 `parts:` rows in all 310, with matches sorted and a snippet pulled from each — takes about 220ms warm and under a second on a cold page cache. It is linear in total bytes with no index, so ten times the history is roughly two seconds.
+
+So the cost separates by **how often the question is asked**, not by whether it fans out:
+
+- **Per render is unaffordable.** The list view runs on every window open, and it is why [get-tasks.ts](../../../packages/workspace/src/lib/get-tasks.ts) never opens `task.db`. Message counts and linked-file projections fall on this side, and no fan-out makes them viable. This is the case that justifies the index in phase 3.
+- **On demand is affordable today.** An agent-invoked content search at ~220ms needs neither the index nor this plan. It should not wait on either.
+
+Two constraints on any fan-out written before the storage change lands. It must open `node:sqlite` directly and close immediately, **not** go through `getSessionsStoreStorage`: that accessor caches one storage instance per task in a module-level map that is only evicted by explicit disposal, and its own comment records that the db0 driver never closes the database. Routing a 310-task search through it would leave 310 databases resident for the life of the process, and would run `runStoreMigrations` against each. And the bodies are superjson-encoded, so a search term containing a quote, backslash, or newline has to be escaped or the query silently returns nothing — the same trap this document already notes for the ripgrep design.
 
 Two repo skills are the current cost, already paid: `task-database-query` exists to run safe read-only SQL against a task database, and `session-transcript` exists to convert one into readable markdown. Both are workarounds for our own data being unreadable by the tools we ship.
 
@@ -93,7 +102,7 @@ Three things they agree on, and each one contradicts something we do today.
 
 ### What this says about our task id
 
-**Our task id currently does four jobs, and this plan plus the folder plan break three of them.** It is simultaneously the primary key, the on-disk folder name, the DNS label of the asset origin ([asset-origin.md](../../architecture/asset-origin.md)), and the human-readable title — `2026-06-23-add-a-dark-mode-toggle`, derived from a slug of the user's first prompt by [generate-task-folder-name.ts](../../../packages/workspace/src/lib/generate-task-folder-name.ts). None of the four references overloads one value that far, and the overload is what makes several things awkward that should be easy: a task cannot be renamed, two tasks a second apart collide into a `-2` suffix, the id leaks the user's first prompt into a hostname, and being guessable is a security property rather than a cosmetic one ([asset-origin-is-open-to-any-local-reader](../../findings/asset-origin-is-open-to-any-local-reader.md)).
+**Our task id currently does three jobs, and this plan plus the folder plan break two of them.** It is simultaneously the primary key, the on-disk folder name, and the human-readable title — `2026-06-23-add-a-dark-mode-toggle`, derived from a slug of the user's first prompt by [generate-task-folder-name.ts](../../../packages/workspace/src/lib/generate-task-folder-name.ts). None of the three references overloads one value that far, and the overload is what makes several things awkward that should be easy: a task cannot be renamed, two tasks a second apart collide into a `-2` suffix, the id leaks the user's first prompt into a hostname, and being guessable is a security property rather than a cosmetic one ([asset-origin-is-open-to-any-local-reader](../../findings/asset-origin-is-open-to-any-local-reader.md)).
 
 **Recommendation: split it.** A generated time-sortable id (we already have the machinery — `StoreId` is `ses_` plus a ULID) as the key, the filename, and the origin label; a separate stored `title` that starts as today's slug and becomes editable. This is a prerequisite for the storage change rather than a nice-to-have, because the filename is chosen at the moment the conversation is created and cannot be revisited cheaply afterward.
 
@@ -120,7 +129,7 @@ Today they live under `work/` inside the task directory, and the transcript refe
 - Not scratch: scratch is disposable by definition, and a transcript that renders an image from six months ago needs that image to still exist.
 - Beside the conversation, per Reference D, is the answer that keeps deletion honest — deleting the conversation deletes what only the conversation referenced.
 
-The consequence for the asset origin is concrete and belongs on both plans: it gains a root that is neither the working folder nor a mount the agent has. Whether the agent can *write* there through the ordinary mount set, or only through the tools that produce these files, is an open question — the tools already write them without the agent naming a path, so the narrower answer is available.
+The consequence for the agent's browser is concrete and belongs on both plans: it has to open files under a root that is neither the working folder nor a mount the agent has. Whether the agent can *write* there through the ordinary mount set, or only through the tools that produce these files, is an open question — the tools already write them without the agent naming a path, so the narrower answer is available.
 
 ## What the sidebar needs, and why the index is not optional
 
@@ -161,10 +170,10 @@ The prior art supports the shape directly. Reference A's documented pattern is e
 Four plans now interlock, and the order matters more than usual because two of them change what a path means. The dependencies are narrower than they look:
 
 1. **Split the task id from the task title** (above). Small, self-contained, and a prerequisite for both storage and the origin work. Nothing else should start before it, because both of the following choose durable names.
-2. **[The folder work's phases 1 and 2](user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename with the asset origin moving in the same change. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
+2. **[The folder work's phases 1 and 2](user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
 3. **This plan's phases 1 through 3** — prototype the write path, introduce the storage seam, build the metadata index. Independent of the folder work and can run in parallel with it; Reference B is the evidence that the seam is worth having before the backing decision, not after.
 4. **Conversation-scoped assets** need both: a conversation that owns a directory (this plan) and an origin that serves more than one root (the folder plan). It is the join point, and it is where the two plans stop being separable.
-5. **[Presentation](presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the asset origin) whose interface does not change even though everything under it does.
+5. **[Presentation](presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the task's layout) whose interface does not change even though everything under it does.
 
 The one ordering trap: the agent's cross-conversation search capability (phase 6 here) reads much better after the folder work, because "find the task where I set up the deploy script" is far more useful when tasks are associated with real folders the user recognizes than when they are associated with directories we invented.
 

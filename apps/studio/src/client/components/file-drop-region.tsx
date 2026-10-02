@@ -1,6 +1,5 @@
 import {
   type DropHandlers,
-  type DroppedFolder,
   DropRegisterContext,
   type DropRegistration,
 } from "@/client/hooks/use-file-drop-region";
@@ -9,6 +8,7 @@ import {
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
 import { captureException } from "@/client/lib/telemetry";
+import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -162,42 +162,25 @@ export function FileDropRegion({
       // a folder rides in `dataTransfer.files` as well, so a drop mixing the two
       // would otherwise hand the folder to the file handler as a file with no
       // bytes behind it.
-      const folders: DroppedFolder[] = [];
-      const files = new DataTransfer();
-      let sawFolder = false;
-
-      for (const item of e.dataTransfer.items) {
-        if (item.kind !== "file") {
-          continue;
-        }
-
-        const isDirectory = item.webkitGetAsEntry()?.isDirectory ?? false;
-        const file = item.getAsFile();
-
-        if (!isDirectory) {
-          if (file) {
-            files.items.add(file);
-          }
-          continue;
-        }
-
-        sawFolder = true;
-        const path = file ? window.api.getFilePath(file) : undefined;
-        if (path) {
-          folders.push({ path, type: "folder" });
-        }
-      }
+      const { files, folders, unresolvedFolders } = splitTransferItems({
+        getFilePath: window.api.getFilePath,
+        items: e.dataTransfer.items,
+      });
 
       if (folders.length > 0) {
         handlers.current.onFoldersDropped?.(folders);
-      } else if (sawFolder) {
+      } else if (unresolvedFolders > 0) {
         captureException(
           new Error("Could not get folder paths from dropped items"),
         );
       }
 
-      if (files.files.length > 0) {
-        handlers.current.onFilesDropped(files.files);
+      if (files.length > 0) {
+        const fileList = new DataTransfer();
+        for (const file of files) {
+          fileList.items.add(file);
+        }
+        handlers.current.onFilesDropped(fileList.files);
       }
     };
 

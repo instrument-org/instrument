@@ -26,7 +26,6 @@ const INPUT_PARAMS = {
 
 export const WriteFile = setupTool({
   inputSchema: BaseInputSchema.extend({
-    /* eslint-disable perfectionist/sort-objects */
     // Sorting the file path first to attempt to get model to generate it first
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `The path of the file to write. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
@@ -34,7 +33,6 @@ export const WriteFile = setupTool({
     [INPUT_PARAMS.content]: z
       .string()
       .meta({ description: "The content to write to the file" }),
-    /* eslint-enable perfectionist/sort-objects */
   }),
   name: "write_file",
   outputSchema: z.object({
@@ -49,11 +47,12 @@ export const WriteFile = setupTool({
     Writes a file, creating parent directories as needed.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.output}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.work}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
-    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.  `,
-  execute: async ({ input, signal, taskId, taskState }) => {
+    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html ${MOUNT.attachedFolders}/<folder>/foo.html\`.  `,
+  execute: async ({ agentName, input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
+      apps: agentName === "instrument",
       attachedFolders: taskState.attachedFolders,
       projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),

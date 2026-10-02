@@ -11,7 +11,6 @@
 //   node studio-drive.mjs state
 //   node studio-drive.mjs goto /release-notes
 //   node studio-drive.mjs click --text "All file types"
-//   node studio-drive.mjs press ?
 //   node studio-drive.mjs shot out.png --selector '[role=dialog]'
 //   node studio-drive.mjs wait 'document.querySelectorAll("webview").length > 0'
 //   node studio-drive.mjs rpc workspace.task.list '{}'
@@ -63,6 +62,9 @@
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
 //
+// `--inspect <port>` also opens the main process's V8 inspector on that port,
+// which is what `main-stalls.mjs` measures the main thread through.
+//
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
@@ -72,6 +74,20 @@
 //
 //   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
+//
+// `--clean-room <name>` boots a blank workspace instead, as a second process on
+// the developer's own application data pinned with INSTRUMENT_WORKSPACE: the
+// toolchain and caches are already set up, so it starts as fast as the
+// developer's instance, and `--with-sign-ins` copies the developer's account and
+// keys into it so it can run a real agent turn. The developer's own instance keeps
+// its workspace. Clean rooms not booted for 14 days are reaped like fixtures;
+// `--fresh` empties one first.
+//
+//   node studio-drive.mjs boot --purpose "first chat" --clean-room first-chat --with-sign-ins
+//
+// The app window's tabs are each a router of their own: `goto` sends the tab
+// up (or, with --new-tab, a new tab) to the route, and `state` reports the tab
+// up's route, the tabs and a dialog.
 
 // The repo does not lint `.agents`, so these only ever fire when a changed-file
 // pass runs without ignores. None is worth reshaping this file for:
@@ -80,12 +96,11 @@
 // variables belong to a standalone CLI rather than a turbo task; and `dir` is
 // how a path is named everywhere this script reaches, from `taskDir` through
 // `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
-/* eslint-disable perfectionist/sort-modules */
-/* eslint-disable turbo/no-undeclared-env-vars */
-/* eslint-disable unicorn/prevent-abbreviations */
 
 import { execFileSync, spawn } from "node:child_process";
 import {
+  copyFileSync,
+  existsSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -161,6 +176,17 @@ const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
 // Read off the raw argv rather than the parsed tail: which instance a command
 // talks to has to be settled before anything reads a session record.
 const WORKSPACE = flag(process.argv, "--workspace");
+// `--clean-room <name>` boots a blank workspace on the shared dev application
+// data instead (see prepareCleanRoom). Same rule: it belongs on every command.
+const CLEAN_ROOM = flag(process.argv, "--clean-room");
+// What keys the port and the instance record: the fixture or the clean room a
+// run is about, or neither for the checkout's own instance.
+const INSTANCE = WORKSPACE ?? (CLEAN_ROOM && `clean-room-${CLEAN_ROOM}`);
+const INSTANCE_FLAG = WORKSPACE
+  ? ` --workspace ${WORKSPACE}`
+  : CLEAN_ROOM
+    ? ` --clean-room ${CLEAN_ROOM}`
+    : "";
 
 // --- seeded workspaces -------------------------------------------------
 
@@ -209,26 +235,135 @@ function prepareWorkspace(name, { fresh }) {
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
 
-  reapWorkArtifacts(path.join(userDataDir, "workspace", "tasks"));
+  reapWorkArtifacts(path.join(userDataDir, "workspace"));
 
   return { tasks: result.tasks, userDataDir };
 }
 
+// --- clean rooms -------------------------------------------------------
+
+const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
+
+// The sign-in stores a clean room can start from, as the app names them in a
+// workspace's settings folder (workspace-management.ts in Studio). Not the
+// ChatGPT plan: its refresh token rotates on every use, so a clean room holding
+// a copy would sign the developer's own instance out the first time either
+// refreshed.
+const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
+
+/**
+ * The shared dev application-data directory, where the app keeps the
+ * developer's default workspace. Mirrors setup-environment.ts.
+ */
+function devUserDataDir() {
+  const suffix = process.env.ELECTRON_DEV_USER_FOLDER_SUFFIX;
+  const name = `Instrument (Dev${suffix ? ` (${suffix})` : ""})`;
+  if (process.platform === "darwin") {
+    return path.join(homedir(), "Library", "Application Support", name);
+  }
+  if (process.platform === "win32") {
+    return path.join(
+      process.env.APPDATA ?? path.join(homedir(), "AppData", "Roaming"),
+      name,
+    );
+  }
+  return path.join(
+    process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config"),
+    name,
+  );
+}
+
+/**
+ * A blank workspace for this run, kept beside the fixture caches and opened by
+ * a second process on the developer's own application data, pinned with
+ * INSTRUMENT_WORKSPACE. Unlike a fixture it shares the machine's toolchain and
+ * caches, so it boots as fast as the developer's instance does, and with
+ * `withSignIns` it can run a real agent turn on the developer's sign-ins. The
+ * app lists it in the dev panel as agent-made; studio-drive reaps it.
+ */
+function prepareCleanRoom(name, { purpose, withSignIns }) {
+  reapStaleCleanRooms();
+
+  const dir = path.join(CLEAN_ROOMS_ROOT, name);
+  const privateDir = path.join(dir, ".instrument");
+  const identity = path.join(privateDir, "workspace.json");
+  mkdirSync(path.join(privateDir, "settings"), { recursive: true });
+  if (!existsSync(identity)) {
+    writeFileSync(
+      identity,
+      `${JSON.stringify(
+        {
+          color: "purple",
+          createdBy: { kind: "agent", purpose },
+          name: `Clean room: ${name}`,
+          settingsVersion: 1,
+        },
+        undefined,
+        2,
+      )}\n`,
+    );
+    // Developer mode on from the start, so the dev panel and `rpc` work.
+    writeFileSync(
+      path.join(privateDir, "settings", "preferences.json"),
+      `${JSON.stringify({ developerMode: true })}\n`,
+    );
+  }
+
+  if (withSignIns) {
+    const from = path.join(
+      devUserDataDir(),
+      "workspace",
+      ".instrument",
+      "settings",
+    );
+    let copied = 0;
+    for (const file of SIGN_IN_FILES) {
+      const target = path.join(privateDir, "settings", file);
+      if (existsSync(path.join(from, file)) && !existsSync(target)) {
+        copyFileSync(path.join(from, file), target);
+        copied++;
+      }
+    }
+    if (copied > 0) {
+      writeFileSync(
+        path.join(privateDir, "settings", "state.json"),
+        `${JSON.stringify({ hasCompletedProviderSetup: true })}\n`,
+      );
+    }
+  }
+
+  // Reaping goes by mtime, as for fixtures.
+  utimesSync(dir, new Date(), new Date());
+  return { dir };
+}
+
+function reapStaleCleanRooms() {
+  reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS);
+}
+
 function reapStaleWorkspaces() {
+  reapOlderThan(WORKSPACE_CACHE_ROOT, WORKSPACE_MAX_AGE_MS, {
+    // Its own mtime only moves when a clean room is added or removed; the clean
+    // rooms inside are reaped one by one instead.
+    keep: new Set([path.basename(CLEAN_ROOMS_ROOT)]),
+  });
+}
+
+function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
   let entries;
   try {
-    entries = readdirSync(WORKSPACE_CACHE_ROOT, { withFileTypes: true });
+    entries = readdirSync(root, { withFileTypes: true });
   } catch {
     return;
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) {
+    if (!entry.isDirectory() || keep.has(entry.name)) {
       continue;
     }
-    const dir = path.join(WORKSPACE_CACHE_ROOT, entry.name);
+    const dir = path.join(root, entry.name);
     try {
-      if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
+      if (Date.now() - statSync(dir).mtimeMs > maxAgeMs) {
         rmSync(dir, { force: true, recursive: true });
       }
     } catch {
@@ -239,24 +374,14 @@ function reapStaleWorkspaces() {
 }
 
 /**
- * Drops installed dependencies left inside tasks by a live agent run. A replay
- * never creates these, so a workspace only used for driving stays in the low
+ * Drops installed dependencies left inside tasks by a live agent run. A seeded
+ * transcript never creates these, so a workspace only used for driving stays in the low
  * megabytes and this finds nothing.
  */
-function reapWorkArtifacts(tasksDir) {
-  let tasks;
-  try {
-    tasks = readdirSync(tasksDir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const task of tasks) {
-    if (!task.isDirectory()) {
-      continue;
-    }
+function reapWorkArtifacts(workspaceDir) {
+  for (const taskDir of recordDirs(workspaceDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(tasksDir, task.name, "work", name);
+      const dir = path.join(taskDir, "work", name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -268,22 +393,53 @@ function reapWorkArtifacts(tasksDir) {
   }
 }
 
+/**
+ * Every task and chat folder of a workspace: tasks no chat owns under
+ * `tasks/`, chats under `chats/`, and each chat's tasks under its own
+ * `tasks/`.
+ */
+function recordDirs(workspaceDir) {
+  const children = (dir) => {
+    try {
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(dir, entry.name));
+    } catch {
+      return [];
+    }
+  };
+  const chats = children(path.join(workspaceDir, "chats"));
+  return [
+    ...children(path.join(workspaceDir, "tasks")),
+    ...chats,
+    ...chats.flatMap((chat) => children(path.join(chat, "tasks"))),
+  ];
+}
+
 // --- lifecycle ---------------------------------------------------------
 
-async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
+async function cmdBoot(
+  explicitPort,
+  { fresh, hot, inspect, purpose: rawPurpose, withSignIns },
+) {
   const purpose = normalizePurpose(rawPurpose);
-  const existing = readSession(WORKSPACE);
+  if (WORKSPACE && CLEAN_ROOM) {
+    fail(
+      "Pass --workspace or --clean-room, not both: a fixture brings its own application data, a clean room uses yours.",
+    );
+  }
+  const existing = readSession(INSTANCE);
   if (existing && (await isPortLive(existing.port))) {
     if (fresh) {
       fail(
         `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
-          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` first.`,
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\` first.`,
       );
     }
     if (existing.purpose !== purpose) {
       fail(
         `The running instance is labeled ${JSON.stringify(existing.purpose ?? "unlabeled")}, not ${JSON.stringify(purpose)}.\n` +
-          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\`, then boot it with the new purpose.`,
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with the new purpose.`,
       );
     }
     // Reload behavior is fixed when the dev server starts, so it is the running
@@ -301,7 +457,7 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
     return { ...existing, reused: true };
   }
 
-  const port = explicitPort ? Number(explicitPort) : checkoutPort(WORKSPACE);
+  const port = explicitPort ? Number(explicitPort) : checkoutPort(INSTANCE);
   // Refuse rather than scanning for the next free port. Scanning is what makes
   // this dangerous: two checkouts booting at once can both see a port free,
   // both spawn, and the one that loses the bind then connects to the winner's
@@ -319,8 +475,17 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
   const workspace = WORKSPACE
     ? prepareWorkspace(WORKSPACE, { fresh })
     : undefined;
+  if (CLEAN_ROOM && fresh) {
+    rmSync(path.join(CLEAN_ROOMS_ROOT, CLEAN_ROOM), {
+      force: true,
+      recursive: true,
+    });
+  }
+  const cleanRoom = CLEAN_ROOM
+    ? prepareCleanRoom(CLEAN_ROOM, { purpose, withSignIns })
+    : undefined;
 
-  const file = sessionFile(WORKSPACE);
+  const file = sessionFile(INSTANCE);
   mkdirSync(path.dirname(file), { recursive: true });
   const logFile = file.replace(/\.json$/, ".log");
   const log = openSync(logFile, "a");
@@ -330,12 +495,17 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
   // and nothing else. Keep this in step with the `dev` script in
   // apps/studio/package.json, which is the thing it is standing in for.
   //
-  // The bin shim rather than the .js entry, because the shim is what exports
-  // the NODE_PATH into .pnpm that the config's `require.resolve` of
-  // ffmpeg-static and friends resolves through.
+  // Through the dev supervisor, which starts electron-vite again when the app
+  // restarts itself (a workspace switch), so this pid stays the instance's
+  // across one and the CDP port comes back on the same number.
   const child = spawn(
-    path.join(STUDIO_DIR, "node_modules/.bin/electron-vite"),
-    ["dev", "--sourcemap"],
+    process.execPath,
+    [
+      path.join(STUDIO_DIR, "scripts/dev-supervisor.ts"),
+      "dev",
+      "--sourcemap",
+      ...(inspect ? ["--inspect", inspect] : []),
+    ],
     {
       cwd: STUDIO_DIR,
       detached: true,
@@ -367,6 +537,13 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
           SKIP_ONBOARDING: "true",
         }),
+        // Pinned rather than switched to, so the developer's own instance keeps
+        // opening the workspace it had. Signed out, onboarding would hide the
+        // main window exactly as it would for a fixture.
+        ...(cleanRoom && {
+          INSTRUMENT_WORKSPACE: cleanRoom.dir,
+          ...(!withSignIns && { SKIP_ONBOARDING: "true" }),
+        }),
       },
       stdio: ["ignore", log, log],
     },
@@ -375,14 +552,16 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
 
   const session = {
     hot: Boolean(hot),
+    ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
     pid: child.pid,
     port,
     purpose,
     startedAt: new Date().toISOString(),
     ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
+    ...(cleanRoom && { cleanRoom: cleanRoom.dir }),
   };
-  writeSession(WORKSPACE, session);
+  writeSession(INSTANCE, session);
 
   // Ready means the renderer has attached its handle, not that the port
   // answers: the debug endpoint is up well before the app can be driven.
@@ -405,7 +584,7 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
             "window.__studioDrive?.load?.() ?? null",
           );
           const booted = { ...session, ...(load && { load }) };
-          writeSession(WORKSPACE, booted);
+          writeSession(INSTANCE, booted);
           return { ...booted, reused: false };
         } finally {
           cdp.close();
@@ -427,7 +606,7 @@ async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
 }
 
 function cmdStop() {
-  const session = readSession(WORKSPACE);
+  const session = readSession(INSTANCE);
   if (!session) {
     return { stopped: false };
   }
@@ -437,7 +616,7 @@ function cmdStop() {
   } catch {
     // Already gone.
   }
-  rmSync(sessionFile(WORKSPACE), { force: true });
+  rmSync(sessionFile(INSTANCE), { force: true });
   return { port: session.port, stopped: true };
 }
 
@@ -503,7 +682,7 @@ async function cmdRun(file, rawArgs) {
   const app = await connect({
     allowReload: process.argv.includes("--allow-reload"),
     port: flag(process.argv, "--port"),
-    workspace: WORKSPACE,
+    workspace: INSTANCE,
   });
 
   try {
@@ -601,7 +780,9 @@ try {
         await cmdBoot(flag(argv, "--port"), {
           fresh: argv.includes("--fresh"),
           hot: argv.includes("--hot"),
+          inspect: flag(argv, "--inspect"),
           purpose: flag(argv, "--purpose"),
+          withSignIns: argv.includes("--with-sign-ins"),
         }),
       );
 
@@ -615,7 +796,7 @@ try {
         String(
           await resolvePort({
             port: flag(argv, "--port"),
-            workspace: WORKSPACE,
+            workspace: INSTANCE,
           }),
         ),
       );
@@ -665,7 +846,7 @@ try {
  * notices a reload landing between its own steps and stops there.
  */
 async function reportReload(app) {
-  const session = readSession(WORKSPACE);
+  const session = readSession(INSTANCE);
   if (!session) {
     return;
   }
@@ -707,7 +888,7 @@ async function reportReload(app) {
     }
   }
 
-  writeSession(WORKSPACE, { ...session, load });
+  writeSession(INSTANCE, { ...session, load });
 }
 
 async function runAgainstInstance() {
@@ -717,7 +898,7 @@ async function runAgainstInstance() {
   const app = await connect({
     allowReload: true,
     port: flag(argv, "--port"),
-    workspace: WORKSPACE,
+    workspace: INSTANCE,
   });
   try {
     await reportReload(app);
@@ -887,7 +1068,7 @@ async function resolveTaskId(app, explicit) {
     app.cdp,
     "window.__studioDrive.state()",
   );
-  const match = /^\/tasks\/([^/]+)/.exec(routePath ?? "");
+  const match = /^\/tasks\/([^/?]+)/.exec(routePath ?? "");
   if (!match) {
     fail(
       `No --task, and the active tab is not a task (path: ${routePath ?? "none"}).`,
@@ -895,7 +1076,3 @@ async function resolveTaskId(app, explicit) {
   }
   return match[1];
 }
-
-/* eslint-enable perfectionist/sort-modules */
-/* eslint-enable turbo/no-undeclared-env-vars */
-/* eslint-enable unicorn/prevent-abbreviations */

@@ -11,7 +11,7 @@ import { fetchJson } from "../fetch-json";
 import { generateModelName } from "../generate-model-name";
 import { getModelFeatures } from "../get-model-features";
 import { isModelNew } from "../is-model-new";
-import { parseModelDate } from "../parse-model-date";
+import { modelReleaseDate, parseModelDate } from "../parse-model-date";
 import { apiURL } from "../providers/api-url";
 import { getProviderMetadata } from "../providers/metadata";
 import { setProviderAuthHeaders } from "../providers/set-auth-headers";
@@ -53,7 +53,6 @@ export function fetchAndParseAnthropicModels(
     );
 
     if (modelsResult.has_more) {
-      // eslint-disable-next-line no-console
       console.warn(
         "Anthropic models response indicates pagination (has_more: true), but pagination is not supported",
       );
@@ -108,6 +107,7 @@ export function fetchAndParseAnthropicModels(
           params,
           providerId,
           providerName: config.displayName ?? metadata.name,
+          releasedAt: modelReleaseDate(model.created_at),
           tags,
           uri: AIGatewayModelURI.fromModel({
             author,

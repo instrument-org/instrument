@@ -118,7 +118,7 @@ describe("normalizeModelImages", () => {
     );
   }, 60_000);
 
-  it.each([["media"], ["image-data"]] as const)(
+  it.each([["file-data"], ["image-data"]] as const)(
     "resizes an image inside a %s tool result",
     async (type) => {
       const messages: ModelMessage[] = [

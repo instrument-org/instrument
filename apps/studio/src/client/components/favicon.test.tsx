@@ -36,4 +36,29 @@ describe("Favicon", () => {
     expect(remounted.className).not.toContain("opacity-0");
     expect(remounted.className).not.toContain("transition-");
   });
+
+  // The proxy answers a site it has no icon for with a 16px globe of its own,
+  // under a 404 an <img> draws anyway; asked for 64, so small an answer is the
+  // stand-in, and the site itself is asked next.
+  it("asks the app's own icon store, by host", () => {
+    const image = renderFavicon("https://example.com/some/page?q=1");
+    expect(image.src).toMatch(/:\/\/site-icon\/example\.com$/);
+  });
+
+  it("draws a globe of its own when the icon does not load, and at once on the next render", () => {
+    const image = renderFavicon("https://no-icon.example.com/page");
+    fireEvent.error(image);
+
+    const globe = screen.getByRole("img", {
+      name: "Favicon for no-icon.example.com",
+    });
+    expect(globe.tagName).toBe("svg");
+
+    renderFavicon("https://no-icon.example.com/other");
+    expect(
+      screen
+        .getAllByRole("img", { name: "Favicon for no-icon.example.com" })
+        .every((element) => element.tagName === "svg"),
+    ).toBe(true);
+  });
 });

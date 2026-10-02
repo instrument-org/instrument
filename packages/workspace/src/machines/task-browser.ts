@@ -184,6 +184,29 @@ export const taskBrowserMachine = setup({
       },
     }),
 
+    // The page is gone, the session stays known: its agent-browser session is
+    // still closed when the browser stops.
+    forgetTarget: assign({
+      knownTargets: (
+        { context },
+        { targetId }: { targetId: BrowserTargetId },
+      ) =>
+        new Map(
+          [...context.knownTargets].map(([sessionId, known]) => [
+            sessionId,
+            known === targetId ? undefined : known,
+          ]),
+        ),
+      watchedTargets: (
+        { context },
+        { targetId }: { targetId: BrowserTargetId },
+      ) => {
+        const next = new Set(context.watchedTargets);
+        next.delete(targetId);
+        return next;
+      },
+    }),
+
     markExternalDestruction: assign({
       destroyedExternallyTargets: (
         { context },
@@ -250,6 +273,10 @@ export const taskBrowserMachine = setup({
   guards: {
     hasRetainedLease: ({ context }) => context.presence.retained > 0,
     hasVisibleLease: ({ context }) => context.presence.visible > 0,
+    isLastTarget: ({ context }, { targetId }: { targetId: BrowserTargetId }) =>
+      ![...context.knownTargets.values()].some(
+        (known) => known !== undefined && known !== targetId,
+      ),
     noLeases: ({ context }) =>
       context.presence.retained === 0 && context.presence.visible === 0,
     noVisibleLease: ({ context }) => context.presence.visible === 0,
@@ -296,13 +323,29 @@ export const taskBrowserMachine = setup({
         type: "releasePresence",
       },
     },
-    targetDestroyedExternally: {
-      actions: {
-        params: ({ event }) => ({ targetId: event.value.targetId }),
-        type: "markExternalDestruction",
+    // One of the task's pages closed on its own (its tab closed, its window
+    // went): the browser stops only once it was the last. A task holds a page
+    // per tab, and the window's own task holds every page the person has open,
+    // so stopping on the first would close all the others with it.
+    targetDestroyedExternally: [
+      {
+        actions: {
+          params: ({ event }) => ({ targetId: event.value.targetId }),
+          type: "markExternalDestruction",
+        },
+        guard: {
+          params: ({ event }) => ({ targetId: event.value.targetId }),
+          type: "isLastTarget",
+        },
+        target: ".Stopping",
       },
-      target: ".Stopping",
-    },
+      {
+        actions: {
+          params: ({ event }) => ({ targetId: event.value.targetId }),
+          type: "forgetTarget",
+        },
+      },
+    ],
   },
   states: {
     // Nobody has the task page open any more: it was closed, or a router

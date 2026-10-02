@@ -16,8 +16,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { seedWorkspace } from "./lib/seed-workspace";
+import { type SeededTask, seedWorkspace } from "./lib/seed-workspace";
 import {
+  fixtureKeys,
   listFixtureNames,
   loadWorkspaceFixture,
   type WorkspaceFixture,
@@ -37,7 +38,7 @@ const { values } = parseArgs({
 await main();
 
 /**
- * Two fixtures seeded together must not both want the same task folder. The
+ * Two fixtures seeded together must not both want the same chat or task folder. The
  * second would silently get a dated fallback name instead, which is exactly the
  * kind of "the id is not what the fixture says" surprise a driving script then
  * has to debug.
@@ -45,14 +46,14 @@ await main();
 function assertNoDuplicateTaskKeys(loaded: WorkspaceFixture[]) {
   const owners = new Map<string, string>();
   for (const fixture of loaded) {
-    for (const { task } of fixture.tasks) {
-      const existing = owners.get(task.key);
+    for (const key of fixtureKeys(fixture)) {
+      const existing = owners.get(key);
       if (existing) {
         throw new Error(
-          `Fixtures "${existing}" and "${fixture.name}" both define task "${task.key}"`,
+          `Fixtures "${existing}" and "${fixture.name}" both define "${key}"`,
         );
       }
-      owners.set(task.key, fixture.name);
+      owners.set(key, fixture.name);
     }
   }
 }
@@ -151,7 +152,7 @@ async function readMarker(dir: string) {
       // Absent while a seed is in flight, so an interrupted run never reads as
       // a finished one.
       digest?: string;
-      tasks: { id: string; key: string; name: string }[];
+      tasks: SeededTask[];
     };
   } catch {
     return;
@@ -182,7 +183,7 @@ async function removeSeededWorkspace(dir: string) {
 
 function report(result: {
   reused: boolean;
-  tasks: { id: string; key: string; name: string }[];
+  tasks: SeededTask[];
   userDataDir: string;
 }) {
   process.stdout.write(`${JSON.stringify(result, undefined, 2)}\n`);
@@ -193,7 +194,7 @@ async function writeMarker(
   marker: {
     digest?: string;
     fixtures: string[];
-    tasks: { id: string; key: string; name: string }[];
+    tasks: SeededTask[];
   },
 ) {
   await fs.writeFile(

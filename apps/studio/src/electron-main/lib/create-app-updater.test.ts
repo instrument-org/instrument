@@ -700,6 +700,21 @@ describe("pollForUpdates", () => {
     expect(h.checks).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps polling after recording a check throws", async () => {
+    const h = createHarness();
+    h.respondWith(undefined);
+    h.recordCheck.mockImplementationOnce(() => {
+      throw new Error("ENOSPC: no space left on device");
+    });
+
+    h.updater.pollForUpdates();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.checks).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(h.checks).toHaveBeenCalledTimes(2);
+  });
+
   it("stops checking once an install is under way", async () => {
     const h = createHarness();
     h.stage(STAGED);

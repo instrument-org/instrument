@@ -3,6 +3,7 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
   type AIGatewayModel,
+  catalogEffort,
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
@@ -22,17 +23,21 @@ import { fromPromise } from "xstate";
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
 import { getCurrentDate } from "../lib/get-current-date";
+import { isStorageFullError } from "../lib/is-storage-full-error";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
+import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { Store } from "../lib/store";
+import { taskDir } from "../lib/task-dir-utils";
+import { getTaskSettings } from "../lib/task-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { ToolNameSchema } from "../tools/name";
+import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 
 // A streaming save writes the part's entire accumulated text through a full
 // schema parse, serialization, and synchronous SQLite write, and publishes a
@@ -60,13 +65,29 @@ export const llmRequestLogic = fromPromise<
   },
   LLMRequestInput
 >(async ({ input, signal }) => {
+  // The first write that failed for lack of disk space. Once set, every later
+  // write would fail the same way, so part saves stop, the stream loop ends
+  // the request with a `disk-full` error, and the condition is reported once
+  // rather than once per streaming save.
+  let storageFullError: Error | undefined;
+
+  const reportStorageError = (error: unknown) => {
+    if (isStorageFullError(error)) {
+      if (storageFullError !== undefined) {
+        return;
+      }
+      storageFullError = error;
+    }
+    getWorkspaceConfig().captureException(error, {
+      scopes: ["workspace", "llm-request"],
+    });
+  };
+
   const scopedStore = {
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
       Store.saveMessage(message, input.taskId, { signal }).then((result) => {
         if (result.isErr()) {
-          getWorkspaceConfig().captureException(result.error, {
-            scopes: ["workspace", "llm-request"],
-          });
+          reportStorageError(result.error);
           return;
         }
         return result.value;
@@ -75,11 +96,12 @@ export const llmRequestLogic = fromPromise<
     // delta bookkeeping needs to know before it forgets the characters it just
     // handed over.
     savePart: async (part: Parameters<typeof Store.savePart>[0]) => {
+      if (storageFullError !== undefined) {
+        return false;
+      }
       const result = await Store.savePart(part, input.taskId, { signal });
       if (result.isErr()) {
-        getWorkspaceConfig().captureException(result.error, {
-          scopes: ["workspace", "llm-request"],
-        });
+        reportStorageError(result.error);
         return false;
       }
       return true;
@@ -175,9 +197,10 @@ export const llmRequestLogic = fromPromise<
   async function getCurrentParts() {
     // Delta saves are coalesced, so an in-memory part can hold text the store
     // has not seen; write those tails through before reading parts back, or
-    // they would be missing from the returned parts.
+    // they would be missing from the returned parts. A full disk would refuse
+    // them all, so they are dropped.
     for (const entry of pendingDeltaSaves.values()) {
-      if (entry.unsavedChars > 0) {
+      if (storageFullError === undefined && entry.unsavedChars > 0) {
         await entry.save();
       }
     }
@@ -272,6 +295,9 @@ export const llmRequestLogic = fromPromise<
   }
 
   const toolCalls: Record<string, SessionMessagePart.ToolPart> = {};
+  // Why each invalid tool call was rejected, read back when its `tool-error`
+  // arrives: that part carries only the SDK's rendering of this error.
+  const invalidToolCallErrors = new Map<string, unknown>();
   const toolCallInputText: Record<string, string> = {};
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
@@ -292,9 +318,35 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
+    // Read per turn rather than captured with the session's context, because a
+    // level changed on a task takes effect on its next turn: the context
+    // baseline is immutable for the life of the session, and a request
+    // parameter is not part of it.
+    const taskSettings = await getTaskSettings(taskDir(input.taskId));
+
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      // Persisted system context rides in the message list, not only at the top.
+      allowSystemInMessages: true,
+      // A shell command called as though it were a tool becomes the bash call
+      // the model meant. See `shellCommandFromToolName` for what that failure
+      // looks like and why it is repaired here rather than prompted away.
+      repairToolCall: ({ toolCall }) => {
+        const command = shellCommandFromToolName({
+          availableToolNames: Object.keys(tools),
+          toolName: toolCall.toolName,
+        });
+        return Promise.resolve(
+          command === undefined
+            ? null
+            : {
+                ...toolCall,
+                input: JSON.stringify({ command }),
+                toolName: TOOL_NAMES.bash,
+              },
+        );
+      },
       // Groups this session's generations into one trace in the analytics our
       // gateway reports.
       headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },
@@ -306,15 +358,21 @@ export const llmRequestLogic = fromPromise<
         // These are thrown and handled by the catch block
         // no-op to avoid excessive logging
       },
-      providerOptions: providerOptionsForModel(aiSDKModel),
+      providerOptions: providerOptionsForModel(aiSDKModel, {
+        effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
+        reasoning: input.model.reasoning,
+      }),
       toolChoice: input.toolChoice,
       tools,
     });
 
-    for await (const part of result.fullStream) {
+    for await (const part of result.stream) {
       if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
         break;
+      }
+      if (storageFullError !== undefined) {
+        throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
       if (
@@ -325,6 +383,14 @@ export const llmRequestLogic = fromPromise<
         await endSupersededReasoning();
       }
       switch (part.type) {
+        case "custom": {
+          // Skipped on purpose. Providers emit these only for features we do not
+          // turn on (OpenAI Responses compaction, Anthropic code-execution
+          // container uploads, Google Interactions processing), so there is
+          // nothing to store or replay. Enabling one of those features means
+          // persisting its parts, since the provider expects them back.
+          break;
+        }
         case "error": {
           // This blows up the whole stream for any error, but it does not have
           // to. E.g. an invalid tool call could still contain other valid tool
@@ -440,9 +506,15 @@ export const llmRequestLogic = fromPromise<
             };
             await scopedStore.savePart(updatedPart);
             pendingDeltaSaves.delete(updatedPart.metadata.id);
-            // oxlint-disable-next-line typescript/no-dynamic-delete
             delete reasoningMap[part.id];
           }
+          break;
+        }
+        case "reasoning-file": {
+          // Skipped on purpose: an image a Gemini model drew while thinking. It
+          // is a draft of the answer, not the answer, and the transcript has no
+          // slot for it. Gemini documents the thought signatures it checks on
+          // the answer parts that follow, and those are stored and replayed.
           break;
         }
         case "reasoning-start": {
@@ -467,8 +539,8 @@ export const llmRequestLogic = fromPromise<
           await scopedStore.savePart(newReasoningPart);
           break;
         }
+
         case "source": {
-          // eslint-disable-next-line unicorn/prefer-ternary
           if (part.sourceType === "url") {
             await scopedStore.savePart({
               metadata: {
@@ -512,7 +584,6 @@ export const llmRequestLogic = fromPromise<
           });
           break;
         }
-
         case "start-step": {
           // We only run one step, so this is covered by "start"
           msToFirstChunk ??= msSinceRequestStart();
@@ -572,7 +643,18 @@ export const llmRequestLogic = fromPromise<
           };
           break;
         }
+        case "tool-approval-response": {
+          getWorkspaceConfig().captureException(
+            new Error(
+              `Unexpected tool approval response: ${JSON.stringify(part)}`,
+            ),
+          );
+          break;
+        }
         case "tool-call": {
+          if (part.invalid) {
+            invalidToolCallErrors.set(part.toolCallId, part.error);
+          }
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
             const updatedPart: SessionMessagePart.ToolPart = {
@@ -633,10 +715,13 @@ export const llmRequestLogic = fromPromise<
         case "tool-error": {
           // Still happens even without execute if parameters are invalid
           const toolCall = toolCalls[part.toolCallId];
+          const invalidCallError = invalidToolCallErrors.get(part.toolCallId);
           const errorText =
-            typeof part.error === "string"
-              ? part.error
-              : JSON.stringify(part.error);
+            invalidCallError instanceof Error
+              ? bareErrorMessage(invalidCallError)
+              : typeof part.error === "string"
+                ? part.error
+                : JSON.stringify(part.error);
           const providerMetadataProps =
             part.providerMetadata === undefined
               ? {}
@@ -787,8 +872,25 @@ export const llmRequestLogic = fromPromise<
         }
       }
     }
+    // The stream can end on the very save that found the disk full.
+    if (storageFullError !== undefined) {
+      throw storageFullError;
+    }
   } catch (error) {
     switch (true) {
+      case isStorageFullError(error): {
+        reportStorageError(error);
+        assistantMessage.metadata.error = {
+          kind: "disk-full",
+          message: error.message,
+        };
+        captureEvent("llm.error", {
+          error_type: "disk-full",
+          modelId,
+          providerId,
+        });
+        break;
+      }
       case error instanceof Error &&
         (error.name === "AbortError" || error.name === "TimeoutError"): {
         // Not sure if we hit this, I wasn't able to reproduce it
@@ -932,3 +1034,19 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });
+
+/**
+ * An error's message with every cause it embeds reduced to that cause's own
+ * message. The AI SDK writes a cause into its parent's message as
+ * `Name: message`, so an invalid tool call reads `AI_InvalidToolInputError:
+ * Invalid input for tool read_file: AI_TypeValidationError: ...`, and this
+ * text goes back to the model as the tool's result. SDK class names tell a
+ * model nothing it can act on.
+ */
+function bareErrorMessage(error: Error): string {
+  const { cause } = error;
+  if (!(cause instanceof Error)) {
+    return error.message;
+  }
+  return error.message.replace(String(cause), bareErrorMessage(cause));
+}

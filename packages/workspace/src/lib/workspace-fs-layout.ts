@@ -9,18 +9,23 @@ import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
-import { isPrivateRelative, maskPrivateDirFs } from "./mask-private-dir-fs";
+import {
+  type MaskedEntry,
+  maskedEntryOf,
+  maskPrivateDirFs,
+} from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
+import { chatsDir } from "./record-folders";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import {
   BUNDLED_SOURCE_IDS,
@@ -35,7 +40,7 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  *
  * The task is mounted under a named home (`/task`) rather than the filesystem
  * root so the agent has a clear, stable place to work and is less prone to
- * hallucinating host paths. Relative paths (work/, output/, attachments/, ...)
+ * hallucinating host paths. Relative paths (work/, attachments/, ...)
  * are unaffected since the working directory is this mount. Every virtual<->real
  * translator routes through the layout, so this is the single value to change.
  */
@@ -82,6 +87,11 @@ const HOST_DEVICE_NAMES = new Set([
  * on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
+  /**
+   * The workspace's own apps directory, writable, for the agent that authors
+   * apps. Absent for a task, which reaches its apps through the `app` command.
+   */
+  apps?: WorkspaceFsMount & { readOnly: false };
   attached: WorkspaceFsMount[];
   /** Absent for a task that does not belong to a project. */
   project?: WorkspaceFsMount & { readOnly: false };
@@ -105,18 +115,20 @@ export interface WorkspaceFsMount {
   /** Real on-disk directory backing this mount. */
   hostRoot: AbsolutePath;
   /**
-   * The `.instrument` dir at this mount's root is not the agent's to read or
-   * write, and every consumer of the layout has to refuse it.
+   * Entries at this mount's root that are not the agent's to read or write,
+   * and that every consumer of the layout has to refuse: the `.instrument`
+   * dir, and in a chat's task mount its `tasks/` dir as well (see
+   * {@link taskMaskedEntries}). Empty for a mount that masks nothing.
    *
    * A property of the mount rather than a case each consumer writes against the
-   * task mount, because it is true of two mounts already and each of them holds
-   * the settings that decide what the agent can reach: the task's attached
-   * folders, the project's folder list and the access granted to each. A guard
-   * spelled per consumer is one the next mount does not inherit, and the mount
-   * whose settings widen access across every task in a project is the one that
-   * arrived without it.
+   * task mount, because it is true of several mounts already and each of them
+   * holds the settings that decide what the agent can reach: the task's
+   * attached folders, the project's folder list and the access granted to
+   * each. A guard spelled per consumer is one the next mount does not inherit,
+   * and the mount whose settings widen access across every task in a project
+   * is the one that arrived without it.
    */
-  masksPrivateDir: boolean;
+  maskedEntries: readonly MaskedEntry[];
   /** Absolute, normalized virtual path where the directory appears. */
   mountPoint: string;
   /**
@@ -247,6 +259,16 @@ export async function buildBashFs(
     );
   }
 
+  // The apps directory is created on demand for the same reason the skills
+  // one is: the prompt advertises it before the first app is written.
+  if (layout.apps) {
+    await mkdir(layout.apps.hostRoot, { recursive: true });
+    fs.mount(
+      layout.apps.mountPoint,
+      new ReadWriteFs({ maxFileReadSize, root: layout.apps.hostRoot }),
+    );
+  }
+
   return fs;
 }
 
@@ -260,11 +282,22 @@ export async function buildBashFs(
  * config set can only build a layout whose folders are all read-only.
  */
 export function buildWorkspaceFsLayout({
+  apps = false,
   attachedFolders,
+  extraMounts = [],
   projectFolderName,
   taskHostRoot,
 }: {
+  /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
+  apps?: boolean;
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Mounts the caller adds beside the attached folders, already resolved: an
+   * orchestrator's read-only view of the tasks it created. They are attached
+   * mounts in every way that matters to the filesystem, so they take the same
+   * masking and containment.
+   */
+  extraMounts?: WorkspaceFsMount[];
   /**
    * Folder under `projects/` holding the task's project, resolved to a host path
    * against this machine's workspace. A name rather than a path because the task
@@ -273,25 +306,40 @@ export function buildWorkspaceFsLayout({
   projectFolderName?: string;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
-  const attached: WorkspaceFsMount[] = assignAttachedMounts(
-    attachedFolders ?? {},
-  ).map(({ folder, mountPoint }) => ({
-    hostRoot: folder.path,
-    // A folder the user attached is theirs, and an `.instrument` dir in it is
-    // an ordinary directory of theirs rather than one of ours.
-    masksPrivateDir: false,
-    mountPoint,
-    readOnly: effectiveFolderAccess(folder) !== "read-write",
-  }));
+  const attached: WorkspaceFsMount[] = [
+    ...assignAttachedMounts(attachedFolders ?? {}).map(
+      ({ folder, mountPoint }) => ({
+        hostRoot: folder.path,
+        // A folder the user attached is theirs, and an `.instrument` dir in it
+        // is an ordinary directory of theirs rather than one of ours.
+        maskedEntries: [],
+        mountPoint,
+        readOnly: effectiveFolderAccess(folder) !== "read-write",
+      }),
+    ),
+    ...extraMounts,
+  ];
 
   return {
+    ...(apps
+      ? {
+          apps: {
+            hostRoot: getWorkspaceConfig().appsDir,
+            // Ours rather than a task's or a project's, and it holds no
+            // settings: an `.instrument` dir in it would be an ordinary one.
+            maskedEntries: [],
+            mountPoint: MOUNT.apps,
+            readOnly: false as const,
+          },
+        }
+      : {}),
     attached,
     // Writable, unlike an attached folder that overlaps the workspace (see
     // effectiveFolderAccess): this is the one directory inside the workspace the
     // user means the agent to edit, so it is granted deliberately and narrowly
     // rather than falling out of where the folder happens to sit. What that
     // guard is actually protecting -- the settings that name the project's
-    // folders and the access granted to each -- is what `masksPrivateDir` keeps
+    // folders and the access granted to each -- is what `maskedEntries` keeps
     // out of reach.
     ...(projectFolderName
       ? {
@@ -300,7 +348,7 @@ export function buildWorkspaceFsLayout({
               getWorkspaceConfig().projectsDir,
               projectFolderName,
             ),
-            masksPrivateDir: true,
+            maskedEntries: [TASK_FOLDER_NAMES.private],
             mountPoint: MOUNT.project,
             readOnly: false as const,
           },
@@ -309,7 +357,7 @@ export function buildWorkspaceFsLayout({
     skills: buildSkillMounts(),
     task: {
       hostRoot: taskHostRoot,
-      masksPrivateDir: true,
+      maskedEntries: taskMaskedEntries(taskHostRoot),
       mountPoint: MOUNT.task,
       readOnly: false,
     },
@@ -327,6 +375,11 @@ export function buildWorkspaceFsLayout({
  * them. Reading those files was already possible for anyone who attached such
  * a folder; writing them is refused.
  *
+ * The judgment is about the folder given, not about the attachment it came
+ * from: the home folder attached whole is read-only, since the workspace is
+ * somewhere inside it, while its Desktop handed on its own is clear of the
+ * workspace and carries the same grant in full.
+ *
  * Applied here rather than at the UI so it holds for a hand-edited state.json,
  * and shared with the agent's folder list so what the model is told matches
  * what the filesystem enforces.
@@ -337,9 +390,10 @@ export function buildWorkspaceFsLayout({
  * matching it as a prefix. Only a read-write grant pays for that, so the usual
  * read-only folder costs nothing.
  */
-export function effectiveFolderAccess(
-  folder: FolderAttachment.Type,
-): FolderAttachment.Access {
+export function effectiveFolderAccess(folder: {
+  access: FolderAttachment.Access;
+  path: string;
+}): FolderAttachment.Access {
   if (folder.access !== "read-write") {
     return "read-only";
   }
@@ -356,6 +410,25 @@ export function effectiveFolderAccess(
     pathIsWithin(folderPath, workspaceRoot) ||
     pathIsWithin(workspaceRoot, folderPath);
   return overlapsWorkspace ? "read-only" : "read-write";
+}
+
+/**
+ * True when a folder contains the workspace root: the home folder attached
+ * whole. Such a folder is read-only as a whole (effectiveFolderAccess) while a
+ * folder inside it takes a write grant, which is what a refusal to write it
+ * whole should say to do instead.
+ */
+export function folderHoldsWorkspace(folderPath: string): boolean {
+  const resolved = canonicalizeThroughMissing(folderPath);
+  const workspaceRoot = canonicalizeThroughMissing(
+    getWorkspaceConfig().rootDir,
+  );
+  return (
+    resolved !== null &&
+    workspaceRoot !== null &&
+    resolved !== workspaceRoot &&
+    pathIsWithin(workspaceRoot, resolved)
+  );
 }
 
 /**
@@ -388,8 +461,8 @@ export function hostPathEscapesMount(
 }
 
 /**
- * Whether a virtual path names the masked private dir of the mount that owns
- * it, or anything inside it.
+ * Whether a virtual path names a masked entry of the mount that owns it (its
+ * private dir, or a chat's `tasks/` dir), or anything inside one.
  *
  * The one question every consumer of the layout asks in place of comparing a
  * mount against `layout.task`. Fails closed on a path the mount does not own,
@@ -399,14 +472,29 @@ export function isMaskedPrivatePath(
   mount: WorkspaceFsMount,
   virtualAbsPath: string,
 ): boolean {
-  if (!mount.masksPrivateDir) {
-    return false;
+  return maskedEntryAt(mount, virtualAbsPath) !== null;
+}
+
+/**
+ * The masked entry of the mount that owns a virtual path which the path is or
+ * is inside, or null. Fails closed like {@link isMaskedPrivatePath}, answering
+ * the private dir for a path the mount does not own.
+ */
+export function maskedEntryAt(
+  mount: WorkspaceFsMount,
+  virtualAbsPath: string,
+): MaskedEntry | null {
+  if (mount.maskedEntries.length === 0) {
+    return null;
   }
   const relative = relativeWithin(
     mount.mountPoint,
     normalizePath(virtualAbsPath),
   );
-  return relative === null || isPrivateRelative(relative);
+  if (relative === null) {
+    return TASK_FOLDER_NAMES.private;
+  }
+  return maskedEntryOf(relative, mount.maskedEntries) ?? null;
 }
 
 /** Every mount other than the task, in the order they are advertised. */
@@ -415,6 +503,7 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
     ...layout.attached,
     ...(layout.project ? [layout.project] : []),
     ...layout.skills,
+    ...(layout.apps ? [layout.apps] : []),
   ];
 }
 
@@ -514,7 +603,10 @@ export function resolveNativeHostPath(
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
   const relative = relativeWithin(MOUNT.task, normalized);
-  if (relative !== null && !isPrivateRelative(relative)) {
+  if (
+    relative !== null &&
+    maskedEntryOf(relative, taskMaskedEntries(taskHostRoot)) === undefined
+  ) {
     return absolutePathJoin(
       taskHostRoot,
       relative === "/" ? "." : `.${relative}`,
@@ -529,10 +621,11 @@ export function resolveNativeHostPath(
       );
     }
   }
-  // Private-dir paths (and any non-/task virtual path) quarantine to a
+  // Masked paths (and any non-/task virtual path) quarantine to a
   // non-existent path inside the task dir -- same defense as the read-only /mnt
   // mounts: a native binary must never receive a real path into task.db,
-  // state.json, or settings, so it fails not-found instead of reading them.
+  // state.json, or settings, or into a chat's tasks, so it fails not-found
+  // instead of reaching them.
   return absolutePathJoin(taskHostRoot, normalized);
 }
 
@@ -578,6 +671,45 @@ export function resolveReadOnlyHostPath(
   return hostPath;
 }
 
+/**
+ * The inverse of {@link resolveHostPath}: the virtual path a host path appears
+ * at, plus the mount that owns it. Null when no mount's host root holds the
+ * path. The deepest host root wins, so a folder attached from inside another
+ * mount is named by its own mount point. A path spelled through a symlink
+ * (`/tmp` for `/private/tmp`) is matched by where it really leads when its
+ * spelling matches no root.
+ *
+ * A caller about to hand the file's bytes to the agent still checks
+ * {@link isMaskedPrivatePath} and {@link hostPathEscapesMount}.
+ */
+export function virtualPathForHostPath(
+  layout: WorkspaceFsLayout,
+  hostPath: string,
+): null | { mount: WorkspaceFsMount; virtualPath: string } {
+  const mounts = allMounts(layout);
+  const lexical = deepestMountHolding(
+    mounts.map((mount) => ({ mount, root: mount.hostRoot })),
+    hostPath,
+  );
+  if (lexical) {
+    return lexical;
+  }
+  const canonical = canonicalizeThroughMissing(hostPath);
+  if (canonical === null) {
+    return null;
+  }
+  return deepestMountHolding(
+    mounts.flatMap((mount) => {
+      try {
+        return [{ mount, root: realpathSync(mount.hostRoot) }];
+      } catch {
+        return [];
+      }
+    }),
+    canonical,
+  );
+}
+
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
@@ -608,7 +740,7 @@ function buildSkillMounts(): WorkspaceFsMount[] {
       hostRoot: bundled ? config.preparedSkillsDir : dir,
       // Every one of these belongs to a tool rather than to a task or a project,
       // so an `.instrument` dir in one is an ordinary directory of theirs.
-      masksPrivateDir: false,
+      maskedEntries: [],
       mountPoint,
       readOnly: id !== "workspace",
     });
@@ -646,11 +778,57 @@ function canonicalizeThroughMissing(hostPath: string): null | string {
   }
 }
 
+function deepestMountHolding(
+  roots: { mount: WorkspaceFsMount; root: string }[],
+  hostPath: string,
+): null | { mount: WorkspaceFsMount; virtualPath: string } {
+  let best: null | { mount: WorkspaceFsMount; relative: string; root: string } =
+    null;
+  for (const { mount, root } of roots) {
+    const relative = nodePath.relative(root, hostPath);
+    if (
+      relative.startsWith("..") ||
+      nodePath.isAbsolute(relative) ||
+      (best !== null && root.length <= best.root.length)
+    ) {
+      continue;
+    }
+    best = { mount, relative, root };
+  }
+  if (best === null) {
+    return null;
+  }
+  const segments = best.relative.split(nodePath.sep).filter(Boolean);
+  return {
+    mount: best.mount,
+    virtualPath: normalizePath([best.mount.mountPoint, ...segments].join("/")),
+  };
+}
+
 function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
-/** A mount's filesystem with its private dir hidden, when it has one. */
+/** A mount's filesystem with its masked entries hidden, when it has any. */
 function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
-  return mount.masksPrivateDir ? maskPrivateDirFs(fs) : fs;
+  return mount.maskedEntries.length > 0
+    ? maskPrivateDirFs(fs, mount.maskedEntries)
+    : fs;
+}
+
+/**
+ * What the task mount masks: its private dir, and in a chat's own folder the
+ * `tasks/` dir holding the chat's tasks.
+ *
+ * Those tasks are mounted one by one at `/tasks/<id>`, read-only and with
+ * their own private dirs masked, which is the only way the chat reaches them.
+ * The chat's folder mounts writable at `/task`, so without this the same child
+ * would also sit at `/task/tasks/<id>`, writable and with its private dir in
+ * plain view. Decided by where the folder is rather than by an id so that it
+ * holds for every consumer handed only the task's host root.
+ */
+function taskMaskedEntries(taskHostRoot: TaskDir): MaskedEntry[] {
+  return nodePath.dirname(taskHostRoot) === chatsDir()
+    ? [TASK_FOLDER_NAMES.private, TASKS_DIR_NAME]
+    : [TASK_FOLDER_NAMES.private];
 }

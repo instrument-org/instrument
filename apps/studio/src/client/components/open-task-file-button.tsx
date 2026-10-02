@@ -1,5 +1,5 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { type TaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type FileOpenControl } from "@/client/hooks/use-file-open-control";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { type ComponentProps } from "react";
@@ -9,7 +9,7 @@ import { OpenWithDropdown } from "./open-with-menu";
 import { Button, type ButtonVariant } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 
-type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
+type FileRef = Pick<ViewerFile, "hostPath">;
 
 export function OpenTaskFileButton({
   className,
@@ -23,7 +23,7 @@ export function OpenTaskFileButton({
   variant = "default",
 }: {
   className?: string;
-  control: TaskFileOpenControl;
+  control: FileOpenControl;
   dropdownClassName?: string;
   file: FileRef | undefined;
   iconClassName?: string;

@@ -1,9 +1,9 @@
-import { folderNameFromPath } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { TOOL_NAMES } from "../tools/name";
-import { folderParentLabel } from "./folder-parent-label";
+import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
  * The attached-folder list the model reads.
@@ -19,7 +19,9 @@ import { folderParentLabel } from "./folder-parent-label";
  */
 export function buildAttachedFoldersText({
   folders,
+  guidance = true,
   intro,
+  writes = "here",
 }: {
   folders: {
     access: FolderAttachment.Access;
@@ -27,23 +29,45 @@ export function buildAttachedFoldersText({
     missing?: boolean;
     mountPoint: string;
     path: string;
+    /**
+     * Read-only as a whole because the workspace lives inside it, while a
+     * folder inside it takes the write grant the user gave: the home folder.
+     */
+    writableInside?: boolean;
   }[];
+  /**
+   * Whether the rules for reading and writing these folders follow the list.
+   * A session reads them once, under the first folders it hears of; a folder
+   * announced after that is a list entry under rules already read.
+   */
+  guidance?: boolean;
   intro: string;
+  /**
+   * Who writes a file's contents into a folder: the reader of this text, with
+   * its file tools, or a task the reader hands the folder to. The orchestrator
+   * has no file tools and a shell that refuses to write, so telling it about
+   * `write_file` sends it looking for a tool it has not got.
+   */
+  writes?: "here" | "through-tasks";
 }) {
-  const displayNames = folders.map((folder) => folderNameFromPath(folder.path));
+  const displayNames = folders.map((folder) => folderLabel(folder.path));
   const nameCounts = new Map<string, number>();
   for (const name of displayNames) {
     nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
   }
 
   const folderList = folders
-    .map(({ access, missing, mountPoint, path }, index) => {
+    .map(({ access, missing, mountPoint, path, writableInside }, index) => {
       const name = displayNames[index] ?? path;
       const parent =
         (nameCounts.get(name) ?? 0) > 1 ? folderParentLabel(path) : undefined;
       const where = parent ? ` (in ${parent})` : "";
       const state = [
-        access === "read-write" ? "read and write" : "read-only",
+        access === "read-write"
+          ? "read and write"
+          : writableInside
+            ? "read-only for you, and a task handed a folder inside it can write there"
+            : "read-only",
         missing ? "no longer exists" : null,
       ]
         .filter((part) => part !== null)
@@ -52,23 +76,50 @@ export function buildAttachedFoldersText({
     })
     .join("\n");
 
+  if (!guidance) {
+    return dedent`
+      <attached_folders>
+      ${intro}
+      ${folderList}
+      </attached_folders>
+    `;
+  }
+
   const writable = folders.some(({ access }) => access === "read-write");
-  const readOnly = folders.some(({ access }) => access !== "read-write");
+  const readOnly = folders.some(
+    ({ access, writableInside }) => access !== "read-write" && !writableInside,
+  );
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
-  const guidance = [
-    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory.`,
-    writable
-      ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
-      : null,
-    readOnly
-      ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
-      : null,
-    `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-    `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
-  ]
+  const rules = (
+    writes === "through-tasks"
+      ? [
+          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+          `Look inside by mount path with bash (\`ls\`, \`cat\`, \`head\`, \`find\`), like any other directory.`,
+          writable
+            ? `A file's contents are written by a task handed the folder with --folder; what you do yourself is \`cp\` or \`mv\` a finished file into a folder listed above as read and write for you. One that is read-only for you refuses that with \`EROFS\`, however writable a task finds a folder inside it: moving a file there is a task's. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            : null,
+          readOnly
+            ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`
+            : null,
+        ]
+      : [
+          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+          `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
+          writable
+            ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            : null,
+          readOnly
+            ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
+            : null,
+          process.platform === "darwin"
+            ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
+            : null,
+          `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+          `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the folder attached read and write.`,
+        ]
+  )
     .filter((line) => line !== null)
     .join("\n");
 
@@ -77,7 +128,7 @@ export function buildAttachedFoldersText({
     ${intro}
     ${folderList}
 
-    ${guidance}
+    ${rules}
     </attached_folders>
   `;
 }

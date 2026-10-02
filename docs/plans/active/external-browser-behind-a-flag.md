@@ -20,7 +20,7 @@ The other way out is to stop touching the user's installed Chrome at all: launch
 
 ## The flag
 
-`external_browser` in `apps/studio/src/shared/features.ts`, stored per user in the features store, toggled from Settings > Features (a pane only developer mode shows). `isFeatureEnabled` in `apps/studio/src/electron-main/stores/features.ts` reads it.
+`external_browser` in `apps/studio/src/shared/features.ts`, stored per user in the features store, toggled from Settings > Features (a pane only developer mode shows). `isFeatureEnabled` in `apps/studio/src/electron-main/stores/workspace/features.ts` reads it.
 
 It reaches the workspace as `WorkspaceConfig.isExternalBrowserEnabled`, a function rather than a boolean: the config is built once at boot, and the flag is a live store the user can toggle without restarting.
 

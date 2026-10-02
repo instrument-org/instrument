@@ -26,8 +26,9 @@ description, or choose the right arguments. Only rung 3 answers that.
 
 - **A pure function, a schema, an XState machine** -> rung 1.
 - **A shell command, a shim, sandbox paths, network policy** -> rung 2.
-- **A tool's inputs, output, or `toModelOutput` text** -> rung 3, because that
-  text only matters if a model acts on it correctly.
+- **A tool's inputs, output, or `toModelOutput` text** -> rung 1 for the text
+  itself, then rung 3, because that text only matters if a model acts on it
+  correctly.
 - **A tool description, a system prompt, a skill, tool selection** -> rung 3
   only. There is nothing below it that involves a model, so nothing below it can
   answer the question.
@@ -63,16 +64,27 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-pnpm eval run --yes --prompt "<task for the agent>" --model anthropic/claude-haiku-4.5
+pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
 ```
 
 - Runs from the repo root; no `cd` first.
+- **`--model` is required, and there is no default set.** `pnpm eval models
+[pattern]` lists what the configured providers can run today, newest first,
+  each row spelled the way `--model` takes it. Pick for the question you are
+  actually asking, and say which models you ran and why when you report the
+  result.
+- **Workers AI unless the question needs a model only another provider has.**
+  This project holds Cloudflare credits and pays per token everywhere else, so
+  `cf:<id>` is the spelling to reach for, and anything metered is refused until
+  `--paid` is passed. "Does a model find this affordance" is answered by the
+  cheap models; answering it on a frontier model spends real money on a question
+  that did not need one.
 - `--model` repeats to build a case x model matrix. Different models fail
   differently; one model succeeding is weak evidence. `--repeat` samples the
   same model more than once, which is what a nondeterministic result needs.
-- A bare slug reads as OpenRouter. Pass a full model URI
-  (`<model>?provider=<p>&providerConfigId=<p>-config-id`) to pin another
-  configured provider.
+- A bare slug reads as OpenRouter, and a full model URI
+  (`<model>?provider=<p>&providerConfigId=<p>-config-id`) pins any other
+  configured provider. Both are metered, so both need `--paid`.
 - Each run prints the path to a rendered `session.md`, filed under
   `<case>/<model>`. **Read it.** The tool sequence is the result; the agent's
   closing summary is not.
@@ -132,9 +144,6 @@ Three things not to do, each of which costs someone else their session:
 - **`pkill -f electron-vite`, `pkill -f Electron`, or any sweep naming neither a
   pid nor a checkout.** Agents and a human share this machine, and those
   patterns kill every instance on it. `stop` targets the one it started.
-- **`pnpm dev:web` as a stand-in.** It serves the renderer with the Electron
-  boundary replaced by fixtures, for design work. Nothing behind that boundary
-  runs, so it can neither confirm nor deny that a change works.
 
 ## Inspecting a run afterwards
 

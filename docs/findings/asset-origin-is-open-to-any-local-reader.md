@@ -1,10 +1,10 @@
 # The asset origin is readable by anything that can name a task
 
-**Status:** open — no mitigation in place. Recorded because the exposure is bounded today and stops being bounded under [user-chosen-working-folder](../plans/active/user-chosen-working-folder.md).
+**Status:** resolved 2026-09-26 by removal. The asset origin no longer exists: the agent's browser opens a file at its own `file://` address, the same one the person's tab shows, and the workspace server serves no files ([in-app-browser.md](../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). What follows is the exposure as it stood, kept because any future local HTTP server for task files would reopen it.
 
 ## What is true
 
-The per-task asset origin ([asset-origin.md](../architecture/asset-origin.md)) serves files over plain HTTP with no authentication of any kind, and four properties compound:
+The per-task asset origin served files over plain HTTP with no authentication of any kind, and four properties compound:
 
 1. **Wildcard CORS.** [`assets.ts`](../../packages/workspace/src/logic/server/routes/assets.ts) applies `cors()` with only `exposeHeaders` set and no `origin`, so Hono's `origin: "*"` default still stands: every response carries `Access-Control-Allow-Origin: *` and any web origin can read the body, not merely issue the request. A `GET` needs no preflight.
 2. **Guessable task ids.** [`generate-task-folder-name.ts`](../../packages/workspace/src/lib/generate-task-folder-name.ts) derives the id from the date and a slug of the user's first prompt (`2026-06-23-add-a-dark-mode-toggle`). It is a human-readable name, not a secret, and it is the whole of the origin's identity.
@@ -22,9 +22,9 @@ Today an attacker who wins this reads the task directory plus whatever folders t
 Two in-flight changes remove both bounds, and neither does it alone:
 
 - **[user-chosen-working-folder](../plans/active/user-chosen-working-folder.md)** makes the origin's root a folder the user picked — plausibly a source repository with `.env`, deploy keys, and customer data, or a whole documents directory. The reader no longer gets our scratch; it gets the user's real files.
-- **Moving HTML artifacts from the sandboxed iframe into a `<webview>` guest** ([html-artifact-iframe-navigation](html-artifact-iframe-navigation.md)) loads agent-authored HTML as a **real origin** on that host, with network access, in place of today's opaque origin. Under the folder plan that page is same-origin with the entire working folder, so `fetch("/.env")` needs no CORS grant at all, and the fetch-then-POST pair runs the next time a human opens a preview. The HTML that does it need not be something the agent intended to write: a prompt-injected instruction in a `/mnt` source is enough.
+- **An HTML file the person opens is a `<webview>` guest page** ([in-app-browser.md](../architecture/in-app-browser.md)), loaded at its `file://` address rather than on this origin, and confined by `local-file-policy.ts` to reading its own folder. That keeps agent-authored HTML off this origin as a real origin; had it been loaded here, under the folder plan the page would be same-origin with the entire working folder, so `fetch("/.env")` would need no CORS grant at all, and the fetch-then-POST pair would run the next time a human opened a preview. The HTML that does it need not be something the agent intended to write: a prompt-injected instruction in a `/mnt` source is enough. The agent's own browser still loads this origin as a real origin, which is the exposure that remains.
 
-The combination is the thing to notice. Each plan is individually defensible against its own threat model.
+Nothing the person looks at reads this origin any more: their viewers read a file by its real path over Studio's own tokened `instrument://computer-<token>` channel, which no guest and no other process can name. What is left open is the agent's side, and the folder plan is what makes it load-bearing.
 
 ## What would close it
 

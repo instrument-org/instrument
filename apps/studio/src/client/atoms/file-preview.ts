@@ -1,17 +1,15 @@
-import { type TaskId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 
 interface FilePreviewState {
   file: null | {
     filename: string;
-    // Together, the file this preview is showing. Present when the opener knew
-    // it -- a markdown embed pointing at a task path -- and absent when all it
-    // had was a URL, which is enough to draw the image and not enough to act
-    // on the file behind it.
-    filePath?: string;
+    // Where the file this preview is showing sits on the computer. Present
+    // when the opener knew it -- a markdown embed pointing at a task path --
+    // and absent when all it had was a URL, which is enough to draw the image
+    // and not enough to act on the file behind it.
+    hostPath?: string;
     mimeType?: string;
     size?: number;
-    taskId?: TaskId;
     url: string;
   };
   isOpen: boolean;

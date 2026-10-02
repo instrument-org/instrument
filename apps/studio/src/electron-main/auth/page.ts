@@ -34,6 +34,8 @@ interface AuthPageProps {
   /** When set, renders an index page listing links to each state. */
   indexHref?: string;
   isError?: boolean;
+  /** An app the user just signed in to, for a page that says so by name. */
+  signedInTo?: string;
   states?: { href: string; label: string }[];
   title?: string;
 }
@@ -41,6 +43,7 @@ interface AuthPageProps {
 export function renderAuthPage({
   indexHref,
   isError = false,
+  signedInTo,
   states,
   title,
 }: AuthPageProps = {}) {
@@ -72,6 +75,19 @@ export function renderAuthPage({
           ${button("default", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`)}
         </div>`;
     }
+    if (signedInTo) {
+      return html` <h1
+          class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
+        >
+          ${signedInTo} is connected
+        </h1>
+        <p class="text-sm text-stone-600 dark:text-white/60 text-center">
+          ${APP_NAME} can use it now. You can close this tab.
+        </p>
+        <div class="flex gap-3">
+          ${button("default", `${APP_PROTOCOL}://home`, `Back to ${APP_NAME}`)}
+        </div>`;
+    }
     return html` <h1
         class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
       >
@@ -91,7 +107,8 @@ export function renderAuthPage({
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+        <link rel="icon" href="/favicon.ico" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         <script src="/tailwind.js"></script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

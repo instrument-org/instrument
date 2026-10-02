@@ -1,7 +1,9 @@
-import { sendAppCommand } from "@/electron-main/app-command";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { resetZoom, zoomIn, zoomOut } from "@/electron-main/windows/controls";
+import { resolveAccelerator } from "@/shared/shortcuts";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type MenuItemConstructorOptions } from "electron";
 
-import { isDeveloperMode } from "../stores/preferences";
 import {
   createAppMenu,
   createDevToolsMenu,
@@ -22,6 +24,19 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
+  return [
+    createAppMenu(),
+    fileMenu,
+    createEditMenu(),
+    createOtherWindowViewMenu(),
+    createWindowMenu(),
+    createHelpMenu(),
+    ...(isDeveloperMode() ? createDevToolsMenu() : []),
+  ];
+}
+
+/** The View menu of a window that is not the main one: reload, dev tools, and the app's own zoom. */
+export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
   const viewMenu: MenuItemConstructorOptions = {
     label: "View",
     role: "viewMenu" as const,
@@ -30,28 +45,28 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
       { role: "forceReload" as const },
       { role: "toggleDevTools" as const },
       { type: "separator" as const },
-      // Custom CSS `zoom` (not Electron's native page zoom), so onboarding shares
-      // the main window's zoom mechanism and persisted level. See OnboardingZoomRoot.
+      // Custom CSS `zoom` (not Electron's native page zoom), so these windows
+      // share the app's zoom mechanism and persisted level. See
+      // OnboardingZoomRoot. A focused browser guest zooms its own page first,
+      // the way it does in the app window.
       {
-        accelerator: "CmdOrCtrl+0",
+        ...WINDOW_MENU_SHORTCUTS.actualSize,
         click: () => {
-          sendAppCommand({ type: "zoomReset" });
+          resetZoom();
         },
-        label: "Actual Size",
       },
       {
-        accelerator: "CmdOrCtrl+Plus",
+        ...WINDOW_MENU_SHORTCUTS.zoomIn,
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
-        label: "Zoom In",
       },
       {
         // Ctrl+= is what Windows users physically press to zoom in; Electron only
         // matches CmdOrCtrl+Plus on macOS, so this hidden duplicate covers it.
         accelerator: "CmdOrCtrl+=",
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
         label: "Zoom In",
         visible: false,
@@ -61,39 +76,36 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
         // explicitly; hidden so it doesn't add a second Zoom In menu row.
         accelerator: "CmdOrCtrl+numadd",
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
         label: "Zoom In",
         visible: false,
       },
       {
-        accelerator: "CmdOrCtrl+-",
+        ...WINDOW_MENU_SHORTCUTS.zoomOut,
         click: () => {
-          sendAppCommand({ type: "zoomOut" });
+          zoomOut();
         },
-        label: "Zoom Out",
       },
       {
         // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
         accelerator: "CmdOrCtrl+numsub",
         click: () => {
-          sendAppCommand({ type: "zoomOut" });
+          zoomOut();
         },
         label: "Zoom Out",
         visible: false,
       },
       { type: "separator" as const },
-      { role: "togglefullscreen" as const },
+      {
+        accelerator: resolveAccelerator(
+          WINDOW_MENU_SHORTCUTS.toggleFullScreen.accelerator,
+          { isMac: process.platform === "darwin" },
+        ),
+        role: "togglefullscreen" as const,
+      },
     ],
   };
 
-  return [
-    createAppMenu(),
-    fileMenu,
-    createEditMenu(),
-    viewMenu,
-    createWindowMenu(),
-    createHelpMenu({ includeShortcutGuide: false }),
-    ...(isDeveloperMode() ? createDevToolsMenu() : []),
-  ];
+  return viewMenu;
 }

@@ -9,7 +9,7 @@ describe("ToolbarTooltip", () => {
   it("names a plain icon button from the shortcut table", () => {
     renderWithProviders(
       <TooltipProvider>
-        <ToolbarTooltip shortcut="toggleSidebar">
+        <ToolbarTooltip chord="toggleInbox">
           <Button size="icon" variant="ghost-toolbar">
             <svg />
           </Button>
@@ -17,7 +17,7 @@ describe("ToolbarTooltip", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Toggle Sidebar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Toggle Inbox" })).toBeTruthy();
   });
 
   // The browser panel's "Open in external browser" has no chord, and before
@@ -42,9 +42,9 @@ describe("ToolbarTooltip", () => {
   it("names a button that is itself a link, through both slots", () => {
     renderWithProviders(
       <TooltipProvider>
-        <ToolbarTooltip shortcut="newTask">
+        <ToolbarTooltip chord="newChat">
           <Button asChild size="icon" variant="ghost-toolbar">
-            <a href="/new-tab">
+            <a href="/chats">
               <svg />
             </a>
           </Button>
@@ -52,6 +52,6 @@ describe("ToolbarTooltip", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByRole("link", { name: "New Task" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "New Chat" })).toBeTruthy();
   });
 });

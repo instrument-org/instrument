@@ -1,3 +1,5 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
+
 import { type CandidateApp } from "./types";
 
 // How many apps the menu will show. Applied on read, after curation, so raising
@@ -81,7 +83,10 @@ const RESTRICTED_BUNDLE_IDS = new Map([
 // editing either list above takes effect on the next read instead of requiring
 // a cache version bump.
 export function curateCandidates(apps: CandidateApp[], ext: string) {
-  const useful = apps.filter((candidate) => isUsefulCandidate(candidate, ext));
+  const useful = promoteOverSelf(
+    apps,
+    apps.filter((candidate) => isUsefulCandidate(candidate, ext)),
+  );
   if (useful.length <= MAX_CANDIDATES) {
     return useful;
   }
@@ -101,6 +106,12 @@ export function curateCandidates(apps: CandidateApp[], ext: string) {
 }
 
 function isUsefulCandidate(candidate: CandidateApp, ext: string) {
+  // Instrument claims document types of its own, so Launch Services lists it
+  // for files it is already showing, sometimes as the default. Offering to open
+  // a file in the app the person is looking at does nothing useful.
+  if (candidate.bundleId === APP_BUNDLE_ID) {
+    return false;
+  }
   // The system's own choice is never second-guessed; it is what the primary
   // "Open in {app}" button already launches.
   if (candidate.isDefault) {
@@ -111,4 +122,18 @@ function isUsefulCandidate(candidate: CandidateApp, ext: string) {
   }
   const allowedExtensions = RESTRICTED_BUNDLE_IDS.get(candidate.bundleId);
   return allowedExtensions ? allowedExtensions.has(ext) : true;
+}
+
+// When Instrument is the system's choice, the first app left standing takes the
+// default's place, so "Open in {app}" never hands a file back to the app
+// already showing it.
+function promoteOverSelf(apps: CandidateApp[], useful: CandidateApp[]) {
+  const isSelfDefault = apps.some(
+    (candidate) => candidate.isDefault && candidate.bundleId === APP_BUNDLE_ID,
+  );
+  const [first, ...rest] = useful;
+  if (!isSelfDefault || !first) {
+    return useful;
+  }
+  return [{ ...first, isDefault: true }, ...rest];
 }

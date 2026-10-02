@@ -1,30 +1,32 @@
-import { featuresAtom } from "@/client/atoms/features";
 import {
+  type PromptDraftKey,
   promptDraftRefAtom,
-  promptFocusSignalAtom,
   useHydrateTaskDraft,
 } from "@/client/atoms/prompt-value";
-import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
+import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { instrumentFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import {
-  skipToken,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+  type SessionMessageDataPart,
+  type SessionMessagePart,
+  StoreId,
+  type Task,
+} from "@instrument-org/workspace/client";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import {
   type ComponentProps,
+  type ReactNode,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -32,8 +34,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { ChatStream } from "../chat-stream";
+import { ChatStream, TypingRow } from "../chat-stream";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
+import { ReplyContext } from "../reply-context";
+import { ComposerReplyQuote } from "../reply-quote";
 import { TranscriptScrollContext } from "../transcript-scroll-context";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -47,10 +51,15 @@ import {
   useMessageScrollerScrollable,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { ChatZeroState } from "./chat-zero-state";
-import { QueuedPrompts } from "./queued-prompts";
-import { TutorialPromptCard } from "./tutorial-prompt-card";
+import { UserMessage } from "../user-message";
+import { computerName } from "../window/computer-name";
+import { WindowContext } from "../window/context";
+import {
+  type PendingPrompt,
+  pendingPrompt,
+  unsettledPrompts,
+} from "./pending-prompts";
+import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 
 // How long a submitted prompt follows the transcript on its own before the
 // session has to justify it. Long enough to cover starting a turn, short enough
@@ -63,38 +72,94 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 // band, and past that it is just a gap above the turn being read.
 const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
+/**
+ * A chat's conversation: its transcript and its composer.
+ *
+ * Every prompt is sent the moment it is submitted, whether or not a turn is
+ * running: the conversation never takes turns with the user, since its
+ * session queues what arrives mid-turn and runs it the moment the turn ends.
+ * For the same reason the composer never turns into a stop.
+ */
 export function TaskChat({
-  isReplayActive = false,
-  onCancelReplay,
+  asks,
+  beforeComposer,
+  composerLead,
+  composerPlaceholder,
+  draftKey: draftKeyOfSurface,
   promptDraft,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
-  showTutorial,
+  sendContext,
+  sentPrompt,
   task,
+  transcriptTrailing,
 }: {
-  isReplayActive?: boolean;
-  onCancelReplay?: () => void;
+  /**
+   * Places marked in files that go with the next message: drawn as pills in
+   * the composer's attachments row, enough to send with no words, and taken
+   * at the moment of sending. `take` hands over what goes and a way to let
+   * those asks go once the message is written.
+   */
+  asks?: {
+    pills: ReactNode;
+    take: () =>
+      | undefined
+      | { done: () => void; part: SessionMessageDataPart.AsksDataPart };
+  };
+  /** Drawn between the transcript and the composer, outside the scroll: a standing row the transcript's end does not move for. */
+  beforeComposer?: ReactNode;
+  /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
+  composerLead?: ReactNode;
+  /** What the empty composer says, when the window knows better than the app's name does. */
+  composerPlaceholder?: string;
+  /**
+   * Which draft the composer edits. The task's own, stored with it, unless
+   * this chat is one of several over the same task: a chat's composer takes
+   * a key of its own, or it would share the top-level field's words.
+   */
+  draftKey?: PromptDraftKey;
   promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
-  showTutorial?: boolean;
+  /**
+   * What the surface around this chat has on screen when a prompt is sent, so
+   * "this folder" means the folder in view. Read at send time, since what is on
+   * screen when the prompt is typed is what the words refer to.
+   */
+  sendContext?: () => Promise<
+    SessionMessageDataPart.ViewContextDataPart | undefined
+  >;
+  /**
+   * The words that open this session, sent a moment ago and not yet stored:
+   * drawn as its first message, with the conversation at work under it,
+   * until the stored one arrives, so a session shown from the press never
+   * reads as empty on the way.
+   */
+  sentPrompt?: string;
   task: Task;
+  /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
+  transcriptTrailing?: ReactNode;
 }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const appWindow = useContext(WindowContext);
   const id = task.id;
+  const draftKey: PromptDraftKey = draftKeyOfSurface ?? {
+    scope: "task",
+    taskId: id,
+  };
 
   // The route does not render until the task's state has loaded, so the stored
   // draft is in hand on the composer's very first render rather than arriving
-  // after it.
+  // after it. The stored draft is the task's whichever key this composer edits
+  // by: seeding it once is what any composer on the task's own key reads.
   useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
   const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions({
+    createMessageOptions({
       onError: (error) => {
         toast.error("Failed to create message", { description: error.message });
       },
@@ -104,25 +169,6 @@ export function TaskChat({
     rpcClient.workspace.session.run.mutationOptions({
       onError: (error) => {
         toast.error("Failed to try again", { description: error.message });
-      },
-    }),
-  );
-  const stopSessions = useMutation(
-    rpcClient.workspace.session.stop.mutationOptions(),
-  );
-  const dismissTutorial = useMutation(
-    rpcClient.workspace.task.state.set.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to dismiss tutorial prompt", {
-          description: error.message,
-        });
-      },
-      onSuccess: () => {
-        void queryClient.invalidateQueries({
-          queryKey: rpcClient.workspace.task.state.get.queryOptions({
-            input: { id },
-          }).queryKey,
-        });
       },
     }),
   );
@@ -138,6 +184,17 @@ export function TaskChat({
     setSelectedModelURI(initialSelectedModelURI);
   }
 
+  // The message the next send answers. A reply belongs to the conversation it
+  // was started in, so another one coming on screen lets it go.
+  const [replyTo, setReplyTo] = useState<
+    SessionMessageDataPart.ReplyDataPart | undefined
+  >();
+  const [replySessionId, setReplySessionId] = useState(selectedSessionId);
+  if (selectedSessionId !== replySessionId) {
+    setReplySessionId(selectedSessionId);
+    setReplyTo(undefined);
+  }
+
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: selectedSessionId
@@ -151,6 +208,33 @@ export function TaskChat({
   );
 
   const messages = messagesQuery.data ?? [];
+  // What was sent and is not stored yet, drawn after what is: see PendingPrompt.
+  const [pending, setPending] = useState<PendingPrompt[]>([]);
+  const unsettled = unsettledPrompts(pending, messages);
+  if (unsettled.length !== pending.length) {
+    setPending(unsettled);
+  }
+  const shownMessages = [
+    ...messages,
+    ...unsettled
+      .filter((entry) => entry.message.metadata.sessionId === selectedSessionId)
+      .map((entry) => entry.message),
+  ];
+  /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
+  const showPending = (
+    prompt: string,
+    reply?: SessionMessageDataPart.ReplyDataPart,
+  ) => {
+    const entry = selectedSessionId
+      ? pendingPrompt({ messages, prompt, reply, sessionId: selectedSessionId })
+      : undefined;
+    if (entry) {
+      setPending((current) => [...current, entry]);
+    }
+    return () => {
+      setPending((current) => current.filter((other) => other !== entry));
+    };
+  };
   const messageError = messagesQuery.error;
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
@@ -159,7 +243,6 @@ export function TaskChat({
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     id,
-    isReplayActive,
     sessionId: selectedSessionId,
   });
 
@@ -228,90 +311,55 @@ export function TaskChat({
     });
   };
 
-  const handleStartNewTask = () => {
-    if (task.projectId) {
-      void navigate({
-        params: { id: task.projectId },
-        to: "/projects/$id",
-      });
-    } else {
-      void navigate({ to: "/new-tab" });
-    }
-  };
-
-  const features = useAtomValue(featuresAtom);
-  const isQueueEnabled = features.prompt_queue;
-  const { clear, enqueue, queue, remove } = usePromptQueue({
-    isAgentAlive,
-    onDispatch: (queued) => {
-      if (!selectedSessionId) {
-        return;
-      }
-      createMessage.mutate({
-        files: queued.files,
-        folders: queued.folders,
-        id,
-        modelURI: queued.modelURI,
-        prompt: queued.prompt,
-        sessionId: selectedSessionId,
-      });
-    },
-  });
-
   const isActiveTab = useIsActiveTab();
-  const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
-  const draftKey = { scope: "task", taskId: id } as const;
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
+  // A chat coming on screen is a place to reply from, so the caret lands
+  // in the field as it opens.
   useLayoutEffect(() => {
     if (!isActiveTab) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
+  }, [isActiveTab, selectedSessionId, promptEditor]);
 
-  const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
-  const [composerFolderCount, setComposerFolderCount] = useState(0);
-  const isTutorialActive = showTutorial === true && !isTutorialDismissed;
-  // The composer grows its own wrapper once a folder is attached, and two
-  // nested ones read as a box in a box. The tutorial gives way for as long as
-  // the folder is there and comes back if it is removed: nothing is written
-  // away, so this is a fold rather than a dismissal.
-  const isTutorialVisible = isTutorialActive && composerFolderCount === 0;
+  // A chat's plus opens things beside the chat: the web's starting view and
+  // the computer each as a tab of their own, and Apps where one is connected.
+  const places = appWindow
+    ? {
+        computerName: computerName(),
+        onOpenApps: () => {
+          appWindow.openScreen(APPS_HREF, { ownTab: true });
+        },
+        onOpenComputer: () => {
+          appWindow.openScreen(instrumentFolderHref(), { ownTab: true });
+        },
+        onOpenWeb: () => {
+          appWindow.openScreen(BROWSER_HREF, { ownTab: true });
+        },
+      }
+    : undefined;
 
-  const handleDismissTutorial = () => {
-    setIsTutorialDismissed(true);
-    dismissTutorial.mutate({
-      id,
-      state: {
-        showTutorial: false,
-      },
-    });
+  const startReply = (reply: SessionMessageDataPart.ReplyDataPart) => {
+    setReplyTo(reply);
+    promptEditor?.focus();
   };
 
   const promptInput = (
     <PromptInput
+      // Beside the work, the row stays open: a tab switch moves the caret, and
+      // a row that folded and unfolded with it would animate on every switch.
+      alwaysOpen
+      attachmentsLead={asks?.pills}
       autoFocus
       className="relative z-10"
       draftKey={draftKey}
-      folderTrayPlacement="above"
+      hasAttachmentsLead={asks?.pills != null}
       id={id}
       isLoading={createMessage.isPending}
-      isStoppable={isAgentAlive}
-      isSubmittable={isQueueEnabled ? true : !isAgentAlive}
+      lead={composerLead}
       modelURI={selectedModelURI}
-      onFolderCountChange={setComposerFolderCount}
       onModelChange={setSelectedModelURI}
-      onStop={() => {
-        if (isReplayActive && onCancelReplay) {
-          onCancelReplay();
-        } else {
-          // Stop is a hard halt: drop pending follow-ups so the queue does not
-          // auto-advance the moment the interrupted turn ends.
-          clear();
-          stopSessions.mutate({ id });
-        }
-      }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
         // The composer empties on submit rather than on the reply, so a send the
         // workspace rejects has to hand the prompt and its attachments back --
@@ -326,52 +374,45 @@ export function TaskChat({
         // session is still starting up would only land at the end.
         setIsFollowingSubmit(true);
         setScrollToEndSignal((signal) => signal + 1);
-        if (isTutorialActive) {
-          handleDismissTutorial();
-        }
-        // While a turn is running, buffer the prompt; the queue delivers it
-        // when the agent goes idle. A brand-new session (no id yet) always
-        // starts immediately.
-        if (isQueueEnabled && isAgentAlive && selectedSessionId) {
-          enqueue({ files, folders, modelURI, prompt });
-          return;
-        }
-        createMessage.mutate(
-          {
-            files,
-            folders,
-            id,
-            modelURI,
-            prompt,
-            sessionId: selectedSessionId,
-          },
-          {
-            onError: () => {
-              if (draft) {
-                promptInputRef.current?.restore(draft);
-              }
+        const taken = asks?.take();
+        const reply = replyTo;
+        setReplyTo(undefined);
+        // Drawn before what goes with it is read: reading a page can take a
+        // moment, and the send is only stored once that is in.
+        const dropPending = showPending(prompt, reply);
+        void Promise.resolve(sendContext?.()).then((viewing) => {
+          createMessage.mutate(
+            {
+              ...(taken ? { asks: taken.part } : {}),
+              ...(reply ? { replyTo: reply } : {}),
+              files,
+              folders,
+              id,
+              modelURI,
+              prompt,
+              sessionId: selectedSessionId,
+              viewing,
             },
-            onSuccess: ({ sessionId }) => {
-              void navigate({
-                params: { id },
-                replace: true,
-                search: (prev) => ({
-                  ...prev,
-                  selectedSessionId: sessionId,
-                }),
-                to: "/tasks/$id",
-              });
+            {
+              onError: () => {
+                dropPending();
+                if (draft) {
+                  promptInputRef.current?.restore(draft);
+                }
+                setReplyTo(reply);
+              },
+              onSuccess: () => {
+                taken?.done();
+              },
             },
-          },
-        );
+          );
+        });
       }}
-      placeholder={
-        isQueueEnabled && isAgentAlive
-          ? "Queue a follow-up…"
-          : `Talk to ${APP_NAME}`
-      }
+      placeholder={composerPlaceholder ?? `Talk to ${APP_NAME}`}
+      places={places}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
+      variant="pill"
     />
   );
 
@@ -390,145 +431,161 @@ export function TaskChat({
   // of a turn to land. Alive rather than running, so a turn paused for approval
   // still follows.
   return (
-    <MessageScrollerProvider
-      autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
-      defaultScrollPosition="end"
-      key={selectedSessionId}
-      scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
-    >
-      <ScrollToEndBridge signal={scrollToEndSignal} />
-      <div className="flex h-full min-h-0 flex-col">
-        <MessageScroller className="min-h-0 flex-1">
-          {/* Named so a block inside a message can measure the pane rather
+    <ReplyContext value={startReply}>
+      <MessageScrollerProvider
+        autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
+        defaultScrollPosition="end"
+        key={selectedSessionId}
+        scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
+      >
+        {/* The session is part of the signal: arriving in a conversation puts
+        you at its live edge the way opening one does, and switching chats
+        is arriving. Without it the transcript kept whatever offset the
+        previous chat happened to leave behind. The messages landing is the
+        other part: they are read after the conversation mounts, and the end
+        of a spinner is not the end of the chat. */}
+        <ScrollToEndBridge
+          contentRef={contentRef}
+          signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
+        />
+        <div className="flex h-full min-h-0 flex-col">
+          <MessageScroller className="min-h-0 flex-1">
+            {/* Named so a block inside a message can measure the pane rather
               than the column it sits in, and `--transcript-room` declared one
               level in, where `100cqi` resolves against that container. A wide
               Markdown table is the only reader today. */}
-          <MessageScrollerViewport
-            className="@container/transcript"
-            data-transcript
-          >
-            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
-              {selectedSessionId ? (
-                isLoadingMessages ? (
-                  <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                    <Spinner className="size-4 text-muted-foreground" />
-                  </div>
-                ) : messageError ? (
-                  <Alert className="mt-4" variant="warning">
-                    <AlertDescription className="flex flex-col gap-4">
-                      <div className="font-semibold">
-                        Failed to load messages
-                      </div>
-                      <div className="text-sm">
-                        {messageError.message || "Unknown error occurred"}
-                      </div>
-                      <div className="flex gap-2">
-                        <Tooltip delayDuration={0}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              onClick={handleStartNewTask}
-                              variant="secondary"
-                            >
-                              Start new task
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              Opens a blank task. Nothing carries over, but this
-                              one stays in your list, so you can copy over
-                              anything you still need.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip delayDuration={0}>
-                          <TooltipTrigger asChild>
-                            <Button onClick={() => refetch()}>Retry</Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Retry loading messages</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                ) : !isAgentRunning && messages.length === 0 ? (
-                  <ChatZeroState
-                    id={id}
-                    selectedSessionId={selectedSessionId}
-                  />
+            <MessageScrollerViewport
+              className="@container/transcript"
+              data-transcript
+            >
+              <MessageScrollerContent
+                className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]"
+                ref={contentRef}
+              >
+                {selectedSessionId ? (
+                  sentPrompt !== undefined && messages.length === 0 ? (
+                    <SentPrompt
+                      sessionId={selectedSessionId}
+                      text={sentPrompt}
+                    />
+                  ) : isLoadingMessages ? (
+                    <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                      <Spinner
+                        className="size-4 text-muted-foreground"
+                        delay={0}
+                      />
+                    </div>
+                  ) : messageError ? (
+                    <Alert className="mt-4" variant="warning">
+                      <AlertDescription className="flex flex-col gap-4">
+                        <div className="font-semibold">
+                          Failed to load messages
+                        </div>
+                        <div className="text-sm">
+                          {messageError.message || "Unknown error occurred"}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={() => refetch()}>Retry</Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : !isAgentRunning && shownMessages.length === 0 ? (
+                    <NoMessages />
+                  ) : (
+                    <TranscriptStream
+                      isAgentRunning={isAgentRunning}
+                      isDeveloperMode={isDeveloperMode}
+                      messages={shownMessages}
+                      onContinue={handleContinue}
+                      onModelChange={setSelectedModelURI}
+                      onRetry={handleRetry}
+                      onRunAgain={handleRunAgain}
+                      presentation="chat"
+                      task={task}
+                    />
+                  )
                 ) : (
-                  <TranscriptStream
-                    isAgentRunning={isAgentRunning}
-                    isDeveloperMode={isDeveloperMode}
-                    messages={messages}
-                    onContinue={handleContinue}
-                    onModelChange={setSelectedModelURI}
-                    onRetry={handleRetry}
-                    onRunAgain={handleRunAgain}
-                    onStartNewTask={handleStartNewTask}
-                    task={task}
-                  />
-                )
-              ) : (
-                <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
+                  <NoMessages />
+                )}
+                {transcriptTrailing}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
 
-          <TranscriptTopFade />
+            <TranscriptTopFade />
 
-          {/* Fade the transcript into the composer with a background gradient
+            {/* Fade the transcript into the composer with a background gradient
               rather than a viewport mask, so the scrollbar stays crisp. The
               right inset clears the scrollbar; the content column is centered
               and padded, so its text stays fully within the fade. */}
-          <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
+            <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-            <MessageScrollerButton
-              busy={isAgentRunning}
-              className="pointer-events-auto"
-            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
+              <MessageScrollerButton
+                busy={isAgentRunning}
+                className="pointer-events-auto"
+              />
+            </div>
+          </MessageScroller>
+
+          {/* isolate: keep the prompt input's z-10 contained to the composer. */}
+          <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
+            {/* Inside the column rather than above it, so it is exactly as wide
+              as the composer it belongs to. */}
+            {beforeComposer}
+            {replyTo && (
+              <ComposerReplyQuote
+                onDismiss={() => {
+                  setReplyTo(undefined);
+                }}
+                reply={replyTo}
+              />
+            )}
+            {promptInput}
           </div>
-        </MessageScroller>
-
-        {/* isolate: keep the tutorial card's -z-10 background and the prompt
-            input's z-10 contained to the composer. */}
-        <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
-          <QueuedPrompts onRemove={remove} prompts={queue} />
-          {showTutorial === undefined ? (
-            promptInput
-          ) : (
-            <TutorialPromptCard
-              isDismissPending={dismissTutorial.isPending}
-              isVisible={isTutorialVisible}
-              onDismiss={handleDismissTutorial}
-            >
-              {promptInput}
-            </TutorialPromptCard>
-          )}
         </div>
-      </div>
-    </MessageScrollerProvider>
+      </MessageScrollerProvider>
+    </ReplyContext>
   );
 }
 
-// The scroll commands come from the provider's context, so they are only
-// reachable below it. This renders nothing and exists to run scrollToEnd for
-// the submit handler, which sits above the provider. A counter rather than a
-// direct call, so the scroll runs from the render that turned autoScroll on and
-// the scroller arms follow-bottom with it.
-function ScrollToEndBridge({ signal }: { signal: number }) {
-  const { scrollToEnd } = useMessageScroller();
+function NoMessages() {
+  return (
+    <div className="mt-8 text-center text-muted-foreground/50">
+      No messages yet
+    </div>
+  );
+}
 
-  useLayoutEffect(() => {
-    if (signal === 0) {
-      return;
-    }
-
-    scrollToEnd();
-  }, [scrollToEnd, signal]);
-
-  return null;
+/**
+ * The words just sent, as the transcript will draw them once they are
+ * stored, with the conversation's dots under them.
+ */
+function SentPrompt({
+  sessionId,
+  text,
+}: {
+  sessionId: StoreId.Session;
+  text: string;
+}) {
+  const [part] = useState(
+    (): SessionMessagePart.TextPart => ({
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId: StoreId.newMessageId(),
+        sessionId,
+      },
+      state: "done",
+      text,
+      type: "text",
+    }),
+  );
+  return (
+    <div className="flex flex-col gap-2">
+      <UserMessage compact part={part} />
+      <TypingRow />
+    </div>
+  );
 }
 
 // The transcript, wired to the scroller it is drawn in. ChatStream also renders

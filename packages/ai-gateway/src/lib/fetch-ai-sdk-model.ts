@@ -1,4 +1,4 @@
-import { type LanguageModelV3 } from "@ai-sdk/provider";
+import { type LanguageModelV4 } from "@ai-sdk/provider";
 import {
   type CaptureExceptionFunction,
   type WorkspaceServerURL,
@@ -37,7 +37,7 @@ export async function fetchAISDKModel({
 
     if (config) {
       const testOverride = (
-        config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV3 }
+        config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV4 }
       )[TEST_MODEL_OVERRIDE_KEY];
       if (testOverride) {
         return testOverride;

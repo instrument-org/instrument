@@ -184,5 +184,4 @@ const binary = await ensureBinary();
 const { status } = spawnSync(binary, process.argv.slice(2), {
   stdio: "inherit",
 });
-// eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
 process.exit(status ?? 1);

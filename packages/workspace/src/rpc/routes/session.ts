@@ -1,16 +1,22 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { isExpectedNetworkError } from "@instrument-org/shared";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call } from "@orpc/server";
+import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { agentNameForTask } from "../../lib/agent-name-for-task";
+import { killSessionBackgroundProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
+import { cancelHold } from "../../lib/task-hold";
 import { recordTaskActivity } from "../../lib/task-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
+import { ToolNameSchema } from "../../tools/name";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
@@ -92,6 +98,29 @@ const remove = base
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId } = input;
     const taskId = id;
+    const sessions = await Store.getSessions(taskId, {
+      includeChildSessions: true,
+    });
+    if (sessions.isErr()) {
+      throw toORPCError(sessions.error, errors);
+    }
+    const removedSessionIds = sessions.value
+      .filter(
+        (session) => session.id === sessionId || session.parentId === sessionId,
+      )
+      .map((session) => session.id);
+    // Cleanup is already bounded, and a process that will not confirm it stopped
+    // must not make its session undeletable: record it and remove the session
+    // anyway, so the stuck process is the only thing left to deal with.
+    await Promise.all(
+      removedSessionIds.map((removedSessionId) =>
+        killSessionBackgroundProcesses(removedSessionId).catch(
+          (error: unknown) => {
+            context.workspaceConfig.captureException(error);
+          },
+        ),
+      ),
+    );
     const result = await Store.removeSession(sessionId, taskId);
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -145,14 +174,16 @@ const run = base
     });
 
     if (!modelResult.ok) {
-      context.workspaceConfig.captureException(modelResult.error);
+      if (!isExpectedNetworkError(modelResult.error)) {
+        context.workspaceConfig.captureException(modelResult.error);
+      }
       throw toORPCError(modelResult.error, errors);
     }
 
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: "main",
+        agentName: await agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,
@@ -168,6 +199,9 @@ const run = base
 const stop = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(({ context, input }) => {
+    // A task held from starting has no session to stop; stopping it cancels
+    // the start instead.
+    cancelHold(input.id);
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
@@ -285,7 +319,59 @@ const live = {
     }),
 };
 
+/**
+ * Answer a tool call that is waiting on the user: a `choose` or a
+ * `request_folder`. The output is checked against the tool's own schema, then
+ * handed to the session holding the call, which records it and lets the agent
+ * go on.
+ */
+const answerToolCall = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      output: z.unknown(),
+      toolCallId: z.string(),
+      toolName: ToolNameSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(({ context, input }) => {
+    const tool = TOOLS_BY_NAME[input.toolName];
+    const parsed = tool.outputSchema.safeParse(input.output);
+    if (!parsed.success) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `Not an answer ${input.toolName} accepts: ${z.prettifyError(parsed.error)}`,
+      });
+    }
+    // Nothing is waiting for the answer once the session that asked has gone,
+    // which is what an app stopped mid-turn leaves behind: the call stays
+    // unanswered on disk and the card that draws it still has its buttons. The
+    // machine drops such an answer with a line in the log, so say it here
+    // instead, where the click can be told it went nowhere.
+    const sessions =
+      context.workspaceRef
+        .getSnapshot()
+        .context.sessionRefsByTaskId.get(input.id) ?? [];
+    if (sessions.length === 0) {
+      throw new ORPCError("CONFLICT", {
+        message: "That request ended before the answer reached it.",
+      });
+    }
+    // The name and the output were validated together above, which is the
+    // correlation the union type carries and a lookup by name cannot express.
+    const output: unknown = parsed.data;
+    const value = { output, toolName: input.toolName } as ToolOutputByName;
+    context.workspaceRef.send({
+      type: "updateInteractiveToolCall",
+      value: {
+        id: input.id,
+        update: { toolCallId: input.toolCallId, type: "success", value },
+      },
+    });
+  });
+
 export const session = {
+  answerToolCall,
   byId,
   byIdWithMessagesAndParts,
   contextTokens,

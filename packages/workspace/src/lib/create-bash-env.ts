@@ -1,5 +1,6 @@
 import {
   Bash,
+  type Command,
   type CommandName,
   type CommandNode,
   defineCommand,
@@ -9,6 +10,7 @@ import {
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
+import ms from "ms";
 import { dedent } from "radashi";
 
 import { MOUNT } from "../mount-points";
@@ -16,19 +18,40 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
+import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
+import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
+import {
+  createFgCommand,
+  createJobsCommand,
+  createKillCommand,
+  FG_COMMAND,
+  JOBS_COMMAND,
+  KILL_COMMAND,
+  type SessionCommandContext,
+} from "./shell-commands/background-jobs";
+import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
+import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
+import { createJsExecCommand, JS_EXEC_COMMAND } from "./shell-commands/js-exec";
+import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
+import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import {
+  createOsascriptCommand,
+  OSASCRIPT_COMMAND,
+} from "./shell-commands/osascript";
 import {
   createPip3Command,
   createPipCommand,
@@ -48,11 +71,15 @@ import {
 import {
   createPython3Command,
   createPythonCommand,
+  createPythonNativeCommand,
   PYTHON3_COMMAND,
   PYTHON_COMMAND,
+  PYTHON_NATIVE_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
-import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
+import { createTabCommand } from "./shell-commands/tab";
+import { TAB_COMMAND } from "./shell-commands/tab-command";
+import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
   createValidateSkillCommand,
@@ -60,10 +87,57 @@ import {
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
-import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  type WorkspaceFsMount,
+} from "./workspace-fs-layout";
 
-/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
+/** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+
+/**
+ * What one command may build as output, which is a different question from how
+ * large a file the agent may work on. A broad walk over an attached folder
+ * produces a string the size of the tree and every byte of it is allocated on
+ * the thread that paints the window: one unfiltered `rg --files` over a home
+ * folder measures 185 MiB and stalls the window for 25 seconds without
+ * exceeding anything. Bounding this leaves the file sizes alone.
+ */
+const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Operations and entries one traversal may spend, both 1,000,000 by default.
+ * A home folder reaches that after about twenty seconds and returns nothing to
+ * show for it, since a pipeline stage buffers rather than streams. This is the
+ * backstop rather than the fix, so it is set to give up while the user is still
+ * watching without failing work a task legitimately does: a whole monorepo
+ * checkout with its `node_modules`, the heaviest tree a task holds, is about
+ * 107,000 files, and traversal charges upwards of one unit each.
+ */
+const SANDBOX_MAX_TRAVERSAL = 300_000;
+
+/**
+ * The same budget for the orchestrator's shell, which only reads what its
+ * tasks produced and moves finished files into place. It holds the user's
+ * whole home folder, so a stray `find` over it is the likeliest runaway walk
+ * there is, and the budget counts entries rather than time: 300,000 of them
+ * costs a few seconds of `find` on macOS and over half a minute on Windows,
+ * all on the thread that paints the window. A walk bigger than this is a
+ * task's to do.
+ */
+const ORCHESTRATOR_MAX_TRAVERSAL = 20_000;
+
+/**
+ * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
+ * take, against just-bash's 30 second default. Those runtimes are where a
+ * script over an attached folder runs, and a parse of a large tree is minutes
+ * of work rather than seconds. A call that outlives its `yieldMs` is promoted
+ * to a background process like any other, so the cap only has to bound a
+ * runaway; anything longer belongs to the native interpreters, which have no
+ * cap beyond the background age limit.
+ */
+const SANDBOX_SCRIPT_TIMEOUT_MS = ms("30 minutes");
 
 function stubCommand(
   name: string,
@@ -99,76 +173,123 @@ const STATIC_STUB_COMMANDS = [
   ),
 ];
 
+/**
+ * Visits the name of every simple command in a script, including the ones inside
+ * loops, conditionals, function bodies and command substitutions.
+ *
+ * Shared because two plugins want the same traversal for opposite reasons: one
+ * reads the names, the other rewrites one of them. Walking twice is cheap; two
+ * copies of this recursion drifting apart is not.
+ */
+function forEachCommandName(
+  ast: ScriptNode,
+  visit: (name: { type: "Literal"; value: string }) => void,
+) {
+  walkScript(ast);
+
+  function walkScript(node: ScriptNode) {
+    for (const stmt of node.statements) {
+      walkStatement(stmt);
+    }
+  }
+
+  function walkStatement(stmt: StatementNode) {
+    for (const pipeline of stmt.pipelines) {
+      for (const cmd of pipeline.commands) {
+        walkCommand(cmd);
+      }
+    }
+  }
+
+  function walkCommand(node: CommandNode) {
+    switch (node.type) {
+      case "For":
+      case "Group":
+      case "Subshell":
+      case "Until":
+      case "While": {
+        const stmts = [
+          ...("condition" in node ? node.condition : []),
+          ...node.body,
+        ];
+        for (const stmt of stmts) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "FunctionDef": {
+        walkCommand(node.body);
+        break;
+      }
+      case "If": {
+        for (const clause of node.clauses) {
+          for (const stmt of [...clause.condition, ...clause.body]) {
+            walkStatement(stmt);
+          }
+        }
+        for (const stmt of node.elseBody ?? []) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "SimpleCommand": {
+        const part = node.name?.parts[0];
+        if (part?.type === "Literal") {
+          visit(part);
+        }
+        for (const arg of node.args) {
+          for (const p of arg.parts) {
+            if (p.type === "CommandSubstitution") {
+              walkScript(p.body);
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Rewrites `wait` to the `fg` command.
+ *
+ * `wait` is an interpreter builtin, so a custom command cannot shadow it the way
+ * `jobs` and `kill` are shadowed. Left alone it exits 0 with no output, which
+ * reads as "the process finished and wrote nothing" -- the one wrong answer here
+ * that looks right. Nothing can legitimately reach the builtin either, since `&`
+ * is unsupported and there are never shell jobs to wait for.
+ *
+ * Its own plugin rather than a line inside `command-order`, because this decides
+ * what runs. A rewrite that rides along inside a plugin registered to collect
+ * metadata stops happening the moment that plugin is made conditional or
+ * skipped, and what comes back is the builtin whose answer looks right.
+ */
+const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
+  name: "wait-alias",
+  transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
+    forEachCommandName(context.ast, (name) => {
+      if (name.value === "wait") {
+        name.value = FG_COMMAND.name;
+      }
+    });
+    return { ast: context.ast };
+  },
+};
+
+/** Records which commands a script runs, in order, for the tool's metadata. */
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
   name: "command-order",
   transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
     const seen = new Set<string>();
     const commands: string[] = [];
 
-    function walkScript(node: ScriptNode) {
-      for (const stmt of node.statements) {
-        walkStatement(stmt);
+    forEachCommandName(context.ast, (name) => {
+      if (!seen.has(name.value)) {
+        seen.add(name.value);
+        commands.push(name.value);
       }
-    }
+    });
 
-    function walkStatement(stmt: StatementNode) {
-      for (const pipeline of stmt.pipelines) {
-        for (const cmd of pipeline.commands) {
-          walkCommand(cmd);
-        }
-      }
-    }
-
-    function walkCommand(node: CommandNode) {
-      switch (node.type) {
-        case "For":
-        case "Group":
-        case "Subshell":
-        case "Until":
-        case "While": {
-          const stmts = [
-            ...("condition" in node ? node.condition : []),
-            ...node.body,
-          ];
-          for (const stmt of stmts) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "FunctionDef": {
-          walkCommand(node.body);
-          break;
-        }
-        case "If": {
-          for (const clause of node.clauses) {
-            for (const stmt of [...clause.condition, ...clause.body]) {
-              walkStatement(stmt);
-            }
-          }
-          for (const stmt of node.elseBody ?? []) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "SimpleCommand": {
-          const part = node.name?.parts[0];
-          if (part?.type === "Literal" && !seen.has(part.value)) {
-            seen.add(part.value);
-            commands.push(part.value);
-          }
-          for (const arg of node.args) {
-            for (const p of arg.parts) {
-              if (p.type === "CommandSubstitution") {
-                walkScript(p.body);
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    walkScript(context.ast);
     return { ast: context.ast, metadata: { commands } };
   },
 };
@@ -184,25 +305,65 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };
 
+/**
+ * What a custom command is built from. Most take the task id alone; `git`
+ * takes the whole layout, since it reaches attached folders by their host
+ * paths the way `rg` does.
+ */
+interface CustomCommandContext {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
+  taskId: TaskId;
+}
+
 interface CustomCommandDef {
   description: string;
-  factory: (taskId: TaskId) => ReturnType<typeof defineCommand>;
+  factory: (context: CustomCommandContext) => ReturnType<typeof defineCommand>;
   // When false, the command is available (including via `which`) but omitted
   // from the agent-facing description to discourage its use.
   listInDescription: boolean;
   name: string;
+  /** Where the binary exists; elsewhere the name stays unclaimed. */
+  platforms?: NodeJS.Platform[];
 }
 
-const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
+/**
+ * Commands built with the session id rather than the task id. Background
+ * processes are owned by the session that started them, so the commands that
+ * list, wait on and stop them have to be keyed the way the registry is.
+ */
+const SESSION_COMMAND_DEFS: {
+  description: string;
+  factory: (context: SessionCommandContext) => ReturnType<typeof defineCommand>;
+  name: string;
+}[] = [
+  {
+    description: JOBS_COMMAND.description,
+    factory: createJobsCommand,
+    name: JOBS_COMMAND.name,
+  },
+  {
+    description: FG_COMMAND.description,
+    factory: createFgCommand,
+    name: FG_COMMAND.name,
+  },
+  {
+    description: KILL_COMMAND.description,
+    factory: createKillCommand,
+    name: KILL_COMMAND.name,
+  },
+];
+
+const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
-    factory: createFfmpegCommand,
+    factory: ({ taskId }) => createFfmpegCommand(taskId),
     listInDescription: true,
     name: FFMPEG_COMMAND.name,
   },
   {
     description: FFPROBE_COMMAND.description,
-    factory: createFfprobeCommand,
+    factory: ({ taskId }) => createFfprobeCommand(taskId),
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
   },
@@ -214,82 +375,127 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: MKTEMP_COMMAND.description,
-    factory: createMktempCommand,
+    factory: () => createMktempCommand(),
     listInDescription: true,
     name: MKTEMP_COMMAND.name,
   },
   {
     description: NODE_COMMAND.description,
-    factory: createNodeCommand,
+    factory: ({ taskId }) => createNodeCommand(taskId),
     listInDescription: true,
     name: NODE_COMMAND.name,
+  },
+  {
+    description: OSASCRIPT_COMMAND.description,
+    factory: ({ taskId }) => createOsascriptCommand(taskId),
+    listInDescription: true,
+    name: OSASCRIPT_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: JS_EXEC_COMMAND.description,
+    factory: () => createJsExecCommand(),
+    listInDescription: true,
+    name: JS_EXEC_COMMAND.name,
   },
 
   {
     description: PNPM_COMMAND.description,
-    factory: createPnpmCommand,
+    factory: ({ taskId }) => createPnpmCommand(taskId),
     listInDescription: true,
     name: PNPM_COMMAND.name,
   },
   {
     description: NPX_COMMAND.description,
-    factory: createNpxCommand,
+    factory: ({ taskId }) => createNpxCommand(taskId),
     listInDescription: false,
     name: NPX_COMMAND.name,
   },
   {
     description: PNPX_COMMAND.description,
-    factory: createPnpxCommand,
+    factory: ({ taskId }) => createPnpxCommand(taskId),
     listInDescription: false,
     name: PNPX_COMMAND.name,
   },
   {
     description: PNX_COMMAND.description,
-    factory: createPnxCommand,
+    factory: ({ taskId }) => createPnxCommand(taskId),
     listInDescription: true,
     name: PNX_COMMAND.name,
   },
   {
     description: UV_COMMAND.description,
-    factory: createUvCommand,
+    factory: ({ taskId }) => createUvCommand(taskId),
     listInDescription: true,
     name: UV_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: createPythonCommand,
+    factory: ({ taskId }) => createPythonCommand(taskId),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: createPython3Command,
+    factory: ({ taskId }) => createPython3Command(taskId),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
   },
   {
+    description: PYTHON_NATIVE_COMMAND.description,
+    factory: ({ taskId }) => createPythonNativeCommand(taskId),
+    listInDescription: true,
+    name: PYTHON_NATIVE_COMMAND.name,
+  },
+  {
     description: PIP_COMMAND.description,
-    factory: createPipCommand,
+    factory: ({ taskId }) => createPipCommand(taskId),
     listInDescription: true,
     name: PIP_COMMAND.name,
   },
   {
     description: PIP3_COMMAND.description,
-    factory: createPip3Command,
+    factory: ({ taskId }) => createPip3Command(taskId),
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
   },
   {
     description: VALIDATE_SKILL_COMMAND.description,
-    factory: createValidateSkillCommand,
+    factory: () => createValidateSkillCommand(),
     listInDescription: true,
     name: VALIDATE_SKILL_COMMAND.name,
   },
 ];
 
-export function createBashDescription() {
+/** The custom commands this platform has, read per call so a test can pin one. */
+function customCommandDefs(): CustomCommandDef[] {
+  return ALL_CUSTOM_COMMAND_DEFS.filter(
+    (cmd) => cmd.platforms?.includes(process.platform) ?? true,
+  );
+}
+
+export interface BashEnvOptions {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Present when the task is an orchestrator: its children mount read-only and
+   * its command set shrinks to reading and `task`. See
+   * `createOrchestratorBashDescription`.
+   */
+  orchestrator?: { childMounts: WorkspaceFsMount[] };
+  projectFolderName?: string;
+  remainingYieldMs?: () => number;
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}
+
+/** What callers of `createBashEnv` get, wherever the interpreter runs. */
+export type BashRunner = Pick<Bash, "exec">;
+
+export function createBashDescription({
+  orchestrator = false,
+}: { orchestrator?: boolean } = {}) {
   const allowedCommandNames = getCommandNames().filter(
     (name) => !BROKEN_COMMANDS.has(name),
   );
@@ -298,16 +504,20 @@ export function createBashDescription() {
     .filter((name) => !(name in DESCRIBED_COMMANDS))
     .sort();
 
+  if (orchestrator) {
+    return createOrchestratorBashDescription(namedOnly);
+  }
+
   const described = Object.entries(DESCRIBED_COMMANDS)
     .filter(([name]) => allowedCommandNames.includes(name))
     .map(([name, description]) => `  ${name} - ${description}`);
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    `  ${SHOW_COMMAND.name} - ${SHOW_COMMAND.description}`,
-    ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
-      (cmd) => `  ${cmd.name} - ${cmd.description}`,
-    ),
+    ...customCommandDefs()
+      .filter((cmd) => cmd.listInDescription)
+      .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
@@ -315,18 +525,25 @@ export function createBashDescription() {
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv at the task root), TypeScript/JavaScript via \`${NODE_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
+    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.attachedFolders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading attached folders with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is, and paths inside script FILES on disk are never translated.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
-    IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
+    IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
+    A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+    Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
+    A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
+    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
+
+    IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${NODE_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
       - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead of \`sed\`/\`awk\`/redirects for editing.
-      - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`. It composes, so \`rg -l TODO | head\` works.
+      - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`, or \`--iglob '*report*'\` to ignore case. It composes, so \`rg -l TODO | head\` works.
+      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\`, never by piping \`rg --files\` into another command: a pipe stage only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
       - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
       - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
@@ -338,23 +555,57 @@ export function createBashDescription() {
 
     Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
 
-    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_NATIVE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
     Specialized commands:
     ${specializedCommands}
   `.trim();
 }
 
-export async function createBashEnv({
+/**
+ * Commands that act on state only the main thread holds: the background
+ * process registry, the task store and its events, the browser, and app
+ * credentials. When the interpreter runs in the bash worker, these are
+ * stand-ins that send the call back to the main thread; every other command
+ * runs where the interpreter does.
+ */
+const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
+  AGENT_BROWSER_COMMAND.name,
+  APP_COMMAND.name,
+  CHAT_COMMAND.name,
+  FG_COMMAND.name,
+  JOBS_COMMAND.name,
+  KILL_COMMAND.name,
+  MEMORY_COMMAND.name,
+  TAB_COMMAND.name,
+  TASK_COMMAND.name,
+]);
+
+/**
+ * The agent's shell: in the bash worker when the host set one up (see
+ * `bashWorkerEnabled`), otherwise on this thread.
+ */
+export async function createBashEnv(
+  options: BashEnvOptions,
+): Promise<BashRunner> {
+  return bashWorkerEnabled()
+    ? createRemoteBash(options, () => createLocalBashEnv(options))
+    : await createLocalBashEnv(options);
+}
+
+export async function createLocalBashEnv({
   attachedFolders,
+  orchestrator,
   projectFolderName,
+  // Defaulted so the callers that never wait -- skill validation, tests, the
+  // sandbox script -- do not have to describe a yield window they do not have.
+  remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
+  standIn,
   taskId,
-}: {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  projectFolderName?: string;
-  sessionId: StoreId.Session;
-  taskId: TaskId;
+}: BashEnvOptions & {
+  /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
+  standIn?: (name: string) => Command;
 }) {
   // The layout is the single source of truth for what the agent can see: the
   // writable task directory mounted at /task (the working directory), the
@@ -363,7 +614,11 @@ export async function createBashEnv({
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
+    // The orchestrator authors apps, so it gets their folders; a task reaches
+    // the apps it was handed through the command alone.
+    apps: orchestrator !== undefined,
     attachedFolders,
+    extraMounts: orchestrator?.childMounts,
     projectFolderName,
     taskHostRoot: taskDir(taskId),
   });
@@ -371,37 +626,99 @@ export async function createBashEnv({
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...getNetworkCommandNames(),
+    ...(orchestrator ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
+
+  // What sets the two shells apart: the orchestrator gets `task`, `chat`,
+  // `memory` and `tab` and nothing else beyond reading, the working agent
+  // gets the native hatches. Both get `app`, which does its network work host-side behind its
+  // own guards, so the orchestrator's shell stays network-free. Putting a
+  // thing on the user's screen is the orchestrator's `tab`: a task's reply is
+  // read by the orchestrator, and a pane of the task's own has nobody looking.
+  const specializedCommands = orchestrator
+    ? [
+        createTaskCommand({
+          orchestratorTaskId: taskId,
+          remainingYieldMs,
+          sessionId,
+        }),
+        createChatCommand(),
+        createMemoryCommand({ orchestratorTaskId: taskId, sessionId }),
+        createAppCommand({ taskId }),
+        createTabCommand({ sessionId, taskId }),
+      ]
+    : [
+        createAppCommand({ taskId }),
+        ...customCommandDefs().map((cmd) =>
+          cmd.factory({ attachedFolders, projectFolderName, taskId }),
+        ),
+      ];
+  const specializedCommandNames = orchestrator
+    ? [
+        TASK_COMMAND.name,
+        CHAT_COMMAND.name,
+        MEMORY_COMMAND.name,
+        APP_COMMAND.name,
+        TAB_COMMAND.name,
+      ]
+    : [APP_COMMAND.name, ...customCommandDefs().map((cmd) => cmd.name)];
 
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
-      createAgentBrowserCommand({
-        sessionId,
-        taskId,
-      }),
+      // For the orchestrator, the tab the user has on screen or none: it never
+      // creates a browser of its own, so a command with no tab up refuses.
+      createAgentBrowserCommand({ sessionId, taskId }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ attachedFolders, projectFolderName, taskId }),
-      createShowCommand({ sessionId, taskId }),
-      ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
+      createRgCommand({
+        attachedFolders,
+        extraMounts: orchestrator?.childMounts,
+        projectFolderName,
+        taskId,
+      }),
+      createDuCommand({
+        apps: orchestrator !== undefined,
+        attachedFolders,
+        extraMounts: orchestrator?.childMounts,
+        projectFolderName,
+        taskId,
+      }),
+      ...specializedCommands,
+      // After the bundled commands so these shadow just-bash's own `kill` and
+      // `wait`, which act on host pids this sandbox deliberately cannot name.
+      ...SESSION_COMMAND_DEFS.map((cmd) =>
+        cmd.factory({ remainingYieldMs, sessionId }),
+      ),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,
-          SHOW_COMMAND.name,
+          RG_COMMAND.name,
           ...allowedCommands,
-          ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
+          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
+          ...specializedCommandNames,
         ]),
       ),
       ...STATIC_STUB_COMMANDS,
-    ],
+    ].map((command) =>
+      standIn && MAIN_THREAD_COMMANDS.has(command.name)
+        ? standIn(command.name)
+        : command,
+    ),
     cwd: MOUNT.task,
     executionLimits: {
-      maxOutputSize: SANDBOX_MAX_BYTES,
+      maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
+      maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
+      maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
+      maxTraversalEntries: orchestrator
+        ? ORCHESTRATOR_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: orchestrator
+        ? ORCHESTRATOR_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
     },
     network: {
       // No per-domain allow-list to maintain; the agent legitimately fetches
@@ -422,9 +739,46 @@ export async function createBashEnv({
       ...(process.env.PATH && { PATH: process.env.PATH }),
     },
     fs,
+    // The WebAssembly script runtimes: CPython under `python`/`python3` and
+    // QuickJS under `js-exec`, each reading the virtual filesystem above
+    // directly. The custom commands of the same names registered above wrap
+    // them (`ctx.origCommand`) to explain their failures and to route a
+    // skill's script to the native interpreter. `javascript` also registers
+    // a `node` stub, which the native `node` command shadows, and runs the
+    // bootstrap inside QuickJS before every script to give its Node shims
+    // Node's shapes. The orchestrator's shell runs no scripts at all, so it
+    // gets neither.
+    javascript: orchestrator === undefined && { bootstrap: JS_EXEC_BOOTSTRAP },
+    python: orchestrator === undefined,
   });
 
+  // Order matters: the alias runs first so the recorded command list names
+  // what actually ran rather than what was typed.
+  bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
 
   return bash;
+}
+
+/**
+ * The orchestrator's shell is for reading, for `task`, and for the one tab
+ * the user has on screen. It has no network commands and none of the native
+ * hatches (python, node, pnpm, ffmpeg, git), because it never does long work:
+ * a shell that can read, delegate, and act on the page in front of the user is
+ * what keeps every turn short, and what keeps the host paths of the user's
+ * folders out of a process that could act on them.
+ */
+function createOrchestratorBashDescription(_builtins: string[]) {
+  return dedent`
+    Run one of the commands that are your job, \`${TASK_COMMAND.name}\`, \`${APP_COMMAND.name}\`, \`${CHAT_COMMAND.name}\`, \`${MEMORY_COMMAND.name}\` and \`${TAB_COMMAND.name}\`, or a file command for looking at a file (ls, cat, head, tail, wc, stat, file, find) or putting a finished one where it belongs (cp, mv, mkdir). Output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: nothing that writes a file's contents, no python or node, no browser, no network. That work is a task's job, and you start the task instead. Each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\`; the user's folders under \`${MOUNT.attachedFolders}\` are yours to read and write.
+
+    Not a persistent terminal: every call starts fresh. Pass a brief or a message through a quoted heredoc (\`<<'EOF'\`), never as a double-quoted argument.
+
+    Specialized commands:
+      ${TASK_COMMAND.name} - ${TASK_COMMAND.description}
+      ${APP_COMMAND.name} - ${APP_COMMAND.description}
+      ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}
+      ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}
+      ${TAB_COMMAND.name} - ${TAB_COMMAND.description}
+  `.trim();
 }

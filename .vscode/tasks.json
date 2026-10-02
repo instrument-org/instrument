@@ -45,7 +45,7 @@
         "reveal": "always",
         "showReuseMessage": true
       },
-      "problemMatcher": ["$eslint-stylish", "$tsc"],
+      "problemMatcher": ["$tsc"],
       "type": "shell"
     },
     {

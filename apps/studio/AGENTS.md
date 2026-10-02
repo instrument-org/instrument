@@ -34,20 +34,30 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 
 Two top-level windows, each its own `BrowserWindow` / web contents, both loaded from the same renderer bundle. `client/main.tsx` picks the root by `window.api.windowType` (set via the `--windowType` preload arg):
 
-- **main** — renders `<MainWindow />`: the full multi-tab app (chrome + tabs in one web contents). This is what "single web contents" below refers to.
-- **onboarding** — renders `<App />`: a small (480×600), fixed-size, non-resizable "Welcome" window (`windows/onboarding.ts`) that runs the single-router onboarding flow at `/onboarding`. Shown before the main window on first run; dismissing it without completing quits the app.
+- **app** — renders `<AppWindow />`: the app window (`windows/app-window.ts`), its tabs across the bar, each a router of its own kept mounted in one web contents. This is what "single web contents" below refers to. It has its own menu (`menus/app-window.ts`) and hosts every browser guest. Its screens are the routes under the pathless `client/routes/_app/` layout, drawn from `client/components/window/`; its state is in `client/atoms/window.ts`. "Orchestrator" names the agent a chat runs on (task kind `orchestrator`, agent `instrument`) and nothing else.
+- **onboarding** — renders `<App />`: a small (480×600), fixed-size, non-resizable "Welcome" window (`windows/onboarding.ts`) that runs the single-router onboarding flow at `/onboarding`. Shown before the app window on first run; dismissing it without completing quits the app.
 
-They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to a single window (tab commands, main-only chrome) must not assume the onboarding window is present.
+They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to the app window (tab commands, its chrome) must not assume it is running in the onboarding window.
 
 Closing the last window quits the app on **every** platform, macOS included, and runs the same running-agent confirmation as Cmd+Q (`lib/quit-guard.ts`). Nothing outlives the last window; see `docs/decisions/2026-07-25-quit-when-the-last-window-closes.md`.
 
+## Workspaces and stores
+
+A process runs one workspace folder, resolved in `setup-environment.ts` before any store opens (`lib/workspaces.ts`): `INSTRUMENT_WORKSPACE` (a registered id or an absolute path) pins one for the process, otherwise `workspaces.json` at the userData root names the active one, otherwise the default `userData/workspace`. Switching from the dev panel restarts the app; under `pnpm dev` that goes through `scripts/dev-supervisor.ts`, which starts electron-vite again on exit code 75.
+
+Every electron-store lives in `src/electron-main/stores/workspace/` or `stores/machine/`, and its getter is named for that scope (`getWorkspacePreferences()`, `getMachineState()`). Workspace stores open at `<workspace>/.instrument/settings` through `cwd: workspaceSettingsDir()`; machine stores keep the userData root. A new store picks its scope by asking whether a second workspace on the same computer should see the same value: sign-ins, keys, flags, preferences, and window state are the workspace's; telemetry identity, update channel, and caches of the computer are the machine's. In each half, _preferences_ are what a person chose and _state_ is what the app remembers. A settings change that needs migrating goes in `lib/settings-migration.ts` behind the workspace's `settingsVersion`, which runs only for the workspace being opened.
+
+The app and onboarding windows run on the workspace's own Chromium session (`lib/app-session.ts`, `<workspace>/.instrument/app-session`), and the in-app browser on `browser-session` beside it, so localStorage, cookies, and history never cross workspaces. Anything a session must have (protocol handlers, the user agent, the permission policy) goes in `configureAppSession`, not on `session.defaultSession`.
+
+`ELECTRON_USER_DATA_DIR` still swaps the whole userData, for first-install behavior, the packaged smoke test, and seeded fixtures: `ELECTRON_USER_DATA_DIR=<empty dir> pnpm dev` is a first launch on a fresh machine.
+
 ## App-wide modals
 
-`AppShell`/`AppChrome` is a single web contents (the **main** window; see Windows), so modals are plain `<Dialog>`s at the chrome root, not separate overlay views.
+The app window is a single web contents (see Windows), so modals are plain `<Dialog>`s at the window root, not separate overlay views.
 
-- **App-wide** (`login`, `welcome`, `settings`, `project`, `skill`, `delete-task`, `shortcut-guide`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `app-chrome.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. The exception is a modal created with `replaceable: false` (the `welcome` onboarding gate), which holds the slot until it closes itself; opening another over it is ignored.
-- **Contextual** (`delete-project`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
-- `useBlockTabNavigation(open)` opts a modal out of tab shortcuts (Cmd+T/W/etc.) while open.
+- **App-wide** (`login`, `settings`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `orchestrator/window-frame.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. A modal created with `replaceable: false` holds the slot until it closes itself; opening another over it is ignored.
+- **Contextual** (`delete-chat`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
+- `useBlockTabNavigation(open)` holds the window's tab chords (Cmd+T/W/etc.) while a modal is open.
 
 ## Copy
 
@@ -55,15 +65,16 @@ Quote a name the user chose — a folder, project, skill, or their own search te
 
 ## UI zoom
 
-The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:
+The whole window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:
 
 - Size a dialog with `DialogContent`'s `maxWidth`/`maxHeight` props (intrinsic sizes, e.g. `maxWidth="42rem"`), never a `max-w-*`/`max-h-*` class: `cn()` merges the class over the primitive's own and takes the window cap away with it. Same for `TooltipContent`'s `maxWidth` and `PopoverContent`'s `maxHeight` — a popover given no `maxHeight` takes the room Radix measured for it, so tall content wants a scroll rather than a taller panel.
-- Floating content stays clear of the toolbar band, which on macOS is where the traffic lights are drawn over the web contents: `ChromeInsetProvider` (mounted in `app-chrome.tsx`) declares its depth and `useChromeCollisionPadding` is the default `collisionPadding` on every Radix content primitive. It reaches menus that set `avoidCollisions={false}` too, since Radix hands the padding to the `size` middleware either way. Zero outside the main window, and inert for a `Select` left on `position="item-aligned"`.
-- Reuse `useAppZoomStyle` + `zoomMaxSize` on any new floating/portalled UI, or `use-portal-container.tsx` when portalling into the zoomed tree, instead of hand-rolling zoom math. A full-window overlay wants `fixed inset-0` and no viewport units at all (`task/transcript-viewer.tsx`, `task/file-viewer-modal.tsx`).
+- Floating content stays clear of the toolbar band, which on macOS is where the traffic lights are drawn over the web contents: `ChromeInsetProvider` (mounted by the app window's frame, `orchestrator/window-frame.tsx`) declares its depth and `useChromeCollisionPadding` is the default `collisionPadding` on every Radix content primitive. It reaches menus that set `avoidCollisions={false}` too, since Radix hands the padding to the `size` middleware either way. Zero where no window declares a band, and inert for a `Select` left on `position="item-aligned"`.
+- Reuse `useAppZoomStyle` + `zoomMaxSize` on any new floating/portalled UI, or `use-portal-container.tsx` when portalling into the zoomed tree, instead of hand-rolling zoom math. A full-window overlay wants `fixed inset-0` and no viewport units at all (`file-preview-modal.tsx`).
+- Anything placed where the pointer is — a menu on right click, a flyout beside a measured rect — takes its `left`/`top` from `useWindowPointStyle`. `event.clientX`/`clientY` and every `getBoundingClientRect()` edge are on-screen px, and a length inside the zoom root is layout px, so the raw value lands at `zoom ×` the point it was read from.
 - A virtualizer inside self-zoomed content must measure in layout px: pass `measureElement: (el) => el.offsetHeight` and an `observeElementRect` reading `offsetWidth`/`offsetHeight`. The defaults read `getBoundingClientRect`, which is on-screen px.
 - Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
-- Routes lay out against that `@container/app-content` container (`TabView` puts it around them), never viewport media queries.
-- Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
+- Routes lay out against that `@container/app-content` container (`AppTabView` puts it around them), never viewport media queries.
+- Every window (see Windows) uses the same `ZoomRoot` + `zoomAtom`, wired via `OnboardingZoomRoot`, which also mounts `ZoomToast` (a transient corner readout on any zoom change) outside `ZoomRoot`. Each root also calls `useSyncZoom`, which is what re-centers a window's macOS traffic lights: they are real pixels drawn over a band of chrome whose height is the zoom the renderer draws it at (`windows/traffic-lights.ts`).
 
 ## Tests
 
@@ -88,4 +99,3 @@ Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs th
 - **Debug**: `_app/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
 - **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).
-- **Browser build**: `web/` runs this same renderer as a plain web page with the Electron boundary replaced by fixtures (`pnpm dev:web`, port 5180). Development only, never packaged. Adding a screen's data means adding fixtures there; see `docs/architecture/studio-in-the-browser.md`.

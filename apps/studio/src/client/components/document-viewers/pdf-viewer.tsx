@@ -1,10 +1,13 @@
-import type { PdfEngine } from "@embedpdf/models";
-
 import { PDFIUM_WASM_URL } from "@/client/lib/document-viewers";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
+import {
+  type PdfEngine,
+  type PdfEngineError,
+  PdfErrorCode,
+} from "@embedpdf/models";
 import {
   DocumentManagerPluginPackage,
   useActiveDocument,
@@ -58,7 +61,9 @@ import {
 import { useEffect, useState } from "react";
 
 import { FileLoading } from "../file-loading";
+import { useAskSelection } from "./ask-selection-context";
 import { useCopyShortcut } from "./use-copy-shortcut";
+import { PdfOpenError } from "./viewer-error";
 import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -197,10 +202,13 @@ function loadEngine() {
 function PdfDocument({ url }: { url: string }) {
   const { provides: documentManager } = useDocumentManagerCapability();
   const { activeDocument, activeDocumentId } = useActiveDocument();
-  // Keyed by URL rather than a boolean so opening a different file clears the
-  // previous failure without a synchronous reset inside the effect.
-  const [errorUrl, setErrorUrl] = useState<null | string>(null);
-  const loadError = errorUrl === url;
+  // Keyed by URL so opening a different file clears the previous failure
+  // without a synchronous reset inside the effect.
+  const [failure, setFailure] = useState<null | {
+    error: PdfEngineError;
+    url: string;
+  }>(null);
+  const loadError = failure?.url === url ? failure.error : null;
 
   useEffect(() => {
     if (!documentManager) {
@@ -210,16 +218,16 @@ function PdfDocument({ url }: { url: string }) {
     const previousIds = documentManager
       .getOpenDocuments()
       .map((document) => document.id);
-    const handleError = () => {
-      setErrorUrl(url);
+    const handleError = (error: PdfEngineError) => {
+      setFailure({ error, url });
     };
     let openedId: string | undefined;
     let unmounted = false;
 
     documentManager
       .openDocumentUrl({
-        // "auto" streams the document with HTTP range requests, which the local
-        // asset server supports. Blob URLs cannot be ranged.
+        // "auto" streams the document with range requests, which the file
+        // channel answers. Blob URLs cannot be ranged.
         mode: url.startsWith("blob:") ? "full-fetch" : "auto",
         url,
       })
@@ -248,8 +256,14 @@ function PdfDocument({ url }: { url: string }) {
     };
   }, [documentManager, url]);
 
-  if (loadError || activeDocument?.status === "error") {
-    throw new Error("This PDF could not be opened.");
+  if (loadError) {
+    throw pdfOpenError(loadError.reason.code, loadError.reason.message);
+  }
+  if (activeDocument?.status === "error") {
+    throw pdfOpenError(
+      activeDocument.errorCode,
+      activeDocument.errorDetails ?? activeDocument.error,
+    );
   }
 
   if (!activeDocumentId || activeDocument?.status !== "loaded") {
@@ -267,6 +281,72 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
   const { provides: search, state: searchState } = useSearch(documentId);
   const { provides: selection } = useSelectionCapability();
   const [query, setQuery] = useState("");
+  const askSelection = useAskSelection();
+
+  // A finished selection offers itself to Instrument. The highlight is
+  // pdfium's, drawn over a bitmap, so the button stands where the drag was let
+  // go, held to the page under it so it scrolls with the page, and the page
+  // number comes from the selection.
+  useEffect(() => {
+    if (!selection || !askSelection || !pageArea) {
+      return;
+    }
+    const scope = selection.forDocument(documentId);
+    let point: { element: HTMLElement; x: number; y: number } = {
+      element: pageArea,
+      x: 0,
+      y: 0,
+    };
+    const onUp = (event: PointerEvent) => {
+      const element =
+        event.target instanceof HTMLElement ? event.target : pageArea;
+      const box = element.getBoundingClientRect();
+      point = {
+        element,
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      };
+    };
+    pageArea.addEventListener("pointerup", onUp, true);
+    const offBegin = scope.onBeginSelection(() => {
+      askSelection.present(null);
+    });
+    const offChange = scope.onSelectionChange((range) => {
+      if (!range) {
+        askSelection.present(null);
+      }
+    });
+    const offEnd = scope.onEndSelection(() => {
+      const pages = scope.getBoundingRects().map(({ page }) => page + 1);
+      if (pages.length === 0) {
+        return;
+      }
+      const first = Math.min(...pages);
+      const last = Math.max(...pages);
+      const at = point;
+      askSelection.present({
+        location: first === last ? `page ${first}` : `pages ${first}-${last}`,
+        quote: scope
+          .getSelectedText()
+          .toPromise()
+          .then((parts) => parts.join("\n")),
+        reference: {
+          contextElement: at.element,
+          getBoundingClientRect: () => {
+            const box = at.element.getBoundingClientRect();
+            return new DOMRect(box.left + at.x, box.top + at.y - 4, 0, 0);
+          },
+        },
+      });
+    });
+    return () => {
+      pageArea.removeEventListener("pointerup", onUp, true);
+      offBegin();
+      offChange();
+      offEnd();
+      askSelection.present(null);
+    };
+  }, [askSelection, documentId, pageArea, selection]);
 
   // This is the only way a selection leaves the page. Right-click cannot help:
   // the highlight belongs to pdfium, so `document.getSelection` is empty and
@@ -417,6 +497,19 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
       </ViewerBody>
     </>
   );
+}
+
+function pdfOpenError(code: PdfErrorCode | undefined, details: unknown) {
+  return new PdfOpenError({
+    code,
+    details,
+    reason:
+      code === PdfErrorCode.Password
+        ? "password"
+        : code === PdfErrorCode.WrongFormat
+          ? "format"
+          : "other",
+  });
 }
 
 function PdfPage({

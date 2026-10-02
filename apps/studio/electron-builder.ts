@@ -13,6 +13,10 @@ import {
 } from "electron-builder";
 
 import { runAfterPack } from "./electron-builder/after-pack";
+import {
+  macFileAssociations,
+  writeWindowsInstallerScript,
+} from "./electron-builder/file-associations";
 
 if (process.env.CI !== "true") {
   dotenv.config({
@@ -22,7 +26,6 @@ if (process.env.CI !== "true") {
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
-  // eslint-disable-next-line turbo/no-undeclared-env-vars
   endpoint: process.env.BUILDER_PUBLISH_S3_ENDPOINT,
   provider: "s3",
   region: "auto",
@@ -95,14 +98,16 @@ const config: Configuration = {
       from: "../../registry/skills",
       to: "registry/skills",
     },
+    // The pictures the Discover screen shows of each page template's examples.
+    {
+      filter: ["**/*.png"],
+      from: "../../registry/captures",
+      to: "registry/captures",
+    },
     {
       filter: ["**/*"],
       from: "../../packages/workspace/system-skills",
       to: "system-skills",
-    },
-    {
-      from: "../../packages/shim-client/dist",
-      to: "shim-client",
     },
   ],
   files: [
@@ -129,14 +134,16 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // just-bash declares quickjs-emscripten to back its `js-exec` command,
-    // which is absent from the command registry just-bash builds. It is
-    // required from inside the command body, so excluding it drops weight
-    // nothing can reach. turndown and the domino it pulls are packaged
-    // instead: they back `html-to-markdown`, which the agent is offered and
-    // resolves at runtime from inside the same command body.
-    "!**/node_modules/quickjs-emscripten/**",
-    "!**/node_modules/@jitl/quickjs-*/**",
+    // quickjs-emscripten backs just-bash's `js-exec`, which the workspace
+    // enables. Its index requires all four wasm variants by name, so each
+    // variant's small `index`/`ffi` entry has to ship, but a variant only
+    // loads its `emscripten-module` glue and wasm when asked for, and
+    // `getQuickJS()` asks for release-sync alone. The other three variants'
+    // modules (~5MB), the release variant's browser and Cloudflare glue, and
+    // the package's 2.3MB browser bundle are weight nothing loads.
+    "!**/node_modules/quickjs-emscripten/dist/index.global.js",
+    "!**/node_modules/@jitl/quickjs-wasmfile-{debug-sync,debug-asyncify,release-asyncify}/dist/emscripten-module.*",
+    "!**/node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.{browser,cloudflare}.*",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.
@@ -179,26 +186,47 @@ const config: Configuration = {
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
+      // Merged ahead of `fileAssociations`, which can name extensions only.
+      // Text and code have too many extensions to list, and one content type
+      // covers them, since a source file's type conforms to plain text. Not
+      // `.ts`, which macOS types as an MPEG transport stream.
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: "Text",
+          CFBundleTypeRole: "Viewer",
+          LSHandlerRank: "Alternate",
+          LSItemContentTypes: ["public.plain-text", "public.json"],
+        },
+      ],
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
+      // Why the system's own ask names a reason: without these macOS asks for
+      // each protected folder with generic text. Each is raised the first time
+      // a task is handed the folder.
+      NSAppDataUsageDescription: `${APP_NAME} reads another app's files when you ask it to work with them.`,
+      // Asked the first time a task controls each app, named in the ask.
+      NSAppleEventsUsageDescription: `${APP_NAME} works in this app when you ask it to, like adding a reminder or a calendar event.`,
       // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
       NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
+      NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,
+      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and keeps what it makes in Documents/${APP_NAME}.`,
+      NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
+      NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
+      NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
+    fileAssociations: macFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
     icon: "icon.icon",
-    // eslint-disable-next-line turbo/no-undeclared-env-vars
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     // Grants the team-scoped entitlements in entitlements.mac.plist. Without
     // it the system refuses them and the app is killed on exec.
     provisioningProfile: "build/Instrument_Developer_ID.provisionprofile",
     publish: {
       ...publishConfig,
-      channel:
-        // eslint-disable-next-line turbo/no-undeclared-env-vars
-        process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
+      channel: process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
     },
     target: ["dmg", "zip"],
   },
@@ -206,6 +234,10 @@ const config: Configuration = {
   nsis: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     createDesktopShortcut: "always",
+    // The installer drawn at the display's scale, and Open With for the
+    // types Instrument shows. Not `win.fileAssociations`, whose macro makes
+    // the app each extension's default.
+    include: writeWindowsInstallerScript(),
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },

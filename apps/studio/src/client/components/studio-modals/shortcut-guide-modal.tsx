@@ -11,30 +11,35 @@ import { Kbd, KbdGroup } from "@/client/components/ui/kbd";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import {
   matchShortcuts,
   type ShortcutMatch,
 } from "@/client/lib/shortcut-search";
-import { SHORTCUT_ENTRIES, SHORTCUT_GROUPS } from "@/shared/shortcuts";
+import {
+  SHORTCUT_GUIDE_ENTRIES,
+  SHORTCUT_GUIDE_GROUPS,
+} from "@/shared/shortcut-guide";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useAtom } from "jotai";
 import { alphabetical } from "radashi";
 import { useState } from "react";
 
 /**
- * App-wide guide to every shortcut in the shared table, mounted once at the
- * app-chrome root. Reads `shortcutGuideModalAtom` (opened by `?`, the Help
- * menu, or `openShortcutGuide`). Rows are grouped and searchable; chords are
- * rendered for this platform from the same descriptors the native menu builds
- * its accelerators from, so nothing here can go stale. Traps tab navigation
- * while open.
+ * The guide to every chord the window answers to, mounted once at the window
+ * root, which is also where `?` is listened for. Reads
+ * `shortcutGuideModalAtom` (opened by `?` or the Help menu).
+ * Rows are grouped and searchable; chords are drawn for this platform from the
+ * same tables the native menu builds its accelerators from, so nothing here
+ * can go stale. Traps tab navigation while open.
  */
 export function ShortcutGuideModal() {
   const [state, setState] = useAtom(shortcutGuideModalAtom);
   const isOpen = state !== null;
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
+  useShortcutGuideHotkey();
   useBlockTabNavigation(isOpen);
 
   return (
@@ -61,19 +66,20 @@ function ShortcutGuideContent({
   const [query, setQuery] = useState("");
   const isDeveloperMode = useDeveloperMode();
 
-  const entries = SHORTCUT_ENTRIES.filter(
-    ({ descriptor }) => isDeveloperMode || descriptor.group !== "Developer",
+  // The Developer menu, and so its chords, exist only in developer mode.
+  const entries = SHORTCUT_GUIDE_ENTRIES.filter(
+    ({ group }) => isDeveloperMode || group !== "Developer",
   );
   const matches = matchShortcuts(entries, query);
-  const sections = SHORTCUT_GROUPS.map((group) => ({
+  const sections = SHORTCUT_GUIDE_GROUPS.map((group) => ({
     group,
     // A query orders rows by how well they matched; without one there's no
-    // ranking to preserve, and the table's key order is only lint's opinion.
+    // ranking to preserve, and the tables' key order is only lint's opinion.
     matches: query
-      ? matches.filter((match) => match.descriptor.group === group)
+      ? matches.filter((match) => match.entry.group === group)
       : alphabetical(
-          matches.filter((match) => match.descriptor.group === group),
-          (match) => match.descriptor.label,
+          matches.filter((match) => match.entry.group === group),
+          (match) => match.entry.label,
         ),
   })).filter((section) => section.matches.length > 0);
 
@@ -114,7 +120,7 @@ function ShortcutGuideContent({
                 {section.group}
               </h3>
               {section.matches.map((match) => (
-                <ShortcutRow key={match.id} match={match} />
+                <ShortcutRow key={match.entry.id} match={match} />
               ))}
             </section>
           ))
@@ -131,13 +137,10 @@ function ShortcutRow({ match }: { match: ShortcutMatch }) {
       data-testid="shortcut-row"
     >
       <span className="min-w-0 truncate text-sm">
-        <FuzzyHighlight
-          ranges={match.labelRanges}
-          text={match.descriptor.label}
-        />
+        <FuzzyHighlight ranges={match.labelRanges} text={match.entry.label} />
       </span>
       <KbdGroup>
-        {formatAccelerator(match.descriptor.accelerator).map((key) => (
+        {formatAccelerator(match.entry.accelerator).map((key) => (
           <Kbd key={key}>{key}</Kbd>
         ))}
       </KbdGroup>

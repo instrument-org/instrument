@@ -3,7 +3,16 @@
   "cacheMaxAge": "7d",
   "cacheMaxSize": "20gb",
   "concurrency": "4",
-  "globalPassThroughEnv": ["GOMAXPROCS", "VITEST_MAX_WORKERS"],
+  "globalEnv": ["INSTRUMENT_BASH_WORKER"],
+  "globalPassThroughEnv": [
+    "GOMAXPROCS",
+    "INSTRUMENT_ACTIVITY_HEADINGS",
+    "INSTRUMENT_EVAL_HOME",
+    "INSTRUMENT_TASK_TOOL",
+    "LARGE_FOLDER_EVAL_PATH",
+    "USERPROFILE",
+    "VITEST_MAX_WORKERS"
+  ],
   "ui": "stream",
   "tasks": {
     "build": {
@@ -22,17 +31,19 @@
         "ELECTRON_DEV_USER_FOLDER_SUFFIX",
         "ELECTRON_ENABLE_CONSOLE_LOGGING",
         "ELECTRON_USER_DATA_DIR",
-        "ELECTRON_USE_NEW_USER_FOLDER",
         "FORCE_DEV_AUTO_UPDATE",
         "GLOBAL_AGENT_HTTP_PROXY",
         "HOME",
+        "INSTRUMENT_DEV_SUPERVISOR",
         "INSTRUMENT_OZONE_PLATFORM",
+        "INSTRUMENT_WORKSPACE",
         "NODE_ENV",
         "PATH",
         "REMOTE_DEBUGGING_PORT",
         "SKIP_MOVE_TO_APPLICATIONS",
         "SKIP_ONBOARDING",
         "STUDIO_DRIVE_PURPOSE",
+        "STUDIO_LOG_LEVEL",
         "SIGNTOOL_PATH",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_APP_REGISTRY_DIR_PATH",
@@ -47,12 +58,7 @@
       ],
       "outputs": ["dist/**", "out/**"]
     },
-    "@instrument-org/shim-client#build": {
-      "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": ["dist/**"]
-    },
     "build:vite": {
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "env": [
         "CI",
         "MAIN_VITE_APP_API_BASE_URL",
@@ -67,34 +73,28 @@
     "build:env:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:local": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:win:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "smoke-test": {
@@ -106,7 +106,6 @@
         "VITE_POSTHOG_API_KEY"
       ],
       "cache": false,
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "smoke-test.spec.ts",
@@ -151,30 +150,13 @@
       "dependsOn": ["transit"]
     },
     "//#check:spelling": {},
-    "check:md": {
-      "dependsOn": ["transit"]
-    },
-    "//#check:md": {
-      "inputs": [
-        "**/*.md",
-        "!**/node_modules/**",
-        "!**/out/**",
-        "!**/dist/**",
-        "!registry/**",
-        "!**/*.local/**",
-        "!.cursor/plans/**",
-        "!.claude/worktrees/**",
-        "!docs/**",
-        ".markdownlint.json",
-        ".markdownlint-cli2.jsonc"
-      ]
-    },
     "check:format": {
       "dependsOn": ["transit"]
     },
     "//#check:format": {},
     "check:lint": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
     },
     "//#check:lint": {},
     "fix:lint": {

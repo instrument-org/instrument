@@ -1,9 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
-import {
-  type SessionMessage,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/client";
+import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 
@@ -54,7 +50,6 @@ test("copies a turn's text parts as the separate blocks they are drawn as", asyn
   renderWithProviders(
     <AssistantMessagesFooter
       alwaysVisible
-      id={TaskIdSchema.parse("quarterly-numbers")}
       messages={[
         assistantMessage("Here is the plan:"),
         // A whitespace-only part, which the transcript never draws (a done

@@ -1,4 +1,3 @@
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -7,11 +6,11 @@ import { toast } from "sonner";
 
 // Surfaces a one-time toast after the app restarts on a newer version. The main
 // process hands the bump out exactly once, so claiming it is destructive and has
-// to wait until there is somewhere to show it: the main window is created
-// hidden, and stays hidden behind the onboarding window until provider setup is
-// finished, which an update can land in the middle of.
-export function UpdatedToast() {
-  const { addTab } = useTabActions();
+// to wait until there is somewhere to show it: a window that is not on screen
+// is not that somewhere.
+//
+// `onWhatsNew` is what the toast's action does: it opens the release notes.
+export function UpdatedToast({ onWhatsNew }: { onWhatsNew: () => void }) {
   // The query result stays cached, so without this a later re-render would fire
   // the toast again from the same data.
   const hasShownRef = useRef(false);
@@ -28,14 +27,9 @@ export function UpdatedToast() {
     hasShownRef.current = true;
 
     toast.success(`${APP_NAME} updated to ${recentUpdate.to}`, {
-      action: {
-        label: "What's new",
-        onClick: () => {
-          void addTab({ to: "/release-notes" });
-        },
-      },
+      action: { label: "What's new", onClick: onWhatsNew },
     });
-  }, [recentUpdate, addTab]);
+  }, [recentUpdate, onWhatsNew]);
 
   return null;
 }

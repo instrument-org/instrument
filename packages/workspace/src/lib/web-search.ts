@@ -1,7 +1,8 @@
-import { type LanguageModelV3Source } from "@ai-sdk/provider";
+import { type LanguageModelV4Source } from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
+  CLIENT_SESSION_ID_HEADER,
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
@@ -11,6 +12,7 @@ import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { type StoreId } from "../schemas/store-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
@@ -87,6 +89,7 @@ export async function* webSearch({
   callingModel,
   configs,
   prompt,
+  sessionId,
   signal,
   workspaceConfig,
   workspaceServerURL,
@@ -94,6 +97,7 @@ export async function* webSearch({
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
@@ -121,14 +125,28 @@ export async function* webSearch({
   // endpoint is rate limited, switched off, or down. The user asked for a
   // search, so run one on the provider rather than hand back an error; the
   // result names its own kind, so nothing downstream is told it got excerpts.
-  yield* searchWithProviderModel({
+  for await (const result of searchWithProviderModel({
     callingModel,
     configs,
     prompt,
+    sessionId,
     signal,
     workspaceConfig,
     workspaceServerURL,
-  });
+  })) {
+    // A provider with no search of its own (an OpenAI-compatible endpoint, say)
+    // leaves ours as the only backend. A search there costs the user cents;
+    // the agent's alternative is minutes of fetching pages by hand.
+    if (
+      result.isErr() &&
+      result.error.errorType === "no-search-backend" &&
+      callingModel.params.provider !== OUR_MODELS.providerType
+    ) {
+      yield await searchWithPlatform({ prompt, signal, workspaceConfig });
+      return;
+    }
+    yield result;
+  }
 }
 
 function delay(ms: number, signal: AbortSignal) {
@@ -211,13 +229,17 @@ function searchSystemPrompt() {
     year: "numeric",
   });
 
+  // One search and a short reply are what keep this a lookup. Left to itself a
+  // search model searches two or three times and writes up to 650 words, which
+  // measured at two to three times the latency of this prompt on the ChatGPT
+  // plan and on OpenRouter with no loss of the facts, dates, or sources; the
+  // agent asking can search again or fetch a page when it needs more.
   return dedent`
-    You research a query using the search results you retrieve now. Today is ${today}. Never answer from memory.
+    You look up a query on the web now and report what you find. Today is ${today}. Never answer from memory.
 
-    - Keep the wording of each source rather than paraphrasing it, and give the date a page was published or last updated whenever it shows one.
-    - Every specific claim -- a name, version, price, tier, model, or date -- must come from a result you actually retrieved, attributed to the page it came from. Leave out anything you did not find.
-    - When results disagree, or the query turns on something you could not confirm, say so plainly instead of settling on the most plausible answer.
-    - A proper noun that matches nothing may be misspelled or misheard. Search the closest real name, and say which name you searched.
+    - Search once. Search again only when the first results miss the query entirely; a proper noun that matches nothing may be misspelled or misheard, so search the closest real name and say which name you searched.
+    - Reply in at most 150 words: the facts that answer the query, each attributed to the page it came from, with the date the page shows when it shows one. Keep the source's own wording for names, numbers, prices, versions, and dates.
+    - Leave out anything you did not find. When results disagree, or the query turns on something you could not confirm, say so plainly.
   `;
 }
 
@@ -240,6 +262,7 @@ async function* searchWithProviderModel({
   callingModel,
   configs,
   prompt,
+  sessionId,
   signal,
   workspaceConfig,
   workspaceServerURL,
@@ -247,6 +270,7 @@ async function* searchWithProviderModel({
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
@@ -254,6 +278,7 @@ async function* searchWithProviderModel({
   const modelResult = await getWebSearchModel({
     callingModel,
     configs,
+    modelCache: workspaceConfig.modelCache,
     workspaceServerURL,
   });
 
@@ -293,14 +318,16 @@ async function* searchWithProviderModel({
   try {
     const textResult = streamText({
       abortSignal: signal,
+      // A search runs inside a turn, so it groups with the turn that asked for it.
+      headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
+      instructions: searchSystemPrompt(),
       model,
       prompt,
       providerOptions,
-      system: searchSystemPrompt(),
       tools,
     });
 
-    for await (const part of textResult.fullStream) {
+    for await (const part of textResult.stream) {
       switch (part.type) {
         case "abort": {
           return;
@@ -369,7 +396,7 @@ async function* searchWithProviderModel({
   }
 }
 
-function urlSource(source: LanguageModelV3Source): undefined | WebSearchSource {
+function urlSource(source: LanguageModelV4Source): undefined | WebSearchSource {
   return source.sourceType === "url"
     ? { title: source.title, url: source.url }
     : undefined;

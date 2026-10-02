@@ -37,7 +37,7 @@ Verified live against a booted instance: a scripted `target="_blank" rel="noopen
 
 ## What is still missing
 
-Nothing about this is what a tab-open *asked for*. The real fix is [browser popups as agent-drivable tabs](../plans/active/browser-popups-as-agent-drivable-tabs.md), where a `_blank` link, a middle-click, and a sign-in popup all become tabs both the user and the agent can reach; the fallback here is what a one-page guest can do in the meantime, and it should give way to real tabs rather than survive alongside them. That plan is written around sign-in popups — this finding is the evidence that ordinary links are the more common way a user meets the gap, and they meet it silently.
+Nothing about this is what a tab-open *asked for*. The real fix is [browser popups as agent-drivable tabs](../plans/completed/browser-popups-as-agent-drivable-tabs.md), where a `_blank` link, a middle-click, and a sign-in popup all become tabs both the user and the agent can reach; the fallback here is what a one-page guest can do in the meantime, and it should give way to real tabs rather than survive alongside them. That plan is written around sign-in popups — this finding is the evidence that ordinary links are the more common way a user meets the gap, and they meet it silently.
 
 ## Related
 

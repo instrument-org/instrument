@@ -17,11 +17,12 @@ import { ExternalLink } from "../external-link";
  * HTML: the document is parsed inert with `DOMParser`, walked against the
  * allow-lists below, and rebuilt as React elements.
  *
- * ## Why not the sandboxed iframe
+ * ## Why not a sandboxed iframe
  *
- * The other option was `SandboxedHtmlIframe`, which the HTML file type uses,
- * and it looks like the stronger one because scripts could run inside an opaque
- * origin -- which is what an interactive plot needs. They cannot. A frame
+ * The other option was a sandboxed `<iframe>` left with no origin of its
+ * own, and it looks like the stronger one because scripts could run inside
+ * that opaque origin -- which is what an interactive plot needs. They cannot.
+ * A frame
  * loaded from `data:`, `blob:`, or `srcdoc` inherits the embedder's CSP, and
  * this renderer's `script-src` is `'self' 'wasm-unsafe-eval'`, so every inline
  * script in that frame is blocked exactly as it is here. The iframe would buy

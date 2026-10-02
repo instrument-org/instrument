@@ -1,5 +1,17 @@
 # Studio app icons
 
+## Output folder
+
+`../resources/instrument-folder.svg` is the editable vector artwork for the default `Documents/Instrument` folder on macOS and Linux. It includes a static paper inset regardless of folder contents. Studio embeds the SVG in its main-process bundle and supplies it to AppKit on macOS, which generates the Finder icon representations.
+
+Windows uses `../resources/instrument-folder-windows.svg`, with a stepped front flap, exported to the bundled multi-size `instrument-folder-windows.ico`. Regenerate it on macOS with `node apps/studio/scripts/generate-folder-icon.ts` from the repository root; this requires AppKit and ImageMagick. Studio copies the icon into the folder, writes a Unicode `desktop.ini`, sets the Shell attributes, and notifies Explorer.
+
+Linux writes a hidden SVG and a `.directory` entry for KDE. When GIO is available, it also sets `metadata::custom-icon` for GNOME Files and compatible file managers. Support depends on the file manager and desktop metadata service; there is no universal Linux folder-icon API.
+
+The orchestrator requests decoration after creating and attaching its default output folder. Icon assignment is best-effort, skips symlinked folders and other locations, and preserves existing custom icons and customization files. Headless workspaces do not apply it. The Windows and Linux asset files stay beside the folder metadata so their paths survive app updates.
+
+## App artwork
+
 Source artwork lives in `source/`:
 
 - `instrument-solid-square.png` — full-bleed square for macOS 26+ (Tahoe). Used to build `build/icon.icon`.

@@ -1,10 +1,11 @@
-import { type LanguageModelV3StreamPart } from "@ai-sdk/provider";
+import { type LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -18,7 +19,7 @@ function perplexityResult({
 }: {
   results: { snippet: string; title: string; url: string }[];
   toolCallId: string;
-}): LanguageModelV3StreamPart {
+}): LanguageModelV4StreamPart {
   return {
     result: { results },
     toolCallId,
@@ -27,7 +28,7 @@ function perplexityResult({
   };
 }
 
-function textDelta(delta: string): LanguageModelV3StreamPart[] {
+function textDelta(delta: string): LanguageModelV4StreamPart[] {
   return [
     { id: "1", type: "text-start" },
     { delta, id: "1", type: "text-delta" },
@@ -35,7 +36,7 @@ function textDelta(delta: string): LanguageModelV3StreamPart[] {
   ];
 }
 
-const finishPart: LanguageModelV3StreamPart = {
+const finishPart: LanguageModelV4StreamPart = {
   finishReason: { raw: "stop", unified: "stop" },
   type: "finish",
   usage: {
@@ -56,6 +57,7 @@ async function collect(callingModel: AIGatewayModel.Type) {
     callingModel,
     configs: workspaceConfig.getAIProviderConfigs(),
     prompt: "what changed recently",
+    sessionId: StoreId.newSessionId(),
     signal: new AbortController().signal,
     workspaceConfig,
     workspaceServerURL: getWorkspaceServerURL(),
@@ -78,7 +80,7 @@ const unavailable = {
 
 /** Stands in where the provider path must not be reached. */
 function neverCalledSearchModel() {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doStream: () => {
       throw new Error("The provider search model must not be called");
     },
@@ -86,9 +88,9 @@ function neverCalledSearchModel() {
 }
 
 /** A model on a key the user brought, which searches through that provider. */
-async function runProviderSearch(chunks: LanguageModelV3StreamPart[]) {
+async function runProviderSearch(chunks: LanguageModelV4StreamPart[]) {
   const model = createMockAIGatewayModel({ provider: "openrouter" });
-  const searchModel = new MockLanguageModelV3({
+  const searchModel = new MockLanguageModelV4({
     doStream: () =>
       Promise.resolve({
         stream: simulateReadableStream({ chunks: [...chunks, finishPart] }),
@@ -309,7 +311,7 @@ describe("webSearch", () => {
         model,
         webSearch: searchWeb,
         webSearchModel: {
-          model: new MockLanguageModelV3({
+          model: new MockLanguageModelV4({
             doStream: () =>
               Promise.resolve({
                 stream: simulateReadableStream({

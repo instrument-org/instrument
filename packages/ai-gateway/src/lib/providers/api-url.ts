@@ -19,6 +19,12 @@ export function apiURL({
       const finalPath = path.startsWith("/v1") ? path : `/v1${path}`;
       return `${baseURL}${finalPath}`;
     }
+    case "chatgpt":
+    case "openai":
+    case "openrouter":
+    case OUR_PROVIDER_CONFIG.type: {
+      return `${baseURL}/v1${path}`;
+    }
     case "google": {
       let adjustedPath = path;
       // Google's SDK adds a /v1beta prefix to the path, Vercel's SDK does not.
@@ -29,14 +35,12 @@ export function apiURL({
       }
       return `${baseURL}${adjustedPath}`;
     }
-    case "openai":
-    case "openrouter":
-    case OUR_PROVIDER_CONFIG.type: {
-      return `${baseURL}/v1${path}`;
-    }
 
     case "vercel": {
-      return `${baseURL}/v1/ai${path}`;
+      // The gateway answers in the stream protocol its path names, so the
+      // version follows @ai-sdk/gateway's own default base URL. An older one
+      // streams usage and finish reasons in a shape the SDK cannot read.
+      return `${baseURL}/v4/ai${path}`;
     }
 
     default: {

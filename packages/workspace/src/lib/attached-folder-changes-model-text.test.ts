@@ -7,16 +7,39 @@ describe("attachedFolderChangesModelNote", () => {
     expect(
       attachedFolderChangesModelNote({
         accessChanged: [],
+        added: [],
         removed: [],
         renamed: [],
       }),
     ).toBeNull();
   });
 
+  it("describes folders handed over since the last turn", () => {
+    expect(
+      attachedFolderChangesModelNote({
+        accessChanged: [],
+        added: [
+          { access: "read-write", name: "Downloads", path: "/base/Downloads" },
+          { access: "read-only", name: "Photos", path: "/base/Photos" },
+        ],
+        removed: [],
+        renamed: [],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      You have been given these folders since your last activity. They are mounted and ready to read now, alongside the ones your attached-folders context lists:
+      - "Downloads" -> \`/mnt/Downloads\` (read and write)
+      - "Photos" -> \`/mnt/Photos\` (read-only)
+      </instrument-system-note>"
+    `);
+  });
+
   it("describes removed folders", () => {
     expect(
       attachedFolderChangesModelNote({
         accessChanged: [],
+        added: [],
         removed: [{ name: "Downloads", path: "/base/Downloads" }],
         renamed: [],
       }),
@@ -33,6 +56,7 @@ describe("attachedFolderChangesModelNote", () => {
     expect(
       attachedFolderChangesModelNote({
         accessChanged: [],
+        added: [],
         removed: [],
         renamed: [
           {
@@ -45,7 +69,7 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
       - "Downloads": now \`/mnt/CloudDocs-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);
@@ -55,6 +79,7 @@ describe("attachedFolderChangesModelNote", () => {
     expect(
       attachedFolderChangesModelNote({
         accessChanged: [],
+        added: [],
         removed: [{ name: "Old", path: "/base/Old" }],
         renamed: [
           {
@@ -70,7 +95,7 @@ describe("attachedFolderChangesModelNote", () => {
       The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
       - "Old" (was mounted at \`/mnt/Old\`)
 
-      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
       - "Downloads": now \`/mnt/Local-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);
@@ -83,6 +108,7 @@ describe("attachedFolderChangesModelNote", () => {
           { access: "read-write", name: "Photos", path: "/base/Photos" },
           { access: "read-only", name: "Docs", path: "/base/Docs" },
         ],
+        added: [],
         removed: [],
         renamed: [],
       }),

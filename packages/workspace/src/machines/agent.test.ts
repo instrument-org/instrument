@@ -96,7 +96,7 @@ describe("agentMachine", () => {
     );
 
     actor.start();
-    await waitFor(actor, (state) => state.matches("ExecutingToolCall"));
+    await waitFor(actor, (state) => state.matches("ExecutingToolCalls"));
 
     actor.send({ type: "stop" });
     await waitFor(actor, (state) => state.matches("Done"));
@@ -158,6 +158,33 @@ describe("agentMachine", () => {
     };
   }
 
+  type PartIdsForTest = {
+    messageId: StoreId.Message;
+    sessionId: StoreId.Session;
+  };
+
+  function createQueuedWriteFilePart(
+    n: number,
+    ids: { messageId: StoreId.Message; sessionId: StoreId.Session },
+  ): SessionMessagePart.Type {
+    return {
+      input: {
+        content: "written",
+        explanation: "writing",
+        filePath: `./file-${n}.txt`,
+      },
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId: ids.messageId,
+        sessionId: ids.sessionId,
+      },
+      state: "input-available",
+      toolCallId: `call-${n}`,
+      type: "tool-write_file",
+    };
+  }
+
   async function readToolParts(runSessionId: StoreId.Session) {
     const messagesResult = await Store.getMessagesWithParts({
       sessionId: runSessionId,
@@ -172,6 +199,134 @@ describe("agentMachine", () => {
         toolCallId: part.toolCallId,
       }));
   }
+
+  it("runs consecutive read-only calls together and a write on its own", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const ids = { messageId: runMessage.id, sessionId: runSessionId };
+    const calls = [
+      createQueuedReadFilePart(1, ids),
+      createQueuedReadFilePart(2, ids),
+      createQueuedWriteFilePart(3, ids),
+      createQueuedReadFilePart(4, ids),
+    ];
+    const log: string[] = [];
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          executeToolCallMachine: executeToolCallMachine.provide({
+            actors: {
+              executeToolLogic: fromPromise(async ({ input }) => {
+                log.push(`start ${input.part.toolCallId}`);
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                log.push(`end ${input.part.toolCallId}`);
+                return { preliminarySaved: false };
+              }),
+            },
+          }),
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: runMessage, parts: calls }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(() => Promise.resolve(false)),
+        },
+      }),
+      {
+        input: createAgentInput({
+          parentMessageId: StoreId.newMessageId(),
+          sessionId: runSessionId,
+        }),
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(log).toMatchInlineSnapshot(`
+      [
+        "start call-1",
+        "start call-2",
+        "end call-1",
+        "end call-2",
+        "start call-3",
+        "end call-3",
+        "start call-4",
+        "end call-4",
+      ]
+    `);
+  });
+
+  it.each([
+    {
+      calls: (ids: PartIdsForTest) =>
+        [1, 1].map((n) => createQueuedReadFilePart(n, ids)),
+      name: "two calls a provider gave the same id",
+    },
+    {
+      calls: (ids: PartIdsForTest) =>
+        Array.from({ length: 10 }, (_, n) => createQueuedReadFilePart(n, ids)),
+      name: "more read-only calls than run at once",
+    },
+  ])("runs every one of $name", async ({ calls }) => {
+    const runSessionId = StoreId.newSessionId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const runParts = calls({
+      messageId: runMessage.id,
+      sessionId: runSessionId,
+    });
+    let running = 0;
+    let mostRunning = 0;
+    let finished = 0;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          executeToolCallMachine: executeToolCallMachine.provide({
+            actors: {
+              executeToolLogic: fromPromise(
+                async (): Promise<{ preliminarySaved: boolean }> => {
+                  running++;
+                  mostRunning = Math.max(mostRunning, running);
+                  await new Promise((resolve) => setTimeout(resolve, 10));
+                  running--;
+                  finished++;
+                  return { preliminarySaved: false };
+                },
+              ),
+            },
+          }),
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: runMessage, parts: runParts }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(() => Promise.resolve(false)),
+        },
+      }),
+      {
+        input: createAgentInput({
+          parentMessageId: StoreId.newMessageId(),
+          sessionId: runSessionId,
+        }),
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect({ finished, mostRunning }).toEqual({
+      finished: runParts.length,
+      mostRunning: Math.min(runParts.length, 8),
+    });
+  });
 
   it("finalizes queued sibling tool calls when the turn is stopped mid-queue", async () => {
     const runSessionId = StoreId.newSessionId();
@@ -219,7 +374,7 @@ describe("agentMachine", () => {
     );
 
     actor.start();
-    await waitFor(actor, (state) => state.matches("ExecutingToolCall"));
+    await waitFor(actor, (state) => state.matches("ExecutingToolCalls"));
 
     actor.send({ type: "stop" });
     await waitFor(actor, (state) => state.matches("Done"));
@@ -261,12 +416,13 @@ describe("agentMachine", () => {
       StoreId.newMessageId(),
       runSessionId,
     );
-    const queuedParts = [1, 2, 3].map((n) =>
-      createQueuedReadFilePart(n, {
-        messageId: runMessage.id,
-        sessionId: runSessionId,
-      }),
-    );
+    // Writes, so they wait behind the read rather than running beside it.
+    const ids = { messageId: runMessage.id, sessionId: runSessionId };
+    const queuedParts = [
+      createQueuedReadFilePart(1, ids),
+      createQueuedWriteFilePart(2, ids),
+      createQueuedWriteFilePart(3, ids),
+    ];
     const statesDuringOnFinish: string[] = [];
 
     const actor = createActor(
@@ -301,7 +457,7 @@ describe("agentMachine", () => {
     );
 
     actor.start();
-    await waitFor(actor, (state) => state.matches("ExecutingToolCall"));
+    await waitFor(actor, (state) => state.matches("ExecutingToolCalls"));
 
     actor.send({ type: "stop" });
     await waitFor(actor, (state) => state.matches("Done"));
@@ -472,7 +628,7 @@ describe("agentMachine", () => {
       runSessionId,
     );
     const completedPart: SessionMessagePart.Type = {
-      input: { command: "echo done", explanation: "echoing", timeoutMs: 1000 },
+      input: { command: "echo done", explanation: "echoing", yieldMs: 1000 },
       metadata: {
         createdAt,
         endedAt: createdAt,
@@ -485,6 +641,7 @@ describe("agentMachine", () => {
         commands: ["echo"],
         durationMs: 0,
         exitCode: 0,
+        omittedBytes: 0,
         output: "done",
       },
       state: "output-available",

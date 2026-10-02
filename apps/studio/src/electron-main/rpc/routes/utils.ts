@@ -1,17 +1,14 @@
-import type {
-  OpenTaskInType,
-  SupportedEditor,
-  SupportedEditorId,
-} from "@/shared/schemas/editors";
-
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
-import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
+import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
+  getBrowserOpenTarget,
+  getFileManagerApp,
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
+import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolve-darwin";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   effectiveDisplayProtocol,
@@ -23,213 +20,31 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setMainWindowZoom } from "@/electron-main/stores/window-state";
+import { setAppZoom } from "@/electron-main/stores/workspace/window-state";
+import { getAppWindow } from "@/electron-main/windows/app-window";
+import { getCallingWindow } from "@/electron-main/windows/calling-window";
+import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import { taskDir, TaskIdSchema } from "@instrument-org/workspace/electron";
+import { eventIterator } from "@orpc/server";
 import {
-  closeMainWindow,
-  isMainWindowFullScreen,
-  isMainWindowMaximized,
-  minimizeMainWindow,
-  setTrafficLightForZoom,
-  toggleMaximizeMainWindow,
-} from "@/electron-main/windows/main/controls";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import {
-  OpenTaskInTypeSchema,
-  SupportedEditorSchema,
-} from "@/shared/schemas/editors";
-import {
-  ProjectIdSchema,
-  readTaskFile,
-  resolveProjectDir,
-  resolveWorkspaceFilePath,
-  taskDir,
-  TaskIdSchema,
-  WorkspaceFilePathSchema,
-  workspaceRouter,
-} from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
-import { app, clipboard, dialog, nativeImage, shell } from "electron";
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  Menu,
+  nativeImage,
+  ShareMenu,
+  shell,
+} from "electron";
 import { isBinaryFile } from "isbinaryfile";
-import { exec, execFile } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
-interface EditorConfig {
-  appName: string;
-  id: SupportedEditorId;
-  name: string;
-}
-
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
-
-const EDITORS_BY_PLATFORM: Record<string, EditorConfig[]> = {
-  darwin: [
-    { appName: "Cursor", id: "cursor", name: "Cursor" },
-    { appName: "Visual Studio Code", id: "vscode", name: "VS Code" },
-    { appName: "iTerm", id: "iterm", name: "iTerm" },
-    { appName: "Terminal", id: "terminal", name: "Terminal" },
-    { appName: "Alacritty", id: "alacritty", name: "Alacritty" },
-  ],
-  linux: [
-    { appName: "Cursor", id: "cursor", name: "Cursor" },
-    { appName: "code", id: "vscode", name: "VS Code" },
-    { appName: "gnome-terminal", id: "terminal", name: "Terminal" },
-    { appName: "konsole", id: "terminal", name: "Konsole" },
-    { appName: "xterm", id: "terminal", name: "XTerm" },
-    { appName: "alacritty", id: "alacritty", name: "Alacritty" },
-  ],
-  win32: [
-    { appName: "Cursor", id: "cursor", name: "Cursor" },
-    { appName: "Visual Studio Code", id: "vscode", name: "VS Code" },
-    { appName: "Windows Terminal", id: "terminal", name: "Windows Terminal" },
-    { appName: "Command Prompt", id: "cmd", name: "Command Prompt" },
-    { appName: "PowerShell", id: "powershell", name: "PowerShell" },
-  ],
-};
-
-let supportedEditorsCache: null | SupportedEditor[] = null;
-
-const DETECTION_COMMANDS = {
-  darwin: (appName: string) => `open -Ra "${appName}"`,
-  linux: (appName: string) => `which ${appName}`,
-  win32: (appName: string) => `where "${appName}"`,
-} as const;
-
-const WINDOWS_COMMAND_MAP: Partial<Record<SupportedEditorId, string>> = {
-  cmd: "cmd",
-  cursor: "cursor",
-  powershell: "powershell",
-  terminal: "wt",
-  vscode: "code",
-};
-
-const getDetectionCommand = (
-  editor: EditorConfig,
-  platform: string,
-): string => {
-  if (platform === "win32") {
-    const command = WINDOWS_COMMAND_MAP[editor.id];
-    if (command) {
-      return `where ${command}`;
-    }
-  }
-
-  const commandFn =
-    DETECTION_COMMANDS[platform as keyof typeof DETECTION_COMMANDS];
-  return commandFn(editor.appName);
-};
-
-const OPEN_COMMANDS = {
-  darwin: (appName: string, dir: string) => `open -a "${appName}" "${dir}"`,
-  linux: (command: string, dir: string) => `${command} "${dir}"`,
-  win32: (command: string, dir: string) => `${command} "${dir}"`,
-} as const;
-
-const APP_COMMAND_MAP: Partial<
-  Record<SupportedEditorId, Record<string, string>>
-> = {
-  cursor: { darwin: "Cursor", linux: "cursor", win32: "cursor" },
-  terminal: {
-    darwin: "Terminal",
-    linux: "gnome-terminal --working-directory",
-    win32: "wt -d",
-  },
-  vscode: { darwin: "Visual Studio Code", linux: "code", win32: "code" },
-};
-
-const SPECIAL_COMMANDS: Partial<
-  Record<SupportedEditorId, (dir: string, platform: string) => string>
-> = {
-  alacritty: (dir: string, platform: string) => {
-    if (platform === "darwin") {
-      return `open -na "Alacritty" --args --working-directory "${dir}"`;
-    }
-    return `alacritty --working-directory "${dir}"`;
-  },
-  cmd: (dir: string, platform: string) => {
-    if (platform !== "win32") {
-      throw new Error("Command Prompt is only available on Windows");
-    }
-    return `cmd /c "cd /d "${dir}" && cmd"`;
-  },
-  iterm: (dir: string, platform: string) => {
-    if (platform !== "darwin") {
-      throw new Error("iTerm is only available on macOS");
-    }
-    return `open -a "iTerm" "${dir}"`;
-  },
-  powershell: (dir: string, platform: string) => {
-    if (platform !== "win32") {
-      throw new Error("PowerShell is only available on Windows");
-    }
-    return `powershell -NoExit -Command "Set-Location '${dir}'"`;
-  },
-};
-
-const getOpenCommand = (
-  type: OpenTaskInType,
-  dir: string,
-  platform: string,
-): string => {
-  if (type === "show-in-folder") {
-    throw new Error("show-in-folder should be handled separately");
-  }
-
-  const specialCommand = SPECIAL_COMMANDS[type];
-  if (specialCommand) {
-    return specialCommand(dir, platform);
-  }
-
-  const appCommands = APP_COMMAND_MAP[type];
-  if (!appCommands) {
-    throw new Error(`Unknown app type: ${type}`);
-  }
-
-  const command = appCommands[platform];
-  if (!command) {
-    throw new Error(`${type} is not supported on ${platform}`);
-  }
-
-  const commandFn = OPEN_COMMANDS[platform as keyof typeof OPEN_COMMANDS];
-  return commandFn(command, dir);
-};
-
-const checkEditorAvailability = async (
-  editor: EditorConfig,
-): Promise<SupportedEditor> => {
-  const platform = os.platform();
-
-  try {
-    const command = getDetectionCommand(editor, platform);
-    // Detection goes through a shell, which on Windows means a command prompt
-    // window per editor probed unless it is hidden. The commands that exist to
-    // open a terminal must not do this.
-    await execAsync(command, { windowsHide: true });
-    return { available: true, id: editor.id, name: editor.name };
-  } catch {
-    return { available: false, id: editor.id, name: editor.name };
-  }
-};
-
-const initializeSupportedEditorsCache = async () => {
-  if (supportedEditorsCache !== null) {
-    return supportedEditorsCache;
-  }
-
-  const platform = os.platform();
-  const editors = EDITORS_BY_PLATFORM[platform] ?? [];
-
-  const supportedEditors = await Promise.all(
-    editors.map(checkEditorAvailability),
-  );
-
-  supportedEditorsCache = supportedEditors;
-  return supportedEditors;
-};
 
 const openExternalLink = base
   .errors({
@@ -251,98 +66,129 @@ const openExternalLink = base
     }
   });
 
-const openTaskIn = base
-  .errors({
-    ERROR_OPENING_APP: {
-      message: "Error opening app",
-    },
-  })
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      type: OpenTaskInTypeSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const taskId = input.id;
+const SendTargetSchema = z.object({
+  iconUrl: z.string().nullable(),
+  name: z.string(),
+});
 
-    const platform = os.platform();
+/**
+ * The app a message card's Send menu hands a `mailto:` link to, with its name
+ * and icon, so the menu says where a draft will land. On macOS it is found the
+ * way the default browser is for "Open in", so the two read alike; null where
+ * the platform cannot say (Linux). The browser row asks for the browser the
+ * way every "Open in" does.
+ */
+const sendTargets = base
+  .output(z.object({ mail: SendTargetSchema.nullable() }))
+  .handler(async () => ({ mail: await mailTarget() }));
 
-    try {
-      if (input.type === "show-in-folder") {
-        const errorMessage = await shell.openPath(taskDir(taskId));
-        if (errorMessage) {
-          captureServerException(errorMessage);
-          shell.showItemInFolder(taskDir(taskId));
-        }
-      } else {
-        const command = getOpenCommand(input.type, taskDir(taskId), platform);
-        await execAsync(command);
-      }
+async function mailTarget() {
+  if (process.platform === "darwin") {
+    const resolved = await resolveDarwinTarget("mailto:someone@example.com");
+    return resolved
+      ? { iconUrl: resolved.iconUrl, name: resolved.appName }
+      : null;
+  }
+  try {
+    const info = await app.getApplicationInfoForProtocol("mailto:");
+    return {
+      iconUrl: await storeFileOpenNativeImage(info.icon),
+      name: info.name,
+    };
+  } catch {
+    return null;
+  }
+}
 
-      captureServerEvent("task.opened_in", {
-        app_name: input.type,
-      });
-    } catch (error) {
-      throw errors.ERROR_OPENING_APP({
-        message: error instanceof Error ? error.message : undefined,
-      });
+/**
+ * Hands text to the OS's share menu, drawn where the pointer is, so it goes to
+ * Messages, Mail, or any app the user has that takes text. macOS only: the
+ * menu is AppKit's, and elsewhere the answer is false and the caller copies.
+ */
+const shareText = base
+  .input(z.object({ text: z.string().min(1) }))
+  .output(z.object({ shown: z.boolean() }))
+  .handler(({ input }) => {
+    if (process.platform !== "darwin") {
+      return { shown: false };
     }
+    const window = BrowserWindow.getFocusedWindow();
+    new ShareMenu({ texts: [input.text] }).popup(window ? { window } : {});
+    return { shown: true };
   });
 
-const openTaskFile = base
-  .errors({
-    ERROR_OPENING_FILE: {
-      message: "Error opening file",
-    },
-    FILE_NOT_FOUND: {
-      message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
-    },
-  })
+/**
+ * Draws a menu where the pointer is, in the OS's own chrome, and says which row
+ * was chosen.
+ *
+ * The renderer is the only side that knows what sits under a pointer -- a page,
+ * a file, a folder, a screen of the app -- and what can be done with each; the
+ * OS is the only side that knows how a menu should look and where it fits on
+ * the display. This is the seam between them: rows in, the id of the row picked
+ * out, and nothing about what any row means crosses over.
+ *
+ * A menu drawn here rather than in the page is also a menu that does not have
+ * to be told about the app's zoom, which every floating thing the renderer
+ * draws has to be.
+ */
+const showContextMenu = base
   .input(
     z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
+      items: z.array(
+        z.object({
+          enabled: z.boolean().optional(),
+          id: z.string().optional(),
+          label: z.string().optional(),
+          separator: z.boolean().optional(),
+        }),
+      ),
     }),
   )
-  .handler(async ({ errors, input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
+  .output(z.object({ id: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    // Held in an object so the close callback below reads what a click wrote:
+    // read back off a plain binding, the compiler has it as the initial value.
+    const picked: { id: null | string } = { id: null };
+    const menu = Menu.buildFromTemplate(
+      input.items.map((item) =>
+        item.separator
+          ? { type: "separator" as const }
+          : {
+              click: () => {
+                picked.id = item.id ?? null;
+              },
+              enabled: item.enabled ?? true,
+              label: item.label ?? "",
+            },
+      ),
+    );
+    const window = BrowserWindow.getFocusedWindow();
+    await new Promise<void>((resolve) => {
+      menu.popup({
+        // Deferred by a tick: a row's own handler and the close callback are
+        // both fired around the menu closing, and their order is not promised
+        // across platforms. A tick is enough for the click to have landed.
+        callback: () => {
+          setImmediate(resolve);
+        },
+        ...(window ? { window } : {}),
+      });
     });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
-    try {
-      await fs.access(fullPath);
-    } catch {
-      throw errors.FILE_NOT_FOUND();
-    }
-
-    // openPath resolves with "" on success and an error string on failure
-    // (e.g. no app is associated with the type). That's an expected
-    // user-environment outcome, not an app bug, so it's surfaced to the client
-    // as a typed error and skipped by the RPC exception capture.
-    const errorMessage = await shell.openPath(fullPath);
-    if (errorMessage) {
-      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
-    }
+    return picked;
   });
 
-const openTaskFileWith = base
+/** A path on this computer, which is how the renderer names every file it shows. */
+const HostPathSchema = z
+  .string()
+  .refine((val) => path.isAbsolute(val), "Path must be absolute");
+
+const openFileWith = base
   .errors({
     ERROR_OPENING_FILE: {
       message: "Error opening file",
     },
     FILE_NOT_FOUND: {
       message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
     },
     UNSUPPORTED_PLATFORM: {
       message: "Choosing an app is only supported on macOS",
@@ -351,8 +197,7 @@ const openTaskFileWith = base
   .input(
     z.object({
       appPath: z.string().refine((val) => path.isAbsolute(val)),
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
+      filePath: HostPathSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
@@ -360,28 +205,20 @@ const openTaskFileWith = base
       throw errors.UNSUPPORTED_PLATFORM();
     }
 
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
     try {
-      await fs.access(fullPath);
+      await fs.access(input.filePath);
     } catch {
       throw errors.FILE_NOT_FOUND();
     }
 
     try {
-      const candidates = await getFileOpenCandidates(fullPath);
+      const candidates = await getFileOpenCandidates(input.filePath);
       if (!candidates.some(({ appPath }) => appPath === input.appPath)) {
         throw errors.ERROR_OPENING_FILE();
       }
       // execFile (not a shell) so the app path and file path can't be
       // interpreted as shell syntax.
-      await execFileAsync("open", ["-a", input.appPath, fullPath]);
+      await execFileAsync("open", ["-a", input.appPath, input.filePath]);
     } catch (error) {
       throw errors.ERROR_OPENING_FILE({
         message: error instanceof Error ? error.message : undefined,
@@ -391,40 +228,45 @@ const openTaskFileWith = base
 
 // Default-app name and icon for "Open in {app}" affordances. Fields are null
 // when the platform can't resolve them; callers fall back to generic ones.
-const getTaskFileOpenTarget = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+const fileOpenTarget = base
+  .input(z.object({ filePath: HostPathSchema }))
   .output(
     z.object({
       appName: z.string().nullable(),
       iconUrl: z.string().nullable(),
     }),
   )
-  .handler(async ({ input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      return { appName: null, iconUrl: null };
-    }
-    return await getFileOpenTarget(fullPath);
-  });
+  .handler(({ input }) => getFileOpenTarget(input.filePath));
+
+// The default browser's name and icon, for "Open in {browser}" on a web page.
+// Null fields where the platform cannot name one; callers offer a generic way
+// out to the browser instead.
+const browserOpenTarget = base
+  .output(
+    z.object({
+      appName: z.string().nullable(),
+      iconUrl: z.string().nullable(),
+    }),
+  )
+  .handler(() => getBrowserOpenTarget());
+
+// The system file manager, for its row in an "Open in" list: its path, so the
+// list can leave it out where it is already a candidate, and its icon. Null
+// fields where the platform cannot say; callers draw a folder glyph.
+const fileManagerApp = base
+  .output(
+    z.object({
+      appPath: z.string().nullable(),
+      iconUrl: z.string().nullable(),
+    }),
+  )
+  .handler(() => getFileManagerApp());
 
 // Every app that can open the file, for an "Open with" picker. The system's own
 // choice carries `isDefault`; its position in the list is not meaningful.
 // Empty on non-macOS platforms, which lack a portable enumeration.
-const getTaskFileOpenCandidates = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+const fileOpenCandidates = base
+  .input(z.object({ filePath: HostPathSchema }))
   .output(
     z.object({
       apps: z.array(
@@ -437,15 +279,46 @@ const getTaskFileOpenCandidates = base
       ),
     }),
   )
-  .handler(async ({ input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      return { apps: [] };
+  .handler(async ({ input }) => ({
+    apps: await getFileOpenCandidates(input.filePath),
+  }));
+
+/** Open a file or folder of the computer in the app the Mac would use. */
+const openPath = base
+  .errors({
+    ERROR_OPENING_FILE: {
+      message: "Error opening file",
+    },
+    FILE_NOT_FOUND: {
+      message: "File not found",
+    },
+  })
+  .input(z.object({ filepath: z.string() }))
+  .handler(async ({ errors, input }) => {
+    const stats = await fs.stat(input.filepath).catch(() => null);
+    if (!stats) {
+      throw errors.FILE_NOT_FOUND();
     }
-    return { apps: await getFileOpenCandidates(fullPath) };
+    // Where the system would hand the file back to Instrument, launch the app
+    // its "Open in {app}" label names instead. Only macOS can name one.
+    const { launchAppPath } =
+      stats.isFile() && os.platform() === "darwin"
+        ? await getFileOpenTarget(input.filepath)
+        : { launchAppPath: null };
+    if (launchAppPath) {
+      try {
+        await execFileAsync("open", ["-a", launchAppPath, input.filepath]);
+      } catch (error) {
+        throw errors.ERROR_OPENING_FILE({
+          message: error instanceof Error ? error.message : undefined,
+        });
+      }
+      return;
+    }
+    const errorMessage = await shell.openPath(input.filepath);
+    if (errorMessage) {
+      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    }
   });
 
 const showFileInFolder = base
@@ -468,38 +341,6 @@ const showFileInFolder = base
     }
   });
 
-const showTaskFileInFolder = base
-  .errors({
-    FILE_NOT_FOUND: {
-      message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
-    },
-  })
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
-    try {
-      await fs.access(fullPath);
-      shell.showItemInFolder(fullPath);
-    } catch {
-      throw errors.FILE_NOT_FOUND();
-    }
-  });
-
 const openFolder = base
   .input(
     z.object({
@@ -513,38 +354,6 @@ const openFolder = base
     if (errorMessage) {
       shell.showItemInFolder(input.folderPath);
     }
-  });
-
-const exportZip = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      includeChat: z.boolean().default(false),
-    }),
-  )
-  .output(
-    z.object({
-      filename: z.string(),
-      filepath: z.string(),
-    }),
-  )
-  .handler(async ({ context, input, signal }) => {
-    const outputPath = app.getPath("downloads");
-    return call(
-      workspaceRouter.task.exportZip,
-      { ...input, outputPath },
-      { context, signal },
-    );
-  });
-
-const getSupportedEditors = base
-  .output(z.array(SupportedEditorSchema))
-  .handler(async () => {
-    if (supportedEditorsCache !== null) {
-      return supportedEditorsCache;
-    }
-
-    return await initializeSupportedEditorsCache();
   });
 
 /**
@@ -572,6 +381,15 @@ const displayProtocol = base
       app.commandLine.getSwitchValue("ozone-platform"),
     );
   });
+
+/**
+ * The origin the renderer reads files on this computer through, token and all.
+ * Only the top frame can open the RPC port, so only the app's own code learns
+ * it; constant for the life of the process.
+ */
+const computerFileBase = base
+  .output(z.string())
+  .handler(() => computerFileBaseUrl());
 
 /**
  * The end of the log, so someone can read what they are about to send.
@@ -604,34 +422,47 @@ const saveDiagnosticLog = base
   .output(
     z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }),
   )
-  .handler(() => saveLogCopy(getMainWindow() ?? undefined));
+  .handler(({ context }) =>
+    saveLogCopy(getCallingWindow(context.webContentsId) ?? undefined),
+  );
 
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
 
-// The renderer owns the main-window zoom (CSS `zoom`); it reports the current level so
-// the main process can keep the macOS traffic lights centered in the toolbar,
-// whose visual height scales with that zoom. The level is stored so the next
-// window can be created with the buttons already in the right place.
+// The renderer owns the app zoom (CSS `zoom`); it reports the current level so
+// the main process can keep the macOS traffic lights centered in the band of
+// chrome above the UI, whose visual height scales with that zoom. One setting
+// shared by every window at the origin, so every window that draws such a band
+// is moved, whichever one reported it. The level is stored so the next window
+// can be created with the buttons already in the right place.
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ input }) => {
-    setTrafficLightForZoom(input.zoom);
-    setMainWindowZoom(input.zoom);
+    setTrafficLightForZoom(getAppWindow(), input.zoom);
+    setAppZoom(input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
-const minimizeWindow = base.input(z.void()).handler(() => {
-  minimizeMainWindow();
+// Each acts on the window that asked.
+const minimizeWindow = base.input(z.void()).handler(({ context }) => {
+  getCallingWindow(context.webContentsId)?.minimize();
 });
 
-const toggleMaximizeWindow = base.input(z.void()).handler(() => {
-  toggleMaximizeMainWindow();
+const toggleMaximizeWindow = base.input(z.void()).handler(({ context }) => {
+  const window = getCallingWindow(context.webContentsId);
+  if (!window) {
+    return;
+  }
+  if (window.isMaximized()) {
+    window.unmaximize();
+  } else {
+    window.maximize();
+  }
 });
 
-const closeWindow = base.input(z.void()).handler(() => {
-  closeMainWindow();
+const closeWindow = base.input(z.void()).handler(({ context }) => {
+  getCallingWindow(context.webContentsId)?.close();
 });
 
 const events = {
@@ -685,72 +516,31 @@ const live = {
         z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
       ),
     )
-    .handler(async function* ({ signal }) {
-      yield readMainWindowState();
+    .handler(async function* ({ context, signal }) {
+      yield readWindowState(context.webContentsId);
 
       for await (const _ of publisher.subscribe("window.state-changed", {
         signal,
       })) {
-        yield readMainWindowState();
+        yield readWindowState(context.webContentsId);
       }
     }),
 };
 
-function readMainWindowState() {
+// The asking window's own state: the topic is one every window publishes on,
+// and each subscriber wants the answer for itself.
+function readWindowState(webContentsId: number) {
+  const window = getCallingWindow(webContentsId);
   return {
-    fullScreen: isMainWindowFullScreen(),
-    maximized: isMainWindowMaximized(),
+    fullScreen: window?.isFullScreen() ?? false,
+    maximized: window?.isMaximized() ?? false,
   };
 }
 
-const copyTaskPathToClipboard = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(({ input }) => {
-    const taskId = input.id;
-    clipboard.writeText(taskDir(taskId));
-  });
-
-const copyProjectPathToClipboard = base
-  .errors({
-    PROJECT_NOT_FOUND: { message: "Project not found" },
-  })
-  .input(
-    z.object({
-      id: ProjectIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const dir = await resolveProjectDir(input.id);
-    if (!dir) {
-      throw errors.PROJECT_NOT_FOUND();
-    }
-    clipboard.writeText(dir);
-  });
-
-const showProjectInFolder = base
-  .errors({
-    PROJECT_NOT_FOUND: { message: "Project not found" },
-  })
-  .input(
-    z.object({
-      id: ProjectIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const dir = await resolveProjectDir(input.id);
-    if (!dir) {
-      throw errors.PROJECT_NOT_FOUND();
-    }
-    const errorMessage = await shell.openPath(dir);
-    if (errorMessage) {
-      captureServerException(errorMessage);
-      shell.showItemInFolder(dir);
-    }
-  });
+/** Where a task's folder is on the computer, for the window to show it in its own folder view. */
+const taskFolderPath = base
+  .input(z.object({ id: TaskIdSchema }))
+  .handler(({ input }) => taskDir(input.id));
 
 const copyFileToClipboard = base
   .errors({
@@ -759,19 +549,15 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
+      filePath: HostPathSchema,
       isImage: z.boolean(),
     }),
   )
-  .handler(async ({ errors, input, signal }) => {
-    const buffer = await readTaskFile({
-      filePath: input.filePath,
-      signal,
-      taskId: input.id,
-    });
-
-    if (!buffer) {
+  .handler(async ({ errors, input }) => {
+    let buffer: Buffer;
+    try {
+      buffer = await fs.readFile(input.filePath);
+    } catch {
       throw errors.FILE_NOT_FOUND();
     }
 
@@ -788,35 +574,52 @@ const copyFileToClipboard = base
   });
 
 // Warms what a native drag of this file will need. Separate from starting the
-// drag, which cannot wait on anything: see electron-main/lib/file-drag. Says
-// nothing about whether the file resolved, because there is nothing useful for
-// the caller to do about it -- a drag with nothing behind it simply does not
-// start.
-const prepareTaskFileDrag = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+// drag, which cannot wait on anything: see electron-main/lib/file-drag.
+const prepareDrag = base
+  .input(z.object({ filePath: HostPathSchema }))
   .handler(async ({ input }) => {
-    await prepareFileDrag({ filePath: input.filePath, taskId: input.id });
+    await prepareFileDrag({ filePath: input.filePath });
   });
 
 const showFolderPicker = base
+  .input(
+    z.object({
+      /** What the confirm button says; the system's own word when absent. */
+      buttonLabel: z.string().min(1).optional(),
+      /**
+       * A line the panel shows above the file list. The sheet covers the
+       * window that asked, so a picker opened for a reason carries the reason
+       * with it rather than leaving it behind under the sheet.
+       */
+      message: z.string().min(1).optional(),
+      /**
+       * Where the panel opens. Picking a folder in the system's own panel is
+       * the person's intent, which the Mac honors without its own prompt, so a
+       * panel opened at a folder it refused to read is the way to read it.
+       */
+      startingAt: HostPathSchema.optional(),
+    }),
+  )
   .output(z.object({ path: z.string() }).nullable())
-  .handler(async () => {
+  .handler(async ({ context, input }) => {
     // Pass the parent window so macOS presents a window-modal sheet, which keeps
     // the open-panel service warm across opens. Without a parent it falls back to
-    // app-modal and cold-starts the panel every time (~2-3s).
-    const parentWindow = getMainWindow();
+    // app-modal and cold-starts the panel every time (~2-3s). The window that
+    // asked, so a picker opened from a second window opens on that window and
+    // never on one that is not on screen: a dialog owned by a hidden window is a
+    // question nobody can answer, and reads as the app having stopped.
+    const parentWindow = getCallingWindow(context.webContentsId);
+    const options = {
+      ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
+      ...(input.startingAt ? { defaultPath: input.startingAt } : {}),
+      ...(input.message
+        ? { message: input.message, title: input.message }
+        : {}),
+      properties: ["openDirectory", "createDirectory"] as const,
+    } satisfies Electron.OpenDialogOptions;
     const result = await (parentWindow
-      ? dialog.showOpenDialog(parentWindow, {
-          properties: ["openDirectory", "createDirectory"],
-        })
-      : dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        }));
+      ? dialog.showOpenDialog(parentWindow, options)
+      : dialog.showOpenDialog(options));
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
@@ -825,31 +628,31 @@ const showFolderPicker = base
   });
 
 export const utils = {
+  browserOpenTarget,
   clearExceptions,
   closeWindow,
+  computerFileBase,
   copyFileToClipboard,
-  copyProjectPathToClipboard,
-  copyTaskPathToClipboard,
   displayProtocol,
   events,
-  exportZip,
-  getSupportedEditors,
-  getTaskFileOpenCandidates,
-  getTaskFileOpenTarget,
+  fileManagerApp,
+  fileOpenCandidates,
+  fileOpenTarget,
   live,
   minimizeWindow,
   openExternalLink,
+  openFileWith,
   openFolder,
-  openTaskFile,
-  openTaskFileWith,
-  openTaskIn,
-  prepareTaskFileDrag,
+  openPath,
+  prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
+  sendTargets,
+  shareText,
+  showContextMenu,
   showFileInFolder,
   showFolderPicker,
-  showProjectInFolder,
-  showTaskFileInFolder,
   syncZoom,
+  taskFolderPath,
   toggleMaximizeWindow,
 };

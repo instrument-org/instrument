@@ -203,6 +203,5 @@ try {
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }

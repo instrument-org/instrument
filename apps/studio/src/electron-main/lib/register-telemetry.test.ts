@@ -17,9 +17,8 @@ const { captureServerEvent, telemetryMock } = vi.hoisted(() => ({
 
 vi.mock("./capture-server-event", () => ({ captureServerEvent }));
 vi.mock("./telemetry", () => ({ telemetry: telemetryMock }));
-vi.mock("../stores/preferences", () => ({
-  getPreferencesStore: () => ({ get: () => true, onDidChange: noop }),
-  isDeveloperMode: () => false,
+vi.mock("../stores/machine/preferences", () => ({
+  getMachinePreferences: () => ({ get: () => true, onDidChange: noop }),
 }));
 
 // Test double for the handful of `Electron.App` members this module touches;

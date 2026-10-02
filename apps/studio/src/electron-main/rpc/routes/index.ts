@@ -1,12 +1,17 @@
 import { workspaceRouter } from "@instrument-org/workspace/electron";
 
 import { appCommands } from "./app-commands";
+import { apps } from "./apps";
 import { auth } from "./auth";
 import { browser } from "./browser";
+import { chatgptPlan } from "./chatgpt-plan";
 import { debug } from "./debug";
 import { features } from "./features";
+import { files } from "./files";
 import { gateway } from "./gateway";
+import { ideas } from "./ideas";
 import { onboarding } from "./onboarding";
+import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
@@ -14,18 +19,26 @@ import { releases } from "./releases";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
 import { telemetry } from "./telemetry";
+import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
+import { window } from "./window";
+import { workspaces } from "./workspaces";
 
 export const router = {
   appCommands,
+  apps,
   auth,
   browser,
+  chatgptPlan,
   debug,
   features,
+  files,
   gateway,
+  ideas,
   onboarding,
+  pageEditor,
   plans,
   preferences,
   providerConfig,
@@ -33,8 +46,11 @@ export const router = {
   stripe,
   syntax,
   telemetry,
+  transcript,
   updates,
   user,
   utils,
+  window,
   workspace: workspaceRouter,
+  workspaces,
 };

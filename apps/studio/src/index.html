@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <!--
+      A packaged build loads from `file://`, which sends no referrer; dev loads
+      from `http://localhost`, which would. No referrer at all keeps the two
+      alike, and some hosts (Google's account pictures among them) refuse a
+      request that names localhost as where it came from.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <!--
       `img-src` is wider than anything content is allowed to reach, because it
       also covers chrome this app drew itself. What a document written by a
       model, a shared file, or a notebook may point an `<img>` at is decided in
@@ -12,12 +19,12 @@
     <meta
       http-equiv="Content-Security-Policy"
       content="
-        connect-src 'self' instrument: instrument-local: http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* http://*.lvh.me:* https://*.lvh.me:* https://*.posthog.com;
-        default-src 'self' http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* http://*.lvh.me:* https://*.lvh.me:*;
+        connect-src 'self' instrument: instrument-local: http://localhost:* https://localhost:* https://*.posthog.com;
+        default-src 'self' http://localhost:* https://localhost:*;
         font-src 'self' data:;
-        frame-src 'self' data: mailto: tel: http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* http://*.lvh.me:* https://*.lvh.me:*;
-        img-src 'self' blob: data: instrument: instrument-local: http://*.localhost:* https://*.googleusercontent.com https://*.gstatic.com https://*.googleapis.com https://images.google.com https://www.google.com https://github.com https://*.github.com https://*.githubusercontent.com https://*.s3.amazonaws.com;
-        media-src 'self' data: http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* http://*.lvh.me:* https://*.lvh.me:*;
+        frame-src 'self' data: instrument: instrument-local: mailto: tel: http://localhost:* https://localhost:*;
+        img-src 'self' blob: data: instrument: instrument-local: https://*.googleusercontent.com https://*.gstatic.com https://*.googleapis.com https://images.google.com https://www.google.com https://github.com https://*.github.com https://*.githubusercontent.com https://*.s3.amazonaws.com;
+        media-src 'self' data: instrument: instrument-local: http://localhost:* https://localhost:*;
         script-src 'self' 'wasm-unsafe-eval' https://*.posthog.com;
         style-src 'self' 'unsafe-inline' https://*.posthog.com;
         worker-src 'self' blob:;

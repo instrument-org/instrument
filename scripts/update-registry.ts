@@ -26,7 +26,6 @@ function main() {
     console.log(`Commit: ${commitMessage}`);
   } catch (error) {
     console.error("Error during registry update:", error);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(1);
   }
 }

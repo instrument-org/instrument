@@ -1,4 +1,8 @@
 {
   "extends": "@instrument-org/typescript-config/no-react.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
   "include": ["src", "*.ts", "*.js", "*.cjs", "scripts", "evals", "__mocks__"]
 }

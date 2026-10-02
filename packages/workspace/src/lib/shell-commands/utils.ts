@@ -19,40 +19,35 @@ import {
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
 
-/** Copy-first guidance for a `/mnt/...` reference; subject names the source. */
-export function attachedMountLiteralError(subject: string): string {
+/**
+ * How to reach a `/mnt/...` path a native process cannot: the sandboxed
+ * runtime that reads mounts directly when the caller has one to offer, and
+ * copying the file into the task either way.
+ */
+export interface MountAlternative {
+  /**
+   * One sentence naming the sandboxed command that reads attached folders in
+   * place, when the invocation could have used it. Absent for a command with
+   * no sandboxed twin (ffmpeg, pip) and for a skill script, which runs
+   * natively on purpose.
+   */
+  alternative?: string;
+}
+
+/** Guidance for a `/mnt/...` reference; subject names the source. */
+export function attachedMountLiteralError(
+  subject: string,
+  { alternative }: MountAlternative = {},
+): string {
   return (
     `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
-    `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
-    `never to real interpreter processes. Copy the file into the task first ` +
+    `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
+    `and the sandboxed script runtimes, never to a real interpreter process. ` +
+    (alternative ? `${alternative} Otherwise copy` : `Copy`) +
+    ` the file into the task first ` +
     `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
     `reference the copy with a task-relative path (attachments/<file>).`
   );
-}
-
-/**
- * The first attached-folder path a shim was pointed at, whether through an
- * argument or through the working directory it inherited, or undefined.
- *
- * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
- * location inside the task, which is the containment working as designed --
- * but the resulting failure describes the quarantined path, not the mount the
- * agent actually named, so the report reads like a path bug in the sandbox
- * rather than the boundary it is. Callers use this to answer with the mount
- * the agent asked for before spawning anything.
- */
-export function attachedMountReference(
-  args: string[],
-  virtualCwd: string,
-): string | undefined {
-  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
-    return normalizePath(virtualCwd);
-  }
-  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
-  // whole, since indexOf returns -1 when there is no `=`.
-  return args
-    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => isUnderAttachedMount(value));
 }
 
 /**
@@ -92,9 +87,12 @@ export function bridgeInlineCodePaths(
   code: string,
   taskId: TaskId,
   taskCwd: string,
+  alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
   if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
-    return { error: attachedMountLiteralError("Inline script code") };
+    return {
+      error: attachedMountLiteralError("Inline script code", alternative),
+    };
   }
 
   // The private dir is masked from the shell and file tools; block inline-code
@@ -111,6 +109,29 @@ export function bridgeInlineCodePaths(
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
       (_match, quote: string) => `${quote}${relativeTaskRoot}`,
+    ),
+  };
+}
+
+/**
+ * `bridgeInlineCodePaths` for AppleScript and JavaScript for Automation, whose
+ * `POSIX file` and path strings resolve against `/` rather than the working
+ * directory, so a quoted `/task/...` literal becomes the task folder's absolute
+ * host path. macOS only, so no Windows separators to escape.
+ */
+export function bridgeAppleScriptPaths(
+  code: string,
+  taskId: TaskId,
+): { code: string } | { error: string } {
+  const checked = bridgeInlineCodePaths(code, taskId, taskDir(taskId));
+  if ("error" in checked) {
+    return checked;
+  }
+  const taskRoot = taskDir(taskId);
+  return {
+    code: code.replaceAll(
+      quotedMountPattern(MOUNT.task),
+      (_match, quote: string) => `${quote}${taskRoot}`,
     ),
   };
 }
@@ -294,6 +315,7 @@ export function resolvePathArgs(
 export async function scanScriptFileForVirtualPaths(
   taskCwd: string,
   filePath: string,
+  alternative: MountAlternative = {},
 ): Promise<string | undefined> {
   let source: string;
   try {
@@ -301,7 +323,7 @@ export async function scanScriptFileForVirtualPaths(
   } catch {
     return undefined;
   }
-  return scriptFileVirtualPathError(source);
+  return scriptFileVirtualPathError(source, alternative);
 }
 
 /**
@@ -315,9 +337,12 @@ export async function scanScriptFileForVirtualPaths(
  * best-effort, matching the inline guard: only literals right after a quote
  * match, so regex literals and paths embedded mid-string are left alone.
  */
-export function scriptFileVirtualPathError(source: string): string | undefined {
+export function scriptFileVirtualPathError(
+  source: string,
+  alternative: MountAlternative = {},
+): string | undefined {
   if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file");
+    return attachedMountLiteralError("This script file", alternative);
   }
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");
@@ -327,7 +352,7 @@ export function scriptFileVirtualPathError(source: string): string | undefined {
       `This script file references a ${MOUNT.task}/... absolute path, which ` +
       `real interpreter processes cannot resolve: ${MOUNT.task} is a virtual ` +
       `path only the sandbox shell and file tools see, and scripts run from the ` +
-      `task root. Use a task-relative path instead (output/report.txt, ` +
+      `task root. Use a task-relative path instead (work/report.txt, ` +
       `work/data.csv). Command-line path arguments and quoted ${MOUNT.task}/... ` +
       `strings in inline -e/-c code are translated automatically; paths written ` +
       `inside script files are not.`
@@ -371,14 +396,17 @@ export function unreachablePathArgError(
   commandName: string,
   args: string[],
   virtualCwd: string,
+  { alternative }: MountAlternative = {},
 ): string | undefined {
   const mount = attachedMountReference(args, virtualCwd);
   if (mount !== undefined) {
     return (
       `${commandName}: ${mount} is inside an attached folder, which ` +
       `${commandName} cannot read. Attached-folder mounts are visible to the ` +
-      `sandbox shell and file tools only, never to a real subprocess. Copy the ` +
-      `file into the task first (cp '${mount}' attachments/) and run ` +
+      `sandbox shell, the file tools, and the sandboxed script runtimes, never ` +
+      `to a real subprocess. ` +
+      (alternative ? `${alternative} Otherwise copy` : `Copy`) +
+      ` the file into the task first (cp '${mount}' attachments/) and run ` +
       `${commandName} on the copy.\n`
     );
   }
@@ -397,9 +425,34 @@ export function unreachablePathArgError(
   return (
     `${commandName}: ${outside} is outside the task, and ${MOUNT.task} is the ` +
     `only mount a real subprocess can resolve. Use a task-relative path ` +
-    `(work/scratch.txt, output/report.pdf); scratch files belong under work/, ` +
+    `(work/scratch.txt, work/report.pdf); scratch files belong under work/, ` +
     `which is where mktemp puts them.\n`
   );
+}
+
+/**
+ * The first attached-folder path a shim was pointed at, whether through an
+ * argument or through the working directory it inherited, or undefined.
+ *
+ * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
+ * location inside the task, which is the containment working as designed --
+ * but the resulting failure describes the quarantined path, not the mount the
+ * agent actually named, so the report reads like a path bug in the sandbox
+ * rather than the boundary it is. Callers use this to answer with the mount
+ * the agent asked for before spawning anything.
+ */
+function attachedMountReference(
+  args: string[],
+  virtualCwd: string,
+): string | undefined {
+  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
+    return normalizePath(virtualCwd);
+  }
+  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
+  // whole, since indexOf returns -1 when there is no `=`.
+  return args
+    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
+    .find((value) => isUnderAttachedMount(value));
 }
 
 function isOptionToken(token: { kind: string }): token is {

@@ -122,7 +122,7 @@ function DeleteWithProgressDialogBody<T>({
       <>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Spinner className="size-5" />
+            <Spinner className="size-5" delay={0} />
             Moving to {trashTerminology}
           </AlertDialogTitle>
           <AlertDialogDescription>

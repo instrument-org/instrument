@@ -19,8 +19,6 @@ Most of the plumbing is there. This is mostly a corpus and a seeder, not new app
 | --- | --- | --- |
 | Point the app at an arbitrary workspace | `ELECTRON_USER_DATA_DIR`, handled in `electron-main/setup-environment.ts` | Redirects `userData` wholesale, and the workspace lives at `userData/workspace`. Everything follows: tasks, preferences, tabs, providers, browser session |
 | Skip the provider-setup gate | `SKIP_ONBOARDING=true`, checked in `shouldShowOnboarding` in `electron-main/index.ts` | Without this a fresh workspace opens the onboarding window and the main window never reveals, which in CI reads as a hang |
-| Whole-task round trip | `task.exportZip` and `task.importTask` (`packages/workspace/src/rpc/routes/task/index.ts`, `lib/export-task-zip.ts`) | Import takes base64 zip data, so a seeder can drive it without the file picker |
-| Deterministic conversations | `workspace.debug.replaySession` (`packages/workspace/src/rpc/routes/debug.ts`) | Replays a recorded session into a new task or session against a `replay-stub` model. Reads its source from a task already in the workspace, and re-executes each tool call, so the seeder does not use it — see §2 |
 | Call any route from a script | `window.__studioDebug.rpc(path, input)` | Gated on the Developer Mode preference at call time |
 | Drive the app | `.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs` | Already spawns Studio with a controlled environment |
 
@@ -67,7 +65,7 @@ Idempotent, and fast enough to run before every CI job: it holds a content hash 
 
 The open question was whether a `workspaceConfig` can be built outside the Electron main process. It can: `evals/harness.ts` and `scripts/run-workspace.ts` already start the real workspace machine headlessly, and the seeder needs less than either — a config installed with `setWorkspaceConfig`, and `initializeTask` plus `Store`. No Electron, no running app, no server.
 
-One deviation from the sketch above. `workspace.debug.replaySession` re-executes every recorded tool call, which needs the whole runtime: bash sandbox, browser, a model. Seeding has to work in CI with no provider credentials and finish in seconds, so it writes the recorded messages and their recorded tool outputs, and the artifacts a tool would have produced come from the fixture's `files/`. The cost is that a change to what a tool *stores* wants the transcript re-recorded; the check that catches it is a test that parses every committed fixture through the real session schema.
+One deviation from the sketch above. The seeder does not re-execute recorded tool calls, which would need the whole runtime: bash sandbox, browser, a model. Seeding has to work in CI with no provider credentials and finish in seconds, so it writes the recorded messages and their recorded tool outputs, and the artifacts a tool would have produced come from the fixture's `files/`. The cost is that a change to what a tool *stores* wants the transcript re-recorded; the check that catches it is a test that parses every committed fixture through the real session schema.
 
 Recording is the other half, and the corpus cannot grow without it:
 

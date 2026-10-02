@@ -45,7 +45,7 @@ function Root({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ThemeProvider>
       {/* This is the one spot where we use TooltipProvider */}
-      {/* eslint-disable-next-line no-restricted-syntax */}
+      {/* oxlint-disable-next-line studio/one-tooltip-provider */}
       <TooltipProvider>{children}</TooltipProvider>
     </ThemeProvider>
   );
@@ -57,11 +57,12 @@ function RootComponent() {
   // `document.title` (the OS window title / accessible window name) would follow
   // whichever tab resolved last rather than the visible one. `useIsActiveTab`
   // defaults to true outside the tab host, so the onboarding window still
-  // renders its head.
+  // renders its head. The app window names itself from its tab bar instead
+  // (`AppTabStrip`), since most of its screens declare no head of their own.
   const isActiveTab = useIsActiveTab();
   return (
     <Root>
-      {isActiveTab ? <HeadContent /> : null}
+      {isActiveTab && window.api.windowType !== "app" ? <HeadContent /> : null}
       <Outlet />
     </Root>
   );

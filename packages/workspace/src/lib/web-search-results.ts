@@ -1,3 +1,4 @@
+import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
 /**
@@ -30,6 +31,16 @@ const ResultsSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("summary"),
+    // The model that wrote the summary, for the card to name. Optional so a
+    // result recorded without them still reads.
+    modelId: z.string().optional(),
+    modelIdServed: z.string().optional(),
+    provider: z
+      .object({
+        displayName: z.string().optional(),
+        type: AIProviderTypeSchema,
+      })
+      .optional(),
     sources: z.array(
       z.object({ title: z.string().optional(), url: z.string() }),
     ),

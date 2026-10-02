@@ -35,7 +35,7 @@ export function GoogleLoginButton({
         type="submit"
         variant="default"
       >
-        {disabled ? <Spinner /> : <FcGoogle />}
+        {disabled ? <Spinner delay={0} /> : <FcGoogle />}
         Continue with Google
       </Button>
     </form>

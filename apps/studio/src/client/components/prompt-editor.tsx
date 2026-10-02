@@ -1,4 +1,9 @@
 import {
+  AppMention,
+  AppMenuRow,
+  type ComposerApp,
+} from "@/client/components/app-mention";
+import {
   type ComposerAction,
   MenuGroupHeader,
 } from "@/client/components/composer-add-menu";
@@ -14,6 +19,7 @@ import {
   PopoverContent,
 } from "@/client/components/ui/popover";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
+import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
@@ -22,12 +28,12 @@ import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
-import { EditorView } from "prosemirror-view";
 // ProseMirror emits DOM hacks its own stylesheet neutralizes: a trailing <br>
 // after a text block ending in an inline leaf, and separator <img>s around
 // them. Without this the <br> is a real line break, so the caret after a skill
 // token rendered on the next line.
 import "prosemirror-view/style/prosemirror.css";
+import { EditorView } from "prosemirror-view";
 import {
   Fragment,
   useEffect,
@@ -39,8 +45,9 @@ import {
 import { createPortal } from "react-dom";
 
 import {
-  deleteSkillBackward,
-  deleteSkillForward,
+  appOfNode,
+  deleteTokenBackward,
+  deleteTokenForward,
   promptDocFromPastedText,
   promptDocFromText,
   promptSchema,
@@ -59,8 +66,8 @@ const editorAttributes = (placeholder?: string) => ({
 const editorPlugins = () => [
   history(),
   keymap({
-    Backspace: deleteSkillBackward,
-    Delete: deleteSkillForward,
+    Backspace: deleteTokenBackward,
+    Delete: deleteTokenForward,
     "Mod-y": redo,
     "Mod-z": undo,
     // A line in this document is a paragraph -- `promptTextFromDoc` joins them
@@ -94,17 +101,19 @@ export interface PromptEditorRef {
 }
 
 // What a slash offers, in the order it offers it: the things the composer can
-// be given first, then the skills that can be run.
+// be given first, then the apps that can be named, then the skills that can
+// be run.
 type MenuEntry =
   | { action: ComposerAction; labelRanges: null | number[]; type: "action" }
+  | { app: ComposerApp; labelRanges: null | number[]; type: "app" }
   | { match: SkillMatch<ComposerSkill>; type: "skill" };
 
-// A skill token in the document, paired with the element ProseMirror gave its
-// node view so React can render the token into it.
-interface SkillChip {
+// A token in the document (a skill or an app), paired with the element
+// ProseMirror gave its node view so React can render the token into it.
+interface TokenChip {
   id: number;
-  name: string;
   target: HTMLElement;
+  token: { app: AppMentionRef; type: "app" } | { name: string; type: "skill" };
 }
 
 // Generous rather than tight: the list scrolls, so a long query that still
@@ -115,11 +124,22 @@ const SKILL_MENU_LIMIT = 50;
 const menuEntries = (
   actions: ComposerAction[],
   skills: ComposerSkill[],
+  apps: ComposerApp[],
   query: string,
 ): MenuEntry[] => [
   ...matchComposerActions(actions, query).map((match) => ({
     ...match,
     type: "action" as const,
+  })),
+  // Matched by name the way an action is by its label: an app is named
+  // rather than searched, and the two lists read alike under the caret.
+  ...matchComposerActions(
+    apps.map((app) => ({ app, label: app.name })),
+    query,
+  ).map((match) => ({
+    app: match.action.app,
+    labelRanges: match.labelRanges,
+    type: "app" as const,
   })),
   ...matchSkills(skills, query, {
     limit: SKILL_MENU_LIMIT,
@@ -130,9 +150,9 @@ const menuEntries = (
   })),
 ];
 
-// Chooses an entry against the range the slash opened. A skill becomes a token
-// in the document; an action leaves nothing behind, because the slash was the
-// way in rather than something the prompt was meant to keep.
+// Chooses an entry against the range the slash opened. A skill or an app
+// becomes a token in the document; an action leaves nothing behind, because
+// the slash was the way in rather than something the prompt was meant to keep.
 const applyMenuEntry = (
   view: EditorView,
   range: { from: number; to: number },
@@ -144,7 +164,13 @@ const applyMenuEntry = (
     entry.action.onSelect();
     return;
   }
-  const node = promptSchema.nodes.skill.create({ name: entry.match.skill.id });
+  const node =
+    entry.type === "app"
+      ? promptSchema.nodes.app.create({
+          name: entry.app.name,
+          slug: entry.app.slug,
+        })
+      : promptSchema.nodes.skill.create({ name: entry.match.skill.id });
   const transaction = view.state.tr.replaceRangeWith(
     range.from,
     range.to,
@@ -161,6 +187,7 @@ const preventDefault = (event: Event) => {
 
 export function PromptEditor({
   actions,
+  apps,
   autoFocus,
   bounds,
   defaultValue,
@@ -174,6 +201,8 @@ export function PromptEditor({
 }: {
   /** What the plus button offers, offered here too. */
   actions: ComposerAction[];
+  /** The apps a slash can name, each becoming a chip in the words. */
+  apps: ComposerApp[];
   autoFocus: boolean;
   /** The composer box a typed slash opens its menu against. */
   bounds: HTMLElement | null;
@@ -182,7 +211,7 @@ export function PromptEditor({
   disabled: boolean;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
-  onSubmit: (openInNewTab: boolean) => void;
+  onSubmit: () => void;
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
   skills: ComposerSkill[];
@@ -191,6 +220,7 @@ export function PromptEditor({
   const columnRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
   const actionsRef = useRef(actions);
+  const appsRef = useRef(apps);
   const skillsRef = useRef(skills);
   const menuRef = useRef<null | { from: number; query: string; to: number }>(
     null,
@@ -203,7 +233,7 @@ export function PromptEditor({
     query: string;
     to: number;
   }>(null);
-  const [chips, setChips] = useState<SkillChip[]>([]);
+  const [chips, setChips] = useState<TokenChip[]>([]);
   const chipIdRef = useRef(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
@@ -227,15 +257,17 @@ export function PromptEditor({
 
   useEffect(() => {
     actionsRef.current = actions;
+    appsRef.current = apps;
     skillsRef.current = skills;
     onChangeRef.current = onChange;
     onPasteRef.current = onPaste;
     onSubmitRef.current = onSubmit;
     selectedIndexRef.current = selectedIndex;
-  }, [actions, onChange, onPaste, onSubmit, selectedIndex, skills]);
-  const entries = menu ? menuEntries(actions, skills, menu.query) : [];
-  // Where the skills start, so the rule that names them is drawn once and only
-  // when there is something above it to separate them from.
+  }, [actions, apps, onChange, onPaste, onSubmit, selectedIndex, skills]);
+  const entries = menu ? menuEntries(actions, skills, apps, menu.query) : [];
+  // Where the apps and the skills start, so the rule that names each is drawn
+  // once and only when there is something above it to separate them from.
+  const firstAppIndex = entries.findIndex((entry) => entry.type === "app");
   const firstSkillIndex = entries.findIndex((entry) => entry.type === "skill");
   const menuOpen = menu !== null && entries.length > 0;
   const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
@@ -317,6 +349,7 @@ export function PromptEditor({
           const currentEntries = menuEntries(
             actionsRef.current,
             skillsRef.current,
+            appsRef.current,
             activeMenu.query,
           );
           if (
@@ -351,7 +384,7 @@ export function PromptEditor({
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
-          onSubmitRef.current(event.metaKey || event.ctrlKey);
+          onSubmitRef.current();
           return true;
         }
         return false;
@@ -381,13 +414,37 @@ export function PromptEditor({
       // than a second lookalike built out of the schema's `toDOM`. ProseMirror
       // owns the element; React owns everything inside it.
       nodeViews: {
+        app: (node) => {
+          const app = appOfNode(node);
+          const target = document.createElement("span");
+          target.contentEditable = "false";
+          target.dataset.app = app?.slug;
+          const id = (chipIdRef.current += 1);
+          if (app) {
+            setChips((current) => [
+              ...current,
+              { id, target, token: { app, type: "app" } },
+            ]);
+          }
+          return {
+            destroy: () => {
+              setChips((current) => current.filter((chip) => chip.id !== id));
+            },
+            dom: target,
+            ignoreMutation: () => true,
+            stopEvent: () => true,
+          };
+        },
         skill: (node) => {
           const name = String(node.attrs.name);
           const target = document.createElement("span");
           target.contentEditable = "false";
           target.dataset.skill = name;
           const id = (chipIdRef.current += 1);
-          setChips((current) => [...current, { id, name, target }]);
+          setChips((current) => [
+            ...current,
+            { id, target, token: { name, type: "skill" } },
+          ]);
           return {
             destroy: () => {
               setChips((current) => current.filter((chip) => chip.id !== id));
@@ -554,20 +611,26 @@ export function PromptEditor({
           />
           {chips.map((chip) =>
             createPortal(
-              <SkillMention
-                name={chip.name}
-                // An empty list means nothing to check against, not a skill that
-                // has gone: only claim a chip is stale once there is a list.
-                resolved={skills.length > 0}
-                summary={skills.find(
-                  (skill) =>
-                    skill.aliases.includes(chip.name) ||
-                    skill.qualifiedName === chip.name,
-                )}
-                // The composer's own controls stay the tab order; a draft with
-                // several tokens should not put a stop at each one.
-                tabIndex={-1}
-              />,
+              chip.token.type === "app" ? (
+                <AppMention app={chip.token.app} apps={apps} />
+              ) : (
+                <SkillMention
+                  name={chip.token.name}
+                  // An empty list means nothing to check against, not a skill
+                  // that has gone: only claim a chip is stale once there is a
+                  // list.
+                  resolved={skills.length > 0}
+                  summary={skills.find(
+                    (skill) =>
+                      chip.token.type === "skill" &&
+                      (skill.aliases.includes(chip.token.name) ||
+                        skill.qualifiedName === chip.token.name),
+                  )}
+                  // The composer's own controls stay the tab order; a draft
+                  // with several tokens should not put a stop at each one.
+                  tabIndex={-1}
+                />
+              ),
               chip.target,
               String(chip.id),
             ),
@@ -593,6 +656,15 @@ export function PromptEditor({
         className="overflow-y-auto rounded-[20px] p-1 shadow-lg"
         maxHeight="18rem"
         onCloseAutoFocus={preventDefault}
+        // The popover's layer takes Escape on the document before the editor
+        // sees it, and marks it handled, so the menu is closed here. It goes
+        // no further: what holds the box (a grown draft window) takes an
+        // Escape from the editor as its own.
+        onEscapeKeyDown={(event) => {
+          event.stopPropagation();
+          menuRef.current = null;
+          setMenu(null);
+        }}
         onFocusOutside={preventDefault}
         onInteractOutside={preventDefault}
         onOpenAutoFocus={preventDefault}
@@ -605,9 +677,14 @@ export function PromptEditor({
             key={
               entry.type === "skill"
                 ? `skill:${entry.match.skill.id}`
-                : `action:${entry.action.id}`
+                : entry.type === "app"
+                  ? `app:${entry.app.slug}`
+                  : `action:${entry.action.id}`
             }
           >
+            {index === firstAppIndex && firstAppIndex > 0 && (
+              <MenuGroupHeader label="Apps" />
+            )}
             {index === firstSkillIndex && firstSkillIndex > 0 && (
               <MenuGroupHeader label="Skills" />
             )}
@@ -628,6 +705,8 @@ export function PromptEditor({
             >
               {entry.type === "skill" ? (
                 <SkillMenuRow match={entry.match} />
+              ) : entry.type === "app" ? (
+                <AppMenuRow app={entry.app} ranges={entry.labelRanges} />
               ) : (
                 <>
                   <entry.action.icon className="size-4 shrink-0" />

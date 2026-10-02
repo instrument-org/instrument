@@ -1,4 +1,4 @@
-import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
+import { type ImageModelV4, type LanguageModelV4 } from "@ai-sdk/provider";
 import {
   type AISDKImageModelResult,
   type AISDKWebSearchModelResult,
@@ -19,6 +19,7 @@ import path from "node:path";
 import { noop } from "radashi";
 
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -58,7 +59,7 @@ const mockProviderConfigs = new Map<
 export function createMockTaskConfig(
   id: TaskId,
   options: {
-    aiSDKModel?: LanguageModelV3;
+    aiSDKModel?: LanguageModelV4;
     /**
      * Models this config's provider knows about, for the paths that resolve an
      * id the app did not ask for. Empty by default, which is the cold-cache
@@ -66,7 +67,7 @@ export function createMockTaskConfig(
      */
     catalog?: AIGatewayModel.Type[];
     externalBrowser?: boolean;
-    imageModel?: ImageModelV3;
+    imageModel?: ImageModelV4;
     model?: AIGatewayModel.Type;
     webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
@@ -82,7 +83,7 @@ export function createMockTaskConfig(
   });
 
   if (options.aiSDKModel) {
-    (config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV3 })[
+    (config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV4 })[
       TEST_MODEL_OVERRIDE_KEY
     ] = options.aiSDKModel;
   }
@@ -107,19 +108,21 @@ export function createMockTaskConfig(
   }
 
   const workspaceConfig: WorkspaceConfig = {
+    apps: createMemoryAppsConfig(),
+    appsDir: AbsolutePathSchema.parse([MOCK_WORKSPACE_DIR, "apps"].join("/")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {
       // No-op
     },
     captureException: (...args: unknown[]) => {
-      // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
     ),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
+    isActivityHeadingsEnabled: () => false,
     // Off by default, as it ships: a test that wants the external-browser path
     // opts into it the same way a user does.
     isExternalBrowserEnabled: () => options.externalBrowser ?? false,
@@ -175,9 +178,14 @@ export function createStubBrowserConfig(): BrowserConfig {
         targetId: encodeBrowserTargetId(id, sessionId),
       }),
     getTargetMeta: () => null,
+    getTargetUrl: (): string | undefined => {
+      // No guest is ever live here, so there is no address to report.
+      return;
+    },
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
+    setAgentFileRoots: noop,
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };

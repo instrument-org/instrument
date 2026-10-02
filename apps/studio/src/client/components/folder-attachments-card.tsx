@@ -1,9 +1,7 @@
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
-import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
-import { rpcClient } from "@/client/rpc/client";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
+import { showInFolder } from "@/client/lib/show-in-files";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
-import { toast } from "sonner";
 
 import { Button } from "./ui/button";
 
@@ -40,13 +38,7 @@ function FolderAttachmentPreview({
   folder: SessionMessageDataPart.FolderAttachmentDataPart;
 }) {
   const handleClick = async () => {
-    const [error] = await safe(
-      rpcClient.utils.openFolder.call({ folderPath: folder.path }),
-    );
-
-    if (error) {
-      toast.error("Failed to open folder", { description: error.message });
-    }
+    await showInFolder(folder.path, { kind: "folder" });
   };
 
   return (
@@ -62,7 +54,7 @@ function FolderAttachmentPreview({
             (`Home-Downloads`), which is not what the user picked; the folder's
             own name and where it lives are. */}
         <span className="truncate text-xs font-medium">
-          {folderNameFromPath(folder.path)}
+          {folderLabel(folder.path)}
         </span>
         <span
           className="truncate text-xs text-muted-foreground"

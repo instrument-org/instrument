@@ -1,17 +1,29 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import {
+  filePathOfInstrumentLink,
+  instrumentLinkOf,
+} from "@/shared/instrument-link";
+import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
+  AGENT_MESSAGE_LANGUAGE,
   isAddressableTaskFilePath,
+  isTaskFileHref,
+  taskFilePathFromHref,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  type ComponentProps,
   isValidElement,
   memo,
   type ReactNode,
@@ -31,12 +43,16 @@ import ReactMarkdown, {
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkBreaks from "remark-breaks";
+import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
-import { getAssetUrl } from "../lib/get-asset-url";
+import {
+  getComputerFileUrl,
+  hostPathOfComputerFileUrl,
+} from "../lib/computer-file-url";
 import {
   classifyImageSource,
   type ImageSourceKind,
@@ -50,12 +66,17 @@ import {
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
-import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
+import {
+  FRONT_MATTER_ID,
+  remarkFrontMatterPanel,
+} from "../lib/remark-front-matter-panel";
+import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
+import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
+import { FrontMatter } from "./front-matter";
 import {
   INLINE_CHIP_CLASS_NAME,
   INLINE_CHIP_ICON_CLASS_NAME,
@@ -64,16 +85,19 @@ import {
 import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
+import { MessageFence } from "./message-card";
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { WindowContext } from "./window/context";
 
 interface MarkdownProps {
-  assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
@@ -82,8 +106,8 @@ interface MarkdownProps {
    * message.
    *
    * A file sits in a directory, so a relative image source in it means what a
-   * browser would mean by it: `./chart.png` beside `output/report.md` is the
-   * chart in `output/`. A message sits in no directory, so it passes nothing
+   * browser would mean by it: `./chart.png` beside `work/report.md` is the
+   * chart in `work/`. A message sits in no directory, so it passes nothing
    * here and its relative sources join from the task root instead.
    */
   documentUrl?: string;
@@ -97,12 +121,12 @@ interface MarkdownProps {
    * Where an image in this markdown may point; see `lib/image-policy`.
    *
    * Defaults to everything markdown the agent wrote or the user did may reach,
-   * remote hosts and the task's own asset origin included. Markdown that
+   * remote hosts and the task's own files included. Markdown that
    * arrived inside a file someone else authored passes
    * `UNTRUSTED_FILE_IMAGE_KINDS` instead: an image is fetched the moment the
    * file is opened, with no click in between, which discloses an IP, confirms
-   * the file was read, and over the asset origin's loopback host reaches
-   * whatever else is listening on this machine. The notebook viewer passes it
+   * the file was read, and over a loopback host reaches whatever else is
+   * listening on this machine. The notebook viewer passes it
    * for that reason, and loses nothing by it -- a notebook's own images are
    * embedded.
    */
@@ -112,8 +136,8 @@ interface MarkdownProps {
   isStreaming?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
-  // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
-  // open-in-panel works without it.
+  // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
+  // opens the file without it.
   taskId?: TaskId;
 }
 
@@ -121,6 +145,13 @@ type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
 const emptyRemarkPluginList: RemarkPluginList = [];
+
+// The parse extension first, so the block is a `yaml` node by the time the
+// panel pass looks for one.
+const fileRemarkPlugins: RemarkPluginList = [
+  remarkFrontmatter,
+  remarkFrontMatterPanel,
+];
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
 
@@ -138,9 +169,12 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * Three departures from the default. `file:` is how a model spells a link to a
+ * Four departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
- * `TaskFileLink` then judges against the task and its mounts.
+ * `TaskFileLink` then judges against the task and its mounts. The app's own
+ * scheme is how a reply links a thing inside the app, a task or a memory,
+ * which `InlineLink` draws as a chip and opens in the window rather than
+ * handing to the OS.
  *
  * Then `data:` on a `src`, without which an embedded image is dropped by the
  * pass rather than by any policy: the default admits `http` and `https` there
@@ -162,7 +196,12 @@ const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
-    href: [...(defaultSchema.protocols?.href ?? []), "file"],
+    href: [
+      ...(defaultSchema.protocols?.href ?? []),
+      "file",
+      APP_NAME_SLUG,
+      APP_PROTOCOL,
+    ],
     src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
   tagNames: (defaultSchema.tagNames ?? []).filter(
@@ -261,6 +300,10 @@ const markdownPre: Components["pre"] = ({ children, node }) => {
     return <AgentFilesBlock content={fence.code} />;
   }
 
+  if (fence.language === AGENT_MESSAGE_LANGUAGE) {
+    return <MessageFence code={fence.code} />;
+  }
+
   if (fence.language && isMermaidLanguage(fence.language)) {
     return <MermaidDiagram code={fence.code} language={fence.language} />;
   }
@@ -271,6 +314,32 @@ const markdownPre: Components["pre"] = ({ children, node }) => {
       filename={fence.filename}
       language={fence.language}
     />
+  );
+};
+
+// A file's front matter arrives as the `details` the remark pass marked with
+// this id, holding the YAML as its text; see `remarkFrontMatterPanel`. The
+// sanitize pass a document with raw HTML goes through prefixes every id, so
+// both spellings name it. Any other `details` is an author's own.
+const frontMatterIds = new Set([
+  `${sanitizeSchema.clobberPrefix ?? ""}${FRONT_MATTER_ID}`,
+  FRONT_MATTER_ID,
+]);
+
+const markdownDetails: Components["details"] = ({
+  children,
+  id,
+  node,
+  ref: _ref,
+  ...props
+}) => {
+  if (id !== undefined && frontMatterIds.has(id) && node) {
+    return <FrontMatter source={node.children.map(nodeText).join("")} />;
+  }
+  return (
+    <details {...props} id={id}>
+      {children}
+    </details>
   );
 };
 
@@ -342,58 +411,89 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
-  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
+  const { taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const { openFiles } = useTaskPaneActions(taskId);
+  const showTaskFile = useShowTaskFile(taskId);
+  // A window with tabs gives the file a tab of its own on a middle or
+  // modified click, and offers one in the menu.
+  const hasTabs = useContext(WindowContext) !== null;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
-  const dragProps = useFileDrag(
-    taskId && isAddressableTaskFilePath(filePath)
-      ? { filePath, taskId }
-      : undefined,
-  );
+  const isAddressable = isAddressableTaskFilePath(filePath);
+  const hostPath = useHostPaths(taskId, isAddressable ? [filePath] : [])[
+    filePath
+  ];
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
-  if (!isAddressableTaskFilePath(filePath)) {
+  if (!isAddressable) {
     return <span className={className}>{children}</span>;
   }
-
-  const openInPanel = () => {
-    openFiles([filePath]);
-  };
 
   const chip = (
     <button
       className={cn(INLINE_CHIP_CLASS_NAME, className)}
-      onClick={openInPanel}
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          showTaskFile(filePath, { newTab: hasTabs });
+        }
+      }}
+      onClick={(event) => {
+        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+      }}
       title={filePath}
       type="button"
       {...dragProps}
     >
-      <FileIcon className={INLINE_CHIP_ICON_CLASS_NAME} filename={filename} />
+      <FileTypeIcon
+        className={INLINE_CHIP_ICON_CLASS_NAME}
+        fileName={filename}
+      />
       <span className="truncate">{children}</span>
     </button>
   );
 
-  // The file-action menu needs a task id and asset origin; without the ambient
-  // task context (e.g. reasoning or a previewed markdown file) the chip still
-  // left-click opens the panel, just without a right-click menu.
-  if (!taskId || !assetBaseUrl) {
+  // The file-action menu needs the task and where the file is; without the
+  // ambient task context (e.g. reasoning or a previewed markdown file), or
+  // before the place is known, the chip still opens the file on a left click,
+  // just without a right-click menu.
+  if (!taskId || !hostPath) {
     return chip;
   }
 
-  const viewerFile: TaskFileViewerFile = {
+  const viewerFile: ViewerFile = {
     filename,
-    filePath,
-    taskId,
-    url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
+    hostPath,
+    taskFile: { filePath, taskId },
+    url: getComputerFileUrl({ hostPath }),
   };
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{chip}</ContextMenuTrigger>
       <ContextMenuContent>
+        {hasTabs && (
+          <>
+            <ContextMenuItem
+              onSelect={() => {
+                showTaskFile(filePath);
+              }}
+            >
+              Open
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                showTaskFile(filePath, { newTab: true });
+              }}
+            >
+              Open in New Tab
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <FileActionsMenuItems
           file={viewerFile}
           menuComponents={contextMenuComponents}
@@ -430,14 +530,93 @@ const plainText = (children: ReactNode): string => {
   return "";
 };
 
-const MarkdownLink: Components["a"] = ({
+// The elements a link written in markdown can never hold. An anchor holding one
+// came out of raw HTML, and nearly always out of the HTML5 recovery of an `<a>`
+// that was never closed -- a `<a href=` quoted inside a script, say -- which
+// nests everything after it, to the end of the document, inside the link.
+const BLOCK_TAGS = new Set([
+  "blockquote",
+  "details",
+  "div",
+  "dl",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "ul",
+]);
+
+const holdsBlocks = (node: FenceNode | undefined): boolean =>
+  node?.children.some(
+    (child) => child.type === "element" && BLOCK_TAGS.has(child.tagName),
+  ) ?? false;
+
+const isAbsoluteImageSrc = (src: string) =>
+  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
+
+// A relative source resolved against the document it sits in, held to that
+// document's origin.
+//
+// Resolution cannot leave the origin on its own, and the check is there for the
+// spellings that are not the path they look like: the URL parser reads a
+// leading backslash as the start of an authority, so `\evil.test/p.png` against
+// an http base is that host. Comparing the scheme and host that come out
+// covers every such spelling at once, where a list of them would have to stay
+// complete. Scheme and host rather than `origin`, which the parser gives as
+// `null` for every URL on the app's own scheme, where a document is read from.
+/** Whether a link is written against the document it is in: no scheme and no host of its own, and not a place in the same document. */
+const isDocumentRelative = (href: string): boolean =>
+  !/^[a-z][a-z0-9+.-]*:/i.test(href) &&
+  !href.startsWith("//") &&
+  !href.startsWith("#");
+
+const resolveAgainstDocument = (
+  src: string,
+  documentUrl: string,
+): string | undefined => {
+  try {
+    const base = new URL(documentUrl);
+    const resolved = new URL(src, base);
+    return resolved.protocol === base.protocol && resolved.host === base.host
+      ? resolved.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const MarkdownLink = ({
   children,
   className,
+  documentUrl,
   href,
-  node: _node,
+  node,
   ...props
-}) => {
+}: ComponentProps<"a"> &
+  ExtraProps & {
+    /** The document this markdown is, when it is a file, so a link written relative to it can be followed. */
+    documentUrl?: string;
+  }) => {
   const handleHashLinkClick = useHashLinkScroll();
+  const openFile = useContext(FileOpenContext);
+
+  // A link around blocks is the recovery case above, and every shape a link
+  // takes here is inline: the file chip is a button that centers and clips
+  // what it holds, and the web link a `nowrap` span. Drawn as one of those, a
+  // document's whole tail comes out centered on one clipped line. The blocks
+  // are what the author wrote; the anchor around them is what the parser
+  // made of a stray tag, and it goes.
+  if (holdsBlocks(node)) {
+    return children;
+  }
 
   // Whatever `urlTransform` refused arrives with its href emptied: a `file:` URL
   // that does not parse, a `javascript:` one. There is nothing left to open, and
@@ -457,7 +636,7 @@ const MarkdownLink: Components["a"] = ({
 
   if (href.startsWith("#")) {
     return (
-      // eslint-disable-next-line no-restricted-syntax
+      // oxlint-disable-next-line studio/no-raw-anchor
       <a
         {...props}
         className={cn("cursor-pointer!", className)}
@@ -467,6 +646,40 @@ const MarkdownLink: Components["a"] = ({
         {children}
       </a>
     );
+  }
+
+  // A link a document wrote relative to itself names a file beside it, the
+  // way a folder of notes links between its pages: followed where the
+  // surface can open a file by its path, which lands it in the same tab.
+  if (documentUrl && openFile && isDocumentRelative(href)) {
+    const resolved = resolveAgainstDocument(href, documentUrl);
+    const hostPath =
+      resolved === undefined ? undefined : hostPathOfComputerFileUrl(resolved);
+    if (hostPath !== undefined) {
+      return (
+        // oxlint-disable-next-line studio/no-raw-anchor
+        <a
+          {...props}
+          className={cn("cursor-pointer!", className)}
+          href={href}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              openFile(hostPath, { newTab: true });
+            }
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            openFile(hostPath, {
+              newTab: event.metaKey || event.ctrlKey || event.shiftKey,
+            });
+          }}
+          title={hostPath}
+        >
+          {children}
+        </a>
+      );
+    }
   }
 
   if (isTaskFileHref(href)) {
@@ -505,9 +718,23 @@ const MarkdownLink: Components["a"] = ({
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
+//
+// A link into the app is the same scheme the default drops, passed through
+// whole for `InlineLink` to read: only an address that names something here
+// goes, so one with a noun the app has no screen for is dropped as any unknown
+// scheme is, rather than reaching the OS as a link to nothing. The one noun
+// that names no screen, `file`, is reduced to its path the way a `file:` URL
+// is, so it reaches `TaskFileLink` too.
 const markdownUrlTransform: UrlTransform = (url, key, node) => {
   if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
     return url;
+  }
+  if (key === "href" && instrumentLinkOf(url)) {
+    return url;
+  }
+  const filePath = key === "href" ? filePathOfInstrumentLink(url) : undefined;
+  if (filePath !== undefined) {
+    return filePath;
   }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
@@ -623,23 +850,46 @@ const MarkdownImage = ({
   alt,
   className,
   filePath,
+  onClick,
   src,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement> & {
-  // The task-relative path behind `src`, when there is one. An embed can just
-  // as well point at a real URL, which names no file to hand anyone.
+}: Omit<React.ImgHTMLAttributes<HTMLImageElement>, "onClick"> & {
+  // The task-relative path behind the embed, when there is one: the picture
+  // is then read from where that file is on the computer, once known. An
+  // embed can just as well point at a real URL, which names no file to hand
+  // anyone, and arrives as `src` alone.
   filePath?: string;
+  onClick?: (
+    event: React.MouseEvent<HTMLImageElement>,
+    hostPath?: string,
+  ) => void;
 }) => {
-  const { isStreaming, taskId } = useContext(MarkdownTaskContext);
+  const { assetVersion, isStreaming, taskId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
-  const dragProps = useFileDrag(
-    filePath && taskId ? { filePath, taskId } : undefined,
-  );
+  const hostPath = useHostPaths(taskId, filePath ? [filePath] : [])[
+    filePath ?? ""
+  ];
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
+  const resolvedSrc =
+    filePath === undefined
+      ? src
+      : hostPath
+        ? getComputerFileUrl({ hostPath, version: assetVersion })
+        : undefined;
 
-  if (src !== undefined && src === failedSrc) {
+  if (resolvedSrc === undefined) {
+    // A task path not yet placed on the computer, or one the task cannot
+    // reach: nothing to draw yet, and nothing to fail on.
+    return null;
+  }
+  if (resolvedSrc === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
-    // settles there is no telling which this is.
-    return isStreaming ? null : <BlockedImage alt={alt} failed src={src} />;
+    // settles there is no telling which this is. Named by the path the reply
+    // wrote where there is one: the channel's own address says nothing a
+    // person would recognize.
+    return isStreaming ? null : (
+      <BlockedImage alt={alt} failed src={filePath ?? resolvedSrc} />
+    );
   }
 
   return (
@@ -647,37 +897,16 @@ const MarkdownImage = ({
       {...props}
       alt={alt}
       className={cn("max-w-full cursor-pointer! rounded-md", className)}
-      onError={() => {
-        setFailedSrc(src ?? null);
+      onClick={(event) => {
+        onClick?.(event, hostPath ?? undefined);
       }}
-      src={src}
+      onError={() => {
+        setFailedSrc(resolvedSrc);
+      }}
+      src={resolvedSrc}
       {...dragProps}
     />
   );
-};
-
-const isAbsoluteImageSrc = (src: string) =>
-  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
-
-// A relative source resolved against the document it sits in, held to that
-// document's origin.
-//
-// Resolution cannot leave the origin on its own, and the check is there for the
-// spellings that are not the path they look like: the URL parser reads a
-// leading backslash as the start of an authority, so `\evil.test/p.png` against
-// an http base is that host. Comparing the origin that comes out covers every
-// such spelling at once, where a list of them would have to stay complete.
-const resolveAgainstDocument = (
-  src: string,
-  documentUrl: string,
-): string | undefined => {
-  try {
-    const base = new URL(documentUrl);
-    const resolved = new URL(src, base);
-    return resolved.origin === base.origin ? resolved.href : undefined;
-  } catch {
-    return undefined;
-  }
 };
 
 /**
@@ -689,23 +918,19 @@ const resolveAgainstDocument = (
  * is a path inside the task, resolved either against the document this markdown
  * is (`documentUrl`, the browser's own semantics for a relative URL) or from
  * the task root, which is where a message's file references start. Both cover
- * a bare `output/x.png` as well as `./` and `../`.
+ * a bare `work/x.png` as well as `./` and `../`.
  *
  * The kind of a source the document resolved is read before it is resolved,
  * because the URL that comes out cannot say what went in. A path joined to the
  * document's own origin reaches only what the reader already opened the file
  * from; an origin the document named itself reaches whatever host its author
- * picked, which over the asset origin's loopback host is every port on this
+ * picked, which over a loopback host is every port on this
  * machine. In a file someone else wrote those are different questions, and they
  * resolve to the same shape.
  */
 const resolveImageSource = (
   src: string | undefined,
-  {
-    assetBaseUrl,
-    assetVersion,
-    documentUrl,
-  }: Pick<MarkdownProps, "assetBaseUrl" | "assetVersion" | "documentUrl">,
+  { documentUrl }: Pick<MarkdownProps, "documentUrl">,
 ): { kind: ImageSourceKind; src: string | undefined } => {
   if (!src || isAbsoluteImageSrc(src)) {
     return { kind: classifyImageSource(src), src };
@@ -716,15 +941,10 @@ const resolveImageSource = (
       ? { kind: "task-relative", src: resolved }
       : { kind: "rejected", src };
   }
-  if (!assetBaseUrl) {
-    return { kind: classifyImageSource(src), src };
-  }
-  const resolved = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath: src,
-    version: assetVersion,
-  });
-  return { kind: classifyImageSource(resolved), src: resolved };
+  // A message's path is left as the path, a bare `work/chart.png` included:
+  // the image places it on the computer itself, once the task's layout has
+  // said where that is.
+  return { kind: "task-relative", src };
 };
 
 /**
@@ -740,9 +960,50 @@ const taskFilePathFromImageSrc = (src: string | undefined) =>
     ? src
     : undefined;
 
+/**
+ * One block of a message, or a whole document when it is not being split.
+ *
+ * Memoized on its own text, which is the point of the whole arrangement: a
+ * block behind the one still arriving is handed the same string and the same
+ * plugins on every chunk, so it is neither reparsed nor rebuilt into React
+ * elements.
+ *
+ * This `memo` and the `useMemo`s that keep its props referentially stable are
+ * load-bearing, which is worth saying plainly because the compiler makes that
+ * kind of memoization unnecessary nearly everywhere else in this app and the
+ * reflex is to delete it. Measured over a 32 KB reply arriving in chunks, cost
+ * per chunk: 38.9 ms not split, 11.4 ms split as written, and **74.7 ms split
+ * with the memoization removed** -- twice the cost of not splitting at all,
+ * because a document is then parsed once per block on every chunk instead of
+ * once. The compiler cannot reach it: `blocks.map` builds fresh elements every
+ * render, so without a memo boundary holding stable props there is nothing to
+ * tell React that the block three back is the one it already has.
+ */
+const MarkdownBlock = memo(function MarkdownBlock({
+  components,
+  markdown,
+  rehypePlugins,
+  remarkPlugins,
+}: {
+  components: Components;
+  markdown: string;
+  rehypePlugins: PluginList;
+  remarkPlugins: RemarkPluginList;
+}) {
+  return (
+    <ReactMarkdown
+      components={components}
+      rehypePlugins={rehypePlugins}
+      remarkPlugins={remarkPlugins}
+      urlTransform={markdownUrlTransform}
+    >
+      {markdown}
+    </ReactMarkdown>
+  );
+});
+
 export const Markdown = memo(
   ({
-    assetBaseUrl,
     assetVersion,
     documentUrl,
     hideImages,
@@ -757,6 +1018,30 @@ export const Markdown = memo(
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
       emptyRemarkPluginList,
     );
+    /**
+     * The blocks a message still arriving is drawn as, and nothing once it has
+     * settled.
+     *
+     * Re-parsing the whole message on every chunk costs a turn the square of
+     * its own length, because the parse starts from the beginning each time and
+     * there are as many parses as there are chunks. A closed block is never
+     * reopened by later text, so only the last one can have changed and the
+     * rest are already right; drawn as separate memoized children, they are
+     * neither reparsed nor rebuilt.
+     *
+     * A message that has stopped arriving goes back to being one document, and
+     * that is the whole of why splitting is safe to do here. Everything a split
+     * cannot get right is a thing that resolves across blocks -- a heading id
+     * deduplicated against the headings before it, a footnote, a link
+     * reference definition -- and none of it is being read while the words are
+     * still landing. The last chunk of a turn buys the correct reading of all
+     * of it for one whole-document parse, which is what the old code paid on
+     * every chunk.
+     */
+    const blocks = useMemo(
+      () => (isStreaming ? splitMarkdownBlocks(markdown) : undefined),
+      [isStreaming, markdown],
+    );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
     const needsRawHtml = useMemo(
       () => rawHtmlPattern.test(markdown),
@@ -765,17 +1050,17 @@ export const Markdown = memo(
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
-      (event: React.MouseEvent<HTMLImageElement>, filePath?: string) => {
+      (event: React.MouseEvent<HTMLImageElement>, hostPath?: string) => {
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          // The path rides along so the expanded view can act on the file and
-          // not just draw it. Absent for an embed pointing at a real URL, where
-          // there is no file to act on.
-          openFilePreview({ filename: alt, filePath, taskId, url: src });
+          // Where the file is rides along so the expanded view can act on it
+          // and not just draw it. Absent for an embed pointing at a real URL,
+          // where there is no file to act on.
+          openFilePreview({ filename: alt, hostPath, url: src });
         }
       },
-      [openFilePreview, taskId],
+      [openFilePreview],
     );
 
     useEffect(() => {
@@ -854,70 +1139,98 @@ export const Markdown = memo(
     // whole: the HTML `rehype-raw` re-parses, the formulas `rehype-katex`
     // consumes. It leaves the pipeline the moment the text settles, so a
     // finished message carries no spans at all.
-    const streamingRehypePlugins = isStreaming
-      ? [...rehypePlugins, rehypeAnimateWords]
-      : rehypePlugins;
+    //
+    // Every block carries it rather than only the one still arriving. A block
+    // that lost its spans as the next one opened would drop whatever words were
+    // mid-fade straight to full opacity, and since a block is memoized the
+    // plugin runs over it once either way.
+    const streamingRehypePlugins = useMemo(
+      () =>
+        isStreaming ? [...rehypePlugins, rehypeAnimateWords] : rehypePlugins,
+      [isStreaming, rehypePlugins],
+    );
+
+    // Held apart from the render so a block that has not changed is a memo hit
+    // rather than a re-parse; see `MarkdownBlock`.
+    const components = useMemo<Components>(
+      () => ({
+        a: (props) => <MarkdownLink {...props} documentUrl={documentUrl} />,
+        details: markdownDetails,
+        img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
+          const image = resolveImageSource(src, { documentUrl });
+          if (!isImageKindAllowed(image.kind, imageKinds)) {
+            return hideImages ? null : (
+              <BlockedImage alt={alt} src={image.src} />
+            );
+          }
+          // A document's source is written against the directory the
+          // document is in, so it names no path the rest of the app could
+          // resolve; only a message's is a task-root path.
+          const filePath = documentUrl
+            ? undefined
+            : taskFilePathFromImageSrc(src);
+          return (
+            <MarkdownImage
+              {...props}
+              alt={alt}
+              className={className}
+              filePath={filePath}
+              onClick={handleImageClick}
+              src={image.src}
+            />
+          );
+        },
+        ol: markdownOrderedList,
+        p: markdownParagraph,
+        pre: markdownPre,
+        table: MarkdownTable,
+      }),
+      [documentUrl, handleImageClick, hideImages, imageKinds],
+    );
+
+    // Front matter is a thing files have and messages do not: a model's reply
+    // that opens with a rule is a reply that opens with a rule.
+    const remarkPluginList = useMemo(
+      () => [
+        remarkGfm,
+        remarkBreaks,
+        remarkDropBreakAfterBr,
+        ...(documentUrl ? fileRemarkPlugins : emptyRemarkPluginList),
+        ...remarkPlugins,
+      ],
+      [documentUrl, remarkPlugins],
+    );
 
     return (
-      <MarkdownTaskContext
-        value={{ assetBaseUrl, assetVersion, isStreaming, taskId }}
-      >
-        <ReactMarkdown
-          components={{
-            a: MarkdownLink,
-            img: ({
-              alt,
-              className,
-              node: _node,
-              ref: _ref,
-              src,
-              ...props
-            }) => {
-              const image = resolveImageSource(src, {
-                assetBaseUrl,
-                assetVersion,
-                documentUrl,
-              });
-              if (!isImageKindAllowed(image.kind, imageKinds)) {
-                return hideImages ? null : (
-                  <BlockedImage alt={alt} src={image.src} />
-                );
+      <MarkdownTaskContext value={{ assetVersion, isStreaming, taskId }}>
+        {blocks === undefined ? (
+          <MarkdownBlock
+            components={components}
+            markdown={markdown}
+            rehypePlugins={streamingRehypePlugins}
+            remarkPlugins={remarkPluginList}
+          />
+        ) : (
+          blocks.map((block, index) => (
+            <MarkdownBlock
+              components={components}
+              // The index is the right key here rather than a compromise: a
+              // block only changes identity by being the one still growing, and
+              // that one's contents have changed anyway.
+              key={index}
+              markdown={
+                // `remend` closes what the text stops in the middle of -- an
+                // unterminated fence, a bold with only its opening `**`. Only
+                // the last block can be stopped in the middle of anything, and
+                // the repair walks the whole string it is given once per
+                // construct it knows, several of those walks quadratically.
+                index === blocks.length - 1 ? remend(block) : block
               }
-              // A document's source is written against the directory the
-              // document is in, so it names no path the rest of the app could
-              // resolve; only a message's is a task-root path.
-              const filePath = documentUrl
-                ? undefined
-                : taskFilePathFromImageSrc(src);
-              return (
-                <MarkdownImage
-                  {...props}
-                  alt={alt}
-                  className={className}
-                  filePath={filePath}
-                  onClick={(event) => {
-                    handleImageClick(event, filePath);
-                  }}
-                  src={image.src}
-                />
-              );
-            },
-            ol: markdownOrderedList,
-            p: markdownParagraph,
-            pre: markdownPre,
-            table: MarkdownTable,
-          }}
-          rehypePlugins={streamingRehypePlugins}
-          remarkPlugins={[
-            remarkGfm,
-            remarkBreaks,
-            remarkDropBreakAfterBr,
-            ...remarkPlugins,
-          ]}
-          urlTransform={markdownUrlTransform}
-        >
-          {remend(markdown)}
-        </ReactMarkdown>
+              rehypePlugins={streamingRehypePlugins}
+              remarkPlugins={remarkPluginList}
+            />
+          ))
+        )}
       </MarkdownTaskContext>
     );
   },

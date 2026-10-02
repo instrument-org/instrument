@@ -14,14 +14,15 @@ import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { QuotesIcon } from "@phosphor-icons/react/Quotes";
 import { useEffect, useState } from "react";
 
-import { useTaskPaneActions } from "../../hooks/use-task-pane";
+import { useHostPaths } from "../../hooks/use-host-paths";
+import { useShowTaskFile } from "../../hooks/use-show-task-file";
+import { getComputerFileUrl } from "../../lib/computer-file-url";
 import { copyFileToClipboard } from "../../lib/file-actions";
-import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import { AIProviderIcon } from "../ai-provider-icon";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { isActiveToolPart } from "../transcript-layout";
@@ -54,29 +55,30 @@ type GenerateImagePart = Extract<
 >;
 
 export function SourceImagesChip({
-  assetBaseUrl,
+  id,
   part,
 }: {
-  assetBaseUrl: string;
+  id: TaskId;
   part: SessionMessagePart.ToolPart;
 }) {
-  if (part.type !== "tool-generate_image") {
-    return null;
-  }
-
   // Once generation succeeds the output carries `modifiedAt` for cache-busting.
   // While streaming we only have the input paths, so render those (no version)
   // so the references show up on the right immediately.
   const sourceImages: { filePath: string; modifiedAt?: number }[] =
-    part.state === "output-available" && part.output.state === "success"
-      ? // `sourceImages` was added after initial release; old persisted outputs lack it
-        // oxlint-disable-next-line typescript/no-unnecessary-condition
-        (part.output.sourceImages ?? [])
-      : Array.isArray(part.input?.sourceImages)
-        ? part.input.sourceImages.flatMap((p) =>
-            typeof p === "string" && p.length > 0 ? [{ filePath: p }] : [],
-          )
-        : [];
+    part.type === "tool-generate_image"
+      ? part.state === "output-available" && part.output.state === "success"
+        ? // `sourceImages` was added after initial release; old persisted outputs lack it
+          (part.output.sourceImages ?? [])
+        : Array.isArray(part.input?.sourceImages)
+          ? part.input.sourceImages.flatMap((p) =>
+              typeof p === "string" && p.length > 0 ? [{ filePath: p }] : [],
+            )
+          : []
+      : [];
+  const hostPaths = useHostPaths(
+    id,
+    sourceImages.map((file) => file.filePath),
+  );
 
   if (sourceImages.length === 0) {
     return null;
@@ -94,11 +96,10 @@ export function SourceImagesChip({
             <ImagesIcon className="size-2.5 text-muted-foreground/50" />
           </span>
         );
-        const src = getAssetUrl({
-          assetBase: assetBaseUrl,
-          filePath: file.filePath,
-          version: file.modifiedAt,
-        });
+        const hostPath = hostPaths[file.filePath];
+        if (!hostPath) {
+          return fallback;
+        }
         return (
           <ImageWithFallback
             alt="Reference"
@@ -107,7 +108,7 @@ export function SourceImagesChip({
             fallback={fallback}
             filename={filenameFromFilePath(file.filePath)}
             key={index}
-            src={src}
+            src={getComputerFileUrl({ hostPath, version: file.modifiedAt })}
           />
         );
       })}
@@ -121,17 +122,15 @@ export function SourceImagesChip({
 }
 
 export function ToolGenerateImage({
-  assetBaseUrl,
   id,
   onRetry,
   part,
 }: {
-  assetBaseUrl: string;
   id: TaskId;
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   if (!part.input) {
     return <ToolCardEmpty message="The prompt has not arrived yet." />;
@@ -168,8 +167,8 @@ export function ToolGenerateImage({
   // and the card behind it names what that setting picked.
   const servedModelName = resolveImageModelName(successOutput?.modelIdServed);
 
-  const openInPanel = ({ filePath }: { filePath: string }) => {
-    openFiles([filePath]);
+  const openImage = ({ filePath }: { filePath: string }) => {
+    showTaskFile(filePath);
   };
 
   return (
@@ -181,9 +180,9 @@ export function ToolGenerateImage({
           </p>
         ) : (
           <div className="flex min-w-0 items-center gap-2">
-            <FileIcon
+            <FileTypeIcon
               className="size-3 shrink-0 text-muted-foreground"
-              filename={filename}
+              fileName={filename}
             />
             <span className="truncate text-xs font-medium text-muted-foreground">
               {filename}
@@ -200,18 +199,15 @@ export function ToolGenerateImage({
       </ToolCardHeader>
 
       {isGenerating ? (
-        <StreamingImagePreview
-          assetBaseUrl={assetBaseUrl}
-          image={previewImage}
-        />
+        <StreamingImagePreview id={id} image={previewImage} />
       ) : (
         successOutput?.images.map((image, index) => (
           <GeneratedImage
-            assetBaseUrl={assetBaseUrl}
             filePath={image.filePath}
+            id={id}
             key={index}
             modifiedAt={image.modifiedAt}
-            onOpen={openInPanel}
+            onOpen={openImage}
           />
         ))
       )}
@@ -261,11 +257,11 @@ export function ToolGenerateImage({
                 >
                   {sourceImageFiles.slice(0, 4).map((file, index) => (
                     <SourceThumbnail
-                      assetBaseUrl={assetBaseUrl}
                       filePath={file.filePath}
+                      id={id}
                       key={index}
                       modifiedAt={file.modifiedAt}
-                      onOpen={openInPanel}
+                      onOpen={openImage}
                     />
                   ))}
                 </div>
@@ -333,22 +329,18 @@ function formatElapsed(ms: number): string {
  * rather than offering a zoom that goes nowhere.
  */
 function GeneratedImage({
-  assetBaseUrl,
   filePath,
+  id,
   modifiedAt,
   onOpen,
 }: {
-  assetBaseUrl: string;
   filePath: string;
+  id: TaskId;
   modifiedAt: number;
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath,
-    version: modifiedAt,
-  });
+  const src = useTaskImageSrc(id, filePath, modifiedAt);
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -429,14 +421,18 @@ function humanizeParamKey(key: string): string {
 }
 
 function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   const handleExpand = () => {
-    openFiles([filePath]);
+    showTaskFile(filePath);
   };
 
+  const hostPath = useHostPaths(id, [filePath])[filePath];
+
   const handleCopy = async () => {
-    await copyFileToClipboard({ filePath, id, isImage: true });
+    if (hostPath) {
+      await copyFileToClipboard({ hostPath, isImage: true });
+    }
   };
 
   return (
@@ -445,7 +441,7 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ArrowsOutSimpleIcon}
         onClick={handleExpand}
-        tooltip="Open in panel"
+        tooltip="Open"
         variant="ghost"
       />
       <ConfirmedIconButton
@@ -570,22 +566,18 @@ function resolveImageModelName(
 
 /** One of the images the prompt was drawn from, in the reference strip. */
 function SourceThumbnail({
-  assetBaseUrl,
   filePath,
+  id,
   modifiedAt,
   onOpen,
 }: {
-  assetBaseUrl: string;
   filePath: string;
+  id: TaskId;
   modifiedAt: number;
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath,
-    version: modifiedAt,
-  });
+  const src = useTaskImageSrc(id, filePath, modifiedAt);
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -625,25 +617,22 @@ function SourceThumbnail({
 }
 
 function StreamingImagePreview({
-  assetBaseUrl,
+  id,
   image,
 }: {
-  assetBaseUrl: string;
+  id: TaskId;
   image?: { filePath: string; modifiedAt: number };
 }) {
+  const src = useTaskImageSrc(id, image?.filePath, image?.modifiedAt);
   return (
     <div className={IMAGE_FRAME}>
-      {image ? (
+      {image && src ? (
         <ImageWithFallback
           alt="Generating preview"
           className="size-full object-contain"
           fallback={<PreviewSkeleton />}
           filename={filenameFromFilePath(image.filePath)}
-          src={getAssetUrl({
-            assetBase: assetBaseUrl,
-            filePath: image.filePath,
-            version: image.modifiedAt,
-          })}
+          src={src}
         />
       ) : (
         <PreviewSkeleton />
@@ -663,4 +652,20 @@ function StreamingImagePreview({
       <GeneratingPill />
     </div>
   );
+}
+
+/**
+ * Where an image the task named is read from: its place on the computer,
+ * versioned by the mtime the tool reported. "" until the place is known,
+ * which the image draws as not yet arrived.
+ */
+function useTaskImageSrc(
+  id: TaskId,
+  filePath: string | undefined,
+  modifiedAt: number | undefined,
+) {
+  const hostPath = useHostPaths(id, filePath === undefined ? [] : [filePath])[
+    filePath ?? ""
+  ];
+  return hostPath ? getComputerFileUrl({ hostPath, version: modifiedAt }) : "";
 }

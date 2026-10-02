@@ -32,8 +32,6 @@
 // Every call appends to `app.trace`, so a run that stops halfway reports what it
 // did and where it stopped, rather than leaving the caller to reconstruct it.
 
-/* eslint-disable perfectionist/sort-modules */
-
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -196,17 +194,25 @@ export async function resolvePort({ port, workspace } = {}) {
     );
   }
 
-  const target = workspace ? `workspace "${workspace}"` : "this checkout";
+  // `workspace` is the instance key: a fixture's name, or `clean-room-<name>`.
+  const target = workspace ? `instance "${workspace}"` : "this checkout";
   const hint = (await isPortLive(CONVENTIONAL_PORT))
     ? `Something is answering on ${CONVENTIONAL_PORT}, but that is the conventional port and is probably a window someone is using. ` +
       `Pass --port ${CONVENTIONAL_PORT} if you mean to drive it anyway.`
     : `Nothing is running for ${target}.`;
   fail(
-    `${hint}\nRun \`studio-drive.mjs boot --purpose <purpose>${workspace ? ` --workspace ${workspace}` : ""}\` to start an instance of your own.`,
+    `${hint}\nRun \`studio-drive.mjs boot --purpose <purpose>\`${workspace ? " with the same --workspace or --clean-room flag" : ""} to start an instance of your own.`,
   );
 }
 
 // --- CDP ----------------------------------------------------------------
+
+/**
+ * The app window's page. The onboarding window serves the same renderer
+ * bundle under `#/onboarding`, so both answer to `/renderer/`; the app window
+ * is the other one.
+ */
+const isAppWindow = (target) => !target.url.includes("#/onboarding");
 
 async function pickTarget(origin) {
   let list;
@@ -218,13 +224,19 @@ async function pickTarget(origin) {
       `No debug endpoint on ${origin}. Run \`studio-drive.mjs boot --purpose <purpose>\`.`,
     );
   }
-  // The main window is one web contents holding the chrome and every tab.
-  const page = list.find(
+
+  const pages = list.filter(
     (t) => t.type === "page" && t.url.includes("/renderer/"),
   );
+  const page = pages.find((target) => isAppWindow(target));
   if (!page) {
+    if (pages.length === 0) {
+      fail(
+        `No Studio renderer among ${list.length} target(s). Is the window open?`,
+      );
+    }
     fail(
-      `No Studio renderer among ${list.length} target(s). Is the window open?`,
+      `No app window among ${pages.length} Studio page(s). Onboarding may still be up.`,
     );
   }
   return page;
@@ -241,8 +253,20 @@ export async function openCdp(origin) {
 
   let nextId = 0;
   const pending = new Map();
+  // Events, as opposed to command replies. A caller that wants them has to say
+  // so twice: subscribe here, and enable the domain that emits them
+  // (`Runtime.enable` for console output and uncaught exceptions). Without a
+  // subscriber they are parsed and dropped, which is what every call that only
+  // asks questions wants.
+  const listeners = new Set();
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
+    if (message.method !== undefined) {
+      for (const listener of listeners) {
+        listener(message);
+      }
+      return;
+    }
     const entry = pending.get(message.id);
     if (!entry) {
       return;
@@ -266,6 +290,11 @@ export async function openCdp(origin) {
   return {
     close: () => {
       socket.close();
+    },
+    /** Subscribe to CDP events. Returns the function that unsubscribes. */
+    on: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
     send,
   };
@@ -322,7 +351,7 @@ export const waitForDriveHandle = (cdp) =>
   waitForHandle(
     cdp,
     "__studioDrive",
-    "window.__studioDrive never appeared. Expected on the main window of a dev build " +
+    "window.__studioDrive never appeared. Expected on the app window of a dev build " +
       "(client/lib/studio-drive.ts); a packaged build drops it.",
   );
 
@@ -636,8 +665,10 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
 
     goto: (route, { label, newTab = false } = {}) =>
       step(label ?? `goto ${route}`, async () => {
+        // Each of the window's tabs is a router of its own: the address goes
+        // to the tab up, or to a tab of its own.
         await drive(
-          `goto(${JSON.stringify(route)}, ${JSON.stringify({ newTab })})`,
+          `goto(${JSON.stringify(route.replace(/^#/, ""))}, ${JSON.stringify({ newTab })})`,
         );
         await settle();
         return drive("state()");
@@ -822,7 +853,17 @@ function keyDescriptor(combination) {
     ...descriptor,
     modifiers,
     ...(descriptor.keyCode && {
-      nativeVirtualKeyCode: descriptor.keyCode,
+      // The table above holds Windows virtual key codes, which are the
+      // platform's own only on Windows, and `nativeVirtualKeyCode` is read as
+      // the platform's. macOS numbers its keys differently -- 76 is the
+      // keypad's Enter rather than `L` -- so a chord carrying one there names a
+      // key the event's own character disagrees with. Held with Command, that
+      // is what matches `About <app>`: the first item of the first menu, and
+      // the one item carrying no key equivalent of its own. The chord appears
+      // to do nothing and the About panel opens over whatever the user is in.
+      ...(process.platform === "win32" && {
+        nativeVirtualKeyCode: descriptor.keyCode,
+      }),
       windowsVirtualKeyCode: descriptor.keyCode,
     }),
     // Meta+K must not also insert a "k". Shift is the exception, since Shift+A
@@ -1153,5 +1194,3 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
     await sleep(IDLE_POLL_MS);
   }
 }
-
-/* eslint-enable perfectionist/sort-modules */

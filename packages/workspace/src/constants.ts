@@ -13,7 +13,6 @@ export const TASK_FOLDER_NAMES = {
   // workspace root rather than in a task (see getExternalBrowserTmpDir): what
   // lands there is a copy of the host's browser state, not task content.
   externalBrowserTmp: "external-browser-tmp",
-  output: "output",
   private: TASK_PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
@@ -29,6 +28,20 @@ export const TASK_FOLDER_NAMES = {
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
+// One folder per chat at the workspace root, and the tasks a chat started in a
+// `tasks/` folder inside its own, so a chat and its work are one folder.
+export const CHATS_DIR_NAME = "chats";
+// One folder per app at the workspace root, mounted at /apps for the
+// orchestrator. Secrets never live here; the app's stores hold them.
+export const APPS_DIR_NAME = "apps";
+// One Markdown file per memory at the workspace root: what the conversation's
+// agent keeps about the user across every chat, readable and editable in a
+// file manager.
+export const MEMORY_DIR_NAME = "memory";
+// One folder per topic at the workspace root, named for the topic: its
+// settings in `.instrument/settings.json` and its instructions in
+// `instructions.md`.
+export const TOPICS_DIR_NAME = "topics";
 // Projects are real folders at the workspace root, named by the (sanitized)
 // project name. Their identity + instructions live inside each folder.
 export const PROJECTS_DIR_NAME = "projects";
@@ -39,16 +52,6 @@ export const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
-export const TASK_STATUSES = [
-  "error",
-  "loading",
-  "not-found",
-  "ready",
-  "stopped",
-  "not-runnable",
-  "unknown",
-] as const;
-
 /**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
@@ -56,6 +59,21 @@ export const TASK_STATUSES = [
  * language the renderer does not know renders as a code block.
  */
 export const AGENT_FILES_LANGUAGE = "files";
+
+/**
+ * Info string of the fenced block an agent writes to hand the user words they
+ * will send as their own: an email, a text, a post. The same front matter and
+ * body make a Markdown file a message, so a fence and a file draw one card.
+ */
+export const AGENT_MESSAGE_LANGUAGE = "message";
+
+/**
+ * Info string of the fenced block a task started by the chat ends its turn
+ * with when it cannot go on without something from the user or the chat: one
+ * need per line, `<kind>: <what, and what for>`. A contract between the task's
+ * prompt and the wake note that reads it.
+ */
+export const AGENT_NEEDS_LANGUAGE = "needs";
 
 /**
  * Character budget for the project instructions inlined into a task's standing

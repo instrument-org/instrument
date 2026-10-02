@@ -11,6 +11,7 @@ import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Markdown } from "./markdown";
+import { WindowContext, type WindowContextValue } from "./window/context";
 
 // The chip navigates on click and the file grid reads the task it is drawn in
 // from the route; the route tree itself is not what these tests are about.
@@ -23,10 +24,14 @@ vi.mock("@tanstack/react-router", () => ({
 // with its own tests. All that is being asked here is which component the fence
 // reached.
 vi.mock("./files-grid", () => ({
-  FilesGrid: ({ files }: { files: { filePath: string }[] }) => (
+  FilesGrid: ({
+    files,
+  }: {
+    files: { hostPath: string; taskFile?: { filePath: string } }[];
+  }) => (
     <ul>
       {files.map((file) => (
-        <li key={file.filePath}>{file.filePath}</li>
+        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
       ))}
     </ul>
   ),
@@ -63,6 +68,28 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+// The channel a person's viewers read a file through, hoisted for the mock
+// below it: a `vi.mock` factory runs before the module's own bindings exist.
+const FILE_BASE = vi.hoisted(() => "instrument://computer-test");
+
+// Where the task's files are, answered without a task: every path under the
+// task's own folder, which is what a message's image needs to be drawn at all.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (taskId: unknown, filePaths: readonly string[]) =>
+    taskId === undefined
+      ? {}
+      : Object.fromEntries(
+          filePaths.map((filePath) => [
+            filePath,
+            `/Users/casey/tasks/a-task/${filePath}`,
+          ]),
+        ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
+    `${FILE_BASE}${hostPath}`,
+}));
+
 // The first document in a run that carries HTML pays to load the parser behind
 // `rehype-raw`, which is the largest thing this component fetches. Under a full
 // suite that outlasts `waitFor`'s default, and the test reads the render from
@@ -70,12 +97,9 @@ vi.mock("@/client/rpc/client", () => ({
 const RAW_HTML_TIMEOUT = 10_000;
 
 const TASK_ID = TaskIdSchema.parse("a-task");
-const ASSET_BASE = "http://assets.a-task.localhost:1234";
 
 function renderMarkdown(markdown: string) {
-  return renderWithProviders(
-    <Markdown assetBaseUrl={ASSET_BASE} markdown={markdown} taskId={TASK_ID} />,
-  );
+  return renderWithProviders(<Markdown markdown={markdown} taskId={TASK_ID} />);
 }
 
 /**
@@ -103,6 +127,18 @@ describe("Markdown links", () => {
 
     expect(screen.getByRole("button", { name: "August.md" }).title).toBe(
       "/mnt/Documents-Test 2/August.md",
+    );
+  });
+
+  // A reply taught to link a task as `instrument://task/<id>` links a file the
+  // same way, and the path in it is the file it meant.
+  it("opens an app link to a file as that file", () => {
+    renderMarkdown(
+      "Added them to [2026-09-23.md](instrument://file//mnt/Journal/2026-09-23.md).",
+    );
+
+    expect(screen.getByRole("button", { name: "2026-09-23.md" }).title).toBe(
+      "/mnt/Journal/2026-09-23.md",
     );
   });
 
@@ -208,6 +244,43 @@ describe("Markdown links", () => {
     expect(
       screen.getByRole("link", { name: "neil@finalpoint.co" }),
     ).toHaveProperty("href", "mailto:neil@finalpoint.co");
+  });
+
+  // A link into the app is a chip wherever it is drawn; where nothing can open
+  // it, it is a mention rather than a link that goes nowhere.
+  it("draws a link into the app as a chip with nothing to open outside the window", () => {
+    const { container } = renderMarkdown(
+      "Noted: [no stevia](instrument://memory/no-stevia).",
+    );
+
+    expect(container.textContent).toBe("Noted: no stevia.");
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("opens a link into the app at its screen", () => {
+    const openScreen = vi.fn();
+    const context = {
+      ask: vi.fn(),
+      browser: null,
+      focusComposer: vi.fn(),
+      openPage: vi.fn(),
+      openPath: vi.fn(),
+      openScreen,
+      taskId: TASK_ID,
+    } satisfies WindowContextValue;
+    renderWithProviders(
+      <WindowContext value={context}>
+        <Markdown
+          markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
+          taskId={TASK_ID}
+        />
+      </WindowContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "the hotel search" }));
+
+    expect(openScreen).toHaveBeenCalledWith("/tasks/lisbon-hotel");
   });
 });
 
@@ -352,7 +425,7 @@ describe("Markdown images", () => {
 
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("The chart")).toBeTruthy();
-    expect(screen.getByText("assets.a-task.localhost")).toBeTruthy();
+    expect(screen.getByText("output/chart.png")).toBeTruthy();
     // A failed image is a fact rather than an offer, so the chip is no button.
     expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });
@@ -362,7 +435,6 @@ describe("Markdown images", () => {
   it("says nothing of an image the reply has not finished writing", () => {
     renderWithProviders(
       <Markdown
-        assetBaseUrl={ASSET_BASE}
         isStreaming
         markdown="![The chart](output/chart.png)"
         taskId={TASK_ID}
@@ -376,16 +448,41 @@ describe("Markdown images", () => {
   });
 });
 
+/**
+ * Closing a construct the text stops in the middle of is a reading of text that
+ * has not all arrived, and it is only right while that is true. A file someone
+ * opened has arrived in full, so a `**` in it is two asterisks the author wrote,
+ * and repairing it would show them a document they do not have.
+ *
+ * The cost is the other half of it: the repair walks the whole string once per
+ * construct it knows, and several of those walks are quadratic, so a large
+ * document spends longer being mended than parsed.
+ */
+describe("Markdown half-written constructs", () => {
+  const rendered = (markdown: string, isStreaming?: boolean) =>
+    renderWithProviders(
+      <Markdown isStreaming={isStreaming} markdown={markdown} />,
+    ).container;
+
+  it("closes an unterminated emphasis while the text is still arriving", () => {
+    expect(
+      rendered("A **half written", true).querySelector("strong")?.textContent,
+    ).toBe("half written");
+  });
+
+  it("leaves a finished document as its author wrote it", () => {
+    const container = rendered("A **half written");
+
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.textContent).toContain("**half written");
+  });
+});
+
 // react-markdown under the name the stylesheet looks for.
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {
     const { container } = renderWithProviders(
-      <Markdown
-        assetBaseUrl={ASSET_BASE}
-        isStreaming
-        markdown={markdown}
-        taskId={TASK_ID}
-      />,
+      <Markdown isStreaming markdown={markdown} taskId={TASK_ID} />,
     );
     return [...container.querySelectorAll("[data-stream-word]")].map(
       (word) => word.textContent,
@@ -526,6 +623,41 @@ describe("Markdown raw HTML", () => {
     expect(container.querySelector("[style]")).toBeNull();
   });
 
+  // An `<a` quoted inside a script is a tag to the HTML5 parser, and one that
+  // never closes: the recovery nests everything after it, to the end of the
+  // document, inside the link. A transcript's whole tail was coming out as one
+  // file chip -- a button that centers and clips what it holds.
+  it("unwraps a link that the recovery of a stray tag wrapped around blocks", async () => {
+    const { container } = renderMarkdown(
+      [
+        "<bash>",
+        "<command>python3 - <<'PY'",
+        "checks = {'has_matrix': '<table class=\"matrix\">' in p, 'links': p.count('<a href='), 'x': 1}",
+        "PY</command>",
+        "</bash>",
+        "",
+        "## Heading after",
+        "",
+        "A paragraph that should stand on its own.",
+      ].join("\n"),
+    );
+    // The heredoc's `<<` is text either way, so the tag the parser unwraps is
+    // what says the second render has landed.
+    await waitFor(
+      () => {
+        expect(container.textContent).not.toContain("<bash>");
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+
+    const paragraph = [...container.querySelectorAll("p")].find((p) =>
+      p.textContent.includes("stand on its own"),
+    );
+    expect(paragraph).toBeDefined();
+    expect(paragraph?.closest("a, button")).toBeNull();
+    expect(container.querySelector("h2")?.closest("a, button")).toBeNull();
+  });
+
   // A model spells a link to a file it just wrote as a `file:` URL, which the
   // allow-list a browser would apply does not know as a scheme.
   it("still opens a file: link in a document that holds HTML", async () => {
@@ -656,14 +788,10 @@ describe("Markdown image sources", () => {
     ]);
   });
 
-  // A bare `output/plot.png` is deliberately not here: without an
-  // `assetBaseUrl` there is nothing to resolve it against, so it stays a bare
-  // word and the allow-list rejects it. Only an explicit `./` or `/` reads as
-  // a path on sight.
-  it("renders a path relative to the task", () => {
-    expect(imageSources("![a](./output/plot.png)")).toEqual([
-      "./output/plot.png",
-    ]);
+  // A path in a task's terms names a file only through that task's layout, so
+  // outside a task there is nowhere to read it from and nothing is drawn.
+  it("draws nothing for a path relative to a task it is not in", () => {
+    expect(imageSources("![a](./output/plot.png)")).toEqual([]);
   });
 
   it("renders an image from an allowed host", () => {
@@ -716,10 +844,9 @@ describe("Markdown image sources", () => {
         "a host the agent would be trusted with",
         "https://github.com/o/r/p.png",
       ],
-      // Plain http on a `.localhost` host is the task asset origin, which is
-      // every port on this machine as far as the host tells. A file that
-      // belongs to no task has nothing to address there, so what such a source
-      // reaches is whatever else is listening.
+      // Plain http on a `.localhost` host is every port on this machine as
+      // far as the host tells, so what such a source reaches is whatever is
+      // listening.
       ["a loopback service", "http://x.localhost:11434/api/pull?name=evil"],
       ["a path inside a task", "./output/plot.png"],
     ])("drops %s", (_case, src) => {
@@ -785,16 +912,17 @@ function taskFileImageSources(markdown: string, documentUrl: string): string[] {
 }
 
 // A report the agent wrote at the top of the task, and one it wrote in the
-// folder it put its output in. The second is what tells the two joins apart.
-const ROOT_DOCUMENT_URL = `${ASSET_BASE}/report.md`;
-const NESTED_DOCUMENT_URL = `${ASSET_BASE}/output/report.md`;
+// folder it put its output in, each read from where it is on the computer.
+// The second is what tells the two joins apart.
+const TASK_ROOT = `${FILE_BASE}/Users/casey/tasks/a-task`;
+const ROOT_DOCUMENT_URL = `${TASK_ROOT}/report.md`;
+const NESTED_DOCUMENT_URL = `${TASK_ROOT}/output/report.md`;
 
 describe("Markdown images in a task's own file", () => {
   it.each([
-    ["a bare name", "chart.png", `${ASSET_BASE}/chart.png`],
-    ["an explicit ./", "./chart.png", `${ASSET_BASE}/chart.png`],
-    ["a subfolder", "figures/chart.png", `${ASSET_BASE}/figures/chart.png`],
-    ["the task root", "/output/chart.png", `${ASSET_BASE}/output/chart.png`],
+    ["a bare name", "chart.png", `${TASK_ROOT}/chart.png`],
+    ["an explicit ./", "./chart.png", `${TASK_ROOT}/chart.png`],
+    ["a subfolder", "figures/chart.png", `${TASK_ROOT}/figures/chart.png`],
   ])("resolves %s beside a file at the task root", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, ROOT_DOCUMENT_URL)).toEqual([
       resolved,
@@ -802,39 +930,40 @@ describe("Markdown images in a task's own file", () => {
   });
 
   it.each([
-    ["a bare name", "chart.png", `${ASSET_BASE}/output/chart.png`],
-    ["an explicit ./", "./chart.png", `${ASSET_BASE}/output/chart.png`],
+    ["a bare name", "chart.png", `${TASK_ROOT}/output/chart.png`],
+    ["an explicit ./", "./chart.png", `${TASK_ROOT}/output/chart.png`],
     [
       "a bare subfolder",
       "charts/plot.png",
-      `${ASSET_BASE}/output/charts/plot.png`,
+      `${TASK_ROOT}/output/charts/plot.png`,
     ],
     [
       "an explicit ./ subfolder",
       "./charts/plot.png",
-      `${ASSET_BASE}/output/charts/plot.png`,
+      `${TASK_ROOT}/output/charts/plot.png`,
     ],
     [
       "a climb to a sibling",
       "../figures/chart.png",
-      `${ASSET_BASE}/figures/chart.png`,
+      `${TASK_ROOT}/figures/chart.png`,
     ],
-    ["the task root", "/chart.png", `${ASSET_BASE}/chart.png`],
   ])("resolves %s beside a file in a subfolder", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
       resolved,
     ]);
   });
 
-  // A climb runs out at the origin's own root rather than walking past it, so
-  // the deepest `../` chain a file can carry still names a file in the task.
-  it("cannot climb out of the task", () => {
+  // A climb runs out at the disk's own root rather than walking past it, and
+  // however deep the `../` chain, what comes out is still a file on this
+  // computer read through the same channel: a picture the reader is shown,
+  // never bytes the document gets to read.
+  it("cannot climb off the channel", () => {
     expect(
       taskFileImageSources(
-        "![a](../../../../etc/passwd.png)",
+        "![a](../../../../../../../etc/passwd.png)",
         NESTED_DOCUMENT_URL,
       ),
-    ).toEqual([`${ASSET_BASE}/etc/passwd.png`]);
+    ).toEqual([`${FILE_BASE}/etc/passwd.png`]);
   });
 
   // A source spelled with backslashes is the one that does not resolve to the
@@ -848,12 +977,12 @@ describe("Markdown images in a task's own file", () => {
     [
       "a leading backslash",
       "\\evil.test/p.png",
-      `${ASSET_BASE}/output/%5Cevil.test/p.png`,
+      `${TASK_ROOT}/output/%5Cevil.test/p.png`,
     ],
     [
       "a backslash after a slash",
       "/\\evil.test/p.png",
-      `${ASSET_BASE}/%5Cevil.test/p.png`,
+      `${FILE_BASE}/%5Cevil.test/p.png`,
     ],
   ])("keeps %s on the file's own origin", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
@@ -862,8 +991,8 @@ describe("Markdown images in a task's own file", () => {
   });
 
   // The file is still prose someone else may have written, and an absolute
-  // source in it is a host of that author's choosing. Over the asset origin's
-  // loopback host that is every port on this machine, which resolves to the
+  // source in it is a host of that author's choosing. Over a loopback host
+  // that is every port on this machine, which resolves to the
   // same shape a relative path does and is not the same question.
   it.each([
     ["a loopback service", "http://x.localhost:11434/probe", /x\.localhost/],
@@ -881,13 +1010,13 @@ describe("Markdown images in a task's own file", () => {
     expect(screen.getByRole("button", { name: host })).toBeTruthy();
   });
 
-  // A message sits in no directory, so its relative sources keep joining from
-  // the task root -- the paths the rest of the app names a file by.
-  it("joins a message's relative source from the task root", () => {
+  // A message sits in no directory, so its relative source is a path in the
+  // task's terms, placed on the computer through the task's own layout.
+  it("places a message's relative source through the task", () => {
     const { container } = renderMarkdown("![a](./output/chart.png)");
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      `${ASSET_BASE}/output/chart.png`,
+      `${TASK_ROOT}/./output/chart.png`,
     );
   });
 });
@@ -918,5 +1047,191 @@ describe("Markdown plugin loading", () => {
     });
 
     expect(commits).toBe(1);
+  });
+});
+
+/**
+ * A message still arriving is drawn a block at a time so the parser is not
+ * handed the whole of it on every chunk; see `splitMarkdownBlocks`.
+ *
+ * The split is only allowed to change when the parsing happens, never what it
+ * produces, and it stops the moment the text settles. So the test is the same
+ * document read both ways: the words, the elements and their nesting have to
+ * match, and the only licensed difference is the spans the word fade adds while
+ * the text is moving.
+ */
+describe("Markdown while a message is still arriving", () => {
+  const draw = (markdown: string, isStreaming?: boolean) =>
+    renderWithProviders(
+      <Markdown isStreaming={isStreaming} markdown={markdown} />,
+    ).container;
+
+  /**
+   * The two things that have to match: which elements were built, in order, and
+   * every character of text they hold.
+   *
+   * Read as two values rather than as serialized HTML, because the one
+   * difference a split is allowed is whitespace at a block boundary -- a
+   * document rendered whole puts a newline between siblings and one rendered a
+   * block at a time has nowhere to put one -- and no amount of normalizing a
+   * string distinguishes that from a space inside a sentence. Comparing the
+   * element sequence catches anything lost, duplicated or renested, and
+   * comparing text with the whitespace out catches anything dropped from a
+   * word. What is left uncovered, a space lost between two words, is what
+   * `splitMarkdownBlocks`' round-trip test rules out at the source.
+   *
+   * The word-fade spans are unwrapped first: they exist only while the text is
+   * moving, so they are a difference between the two readings by design.
+   */
+  const reading = (container: HTMLElement) => {
+    const copy = container.cloneNode(true) as HTMLElement;
+    for (const span of copy.querySelectorAll("[data-stream-word]")) {
+      span.replaceWith(...span.childNodes);
+    }
+    return {
+      elements: [...copy.querySelectorAll("*")]
+        .map((element) => element.tagName.toLowerCase())
+        .join(" "),
+      text: copy.textContent.replaceAll(/\s+/g, ""),
+    };
+  };
+
+  // Deliberately not here: a document ending mid-construct. The two readings
+  // differ on it by design -- one is repaired and one is shown as written --
+  // which is what the case below asserts.
+  const documents = {
+    "a table after prose": "Before.\n\n| a | b |\n| - | - |\n| 1 | 2 |\n",
+    "html across a blank line":
+      "<details>\n<summary>More</summary>\n\nInside.\n\n</details>\n\nAfter.\n",
+    "prose, list, fence": "One.\n\n- a\n- b\n\n```ts\nconst x = 1;\n```\n",
+    "several paragraphs": "One.\n\nTwo.\n\nThree.\n",
+  };
+
+  it.each(Object.entries(documents))(
+    "reads %s the same split as whole",
+    (_name, markdown) => {
+      expect(reading(draw(markdown, true))).toEqual(reading(draw(markdown)));
+    },
+  );
+
+  // The repair belongs to the block that is still growing and to no other, so
+  // it has to still reach it once the document is in pieces.
+  it("still closes what the last block stops in the middle of", () => {
+    const { container } = renderWithProviders(
+      <Markdown isStreaming markdown={"One.\n\nTwo is **half writ"} />,
+    );
+
+    expect(container.querySelector("strong")?.textContent).toBe("half writ");
+  });
+
+  it("leaves a settled message with no word spans at all", () => {
+    expect(
+      draw(documents["several paragraphs"]).querySelector("[data-stream-word]"),
+    ).toBeNull();
+  });
+});
+
+/**
+ * A file's YAML front matter, which without a parser for it reads as markdown:
+ * the closing `---` underlines every line above it into one heading.
+ */
+describe("Markdown front matter in a task's own file", () => {
+  const FRONT_MATTER = [
+    "---",
+    "title: Field notes",
+    "tags: [a, b]",
+    "draft: false",
+    "---",
+    "",
+    "# Notes",
+  ].join("\n");
+
+  const panelOf = (container: HTMLElement) => {
+    const panel = container.querySelector<HTMLDetailsElement>(
+      "details[data-slot=front-matter]",
+    );
+    return {
+      open: panel?.open,
+      rows: [...(panel?.querySelectorAll("dt") ?? [])].map((key) => [
+        key.textContent,
+        key.nextElementSibling?.textContent,
+      ]),
+      summary: panel?.querySelector("summary")?.textContent,
+    };
+  };
+
+  // Closed, named by its title, and counted: a transcript's two dozen keys
+  // are one line until asked for.
+  it("folds a file's front matter into a panel of its properties", () => {
+    const { container } = renderWithProviders(
+      <Markdown documentUrl={ROOT_DOCUMENT_URL} markdown={FRONT_MATTER} />,
+    );
+
+    expect(panelOf(container)).toEqual({
+      open: false,
+      rows: [
+        ["title", "Field notes"],
+        ["tags", '["a","b"]'],
+        ["draft", "false"],
+      ],
+      summary: "Field notes3 properties",
+    });
+    expect(
+      [...container.querySelectorAll("h1, h2")].map((h) => h.textContent),
+    ).toEqual(["Notes"]);
+  });
+
+  it("heads the panel with a count when nothing names the file", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={"---\nsessionId: ses_1\n---\n\nBody."}
+      />,
+    );
+
+    expect(panelOf(container).summary).toBe("Properties1 property");
+  });
+
+  // A document holding raw HTML goes through the sanitize pass, which prefixes
+  // the panel's id like any other; the panel has to come out the other side.
+  it("survives the sanitize pass a document with raw HTML goes through", async () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={`${FRONT_MATTER}\n\n<div>raw</div>`}
+      />,
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector("div > div")?.textContent).toBe("raw");
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+    expect(panelOf(container).rows).toHaveLength(3);
+  });
+
+  it("keeps front matter that is not a mapping as the yaml it is", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={"---\n- a\n- b\n---\n\nBody."}
+      />,
+    );
+
+    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector("pre")?.textContent).toBe("- a\n- b");
+    expect(container.querySelector("h2")).toBeNull();
+  });
+
+  // A reply that opens with a rule is a reply that opens with a rule; only a
+  // file has front matter.
+  it("leaves a message alone", () => {
+    const { container } = renderMarkdown(FRONT_MATTER);
+
+    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector("h2")?.textContent).toContain(
+      "title: Field notes",
+    );
   });
 });

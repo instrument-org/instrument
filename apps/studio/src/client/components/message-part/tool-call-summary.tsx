@@ -2,6 +2,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import {
   getToolNameByType,
   type SessionMessagePart,
+  type TaskId,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -18,6 +19,7 @@ import {
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
+import { RunningBadge } from "../task/running-badge";
 import { useRowExpansion } from "../transcript-expansion";
 import { transcriptRowAttributes } from "../transcript-row-position";
 import {
@@ -33,18 +35,18 @@ import { WebSearchChip } from "./tool-web-search";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 export function ToolCallSummary({
-  assetBaseUrl,
   children,
   isDeadDevMode = false,
   part,
+  taskId,
 }: {
-  assetBaseUrl: string;
   children?: ReactNode;
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
+  taskId: TaskId;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isRunning, isStreaming } = useToolCallSession();
+  const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
   const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
 
@@ -67,6 +69,12 @@ export function ToolCallSummary({
   // calls included. A second row moving under the head line would read as two
   // things happening at once, and a call waiting its turn is not work in
   // progress worth announcing: what it is waiting on is already saying so.
+  //
+  // A command that outlived its call is deliberately not this. The call itself
+  // finished, and giving it the agent's own dot and shimmer said the opposite:
+  // a row reading "Checking the localhost server status" as though the check
+  // were still going, when what is still going is the server. That fact gets
+  // the badge at the end of the row instead.
   const showsLiveIndicator = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
@@ -156,9 +164,8 @@ export function ToolCallSummary({
         )
       )}
       <WebSearchChip part={part} />
-      <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
+      <SourceImagesChip id={taskId} part={part} />
       <FileChip part={part} />
-
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
       />
@@ -171,14 +178,38 @@ export function ToolCallSummary({
   if (groupHead !== null) {
     return (
       <Collapsible onOpenChange={groupHead.toggle} open={groupHead.isExpanded}>
-        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+        <div className="flex min-w-0 items-center gap-2">
+          <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+          {backgroundProcess && (
+            <RunningBadgeButton
+              onOpen={() => {
+                if (!groupHead.isExpanded) {
+                  groupHead.toggle();
+                }
+              }}
+            />
+          )}
+        </div>
       </Collapsible>
     );
   }
 
   return (
     <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
-      <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+      {/* The badge sits beside the row rather than inside it, so it is its own
+          click target: the row's click toggles the call open and shut, and this
+          one only ever opens it -- it is the reader following the badge to the
+          command that is still running, not toggling a disclosure. */}
+      <div className="flex min-w-0 items-center gap-2">
+        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+        {backgroundProcess && (
+          <RunningBadgeButton
+            onOpen={() => {
+              setIsExpanded(true);
+            }}
+          />
+        )}
+      </div>
       <CollapsibleContent animated className="pb-2">
         {children}
       </CollapsibleContent>
@@ -218,4 +249,18 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     .map(([domain]) => domain);
 
   return { domains };
+}
+
+/** The badge as a way in: it opens the call, and never closes it. */
+function RunningBadgeButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      aria-label="Show the command that is still running"
+      className="shrink-0 rounded-full"
+      onClick={onOpen}
+      type="button"
+    >
+      <RunningBadge count={1} />
+    </button>
+  );
 }

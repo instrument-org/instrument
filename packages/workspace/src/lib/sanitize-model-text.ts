@@ -39,6 +39,15 @@ export function sanitizeSurrogates(text: string) {
   return text.replaceAll(LONE_SURROGATE, "");
 }
 
+/** Keep whole whitespace-delimited words, falling back to a character boundary when the first word cannot fit. */
+export function truncateAtWordBoundary(text: string, maxLength: number) {
+  const cut = truncateWithoutSplitting(text, maxLength);
+  if (cut.length === text.length || /\s/u.test(text[cut.length] ?? "")) {
+    return cut.trimEnd();
+  }
+  return cut.replace(/\s+\S*$/u, "").trimEnd();
+}
+
 /**
  * Truncate to a length in UTF-16 code units without splitting a character.
  *

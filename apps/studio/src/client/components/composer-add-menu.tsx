@@ -1,4 +1,4 @@
-import { openCreateProject } from "@/client/atoms/project-modal";
+import { type ComposerApp } from "@/client/components/app-mention";
 import {
   type ComposerSkill,
   SkillMenuRow,
@@ -6,20 +6,26 @@ import {
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import { type ProjectId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DesktopIcon } from "@phosphor-icons/react/Desktop";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { useQuery } from "@tanstack/react-query";
+import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useRef } from "react";
+
+import { AppIcon } from "./window/app-icon";
 
 /**
  * Something the composer can be given, offered by name in the menu that adds
@@ -27,6 +33,15 @@ import { useRef } from "react";
  * described once and its `onSelect` is what differs per surface.
  */
 export interface ComposerAction {
+  /**
+   * For an entry that opens another surface in this menu's place. It runs once
+   * the menu has closed rather than on the click: a popover opened while the
+   * menu is still tearing down loses the caret to it -- a menu takes focus back
+   * to its own content as the pointer leaves an item, and a layer that sees
+   * focus land outside itself dismisses. The caret is then the new surface's,
+   * so the prompt does not take it back either.
+   */
+  handsOff?: boolean;
   icon: Icon;
   id: string;
   /**
@@ -39,11 +54,31 @@ export interface ComposerAction {
 }
 
 /**
- * Which face the menu is wearing, or `null` for closed. Picking a project
- * replaces the menu rather than opening a second one beside it, so the caller
- * owns this: a slash-typed "Work in a project" opens the menu already turned.
+ * Which face the menu is wearing, or `null` for closed. A list replaces the
+ * menu rather than opening a second one beside it, and the caller owns this.
  */
-export type ComposerMenuView = "projects" | "root";
+export type ComposerMenuView = "apps" | "root" | "skills";
+
+/**
+ * What a chat's plus opens beside the chat, where the composer is a chat's:
+ * the web's starting view, the computer, and the apps to name in the words.
+ * Given these, the menu leads with them as rows and keeps the apps and the
+ * skills behind rows of their own.
+ */
+export interface ComposerPlaces {
+  apps: ComposerApp[];
+  /** What this computer is called on its tile. */
+  computerName: string;
+  /** Names an app in the words, as a mention. */
+  onNameApp: (app: ComposerApp) => void;
+  /** Takes the window to Apps, where another app is connected. */
+  onOpenApps: () => void;
+  onOpenComputer: () => void;
+  onOpenWeb: () => void;
+}
+
+/** The actions a chat's plus draws as its two attach buttons rather than as rows. */
+const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
 
 /**
  * The plus button and everything it offers: what the composer can be given,
@@ -58,33 +93,56 @@ export function ComposerAddMenu({
   actions,
   bounds,
   disabled,
+  label,
   onReturnFocus,
-  onSelectProject,
   onSelectSkill,
   onViewChange,
-  projectId,
+  places,
   skills,
+  triggerClassName,
   view,
 }: {
   actions: ComposerAction[];
   /** The composer box this hangs off, rather than overlays. */
   bounds: HTMLElement | null;
   disabled?: boolean;
+  /** A word on the trigger beside its mark, where a bare plus would not say what it is for. */
+  label?: string;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
-  /** Omitted where a task's project is not the composer's to choose. */
-  onSelectProject?: (projectId: null | ProjectId) => void;
   onSelectSkill: (skill: ComposerSkill) => void;
   onViewChange: (view: ComposerMenuView | null) => void;
-  projectId?: null | ProjectId;
+  /** A chat's places, which turn the menu into tiles over its rows. */
+  places?: ComposerPlaces;
   skills: ComposerSkill[];
+  /** The trigger's shape where the composer draws it differently: a pill's round button. */
+  triggerClassName?: string;
   view: ComposerMenuView | null;
 }) {
   // Whether this closed because something was chosen, which is the only case
   // where the menu owns where focus lands next. Dismissing it is the user
   // going somewhere themselves, and Radix's own handling is right for that.
-  const chose = useRef(false);
+  const chose = useRef<"hand-off" | "prompt" | null>(null);
+  // A hand-off's own work, held until this menu is gone rather than run where
+  // it was chosen. See `handsOff`.
+  const handOff = useRef<(() => void) | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // An entry acting and leaving, turning the menu into something else, or
+  // handing off to a surface that opens once the menu has gone.
+  const choose = (action: ComposerAction, event: Event) => {
+    if (action.keepMenuOpen) {
+      event.preventDefault();
+      action.onSelect();
+      return;
+    }
+    if (action.handsOff) {
+      chose.current = "hand-off";
+      handOff.current = action.onSelect;
+      return;
+    }
+    chose.current = "prompt";
+    action.onSelect();
+  };
   const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
     anchorRef: triggerRef,
     bounds,
@@ -100,17 +158,28 @@ export function ComposerAddMenu({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label="Add to this prompt"
+          aria-label={label ?? "Add to this prompt"}
           // A filled rest state rather than a ghost one, so the way in is
           // visible before it is pointed at. Its hover has to darken in one
           // theme and lighten in the other, which no single token does.
-          className="size-8 bg-muted p-0 text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15"
+          className={cn(
+            "bg-muted text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15",
+            label === undefined ? "size-8 p-0" : "h-7 gap-1 px-2 text-xs",
+            triggerClassName,
+          )}
           disabled={disabled}
           ref={triggerRef}
           size="sm"
           variant="ghost"
         >
-          <PlusIcon className="size-5" weight="regular" />
+          {label === undefined ? (
+            <PlusIcon className="size-5" weight="regular" />
+          ) : (
+            <>
+              <PaperclipIcon className="size-4" />
+              {label}
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -124,72 +193,183 @@ export function ComposerAddMenu({
         // The corner is the composer's own rather than the menu radius every
         // other dropdown wears, since this one is read against the edge of the
         // box it hangs off.
-        className="max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] rounded-[20px]"
+        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
-        // opened this -- including out of the project picker, which is a
-        // second menu deep and would otherwise leave the caret nowhere.
+        // opened this -- including out of a list, which is a second menu deep
+        // and would otherwise leave the caret nowhere.
         onCloseAutoFocus={(event) => {
-          if (!chose.current) {
+          const after = chose.current;
+          const opensNext = handOff.current;
+          chose.current = null;
+          handOff.current = null;
+          if (!after) {
             return;
           }
-          chose.current = false;
           event.preventDefault();
-          onReturnFocus();
+          if (after === "prompt") {
+            onReturnFocus();
+          }
+          // Radix fires this from the teardown of the layer itself, so by here
+          // the menu is gone and the surface this hands off to is the only one
+          // on screen.
+          opensNext?.();
         }}
         side={side}
         sideOffset={sideOffset}
-        style={{ width }}
+        // A chat's menu is a list of rows, sized to them rather than to the
+        // box it hangs off, which would stretch a row across a wide window.
+        style={places ? { width: "16rem" } : { width }}
       >
-        {view === "projects" && onSelectProject ? (
-          <ProjectItems
-            onSelect={(id) => {
-              chose.current = true;
-              onSelectProject(id);
-              onViewChange(null);
-            }}
-            projectId={projectId ?? null}
-          />
-        ) : (
-          <>
-            {actions.map((action) => (
-              <DropdownMenuItem
-                key={action.id}
-                onSelect={(event) => {
-                  if (action.keepMenuOpen) {
-                    event.preventDefault();
-                  } else {
-                    chose.current = true;
-                  }
-                  action.onSelect();
+        <MenuScrollArea>
+          {view === "apps" && places ? (
+            <>
+              <BackItem
+                label="Apps"
+                onBack={() => {
+                  onViewChange("root");
                 }}
-              >
-                <action.icon className="size-4" />
-                {action.label}
-              </DropdownMenuItem>
-            ))}
-            {skills.length > 0 && (
-              <MenuGroupHeader keyHint="/" label="Skills" />
-            )}
-            {skills.map((skill) => (
+              />
+              {places.apps.map((app) => (
+                <DropdownMenuItem
+                  key={app.slug}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    places.onNameApp(app);
+                  }}
+                >
+                  <AppIcon name={app.name} site={app.site} size="sm" />
+                  {app.name}
+                </DropdownMenuItem>
+              ))}
+              {places.apps.length > 0 && <DropdownMenuSeparator />}
               <DropdownMenuItem
-                key={skill.id}
                 onSelect={() => {
-                  chose.current = true;
-                  onSelectSkill(skill);
+                  places.onOpenApps();
                 }}
               >
-                <SkillMenuRow
-                  match={{
-                    descriptionRanges: null,
-                    nameRanges: null,
-                    skill,
+                <PlusIcon className="size-4" />
+                Connect an app…
+              </DropdownMenuItem>
+            </>
+          ) : view === "skills" && places ? (
+            <>
+              <BackItem
+                label="Skills"
+                onBack={() => {
+                  onViewChange("root");
+                }}
+              />
+              {skills.map((skill) => (
+                <SkillItem
+                  key={skill.id}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    onSelectSkill(skill);
+                  }}
+                  skill={skill}
+                />
+              ))}
+            </>
+          ) : places ? (
+            // One list, the way the rest of the menu reads, so every entry
+            // is reached by the keyboard: where to look, what to attach, then
+            // the apps and skills to name in the words and the rest.
+            <>
+              {/* What opens takes the caret, so it opens once the menu has
+                  gone rather than as the menu hands focus back. */}
+              <DropdownMenuItem
+                onSelect={() => {
+                  chose.current = "hand-off";
+                  handOff.current = places.onOpenWeb;
+                }}
+              >
+                <GlobeIcon className="size-4" />
+                Browser
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  chose.current = "hand-off";
+                  handOff.current = places.onOpenComputer;
+                }}
+              >
+                <DesktopIcon className="size-4" />
+                {places.computerName}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {actions
+                .filter((action) => ATTACH_ACTIONS.has(action.id))
+                .map((action) => (
+                  <ActionItem
+                    action={action}
+                    key={action.id}
+                    onSelect={(event) => {
+                      choose(action, event);
+                    }}
+                  />
+                ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onViewChange("apps");
+                }}
+              >
+                <SquaresFourIcon className="size-4" />
+                <span className="min-w-0 flex-1">Apps</span>
+                <CaretRightIcon className="size-3.5 text-muted-foreground" />
+              </DropdownMenuItem>
+              {skills.length > 0 && (
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onViewChange("skills");
+                  }}
+                >
+                  <GraduationCapIcon className="size-4" />
+                  <span className="min-w-0 flex-1">Skill</span>
+                  <CaretRightIcon className="size-3.5 text-muted-foreground" />
+                </DropdownMenuItem>
+              )}
+              {actions
+                .filter((action) => !ATTACH_ACTIONS.has(action.id))
+                .map((action) => (
+                  <ActionItem
+                    action={action}
+                    key={action.id}
+                    onSelect={(event) => {
+                      choose(action, event);
+                    }}
+                  />
+                ))}
+            </>
+          ) : (
+            <>
+              {actions.map((action) => (
+                <ActionItem
+                  action={action}
+                  key={action.id}
+                  onSelect={(event) => {
+                    choose(action, event);
                   }}
                 />
-              </DropdownMenuItem>
-            ))}
-          </>
-        )}
+              ))}
+              {skills.length > 0 && (
+                <MenuGroupHeader keyHint="/" label="Skills" />
+              )}
+              {skills.map((skill) => (
+                <SkillItem
+                  key={skill.id}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    onSelectSkill(skill);
+                  }}
+                  skill={skill}
+                />
+              ))}
+            </>
+          )}
+        </MenuScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -225,52 +405,54 @@ export function MenuGroupHeader({
   );
 }
 
-// Cancelling is an entry rather than a way out of the menu, because arriving
-// here is a choice the user may want to take back without also losing the menu
-// they made it in.
-function ProjectItems({
+/** One of the menu's own entries, whose choosing the menu handles. */
+function ActionItem({
+  action,
   onSelect,
-  projectId,
 }: {
-  onSelect: (projectId: null | ProjectId) => void;
-  projectId: null | ProjectId;
+  action: ComposerAction;
+  onSelect: (event: Event) => void;
 }) {
-  const { data: projects } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions(),
-  );
-
   return (
-    <>
-      <DropdownMenuCheckboxItem
-        checked={projectId === null}
-        className="data-[state=checked]:text-foreground"
-        onSelect={() => {
-          onSelect(null);
+    <DropdownMenuItem onSelect={onSelect}>
+      <action.icon className="size-4" />
+      {action.label}
+    </DropdownMenuItem>
+  );
+}
+
+/** The first row of a menu turned into a list: its name, and the way back to the menu. */
+function BackItem({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <DropdownMenuItem
+      className="text-muted-foreground"
+      onSelect={(event) => {
+        event.preventDefault();
+        onBack();
+      }}
+    >
+      <ArrowLeftIcon className="size-4" />
+      {label}
+    </DropdownMenuItem>
+  );
+}
+
+function SkillItem({
+  onSelect,
+  skill,
+}: {
+  onSelect: () => void;
+  skill: ComposerSkill;
+}) {
+  return (
+    <DropdownMenuItem onSelect={onSelect}>
+      <SkillMenuRow
+        match={{
+          descriptionRanges: null,
+          nameRanges: null,
+          skill,
         }}
-      >
-        Don&apos;t work in a project
-      </DropdownMenuCheckboxItem>
-      {projects?.map((project) => (
-        <DropdownMenuCheckboxItem
-          checked={project.id === projectId}
-          className="data-[state=checked]:text-foreground"
-          key={project.id}
-          onSelect={() => {
-            onSelect(project.id);
-          }}
-        >
-          <span className="min-w-0 flex-1 truncate">{project.name}</span>
-        </DropdownMenuCheckboxItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onSelect={() => {
-          openCreateProject();
-        }}
-      >
-        <PlusIcon className="size-4" />
-        New project
-      </DropdownMenuItem>
-    </>
+      />
+    </DropdownMenuItem>
   );
 }

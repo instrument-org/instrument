@@ -1,0 +1,236 @@
+import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { screen } from "electron";
+import Store from "electron-store";
+
+export interface WindowBounds {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * Which window a remembered size belongs to. Each top-level window is its own
+ * record: they are different windows of different shapes, open at the same
+ * time, and one record between them is each window resizing the other.
+ */
+export type WindowStateName = "app";
+
+interface StoredWindowState {
+  /**
+   * By window. Keyed by name as the build that wrote it named the window, so
+   * a record under a name no window has any more is still read: the app
+   * window's was `orchestrator` before it was `app`.
+   */
+  windows?: Partial<
+    Record<string, { bounds?: Partial<WindowBounds>; isMaximized?: boolean }>
+  >;
+  zoom?: number;
+}
+
+interface WindowState {
+  bounds: WindowBounds;
+  isMaximized: boolean;
+}
+
+const DEFAULT_WIDTH = 1400;
+const DEFAULT_HEIGHT = 900;
+
+// Full containment is too strict for multi-display restores; users can leave a
+// window slightly over an edge and still expect that position to be restored.
+const MIN_VISIBLE_PX = 100;
+
+// GNOME maximizes any window that maps at more than this share of the work
+// area, by area (mutter's auto-maximize, on by default). A saved size just over
+// the line therefore comes back maximized on every launch, and unmaximizing
+// does not escape it: mutter's own unmaximize shrink keeps the window's aspect
+// ratio, which lands back over the line whenever the window is proportionally
+// taller than the work area. Restore just under it instead.
+const MAX_UNMAXIMIZED_WORK_AREA_FRACTION = 0.8;
+
+/** What each window's record was called before, read when its own is not there yet. */
+const FORMER_NAMES: Record<WindowStateName, string> = { app: "orchestrator" };
+
+let STORE: null | Store<StoredWindowState> = null;
+
+/**
+ * Its own file rather than a key of the workspace's `state` store: a moved or
+ * resized window writes here every time it settles, and nothing should hear
+ * about that but the next launch.
+ */
+function getStore(): Store<StoredWindowState> {
+  STORE ??= new Store<StoredWindowState>({
+    cwd: workspaceSettingsDir(),
+    name: "window-state",
+  });
+  return STORE;
+}
+
+/** Work areas measured from a maximized window, by display id. */
+const learnedWorkAreas = new Map<number, { height: number; width: number }>();
+
+/**
+ * The app's UI zoom, as the renderer last reported it. The renderer owns the
+ * value (`zoomAtom`, one setting shared by every window at the origin); the main
+ * process keeps a copy so a window can place its macOS traffic lights for the
+ * zoomed toolbar height at creation, rather than waiting for the renderer to
+ * mount and report the zoom back.
+ */
+export function getAppZoom() {
+  const zoom = getStore().get("zoom");
+  return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
+    ? zoom
+    : 1;
+}
+
+/**
+ * The size and place a window comes back to, or where it opens when nothing
+ * was ever remembered for it. `size` is what that window opens at the first
+ * time, which is its own rather than one number for every window.
+ */
+export function getWindowState(
+  name: WindowStateName,
+  size?: { height: number; width: number },
+) {
+  const stored =
+    getStore().store.windows?.[name] ??
+    getStore().store.windows?.[FORMER_NAMES[name]];
+  const defaults = getDefaultState(size);
+
+  // Merge stored state with defaults to handle partial/corrupted data
+  const merged: WindowState = {
+    bounds: {
+      height: stored?.bounds?.height ?? defaults.bounds.height,
+      width: stored?.bounds?.width ?? defaults.bounds.width,
+      x: stored?.bounds?.x ?? defaults.bounds.x,
+      y: stored?.bounds?.y ?? defaults.bounds.y,
+    },
+    isMaximized: stored?.isMaximized ?? defaults.isMaximized,
+  };
+
+  return keepBelowAutoMaximize(ensureWindowVisible(merged, size));
+}
+
+export function isWindowBoundsVisible(bounds: WindowBounds) {
+  return screen.getAllDisplays().some((display) => {
+    return isWindowWithinBounds(bounds, display.bounds);
+  });
+}
+
+/**
+ * Record what a maximized window measured as the work area of the display it
+ * filled, which is the only way to learn it under Wayland: a Wayland client is
+ * never told about panels or docks, so the display reports the whole output and
+ * GNOME's line lands about 10% higher than where the compositor draws it.
+ *
+ * Kept per display, because a work area learned on a laptop screen would shrink
+ * a window the user sized on an external one.
+ */
+export function rememberWorkAreaFromMaximized(bounds: WindowBounds) {
+  learnedWorkAreas.set(screen.getDisplayMatching(bounds).id, {
+    height: bounds.height,
+    width: bounds.width,
+  });
+}
+
+export function setAppZoom(zoom: number) {
+  getStore().set("zoom", zoom);
+}
+
+export function setWindowState(name: WindowStateName, value: WindowState) {
+  getStore().set({ windows: { ...getStore().store.windows, [name]: value } });
+}
+
+/**
+ * A size GNOME will not maximize on sight, keeping the shape the user left.
+ */
+export function shrinkBelowAutoMaximize(bounds: WindowBounds) {
+  if (process.platform !== "linux") {
+    return bounds;
+  }
+
+  const display = screen.getDisplayMatching(bounds);
+  const workArea = learnedWorkAreas.get(display.id) ?? display.workArea;
+  const limit =
+    workArea.width * workArea.height * MAX_UNMAXIMIZED_WORK_AREA_FRACTION;
+  const area = bounds.width * bounds.height;
+  if (area <= limit) {
+    return bounds;
+  }
+
+  // Scaling both sides by the square root of the shortfall keeps the shape the
+  // user left, and flooring keeps the result under the limit rather than on it.
+  const scale = Math.sqrt(limit / area);
+  return {
+    ...bounds,
+    height: Math.floor(bounds.height * scale),
+    width: Math.floor(bounds.width * scale),
+  };
+}
+
+function ensureWindowVisible(
+  state: WindowState,
+  size?: { height: number; width: number },
+) {
+  if (!isWindowBoundsVisible(state.bounds)) {
+    const defaultState = getDefaultState(size);
+    // Handles unplugged/rearranged monitors by moving only the origin while
+    // preserving the user's saved window size.
+    return {
+      ...state,
+      bounds: {
+        ...state.bounds,
+        x: defaultState.bounds.x,
+        y: defaultState.bounds.y,
+      },
+      isMaximized: false,
+    };
+  }
+
+  return state;
+}
+
+function getDefaultState(size?: {
+  height: number;
+  width: number;
+}): WindowState {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const height = size?.height ?? DEFAULT_HEIGHT;
+  const width = size?.width ?? DEFAULT_WIDTH;
+  return {
+    bounds: {
+      height,
+      width,
+      x:
+        primaryDisplay.bounds.x +
+        Math.round((primaryDisplay.bounds.width - width) / 2),
+      y:
+        primaryDisplay.bounds.y +
+        Math.round((primaryDisplay.bounds.height - height) / 2),
+    },
+    isMaximized: false,
+  };
+}
+
+function isWindowWithinBounds(
+  windowBounds: WindowBounds,
+  displayBounds: { height: number; width: number; x: number; y: number },
+) {
+  const overlapX =
+    Math.min(
+      windowBounds.x + windowBounds.width,
+      displayBounds.x + displayBounds.width,
+    ) - Math.max(windowBounds.x, displayBounds.x);
+
+  const overlapY =
+    Math.min(
+      windowBounds.y + windowBounds.height,
+      displayBounds.y + displayBounds.height,
+    ) - Math.max(windowBounds.y, displayBounds.y);
+
+  return overlapX >= MIN_VISIBLE_PX && overlapY >= MIN_VISIBLE_PX;
+}
+
+function keepBelowAutoMaximize(state: WindowState) {
+  return { ...state, bounds: shrinkBelowAutoMaximize(state.bounds) };
+}

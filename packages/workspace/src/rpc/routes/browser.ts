@@ -2,12 +2,14 @@ import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
+import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
+import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
-import { BrowserTargetIdSchema } from "../../types";
+import { BrowserTargetIdSchema, encodeBrowserTargetId } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -42,7 +44,6 @@ const open = base
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
-
     const target = await context.workspaceConfig.browser
       .createTarget(id, sessionId, partitionDir)
       .catch((error: unknown) => {
@@ -68,8 +69,13 @@ const open = base
           targetId: target.targetId,
           taskId: id,
         });
-    if (navigated.isErr()) {
-      // The tab is open, which is what was asked for; it just came up blank.
+    // The tab is open, which is what was asked for; it just came up blank. A
+    // navigate that timed out is a slow server rather than a bug, and the load
+    // carries on in the guest, so only other failures are reported.
+    if (
+      navigated.isErr() &&
+      !(navigated.error instanceof CdpCommandTimeoutError)
+    ) {
       context.workspaceConfig.captureException(navigated.error);
     }
 
@@ -137,22 +143,60 @@ const presence = base
  * client can tell "nothing has happened here" from its first real tick.
  */
 const agentActivity = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(eventIterator(z.object({ revision: z.number() })))
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      /** One guest of the task's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
+      targetId: BrowserTargetIdSchema.optional(),
+    }),
+  )
+  .output(
+    eventIterator(
+      z.object({
+        /** When an agent last worked in the one guest asked about, in ms; absent when none has, or when the whole task is asked about. */
+        lastAt: z.number().optional(),
+        revision: z.number(),
+      }),
+    ),
+  )
   .handler(async function* ({ input, signal }) {
     let revision = 0;
-    yield { revision };
+    const lastAt =
+      input.targetId === undefined
+        ? undefined
+        : lastBrowserAgentActivity(input.targetId);
+    yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
-      if (event.id === input.id) {
+      if (
+        event.id === input.id &&
+        (input.targetId === undefined || event.targetId === input.targetId)
+      ) {
         revision += 1;
-        yield { revision };
+        yield {
+          revision,
+          ...(input.targetId === undefined ? {} : { lastAt: Date.now() }),
+        };
       }
     }
   });
 
+/**
+ * Closes a task's browser for good: the guest goes, and the task is told on
+ * its next turn that its page is gone. What closing one of the window's tabs
+ * means, as against hiding the panel it is drawn in.
+ */
+const close = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ context, input }) => {
+    await context.workspaceConfig.browser.closeTarget(
+      encodeBrowserTargetId(input.id, input.sessionId),
+    );
+  });
+
 export const browser = {
+  close,
   events: {
     agentActivity,
   },

@@ -5,6 +5,7 @@ import {
   type BrowserGuestTarget,
   browserPartition,
 } from "@/shared/browser";
+import { PAGE_THUMB_CHANNEL } from "@/shared/page-editor-channels";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
@@ -37,16 +38,18 @@ const GUEST_RASTER_BUDGET = 1.3;
  *  - paint-host: laid out at the guest's logical size but visually hidden
  *    (`opacity: 0.001`), used whenever nothing is showing the guest. Chromium
  *    still paints it on-screen, so `wc.capturePage()` capture and CDP input keep
- *    working headlessly (capture needs the guest on-screen and unoccluded, which
- *    is why we can't truly hide it).
+ *    working headlessly (capture needs the guest composited into the window,
+ *    which is why we can't truly hide it; a covered or minimized window is made
+ *    to draw by the main process's `whileEmbedderComposites`).
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *
- * At most one guest is visible at a time: each task's browser panel shows its
- * guest only while its tab is the foreground tab (see use-active-tab) and parks
- * it otherwise, so two guests can never be shown at once. The main process owns
- * guest existence via the desired-targets stream; the host slot only toggles
- * paint-host vs visible. Hiding/closing the slot never disposes a guest.
+ * A host shows its guest only while its own surface is on screen (a task's
+ * browser panel while its tab is the foreground tab, see use-active-tab) and
+ * parks it otherwise; hosts on screen together each show their own, stacked
+ * by the `layer` they hand showOverSlot. The main process owns guest existence
+ * via the desired-targets stream; the host slot only toggles paint-host vs
+ * visible. Hiding/closing the slot never disposes a guest.
  */
 
 interface Bounds {
@@ -81,18 +84,27 @@ interface PooledWebview {
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
+  /** The page as it looks now, for a surface that holds a picture of it over a reload. */
+  capturePage(): Promise<{ toDataURL: () => string }>;
+  /** Forgets every entry but the one the guest is at. */
+  clearHistory(): void;
+  executeJavaScript(code: string): Promise<unknown>;
   findInPage(
     text: string,
     options?: { findNext?: boolean; forward?: boolean },
   ): number;
   getTitle(): string;
   getURL(): string;
+  getWebContentsId(): number;
   getZoomFactor(): number;
   goBack(): void;
   goForward(): void;
+  isLoading(): boolean;
   loadURL(url: string): Promise<void>;
   reload(): void;
   reloadIgnoringCache(): void;
+  /** A message to the guest's preload, on a channel it listens on. */
+  send(channel: string, ...args: unknown[]): void;
   setZoomFactor(factor: number): void;
   stopFindInPage(
     action: "activateSelection" | "clearSelection" | "keepSelection",
@@ -158,11 +170,28 @@ function restoreHostFocus() {
   }
 }
 
-// The slot currently showing each guest. Two panels can be mounted for the same
-// target (e.g. the task open in two tabs), and both drive show/park as tabs
-// switch; only the slot that showed a guest may park it, so a backgrounded panel
-// can't park the guest the foreground one is showing (last-writer-wins otherwise).
+// The slot currently showing each guest.
 const paintOwners = new Map<BrowserTargetId, symbol>();
+
+interface SlotClaim {
+  bottomRadius: string;
+  bounds: Bounds;
+  layer: number;
+  renderedSize: null | undefined | { height: number; width: number };
+  // Order the slot first asked in, which breaks a tie between two slots on one
+  // layer in favor of the newer; re-measuring keeps a slot's place.
+  since: number;
+}
+
+// Every slot asking to show each guest, by the slot. Several can be on screen
+// for one page at once (a chat inline in the pane and grown in a window over
+// it, the task open in two tabs), and the guest can stand in only one: the
+// frontmost slot has it, the newer on a tie, and when that slot lets go it
+// passes to the next still asking. Without the record, whichever slot measured
+// last would take the page, and a slot under a window could pull it out from
+// under the window that draws it.
+const slotClaims = new Map<BrowserTargetId, Map<symbol, SlotClaim>>();
+let nextClaimOrder = 0;
 
 // Agent-requested guest sizes, kept beside the pool rather than only on the
 // pooled entry: main replays them when this stream subscribes, which can happen
@@ -183,6 +212,19 @@ const targetListeners = new Set<() => void>();
 export function getAttachedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
   return attachedTargets;
 }
+
+/** Which mounting of a target's guest the pool holds; a recreated guest has a new one. */
+export function getGuestGeneration(
+  targetId: BrowserTargetId,
+): number | undefined {
+  return pool.get(targetId)?.generation;
+}
+
+/** Who walks each page's tab when a thumb button is pressed over it, by the page's target. */
+const thumbHandlers = new Map<
+  BrowserTargetId,
+  (direction: "back" | "forward") => void
+>();
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(
@@ -317,21 +359,35 @@ export function initBrowserPool(): () => void {
 }
 
 /**
- * Park the guest in paint-host (laid out + painted, but not shown). No-ops if
- * another slot currently owns the guest's visibility, so a backgrounded panel
- * can't hide the guest the foreground panel is showing.
+ * Takes the thumb buttons pressed over one page, for the surface showing it,
+ * until the returned function lets them go. The latest surface to ask has
+ * them, since it is the one drawing the page.
+ */
+export function onPageThumb(
+  targetId: BrowserTargetId,
+  handler: (direction: "back" | "forward") => void,
+): () => void {
+  thumbHandlers.set(targetId, handler);
+  return () => {
+    if (thumbHandlers.get(targetId) === handler) {
+      thumbHandlers.delete(targetId);
+    }
+  };
+}
+
+/**
+ * Withdraw a slot's claim on the guest. The guest passes to the frontmost slot
+ * still asking for it, or parks in paint-host (laid out + painted, but not
+ * shown) when none is, so a backgrounded panel can't hide the guest another
+ * panel is showing.
  */
 export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
-  const currentOwner = paintOwners.get(targetId);
-  if (currentOwner && currentOwner !== owner) {
-    return;
+  const claims = slotClaims.get(targetId);
+  claims?.delete(owner);
+  if (claims?.size === 0) {
+    slotClaims.delete(targetId);
   }
-  paintOwners.delete(targetId);
-  const pooled = pool.get(targetId);
-  if (pooled) {
-    releaseGuestFocus(pooled);
-    applyPaintHost(pooled);
-  }
+  placeGuest(targetId);
 }
 
 /**
@@ -339,7 +395,8 @@ export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
  * fills dynamically (no letterbox). Resizing/moving a painted guest keeps it
  * alive, so this can fire freely on every resize. No-ops if the guest doesn't
  * exist (the main process owns creation via the desired-targets stream).
- * Claims visibility ownership for `owner` so only this slot can later park it.
+ * Records `owner`'s claim on the guest, which holds until setPaintHost
+ * withdraws it; the guest stands in whichever claiming slot is frontmost.
  *
  * `renderedSize`, when given, shrinks and centers the webview element within
  * `bounds` to that size instead of filling it -- purely a visual/compositing
@@ -356,59 +413,29 @@ export function showOverSlot(
   bounds: Bounds,
   owner: symbol,
   renderedSize?: null | { height: number; width: number },
+  // Where the shown guest stands among the window's own layers. Zero by
+  // default, which puts it over the page's ordinary content and under every
+  // floating layer; a host that itself floats (a draft window) names a layer
+  // above its own, since a guest under an opaque host is a page nobody sees.
+  layer = 0,
+  // The radius of the host's bottom corners, which the guest is clipped to so
+  // it does not stand square past a rounder frame or round inside a square one:
+  // one length for both, or two, the bottom left's and then the bottom right's.
+  bottomRadius = VISIBLE_BOTTOM_RADIUS,
 ) {
-  const pooled = pool.get(targetId);
-  if (!pooled) {
+  if (!pool.has(targetId)) {
     return;
   }
-  paintOwners.set(targetId, owner);
-  pooled.lastVisibleBounds = bounds;
-  reportEffectiveSurface(pooled, {
-    height: bounds.height,
-    width: bounds.width,
+  const claims = slotClaims.get(targetId) ?? new Map<symbol, SlotClaim>();
+  slotClaims.set(targetId, claims);
+  claims.set(owner, {
+    bottomRadius,
+    bounds,
+    layer,
+    renderedSize,
+    since: claims.get(owner)?.since ?? nextClaimOrder++,
   });
-  const { container, webview } = pooled;
-
-  Object.assign(container.style, {
-    borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
-    contain: "layout paint size style",
-    height: `${bounds.height}px`,
-    left: `${bounds.x}px`,
-    opacity: "1",
-    overflow: "hidden",
-    pointerEvents: "auto",
-    position: "fixed",
-    top: `${bounds.y}px`,
-    transform: "",
-    visibility: "visible",
-    width: `${bounds.width}px`,
-    willChange: "",
-    zIndex: "0",
-  } satisfies Partial<CSSStyleDeclaration>);
-
-  if (renderedSize) {
-    Object.assign(webview.style, {
-      borderRadius: "",
-      height: `${renderedSize.height}px`,
-      left: `${(bounds.width - renderedSize.width) / 2}px`,
-      position: "absolute",
-      top: `${(bounds.height - renderedSize.height) / 2}px`,
-      transform: "",
-      transformOrigin: "",
-      width: `${renderedSize.width}px`,
-    } satisfies Partial<CSSStyleDeclaration>);
-  } else {
-    Object.assign(webview.style, {
-      borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
-      height: `${bounds.height}px`,
-      left: "",
-      position: "",
-      top: "",
-      transform: "",
-      transformOrigin: "",
-      width: `${bounds.width}px`,
-    } satisfies Partial<CSSStyleDeclaration>);
-  }
+  placeGuest(targetId);
 }
 
 /** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
@@ -493,6 +520,7 @@ function disposeWebview(targetId: BrowserTargetId) {
   pooled.container.remove();
   pool.delete(targetId);
   paintOwners.delete(targetId);
+  slotClaims.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -534,6 +562,33 @@ function ensureWebview(
   webview.addEventListener("blur", () => {
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
+  // A thumb button pressed over the page: the surface showing it walks its
+  // tab; with none, the page steps its own history, as a browser would.
+  webview.addEventListener("ipc-message", (event) => {
+    // The guest's message, as Electron's `<webview>` fires it.
+    const { args, channel } = event as Event & {
+      args?: unknown[];
+      channel?: string;
+    };
+    if (channel !== PAGE_THUMB_CHANNEL) {
+      return;
+    }
+    const direction = args?.[0] === "forward" ? "forward" : "back";
+    const handler = thumbHandlers.get(targetId);
+    if (handler) {
+      handler(direction);
+      return;
+    }
+    try {
+      if (direction === "back" && webview.canGoBack()) {
+        webview.goBack();
+      } else if (direction === "forward" && webview.canGoForward()) {
+        webview.goForward();
+      }
+    } catch {
+      // Not attached yet: there is no history to step.
+    }
+  });
 
   container.append(webview);
   document.body.append(container);
@@ -571,6 +626,84 @@ function onWindowResize() {
     if (!paintOwners.has(targetId)) {
       applyPaintHost(pooled);
     }
+  }
+}
+
+/** Puts the guest in the frontmost slot asking for it, or parks it when none is. */
+function placeGuest(targetId: BrowserTargetId) {
+  const pooled = pool.get(targetId);
+  if (!pooled) {
+    return;
+  }
+  let winner: [symbol, SlotClaim] | undefined;
+  for (const entry of slotClaims.get(targetId) ?? []) {
+    const [, claim] = entry;
+    if (
+      !winner ||
+      claim.layer > winner[1].layer ||
+      (claim.layer === winner[1].layer && claim.since > winner[1].since)
+    ) {
+      winner = entry;
+    }
+  }
+  if (!winner) {
+    paintOwners.delete(targetId);
+    releaseGuestFocus(pooled);
+    applyPaintHost(pooled);
+    return;
+  }
+  const [owner, { bottomRadius, bounds, layer, renderedSize }] = winner;
+  const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
+    .trim()
+    .split(/\s+/);
+  const corners = `0 0 ${bottomRight} ${bottomLeft}`;
+  paintOwners.set(targetId, owner);
+  pooled.lastVisibleBounds = bounds;
+  reportEffectiveSurface(pooled, {
+    height: bounds.height,
+    width: bounds.width,
+  });
+  const { container, webview } = pooled;
+
+  Object.assign(container.style, {
+    borderRadius: corners,
+    contain: "layout paint size style",
+    height: `${bounds.height}px`,
+    left: `${bounds.x}px`,
+    opacity: "1",
+    overflow: "hidden",
+    pointerEvents: "auto",
+    position: "fixed",
+    top: `${bounds.y}px`,
+    transform: "",
+    visibility: "visible",
+    width: `${bounds.width}px`,
+    willChange: "",
+    zIndex: String(layer),
+  } satisfies Partial<CSSStyleDeclaration>);
+
+  if (renderedSize) {
+    Object.assign(webview.style, {
+      borderRadius: "",
+      height: `${renderedSize.height}px`,
+      left: `${(bounds.width - renderedSize.width) / 2}px`,
+      position: "absolute",
+      top: `${(bounds.height - renderedSize.height) / 2}px`,
+      transform: "",
+      transformOrigin: "",
+      width: `${renderedSize.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
+  } else {
+    Object.assign(webview.style, {
+      borderRadius: corners,
+      height: `${bounds.height}px`,
+      left: "",
+      position: "",
+      top: "",
+      transform: "",
+      transformOrigin: "",
+      width: `${bounds.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
   }
 }
 

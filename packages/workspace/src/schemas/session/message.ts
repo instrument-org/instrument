@@ -17,17 +17,33 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
+import { TASK_FOLDER_NAMES } from "../../constants";
+import { adoptedTaskModelNote } from "../../lib/adopted-task-model-text";
+import { appEventModelNote } from "../../lib/app-event-model-text";
+import { asksModelNote } from "../../lib/asks-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
+import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { chatContextModelNote } from "../../lib/chat-context-model-text";
+import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { memoryModelNote } from "../../lib/memory-model-text";
+import { messageGapModelNote } from "../../lib/message-gap-model-text";
+import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { replyModelNote } from "../../lib/reply-model-text";
+import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
+import { taskEventModelNote } from "../../lib/task-event-model-text";
+import { viewContextModelNote } from "../../lib/view-context-model-text";
+import { MOUNT } from "../../mount-points";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -48,6 +64,11 @@ export namespace SessionMessage {
     }),
     z.object({
       kind: z.literal("aborted"),
+      message: z.string(),
+    }),
+    // A write failed because the disk has no space left.
+    z.object({
+      kind: z.literal("disk-full"),
       message: z.string(),
     }),
     z.object({
@@ -150,7 +171,6 @@ export namespace SessionMessage {
         "max-steps", // stopped because of max steps
       ])
       // AI SDK v6 still returns undefined sometimes, e.g. with the Vercel Gateway provider
-      // eslint-disable-next-line unicorn/prefer-top-level-await
       .catch("unknown"),
     modelId: z.custom<(string & {}) | SyntheticModelId>(
       // Custom string type to allow for TypeScript auto-completion
@@ -180,7 +200,6 @@ export namespace SessionMessage {
     msToFirstChunk: z.number().optional(),
     providerId: z.string(),
     synthetic: z.boolean().optional(), // When created by the workspace
-    // eslint-disable-next-line unicorn/prefer-top-level-await
     usage: UsageSchema.optional().catch(undefined),
   });
 
@@ -264,9 +283,48 @@ export namespace SessionMessage {
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
+    {
+      agentName = "main",
+    }: {
+      /**
+       * Who reads the result. A note written onto a user turn is phrased for
+       * its reader, and the conversation's agent has no file tools: told
+       * about `write_file`, it goes looking for a tool it has not got.
+       */
+      agentName?: AgentName;
+    } = {},
   ): Promise<ModelMessage[]> {
+    return convertToModelMessages(toUIMessages(messages, { agentName }), {
+      tools,
+    });
+  }
+
+  /**
+   * One UI message per stored message, in order, with the harness notes each
+   * user turn carries. The notes depend on the turns before them, so a caller
+   * converting messages one at a time maps the whole list here first.
+   */
+  export function toUIMessages(
+    messages: WithParts[],
+    {
+      agentName = "main",
+    }: {
+      /** Who reads the notes; see `toModelMessages`. */
+      agentName?: AgentName;
+    } = {},
+  ): UIMessage[] {
+    let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     let previousPaneTabsNote: string | undefined;
+    // What the user had on screen, told again only when it differs from the
+    // last time: the same page with the same words in front of it, or the
+    // same folder, is a note the agent already read and has no reason to
+    // doubt, and a page's excerpt is the longest thing a message carries.
+    let previousViewContextNote: string | undefined;
+    // The chat's topics, told again only when they changed.
+    let previousChatTopicsNote: string | undefined;
+    // What the agent remembers, told again only when it changed.
+    let previousMemoryNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -280,8 +338,16 @@ export namespace SessionMessage {
       created: new Set<string>(),
       updated: new Set<string>(),
     };
+    // A folder attached with the session's first message is mounted before the
+    // session's baseline is written, so that baseline already lists it with the
+    // rules for reading and writing it. The note on the message repeats the
+    // list; a folder attached on a later message carries the rules, since the
+    // baseline may never have had a folder to explain.
+    const firstUserMessageId = messages.find(
+      (message) => message.role === "user",
+    )?.id;
 
-    const uiMessages: UIMessage[] = messages.map((message) => {
+    return messages.map((message) => {
       const maxStepsPart = message.parts.find(
         (
           part,
@@ -339,20 +405,37 @@ export namespace SessionMessage {
         );
 
         if (attachmentsPart) {
+          // The conversation's agent has no file tools and a shell that
+          // refuses to write: its folders are read here and written by the
+          // tasks it hands them to, and a file it is sent is one it hands
+          // over rather than one it reads.
+          const throughTasks = agentName === "instrument";
           if (attachmentsPart.data.files.length > 0) {
+            // Its paths are spelled from the root: a bare `attachments/` had
+            // it guessing at a mount instead of looking in its own folder.
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                return `- ${file.filePath} (${formattedSize})`;
+                const filePath = throughTasks
+                  ? `${MOUNT.task}/${file.filePath}`
+                  : file.filePath;
+                return `- ${filePath} (${formattedSize})`;
               })
               .join("\n");
 
-            const attachmentText = dedent`
-              <uploaded_files>
-              The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
-              ${attachmentDescriptions}
-              </uploaded_files>
-            `;
+            const attachmentText = throughTasks
+              ? dedent`
+                  <uploaded_files>
+                  The user sent these files with this message, listed below at the paths you read them by (\`ls\`, \`file\`, \`head\`). A picture, a PDF, or a document is read by a task, and no task can see these until you hand one over: put --file <path> on the ${TASK_COMMAND.name} new or ${TASK_COMMAND.name} send that needs it, and the task gets a copy in its own ${TASK_FOLDER_NAMES.attachments}/ and is told it is there. Without --file the task has no file. Assume they are directly relevant to the user's request.
+                  ${attachmentDescriptions}
+                  </uploaded_files>
+                `
+              : dedent`
+                  <uploaded_files>
+                  The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
+                  ${attachmentDescriptions}
+                  </uploaded_files>
+                `;
 
             injectedParts.push({ text: attachmentText, type: "text" });
           }
@@ -371,7 +454,11 @@ export namespace SessionMessage {
                 mountPoint: attachedFolderMountPoint(folder.mountName),
                 path: folder.path,
               })),
-              intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
+              guidance: message.id !== firstUserMessageId,
+              intro: throughTasks
+                ? `The user attached these folders with this message. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder. Assume they are directly relevant to the user's request.`
+                : `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
+              writes: throughTasks ? "through-tasks" : "here",
             });
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
@@ -390,6 +477,33 @@ export namespace SessionMessage {
             text: dateChangeModelNote(dateChangePart.data),
             type: "text",
           });
+        }
+
+        const messageGapPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-messageGap";
+          } => part.type === "data-messageGap",
+        );
+        if (messageGapPart) {
+          injectedParts.push({
+            text: messageGapModelNote(messageGapPart.data),
+            type: "text",
+          });
+        }
+
+        const backgroundProcessesPart = message.parts.find(
+          (part) => part.type === "data-backgroundProcesses",
+        );
+        if (backgroundProcessesPart) {
+          const note = backgroundProcessesModelNote(
+            backgroundProcessesPart.data,
+          );
+          if (note !== previousBackgroundProcessesNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousBackgroundProcessesNote = note;
         }
 
         const browserStatusPart = message.parts.find(
@@ -428,6 +542,20 @@ export namespace SessionMessage {
           }
         }
 
+        const appChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-taskAppChanges";
+          } => part.type === "data-taskAppChanges",
+        );
+        if (appChangesPart) {
+          const note = taskAppChangesModelNote(appChangesPart.data);
+          if (note) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+        }
+
         const projectChangesPart = message.parts.find(
           (
             part,
@@ -458,9 +586,13 @@ export namespace SessionMessage {
             )
             .join(", ");
           const plural = names.length > 1;
-          const loadLine = plural
-            ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
-            : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
+          // The conversation cannot load a skill; a task it briefs can.
+          const loadLine =
+            agentName === "instrument"
+              ? `The user wants ${plural ? "these" : "it"} used: the brief for the work names ${plural ? "each" : "it"} by that exact name, for the task to load.`
+              : plural
+                ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
+                : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
           injectedParts.push({
             text: `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
             type: "text",
@@ -476,6 +608,149 @@ export namespace SessionMessage {
         );
         if (intentPart) {
           injectedParts.push({ text: intentPart.data.text, type: "text" });
+        }
+
+        const taskEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-taskEvent";
+          } => part.type === "data-taskEvent",
+        );
+        if (taskEventPart) {
+          injectedParts.push({
+            text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
+        }
+
+        const appEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-appEvent";
+          } => part.type === "data-appEvent",
+        );
+        if (appEventPart) {
+          injectedParts.push({
+            text: appEventModelNote(appEventPart.data),
+            type: "text",
+          });
+        }
+
+        const viewContextPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-viewContext";
+          } => part.type === "data-viewContext",
+        );
+        if (viewContextPart) {
+          const note = viewContextModelNote(viewContextPart.data);
+          if (note !== previousViewContextNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousViewContextNote = note;
+        }
+
+        const asksPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-asks";
+          } => part.type === "data-asks",
+        );
+        if (asksPart) {
+          injectedParts.push({
+            text: asksModelNote(asksPart.data),
+            type: "text",
+          });
+        }
+
+        const replyPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-reply";
+          } => part.type === "data-reply",
+        );
+        if (replyPart) {
+          injectedParts.push({
+            text: replyModelNote(replyPart.data),
+            type: "text",
+          });
+        }
+
+        const outputFormatPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-outputFormat";
+          } => part.type === "data-outputFormat",
+        );
+        if (outputFormatPart) {
+          injectedParts.push({
+            text: outputFormatModelNote(outputFormatPart.data),
+            type: "text",
+          });
+        }
+
+        const adoptedTaskPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-adoptedTask";
+          } => part.type === "data-adoptedTask",
+        );
+        if (adoptedTaskPart) {
+          injectedParts.push({
+            text: adoptedTaskModelNote(adoptedTaskPart.data),
+            type: "text",
+          });
+        }
+
+        const chatContextPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-chatContext";
+          } => part.type === "data-chatContext",
+        );
+        if (chatContextPart) {
+          injectedParts.push({
+            text: chatContextModelNote(chatContextPart.data),
+            type: "text",
+          });
+        }
+
+        const chatTopicsPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-chatTopics";
+          } => part.type === "data-chatTopics",
+        );
+        if (chatTopicsPart) {
+          const note = chatTopicsModelNote(chatTopicsPart.data);
+          if (note !== previousChatTopicsNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousChatTopicsNote = note;
+        }
+
+        const memoryPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-memory";
+          } => part.type === "data-memory",
+        );
+        if (memoryPart) {
+          const note = memoryModelNote(memoryPart.data);
+          if (note !== previousMemoryNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousMemoryNote = note;
         }
 
         if (pendingMaxStepsNote) {
@@ -524,6 +799,5 @@ export namespace SessionMessage {
             : message.role,
       };
     });
-    return convertToModelMessages(uiMessages, { tools });
   }
 }

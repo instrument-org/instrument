@@ -21,11 +21,14 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import {
+  APPS_DIR_NAME,
+  PROJECTS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import { setTaskIndicator } from "../../lib/task-indicators";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -41,10 +44,10 @@ import { type WebSearchClient } from "../../schemas/web-search";
 import {
   type BrowserConfig,
   type BrowserTargetId,
+  type WorkspaceAppsConfig,
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
-import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
   sessionMachine,
@@ -70,8 +73,12 @@ export type WorkspaceEvent =
       value: {
         agentName: AgentName;
         id: TaskId;
+        /** Stop the step in flight so the message runs as the next turn. */
+        interrupt?: boolean;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
+        /** Already in the store, so the session shows it now and never writes it again. */
+        saved?: boolean;
         sessionId: StoreId.Session;
       };
     }
@@ -86,14 +93,6 @@ export type WorkspaceEvent =
       };
     }
   | {
-      type: "heartbeat";
-      value: {
-        createdAt: number;
-        shouldCreate: boolean;
-        taskId: TaskId;
-      };
-    }
-  | {
       type: "internal.spawnSession";
       value: {
         agentName: AgentName;
@@ -102,14 +101,12 @@ export type WorkspaceEvent =
         model: AIGatewayModel.Type;
         parentSessionId?: StoreId.Session;
         runRequested?: boolean;
+        /** The message is already in the store; see `addMessage`. */
+        saved?: boolean;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
         taskId: TaskId;
       };
-    }
-  | {
-      type: "internal.updateHeartbeat";
-      value: { createdAt: number; id: TaskId };
     }
   | {
       type: "prepareToTrashTask";
@@ -130,30 +127,12 @@ export type WorkspaceEvent =
     }
   | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
   | {
-      type: "restartAllRuntimes";
-    }
-  | {
-      type: "restartRuntime";
-      value: { id: TaskId };
-    }
-  | {
       type: "runTurn";
       value: {
         agentName: AgentName;
         id: TaskId;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
-      };
-    }
-  | {
-      type: "spawnRuntime";
-      value: { taskId: TaskId };
-    }
-  | {
-      type: "stopRuntime";
-      value: {
-        id: TaskId;
-        includeChildren?: boolean;
       };
     }
   | {
@@ -293,16 +272,6 @@ export const workspaceMachine = setup({
       },
     ),
 
-    forwardUpdateHeartbeat: enqueueActions(
-      ({ context }, { createdAt, id }: { createdAt: number; id: TaskId }) => {
-        const runtimeRef = context.runtimeRefs.get(id);
-        runtimeRef?.send({
-          type: "updateHeartbeat",
-          value: { createdAt },
-        });
-      },
-    ),
-
     handleTaskBrowserStopped: enqueueActions(
       ({ context, enqueue }, { id }: { id: TaskId }) => {
         const ref = context.taskBrowserRefs.get(id);
@@ -352,10 +321,6 @@ export const workspaceMachine = setup({
       },
     ),
 
-    markTaskUnread: (_, { id }: { id: TaskId }) => {
-      void setTaskIndicator(id, "completed");
-    },
-
     releaseBrowserPresence: enqueueActions(
       (
         { context },
@@ -364,18 +329,6 @@ export const workspaceMachine = setup({
         context.taskBrowserRefs
           .get(id)
           ?.send({ type: "releasePresence", value: { level } });
-      },
-    ),
-
-    stopRuntime: enqueueActions(
-      ({ context, enqueue }, { id }: { id: TaskId }) => {
-        const runtimeRef = context.runtimeRefs.get(id);
-        const remainingRefs = new Map(context.runtimeRefs);
-        remainingRefs.delete(id);
-        if (runtimeRef) {
-          enqueue.stopChild(runtimeRef);
-          enqueue.assign({ runtimeRefs: remainingRefs });
-        }
       },
     ),
 
@@ -408,8 +361,6 @@ export const workspaceMachine = setup({
   },
 
   actors: {
-    runtimeMachine,
-
     sessionMachine,
 
     taskBrowserMachine,
@@ -422,12 +373,17 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
+      apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
+      ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       getAIProviderConfigs: GetProviderConfigs;
+      getUser?: WorkspaceConfig["getUser"];
+      indexesDir?: string;
+      isActivityHeadingsEnabled: () => boolean;
       isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
@@ -435,7 +391,6 @@ export const workspaceMachine = setup({
       preparedSkillsDir: string;
       registryDir: string;
       rootDir: string;
-      shimClientDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
       uvBinPath: string;
@@ -448,6 +403,8 @@ export const workspaceMachine = setup({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
+      apps: input.apps,
+      appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
       browser: input.browser,
       captureEvent: input.captureEvent,
@@ -456,7 +413,15 @@ export const workspaceMachine = setup({
         input.defaultTaskTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
+      ...(input.ensureOutputFolderIcon
+        ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
+        : {}),
+      ...(input.getUser ? { getUser: input.getUser } : {}),
+      isActivityHeadingsEnabled: input.isActivityHeadingsEnabled,
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.indexesDir && {
+        indexesDir: AbsolutePathSchema.parse(input.indexesDir),
+      }),
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
@@ -477,7 +442,6 @@ export const workspaceMachine = setup({
     return {
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
-      runtimeRefs: new Map(),
       sessionRefsByTaskId: new Map(),
       taskBrowserRefs: new Map(),
       tasksBeingTrashed: [],
@@ -485,10 +449,6 @@ export const workspaceMachine = setup({
         input: {
           aiGatewayApp: input.aiGatewayApp,
           parentRef: self,
-          shimClientDir:
-            input.shimClientDir === "dev-server"
-              ? "dev-server"
-              : AbsolutePathSchema.parse(input.shimClientDir),
           workspaceConfig,
         },
       }),
@@ -517,6 +477,8 @@ export const workspaceMachine = setup({
         actions: ({ context, event }) => {
           const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
+            interrupt: event.value.interrupt,
+            saved: event.value.saved,
             type: "addMessage",
             value: event.value.message,
           });
@@ -534,6 +496,7 @@ export const workspaceMachine = setup({
               agentName: event.value.agentName,
               message: event.value.message,
               model: event.value.model,
+              saved: event.value.saved,
               sessionId: event.value.sessionId,
               taskId,
             },
@@ -556,32 +519,6 @@ export const workspaceMachine = setup({
         };
       }),
     },
-    heartbeat: [
-      {
-        actions: raise(({ context, event }) => {
-          const existingRuntimeRef = context.runtimeRefs.get(
-            event.value.taskId,
-          );
-
-          if (existingRuntimeRef) {
-            return {
-              type: "internal.updateHeartbeat",
-              value: {
-                createdAt: event.value.createdAt,
-                id: event.value.taskId,
-              },
-            };
-          }
-
-          return {
-            type: "spawnRuntime",
-            value: {
-              taskId: event.value.taskId,
-            },
-          };
-        }),
-      },
-    ],
     "internal.spawnSession": {
       actions: enqueueActions(({ enqueue, event, self }) => {
         enqueue.assign(({ spawn }) => {
@@ -591,6 +528,7 @@ export const workspaceMachine = setup({
             model,
             parentSessionId,
             runRequested,
+            saved,
             sessionId,
             sessionNamePrefix,
             taskId,
@@ -606,6 +544,7 @@ export const workspaceMachine = setup({
               parentSessionId,
               queuedMessages: message ? [message] : [],
               runRequested,
+              savedMessageIds: saved && message ? [message.id] : [],
               sessionId,
               sessionNamePrefix,
               taskId,
@@ -626,15 +565,6 @@ export const workspaceMachine = setup({
       guard: ({ context, event }) => {
         const id = event.value.taskId;
         return !context.tasksBeingTrashed.includes(id);
-      },
-    },
-    "internal.updateHeartbeat": {
-      actions: {
-        params: ({ event }) => ({
-          createdAt: event.value.createdAt,
-          id: event.value.id,
-        }),
-        type: "forwardUpdateHeartbeat",
       },
     },
     prepareToTrashTask: {
@@ -680,13 +610,6 @@ export const workspaceMachine = setup({
         }
 
         enqueue.raise({
-          type: "stopRuntime",
-          value: {
-            id: event.value.id,
-            includeChildren: true,
-          },
-        });
-        enqueue.raise({
           type: "stopSessions",
           value: { id: event.value.id },
         });
@@ -713,40 +636,6 @@ export const workspaceMachine = setup({
         };
       }),
     },
-    restartAllRuntimes: {
-      actions: ({ context }) => {
-        for (const runtimeRef of context.runtimeRefs.values()) {
-          runtimeRef.send({ type: "restart" });
-        }
-      },
-    },
-    restartRuntime: [
-      {
-        actions: ({ context, event }) => {
-          const { id } = event.value;
-          const runtimeRef = context.runtimeRefs.get(id);
-          runtimeRef?.send({ type: "restart" });
-        },
-        guard: ({ context, event }) => {
-          const { id } = event.value;
-          return context.runtimeRefs.has(id);
-        },
-      },
-      {
-        actions: raise(({ event }) => {
-          const { id } = event.value;
-          const taskId = id;
-          return {
-            type: "spawnRuntime",
-            value: { taskId },
-          };
-        }),
-        guard: ({ context, event }) => {
-          const { id } = event.value;
-          return !context.runtimeRefs.has(id);
-        },
-      },
-    ],
     runTurn: [
       {
         actions: ({ context, event }) => {
@@ -769,33 +658,10 @@ export const workspaceMachine = setup({
       },
     ],
     "session.done": {
-      actions: enqueueActions(({ context, enqueue, event }) => {
-        // The task's turn is done once its root session finishes; subagent
-        // completions don't count (the parent turn is still running). Keying on
-        // the root session avoids depending on every session ref reaching a
-        // non-alive state, which a lingering subagent ref could block forever.
-        if (event.value.parentSessionId === undefined) {
-          enqueue({
-            params: { id: event.value.taskId },
-            type: "markTaskUnread",
-          });
-        }
-
-        if (
-          // Only restart if non-read-only tools were used
-          event.value.usedNonReadOnlyTools &&
-          // Don't restart the runtime if it isn't running
-          context.runtimeRefs.has(event.value.taskId)
-        ) {
-          enqueue.raise({
-            type: "restartRuntime",
-            value: { id: event.value.taskId },
-          });
-        }
-
+      actions: enqueueActions(({ enqueue, event }) => {
         // Drop the finished session's ref so the task stops counting as active.
-        // Later messages resolve their session from persisted store state and
-        // the runtime ref, so nothing reads a done ref.
+        // Later messages resolve their session from persisted store state, so
+        // nothing reads a done ref.
         enqueue({
           params: {
             actorId: event.value.actorId,
@@ -810,50 +676,6 @@ export const workspaceMachine = setup({
         type: "internal.spawnSession" as const,
         value: event.value,
       })),
-    },
-    spawnRuntime: {
-      actions: assign(({ context, event, spawn }) => {
-        return {
-          runtimeRefs: new Map(context.runtimeRefs).set(
-            event.value.taskId,
-            spawn("runtimeMachine", {
-              input: {
-                taskId: event.value.taskId,
-              },
-            }),
-          ),
-        };
-      }),
-      guard: ({ context, event }) => {
-        const id = event.value.taskId;
-        return !context.tasksBeingTrashed.includes(id);
-      },
-    },
-    stopRuntime: {
-      actions: enqueueActions(
-        ({
-          context,
-          enqueue,
-          event: {
-            value: { id, includeChildren },
-          },
-        }) => {
-          enqueue({
-            params: { id },
-            type: "stopRuntime",
-          });
-          if (includeChildren) {
-            for (const [runtimeTaskId] of context.runtimeRefs.entries()) {
-              if (runtimeTaskId === id) {
-                enqueue({
-                  params: { id: runtimeTaskId },
-                  type: "stopRuntime",
-                });
-              }
-            }
-          }
-        },
-      ),
     },
     stopSessions: {
       actions: ({ context, event }) => {
@@ -917,15 +739,6 @@ export const workspaceMachine = setup({
     "workspaceServer.error": {
       actions: log(({ event }) => {
         return `Workspace server error: ${event.value.error.message}`;
-      }),
-    },
-
-    "workspaceServer.heartbeat": {
-      actions: raise(({ event }) => {
-        return {
-          type: "heartbeat",
-          value: event.value,
-        };
       }),
     },
 

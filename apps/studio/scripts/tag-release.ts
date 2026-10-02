@@ -151,7 +151,6 @@ async function main() {
     console.log(`Tag: ${tagName}`);
   } catch (error) {
     console.error("Error during release:", error);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(1);
   }
 }

@@ -40,10 +40,15 @@ function OnboardingRoute() {
     <OnboardingLayout variant={isBrandPage ? "brand" : "subtle"}>
       <Outlet />
       <Toaster position="top-center" />
+      {/* Top right, where the app window's bar carries it, and out of the
+          macOS drag strip so it can be clicked. Absolute so the screens lay
+          out exactly as they do without developer mode. */}
       {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DevPanel />
-        </Suspense>
+        <div className="absolute top-2.5 right-3 z-50 [-webkit-app-region:no-drag]">
+          <Suspense fallback={null}>
+            <DevPanel />
+          </Suspense>
+        </div>
       )}
     </OnboardingLayout>
   );

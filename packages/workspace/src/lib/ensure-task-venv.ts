@@ -18,6 +18,13 @@ const inFlightVenvCreation = new Map<
   Promise<TaskVenvError | undefined>
 >();
 
+/**
+ * Makes the task's venv. The bash worker replaces it with a request to the main
+ * thread, so creation has one owner and the dedupe above covers the skill
+ * installs that run there too.
+ */
+let createTaskVenv = runUvVenv;
+
 export async function ensureTaskVenvForTask({
   signal,
   taskId,
@@ -34,36 +41,18 @@ export async function ensureTaskVenvForTask({
     return awaitVenvCreation({ creation: existing, signal });
   }
 
-  // `--clear` because we only get here when the venv is missing or unusable,
-  // so replacing whatever is there is the intent. Without it uv refuses to
-  // touch an existing venv, which would strand a task whose interpreter went
-  // missing: the venv never becomes usable, so every python/pip call fails and
-  // nothing in the app can recover it. uv still declines to clear a directory
-  // that is not a virtual environment, so this cannot delete a task's own files.
-  const creation = runUvCommand({
-    args: [
-      "venv",
-      "--clear",
-      "--python",
-      MANAGED_PYTHON_VERSION,
-      taskVenvDir(taskId),
-    ],
-    cwd: taskDir(taskId),
-    taskId,
-  })
-    .then((result) =>
-      result.exitCode === 0
-        ? undefined
-        : { exitCode: result.exitCode, output: result.combined },
-    )
-    .catch((error: unknown) => ({
-      exitCode: 1,
-      output: error instanceof Error ? error.message : String(error),
-    }))
-    .finally(() => inFlightVenvCreation.delete(taskId));
+  const creation = createTaskVenv(taskId).finally(() =>
+    inFlightVenvCreation.delete(taskId),
+  );
 
   inFlightVenvCreation.set(taskId, creation);
   return awaitVenvCreation({ creation, signal });
+}
+
+export function setTaskVenvCreator(
+  next: (taskId: TaskId) => Promise<TaskVenvError | undefined>,
+): void {
+  createTaskVenv = next;
 }
 
 function awaitVenvCreation({
@@ -110,4 +99,33 @@ function hasUsableVenv(taskId: TaskId) {
     existsSync(taskVenvPython(taskId)) &&
     existsSync(path.join(taskVenvDir(taskId), "pyvenv.cfg"))
   );
+}
+
+function runUvVenv(taskId: TaskId): Promise<TaskVenvError | undefined> {
+  // `--clear` because we only get here when the venv is missing or unusable,
+  // so replacing whatever is there is the intent. Without it uv refuses to
+  // touch an existing venv, which would strand a task whose interpreter went
+  // missing: the venv never becomes usable, so every python/pip call fails and
+  // nothing in the app can recover it. uv still declines to clear a directory
+  // that is not a virtual environment, so this cannot delete a task's own files.
+  return runUvCommand({
+    args: [
+      "venv",
+      "--clear",
+      "--python",
+      MANAGED_PYTHON_VERSION,
+      taskVenvDir(taskId),
+    ],
+    cwd: taskDir(taskId),
+    taskId,
+  })
+    .then((result) =>
+      result.exitCode === 0
+        ? undefined
+        : { exitCode: result.exitCode, output: result.combined },
+    )
+    .catch((error: unknown) => ({
+      exitCode: 1,
+      output: error instanceof Error ? error.message : String(error),
+    }));
 }

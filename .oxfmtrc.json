@@ -17,6 +17,8 @@
     "_tmp_*",
     ".claude/worktrees/",
     "docs/**",
+    "fixtures/workspaces/**/session.json",
+    "fixtures/workspaces/**/files/",
     ".agents/skills/**/*.html"
   ]
 }

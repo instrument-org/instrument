@@ -10,7 +10,7 @@ function clampZoom(value: number) {
 const json = createJSONStorage<number>(() => localStorage);
 
 // Clamp on read so a corrupt/legacy value (e.g. 0, which makes
-// `calc(100vh / var(--app-zoom))` invalid and blanks the whole main window) can't
+// `calc(100vh / var(--app-zoom))` invalid and blanks the whole window) can't
 // brick the window.
 const zoomStorage: typeof json = {
   ...json,
@@ -23,10 +23,10 @@ const zoomStorage: typeof json = {
 };
 
 /**
- * Main-window UI zoom, applied as the CSS `zoom` property on the MainWindow root.
+ * The UI zoom, applied as the CSS `zoom` property on each window's root.
  * Persisted so the user keeps their zoom across launches; `getOnInit` applies it
  * before first paint to avoid a zoom flash on boot. Independent of the agent
- * browser's guest content, which lives outside the zoomed root. MainWindow reports
+ * browser's guest content, which lives outside the zoomed root. The window reports
  * changes to the main process (macOS traffic-light position) so this stays a
  * plain view-state atom with no import-time side effects.
  */

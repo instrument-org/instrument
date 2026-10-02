@@ -1,3 +1,4 @@
+import { useRunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import {
   type SessionMessagePart,
   type Task,
@@ -7,20 +8,26 @@ import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
-import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
+import {
+  hasTerminalToolState,
+  isAwaitingUser,
+  isToolCallVisible,
+} from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
+import { ToolConnectApp } from "./tool-connect-app";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
+import { ToolRequestFolder } from "./tool-request-folder";
 import { ToolStartActivity } from "./tool-start-activity";
+import { ToolTask } from "./tool-task";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
-  assetBaseUrl,
   isActivityRunning,
   isDeveloperMode,
   isRunning,
@@ -29,7 +36,6 @@ export function ToolCall({
   part,
   task,
 }: {
-  assetBaseUrl: string;
   isActivityRunning: boolean;
   isDeveloperMode: boolean;
   isRunning: boolean;
@@ -38,6 +44,17 @@ export function ToolCall({
   part: SessionMessagePart.ToolPart;
   task: Task;
 }) {
+  // Read for every call rather than only for bash, because a hook cannot sit
+  // behind the visibility check below. One query key backs the whole transcript,
+  // so the cost is a lookup per row and a single request per task.
+  const backgroundProcess = useRunningBackgroundProcess({
+    processId:
+      part.type === "tool-bash" && part.state === "output-available"
+        ? part.output.processId
+        : undefined,
+    taskId: task.id,
+  });
+
   if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
     return null;
   }
@@ -49,24 +66,26 @@ export function ToolCall({
   }
 
   const isDeadDevMode =
-    !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
+    !hasTerminalToolState(part) &&
+    !isStreaming &&
+    !isAwaitingUser(part) &&
+    isDeveloperMode;
 
   return (
-    <ToolCallSessionProvider isRunning={isRunning} isStreaming={isStreaming}>
+    <ToolCallSessionProvider
+      backgroundProcess={backgroundProcess}
+      isRunning={isRunning}
+      isStreaming={isStreaming}
+    >
       <ToolCallSummary
-        assetBaseUrl={assetBaseUrl}
         isDeadDevMode={isDeadDevMode}
         part={part}
+        taskId={task.id}
       >
         {isDeadDevMode ? (
           <DeadDevModeBody part={part} />
         ) : (
-          <ToolCallBody
-            assetBaseUrl={assetBaseUrl}
-            onRetry={onRetry}
-            part={part}
-            task={task}
-          />
+          <ToolCallBody onRetry={onRetry} part={part} task={task} />
         )}
       </ToolCallSummary>
     </ToolCallSessionProvider>
@@ -91,12 +110,10 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 }
 
 function ToolCallBody({
-  assetBaseUrl,
   onRetry,
   part,
   task,
 }: {
-  assetBaseUrl: string;
   onRetry: (prompt: string) => void;
   // Activities are drawn by their caller, so the switch below stays exhaustive
   // over the calls that have a body at all.
@@ -112,26 +129,28 @@ function ToolCallBody({
       return <ToolBash part={part} />;
     }
     case "tool-choose": {
-      return <ToolChoose part={part} />;
+      return <ToolChoose part={part} taskId={task.id} />;
+    }
+    case "tool-connect_app": {
+      return <ToolConnectApp part={part} />;
     }
     case "tool-edit_file": {
       return <ToolEditFile id={task.id} part={part} />;
     }
     case "tool-generate_image": {
-      return (
-        <ToolGenerateImage
-          assetBaseUrl={assetBaseUrl}
-          id={task.id}
-          onRetry={onRetry}
-          part={part}
-        />
-      );
+      return <ToolGenerateImage id={task.id} onRetry={onRetry} part={part} />;
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
       return <ToolReadFile id={task.id} part={part} />;
+    }
+    case "tool-request_folder": {
+      return <ToolRequestFolder part={part} taskId={task.id} />;
+    }
+    case "tool-task": {
+      return <ToolTask part={part} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

@@ -3,18 +3,24 @@ import { eventIterator, type } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
 
+import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
+import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { chatContextFor } from "../../lib/orchestrator/chat-context";
+import { setChatTopics } from "../../lib/orchestrator/chats";
 import { getTaskProjectName } from "../../lib/project";
+import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { taskDir } from "../../lib/task-dir-utils";
+import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
-import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
@@ -42,22 +48,39 @@ const listWithParts = base
     return messages.value;
   });
 
+/**
+ * One send at a time per task, in the order they arrived. The opening
+ * message of a chat reads the other chats before it is stored, which can
+ * take a moment, and a message sent into the chat meanwhile would otherwise
+ * be stored, numbered, and handed to the agent ahead of the one it follows.
+ */
+const sendsInOrder = createWriteQueue();
+
 const create = base
   .input(
     z.object({
+      /** Places in files the user marked, with what to change at each. */
+      asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
-      folders: z
-        .array(
-          z.object({
-            access: FolderAttachment.AccessSchema,
-            path: z.string(),
-          }),
-        )
-        .optional(),
+      folders: z.array(z.object({ path: z.string() })).optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
+      /**
+       * The id for the session this message opens, when the caller chose
+       * it: a window that shows the new chat from the press, before this
+       * call has answered, has to know which chat it is showing. Ignored
+       * alongside `sessionId`, which names a session that already exists.
+       */
+      newSessionId: StoreId.SessionSchema.optional(),
+      /** The kind of page the user asked to receive the response as. */
+      output: SessionMessageDataPart.OutputFormatDataPartSchema.optional(),
       prompt: z.string(),
+      /** The earlier message this one answers. */
+      replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
+      /** Topic ids for the chat this message opens, when it opens one. */
+      topics: z.array(z.string()).optional(),
+      viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
   .output(z.object({ sessionId: StoreId.SessionSchema }))
@@ -65,114 +88,157 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, id, modelURI, prompt, sessionId },
-    }) => {
-      const taskId = id;
-
-      const modelResult = await fetchModel({
-        captureException: context.workspaceConfig.captureException,
-        configs: context.workspaceConfig.getAIProviderConfigs(),
-        modelCache: context.workspaceConfig.modelCache,
-        modelURI,
-      });
-
-      if (!modelResult.ok) {
-        const error = modelResult.error;
-        context.workspaceConfig.captureException(error);
-        throw toORPCError(error, errors);
-      }
-
-      const model = modelResult.value;
-
-      let finalSessionId: StoreId.Session;
-      if (sessionId) {
-        finalSessionId = sessionId;
-      } else {
-        const sessionResult = await createSession({
-          sessionId: StoreId.newSessionId(),
-          taskId,
-        });
-        if (sessionResult.isErr()) {
-          context.workspaceConfig.captureException(sessionResult.error);
-          throw toORPCError(sessionResult.error, errors);
-        }
-        finalSessionId = sessionResult.value.id;
-      }
-
-      const messageIdsBeforeResult = await Store.getMessageIds(
-        finalSessionId,
-        taskId,
-      );
-      if (messageIdsBeforeResult.isErr()) {
-        context.workspaceConfig.captureException(messageIdsBeforeResult.error);
-        throw toORPCError(messageIdsBeforeResult.error, errors);
-      }
-      const isFirstMessageInSession = messageIdsBeforeResult.value.length === 0;
-
-      const messageResult = await newMessage({
+      input: {
+        asks,
         files,
         folders,
-        model,
+        id,
         modelURI,
+        newSessionId,
+        output,
         prompt,
-        sessionId: finalSessionId,
-        taskId,
-      });
+        replyTo,
+        sessionId,
+        topics,
+        viewing,
+      },
+    }) =>
+      sendsInOrder(id, async () => {
+        const taskId = id;
 
-      if (messageResult.isErr()) {
-        context.workspaceConfig.captureException(messageResult.error);
-        throw toORPCError(messageResult.error, errors);
-      }
+        const modelResult = await fetchModel({
+          captureException: context.workspaceConfig.captureException,
+          configs: context.workspaceConfig.getAIProviderConfigs(),
+          modelCache: context.workspaceConfig.modelCache,
+          modelURI,
+        });
 
-      const message = messageResult.value;
+        if (!modelResult.ok) {
+          const error = modelResult.error;
+          context.workspaceConfig.captureException(error);
+          throw toORPCError(error, errors);
+        }
 
-      if (isFirstMessageInSession) {
-        // Titling is deliberately non-blocking, and so is finding the project
-        // it reads: resolving one scans `projects/` and reads each settings
-        // file until the id matches, which is a serial walk the agent's turn
-        // would otherwise wait behind on the first message of every session.
-        void (async () => {
-          let projectName: string | undefined;
-          try {
-            projectName = await getTaskProjectName(taskId);
-          } catch {
-            // A title that does not know its project is worth more than no
-            // title, so a failed lookup falls through rather than ending the run.
+        const model = modelResult.value;
+
+        // A chat's record holds one session, the one its settings name.
+        const chatSession = sessionOfChat(taskId);
+        const settings = await getTaskSettings(taskDir(taskId));
+        const isOrchestrator = settings?.kind === "orchestrator";
+
+        let finalSessionId: StoreId.Session;
+        // The other chats as they stand when a new one opens, read before
+        // the new session exists so it is not among them.
+        let chatContext: SessionMessageDataPart.ChatContextDataPart | undefined;
+        if (sessionId) {
+          finalSessionId = sessionId;
+        } else {
+          if (isOrchestrator) {
+            chatContext = await chatContextFor();
           }
+          const sessionResult = await createSession({
+            sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
+            taskId,
+          });
+          if (sessionResult.isErr()) {
+            context.workspaceConfig.captureException(sessionResult.error);
+            throw toORPCError(sessionResult.error, errors);
+          }
+          finalSessionId = sessionResult.value.id;
+          if (isOrchestrator && topics && topics.length > 0) {
+            await setChatTopics(finalSessionId, topics);
+          }
+        }
 
-          const title = await generateTitleFromUserMessage({
+        const messageIdsBeforeResult = await Store.getMessageIds(
+          finalSessionId,
+          taskId,
+        );
+        if (messageIdsBeforeResult.isErr()) {
+          context.workspaceConfig.captureException(
+            messageIdsBeforeResult.error,
+          );
+          throw toORPCError(messageIdsBeforeResult.error, errors);
+        }
+        const isFirstMessageInSession =
+          messageIdsBeforeResult.value.length === 0;
+
+        const messageResult = await newMessage({
+          asks,
+          chatContext,
+          files,
+          folders,
+          model,
+          modelURI,
+          output,
+          prompt,
+          replyTo,
+          sessionId: finalSessionId,
+          taskId,
+          viewing,
+        });
+
+        if (messageResult.isErr()) {
+          context.workspaceConfig.captureException(messageResult.error);
+          throw toORPCError(messageResult.error, errors);
+        }
+
+        const message = messageResult.value;
+
+        if (isFirstMessageInSession) {
+          // Titling is deliberately non-blocking, and so is finding the project
+          // it reads: resolving one scans `projects/` and reads each settings
+          // file until the id matches, which is a serial walk the agent's turn
+          // would otherwise wait behind on the first message of every session.
+          void (async () => {
+            let projectName: string | undefined;
+            try {
+              projectName = await getTaskProjectName(taskId);
+            } catch {
+              // A title that does not know its project is worth more than no
+              // title, so a failed lookup falls through rather than ending the run.
+            }
+
+            const title = await generateTitleFromUserMessage({
+              message,
+              model,
+              projectName,
+              workspaceConfig: context.workspaceConfig,
+            });
+            if (title.isOk()) {
+              await updateSessionTitle({
+                sessionId: message.metadata.sessionId,
+                taskId,
+                title: title.value,
+              });
+            }
+          })();
+        }
+
+        // Written now, so the conversation shows it the moment it was sent; the
+        // session runs it when its turn comes and never writes it again.
+        const written = await Store.saveMessageWithParts(message, taskId);
+        if (written.isErr()) {
+          throw toORPCError(written.error, errors);
+        }
+        context.workspaceRef.send({
+          type: "addMessage",
+          value: {
+            agentName: await agentNameForTask(taskId),
+            id,
             message,
             model,
-            projectName,
-            workspaceConfig: context.workspaceConfig,
-          });
-          if (title.isOk()) {
-            await updateSessionTitle({
-              sessionId: message.metadata.sessionId,
-              taskId,
-              title: title.value,
-            });
-          }
-        })();
-      }
+            saved: true,
+            sessionId: message.metadata.sessionId,
+          },
+        });
 
-      context.workspaceRef.send({
-        type: "addMessage",
-        value: {
-          agentName: "main",
-          id,
-          message,
-          model,
-          sessionId: message.metadata.sessionId,
-        },
-      });
+        // Publishes `task.updated` itself, which is what moves the task in the
+        // list, so this replaces the bare publish rather than joining it.
+        await recordTaskActivity(taskId);
 
-      // Publishes `task.updated` itself, which is what moves the task in the
-      // list, so this replaces the bare publish rather than joining it.
-      await recordTaskActivity(taskId);
-
-      return { sessionId: message.metadata.sessionId };
-    },
+        return { sessionId: message.metadata.sessionId };
+      }),
   );
 
 const count = base

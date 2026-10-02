@@ -1,6 +1,6 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
@@ -42,31 +42,6 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
         shortcutMenuItem("themeLight"),
         shortcutMenuItem("themeDark"),
         shortcutMenuItem("themeSystem"),
-        { type: "separator" as const },
-        {
-          label: "Browser DevTools",
-          submenu: [
-            {
-              click: () => {
-                const mainWindow = getMainWindow();
-                mainWindow?.webContents.openDevTools({
-                  mode: "detach",
-                  title: "DevTools - Sidebar",
-                });
-              },
-              label: "Sidebar",
-            },
-            {
-              click: () => {
-                getMainWindow()?.webContents.openDevTools({
-                  mode: "right",
-                  title: "DevTools - Current Tab",
-                });
-              },
-              label: "Current Tab",
-            },
-          ],
-        },
       ],
     },
   ];
@@ -80,22 +55,21 @@ export function createEditMenu(): MenuItemConstructorOptions {
 }
 
 /**
- * `includeShortcutGuide` is false for windows that can't show the guide: it is
- * an app-wide modal of the main window's chrome, so offering it anywhere else
- * either does nothing or opens it in a window the user isn't looking at.
+ * `shortcutGuide` opens the keyboard shortcut guide, which only the app
+ * window draws; a window without one leaves the item out.
  */
 export function createHelpMenu({
-  includeShortcutGuide,
-}: {
-  includeShortcutGuide: boolean;
-}): MenuItemConstructorOptions {
+  shortcutGuide,
+}: { shortcutGuide?: () => void } = {}): MenuItemConstructorOptions {
   return {
     label: "Help",
     role: "help" as const,
     submenu: [
-      ...(includeShortcutGuide
+      ...(shortcutGuide
         ? ([
-            shortcutMenuItem("shortcutGuide"),
+            // No accelerator: the guide's `?` is the renderer's to answer,
+            // since a bare key has to yield to whatever is being typed into.
+            { click: shortcutGuide, label: SHORTCUT_GUIDE.label },
             { type: "separator" },
           ] satisfies MenuItemConstructorOptions[])
         : []),

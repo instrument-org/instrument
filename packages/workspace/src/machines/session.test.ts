@@ -1,12 +1,15 @@
 import {
-  type ImageModelV3,
-  type LanguageModelV3,
-  type LanguageModelV3CallOptions,
-  type LanguageModelV3StreamPart,
+  type ImageModelV4,
+  type LanguageModelV4,
+  type LanguageModelV4CallOptions,
+  type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
-import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+  type AISDKWebSearchModelResult,
+} from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
 import { ok } from "neverthrow";
 import path from "node:path";
@@ -33,6 +36,7 @@ import { setupAgent } from "../agents/create-agent";
 import { mainAgent } from "../agents/main";
 import { type AnyAgent } from "../agents/types";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -59,7 +63,7 @@ vi.mock(import("execa"), () => ({
 
 type Part =
   Awaited<
-    ReturnType<MockLanguageModelV3["doStream"]>
+    ReturnType<MockLanguageModelV4["doStream"]>
   >["stream"] extends ReadableStream<infer T>
     ? T
     : never;
@@ -132,7 +136,7 @@ describe("sessionMachine", () => {
       toolName: "read_file",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   const writeFileChunks = [
     {
@@ -149,7 +153,7 @@ describe("sessionMachine", () => {
       toolName: "write_file",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   const finishChunks = [
     { id: "1", type: "text-start" },
@@ -160,7 +164,7 @@ describe("sessionMachine", () => {
       type: "finish",
       usage: mockUsage,
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   // Appended to every mocked chunk set so each model turn ends the same way.
   const streamFinishChunk = {
@@ -179,7 +183,7 @@ describe("sessionMachine", () => {
         total: 10,
       },
     },
-  } as const satisfies LanguageModelV3StreamPart;
+  } as const satisfies LanguageModelV4StreamPart;
 
   const chooseToolCallId = "test-call-choose";
   const chooseChunks = [
@@ -197,7 +201,7 @@ describe("sessionMachine", () => {
       toolName: "choose",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   beforeEach(async () => {
     const { execa } = await import("execa");
@@ -221,11 +225,13 @@ describe("sessionMachine", () => {
     agent = mainAgent,
     aiSDKModel,
     baseLLMRetryDelayMs = 1000,
+    chunkDelayMs,
     chunkSets = [],
     imageModel,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     maxStepCount,
+    modelFeatures,
     providerConfigId = "mock-provider-config-id",
     queuedMessages = [defaultQueuedMessage],
     runRequested,
@@ -238,13 +244,17 @@ describe("sessionMachine", () => {
       "clock" | "inspect"
     >;
     agent?: AnyAgent;
-    aiSDKModel?: LanguageModelV3;
+    aiSDKModel?: LanguageModelV4;
     baseLLMRetryDelayMs?: number;
+    /** Between every chunk, for a test about something landing mid-stream. */
+    chunkDelayMs?: number;
     chunkSets?: Part[][];
-    imageModel?: ImageModelV3;
+    imageModel?: ImageModelV4;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
+    /** What the model takes and gives; the mock's text-and-tools default otherwise. */
+    modelFeatures?: AIGatewayModel.ModelFeatures[];
     providerConfigId?: string;
     queuedMessages?: SessionMessage.UserWithParts[];
     runRequested?: boolean;
@@ -253,8 +263,7 @@ describe("sessionMachine", () => {
     webSearchModel?: AISDKWebSearchModelResult;
   }) {
     let currentChunkIndex = 0;
-    const mockLanguageModel = new MockLanguageModelV3({
-      // oxlint-disable-next-line typescript/require-await
+    const mockLanguageModel = new MockLanguageModelV4({
       doStream: async () => {
         const currentChunks = chunkSets[currentChunkIndex];
         if (!currentChunks) {
@@ -267,6 +276,7 @@ describe("sessionMachine", () => {
         return {
           rawCall: { rawPrompt: null, rawSettings: {} },
           stream: simulateReadableStream({
+            chunkDelayInMs: chunkDelayMs,
             chunks: [...currentChunks, streamFinishChunk],
             initialDelayInMs: initialChunkDelaysMs[chunkIndex],
           }),
@@ -277,7 +287,10 @@ describe("sessionMachine", () => {
     // Provider config id defaults to the shared mock; the parallel-sessions
     // test passes distinct ids so each session resolves its own model override
     // via the workspace singleton.
-    const model = createMockAIGatewayModel({ providerConfigId });
+    const model = createMockAIGatewayModel({
+      features: modelFeatures,
+      providerConfigId,
+    });
 
     const testTaskConfig = createMockTaskConfig(
       TaskIdSchema.parse(taskFolder),
@@ -362,7 +375,6 @@ describe("sessionMachine", () => {
                   });
                 })();
               } else if (event.value.error) {
-                // eslint-disable-next-line no-console
                 console.error("session.done error", event.value.error);
               }
             }),
@@ -540,6 +552,7 @@ describe("sessionMachine", () => {
         ],
         finishChunks,
       ],
+      modelFeatures: ["inputText", "inputImage", "outputText", "tools"],
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
@@ -596,9 +609,9 @@ describe("sessionMachine", () => {
         toolName: "generate_image",
         type: "tool-call",
       },
-    ] as const satisfies LanguageModelV3StreamPart[];
+    ] as const satisfies LanguageModelV4StreamPart[];
 
-    const mockImageModel: ImageModelV3 = {
+    const mockImageModel: ImageModelV4 = {
       doGenerate: vi.fn().mockResolvedValue({
         images: [
           "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -614,7 +627,7 @@ describe("sessionMachine", () => {
       maxImagesPerCall: undefined,
       modelId: "mock-image-model",
       provider: "mock-provider",
-      specificationVersion: "v3",
+      specificationVersion: "v4",
     };
 
     const session = await createAndRunTestMachine({
@@ -690,7 +703,7 @@ describe("sessionMachine", () => {
         toolName: "web_search",
         type: "tool-call",
       },
-    ] as const satisfies LanguageModelV3StreamPart[];
+    ] as const satisfies LanguageModelV4StreamPart[];
 
     // The session's model is one of ours, so the search runs against our own
     // endpoint rather than a provider's search model.
@@ -876,7 +889,7 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, start_activity, bash, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, bash, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
         <session-context main realRole="system" />
@@ -1217,6 +1230,93 @@ describe("sessionMachine", () => {
     `);
   });
 
+  // The card is answerable once the call has streamed, and the step that
+  // made it can still be running: an answer that quick has to wait for the
+  // step to end rather than find nothing pending and vanish.
+  it("keeps an answer that arrives before the step ends", async () => {
+    const result = await createActorAndTask({
+      agent: setupAgent({
+        agentTools: pick(TOOLS, ["Choose"]),
+        name: "main",
+      }).create(() => ({
+        getMessages: mainAgent.getMessages,
+        onFinish: mainAgent.onFinish,
+        onStart: mainAgent.onStart,
+        shouldContinue: mainAgent.shouldContinue,
+      })),
+      chunkDelayMs: 100,
+      chunkSets: [chooseChunks, finishChunks],
+    });
+
+    const abort = new AbortController();
+    void (async () => {
+      for await (const { part } of publisher.subscribe("part.updated", {
+        signal: abort.signal,
+      })) {
+        if (part.type === "tool-choose" && part.state === "input-available") {
+          expect(
+            result.actor
+              .getSnapshot()
+              .matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
+          ).toBe(false);
+          result.actor.send({
+            type: "updateInteractiveToolCall",
+            value: {
+              toolCallId: chooseToolCallId,
+              type: "success",
+              value: {
+                output: { declined: true },
+                toolName: "choose",
+              },
+            },
+          });
+          return;
+        }
+      }
+    })().catch(noop);
+
+    const stored = await runTestMachine(result);
+    const session = stored._unsafeUnwrap();
+    abort.abort();
+
+    const choose = session.messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === "tool-choose");
+    expect(choose).toMatchObject({
+      output: { declined: true },
+      state: "output-available",
+    });
+  });
+
+  it("stops while a choose is pending without an unhandled event", async () => {
+    const result = await createActorAndTask({
+      agent: setupAgent({
+        agentTools: pick(TOOLS, ["Choose"]),
+        name: "main",
+      }).create(() => ({
+        getMessages: mainAgent.getMessages,
+        onFinish: mainAgent.onFinish,
+        onStart: mainAgent.onStart,
+        shouldContinue: mainAgent.shouldContinue,
+      })),
+      chunkSets: [chooseChunks],
+    });
+    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
+
+    result.actor.start();
+    await waitFor(result.actor, (state) =>
+      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
+    );
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+
+    const unhandled = captureException.mock.calls.filter(
+      ([error]) =>
+        error instanceof Error && error.message.startsWith("Unhandled event"),
+    );
+    expect(unhandled).toEqual([]);
+  });
+
   it("should retry and fail on timeout", async () => {
     const chunkTimeoutMs = 500;
     const session = await createAndRunTestMachine({
@@ -1284,7 +1384,7 @@ describe("sessionMachine", () => {
     let chunksReceived = 0;
     let onProgress: (() => void) | undefined;
 
-    const aiSDKModel = new MockLanguageModelV3({
+    const aiSDKModel = new MockLanguageModelV4({
       doStream: () => {
         const attempt = createManualModelStream();
         attempts.push(attempt);
@@ -1465,7 +1565,7 @@ describe("sessionMachine", () => {
         if (!agentRef) {
           return;
         }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
       });
 
       result.actor.send({ type: "stop" });
@@ -1493,6 +1593,191 @@ describe("sessionMachine", () => {
         </session>"
       `);
     });
+
+    // The user writing again while the conversation replies stops the reply,
+    // and the call it cut short says so rather than that the user stopped it.
+    it("says a call was interrupted by a newer message when that is why it stopped", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [readFileChunks, writeFileChunks, finishChunks],
+      });
+      result.actor.start();
+
+      await waitFor(
+        result.actor,
+        (state) =>
+          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+      ).then(async () => {
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          return;
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+      });
+
+      result.actor.send({ reason: "superseded", type: "stop" });
+      await waitFor(result.actor, (state) => state.status === "done");
+
+      const session = await runTestMachine(result);
+      expect(sessionToShorthand(session)).toContain(
+        "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
+      );
+    });
+
+    // A sender that asks to interrupt does not wait for the next step: the
+    // step in flight stops, and the message runs as the next turn.
+    it("stops the step in flight and runs the message next when it interrupts", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [writeFileChunks, finishChunks],
+      });
+      result.actor.start();
+
+      await waitFor(
+        result.actor,
+        (state) => state.context.agentRef !== undefined,
+      );
+      const agentRef = result.actor.getSnapshot().context.agentRef;
+      if (!agentRef) {
+        throw new Error("The agent never started");
+      }
+      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+
+      const messageId = StoreId.newMessageId();
+      const message: SessionMessage.UserWithParts = {
+        id: messageId,
+        metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId: defaultSessionId,
+            },
+            text: "Make it about a submarine captain instead.",
+            type: "text",
+          },
+        ],
+        role: "user",
+      };
+      result.actor.send({
+        interrupt: true,
+        type: "addMessage",
+        value: message,
+      });
+
+      const session = await runTestMachine(result);
+      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+        "<session title="Test session" count="6">
+          <user>
+            <text>Hello, I need help with something.</text>
+          </user>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <tool tool="write_file" state="output-error" callId="test-call-2">
+              <input>
+                {
+                  "filePath": "test.txt",
+                  "content": "console.log('Hello, world!');"
+                }
+              </input>
+              <error>This action was interrupted by a newer message from the user, and may not have finished.</error>
+            </tool>
+          </assistant>
+          <session-context main realRole="system" />
+          <session-context main realRole="user" />
+          <user>
+            <text>Make it about a submarine captain instead.</text>
+          </user>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <text state="done">I'm done.</text>
+          </assistant>
+        </session>"
+      `);
+    });
+
+    // A message sent while the agent is inside a tool call is written into
+    // the transcript at the next point between steps and seen by the request
+    // that follows, and once heard it is not run again as a turn of its own.
+    it.each([{ saved: false }, { saved: true }])(
+      "hears a message that arrives mid-turn at the next step, once (saved: $saved)",
+      async ({ saved }) => {
+        const result = await createActorAndTask({
+          chunkSets: [writeFileChunks, finishChunks],
+        });
+        result.actor.start();
+
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+
+        const steerId = StoreId.newMessageId();
+        const steer: SessionMessage.UserWithParts = {
+          id: steerId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId: steerId,
+                sessionId: defaultSessionId,
+              },
+              text: "Make it about a submarine captain instead.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+        if (saved) {
+          await Store.saveMessageWithParts(steer, result.taskId);
+        }
+        result.actor.send({ saved, type: "addMessage", value: steer });
+
+        const session = await runTestMachine(result);
+        expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+          "<session title="Test session" count="6">
+            <user>
+              <text>Hello, I need help with something.</text>
+            </user>
+            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+              <step-start step="1" />
+              <tool tool="write_file" state="output-available" callId="test-call-2">
+                <input>
+                  {
+                    "filePath": "test.txt",
+                    "content": "console.log('Hello, world!');"
+                  }
+                </input>
+                <output>
+                  {
+                    "content": "console.log('Hello, world!');",
+                    "filePath": "test.js",
+                    "isNewFile": false
+                  }
+                </output>
+              </tool>
+            </assistant>
+            <session-context main realRole="system" />
+            <session-context main realRole="user" />
+            <user>
+              <text>Make it about a submarine captain instead.</text>
+            </user>
+            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+              <step-start step="2" />
+              <text state="done">I'm done.</text>
+            </assistant>
+          </session>"
+        `);
+      },
+    );
   });
 
   describe("running a turn over the stored session", () => {
@@ -1562,10 +1847,9 @@ describe("sessionMachine", () => {
     });
 
     it("leaves the attempt that failed out of the request", async () => {
-      const prompts: LanguageModelV3CallOptions["prompt"][] = [];
+      const prompts: LanguageModelV4CallOptions["prompt"][] = [];
       const result = await createActorAndTask({
-        aiSDKModel: new MockLanguageModelV3({
-          // oxlint-disable-next-line typescript/require-await
+        aiSDKModel: new MockLanguageModelV4({
           doStream: async ({ prompt }) => {
             prompts.push(prompt);
             return {

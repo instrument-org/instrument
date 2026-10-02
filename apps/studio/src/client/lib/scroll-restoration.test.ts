@@ -16,8 +16,9 @@ const at = (pathname: string) =>
  */
 describe("shouldRestoreScroll", () => {
   it.each([
-    ["/tasks/abc123", "a task's transcript"],
     ["/debug/components/transcript", "the transcript page"],
+    ["/chats/ses_01M1YN1KHE4J98KASDQXYF86GF", "a 2.0 chat"],
+    ["/tasks/abc123", "a 2.0 task's transcript"],
   ])("leaves %s to its own scroller", (pathname) => {
     expect(at(pathname)).toBe(false);
   });
@@ -32,6 +33,7 @@ describe("shouldRestoreScroll", () => {
     ["/settings/debug", "a settings page"],
     ["/projects/xyz", "a project"],
     ["/debug/components/colors", "a sibling debug page"],
+    ["/tasks", "the 2.0 tasks list"],
   ])("keeps element restoration for %s", (pathname) => {
     expect(at(pathname)).toBe(true);
   });

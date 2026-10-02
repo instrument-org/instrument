@@ -7,34 +7,6 @@
   },
   "cSpell.autoFormatConfigFile": true,
   "editor.defaultFormatter": "oxc.oxc-vscode",
-  "eslint.probe": [
-    "javascript",
-    "javascriptreact",
-    "json",
-    "jsonc",
-    "markdown",
-    "typescript",
-    "typescriptreact",
-    "yaml"
-  ],
-  "eslint.rules.customizations": [
-    {
-      "rule": "*",
-      "severity": "warn"
-    }
-  ],
-  "eslint.useFlatConfig": true,
-  "eslint.validate": [
-    "json",
-    "jsonc",
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact",
-    "github-actions-workflow",
-    "yaml"
-  ],
-  "eslint.workingDirectories": [{ "mode": "auto" }],
   "files.exclude": {
     ".claude/worktrees": true
   },
@@ -42,7 +14,6 @@
     "**/routeTree.gen.ts": true
   },
   "files.watcherExclude": {
-    "**/.eslintcache": true,
     "**/.git": true,
     "**/.turbo": true,
     "**/coverage": true,
@@ -62,7 +33,6 @@
     "**/*.pem": true,
     "**/*.tsbuildinfo": true,
     "**/*.vitest-temp.json": true,
-    "**/.eslintcache": true,
     "**/.private_keys": true,
     "**/.tmp": true,
     "**/.turbo": true,

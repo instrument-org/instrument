@@ -33,9 +33,9 @@ describe("ShortcutGuideModal", () => {
   it("filters to what was searched", () => {
     const search = openGuide();
 
-    fireEvent.change(search, { target: { value: "sidebar" } });
+    fireEvent.change(search, { target: { value: "inbox" } });
 
-    expect(rowLabels()).toBe("Toggle Sidebar⌘B");
+    expect(rowLabels()).toMatchInlineSnapshot(`"Toggle Inbox⌘B"`);
   });
 
   it("says so when nothing matches", () => {

@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
+import { ProjectIdSchema } from "../schemas/project-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
@@ -102,7 +103,7 @@ describe("updateTaskSettings", () => {
     await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
     await fs.writeFile(
       recordPath,
-      JSON.stringify({ name: "Keep this name", pinnedAt: "not-a-date" }),
+      JSON.stringify({ name: "Keep this name", reasoningEffort: "loud" }),
       "utf8",
     );
 
@@ -114,25 +115,25 @@ describe("updateTaskSettings", () => {
     expect(JSON.parse(await fs.readFile(recordPath, "utf8"))).toEqual({
       lastActivityAt: "2026-02-03T04:05:06.000Z",
       name: "Keep this name",
-      pinnedAt: "not-a-date",
+      reasoningEffort: "loud",
     });
   });
 
-  it("clears a pin with null while a concurrent update keeps its own field", async () => {
+  it("clears a project with null while a concurrent update keeps its own field", async () => {
     await updateTaskSettings(taskId, {
-      name: "Pinned",
-      pinnedAt: new Date("2026-01-01T00:00:00.000Z"),
+      name: "In a project",
+      projectId: ProjectIdSchema.parse("prj_N1FZH5VKD9779DKV5HZF1NB3XS"),
     });
 
     const results = await Promise.all([
-      updateTaskSettings(taskId, { pinnedAt: null }),
-      updateTaskSettings(taskId, { unreadIndicator: { kind: "completed" } }),
+      updateTaskSettings(taskId, { projectId: null }),
+      updateTaskSettings(taskId, { reasoningEffort: "high" }),
     ]);
 
     const settings = await getTaskSettings(taskDir(taskId));
 
     expect(results.every((result) => result.isOk())).toBe(true);
-    expect(settings?.pinnedAt).toBeUndefined();
-    expect(settings?.unreadIndicator).toEqual({ kind: "completed" });
+    expect(settings?.projectId).toBeUndefined();
+    expect(settings?.reasoningEffort).toBe("high");
   });
 });

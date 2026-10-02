@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPackage } from "read-pkg";
+import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
@@ -74,6 +75,64 @@ const resolve = {
 };
 
 let stagingCounter = 0;
+
+/**
+ * The page editor's two guest files, built beside main: the preload every
+ * browser guest gets (sandboxed, so one CommonJS file with nothing but
+ * `electron` left to require) and the editor bundle it evaluates in the
+ * guest's isolated world when a page's file is being edited (one IIFE, since
+ * it arrives as text over IPC). Registered on the main build, which every
+ * dev and build invocation runs; main reads both from `out/page-editor`.
+ */
+function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
+  const root = path.dirname(fileURLToPath(import.meta.url));
+  const outDir = path.join(root, "out/page-editor");
+  const guestDir = path.join(root, "src/page-editor-guest");
+  const common = {
+    configFile: false as const,
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(
+        minify ? "production" : "development",
+      ),
+    },
+    logLevel: "warn" as const,
+    resolve,
+    root,
+  };
+  return {
+    async buildStart() {
+      await viteBuild({
+        ...common,
+        build: {
+          emptyOutDir: false,
+          lib: {
+            entry: path.join(guestDir, "preload.ts"),
+            fileName: () => "preload.cjs",
+            formats: ["cjs"],
+          },
+          minify,
+          outDir,
+          rollupOptions: { external: ["electron"] },
+        },
+      });
+      await viteBuild({
+        ...common,
+        build: {
+          emptyOutDir: false,
+          lib: {
+            entry: path.join(guestDir, "editor/index.ts"),
+            fileName: () => "guest.js",
+            formats: ["iife"],
+            name: "instrumentPageEditor",
+          },
+          minify,
+          outDir,
+        },
+      });
+    },
+    name: "page-editor-guest",
+  };
+}
 
 // `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
 // time is skipped when the destination already holds the current bytes. The
@@ -200,6 +259,28 @@ function createValidateProductionEnv(
   };
 }
 
+// just-bash starts its WebAssembly runtimes (`python`, `js-exec`, `sqlite3`)
+// in workers it finds with `new URL("./worker.js", import.meta.url)`, so it
+// has to run from its own package folder. The build externalizes it with the
+// rest of the monorepo's dependencies; dev bundles those into out/main, where
+// the worker file does not exist and every run waits out the script timeout
+// without a word. Dev externalizes it at its resolved path instead, since
+// nothing under node_modules next to out/main can resolve the bare name.
+function externalizeJustBashInDev(): Plugin {
+  return {
+    enforce: "pre",
+    name: "externalize-just-bash-in-dev",
+    async resolveId(source, importer, options) {
+      if (source !== "just-bash") return null;
+      const resolved = await this.resolve(source, importer, {
+        ...options,
+        skipSelf: true,
+      });
+      return resolved && { external: true, id: resolved.id };
+    },
+  };
+}
+
 export default defineConfig(({ command }) => {
   const require = createRequire(import.meta.url);
   // In dev, ffmpeg-ffprobe-static is external but node_modules isn't next to
@@ -246,6 +327,10 @@ export default defineConfig(({ command }) => {
           // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI.
           // @parcel/watcher (and its per-platform native bindings) must load from node_modules at runtime, never bundled.
           external: ["node-liblzma", "@mongodb-js/zstd", /^@parcel\/watcher/],
+          // Rolldown's default region comments name each module by id, and a
+          // `?nodeWorker` import's id carries its importer's absolute path,
+          // which would ship the build machine's checkout path in the bundle.
+          experimental: { attachDebugInfo: "none" },
           onwarn(warning, warn) {
             if (
               warning.code === "UNUSED_EXTERNAL_IMPORT" &&
@@ -294,7 +379,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         ),
       },
       plugins: [
+        ...(command === "serve" ? [externalizeJustBashInDev()] : []),
         copyVendorAssets(),
+        buildPageEditorGuest({ minify: isProduction }),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),

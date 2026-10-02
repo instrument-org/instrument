@@ -13,7 +13,7 @@ import { routerEntries } from "./tab-router-history";
 import { captureException } from "./telemetry";
 
 /**
- * One QueryClient shared by every per-tab router in the main window so tabs
+ * One QueryClient shared by every per-tab router in the app window so tabs
  * share the local RPC cache. Each tab still gets its own router (own memory
  * history, own route state) so switching tabs preserves scroll/selection and
  * gives each tab independent back/forward, like browser tabs.
@@ -41,6 +41,19 @@ export function createTabRouter({
   // bricks every boot. Fall back to the tab's pathname otherwise.
   const restored = history && history.entries.length > 0 ? history : undefined;
   const entries = restored ? [...restored.entries] : [pathname];
+  const index = restored
+    ? Math.min(Math.max(restored.index, 0), entries.length - 1)
+    : undefined;
+  const memoryHistory = createMemoryHistory({
+    initialEntries: entries,
+    initialIndex: index,
+  });
+  // The memory history reads an initial index of 0 as none given and starts
+  // at the last entry, so a tab restored at the start of its history is
+  // walked back there before anything subscribes to it.
+  if (index === 0 && entries.length > 1) {
+    memoryHistory.go(-(entries.length - 1));
+  }
   const router = createTanStackRouter({
     context: { queryClient: sharedQueryClient },
     defaultErrorComponent: DefaultErrorComponent,
@@ -49,12 +62,7 @@ export function createTabRouter({
       captureException(error, { componentStack: errorInfo.componentStack });
     },
     defaultPreload: false,
-    history: createMemoryHistory({
-      initialEntries: entries,
-      initialIndex: restored
-        ? Math.min(Math.max(restored.index, 0), entries.length - 1)
-        : undefined,
-    }),
+    history: memoryHistory,
     routeTree,
     scrollRestoration: shouldRestoreScroll,
   });

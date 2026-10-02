@@ -13,6 +13,7 @@ import { CandidateAppSchema, type ResolvedApp } from "./types";
 
 const DarwinResultSchema = z.object({
   appName: z.string(),
+  bundleId: z.string(),
   iconBase64: z.string(),
 });
 
@@ -82,6 +83,7 @@ export async function resolveDarwinTarget(
   }
   return {
     appName: result.appName.replace(/\.app$/, ""),
+    bundleId: result.bundleId,
     iconUrl: await storeFileOpenIcon(result.iconBase64),
   };
 }

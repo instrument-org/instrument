@@ -15,11 +15,38 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
+  // A download a person started in a task's browser panel has ended, in their
+  // Downloads folder or not at all. The app window says so; the
+  // agent's own downloads report through agent-browser instead. `folder` is
+  // the directory as the person should read it, home collapsed; both it and
+  // `path` are null when no folder would take the file.
+  "browser.download-finished": {
+    completed: boolean;
+    filename: string;
+    folder: null | string;
+    path: null | string;
+    targetId: BrowserTargetId;
+  };
   // Ask the renderer to put keyboard focus on a guest before agent keyboard
   // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
   // element moves Chromium's keyboard focus across the process boundary;
   // `webContents.focus()` on the guest does not.
   "browser.focus-guest": { targetId: BrowserTargetId };
+  // A page in a tab an agent drives tried to go to a file outside the agent's
+  // folders and was kept where it is. The app window says so,
+  // since otherwise a link the person clicked just does nothing.
+  "browser.navigation-refused": {
+    targetId: BrowserTargetId;
+  };
+  // A person asked for a link on a page to open in a tab of its own: a
+  // middle- or Cmd-click, a `target=_blank` link, or the page's menu. The
+  // app window opens it in a tab of its own, behind
+  // the one up when `background`.
+  "browser.open-in-new-tab": {
+    background: boolean;
+    targetId: BrowserTargetId;
+    url: string;
+  };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": null;
@@ -33,6 +60,9 @@ interface PublisherEvents {
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;
+  // The ChatGPT plan's sign-in state changed: signed in or out, a sign-in
+  // started or ended, or a token was refreshed.
+  "chatgpt-plan.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   "preferences.updated": null;
@@ -46,7 +76,36 @@ interface PublisherEvents {
   "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;
+  // Asked of the app window by a swipe, a thumb button, a menu
+  // chord, or a link from outside the app, all of which reach the main process
+  // rather than the page: history either way, the close of the tab on screen,
+  // the caret in the window's field, a screen to put up, or a file to open.
+  "window.command":
+    | "back"
+    | "closeTab"
+    | "editPage"
+    | "findInPage"
+    | "forward"
+    | "newChat"
+    | "newTab"
+    | "nextChat"
+    | "nextTab"
+    | "openSettings"
+    | "openShortcutGuide"
+    | "previousChat"
+    | "previousTab"
+    | "reloadPage"
+    | "reopenTab"
+    | "search"
+    | "toggleInbox"
+    | { hostPath: string; type: "openFile" }
+    | { href: string; type: "openScreen" }
+    | { index: number; type: "selectTab" };
   "window.focus-changed": null;
+  // A link under the pointer in text being edited, which the window's native
+  // menu offers to open: the page that drew it opens it, in place or in a tab
+  // of the window's own.
+  "window.open-menu-link": { newTab: boolean };
   "window.state-changed": null;
 }
 
@@ -55,8 +114,7 @@ export const publisher = new EventPublisher<PublisherEvents>({
 });
 
 interface CommandEvents {
-  // Imperative app commands from the main process (menus, onboarding) to the
-  // renderer that owns tab and view state (MainWindow).
+  // Imperative app commands from the main process's menus to the renderers.
   "app.command": AppCommand;
 }
 

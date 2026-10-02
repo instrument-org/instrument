@@ -7,9 +7,7 @@ interface ImportMetaEnv extends ImportMetaEnvAugmented {
 }
 
 type ImportMetaEnvAugmented =
-  // oxlint-disable-next-line typescript/consistent-type-imports
   import("@julr/vite-plugin-validate-env").ImportMetaEnvAugmented<
-    // oxlint-disable-next-line typescript/consistent-type-imports
     typeof import("../validate-env").default
   >;
 
@@ -38,19 +36,29 @@ declare namespace NodeJS {
       ELECTRON_DEV_USER_FOLDER_SUFFIX: string | undefined;
       ELECTRON_ENABLE_CONSOLE_LOGGING: string | undefined;
       ELECTRON_RENDERER_URL: string | undefined;
-      ELECTRON_USE_NEW_USER_FOLDER: string | undefined;
       ELECTRON_USER_DATA_DIR: string | undefined;
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      /** `0` keeps the agent's bash interpreter on the main thread instead of its worker. */
+      INSTRUMENT_BASH_WORKER: string | undefined;
       /** Dev only: shrinks every model's context window to this many tokens. */
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
+      /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
+      INSTRUMENT_DEV_SUPERVISOR: string | undefined;
       /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
+      /** Dev only: gives the conversation a `task` tool beside the shell one. */
+      INSTRUMENT_TASK_TOOL: string | undefined;
+      /**
+       * Pins this process to one workspace, by registered id or absolute path,
+       * without changing which one the app opens next. See lib/workspaces.ts.
+       */
+      INSTRUMENT_WORKSPACE: string | undefined;
       NODE_ENV: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
@@ -60,6 +68,8 @@ declare namespace NodeJS {
       SKIP_ONBOARDING: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
+      /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
+      STUDIO_LOG_LEVEL: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

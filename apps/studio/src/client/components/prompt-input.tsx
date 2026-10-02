@@ -1,50 +1,57 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
+import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
+import { AttachedItemPreview } from "@/client/components/attached-item-preview";
 import {
   type ComposerAction,
   ComposerAddMenu,
   type ComposerMenuView,
+  type ComposerPlaces,
 } from "@/client/components/composer-add-menu";
-import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
 import { ComposerFrame } from "@/client/components/composer-frame";
-import {
-  DEFAULT_FOLDER_ACCESS,
-  type FolderAccess,
-} from "@/client/components/folder-access-list";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
-import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
   type DroppedFolder,
   useFileDropRegion,
 } from "@/client/hooks/use-file-drop-region";
-import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
+import { appMentionToken } from "@/client/lib/app-mention";
+import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
-import { folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { captureException } from "@/client/lib/telemetry";
+import { splitTransferItems } from "@/client/lib/transfer-items";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModel,
+  type AIGatewayModelURI,
+  modelNameFromURI,
+} from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
-  type FolderAttachment,
-  type ProjectId,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { StopIcon } from "@phosphor-icons/react/Stop";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  Fragment,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -60,22 +67,13 @@ import {
   promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
-  promptFocusSignalAtom,
-  promptNudgeSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
-import { PromptProjectChip } from "./project/prompt-project-chip";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
-  | {
-      access: FolderAttachment.Access;
-      id: string;
-      path: string;
-      type: "folder";
-    }
   | {
       content: string;
       id: string;
@@ -93,113 +91,160 @@ type AttachedItem =
       size: number;
       type: "file";
       url?: string;
+    }
+  | {
+      id: string;
+      path: string;
+      type: "folder";
     };
 
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
+/** Everything a submit clears, so a rejected one can put it back, and everything a surface keeps of a composer it puts away. */
+export interface PromptInputDraft {
+  items: AttachedItem[];
+  prompt: string;
+}
+
 export interface PromptInputRef {
   clear: () => void;
   focus: () => void;
+  /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
+  insertText: (text: string) => void;
+  /** Opens the file chooser, the way the plus menu's "Add files" does. */
+  pickFiles: () => void;
+  /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
+  pickFolder: () => void;
   restore: (draft: PromptInputDraft) => void;
   snapshot: () => PromptInputDraft;
 }
 
-/** Everything a submit clears, so a rejected one can put it back. */
-interface PromptInputDraft {
-  items: AttachedItem[];
-  projectId: null | ProjectId;
-  prompt: string;
-}
-
 interface PromptInputProps {
-  allowOpenInNewTab?: boolean;
-  // Whether the plus menu offers to work in a project, and a chosen one shows
-  // beside it. Off where the project is not the composer's to decide -- a task's
-  // is fixed when it is created.
-  allowWorkInProject?: boolean;
+  /**
+   * An element of the host's the button row is drawn into rather than along
+   * the box's foot: a head over the words that carries the plus, the model
+   * and the arrow. Given, the box keeps only its words and attachments.
+   */
+  actionsInto?: HTMLElement | null;
+  /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
+  addMenu?: boolean;
+  /**
+   * Keep the row open whether or not the caret is in it. For a composer that
+   * sits beside the work rather than under it: switching to another tab would
+   * otherwise fold the row shut and unfold it again on the focus that follows.
+   */
+  alwaysOpen?: boolean;
+  /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
+  attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
+  /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
   autoResizeMaxHeight?: number;
-  // Extra action rendered in the button row beside the plus button (e.g. the
-  // task page's browser-panel toggle). The host owns it so this stays generic.
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
-  // Which side of the composer the attached folders are listed on. Below on the
-  // surfaces a prompt is composed from scratch; above where the composer is
-  // already pinned to the bottom of the window.
-  folderTrayPlacement?: "above" | "below";
+  /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
+  hasAttachmentsLead?: boolean;
   id?: TaskId;
   isLoading: boolean;
-  isStoppable?: boolean;
-  isSubmittable?: boolean;
+  /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
+  lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
-  // Whether a navigation that landed on the page this composer is already on is
-  // answered here. On where the composer is what the page is for, so pressing
-  // "New task" from the new task page has something to point at; off where the
-  // page is about something else and its composer is a place to reply.
-  nudgeOnReentry?: boolean;
-  onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onStop?: () => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
-    folders?: { access: FolderAttachment.Access; path: string }[];
+    folders?: { path: string }[];
     modelURI: AIGatewayModelURI.Type;
-    openInNewTab?: boolean;
-    projectId?: null | ProjectId;
     prompt: string;
   }) => void;
   placeholder?: string;
+  /**
+   * A chat's places, for its plus to open beside it (the web, the computer)
+   * and the apps to name. Given these, the plus leads with them as tiles.
+   */
+  places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  // Whether the folder tray offers its own entry point. Off, the tray still
-  // appears once folders are attached -- otherwise a folder added from the plus
-  // menu would be invisible and impossible to remove -- it just does not
-  // advertise itself on surfaces that have their own folder controls.
-  showWorkInFolder?: boolean;
+  /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
+  variant?: "bare" | "block" | "pill";
+}
+
+/**
+ * What is wrong with the model a prompt would be sent with, in the few words a
+ * chip has room for, or `null` while there is nothing wrong with it.
+ *
+ * For a composer that keeps the model out of sight: naming a working one in a
+ * menu is enough while it works, but a model missing, restricted, or one no
+ * connected provider offers has to be visible. The only other sign of it is a
+ * send that refuses, which turns a prompt away for a reason it never showed.
+ * Nothing while the list is still arriving, since that is a wait rather than a
+ * problem, and a chip that flashed on every mount would be noise.
+ */
+function describeModelProblem({
+  models,
+  modelsIsError,
+  modelsIsLoading,
+  modelURI,
+  selectedModel,
+}: {
+  models?: AIGatewayModel.Type[];
+  modelsIsError: boolean;
+  modelsIsLoading: boolean;
+  modelURI?: AIGatewayModelURI.Type;
+  selectedModel?: AIGatewayModel.Type;
+}): null | string {
+  if (modelsIsLoading) {
+    return null;
+  }
+  if (selectedModel) {
+    return selectedModel.restricted
+      ? `${selectedModel.name.trim()} is unavailable`
+      : null;
+  }
+  // A list that never arrived outranks anything read off it: the selection is
+  // unresolvable either way, and blaming the model would send the user to pick
+  // another one that is equally beyond reach.
+  if (modelsIsError) {
+    return "Failed to load models";
+  }
+  // A selection the list no longer resolves is still worth naming: the user
+  // picked it, and "choose a model" would read as though they never had.
+  if (modelURI) {
+    return `${modelNameFromURI(modelURI) ?? modelURI} is unavailable`;
+  }
+  return models?.length ? "Choose a model" : "No models available";
 }
 
 export const PromptInput = ({
-  allowOpenInNewTab = false,
-  allowWorkInProject = false,
+  actionsInto,
+  addMenu = true,
+  alwaysOpen,
+  attachmentsLead,
   autoFocus = false,
-  autoResizeMaxHeight = 400,
+  autoResizeMaxHeight,
   className,
   disabled = false,
   draftKey,
-  folderTrayPlacement = "below",
+  hasAttachmentsLead = false,
   id,
   isLoading,
-  isStoppable = false,
-  isSubmittable = true,
+  lead,
   modelURI,
-  nudgeOnReentry = false,
-  onFolderCountChange,
   onModelChange,
-  onStop,
   onSubmit,
   placeholder,
+  places,
   ref,
   selectedSessionId,
-  showWorkInFolder = false,
+  variant = "block",
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
-  const tabId = useTabId();
-  const focusSignal = useAtomValue(promptFocusSignalAtom(tabId));
-  const nudgeSignal = useAtomValue(promptNudgeSignalAtom(tabId));
-  // The signal only counts up, and a composer arriving on a tab that was nudged
-  // before is not the one being nudged now, so what it mounted at is the floor.
-  const [nudgeFloor] = useState(nudgeSignal);
-  // Keys the ring, so each bump is its own element and its own play of the
-  // animation rather than one that has already finished.
-  const nudgeKey = nudgeOnReentry && nudgeSignal > nudgeFloor ? nudgeSignal : 0;
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
-    null,
-  );
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
+  // A pill is one row until it is written in, then opens a row for the rest.
+  const [pillFocused, setPillFocused] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
   // The box the prompt is written in: what this composer's menus are sized and
@@ -237,6 +282,16 @@ export const PromptInput = ({
   const userInvocableSkills = features.skills
     ? skills.filter((skill) => skill.userInvocable)
     : [];
+  // The apps the workspace has, for a slash to name: any standing, since a
+  // message can be about an app before it is connected.
+  const { data: appList } = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  );
+  const composerApps: ComposerApp[] = (appList?.apps ?? []).map((app) => ({
+    name: app.name,
+    site: app.site,
+    slug: app.slug,
+  }));
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
@@ -246,35 +301,6 @@ export const PromptInput = ({
   // user, so the picked model is re-checked here and not only at pick time.
   const restrictedModel = selectedModel?.restricted;
   const isInvalidSelectedModel = isUnavailableModel || !!restrictedModel;
-
-  useImperativeHandle(ref, () => ({
-    clear: () => {
-      promptEditorRef.current?.clear();
-      setAttachedItems([]);
-      setSelectedProjectId(null);
-    },
-    focus: () => {
-      promptEditorRef.current?.focus();
-    },
-    // Only into a composer the user left alone: a send can fail after they have
-    // started the next prompt, and their new words outrank the rejected ones.
-    restore: (draft) => {
-      if (
-        promptEditorRef.current?.getValue().trim() ||
-        attachedItems.length > 0
-      ) {
-        return;
-      }
-      promptEditorRef.current?.setValue(draft.prompt);
-      setAttachedItems(draft.items);
-      setSelectedProjectId(draft.projectId);
-    },
-    snapshot: () => ({
-      items: attachedItems,
-      projectId: selectedProjectId,
-      prompt: promptEditorRef.current?.getValue() ?? "",
-    }),
-  }));
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);
@@ -303,7 +329,7 @@ export const PromptInput = ({
     }
     promptEditorRef.current?.focus();
     promptEditorRef.current?.moveCaretToEnd();
-  }, [autoFocus, isActiveTab, focusSignal]);
+  }, [autoFocus, isActiveTab]);
 
   const processFiles = (files: File[] | FileList) => {
     for (const file of files) {
@@ -358,65 +384,64 @@ export const PromptInput = ({
     }
   };
 
+  const attachFolders = (folders: DroppedFolder[]) => {
+    // Split the drop against the rendered list so the toast happens here,
+    // once, rather than inside the updater -- React may call an updater more
+    // than once and would repeat the notification.
+    const existingPaths = new Set(
+      attachedItems.filter((i) => i.type === "folder").map((i) => i.path),
+    );
+    const duplicates: string[] = [];
+    const newFolders: Extract<AttachedItem, { type: "folder" }>[] = [];
+
+    for (const folder of folders) {
+      if (existingPaths.has(folder.path)) {
+        duplicates.push(folderLabel(folder.path));
+      } else {
+        newFolders.push({
+          id: ulid(),
+          path: folder.path,
+          type: "folder",
+        });
+      }
+    }
+
+    if (duplicates.length > 0) {
+      const names = duplicates.join(", ");
+      toast.info(
+        duplicates.length === 1
+          ? `“${names}” is already added`
+          : `Some folders are already added`,
+        {
+          description:
+            duplicates.length === 1
+              ? "That folder has already been attached. Each folder can only be added once."
+              : `${names} have already been attached. Each folder can only be added once.`,
+        },
+      );
+    }
+
+    if (newFolders.length === 0) {
+      return;
+    }
+
+    // `attachedItems` is a render-old snapshot, so re-check inside the
+    // updater: back-to-back drops of the same folder both read the same
+    // snapshot and would otherwise each append it.
+    setAttachedItems((prev) => {
+      const paths = new Set(
+        prev.filter((i) => i.type === "folder").map((i) => i.path),
+      );
+      const unseen = newFolders.filter((f) => !paths.has(f.path));
+      return unseen.length > 0 ? [...prev, ...unseen] : prev;
+    });
+  };
+
   useFileDropRegion({
     enabled: isActiveTab,
-    // The message, not the task: this composer is also a new tab, a project
-    // page and a skill page, and the file lands in the message on all of them.
     note: "Drop to attach to your message",
     onFilesDropped: processFiles,
-    onFoldersDropped: (folders: DroppedFolder[]) => {
-      // Split the drop against the rendered list so the toast happens here,
-      // once, rather than inside the updater -- React may call an updater more
-      // than once and would repeat the notification.
-      const existingPaths = new Set(
-        attachedItems.filter((i) => i.type === "folder").map((i) => i.path),
-      );
-      const duplicates: string[] = [];
-      const newFolders: Extract<AttachedItem, { type: "folder" }>[] = [];
-
-      for (const folder of folders) {
-        if (existingPaths.has(folder.path)) {
-          duplicates.push(folderNameFromPath(folder.path));
-        } else {
-          newFolders.push({
-            access: DEFAULT_FOLDER_ACCESS,
-            id: ulid(),
-            path: folder.path,
-            type: "folder",
-          });
-        }
-      }
-
-      if (duplicates.length > 0) {
-        const names = duplicates.join(", ");
-        toast.info(
-          duplicates.length === 1
-            ? `“${names}” is already added`
-            : `Some folders are already added`,
-          {
-            description:
-              duplicates.length === 1
-                ? "That folder has already been attached. Each folder can only be added once."
-                : `${names} have already been attached. Each folder can only be added once.`,
-          },
-        );
-      }
-
-      if (newFolders.length === 0) {
-        return;
-      }
-
-      // `attachedItems` is a render-old snapshot, so re-check inside the
-      // updater: back-to-back drops of the same folder both read the same
-      // snapshot and would otherwise each append it.
-      setAttachedItems((prev) => {
-        const paths = new Set(
-          prev.filter((i) => i.type === "folder").map((i) => i.path),
-        );
-        const unseen = newFolders.filter((f) => !paths.has(f.path));
-        return unseen.length > 0 ? [...prev, ...unseen] : prev;
-      });
-    },
+    onFoldersDropped: attachFolders,
   });
 
   const removeAttachedItem = (attachedItemId: string) => {
@@ -456,7 +481,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`“${folderNameFromPath(folderPath)}” is already added`, {
+      toast.info(`“${folderLabel(folderPath)}” is already added`, {
         description:
           "That folder has already been attached. Each folder can only be added once.",
       });
@@ -469,7 +494,6 @@ export const PromptInput = ({
         : [
             ...prev,
             {
-              access: DEFAULT_FOLDER_ACCESS,
               id: ulid(),
               path: folderPath,
               type: "folder",
@@ -478,48 +502,49 @@ export const PromptInput = ({
     );
   };
 
-  const setFolderAccess = (
-    folderPath: string,
-    access: FolderAttachment.Access,
-  ) => {
-    setAttachedItems((prev) =>
-      prev.map((item) =>
-        item.type === "folder" && item.path === folderPath
-          ? { ...item, access }
-          : item,
-      ),
-    );
-  };
-
-  const removeFolder = (folderPath: string) => {
-    setAttachedItems((prev) =>
-      prev.filter(
-        (item) => !(item.type === "folder" && item.path === folderPath),
-      ),
-    );
-  };
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      promptEditorRef.current?.clear();
+      setAttachedItems([]);
+    },
+    focus: () => {
+      promptEditorRef.current?.focus();
+    },
+    insertText: (text) => {
+      promptEditorRef.current?.insertText(text);
+    },
+    pickFiles: () => {
+      fileInputRef.current?.click();
+    },
+    pickFolder: () => {
+      void handleFolderPick();
+    },
+    // Only into a composer the user left alone: a send can fail after they have
+    // started the next prompt, and their new words outrank the rejected ones.
+    restore: (draft) => {
+      if (
+        promptEditorRef.current?.getValue().trim() ||
+        attachedItems.length > 0
+      ) {
+        return;
+      }
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+    },
+    snapshot: () => ({
+      items: attachedItems,
+      prompt: promptEditorRef.current?.getValue() ?? "",
+    }),
+  }));
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
-  const folderAccessList: FolderAccess[] = attachedFolders.map((folder) => ({
-    access: folder.access,
-    path: folder.path,
-  }));
-  const showFolderTray = showWorkInFolder || folderAccessList.length > 0;
-
-  // A host may lay itself out around what this prompt has been given -- the
-  // tutorial task folds its own card away rather than wrapping a wrapper -- so
-  // the count is reported as it changes rather than only on submit.
-  const folderCount = folderAccessList.length;
-  useEffect(() => {
-    onFolderCountChange?.(folderCount);
-  }, [folderCount, onFolderCountChange]);
 
   const actions: ComposerAction[] = [
     {
       icon: PaperclipIcon,
       id: "add-files",
-      label: "Add files",
+      label: places ? "Attach files" : "Add files",
       onSelect: () => {
         fileInputRef.current?.click();
       },
@@ -527,32 +552,95 @@ export const PromptInput = ({
     {
       icon: FolderIcon,
       id: "work-in-folder",
-      label: "Work in a local folder",
+      label: places ? "Add a folder" : "Work in a local folder",
       onSelect: () => {
         void handleFolderPick();
       },
     },
-    ...(allowWorkInProject
+    // A pill has no room for the model beside the words, so the menu offers
+    // it, and the picker opens where the menu was.
+    ...(variant === "pill"
       ? [
           {
-            icon: CardsThreeIcon,
-            id: "work-in-project",
-            keepMenuOpen: true,
-            label: "Work in a project",
+            // The picker opens once this menu has closed, and takes the caret
+            // from there.
+            handsOff: true,
+            icon: CpuIcon,
+            id: "model",
+            label: selectedModel
+              ? `Model · ${selectedModel.name}`
+              : "Choose a model",
             onSelect: () => {
-              setMenuView("projects");
+              setPickerOpen(true);
             },
           },
         ]
       : []),
   ];
 
+  // A typed slash offers what the plus does: in a chat, the places it opens
+  // beside the chat lead the list.
+  const slashActions: ComposerAction[] = places
+    ? [
+        {
+          icon: GlobeIcon,
+          id: "open-browser",
+          label: "Browser",
+          onSelect: places.onOpenWeb,
+        },
+        {
+          icon: DesktopIcon,
+          id: "open-computer",
+          label: places.computerName,
+          onSelect: places.onOpenComputer,
+        },
+        ...actions,
+      ]
+    : actions;
+
+  const composerPlaces: ComposerPlaces | undefined = places && {
+    ...places,
+    apps: composerApps,
+    onNameApp: (app) => {
+      promptEditorRef.current?.insertText(appMentionToken(app));
+    },
+  };
+
   const canSubmit =
     !disabled &&
     !isLoading &&
-    (value.trim() || attachedItems.length > 0) &&
+    (value.trim() || attachedItems.length > 0 || hasAttachmentsLead) &&
     modelURI &&
     selectedModel;
+
+  // Open while the caret is in it, a menu of its is up, or a draft is waiting:
+  // the model and the message's context have nowhere else to go, and a row
+  // that folded away mid-draft would take them with it.
+  const pillOpen =
+    variant === "pill" &&
+    (alwaysOpen ||
+      pillFocused ||
+      pickerOpen ||
+      menuView !== null ||
+      value.trim().length > 0 ||
+      attachedItems.length > 0 ||
+      hasAttachmentsLead);
+
+  // A pill stands beside the work in a column it shares with the conversation
+  // it is part of, so it gives way to that conversation sooner than a block on
+  // a page of its own does: a handful of lines, then the draft scrolls.
+  const maxHeight = autoResizeMaxHeight ?? (variant === "pill" ? 200 : 400);
+
+  const modelProblem =
+    variant === "pill"
+      ? describeModelProblem({
+          models,
+          modelsIsError,
+          modelsIsLoading,
+          modelURI,
+          selectedModel,
+        })
+      : null;
 
   const validateSubmission = () => {
     if (isUnavailableModel) {
@@ -599,15 +687,26 @@ export const PromptInput = ({
           // A provider that answers with an error contributes nothing to the
           // list, so an empty one here can mean a reachable provider refusing
           // rather than no provider at all. Outranks the no-models case below.
-          toast.error("Failed to load models", {
-            action: {
-              label: "Retry",
-              onClick: () => {
-                void modelsRefetch();
+          // Named after the provider that failed, since a provider that
+          // cannot be reached (a local server that is not running, say) is
+          // otherwise indistinguishable from the app failing.
+          const failed = modelsErrors?.map((error) => error.config.displayName);
+          toast.error(
+            failed?.length === 1
+              ? `Couldn't load models from ${failed[0] ?? "a provider"}`
+              : failed?.length
+                ? `Couldn't load models from ${failed.length.toString()} providers`
+                : "Failed to load models",
+            {
+              action: {
+                label: "Retry",
+                onClick: () => {
+                  void modelsRefetch();
+                },
               },
+              description: modelsErrors?.[0]?.message,
             },
-            description: modelsErrors?.[0]?.message,
-          });
+          );
         } else if (models?.length) {
           toast.error("Select a model");
         } else {
@@ -626,15 +725,10 @@ export const PromptInput = ({
       return false;
     }
 
-    if (!isSubmittable) {
-      toast.error("Agent is still running. Wait for it to finish or stop it.");
-      return false;
-    }
-
     return true;
   };
 
-  const handleSubmit = (openInNewTab = false) => {
+  const handleSubmit = () => {
     if (!validateSubmission() || !modelURI) {
       return;
     }
@@ -663,20 +757,11 @@ export const PromptInput = ({
           : undefined,
       folders:
         attachedFolders.length > 0
-          ? attachedFolders.map((folder) => ({
-              access: folder.access,
-              path: folder.path,
-            }))
+          ? attachedFolders.map((folder) => ({ path: folder.path }))
           : undefined,
       modelURI,
-      openInNewTab,
-      projectId: selectedProjectId,
       prompt,
     });
-  };
-
-  const handleStop = () => {
-    onStop?.();
   };
 
   const handlePaste = (e: ClipboardEvent) => {
@@ -687,21 +772,25 @@ export const PromptInput = ({
     const text = clipboardData.getData("text/plain");
     const hasText = text.trim().length > 0;
 
-    const items = clipboardData.items;
-    const files: File[] = [];
+    // A folder copied in Finder or Explorer pastes as an item of kind `file`,
+    // so it goes to the same folder handler a dropped one does.
+    const { files, folders, unresolvedFolders } = splitTransferItems({
+      getFilePath: window.api.getFilePath,
+      items: clipboardData.items,
+      shouldAttachFile: (item) => shouldAttachClipboardItem({ hasText, item }),
+    });
 
-    for (const item of items) {
-      if (!shouldAttachClipboardItem({ hasText, item })) {
-        continue;
-      }
-      const file = item.getAsFile();
-      if (file) {
-        files.push(file);
-      }
+    if (unresolvedFolders > 0 && folders.length === 0) {
+      captureException(
+        new Error("Could not get folder paths from pasted items"),
+      );
     }
 
-    if (files.length > 0) {
+    if (files.length > 0 || folders.length > 0) {
       e.preventDefault();
+      if (folders.length > 0) {
+        attachFolders(folders);
+      }
       processFiles(files);
       return true;
     }
@@ -739,89 +828,29 @@ export const PromptInput = ({
     return false;
   };
 
-  const folderTray = (
-    // `initial={false}`: a surface that offers the tray has it from the first
-    // paint, and a restored draft arrives with its folders already attached.
-    // Neither is a change, so neither is worth animating.
-    <AnimatePresence initial={false}>
-      {showFolderTray && (
-        <motion.div
-          animate={{ height: "auto", opacity: 1 }}
-          className="overflow-hidden"
-          exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-          initial={{ height: 0, opacity: 0 }}
-          transition={BLOCK_OPEN}
-        >
-          <ComposerFolderTray
-            disabled={disabled || isLoading}
-            folders={folderAccessList}
-            onAccessChange={setFolderAccess}
-            onAdd={() => void handleFolderPick()}
-            onRemove={removeFolder}
-            showAdd={showWorkInFolder}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-
   return (
-    // Once there are folders to show, the composer sits inside a tray rather
-    // than on top of one: a single rounded block, a shade off the page, with the
-    // prompt inset in it. `isolate` keeps the block behind the prompt rather
-    // than behind whatever the composer was placed on.
-    <motion.div
-      animate={{ padding: showFolderTray ? 4 : 0 }}
-      className={cn("relative isolate flex flex-col", className)}
-      initial={false}
-      transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
-    >
-      {/* The block itself, out of flow: a border and a fill on the box the
-          prompt sits in cannot be faded without taking the prompt with them. */}
-      <motion.div
-        animate={{ opacity: showFolderTray ? 1 : 0 }}
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/2 bg-black/2 dark:border-white/1 dark:bg-white/1"
-        initial={false}
-        transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
-      />
-
-      {folderTrayPlacement === "above" && folderTray}
-
+    <div className={cn("relative flex flex-col", className)}>
       <ComposerFrame
         actions={
           <>
             <div className="flex min-w-0 shrink-0 items-center gap-1">
-              <ComposerAddMenu
-                actions={actions}
-                bounds={composerBounds}
-                disabled={disabled || isLoading}
-                onReturnFocus={() => {
-                  promptEditorRef.current?.focus();
-                }}
-                onSelectProject={
-                  allowWorkInProject ? setSelectedProjectId : undefined
-                }
-                onSelectSkill={(skill) => {
-                  promptEditorRef.current?.insertText(
-                    skillMentionToken(skill.id),
-                  );
-                }}
-                onViewChange={setMenuView}
-                projectId={selectedProjectId}
-                skills={userInvocableSkills}
-                view={menuView}
-              />
-
-              {allowWorkInProject && selectedProjectId && (
-                <PromptProjectChip
+              {addMenu && (
+                <ComposerAddMenu
+                  actions={actions}
+                  bounds={composerBounds}
                   disabled={disabled || isLoading}
-                  onOpenPicker={() => {
-                    setMenuView("projects");
+                  onReturnFocus={() => {
+                    promptEditorRef.current?.focus();
                   }}
-                  onRemove={() => {
-                    setSelectedProjectId(null);
+                  onSelectSkill={(skill) => {
+                    promptEditorRef.current?.insertText(
+                      skillMentionToken(skill.id),
+                    );
                   }}
-                  projectId={selectedProjectId}
+                  onViewChange={setMenuView}
+                  places={composerPlaces}
+                  skills={userInvocableSkills}
+                  view={menuView}
                 />
               )}
             </div>
@@ -864,24 +893,14 @@ export const PromptInput = ({
               />
 
               <Button
-                aria-label={isStoppable ? "Stop" : "Send"}
+                aria-label="Send"
                 className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={isStoppable ? false : !canSubmit}
-                onClick={(e) => {
-                  if (isStoppable) {
-                    handleStop();
-                  } else {
-                    const openInNewTab =
-                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                    handleSubmit(openInNewTab);
-                  }
-                }}
+                disabled={!canSubmit}
+                onClick={handleSubmit}
                 variant="brand"
               >
-                {isStoppable ? (
-                  <StopIcon className="size-5" weight="fill" />
-                ) : isLoading ? (
-                  <Spinner className="size-5" />
+                {isLoading ? (
+                  <Spinner className="size-5" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-5" />
                 )}
@@ -889,14 +908,21 @@ export const PromptInput = ({
             </div>
           </>
         }
+        actionsInto={actionsInto}
         attachments={
-          attachedFiles.length > 0 && (
+          ((variant !== "pill" && lead) ||
+            hasAttachmentsLead ||
+            attachedItems.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
+            // Every child here needs a key of its own: presence tells them
+            // apart by key, and two keyless ones read as the same child.
             <AnimatePresence initial={false}>
-              {attachedFiles.map((item) => (
+              <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
+              <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
+              {attachedItems.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
@@ -904,52 +930,178 @@ export const PromptInput = ({
                   key={item.id}
                   transition={ITEM_IN}
                 >
-                  <AttachedFilePreview
-                    filename={item.name}
-                    mimeType={item.mimeType}
-                    onClick={() => {
-                      if (item.url) {
-                        openFilePreview({
-                          filename: item.name,
-                          mimeType: item.mimeType,
-                          size: item.size,
-                          url: item.url,
-                        });
-                      }
-                    }}
-                    onRemove={() => {
-                      removeAttachedItem(item.id);
-                    }}
-                    size={item.size}
-                    url={item.url}
-                  />
+                  {item.type === "folder" ? (
+                    <AttachedItemPreview
+                      icon={<MacFolderIcon className="size-5 shrink-0" />}
+                      label={folderLabel(item.path)}
+                      onRemove={() => {
+                        removeAttachedItem(item.id);
+                      }}
+                      tooltip={displayPath(item.path)}
+                    />
+                  ) : (
+                    <AttachedFilePreview
+                      filename={item.name}
+                      mimeType={item.mimeType}
+                      onClick={() => {
+                        if (item.url) {
+                          openFilePreview({
+                            filename: item.name,
+                            mimeType: item.mimeType,
+                            size: item.size,
+                            url: item.url,
+                          });
+                        }
+                      }}
+                      onRemove={() => {
+                        removeAttachedItem(item.id);
+                      }}
+                      size={item.size}
+                      url={item.url}
+                    />
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
           )
         }
-        maxHeight={autoResizeMaxHeight}
-        overlay={
-          <>
-            {/* Just outside the box rather than on it, so the ring reads as
-                something arriving around the composer and never crowds what is
-                written in it. */}
-            {nudgeKey > 0 && (
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -inset-0.5 z-10 composer-nudge rounded-[22px]"
-                key={nudgeKey}
+        extras={
+          pillOpen ? (
+            <>
+              {modelProblem && (
+                // Leads the row, and is the way to the picker as well as the
+                // notice: what it says is a thing to fix rather than a state to
+                // read, and the plus menu is a poor place to be sent looking.
+                <button
+                  className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-warning-700/10 px-2 text-xs text-warning-700 hover:bg-warning-700/15 dark:bg-warning-300/10 dark:text-warning-300 dark:hover:bg-warning-300/15"
+                  disabled={disabled || isLoading}
+                  onClick={() => {
+                    setPickerOpen(true);
+                  }}
+                  type="button"
+                >
+                  <WarningIcon className="size-3.5 shrink-0" />
+                  <span className="truncate">{modelProblem}</span>
+                </button>
+              )}
+              {lead}
+            </>
+          ) : undefined
+        }
+        layout={variant}
+        leading={
+          variant === "pill" ? (
+            // The picker has no button of its own here: it hangs off an empty
+            // box over the plus, so its panel opens from the plus when the menu
+            // or the notice asks for it.
+            <div className="relative">
+              <ComposerAddMenu
+                actions={actions}
+                bounds={composerBounds}
+                disabled={disabled || isLoading}
+                onReturnFocus={() => {
+                  promptEditorRef.current?.focus();
+                }}
+                onSelectSkill={(skill) => {
+                  promptEditorRef.current?.insertText(
+                    skillMentionToken(skill.id),
+                  );
+                }}
+                onViewChange={setMenuView}
+                places={composerPlaces}
+                skills={userInvocableSkills}
+                triggerClassName="size-7 rounded-full [&_svg]:size-4"
+                view={menuView}
               />
-            )}
-          </>
+              <ModelPicker
+                anchorOnly
+                className="pointer-events-none absolute inset-0"
+                disabled={disabled || isLoading}
+                errors={modelsErrors}
+                isError={modelsIsError}
+                isInvalidOurModel={isInvalidSelectedModel}
+                isLoading={modelsIsLoading}
+                models={models}
+                modelURI={modelURI}
+                onAddProvider={() => {
+                  openLogin(
+                    hasToken ? { reason: "provider-required" } : undefined,
+                  );
+                }}
+                onClose={() => {
+                  setPickerOpen(false);
+                  if (modelURI) {
+                    promptEditorRef.current?.focus();
+                  }
+                }}
+                onOpenChange={(open) => {
+                  setPickerOpen(open);
+                  if (open && modelsErrors && modelsErrors.length > 0) {
+                    void modelsRefetch();
+                  }
+                }}
+                onValueChange={onModelChange}
+                open={pickerOpen}
+                selectedModel={selectedModel}
+              />
+            </div>
+          ) : undefined
+        }
+        maxHeight={maxHeight}
+        onBlur={
+          variant === "pill"
+            ? (event) => {
+                if (
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.contains(event.relatedTarget)
+                ) {
+                  return;
+                }
+                setPillFocused(false);
+              }
+            : undefined
+        }
+        onFocus={
+          variant === "pill"
+            ? () => {
+                setPillFocused(true);
+              }
+            : undefined
         }
         ref={setComposerBounds}
+        trailing={
+          variant === "pill" ? (
+            <>
+              {features.context_ring && id && selectedSessionId && (
+                <SessionContextRing
+                  id={id}
+                  model={selectedModel}
+                  selectedSessionId={selectedSessionId}
+                />
+              )}
+              <Button
+                aria-label="Send"
+                className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
+                disabled={!canSubmit}
+                onClick={handleSubmit}
+                variant="brand"
+              >
+                {isLoading ? (
+                  <Spinner className="size-4" delay={0} />
+                ) : (
+                  <ArrowUpIcon className="size-4" />
+                )}
+              </Button>
+            </>
+          ) : undefined
+        }
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
         <PromptEditor
-          actions={actions}
+          actions={slashActions}
+          apps={composerApps}
           autoFocus={autoFocus}
           bounds={composerBounds}
           defaultValue={value}
@@ -957,16 +1109,12 @@ export const PromptInput = ({
           key={draftKeyString(draftKey)}
           onChange={setValue}
           onPaste={handlePaste}
-          onSubmit={(modifierPressed) => {
-            handleSubmit(allowOpenInNewTab && modifierPressed);
-          }}
+          onSubmit={handleSubmit}
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}
         />
       </ComposerFrame>
-
-      {folderTrayPlacement === "below" && folderTray}
 
       <input
         className="hidden"
@@ -975,6 +1123,6 @@ export const PromptInput = ({
         ref={fileInputRef}
         type="file"
       />
-    </motion.div>
+    </div>
   );
 };

@@ -1,32 +1,44 @@
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export type TranscriptFormat = RPCInput["debug"]["sessionTranscript"]["format"];
+export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
+
+/** Which session a call is about, when it is not the one the hook was given. */
+interface Target {
+  /** The record the session is in, where it is not the hook's: a chat's, say. */
+  id?: TaskId;
+  label?: string;
+  sessionId: StoreId.Session;
+}
 
 /**
  * Copy and save for a session's transcript, in whichever format is asked for.
  *
  * Both go straight from the main process to the OS: the content is the largest
  * thing the app moves, and neither action has any use for it here. That also
- * keeps them callable from a menu item, with no viewer mounted and nothing
- * fetched.
+ * keeps them callable from a menu item, with nothing fetched.
+ *
+ * Saving is offered to everyone; copying is behind developer mode, so a caller
+ * outside it wants `save` alone.
  */
 export function useTranscriptActions({
   id,
+  label,
   sessionId,
 }: {
   id: TaskId;
+  /** What the saved file is named after, where the task's name is not it: a channel's, say. */
+  label?: string;
   sessionId: StoreId.Session | undefined;
 }) {
-  const showFileInFolder = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions(),
-  );
-
-  const copy = useMutation(
-    rpcClient.debug.copySessionTranscript.mutationOptions({
+  // The stable `mutate` and the flag rather than the mutation objects, which
+  // are new on every render: a list that saves through this hook memoizes on
+  // what it returns.
+  const { isPending: isCopying, mutate: copy } = useMutation(
+    rpcClient.transcript.copy.mutationOptions({
       onError: (error) => {
         toast.error("Failed to copy transcript", {
           description: error.message,
@@ -38,8 +50,8 @@ export function useTranscriptActions({
     }),
   );
 
-  const save = useMutation(
-    rpcClient.debug.saveSessionTranscript.mutationOptions({
+  const { isPending: isSaving, mutate: save } = useMutation(
+    rpcClient.transcript.save.mutationOptions({
       onError: (error) => {
         toast.error("Failed to save transcript", {
           description: error.message,
@@ -53,9 +65,9 @@ export function useTranscriptActions({
         // holds its path, so it would only be a long string to wrap.
         toast.success("Transcript saved to Downloads", {
           action: {
-            label: getRevealInFolderLabel(),
+            label: showInFolderLabel("file"),
             onClick: () => {
-              showFileInFolder.mutate({ filepath: result.filepath });
+              void showInFolder(result.filepath, { kind: "file" });
             },
           },
           description: "Path copied to clipboard",
@@ -64,17 +76,34 @@ export function useTranscriptActions({
     }),
   );
 
+  // The session and label the hook was given, or the ones a call names: a
+  // list of sessions saves any of them through one instance rather than one
+  // per row.
+  const targetOf = (target?: Target) => {
+    const name = target?.label ?? label;
+    const session = target?.sessionId ?? sessionId;
+    return session
+      ? {
+          id: target?.id ?? id,
+          sessionId: session,
+          ...(name === undefined ? {} : { label: name }),
+        }
+      : undefined;
+  };
+
   return {
-    copy: (format: TranscriptFormat) => {
-      if (sessionId) {
-        copy.mutate({ format, id, sessionId });
+    copy: (format: TranscriptFormat, target?: Target) => {
+      const input = targetOf(target);
+      if (input) {
+        copy({ format, ...input });
       }
     },
-    isCopying: copy.isPending,
-    isSaving: save.isPending,
-    save: (format: TranscriptFormat) => {
-      if (sessionId) {
-        save.mutate({ format, id, sessionId });
+    isCopying,
+    isSaving,
+    save: (format: TranscriptFormat, target?: Target) => {
+      const input = targetOf(target);
+      if (input) {
+        save({ format, ...input });
       }
     },
   };

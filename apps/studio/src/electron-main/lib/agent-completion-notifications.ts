@@ -1,13 +1,11 @@
-import { sendAppCommand } from "@/electron-main/app-command";
 import { logger } from "@/electron-main/lib/electron-logger";
-import { stripMarkdown } from "@/electron-main/lib/strip-markdown";
 import {
   type AgentCompletionNotificationMode,
-  getPreferencesStore,
-} from "@/electron-main/stores/preferences";
-import { focusMainContents } from "@/electron-main/windows/main/controls";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+  getWorkspacePreferences,
+} from "@/electron-main/stores/workspace/preferences";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
+  FILES_FENCE,
   type StoreId,
   type TaskId,
   type WorkspaceActorRef,
@@ -27,23 +25,26 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
 
+type Chat = InferRouterOutputs<typeof workspaceRouter>["chats"]["list"][number];
+type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
+
 export function shouldShowAgentCompletionNotification({
+  appWindowAvailable,
   isAppWindowFocused,
   isRootSession,
   isSupported,
-  mainWindowAvailable,
   mode,
 }: {
+  appWindowAvailable: boolean;
   isAppWindowFocused: boolean;
   isRootSession: boolean;
   isSupported: boolean;
-  mainWindowAvailable: boolean;
   mode: AgentCompletionNotificationMode;
 }) {
   if (mode === "never") {
     return false;
   }
-  if (!isRootSession || !isSupported || !mainWindowAvailable) {
+  if (!isRootSession || !isSupported || !appWindowAvailable) {
     return false;
   }
   return mode === "always" || !isAppWindowFocused;
@@ -64,9 +65,23 @@ export function showAgentCompletionTestNotification() {
 }
 
 export function startAgentCompletionNotifications({
+  hasAppWindow,
+  revealTask,
   workspaceConfig,
   workspaceRef,
 }: {
+  /** Whether there is a window for a click to bring forward. */
+  hasAppWindow: () => boolean;
+  /**
+   * What a click on a notification does. Supplied by the caller: which window
+   * a task is shown in is the app's business, and reaching the modules that
+   * answer that from here would pull every window's machinery in behind them.
+   */
+  revealTask: (task: {
+    /** A chat of the conversation, which the inbox lists by its session. */
+    isChat: boolean;
+    sessionId: StoreId.Session;
+  }) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -80,15 +95,23 @@ export function startAgentCompletionNotifications({
     sessionId: StoreId.Session;
   }) {
     const isRootSession = parentSessionId === undefined;
-    if (!canShowAgentCompletionNotification({ isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
       return;
     }
 
     const context = { workspaceConfig, workspaceRef };
 
     let taskTitle = "Task complete";
+    let isChat = false;
     try {
       const task = await call(workspaceRouter.task.byId, { id }, { context });
+      // A task the conversation started reports into its chat, and the
+      // chat's reply is the news; a notification for each would say the
+      // same thing twice, the first time in words meant for the conversation.
+      if (task.parentTaskId !== undefined) {
+        return;
+      }
+      isChat = task.kind === "orchestrator";
       taskTitle = task.title;
     } catch (error) {
       logger
@@ -103,26 +126,67 @@ export function startAgentCompletionNotifications({
         { id, sessionId },
         { context },
       );
-      body = latestAssistantText(messages);
+      body = isChat ? latestTurnText(messages) : latestAssistantText(messages);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
         .warn("Failed to read agent response for notification", error);
     }
+    if (isChat) {
+      // A chat's turn that said nothing (a task steered, a note read) is not
+      // a reply, and the user was not waiting on it.
+      if (body === undefined) {
+        return;
+      }
+      const chat = await chatOf({ context, sessionId });
+      // A reply while a task of the chat's is still at work is a step on
+      // the way: the line said before a hand-off, a task sent back. The news
+      // is the reply that leaves the chat at rest, with nothing of its own
+      // running and the next move the user's.
+      if (chat?.state === "working") {
+        return;
+      }
+      taskTitle = chat?.title ?? taskTitle;
+    }
 
     // Reading the task is asynchronous, so the window may have regained
     // focus while it was in flight.
-    if (!canShowAgentCompletionNotification({ isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
       return;
     }
 
     presentNotification({
       body,
       onClick: () => {
-        focusTask({ id, sessionId });
+        revealTask({ isChat, sessionId });
       },
       title: taskTitle,
     });
+  }
+
+  /**
+   * The chat as the inbox lists it: what its reply is filed under, and
+   * whether it is still at work, read once its own turn has ended so only its
+   * tasks count.
+   */
+  async function chatOf({
+    context,
+    sessionId,
+  }: {
+    context: {
+      workspaceConfig: WorkspaceConfig;
+      workspaceRef: WorkspaceActorRef;
+    };
+    sessionId: StoreId.Session;
+  }): Promise<Chat | undefined> {
+    try {
+      return await call(workspaceRouter.chats.byId, { sessionId }, { context });
+    } catch (error) {
+      logger
+        .scope("agentCompletionNotifications")
+        .warn("Failed to read the chat for notification", error);
+      return undefined;
+    }
   }
 
   async function subscribe() {
@@ -146,59 +210,18 @@ export function startAgentCompletionNotifications({
   void subscribe();
 }
 
-function canShowAgentCompletionNotification({
-  isRootSession,
-}: {
-  isRootSession: boolean;
-}) {
-  const mainWindow = getMainWindow();
-  return shouldShowAgentCompletionNotification({
-    isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
-    isRootSession,
-    isSupported: Notification.isSupported(),
-    mainWindowAvailable: Boolean(mainWindow && !mainWindow.isDestroyed()),
-    mode: getPreferencesStore().get("agentCompletionNotifications"),
-  });
-}
-
-function focusTask({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}) {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
-  mainWindow.show();
-  mainWindow.focus();
-  focusMainContents();
-  sendAppCommand({
-    id,
-    sessionId,
-    type: "focusTask",
-  });
-}
-
-// Reduces the last assistant turn to a short plain-text body. Notifications
-// render a couple of lines, so collapse whitespace and truncate.
-function latestAssistantText(
-  messages: InferRouterOutputs<typeof workspaceRouter>["message"]["list"],
-): string | undefined {
-  const latest = messages.findLast((message) => message.role === "assistant");
-  if (!latest) {
-    return undefined;
-  }
-
-  const raw = latest.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("");
+function bodyOf(messages: Messages): string | undefined {
+  const raw = messages
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      ),
+    )
+    .join("\n")
+    // A files fence is a list of paths for the app to draw as cards, not
+    // words to read.
+    .replaceAll(FILES_FENCE, "");
   // Notifications render no formatting, so strip Markdown before collapsing
   // whitespace to avoid showing literal syntax like ** or [text](url).
   const text = stripMarkdown(raw).replaceAll(/\s+/g, " ").trim();
@@ -210,6 +233,41 @@ function latestAssistantText(
   return text.length > MAX_NOTIFICATION_BODY_LENGTH
     ? `${text.slice(0, MAX_NOTIFICATION_BODY_LENGTH).trimEnd()}…`
     : text;
+}
+
+function canShowAgentCompletionNotification({
+  hasAppWindow,
+  isRootSession,
+}: {
+  hasAppWindow: () => boolean;
+  isRootSession: boolean;
+}) {
+  return shouldShowAgentCompletionNotification({
+    appWindowAvailable: hasAppWindow(),
+    isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
+    isRootSession,
+    isSupported: Notification.isSupported(),
+    mode: getWorkspacePreferences().get("agentCompletionNotifications"),
+  });
+}
+
+// Reduces the last assistant message to a short plain-text body. Notifications
+// render a couple of lines, so collapse whitespace and truncate.
+function latestAssistantText(messages: Messages): string | undefined {
+  const latest = messages.findLast((message) => message.role === "assistant");
+  return latest ? bodyOf([latest]) : undefined;
+}
+
+/**
+ * What a chat's turn said: every assistant message since the last thing
+ * that woke it, since a turn is one message per step and the words can sit
+ * on a step before the last. Nothing when the turn only acted.
+ */
+function latestTurnText(messages: Messages): string | undefined {
+  const turnStart = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  return bodyOf(messages.slice(turnStart + 1));
 }
 
 function presentNotification({

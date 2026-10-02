@@ -1,6 +1,6 @@
-import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import {
   isToolPart,
+  pathsNamedInMessage,
   type SessionMessage,
   type SessionMessagePart,
   type Task,
@@ -20,7 +20,6 @@ import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
 export interface RenderPartContext {
-  assetBaseUrl: string;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -29,6 +28,12 @@ export interface RenderPartContext {
   ) => boolean;
   lastMessageId: string | undefined;
   onRetry: (prompt: string) => void;
+  /**
+   * The conversation the user talks to shows its words and its questions,
+   * and nothing of its machinery: no reasoning, no command rows, no cards
+   * for the tasks it started, no notes from the harness.
+   */
+  presentation?: "chat";
   task: Task;
 }
 
@@ -67,7 +72,9 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
-            assetBaseUrl={ctx.assetBaseUrl}
+            // The conversation reads as messages: each reply in a bubble at
+            // the left, facing the user's at the right.
+            bubble={ctx.presentation === "chat"}
             key={part.metadata.id}
             part={part}
             taskId={ctx.task.id}
@@ -75,7 +82,13 @@ export function renderChatPart({
         );
       }
       case "user": {
-        return <UserMessage key={part.metadata.id} part={part} />;
+        return (
+          <UserMessage
+            compact={ctx.presentation === "chat"}
+            key={part.metadata.id}
+            part={part}
+          />
+        );
       }
       // session-context messages are filtered out before this loop, so they
       // never reach here.
@@ -104,6 +117,28 @@ export function renderChatPart({
   }
 
   if (isToolPart(part)) {
+    // What the conversation asks the user (a choice, a sign-in, a folder)
+    // and nothing else: every other call is its own business, a task it
+    // started included, since the tasks at work stand over the composer
+    // rather than in the transcript.
+    if (
+      ctx.presentation === "chat" &&
+      part.type !== "tool-choose" &&
+      part.type !== "tool-connect_app" &&
+      part.type !== "tool-request_folder"
+    ) {
+      return null;
+    }
+    // A connect the tool refused never put a card up: what it said is the
+    // agent's to fix before asking again, not the user's to read.
+    if (
+      ctx.presentation === "chat" &&
+      part.type === "tool-connect_app" &&
+      part.state === "output-available" &&
+      part.output.state === "failure"
+    ) {
+      return null;
+    }
     const streaming = ctx.isToolStreaming(part, message);
     if (
       !isToolCallVisible({
@@ -119,7 +154,6 @@ export function renderChatPart({
     // stream's, not this row's.
     return (
       <ToolCall
-        assetBaseUrl={ctx.assetBaseUrl}
         isActivityRunning={isGroupWorking && ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
         // A part can carry a start with no end long after the run that wrote it
@@ -136,6 +170,9 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
+    if (ctx.presentation === "chat") {
+      return null;
+    }
     // Whether the run is still writing into this block. Anything after it means
     // the model has moved on, whatever the part's own state says: a provider can
     // hold a reasoning block's end event until the step finishes, and a row that
@@ -167,9 +204,7 @@ export function renderChatPart({
     return null;
   }
 
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- defensive guard: the schema could emit a `file` part the type union treats as unreachable
   if (part.type === "file") {
-    // eslint-disable-next-line no-console
     console.warn("File part not supported yet", part);
     return null;
   }

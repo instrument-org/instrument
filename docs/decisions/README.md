@@ -10,7 +10,15 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
-| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) |
+| 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) |
+| 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
+| 2026-09-19 | [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md) |
+| 2026-09-11 | [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md) |
+| 2026-09-10 | [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md) |
+| 2026-09-10 | [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md) |
+| 2026-09-09 | [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md) |
+| 2026-09-08 | [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md) |
+| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08 and 2026-09-09 |
 | 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
 | 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) |
 | 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |

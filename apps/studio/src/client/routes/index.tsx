@@ -2,10 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
-    // The main window renders MainWindow directly and never mounts this
-    // router, so only the onboarding window reaches here.
     const to =
-      window.api.windowType === "onboarding" ? "/onboarding" : "/new-tab";
+      window.api.windowType === "onboarding" ? "/onboarding" : "/chats";
     // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({ to });
   },

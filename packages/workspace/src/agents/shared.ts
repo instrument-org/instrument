@@ -1,10 +1,14 @@
+import fs from "node:fs/promises";
 import { dedent, sift } from "radashi";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import { contextDateKey, formatContextDate } from "../lib/context-date";
 import { fileTree } from "../lib/file-tree";
+import { generateTreeString } from "../lib/generate-tree-string";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getSystemInfo } from "../lib/get-system-info";
 import { isToolPart } from "../lib/is-tool-part";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
@@ -98,18 +102,27 @@ export function getSystemInfoText() {
   const now = getCurrentDate();
   return dedent`
     <system_info>
-    The user's computer: ${getSystemInfo()}. Their files and apps belong to this system, and so does anything you write for them to run. It is not where your own commands run.
-    Your shell: POSIX with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
+    The user's computer: ${getSystemInfo()}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.
+    Your shell: a sandboxed POSIX shell with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
     </system_info>
   `.trim();
 }
 
+/**
+ * The task's files as a tree, or nothing when there is nothing to show: a
+ * task holding only the scaffold every task starts with is described by the
+ * prompt's Task Folder section already, and a tree of it says so again.
+ */
 export async function getTaskLayoutContext(dir: AbsolutePath) {
   const fileTreeResult = await fileTree(dir);
+  const scaffold = await scaffoldTree();
 
   return fileTreeResult.match(
-    (tree) => dedent`
+    (tree) =>
+      tree === scaffold
+        ? ""
+        : dedent`
       <task_layout>
       This is the current task directory structure. All files and folders shown below exist right now. This structure will not update during the conversation, but should be considered accurate at the start.
       \`\`\`plaintext
@@ -119,6 +132,21 @@ export async function getTaskLayoutContext(dir: AbsolutePath) {
     `,
     () => "",
   );
+}
+
+/**
+ * Who the agent is working for, when someone is signed in: their name, so a
+ * reply can address them and a service reached under their account is read
+ * as theirs, and the email that account goes by. Nothing while signed out,
+ * and nothing when the account cannot be read, since a guessed name is worse
+ * than none. A startup snapshot like the rest of the context, so a session
+ * opened before a sign-in never learns the name.
+ */
+export async function getUserText(): Promise<string | undefined> {
+  const user = await getWorkspaceConfig().getUser?.();
+  return user
+    ? `The user's name is ${user.name}, signed in as ${user.email}.`
+    : undefined;
 }
 
 export function shouldContinueWithToolCalls({
@@ -139,4 +167,20 @@ export function shouldContinueWithToolCalls({
   return Promise.resolve(
     lastAssistantMessage.parts.some((part) => isToolPart(part)),
   );
+}
+
+/** What a fresh task's tree renders as: the template's files and the two empty folders. */
+async function scaffoldTree() {
+  let templateFiles: string[] = [];
+  try {
+    templateFiles = await fs.readdir(
+      getWorkspaceConfig().defaultTaskTemplateDir,
+    );
+  } catch {
+    // No template to compare against reads as no scaffold, so the tree shows.
+  }
+  return generateTreeString(templateFiles, [
+    TASK_FOLDER_NAMES.attachments,
+    TASK_FOLDER_NAMES.work,
+  ]);
 }

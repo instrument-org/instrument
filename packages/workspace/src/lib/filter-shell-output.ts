@@ -8,8 +8,21 @@ import { normalizePath } from "./normalize-path";
  * user nor the password segment may contain `/`, so a path segment ending in
  * `@` (`https://host/a@b`) cannot match. The user segment may be empty:
  * `https://:token@host` is the usual spelling for a token with no username.
+ *
+ * The scheme run is length-bounded, which is what keeps this linear. Unbounded,
+ * the engine starts a greedy run at every character of every line and backtracks
+ * the whole way looking for `://`, so cost grows with the square of the line
+ * length: a 16 KB line of minified JS or base64 took ~400 ms, and a 64 KB one
+ * several seconds.
+ *
+ * The bound does not narrow what is redacted. A match may still begin mid-token,
+ * which is what covers a URL glued to the text before it (`-https://u:p@h`), and
+ * `https` sits directly against `://`, so some start position inside the bound
+ * always exists. Anchoring to a token boundary instead would be faster still and
+ * would let exactly those glued spellings through.
  */
-const URL_USERINFO_PATTERN = /([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
+const URL_USERINFO_PATTERN =
+  /([a-z][\w+.-]{0,31}:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
 
 /**
  * git's credential protocol writes `password=<secret>` on its own line, which
@@ -21,13 +34,18 @@ const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
  * `rewriteSeparators` turns every backslash in the output into a forward slash,
  * so paths printed by a Windows-native tool stay usable as tool path inputs. It
  * cannot tell a separator from any other backslash, so it also rewrites escape
- * sequences, regex literals, and matched file contents. Callers whose output is
- * already POSIX pass false rather than pay that.
+ * sequences, regex literals, and matched file contents: JSON printed by a
+ * script comes back with every `\n` spelled `/n`, which reads as corrupted
+ * data and sends an agent hunting for the corruption. So it defaults on only
+ * where those paths exist. On a posix host every backslash in output is
+ * content, and callers there whose output is already POSIX pass false anyway.
  */
 export function filterShellOutput(
   output: string,
   dir: TaskDir,
-  { rewriteSeparators = true }: { rewriteSeparators?: boolean } = {},
+  {
+    rewriteSeparators = process.platform === "win32",
+  }: { rewriteSeparators?: boolean } = {},
 ): string {
   let filtered = redactHostPaths(output, dir);
 
@@ -35,7 +53,11 @@ export function filterShellOutput(
   // `https://token@host`), the form a token reaches git, curl, and package
   // managers in. Without this a token the agent put in a remote or a fetch URL
   // echoes back through progress output, `git remote -v`, and auth errors.
-  filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
+  // The pattern cannot match without `://`, and a scan for that literal is
+  // several times cheaper than the regex on output of tens of megabytes.
+  if (filtered.includes("://")) {
+    filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
+  }
   filtered = filtered.replaceAll(CREDENTIAL_FIELD_PATTERN, "$1=***");
 
   if (rewriteSeparators) {

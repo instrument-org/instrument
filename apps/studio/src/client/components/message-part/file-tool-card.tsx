@@ -1,11 +1,11 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { useTaskPaneActions } from "../../hooks/use-task-pane";
+import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { CodeBlock } from "../code-block";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { useToolCallSession } from "./tool-call-session";
 import {
@@ -39,7 +39,7 @@ export function FileToolCard({
 
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;
@@ -48,7 +48,7 @@ export function FileToolCard({
     if (modifiedAt === undefined) {
       return;
     }
-    openFiles([filePath]);
+    showTaskFile(filePath);
   };
 
   if (!content) {
@@ -59,9 +59,9 @@ export function FileToolCard({
     <ToolCard>
       <ToolCardHeader className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <FileIcon
+          <FileTypeIcon
             className="size-3 shrink-0 text-muted-foreground"
-            filename={filename}
+            fileName={filename}
           />
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}
@@ -78,7 +78,7 @@ export function FileToolCard({
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
               onClick={handleExpand}
-              tooltip="Open in panel"
+              tooltip="Open"
               variant="ghost"
             />
           </ToolCardActions>

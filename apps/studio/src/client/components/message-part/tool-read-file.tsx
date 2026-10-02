@@ -4,9 +4,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { useTaskPaneActions } from "../../hooks/use-task-pane";
+import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { filenameFromFilePath } from "../../lib/path-utils";
-import { FileIcon } from "../file-icon";
+import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
@@ -177,22 +177,22 @@ function ReadFileCard({
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
       return;
     }
-    openFiles([filePath]);
+    showTaskFile(filePath);
   };
 
   return (
     <div className="relative mt-2 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <FileIcon
+          <FileTypeIcon
             className="size-3 shrink-0 text-muted-foreground"
-            filename={filename}
+            fileName={filename}
           />
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}
@@ -209,7 +209,7 @@ function ReadFileCard({
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
               onClick={handleExpand}
-              tooltip="Open in panel"
+              tooltip="Open"
               variant="ghost"
             />
           </ToolCardActions>

@@ -12,7 +12,13 @@ import type { KnipConfig } from "knip";
 const projectFiles = "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,css}!";
 
 const config: KnipConfig = {
-  ignore: ["registry/**/*", ".agents/skills/**/*", ".claude/skills/**/*"],
+  // The 2.0 wireframe kit's .js files are page scripts build.mjs reads as text, not modules.
+  ignore: [
+    "registry/**/*",
+    ".agents/skills/**/*",
+    ".claude/skills/**/*",
+    ".agents/wireframe-kit/*.js",
+  ],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
   rules: {
@@ -20,12 +26,11 @@ const config: KnipConfig = {
   },
   workspaces: {
     ".": {
-      entry: ["scripts/*.ts!"],
+      entry: ["scripts/*.ts!", ".agents/wireframe-kit/*.{ts,mjs}!"],
       ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
         "tailwindcss", // Runtime dependency of oxlint-tailwindcss
-        "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
         "chrome-devtools-mcp", // Used in .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh
       ],
     },
@@ -38,16 +43,16 @@ const config: KnipConfig = {
         "src/client/main.tsx!",
         "src/electron-main/index.ts!",
         "src/electron-preload/index.ts!",
+        // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
+        "src/page-editor-guest/preload.ts!",
+        "src/page-editor-guest/editor/index.ts!",
         "electron.vite.config.ts!",
         "src/index.html!",
-        // Browser build: reached through Vite aliases, which knip cannot follow.
-        "web/index.html!",
-        "web/src/mock-rpc.ts!",
-        "web/src/shims/*.ts!",
         "electron-builder.ts!",
         "validate-env.ts!",
       ],
       ignoreBinaries: [
+        "magick", // System ImageMagick used to generate the Windows folder icon
         "tail",
         "op",
         "gh",
@@ -70,12 +75,6 @@ const config: KnipConfig = {
     "packages/ai-gateway": {
       project: [projectFiles, "!src/test/**!"],
     },
-    "packages/eslint-config": {
-      ignore: ["ignore.ts"],
-    },
-    "packages/shim-client": {
-      entry: ["src/client/index.ts!"],
-    },
     "packages/typescript-config": {},
     "packages/workspace": {
       // The eval and script trees are reached through package.json scripts, which
@@ -83,7 +82,17 @@ const config: KnipConfig = {
       // The default run calls `evals/cli.ts!` redundant for that reason: keep it.
       entry: ["__mocks__/*", "evals/cli.ts!", "scripts/*.ts!"],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["which", "ldd", "xcode-select"],
+      ignoreBinaries: [
+        "which",
+        "ldd",
+        "ps",
+        "security",
+        "taskkill",
+        "xcode-select",
+      ],
+      ignoreDependencies: [
+        "@types/json-schema", // Types the ai package's JSONSchema7 re-export, never imported by name
+      ],
       project: [projectFiles, "!src/test/**!"],
     },
   },

@@ -40,7 +40,7 @@ Adopt the shape most mature chat renderers converge on: **raw items → derived 
 
 ## Non-goals
 
-- **No custom virtualization.** MessageScroller already owns scrolling and anchoring and stays fast into the thousands of turns. Keep the data pipeline; do not build a virtualizer.
+- **No virtual list.** MessageScroller already owns scrolling and anchoring and stays fast into the thousands of turns once they are on screen. Putting a long transcript on screen is the slow part; [transcript-virtualization.md](transcript-virtualization.md) handles that by swapping far turns for placeholders inside the scroller's own items rather than replacing the scroller.
 - Not a visual redesign. Rows should render the same components they render today; this is a structural refactor of how we get from data to elements.
 
 ## Suggested migration path (incremental)

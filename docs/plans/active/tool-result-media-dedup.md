@@ -33,7 +33,7 @@ Resolution happens at the two readers: model-message conversion inlines the byte
 
 **Where the bytes live.** The task database is a key-value store accessed by prefix scans (`messages:`, `parts:`, `sessions:`), so a `blobs:<hash>` prefix would never be touched by a message read, which is most of the win and keeps export working unchanged, since the export carries one database file. The alternative is files under the task's private directory, which streams better and is easier to serve, at the cost of teaching export and import about a second location. Decide with `conversation-storage.md`, since a conversation-scoped store would answer both.
 
-**How the renderer gets bytes.** Today they arrive inline on the part over IPC. With a reference it needs either a small RPC that resolves a hash, or a route on the per-task asset origin. The asset origin's path space is the virtual filesystem's, and the private directory is masked there, so a blob route would be a deliberate addition rather than a free one.
+**How the renderer gets bytes.** Today they arrive inline on the part over IPC. With a reference it needs either a small RPC that resolves a hash, or a route on the file channel (`instrument://computer-<token>`). The file channel reads by host path and refuses the private directory, so a blob route would be a deliberate addition rather than a free one.
 
 **Reading old parts.** Existing tasks hold inline bytes on disk. The read path has to keep understanding them: this is stored user data, not unreleased code, and a task that fails to open costs the person whose task it was. Write references, read both, and treat a rewriting migration as a separate decision rather than a prerequisite.
 

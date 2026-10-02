@@ -4,6 +4,7 @@ export * from "./file-extensions";
 export * from "./folder-paths";
 export * from "./is-network-error";
 export * from "./listen-with-port-fallback";
+export * from "./page-edit-address";
 export * from "./schemas";
 export type * from "./types/telemetry";
 export * from "./types/workspace";

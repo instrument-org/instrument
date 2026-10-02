@@ -1,16 +1,40 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { isMediaFile } from "@/client/lib/get-file-type";
-import { parseFilesBlock } from "@/client/lib/parse-files-block";
-import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
+import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
+import { cn } from "@/client/lib/utils";
+import {
+  isAddressableTaskFilePath,
+  isFolderPath,
+  isMessageDocument,
+  type MessageDraft,
+  nameOfPath,
+  parseFilesBlock,
+  parseMessage,
+} from "@instrument-org/workspace/client";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { useQueries } from "@tanstack/react-query";
+import { fork } from "radashi";
 import { useContext } from "react";
 
-import { FilesGrid } from "./files-grid";
+import { FileTypeIcon } from "./extend/file-system";
+import { FolderRowCard } from "./file-preview-card";
+import { FilesGrid, ROW_CARD_GRID } from "./files-grid";
+import { FilesLayoutContext } from "./files-layout-context";
+import { MacFolderIcon } from "./icons/mac-folder";
 import { MarkdownTaskContext } from "./markdown-task-context";
+import { MessageCard } from "./message-card";
 
 /**
  * Renders a ```files fence: the files the agent chose to show, in the order it
- * listed them.
+ * listed them. A line ending in a slash is a folder, which is how a reply
+ * hands over a set of files at once rather than a set of lines.
  *
  * This is the agent's own presentation, so it is not the change list. It shows
  * what the agent named and nothing it did not, wherever the file lives -- which
@@ -21,20 +45,27 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * without asking disk whether the file is there. A transcript is a record of
  * what a reply handed over, and whether those bytes still exist is a question
  * with a different answer every minute; the honest time to ask it is when
- * someone acts on the file. An image answers it for free -- the asset origin is
- * a static file server, so the thumbnail either loads or 404s onto the fallback
- * card.
+ * someone acts on the file. An image answers it for free -- the file channel it
+ * loads from is a static file server, so the thumbnail either loads or 404s onto
+ * the fallback card.
  *
  * The id rides in the URL because two replies naming one path that was
  * rewritten between them would otherwise ask for the same URL, and the renderer
  * hands the second one the picture it already decoded for the first. That is
  * how a reply reporting a change draws the file as it was before it.
  */
-export function AgentFilesBlock({ content }: { content: string }) {
+export function AgentFilesBlock({
+  className,
+  content,
+}: {
+  /** Replaces the block's own margins, for a column that spaces its rows itself. */
+  className?: string;
+  content: string;
+}) {
   const { isStreaming } = useContext(MarkdownTaskContext);
 
-  // A fence still arriving ends mid-path: the model has typed `output/ch` of
-  // `output/chart.png`, and an optimistic card would be drawn and replaced on
+  // A fence still arriving ends mid-path: the model has typed `work/ch` of
+  // `work/chart.png`, and an optimistic card would be drawn and replaced on
   // every further keystroke. A line is finished once a newline follows it.
   const lineBreak = content.lastIndexOf("\n");
   const settledContent =
@@ -60,7 +91,13 @@ export function AgentFilesBlock({ content }: { content: string }) {
           )
       : undefined;
 
-  return <FilePathsGrid paths={paths} pendingFilePath={pendingPath} />;
+  return (
+    <FilePathsGrid
+      className={className}
+      paths={paths}
+      pendingFilePath={pendingPath}
+    />
+  );
 }
 
 /**
@@ -72,42 +109,208 @@ export function AgentFilesBlock({ content }: { content: string }) {
  * indistinguishable should not be two pieces of code.
  */
 export function FilePathsGrid({
+  className,
   paths,
   pendingFilePath,
 }: {
+  /** Replaces the grid's own margins, for a column that spaces its rows itself. */
+  className?: string;
   paths: string[];
   pendingFilePath?: string;
 }) {
-  const { assetBaseUrl, assetVersion, taskId } =
-    useContext(MarkdownTaskContext);
+  const { assetVersion, taskId } = useContext(MarkdownTaskContext);
+  const layout = useContext(FilesLayoutContext);
+  const showTaskFile = useShowTaskFile(taskId);
+  const [folderPaths, filePaths] = fork(paths, isFolderPath);
+  // The reply names files as the task knows them; the screen shows them by
+  // where they are. A file the task cannot reach, or one not yet translated,
+  // is drawn as its line and nothing more.
+  const hostPaths = useHostPaths(taskId, filePaths);
+  const messages = useMessageFiles(
+    filePaths.flatMap((path) => {
+      const hostPath = hostPaths[path];
+      return hostPath && /\.md$/i.test(path)
+        ? [
+            {
+              path,
+              url: getComputerFileUrl({ hostPath, version: assetVersion }),
+            },
+          ]
+        : [];
+    }),
+  );
 
   if (
     taskId === undefined ||
-    assetBaseUrl === undefined ||
     (paths.length === 0 && pendingFilePath === undefined)
   ) {
     return null;
   }
 
-  const files = paths.map<TaskFileViewerFile>((filePath) => ({
-    filename: filePath.split("/").at(-1) ?? filePath,
-    filePath,
-    taskId,
-    url: getAssetUrl({
-      assetBase: assetBaseUrl,
-      filePath,
-      version: assetVersion,
-    }),
-  }));
+  // A message file is words to send, so it is the card, not a tile: drawn
+  // above the rest, and left out of them.
+  const messageCards = messages.map(({ message, path }) => (
+    <MessageCard
+      file={{
+        name: nameOfPath(path),
+        open: () => {
+          showTaskFile(path);
+        },
+      }}
+      key={path}
+      message={message}
+    />
+  ));
+  const isMessage = (path: string) =>
+    messages.some((entry) => entry.path === path);
+
+  const fileOf = (filePath: string): undefined | ViewerFile => {
+    const hostPath = hostPaths[filePath];
+    if (!hostPath) {
+      return;
+    }
+    return {
+      filename: nameOfPath(filePath),
+      hostPath,
+      taskFile: { filePath, taskId },
+      url: getComputerFileUrl({ hostPath, version: assetVersion }),
+    };
+  };
+
+  // Folders and files interleave here, because a line is a line and the order
+  // is the reply's. The grid below cannot: it lays its files out by shape, so
+  // the folders take a row of their own above them.
+  if (layout === "list") {
+    return (
+      <div className={cn("not-prose my-2 flex flex-col gap-1", className)}>
+        {messageCards}
+        {paths
+          .filter((path) => !isMessage(path))
+          .map((path) =>
+            isFolderPath(path) ? (
+              <FolderLine
+                key={path}
+                onClick={() => {
+                  showTaskFile(path);
+                }}
+                path={path}
+              />
+            ) : (
+              <FileLine
+                file={fileOf(path)}
+                key={path}
+                onClick={() => {
+                  showTaskFile(path);
+                }}
+                path={path}
+              />
+            ),
+          )}
+      </div>
+    );
+  }
 
   return (
-    <div className="not-prose my-4">
+    <div className={cn("not-prose my-4 flex flex-col gap-2", className)}>
+      {messageCards}
+      {folderPaths.length > 0 && (
+        <div className="@container">
+          <div className={ROW_CARD_GRID} data-slot="files-grid-cards">
+            {folderPaths.map((path) => (
+              <div data-slot="files-grid-card" key={path}>
+                <FolderRowCard
+                  onClick={() => {
+                    showTaskFile(path);
+                  }}
+                  path={path}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <FilesGrid
-        files={files}
+        files={filePaths
+          .filter((path) => !isMessage(path))
+          .map(fileOf)
+          .filter((file) => file !== undefined)}
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
     </div>
+  );
+}
+
+/**
+ * One file as a line: the shape a fence takes in the conversation's narrow
+ * column. The kind beside the name is the one the row cards say ("Text file",
+ * "Markdown"), and a file that is no longer there says so in its place, the
+ * line staying where the reply put it. A file with no place on the computer
+ * yet is the line alone, since there is nothing to ask after.
+ */
+function FileLine({
+  file,
+  onClick,
+  path,
+}: {
+  file: undefined | ViewerFile;
+  onClick: () => void;
+  path: string;
+}) {
+  const filename = nameOfPath(path);
+  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file?.url);
+  const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
+  // A missing file opens nothing, so the line stops being a control: a press
+  // that could only end in an error is not offered.
+  return (
+    <button
+      className={cn(
+        "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs",
+        isMissing ? "opacity-60" : "hover:bg-accent/50",
+      )}
+      disabled={isMissing}
+      onAuxClick={onAuxClick}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      ref={ref}
+      type="button"
+    >
+      <FileTypeIcon className="size-4" fileName={filename} />
+      <span className="min-w-0 flex-1 truncate">{filename}</span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">
+        {isMissing ? FILE_MISSING_LABEL : getFileKindLabel({ filename })}
+      </span>
+      {!isMissing && (
+        <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+      )}
+    </button>
+  );
+}
+
+/**
+ * One folder as a line, beside the files of the same fence: the mark a folder
+ * wears everywhere else in the app, its name, and the word for what it is
+ * where a file says its kind.
+ *
+ * The origin is not asked. It serves files, so a folder has no answer there,
+ * and the answer it gives instead is a 404 -- which is a line reading "Missing"
+ * over a folder that is sitting right where the reply said it was.
+ */
+function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
+  const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
+  return (
+    <button
+      className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+      onAuxClick={onAuxClick}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      type="button"
+    >
+      <MacFolderIcon className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
+      <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -124,4 +327,30 @@ function isDrawablePath(path: string): boolean {
     isAddressableTaskFilePath(path) &&
     (path.includes("/") || /\.[a-z0-9]{1,8}$/i.test(path))
   );
+}
+
+/**
+ * The Markdown files a fence names that are messages, read to find out. A
+ * file is only drawn as one once its text has said so; until then, and when it
+ * is a document, it is a tile like any other.
+ */
+function useMessageFiles(
+  files: { path: string; url: string }[],
+): { message: MessageDraft; path: string }[] {
+  const texts = useQueries({
+    queries: files.map(({ url }) => ({
+      queryFn: async () => {
+        const response = await fetch(url);
+        return response.ok ? response.text() : "";
+      },
+      queryKey: ["file-text", url],
+      retry: false,
+    })),
+  });
+  return files.flatMap(({ path }, index) => {
+    const text = texts[index]?.data;
+    return text !== undefined && isMessageDocument(text)
+      ? [{ message: parseMessage(text), path }]
+      : [];
+  });
 }

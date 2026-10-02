@@ -6,28 +6,39 @@ import {
 } from "@/electron-main/auth/client";
 import { renderAuthPage, testStates } from "@/electron-main/auth/page";
 import { setAuthServerPort } from "@/electron-main/auth/state";
+import {
+  announceConnected,
+  APP_OAUTH_CALLBACK_PATH,
+  appHome,
+  appName,
+  getAppsDir,
+} from "@/electron-main/lib/apps";
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import {
+  CHATGPT_CALLBACK_PATH,
+  receiveChatGPTCallback,
+} from "@/electron-main/lib/chatgpt-plan";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { getSessionStore } from "@/electron-main/stores/session";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
+import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
+import {
+  cancelMcpOAuth,
+  completeMcpOAuth,
+  pendingMcpOAuthSlug,
+  recordConnection,
+  workspacePublisher,
+} from "@instrument-org/workspace/electron";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
 
 function focusAppWindow() {
-  // Prefer the onboarding window if it's currently open (first-run login).
-  // Otherwise fall back to the main window (login from inside the app).
-  const onboardingWindow = getOnboardingWindow();
-  const target =
-    onboardingWindow && !onboardingWindow.isDestroyed()
-      ? onboardingWindow
-      : getMainWindow();
-  if (target && !target.isDestroyed()) {
+  const target = getForegroundWindow();
+  if (target) {
     if (target.isMinimized()) {
       target.restore();
     }
@@ -132,7 +143,9 @@ async function start() {
     serveAsset(
       c,
       () => import("../../../resources/favicon.ico?asset"),
-      "image/x-icon",
+      // The file is a PNG under an .ico name, and Safari draws nothing for
+      // one served as an icon file.
+      "image/png",
     ),
   );
   app.get("/tailwind.js", (c) =>
@@ -198,7 +211,7 @@ async function start() {
           onSuccess(ctx) {
             const authToken = ctx.response.headers.get("set-auth-token");
             sessionStore.set("apiBearerToken", authToken);
-            getAppStateStore().set("hasCompletedProviderSetup", true);
+            getWorkspaceState().set("hasCompletedProviderSetup", true);
           },
         },
       );
@@ -229,6 +242,99 @@ async function start() {
     setTimeout(focusAppWindow, 400);
     captureServerEvent("auth.logged_in");
     return c.html(renderAuthPage({}));
+  });
+
+  // An app's sign-in lands here after the user approves. Finish the parked
+  // flow (the code becomes tokens, the app becomes connected), then tell the
+  // window and the orchestrator. The page opened in the window's own browser,
+  // so this renders where the user is looking rather than pulling focus.
+  app.get(APP_OAUTH_CALLBACK_PATH, async (c) => {
+    const code = c.req.query("code");
+    const state = c.req.query("state");
+    const oauthError = c.req.query("error");
+    const appsDir = getAppsDir();
+    if (
+      state !== undefined &&
+      (oauthError !== undefined || code === undefined)
+    ) {
+      // Denied or abandoned in the provider's page: the flow is torn down and
+      // the conversation hears a decline, the same as "Not now" on the card.
+      const slug = pendingMcpOAuthSlug(state);
+      await cancelMcpOAuth(state);
+      if (slug !== undefined && appsDir) {
+        await recordConnection(slug, { status: "declined" });
+        workspacePublisher.publish("app.updated", null);
+        workspacePublisher.publish("app.event", {
+          event: "declined",
+          name: await appName(appsDir, slug),
+          slug,
+        });
+      }
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    if (code === undefined || state === undefined) {
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    const slug = pendingMcpOAuthSlug(state);
+    const result = await completeMcpOAuth({ code, state });
+    if (result.isErr()) {
+      captureServerException(
+        new Error(`App sign-in failed: ${result.error.message}`),
+        { scopes: ["auth"] },
+      );
+      if (slug !== undefined && appsDir) {
+        await recordConnection(slug, {
+          error: result.error.message,
+          status: "failed",
+        });
+        workspacePublisher.publish("app.updated", null);
+        workspacePublisher.publish("app.event", {
+          detail: result.error.message,
+          event: "failed",
+          name: await appName(appsDir, slug),
+          slug,
+        });
+      }
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    const name = appsDir
+      ? await appName(appsDir, result.value.slug)
+      : result.value.slug;
+    if (appsDir) {
+      await announceConnected(appsDir, result.value.slug);
+    }
+    // A sign-in that ran in the window's own browser lands on the service
+    // itself, signed in: the connection is visible where it matters, and no
+    // page of ours is left in the tab. One that ran in the user's browser
+    // gets a page that says what happened and the way back into the app.
+    const home = appsDir
+      ? await appHome(appsDir, result.value.slug)
+      : undefined;
+    if (result.value.opensIn === "app" && home) {
+      return c.redirect(home);
+    }
+    return c.html(renderAuthPage({ signedInTo: name }));
+  });
+
+  // Sign in with ChatGPT lands here. The sign-in is finished before the page
+  // renders, so it says whether the plan is ready, and the window comes back
+  // to the front because the browser it ran in is the user's own.
+  app.get(CHATGPT_CALLBACK_PATH, async (c) => {
+    const finished = receiveChatGPTCallback(new URL(c.req.url).searchParams);
+    if (!finished) {
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    const status = await finished.catch((error: unknown) => {
+      captureServerException(
+        new Error("ChatGPT sign-in failed", { cause: error }),
+        { scopes: ["auth"] },
+      );
+      return;
+    });
+    focusAppWindow();
+    return status?.state === "signed-in"
+      ? c.html(renderAuthPage({ signedInTo: "Your ChatGPT plan" }))
+      : c.html(renderAuthPage({ isError: true }), 400);
   });
 
   app.get("/test", (c) =>

@@ -44,7 +44,6 @@ export function createErrorClientInterceptor<
         return overlayProxy(
           output,
           mapEventIterator(output, {
-            // oxlint-disable-next-line typescript/require-await
             error: async (error) => {
               /**
                * DON'T treat aborted signal as error if happen during business logic,

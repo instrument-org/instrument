@@ -86,7 +86,47 @@ const MIGRATIONS: StoreMigration[] = [
       });
     },
   },
+  {
+    // A conversation in the 2.0 window was a thread before it was a chat.
+    name: "chat parts say chat",
+    run: async ({ storage }) => {
+      await eachStoredPart(storage, (part) => {
+        if (!isRecord(part.data)) {
+          return UNCHANGED;
+        }
+        if (part.type === "data-threadContext") {
+          const { threads, ...rest } = part.data;
+          return replaceWith({
+            ...part,
+            data: { ...rest, chats: threads },
+            type: "data-chatContext",
+          });
+        }
+        if (part.type === "data-threadTopics") {
+          return replaceWith({ ...part, type: "data-chatTopics" });
+        }
+        if (
+          part.type === "data-viewContext" &&
+          (part.data.screen === "thread" || "thread" in part.data)
+        ) {
+          const { thread, ...rest } = part.data;
+          return replaceWith({
+            ...part,
+            data: {
+              ...rest,
+              ...(thread === undefined ? {} : { chat: thread }),
+              screen: rest.screen === "thread" ? "chat" : rest.screen,
+            },
+          });
+        }
+        return UNCHANGED;
+      });
+    },
+  },
 ];
+
+/** How many migrations this build applies, which is the shape its stores are read in. */
+export const STORE_MIGRATION_COUNT = MIGRATIONS.length;
 
 /**
  * Brings a task's database up to date, if it is behind.

@@ -10,6 +10,7 @@ import {
   buildTranscriptLayout,
   generatedGroupHeading,
   groupCanExpand,
+  groupHasHeading,
   groupStandInRowId,
   isVisibleAssistantPart,
   planRow,
@@ -246,7 +247,7 @@ function draw(
     if (rowId === undefined) {
       return;
     }
-    const indent = group.headingRowId === undefined ? "" : "  ";
+    const indent = groupHasHeading(group) ? "  " : "";
     lines.push(`> ${indent}${labels.get(rowId) ?? rowId}`);
   };
 
@@ -272,11 +273,17 @@ function draw(
             .filter(Boolean)
             .join(" "),
         );
-        // With no heading of its own, the copy is the group's head line.
+        // With no heading, the copy is the group's head line; under a
+        // generated one it follows the heading, the one line the group
+        // always draws.
         if (group.headingRowId === undefined) {
           standIn(group);
         }
       }
+    }
+    // Held in the group without drawing anything.
+    if (row.isHeld) {
+      continue;
     }
     const { isHidden, isIndented } = planRow({ group, isExpanded, row });
     lines.push(
@@ -526,7 +533,7 @@ describe("groups the agent named", () => {
         these are older than I expected
       ~
       --- inferred working
-      > two
+      >   two
       ·   two"
     `);
   });
@@ -793,7 +800,56 @@ describe("groups the agent never named", () => {
 });
 
 describe("while the agent is working", () => {
-  it("heads an unannounced run with a copy of the call the queue reached", () => {
+  // A batch of calls streams in one after another and waits for the queue, so
+  // which of the run's steps draws changes at every moment of it, and for a
+  // moment none does. The run is one group under one id through all of it:
+  // opened on another row, it would be drawn afresh, and with no row it would
+  // leave the transcript.
+  it("holds one group through a batch of calls streaming in and queuing", () => {
+    const frames: Spec[][] = [
+      [["blank-thinking", "pondering"]],
+      [
+        ["blank-thinking", "pondering"],
+        ["running", "one"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["queued", "one"],
+        ["running", "two"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["queued", "one"],
+        ["queued", "two"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["running", "one"],
+        ["queued", "two"],
+      ],
+    ];
+
+    expect(
+      frames.map((specs) => {
+        const { labels, layout } = build([{ role: "assistant", specs }], {
+          isAgentRunning: true,
+        });
+        return [...layout.groups.values()]
+          .map((group) => `${labels.get(group.id) ?? ""} ${group.phase}`)
+          .join(", ");
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "pondering working",
+        "pondering working",
+        "pondering working",
+        "pondering working",
+        "pondering working",
+      ]
+    `);
+  });
+
+  it("heads an unannounced run with the working clock and the call the queue reached under it", () => {
     expect(
       draw(
         [
@@ -810,7 +866,7 @@ describe("while the agent is working", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > two
+      >   two
       ·   one
       ·   two"
     `);
@@ -832,7 +888,6 @@ describe("while the agent is working", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > two
           two
           three"
     `);
@@ -900,7 +955,7 @@ describe("while the agent is working", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > weighing it up
+      >   weighing it up
       ·   one
       ·   weighing it up"
     `);
@@ -1111,7 +1166,7 @@ describe("a reasoning part the run died inside of", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > cut off
+      >   cut off
       ·   one
       ·   cut off"
     `);

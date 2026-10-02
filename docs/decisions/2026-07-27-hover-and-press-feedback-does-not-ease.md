@@ -28,7 +28,7 @@ The same reasoning rules out a global stylesheet override that zeroes durations 
 
 ## Consequences
 
-- Adding `transition-colors` is a lint error (`no-restricted-syntax` in the Studio ESLint config), pointing at the alternatives. This is the part that keeps the sweep from decaying, since nothing else would stop a new component from reintroducing a ramp.
+- Adding `transition-colors` is a lint error (`studio/no-transition-colors` in the Studio oxlint plugin), pointing at the alternatives. This is the part that keeps the sweep from decaying, since nothing else would stop a new component from reintroducing a ramp.
 - `transition-all` is deliberately **not** banned. It still carries real motion on the progress fill and the switch, where it animates transform and layout rather than feedback.
 - A transition utility with no `duration-*` is not a bug. It uses Tailwind's genuine 150ms default, which is what a reader expects.
 - Focus rings still ease. They appear on keyboard focus, have nothing to do with click latency, and a hard-snapping ring is harsher than a fading one.
@@ -38,4 +38,4 @@ The same reasoning rules out a global stylesheet override that zeroes durations 
 
 - [Shared toggle and toolbar chrome, where only the outline eases](../../apps/studio/src/client/components/ui/toggle.tsx)
 - [Button, narrowed from `transition-all`](../../apps/studio/src/client/components/ui/button.tsx)
-- [The lint rule that rejects `transition-colors`](../../apps/studio/eslint.config.ts)
+- [The lint rule that rejects `transition-colors`](../../apps/studio/oxlint-rules.ts)

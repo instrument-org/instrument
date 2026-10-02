@@ -54,7 +54,7 @@ const everySlot: ModelMessage[] = [
           type: "content",
           value: [
             { text: "caption", type: "text" },
-            { data: "b2xk", mediaType: "image/png", type: "media" },
+            { data: "b2xk", mediaType: "image/png", type: "file-data" },
             { data: "b2xk", mediaType: "image/png", type: "image-data" },
             { data: "b2xk", mediaType: "application/pdf", type: "file-data" },
             { type: "image-url", url: "https://example.com/chart.png" },
@@ -247,7 +247,9 @@ describe("mapModelMessageParts", () => {
           {
             output: {
               type: "content",
-              value: [{ data: "b2xk", mediaType: "image/png", type: "media" }],
+              value: [
+                { data: "b2xk", mediaType: "image/png", type: "file-data" },
+              ],
             },
             toolCallId: "call-1",
             toolName: "read_file",
@@ -301,7 +303,7 @@ describe("mapModelMessageParts", () => {
                   {
                     "data": "bmV3",
                     "mediaType": "image/webp",
-                    "type": "media",
+                    "type": "file-data",
                   },
                 ],
               },

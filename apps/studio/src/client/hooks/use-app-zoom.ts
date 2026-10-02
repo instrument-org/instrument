@@ -4,9 +4,9 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { useAtomValue } from "jotai";
 
 /**
- * Merges the current main-window zoom into a style object, for a Radix portal's own
+ * Merges the current window zoom into a style object, for a Radix portal's own
  * Content element. Radix portals to `document.body`, outside the zoomed
- * MainWindow root, so floating content (Dialog/Popover/DropdownMenu/etc.)
+ * window root, so floating content (Dialog/Popover/DropdownMenu/etc.)
  * doesn't inherit CSS `zoom` from an ancestor. Each of those primitives
  * applies this directly to its own positioned Content instead:
  * `top`/`left`/`transform` resolve against the (unzoomed) containing block, so
@@ -17,9 +17,9 @@ import { useAtomValue } from "jotai";
  * Interim: floating-ui doesn't yet correct positioning for CSS `zoom` on an
  * ancestor (https://github.com/floating-ui/floating-ui/issues/3032, fix
  * https://github.com/floating-ui/floating-ui/pull/3463 unmerged), so we can't
- * just zoom the MainWindow root and let portals inherit it. Once that lands and
+ * just zoom the window root and let portals inherit it. Once that lands and
  * Radix bumps to it, drop this hook and the per-content `zoom` and zoom only the
- * MainWindow root.
+ * window root.
  *
  * Also exposes `--content-zoom` for sizing the zoomed element, which needs one
  * distinction held firmly:
@@ -42,6 +42,21 @@ export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
     zoom: zoom === 1 ? undefined : zoom,
     ...style,
   } as CSSProperties;
+}
+
+/**
+ * `left`/`top` for an element inside the zoomed root that has to land on a point
+ * measured in window coordinates: where a pointer event happened
+ * (`event.clientX`/`clientY`) or an edge read off `getBoundingClientRect()`.
+ *
+ * Those are on-screen px, while a length on a descendant of `ZoomRoot` is layout
+ * px that the root's `zoom` scales back up, so the raw value lands `zoom x` from
+ * the window's corner -- exact at the 1x default, and off by half a window at
+ * 2x. Dividing by the zoom is what puts the element under the pointer.
+ */
+export function useWindowPointStyle(point: { x: number; y: number }) {
+  const zoom = useAtomValue(zoomAtom);
+  return { left: point.x / zoom, top: point.y / zoom };
 }
 
 /** Breathing room kept between portalled content and the window edge. */

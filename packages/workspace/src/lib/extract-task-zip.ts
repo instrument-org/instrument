@@ -13,7 +13,7 @@ import { TypedError } from "./errors";
 import { normalizePath } from "./normalize-path";
 
 // Extracts a task zip into outputDir, verifying it contains task settings.
-// Shared by importTask (RPC) and the dump-session-transcript script.
+// Used by the dump-session-transcript and record-fixture-session scripts.
 const TASK_SETTINGS_ZIP_PATH = `${TASK_FOLDER_NAMES.private}/${TASK_SETTINGS_FILE_NAME}`;
 
 export async function extractTaskZip({

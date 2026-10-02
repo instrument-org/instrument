@@ -18,6 +18,7 @@ import { createActor } from "xstate";
 
 import { type TaskId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
@@ -108,6 +109,7 @@ const registryDir = env.APP_REGISTRY_DIR_PATH
 const actor = createActor(workspaceMachine, {
   input: {
     aiGatewayApp,
+    apps: createMemoryAppsConfig(),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: (...args: unknown[]) => {
@@ -121,6 +123,8 @@ const actor = createActor(workspaceMachine, {
       "../templates/default",
     ),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
+    isActivityHeadingsEnabled: () =>
+      process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
@@ -131,9 +135,6 @@ const actor = createActor(workspaceMachine, {
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
-    // Uncomment to test built shim
-    // shimClientDir: path.resolve("../shim-client/dist"),
-    shimClientDir: "dev-server",
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(

@@ -1,61 +1,39 @@
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useTaskSession } from "@/client/hooks/use-task-session";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { useCallback } from "react";
 
-import { TaskExternalLink } from "./task-external-link";
-
-// Only a web page has two places it could go. `mailto:` and every other scheme
-// the OS resolves to an app has exactly one, and offering the task's browser
-// for those would be offering to open a page that does not exist.
-const isWebPage = (href: string) => /^https?:\/\//i.test(href);
-
+/**
+ * A link to a page, answering the gestures every openable thing answers.
+ *
+ * A click opens the page in the app wherever the surface has a place for it
+ * (the tab or the chat it was clicked in), and in the OS browser only where
+ * nothing in the app is; a middle or Cmd-click opens a tab of its own; a right
+ * click offers the rest, the OS browser included. The anchor keeps its href so
+ * the URL is inspectable and copyable; the navigation it would do belongs to
+ * the gestures.
+ */
 export function ExternalLink(
   props: React.ComponentProps<"a"> & {
     addReferral?: boolean;
   },
 ) {
   const { addReferral = true, className, href, onClick, ...rest } = props;
-
-  const { sessionId, taskId } = useTaskSession();
-  const openExternalLink = useOpenExternalLink();
-
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      if (href) {
-        openExternalLink(href, { addReferral });
-      }
-      onClick?.(event);
-    },
-    [addReferral, onClick, openExternalLink, href],
+  const gestures = useOpenGestures(
+    { kind: "page", url: href ?? "" },
+    { addReferral },
   );
 
-  // Inside a task a web page has two places it can go, and which one is wanted
-  // follows from what the reader is doing at that moment rather than from a
-  // setting picked once, so the click asks. Everywhere else in the app -- and
-  // for anything that is not a web page -- there is only the one answer.
-  if (href && taskId && sessionId && isWebPage(href)) {
-    return (
-      <TaskExternalLink
-        {...rest}
-        addReferral={addReferral}
-        className={className}
-        href={href}
-        onClick={onClick}
-        sessionId={sessionId}
-        taskId={taskId}
-      />
-    );
-  }
-
   return (
-    // eslint-disable-next-line no-restricted-syntax
+    // oxlint-disable-next-line studio/no-raw-anchor
     <a
       {...rest}
       className={cn("cursor-pointer!", className)}
       href={href}
-      onClick={handleClick}
+      onAuxClick={gestures.onAuxClick}
+      onClick={(event) => {
+        gestures.onClick(event);
+        onClick?.(event);
+      }}
+      onContextMenu={gestures.onContextMenu}
     />
   );
 }

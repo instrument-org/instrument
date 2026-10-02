@@ -84,31 +84,11 @@ describe("formatAcceleratorFor", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "closeTab: ⌘ W  /  Ctrl W",
-        "commandMenu: ⌘ K  /  Ctrl K",
-        "findInPage: ⌘ F  /  Ctrl F",
-        "goBack: ⌘ [  /  Ctrl [",
-        "goForward: ⌘ ]  /  Ctrl ]",
-        "newTab: ⌘ T  /  Ctrl T",
-        "newTask: ⌘ N  /  Ctrl N",
         "reloadApp: ⇧ ⌘ R  /  Ctrl Shift R",
-        "reloadPage: ⌘ R  /  Ctrl R",
-        "reopenTab: ⇧ ⌘ T  /  Ctrl Shift T",
-        "resetZoom: ⌘ 0  /  Ctrl 0",
-        "selectLastTab: ⌘ 9  /  Ctrl 9",
-        "selectNextTab: ⌃ Tab  /  Ctrl Tab",
-        "selectPreviousTab: ⌃ ⇧ Tab  /  Ctrl Shift Tab",
-        "selectTabByIndex: ⌘ 1…8  /  Ctrl 1…8",
         "settings: ⌘ ,  /  Ctrl ,",
-        "shortcutGuide: ?  /  ?",
         "themeDark: ⇧ ⌘ D  /  Ctrl Shift D",
         "themeLight: ⇧ ⌘ L  /  Ctrl Shift L",
         "themeSystem: ⇧ ⌘ M  /  Ctrl Shift M",
-        "toggleFullscreen: ⌃ ⌘ F  /  F11",
-        "toggleSidebar: ⌘ B  /  Ctrl B",
-        "toggleTaskPane: ⌥ ⌘ B  /  Ctrl Alt B",
-        "zoomIn: ⌘ +  /  Ctrl +",
-        "zoomOut: ⌘ -  /  Ctrl -",
       ]
     `);
   });

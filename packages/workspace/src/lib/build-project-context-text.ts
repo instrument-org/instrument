@@ -46,7 +46,7 @@ export function buildProjectContextText({
 
     The instructions above are \`${MOUNT.project}/${PROJECT_INSTRUCTIONS_FILE_NAME}\`, and the project's folder is mounted read-and-write at \`${MOUNT.project}/\`. Editing that file changes the standing instructions for every task in this project, so only do that when the user asks you to.
 
-    Everything in \`${MOUNT.project}/\` outlives this task, so it is not where this task's work goes: scripts, scratch, and intermediate files belong in \`${F.work}/\`, and finished deliverables in \`${F.output}/\`, the same as outside a project. Deleting a task takes its folder with it and leaves anything here behind, so a file put here without a reason to outlive the task is one nobody will clean up. Write here for something meant to apply to the project's later tasks as well: a convention to follow, a note worth having next time. Something the user asked you to produce is this task's result and belongs in \`${F.output}/\`, even when they mention the project while asking for it.
+    Everything in \`${MOUNT.project}/\` outlives this task, so it is not where this task's work goes: scripts, scratch, intermediate files, and what you build belong in \`${F.work}/\`, and a finished file goes where the brief said, the same as outside a project. Deleting a task takes its folder with it and leaves anything here behind, so a file put here without a reason to outlive the task is one nobody will clean up. Write here for something meant to apply to the project's later tasks as well: a convention to follow, a note worth having next time. Something the user asked you to produce is this task's result and goes where the brief said, even when they mention the project while asking for it.
     </project_instructions>
   `.trim();
 }

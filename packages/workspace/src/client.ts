@@ -2,7 +2,6 @@ export type { AgentName } from "./agents/types";
 export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";

@@ -1,7 +1,6 @@
 import {
   type PromptDraftKey,
   promptDraftRefAtom,
-  useHydrateTaskDraft,
 } from "@/client/atoms/prompt-value";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -35,6 +34,7 @@ import {
 import { toast } from "sonner";
 
 import { ChatStream, TypingRow } from "../chat-stream";
+import { ComposerDraftContext } from "../composer-draft-context";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { ReplyContext } from "../reply-context";
 import { ComposerReplyQuote } from "../reply-quote";
@@ -85,8 +85,7 @@ export function TaskChat({
   beforeComposer,
   composerLead,
   composerPlaceholder,
-  draftKey: draftKeyOfSurface,
-  promptDraft,
+  draftKey,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
@@ -112,13 +111,8 @@ export function TaskChat({
   composerLead?: ReactNode;
   /** What the empty composer says, when the window knows better than the app's name does. */
   composerPlaceholder?: string;
-  /**
-   * Which draft the composer edits. The task's own, stored with it, unless
-   * this chat is one of several over the same task: a chat's composer takes
-   * a key of its own, or it would share the top-level field's words.
-   */
-  draftKey?: PromptDraftKey;
-  promptDraft: string;
+  /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
+  draftKey: PromptDraftKey;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
   /**
@@ -142,16 +136,6 @@ export function TaskChat({
 }) {
   const appWindow = useContext(WindowContext);
   const id = task.id;
-  const draftKey: PromptDraftKey = draftKeyOfSurface ?? {
-    scope: "task",
-    taskId: id,
-  };
-
-  // The route does not render until the task's state has loaded, so the stored
-  // draft is in hand on the composer's very first render rather than arriving
-  // after it. The stored draft is the task's whichever key this composer edits
-  // by: seeding it once is what any composer on the task's own key reads.
-  useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -431,120 +415,122 @@ export function TaskChat({
   // of a turn to land. Alive rather than running, so a turn paused for approval
   // still follows.
   return (
-    <ReplyContext value={startReply}>
-      <MessageScrollerProvider
-        autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
-        defaultScrollPosition="end"
-        key={selectedSessionId}
-        scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
-      >
-        {/* The session is part of the signal: arriving in a conversation puts
+    <ComposerDraftContext value={draftKey}>
+      <ReplyContext value={startReply}>
+        <MessageScrollerProvider
+          autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
+          defaultScrollPosition="end"
+          key={selectedSessionId}
+          scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
+        >
+          {/* The session is part of the signal: arriving in a conversation puts
         you at its live edge the way opening one does, and switching chats
         is arriving. Without it the transcript kept whatever offset the
         previous chat happened to leave behind. The messages landing is the
         other part: they are read after the conversation mounts, and the end
         of a spinner is not the end of the chat. */}
-        <ScrollToEndBridge
-          contentRef={contentRef}
-          signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
-        />
-        <div className="flex h-full min-h-0 flex-col">
-          <MessageScroller className="min-h-0 flex-1">
-            {/* Named so a block inside a message can measure the pane rather
+          <ScrollToEndBridge
+            contentRef={contentRef}
+            signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
+          />
+          <div className="flex h-full min-h-0 flex-col">
+            <MessageScroller className="min-h-0 flex-1">
+              {/* Named so a block inside a message can measure the pane rather
               than the column it sits in, and `--transcript-room` declared one
               level in, where `100cqi` resolves against that container. A wide
               Markdown table is the only reader today. */}
-            <MessageScrollerViewport
-              className="@container/transcript"
-              data-transcript
-            >
-              <MessageScrollerContent
-                className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]"
-                ref={contentRef}
+              <MessageScrollerViewport
+                className="@container/transcript"
+                data-transcript
               >
-                {selectedSessionId ? (
-                  sentPrompt !== undefined && messages.length === 0 ? (
-                    <SentPrompt
-                      sessionId={selectedSessionId}
-                      text={sentPrompt}
-                    />
-                  ) : isLoadingMessages ? (
-                    <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                      <Spinner
-                        className="size-4 text-muted-foreground"
-                        delay={0}
+                <MessageScrollerContent
+                  className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]"
+                  ref={contentRef}
+                >
+                  {selectedSessionId ? (
+                    sentPrompt !== undefined && messages.length === 0 ? (
+                      <SentPrompt
+                        sessionId={selectedSessionId}
+                        text={sentPrompt}
                       />
-                    </div>
-                  ) : messageError ? (
-                    <Alert className="mt-4" variant="warning">
-                      <AlertDescription className="flex flex-col gap-4">
-                        <div className="font-semibold">
-                          Failed to load messages
-                        </div>
-                        <div className="text-sm">
-                          {messageError.message || "Unknown error occurred"}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={() => refetch()}>Retry</Button>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  ) : !isAgentRunning && shownMessages.length === 0 ? (
-                    <NoMessages />
+                    ) : isLoadingMessages ? (
+                      <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                        <Spinner
+                          className="size-4 text-muted-foreground"
+                          delay={0}
+                        />
+                      </div>
+                    ) : messageError ? (
+                      <Alert className="mt-4" variant="warning">
+                        <AlertDescription className="flex flex-col gap-4">
+                          <div className="font-semibold">
+                            Failed to load messages
+                          </div>
+                          <div className="text-sm">
+                            {messageError.message || "Unknown error occurred"}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={() => refetch()}>Retry</Button>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ) : !isAgentRunning && shownMessages.length === 0 ? (
+                      <NoMessages />
+                    ) : (
+                      <TranscriptStream
+                        isAgentRunning={isAgentRunning}
+                        isDeveloperMode={isDeveloperMode}
+                        messages={shownMessages}
+                        onContinue={handleContinue}
+                        onModelChange={setSelectedModelURI}
+                        onRetry={handleRetry}
+                        onRunAgain={handleRunAgain}
+                        presentation="chat"
+                        task={task}
+                      />
+                    )
                   ) : (
-                    <TranscriptStream
-                      isAgentRunning={isAgentRunning}
-                      isDeveloperMode={isDeveloperMode}
-                      messages={shownMessages}
-                      onContinue={handleContinue}
-                      onModelChange={setSelectedModelURI}
-                      onRetry={handleRetry}
-                      onRunAgain={handleRunAgain}
-                      presentation="chat"
-                      task={task}
-                    />
-                  )
-                ) : (
-                  <NoMessages />
-                )}
-                {transcriptTrailing}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
+                    <NoMessages />
+                  )}
+                  {transcriptTrailing}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
 
-            <TranscriptTopFade />
+              <TranscriptTopFade />
 
-            {/* Fade the transcript into the composer with a background gradient
+              {/* Fade the transcript into the composer with a background gradient
               rather than a viewport mask, so the scrollbar stays crisp. The
               right inset clears the scrollbar; the content column is centered
               and padded, so its text stays fully within the fade. */}
-            <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
+              <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-              <MessageScrollerButton
-                busy={isAgentRunning}
-                className="pointer-events-auto"
-              />
-            </div>
-          </MessageScroller>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
+                <MessageScrollerButton
+                  busy={isAgentRunning}
+                  className="pointer-events-auto"
+                />
+              </div>
+            </MessageScroller>
 
-          {/* isolate: keep the prompt input's z-10 contained to the composer. */}
-          <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
-            {/* Inside the column rather than above it, so it is exactly as wide
+            {/* isolate: keep the prompt input's z-10 contained to the composer. */}
+            <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
+              {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
-            {beforeComposer}
-            {replyTo && (
-              <ComposerReplyQuote
-                onDismiss={() => {
-                  setReplyTo(undefined);
-                }}
-                reply={replyTo}
-              />
-            )}
-            {promptInput}
+              {beforeComposer}
+              {replyTo && (
+                <ComposerReplyQuote
+                  onDismiss={() => {
+                    setReplyTo(undefined);
+                  }}
+                  reply={replyTo}
+                />
+              )}
+              {promptInput}
+            </div>
           </div>
-        </div>
-      </MessageScrollerProvider>
-    </ReplyContext>
+        </MessageScrollerProvider>
+      </ReplyContext>
+    </ComposerDraftContext>
   );
 }
 

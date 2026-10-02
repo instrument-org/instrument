@@ -34,7 +34,7 @@ const RENAME_RETRY_STEP_MS = 20;
  *   pin, unread, project, timestamps. The task list reads it for every task in
  *   the workspace, and a future cross-task index projects exactly these and is
  *   rebuilt from them.
- * - `state` is where the user left off *inside* one task -- draft, open tabs,
+ * - `state` is where the user left off *inside* one task -- open tabs,
  *   chosen model, attached folders. Read when a task is open, never queried
  *   across tasks, and nothing will ever index it.
  *
@@ -46,7 +46,7 @@ const RENAME_RETRY_STEP_MS = 20;
  * `updateTaskSettings` publishes `task.updated` itself, waking the whole list;
  * the state writers leave `task.stateUpdated` to their callers. That looks
  * sloppy and is not, because it makes the dangerous direction unreachable: no
- * state write can wake the task list, so a draft or a tab cannot reorder the
+ * state write can wake the task list, so a model pick or a tab cannot reorder the
  * sidebar the way a file mtime once did. The opposite mistake, forgetting to
  * publish after a state write, costs a panel that does not refresh until
  * something else does.
@@ -70,8 +70,8 @@ export interface TaskRecord {
    * Reads answer empty for it, the same answer a task with no file gets, since
    * a caller asking for a title has nothing better to show. Writes must not:
    * that empty answer plus whatever the caller is changing *becomes* the file,
-   * so a draft keystroke would replace a title, a project, a pin and every open
-   * tab with one field.
+   * so a model pick would replace a title, a pin and every open tab with one
+   * field.
    */
   unreadable: boolean;
 }
@@ -92,7 +92,7 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
  * Reads both views, each tolerant of the other failing.
  *
  * They are parsed separately on purpose. A state written by a newer build, or a
- * draft holding something the schema rejects, must not cost the task its title
+ * field holding something the schema rejects, must not cost the task its title
  * and its place in the list -- and a title that cannot be read must not cost the
  * attached folders that decide what the agent can reach.
  */
@@ -137,7 +137,7 @@ export async function updateTaskRecord(
     const current = await readTaskRecord(dir);
     if (current.unreadable) {
       // The write builds on what was read, and what was read is empty. Failing
-      // the caller costs a draft or a tab; going ahead costs everything the
+      // the caller costs a model pick or a tab; going ahead costs everything the
       // file holds, and leaves nothing to repair it from.
       throw new TypedError.FileSystem(
         `Refusing to overwrite an unreadable task record at ${recordPath(dir)}`,
@@ -264,8 +264,8 @@ export async function renameWhenAllowed(
 /**
  * Writes through a temporary file and renames it into place.
  *
- * One file now carries the title, the sort key and the draft, and the draft is
- * rewritten as the user types. Writing over the live file leaves a window where
+ * One file carries the title, the sort key and the state, and the state is
+ * rewritten as the user works. Writing over the live file leaves a window where
  * a crash truncates it, and a truncated file does not read as damaged: the
  * parse fails, the task answers as though it has no settings, and it loses its
  * name and its position in the list. Rename is atomic within a directory, so a

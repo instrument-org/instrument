@@ -68,7 +68,7 @@ export function updateTaskSettings(
         ),
     );
 
-    // Only the settings view publishes this. A draft or a tab is a change to
+    // Only the settings view publishes this. A model pick or a tab is a change to
     // the same file and no business of the task list, so its writers publish
     // `task.stateUpdated` instead and the list is not woken by them.
     publisher.publish("task.updated", {

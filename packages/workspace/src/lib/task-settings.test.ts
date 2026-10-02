@@ -59,14 +59,14 @@ describe("updateTaskSettings", () => {
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
-    await setTaskState(taskDir(taskId), { promptDraft: "half typed" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "half typed" });
 
     await updateTaskSettings(taskId, { name: "Renamed" });
 
     const state = await getTaskState(taskDir(taskId));
     const settings = await getTaskSettings(taskDir(taskId));
 
-    expect(state.promptDraft).toBe("half typed");
+    expect(state.selectedModelURI).toBe("half typed");
     expect(settings?.name).toBe("Renamed");
   });
 

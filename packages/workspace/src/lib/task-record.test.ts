@@ -68,13 +68,13 @@ describe("readTaskRecord", () => {
   it("keeps the state when the settings cannot be read", async () => {
     await writeRecordFile({
       name: { not: "a string" },
-      state: { promptDraft: "half a sentence" },
+      state: { selectedModelURI: "half a sentence" },
     });
 
     const record = await readTaskRecord(taskDir(taskId));
 
     expect(record.settings).toBeUndefined();
-    expect(record.state.promptDraft).toBe("half a sentence");
+    expect(record.state.selectedModelURI).toBe("half a sentence");
   });
 
   it("answers empty for a file that is not JSON, rather than throwing", async () => {
@@ -132,10 +132,10 @@ describe("updateTaskRecord", () => {
   it("carries forward an unreadable field inside the state too", async () => {
     await writeRecordFile({
       name: "Test task",
-      state: { futureNested: "keep me", promptDraft: "before" },
+      state: { futureNested: "keep me", selectedModelURI: "before" },
     });
 
-    await setTaskState(taskDir(taskId), { promptDraft: "after" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "after" });
 
     const written: unknown = JSON.parse(
       await fs.readFile(recordPath(), "utf8"),
@@ -143,19 +143,19 @@ describe("updateTaskRecord", () => {
 
     expect(written).toEqual({
       name: "Test task",
-      state: { futureNested: "keep me", promptDraft: "after" },
+      state: { futureNested: "keep me", selectedModelURI: "after" },
     });
   });
 
   // What the empty answer to a failed read costs if a write is allowed to build
   // on it: the record read as though the task had nothing, so the write would
-  // have been the title, the pin and the tabs replaced by one draft.
+  // have been the title, the pin and the tabs replaced by one model choice.
   it("refuses to replace a record it could not read", async () => {
     await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
     await fs.writeFile(recordPath(), '{ "name": "Test task", "state', "utf8");
 
     await expect(
-      setTaskState(taskDir(taskId), { promptDraft: "new draft" }),
+      setTaskState(taskDir(taskId), { selectedModelURI: "new draft" }),
     ).rejects.toThrow(/unreadable task record/);
 
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
@@ -166,27 +166,27 @@ describe("updateTaskRecord", () => {
   // The other half of the same rule: nothing to lose is not the same as
   // something we cannot read, and a task's first write has to land.
   it("creates the record for a task that has no file yet", async () => {
-    await setTaskState(taskDir(taskId), { promptDraft: "first draft" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "first draft" });
 
     const record = await readTaskRecord(taskDir(taskId));
 
-    expect(record.state.promptDraft).toBe("first draft");
+    expect(record.state.selectedModelURI).toBe("first draft");
   });
 
   it("takes writes again once the unreadable record is repaired", async () => {
     await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated", "utf8");
     await expect(
-      setTaskState(taskDir(taskId), { promptDraft: "refused" }),
+      setTaskState(taskDir(taskId), { selectedModelURI: "refused" }),
     ).rejects.toThrow();
 
     await writeRecordFile({ name: "Repaired" });
-    await setTaskState(taskDir(taskId), { promptDraft: "accepted" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "accepted" });
 
     const record = await readTaskRecord(taskDir(taskId));
 
     expect(record.settings?.name).toBe("Repaired");
-    expect(record.state.promptDraft).toBe("accepted");
+    expect(record.state.selectedModelURI).toBe("accepted");
   });
 
   it("leaves no temporary file behind", async () => {
@@ -207,7 +207,7 @@ describe("updateTaskRecord", () => {
 
     const write = updateTaskRecord(taskDir(taskId), (record) => ({
       ...record.raw,
-      state: { promptDraft: long },
+      state: { selectedModelURI: long },
     }));
     for (let index = 0; index < 20; index++) {
       reads.push(fs.readFile(recordPath(), "utf8"));
@@ -236,11 +236,11 @@ describe("updateTaskRecord", () => {
       await rename(from, to);
     });
 
-    await setTaskState(taskDir(taskId), { promptDraft: "landed" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "landed" });
 
     const record = await readTaskRecord(taskDir(taskId));
 
-    expect(record.state.promptDraft).toBe("landed");
+    expect(record.state.selectedModelURI).toBe("landed");
   });
 
   it("reports a failure that waiting cannot clear, without waiting", async () => {
@@ -249,7 +249,7 @@ describe("updateTaskRecord", () => {
       .mockRejectedValue(heldFileError("EXDEV"));
 
     await expect(
-      setTaskState(taskDir(taskId), { promptDraft: "lost" }),
+      setTaskState(taskDir(taskId), { selectedModelURI: "lost" }),
     ).rejects.toThrow(/EXDEV/);
 
     expect(rename).toHaveBeenCalledTimes(1);
@@ -263,13 +263,13 @@ describe("updateTaskRecord", () => {
       })),
       updateTaskRecord(taskDir(taskId), (record) => ({
         ...record.raw,
-        state: { promptDraft: "drafted" },
+        state: { selectedModelURI: "drafted" },
       })),
     ]);
 
     const record = await readTaskRecord(taskDir(taskId));
 
     expect(record.settings?.name).toBe("Named");
-    expect(record.state.promptDraft).toBe("drafted");
+    expect(record.state.selectedModelURI).toBe("drafted");
   });
 });

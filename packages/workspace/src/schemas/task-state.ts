@@ -16,10 +16,10 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-// Where the user left off in a task: the draft they were typing, the model
-// they picked, the folders attached. Per-task and read on
-// open, never queried across tasks -- which is what separates it from the
-// settings around it, and why it is one nested key rather than a flat spread.
+// Where the user left off in a task: the model they picked, the folders
+// attached. Per-task and read on open, never queried across tasks -- which is
+// what separates it from the settings around it, and why it is one nested key
+// rather than a flat spread.
 export const StoredTaskStateSchema = z
   .object({
     // The apps whose guide this task has read, so `app request` hands the
@@ -27,7 +27,6 @@ export const StoredTaskStateSchema = z
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTabs: z.array(HeldTabSchema).optional(),
-    promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
   })
   .default(() => ({}));
@@ -40,7 +39,6 @@ export const TaskStateSchema = z.object({
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
   browserTabs: z.array(HeldTabSchema).optional(),
-  promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
 });
 

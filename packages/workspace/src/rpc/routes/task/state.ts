@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
 import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
 import { folderReach } from "../../../lib/chat/folder-reach";
 import { taskDir } from "../../../lib/task-dir-utils";
@@ -31,24 +30,10 @@ const set = base
   .handler(async ({ input }) => {
     const taskId = input.id;
 
-    const stateToSave = { ...input.state };
+    await setTaskState(taskDir(taskId), input.state);
 
-    if (
-      stateToSave.promptDraft &&
-      stateToSave.promptDraft.length > MAX_PROMPT_STORAGE_LENGTH
-    ) {
-      delete stateToSave.promptDraft;
-    }
-
-    await setTaskState(taskDir(taskId), stateToSave);
-
-    // What reads the state back listens for this, so a write has to push. A
-    // draft is not: it is seeded once with the rest of the task's state and
-    // never read again, so publishing one would wake every reader of this task
-    // once a second while someone types.
-    if (Object.keys(stateToSave).some((key) => key !== "promptDraft")) {
-      publisher.publish("task.stateUpdated", { id: taskId });
-    }
+    // What reads the state back listens for this, so a write has to push.
+    publisher.publish("task.stateUpdated", { id: taskId });
   });
 
 /**

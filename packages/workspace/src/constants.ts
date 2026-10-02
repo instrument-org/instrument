@@ -82,6 +82,4 @@ export const AGENT_NEEDS_LANGUAGE = "needs";
  */
 export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
 
-// Limit prompt storage to 50KB to avoid blowing up the JSON file
-export const MAX_PROMPT_STORAGE_LENGTH = 50_000;
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

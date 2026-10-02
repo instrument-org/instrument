@@ -104,7 +104,7 @@ describe("getTaskState", () => {
       },
     });
 
-    await setTaskState(taskDir(taskId), { promptDraft: "anything" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "anything" });
 
     const written = await fs.readFile(recordFilePath(), "utf8");
     expect(written).toContain('"mountName": "Home-Downloads"');
@@ -123,13 +123,13 @@ describe("the state beside the settings", () => {
 
     await Promise.all([
       updateTaskSettings(taskId, { name: "Generated title" }),
-      setTaskState(taskDir(taskId), { promptDraft: "half a thought" }),
+      setTaskState(taskDir(taskId), { selectedModelURI: "half a thought" }),
     ]);
 
     const settings = await getTaskSettings(taskDir(taskId));
     const state = await getTaskState(taskDir(taskId));
 
     expect(settings?.name).toBe("Generated title");
-    expect(state.promptDraft).toBe("half a thought");
+    expect(state.selectedModelURI).toBe("half a thought");
   });
 });

@@ -1261,7 +1261,13 @@ function FileVisual({
       file={{ name: file.name, type: file.contentType ?? "" }}
       isLoading={isLazyPagePending}
       previewAspectRatio={resolvedAspectRatio}
-      previewClassName={cn("bg-white dark:bg-neutral-100", previewClassName)}
+      // Previews are drawn on white, as a page is. The white is the image's
+      // own backing so it arrives with the image; on the box it would sit
+      // under the loading placeholder and show through as the image fades in.
+      previewClassName={cn(
+        "[&>img]:bg-white dark:[&>img]:bg-neutral-100",
+        previewClassName,
+      )}
       previewContent={
         previewUrl || isLazyPagePending
           ? undefined

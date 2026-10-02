@@ -24,6 +24,10 @@ function cx(...classes: Array<string | false | null | undefined>) {
 // remount thumbnails; URLs in this set render instantly instead of replaying
 // the blur-in, so only an image's first load animates.
 const revealedPreviewImageUrls = new Set<string>();
+// An image that arrives this soon after its tile mounts was already on hand
+// (the HTTP cache after a reload, mostly), so it is shown as it is rather than
+// faded in over a placeholder that was only up for a frame or two.
+const INSTANT_REVEAL_MS = 300;
 // The shape of every preview image that has loaded this session, width over
 // height by URL. A file's own shape is not in its manifest, so the box a
 // preview is drawn in starts as a page and takes the image's shape once the
@@ -53,13 +57,16 @@ export function useNaturalAspectRatio(
     previewImageUrl ? naturalAspectRatios.get(previewImageUrl) : undefined,
   );
 }
+// Pulses over the preview box's own muted fill rather than adding fills of
+// its own: muted is a translucent white in dark mode, and stacked layers of
+// it read as a bright tile. It fades in only once INSTANT_REVEAL_MS has
+// passed, so an image that is on hand never shows it.
 function FileThumbnailLoadingOverlay() {
   return (
     <div
       aria-hidden="true"
-      className="absolute inset-0 z-10 overflow-hidden bg-muted"
+      className="absolute inset-0 z-10 animate-in duration-300 fade-in-0 [animation-delay:300ms] [animation-fill-mode:backwards]"
     >
-      <div className="absolute inset-0 bg-muted" />
       <div className="absolute inset-0 animate-pulse bg-background/55 motion-reduce:animate-none" />
     </div>
   );
@@ -77,6 +84,10 @@ export function FileThumbnail({
 }: FileThumbnailProps) {
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const revealFrameRef = React.useRef<number | null>(null);
+  const mountedAtRef = React.useRef(performance.now());
+  const [instantPreviewImageUrl, setInstantPreviewImageUrl] = React.useState<
+    string | null
+  >(null);
   const [loadedPreviewImageUrl, setLoadedPreviewImageUrl] = React.useState<
     string | null
   >(() =>
@@ -117,6 +128,11 @@ export function FileThumbnail({
         recordNaturalAspectRatio(imageUrl, image);
         revealedPreviewImageUrls.add(imageUrl);
         cancelImageReveal();
+        if (performance.now() - mountedAtRef.current < INSTANT_REVEAL_MS) {
+          setInstantPreviewImageUrl(imageUrl);
+          setLoadedPreviewImageUrl(imageUrl);
+          return;
+        }
         revealFrameRef.current = window.requestAnimationFrame(() => {
           revealFrameRef.current = window.requestAnimationFrame(() => {
             setLoadedPreviewImageUrl(imageUrl);
@@ -169,6 +185,7 @@ export function FileThumbnail({
             className={cx(
               "absolute inset-0 block size-full object-cover transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100",
+              instantPreviewImageUrl === previewImageUrl && "transition-none",
             )}
             onLoad={(event) => {
               markImageLoaded(event.currentTarget, previewImageUrl);

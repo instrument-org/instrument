@@ -121,7 +121,7 @@
         "property": "open"
       }
     ],
-    "react/exhaustive-deps": "warn",
+    "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "studio/no-raw-anchor": "error",
     "studio/no-router-link": "error",

@@ -69,7 +69,7 @@ const TAB_MOTION = {
 } as React.CSSProperties;
 
 // What the tab being read stands on: the page's own surface, lifted off the
-// bar as a card, the way the classic window draws its selected tab. A tint of
+// bar as a card, the way a browser draws its selected tab. A tint of
 // the bar's own hue sat too close to the bar to read as chosen.
 const SELECTED = {
   backgroundColor: "var(--background)",

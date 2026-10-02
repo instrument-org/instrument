@@ -78,8 +78,8 @@ const TAB_CHORDS: WindowChord[] = [
 ];
 
 /**
- * The inbox column put away and brought back, on the chord the classic
- * window keeps for its sidebar: the column is this window's sidebar.
+ * The inbox column put away and brought back, on the usual sidebar chord:
+ * the column is this window's sidebar.
  */
 const VIEW_CHORDS: WindowChord[] = [
   chord("toggleInbox"),

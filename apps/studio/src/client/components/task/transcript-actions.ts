@@ -31,7 +31,7 @@ export function useTranscriptActions({
 }: {
   /** The record the session is in; absent where every call names its own. */
   id?: TaskId;
-  /** What the saved file is named after, where the task's name is not it: a channel's, say. */
+  /** What the saved file is named after, where the task's name is not it: a chat's title, say. */
   label?: string;
   sessionId: StoreId.Session | undefined;
 }) {

@@ -657,7 +657,7 @@ export namespace SessionMessageDataPart {
         selected: z.array(z.string()).default([]),
       })
       .optional(),
-    /** The kind of page open on the Ideas screen: a template of the page skill. */
+    /** The kind of page open on the Discover screen: a template of the page skill. */
     idea: z
       .object({
         /** The template's folder name under the page skill's `templates/`. */
@@ -685,9 +685,9 @@ export namespace SessionMessageDataPart {
       "apps",
       "browser",
       "computer",
+      "discover",
       "file",
       "home",
-      "ideas",
       "skills",
       "task",
       "tasks",

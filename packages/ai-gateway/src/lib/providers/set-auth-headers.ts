@@ -2,10 +2,22 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
 
+/**
+ * Every header a provider reads a key from. A caller's copy of any of them is
+ * the gateway's own key, never the provider's, so it is removed before the
+ * provider's is set: a provider that needs no key (a local server, a custom
+ * base URL) would otherwise receive the gateway's.
+ */
+const AUTH_HEADERS = ["authorization", "x-api-key", "x-goog-api-key"];
+
 export function setProviderAuthHeaders(
   headers: Headers,
   config: Pick<AIGatewayProviderConfig.Type, "apiKey" | "type">,
 ) {
+  for (const name of AUTH_HEADERS) {
+    headers.delete(name);
+  }
+
   if (config.apiKey === AI_GATEWAY_API_KEY_NOT_NEEDED) {
     return;
   }

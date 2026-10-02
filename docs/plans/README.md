@@ -76,6 +76,7 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 | [Plugins](active/plugins.md) — the order to build it in, and how to tell whether it works | phase 1 landed as Apps |
 | [Privacy-first diagnostics and feedback](active/privacy-first-diagnostics-and-feedback.md) | proposal |
 | [AI usage panel](active/ai-usage-panel.md): a request log in Settings | planned, not started |
+| [Window notices](active/window-notices.md): a bell in the window bar for damaged chats, error reports and the like | proposed, not started |
 | [Reminders and Calendar app](active/mac-reminders-and-calendar-app.md): a built-in app on macOS | planned, not started |
 
 ### Development, testing, and dependencies

@@ -1,7 +1,7 @@
 // Capture a real task's conversation as a committed fixture transcript.
 //
 //   pnpm --filter @instrument-org/workspace script:record-fixture-session \
-//     <task-dir-or.zip> --fixture documents --task attention-paper
+//     <task-dir> --fixture documents --task attention-paper
 //
 //   pnpm --filter @instrument-org/workspace script:record-fixture-session \
 //     <chat-dir> --fixture documents --chat red-and-blue-squares \
@@ -35,13 +35,15 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import superjson from "superjson";
-import { ulid } from "ulid";
 
 import { TASKS_DIR_NAME } from "../src/constants";
-import { extractTaskZip } from "../src/lib/extract-task-zip";
 import { Store } from "../src/lib/store";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
+import {
+  AbsolutePathSchema,
+  type TaskDir,
+  TaskDirSchema,
+} from "../src/schemas/paths";
 import { type Session } from "../src/schemas/session";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { StoreId } from "../src/schemas/store-id";
@@ -67,7 +69,7 @@ const { positionals, values } = parseArgs({
 const inputPath = positionals[0];
 if (!inputPath || !values.fixture || !(values.task ?? values.chat)) {
   throw new TypeError(
-    "Usage: pnpm run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key> [--session <id>]\n       pnpm run script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...",
+    "Usage: pnpm run script:record-fixture-session <task-dir> --fixture <name> --task <key> [--session <id>]\n       pnpm run script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...",
   );
 }
 
@@ -79,32 +81,39 @@ if (values.chat) {
   });
   process.exit(0);
 }
-const taskKey = values.task ?? "";
+await recordTask({
+  fixture: values.fixture,
+  taskDir: TaskDirSchema.parse(path.resolve(inputPath)),
+  taskKey: values.task ?? "",
+});
 
-const { cleanupDir, dir } = await resolveTaskDir(inputPath);
-
-try {
+/** Record a lone task's conversation as one fixture transcript. */
+async function recordTask({
+  fixture,
+  taskDir,
+  taskKey,
+}: {
+  fixture: string;
+  taskDir: TaskDir;
+  taskKey: string;
+}) {
   setWorkspaceConfig(
-    createStubWorkspaceConfig({ tasksDir: path.dirname(dir) }),
+    createStubWorkspaceConfig({ tasksDir: path.dirname(taskDir) }),
   );
-  const taskId = TaskIdSchema.parse(path.basename(dir));
+  const recorded = await readSession(
+    TaskIdSchema.parse(path.basename(taskDir)),
+  );
+  assertNoLocalPaths(recorded);
 
-  const session = await readSession(taskId);
-  assertNoLocalPaths(session);
-
-  const outputPath = fixtureSessionPath(values.fixture, taskKey);
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const written = fixtureSessionPath(fixture, taskKey);
+  await fs.mkdir(path.dirname(written), { recursive: true });
   // superjson rather than plain JSON: the session schemas require real `Date`s,
   // and a transcript that loses them fails to parse at seed time.
-  await fs.writeFile(outputPath, `${superjson.stringify(session)}\n`);
+  await fs.writeFile(written, `${superjson.stringify(recorded)}\n`);
 
   process.stdout.write(
-    `Recorded ${session.messages.length} message(s) from session ${session.id} to ${outputPath}\n`,
+    `Recorded ${recorded.messages.length} message(s) from session ${recorded.id} to ${written}\n`,
   );
-} finally {
-  if (cleanupDir) {
-    await fs.rm(cleanupDir, { force: true, recursive: true });
-  }
 }
 
 /**
@@ -281,27 +290,6 @@ async function recordChat({
   process.stdout.write(
     `Recorded:\n${written.map((file) => `  ${file}`).join("\n")}\n`,
   );
-}
-
-/** Accepts a task directory or the `.zip` an export produces. */
-async function resolveTaskDir(input: string) {
-  const absoluteInput = path.resolve(input);
-  const stats = await fs.stat(absoluteInput);
-
-  if (!(stats.isFile() && absoluteInput.endsWith(".zip"))) {
-    return { cleanupDir: undefined, dir: TaskDirSchema.parse(absoluteInput) };
-  }
-
-  const tempRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "instrument-record-"),
-  );
-  const extractDir = AbsolutePathSchema.parse(
-    path.join(tempRoot, TASKS_DIR_NAME, `recorded-${ulid().toLowerCase()}`),
-  );
-  const zipBlob = new Blob([await fs.readFile(absoluteInput)]);
-  const extracted = await extractTaskZip({ outputDir: extractDir, zipBlob });
-
-  return { cleanupDir: tempRoot, dir: extracted.dir };
 }
 
 /**

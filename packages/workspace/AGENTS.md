@@ -152,7 +152,7 @@ description in `fixtures/workspaces/` at the **repo root** (this package's own
 pnpm workspace:seed --list                                # from the repo root
 pnpm workspace:seed --out <dir> --fixture documents [--fresh]
 pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...
-pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir> --fixture <name> --task <key>
 ```
 
 The seeder goes through `initializeTask` and `Store`, never the filesystem: task

@@ -1,8 +1,5 @@
 import { BROWSER_HREF, CHATS_HREF, NEW_TAB_HREF } from "@/client/atoms/window";
-import {
-  FileSystemFolderGlyph,
-  FileTypeIcon,
-} from "@/client/components/extend/file-system";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
@@ -20,6 +17,7 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { DISCOVER_HREF, ideaTitleOf } from "./ideas";
@@ -144,7 +142,7 @@ export function screenPresentation(
       };
     }
     return {
-      icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+      icon: <FolderMark path={folderPathOf(search)} />,
       title: folderTitle(search, { homeLabel, volumes }),
     };
   }

@@ -80,8 +80,6 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
-import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
-import { HouseIcon } from "@phosphor-icons/react/House";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
@@ -109,6 +107,7 @@ import { toast } from "sonner";
 
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
+import { FolderMark } from "./folder-mark";
 import { GlyphButton } from "./glyph-button";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
 
@@ -1142,17 +1141,7 @@ export function ComputerPage({
         places={places.data.favorites.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
-          icon:
-            place.path === homePath ? (
-              <HouseIcon className="size-4 text-muted-foreground" />
-            ) : (
-              <FileSystemFolderGlyph
-                className="h-3.5 w-auto"
-                {...(place.name === "Instrument"
-                  ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
-                  : {})}
-              />
-            ),
+          icon: <FolderMark large path={place.path} />,
           isActive: folderHostPath === place.path,
           name: place.name,
           path: place.path,
@@ -1166,7 +1155,7 @@ export function ComputerPage({
           rootTo(folder);
         }}
         places={places.data.volumes.map((volume) => ({
-          icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
+          icon: <FolderMark large path={volume.path} />,
           isActive: folderHostPath === volume.path,
           name: volume.name,
           path: volume.path,

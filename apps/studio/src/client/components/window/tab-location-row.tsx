@@ -1,9 +1,7 @@
 import { PageFavicon } from "@/client/components/favicon";
-import {
-  FileSystemFolderGlyph,
-  FileTypeIcon,
-} from "@/client/components/extend/file-system";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { OpenInAppButton } from "@/client/components/open-in-app";
+import { FolderMark } from "@/client/components/window/folder-mark";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { AppIcon } from "@/client/components/window/app-icon";
 import {
@@ -416,7 +414,7 @@ function locationMark(location: TabLocation): ReactNode {
       return <FileTypeIcon className="size-4" fileName={location.name} />;
     }
     case "folder": {
-      return <FileSystemFolderGlyph className="h-3 w-auto shrink-0" />;
+      return <FolderMark path={location.path} />;
     }
     // The catalog, and one kind of page in it: an idea is under Ideas the
     // way an app page is under Apps.

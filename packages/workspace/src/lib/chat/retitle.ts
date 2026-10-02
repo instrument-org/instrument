@@ -45,17 +45,12 @@ const MOVED_BELOW = 0.3;
 export async function retitleChat({
   id,
   keep = false,
-  parentSessionId,
   sessionId,
 }: {
   id: TaskId;
   keep?: boolean;
-  parentSessionId?: StoreId.Session | undefined;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  if (parentSessionId) {
-    return undefined;
-  }
   if (!isChatId(id)) {
     return undefined;
   }
@@ -221,16 +216,11 @@ function isRoot(
 
 async function retitleOnSettle({
   id,
-  parentSessionId,
   sessionId,
 }: {
   id: TaskId;
-  parentSessionId?: StoreId.Session | undefined;
   sessionId: StoreId.Session;
 }): Promise<void> {
-  if (parentSessionId) {
-    return;
-  }
   if (!isChatId(id)) {
     return;
   }

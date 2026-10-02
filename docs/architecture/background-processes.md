@@ -86,7 +86,6 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 | Trigger | Reaches | Where |
 |---|---|---|
 | `kill bg_1` | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
-| Session removed | that session's processes | [`rpc/routes/session.ts:117`](../../packages/workspace/src/rpc/routes/session.ts#L117) |
 | Task trashed | the whole task's processes | [`lib/trash-task.ts:89`](../../packages/workspace/src/lib/trash-task.ts#L89) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
@@ -94,7 +93,6 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 
 **The gaps this leaves**, in plain terms:
 
-- A subagent session that simply *finishes* is not "removed", so its processes live until quit or the 2-hour cap.
 - The 2-hour cap is **absolute age, not idle time**. A dev server the user is actively using dies at two hours. The browser subsystem solved the same problem with idle-based reaping; this has not been changed to match.
 - Nothing survives an app restart, and nothing tries to. A record describes a live child process; after a restart there is no process to describe.
 

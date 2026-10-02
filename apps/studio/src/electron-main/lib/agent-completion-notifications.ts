@@ -33,20 +33,18 @@ type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 export function shouldShowAgentCompletionNotification({
   appWindowAvailable,
   isAppWindowFocused,
-  isRootSession,
   isSupported,
   mode,
 }: {
   appWindowAvailable: boolean;
   isAppWindowFocused: boolean;
-  isRootSession: boolean;
   isSupported: boolean;
   mode: AgentCompletionNotificationMode;
 }) {
   if (mode === "never") {
     return false;
   }
-  if (!isRootSession || !isSupported || !appWindowAvailable) {
+  if (!isSupported || !appWindowAvailable) {
     return false;
   }
   return mode === "always" || !isAppWindowFocused;
@@ -89,15 +87,12 @@ export function startAgentCompletionNotifications({
 }) {
   async function showNotification({
     id,
-    parentSessionId,
     sessionId,
   }: {
     id: TaskId;
-    parentSessionId: StoreId.Session | undefined;
     sessionId: StoreId.Session;
   }) {
-    const isRootSession = parentSessionId === undefined;
-    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow })) {
       return;
     }
 
@@ -153,7 +148,7 @@ export function startAgentCompletionNotifications({
 
     // Reading the task is asynchronous, so the window may have regained
     // focus while it was in flight.
-    if (!canShowAgentCompletionNotification({ hasAppWindow, isRootSession })) {
+    if (!canShowAgentCompletionNotification({ hasAppWindow })) {
       return;
     }
 
@@ -239,15 +234,12 @@ function bodyOf(messages: Messages): string | undefined {
 
 function canShowAgentCompletionNotification({
   hasAppWindow,
-  isRootSession,
 }: {
   hasAppWindow: () => boolean;
-  isRootSession: boolean;
 }) {
   return shouldShowAgentCompletionNotification({
     appWindowAvailable: hasAppWindow(),
     isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
-    isRootSession,
     isSupported: Notification.isSupported(),
     mode: getWorkspacePreferences().get("agentCompletionNotifications"),
   });

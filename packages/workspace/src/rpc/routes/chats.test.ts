@@ -79,14 +79,7 @@ describe("chatChanges", () => {
 
   it.each([
     ["session.tagsChanged", { id: taskId, sessionId: StoreId.newSessionId() }],
-    [
-      "session.done",
-      {
-        id: taskId,
-        parentSessionId: undefined,
-        sessionId: StoreId.newSessionId(),
-      },
-    ],
+    ["session.done", { id: taskId, sessionId: StoreId.newSessionId() }],
   ] as const)(
     "fires on %s, since a chat's state is read off its agent's actor rather than the store",
     async (topic, payload) => {

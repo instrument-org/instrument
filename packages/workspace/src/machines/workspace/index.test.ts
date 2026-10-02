@@ -84,7 +84,6 @@ const buildUserMessage = (): SessionMessage.UserWithParts => {
 const spawnSession = (
   actor: ReturnType<typeof createWorkspaceActor>,
   taskId: TaskId,
-  parentSessionId?: StoreId.Session,
 ) => {
   actor.send({
     type: "internal.spawnSession",
@@ -92,7 +91,6 @@ const spawnSession = (
       agentName: "main",
       message: buildUserMessage(),
       model: createMockAIGatewayModel(),
-      parentSessionId,
       sessionId: StoreId.newSessionId(),
       taskId,
     },
@@ -186,7 +184,7 @@ describe("workspaceMachine session ref lifecycle", () => {
     actor.start();
 
     spawnSession(actor, taskId);
-    spawnSession(actor, taskId, StoreId.newSessionId());
+    spawnSession(actor, taskId);
 
     const refs = actor.getSnapshot().context.sessionRefsByTaskId.get(taskId);
     expect(refs).toHaveLength(2);

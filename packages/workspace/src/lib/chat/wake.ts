@@ -314,20 +314,13 @@ async function inChatPaths(
 async function onSessionDone(
   {
     id,
-    parentSessionId,
     sessionId,
   }: {
     id: TaskId;
-    parentSessionId: StoreId.Session | undefined;
     sessionId: StoreId.Session;
   },
   workspaceRef: WorkspaceActorRef,
 ) {
-  // A nested sub-agent session ending inside a task is that task's business,
-  // not a task finishing.
-  if (parentSessionId) {
-    return;
-  }
   // Only a chat is woken, by a task inside it.
   const chatId = chatIdOfTask(id);
   if (!chatId) {

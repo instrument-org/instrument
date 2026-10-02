@@ -34,6 +34,7 @@ import { TabIcon } from "./browser-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
+import { siteTabTitles } from "./site-tab-titles";
 import { TabStrip } from "./tab-strip";
 
 /**
@@ -81,7 +82,9 @@ export function AppTabStrip({
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
   /** A site's tab is named for the page its group has up. */
-  const presentationOf = (href: string): { icon: ReactNode; title: string } => {
+  const presentationOf = (
+    href: string,
+  ): { icon: ReactNode; title: string; url?: string | undefined } => {
     if (isSiteHref(href)) {
       const group = groupOfHref(href);
       const open = groupTabs.filter((tab) => tab.group === group);
@@ -92,6 +95,7 @@ export function AppTabStrip({
         return {
           icon: <TabIcon favicon={up.favicon} url={up.url} />,
           title: up.title || pageTabTitle(up) || "Page",
+          url: up.url,
         };
       }
     }
@@ -114,14 +118,21 @@ export function AppTabStrip({
     return group !== undefined && !putAway[group] ? [] : [{ entry, tab }];
   });
 
-  const presented = tabs.map((tab) => ({
+  const whole = tabs.map((tab) => ({
     key: tab.id,
     ...presentationOf(tab.pathname || INBOX_HREF),
   }));
+  // Tabs of one site say only what tells them apart, the site's part of
+  // their titles left to the favicon beside each.
+  const short = siteTabTitles(whole);
+  const presented = whole.map(({ url: _url, ...tab }) => ({
+    ...tab,
+    title: short.get(tab.key) ?? tab.title,
+  }));
   // The window is called what its tab up is, alone, as a document window is:
   // the OS already names the app beside it in the Dock, the switcher and
-  // Mission Control.
-  const selectedTitle = presented.find((tab) => tab.key === selectedId)?.title;
+  // Mission Control. Whole, since the window's title stands alone.
+  const selectedTitle = whole.find((tab) => tab.key === selectedId)?.title;
   useEffect(() => {
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);

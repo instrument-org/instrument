@@ -109,6 +109,7 @@ describe("ExternalLink", () => {
     renderWithProviders(element);
     fireEvent.click(screen.getByText("A page"), { [each.modifier]: true });
     expect(openPage).toHaveBeenCalledWith("https://example.com/page", {
+      behind: true,
       newTab: true,
     });
     expect(openInTaskBrowser).not.toHaveBeenCalled();
@@ -141,6 +142,7 @@ describe("ExternalLink", () => {
       }),
     );
     expect(openPage).toHaveBeenCalledWith("https://example.com/page", {
+      behind: true,
       newTab: true,
     });
   });

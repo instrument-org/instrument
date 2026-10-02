@@ -84,6 +84,8 @@ Multiple worktrees can run Studio at once: dev skips the single-instance lock, a
 
 ## Tests
 
+The tests are here for the agents working in this repo: they are how a change gets checked without booting the app, and people rarely read them. So they should be fast, reliable, and able to express whatever an agent needs to check. Grow them when that helps. A test that flakes, is brittle, or slows the work down is yours to fix, rewrite, or delete, as long as no real regression is hidden in the process. When the suite itself is getting in the way, say so.
+
 - Run one file, a directory, or a whole package **from the repo root**, with the package-relative path: `pnpm --filter @instrument-org/workspace exec vitest run [src/path/to/file.test.ts]` (`@instrument-org/studio` for `apps/studio`).
 - Do not reach for `cd packages/<name> && …`. An agent shell keeps its working directory between commands, so the second such command in a session resolves against `packages/workspace/packages/workspace` and dies on "no such file or directory", and with `&&` the rest of the chain is skipped silently. `--filter` is idempotent across calls and is the same shape whether you run one file or the package. Where a command genuinely has to run inside a package, `cd` to its absolute path.
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.

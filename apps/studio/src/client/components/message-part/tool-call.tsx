@@ -21,7 +21,6 @@ import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
 import { ToolRequestFolder } from "./tool-request-folder";
 import { ToolStartActivity } from "./tool-start-activity";
-import { ToolTask } from "./tool-task";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
@@ -148,9 +147,6 @@ function ToolCallBody({
     }
     case "tool-request_folder": {
       return <ToolRequestFolder part={part} taskId={task.id} />;
-    }
-    case "tool-task": {
-      return <ToolTask part={part} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

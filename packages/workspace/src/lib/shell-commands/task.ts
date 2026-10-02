@@ -532,7 +532,7 @@ export async function runFolder(
   );
 }
 
-export async function runNew(
+async function runNew(
   args: string[],
   context: TaskCommandContext,
   stdin: ByteString,

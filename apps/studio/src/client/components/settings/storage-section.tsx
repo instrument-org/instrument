@@ -140,6 +140,7 @@ function UnrecognizedFolders() {
     return null;
   }
 
+  const chats = folders.filter((folder) => folder.kind === "chat");
   const projects = folders.filter((folder) => folder.kind === "project");
   const tasks = folders.filter((folder) => folder.kind === "task");
 
@@ -148,14 +149,26 @@ function UnrecognizedFolders() {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FolderIcon className="size-4" />
-          <h4 className="text-sm font-medium">Broken projects and tasks</h4>
+          <h4 className="text-sm font-medium">
+            Broken chats, projects and tasks
+          </h4>
         </div>
         <p className="text-sm text-muted-foreground">
-          These projects and tasks are included in your workspace, but{" "}
+          These chats, projects and tasks are included in your workspace, but{" "}
           {APP_NAME} can&apos;t show them because of problems in the folders.
           You can reveal them on your computer, or delete them to tidy up.
         </p>
       </div>
+      {chats.length > 0 && (
+        <FolderGroup
+          folders={chats}
+          onReveal={(folder) => {
+            void showInFolder(folder.path, { kind: "folder" });
+          }}
+          onTrash={setFolderToTrash}
+          title="Chats"
+        />
+      )}
       {projects.length > 0 && (
         <FolderGroup
           folders={projects}

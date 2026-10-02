@@ -2135,9 +2135,39 @@ export function FileSystem({
   // Leaving the columns leaves the window in the folder the last column
   // shows, the way the Finder does: the selected folder, or the folder the
   // selected file is in, which stays selected there.
+  //
+  // Coming back to the columns from a folder below the one the browser opened
+  // on starts them a folder up, with that folder selected, so the columns
+  // show where it sits rather than starting inside it: columns, list,
+  // columns again is the columns as they were, and a folder walked into in
+  // the list is never a place the columns strand the reader in. A step the
+  // leaving took is stepped back over rather than added to.
   const setView = (nextView: FileSystemView) => {
     setInternalView(nextView);
     onViewChange?.(nextView);
+    if (nextView === "columns" && view !== "columns") {
+      const folder = index.folders.get(currentPath);
+      if (currentPath === "" || !folder) {
+        return;
+      }
+      const parent = pathParent(currentPath);
+      setHistory((previous) =>
+        previous.stack[previous.index - 1] === parent
+          ? { ...previous, index: previous.index - 1 }
+          : {
+              ...previous,
+              stack: previous.stack.map((entry, at) =>
+                at === previous.index ? parent : entry,
+              ),
+            },
+      );
+      // What was selected inside the folder stays selected; with nothing
+      // selected there, the folder itself is.
+      if (!selectedPath?.startsWith(currentPath)) {
+        selectEntry(folder);
+      }
+      return;
+    }
     if (view !== "columns" || nextView === "columns" || !selectedEntry) {
       return;
     }

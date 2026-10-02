@@ -1,13 +1,14 @@
 import { type VisitedPage, visitedPagesAtom } from "@/client/atoms/window";
+import { PageFavicon } from "@/client/components/favicon";
 import { cn } from "@/client/lib/utils";
 import { useSetAtom } from "jotai";
 
-import { AppIcon } from "./app-icon";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 
 /**
- * Pages visited lately, as rows: each the mark of the app it is on in a
- * small tile and the page's title, and nothing else: no time, no count. A
+ * Pages visited lately, as rows: each the page's mark, drawn the way its
+ * tab and a chip draw it, and the page's title, and nothing else: no time,
+ * no count. A
  * row opens the page in this tab; the middle button, a Cmd-click and the
  * menu ask for a tab of its own, waiting behind, the way every link in the
  * window does, and the menu takes a page off the list.
@@ -26,10 +27,7 @@ export function VisitedPageRows({
   /** Only as many as fit on one row, for a strip under a page's head. */
   isOneRow?: boolean;
   onOpen: (url: string) => void;
-  visits: {
-    app: { name: string; site?: string | undefined };
-    page: VisitedPage;
-  }[];
+  visits: { page: VisitedPage }[];
 }) {
   const clicksFor = usePageClicks();
   const setVisited = useSetAtom(visitedPagesAtom);
@@ -50,7 +48,7 @@ export function VisitedPageRows({
           isOneRow && "auto-rows-[0] grid-rows-[auto] overflow-hidden",
         )}
       >
-        {visits.map(({ app, page }) => (
+        {visits.map(({ page }) => (
           <li className="min-w-0" key={page.url}>
             <PageContextMenu {...menuFor(page.url)}>
               <button
@@ -61,7 +59,7 @@ export function VisitedPageRows({
                 title={shownAddress(page.url)}
                 type="button"
               >
-                <AppIcon name={app.name} site={app.site} size="sm" />
+                <PageFavicon favicon={page.favicon} url={page.url} />
                 <span className="min-w-0 flex-1 truncate text-[13px]">
                   {page.title || shownAddress(page.url)}
                 </span>
@@ -74,7 +72,7 @@ export function VisitedPageRows({
   }
   return (
     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-      {visits.map(({ app, page }) => (
+      {visits.map(({ page }) => (
         <li key={page.url}>
           <PageContextMenu {...menuFor(page.url)}>
             <button
@@ -83,7 +81,7 @@ export function VisitedPageRows({
               type="button"
             >
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted">
-                <AppIcon name={app.name} site={app.site} size="sm" />
+                <PageFavicon favicon={page.favicon} url={page.url} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-medium">

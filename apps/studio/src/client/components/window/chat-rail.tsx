@@ -1,4 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
+import { PageFavicon } from "@/client/components/favicon";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -35,7 +36,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { computerName } from "./computer-name";
 import { useComputerVolumes } from "./computer-volumes";
 import { screenLocation, screenPresentation } from "./screen-presentation";
-import { SiteIcon } from "./sidebar";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 
 /** A layout change that lands at once, for tiles moved by anything but a drag. */
@@ -380,7 +380,7 @@ function PagePicture({
   }
   return (
     <span className="[&_img]:size-6 [&_svg]:size-6">
-      <SiteIcon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
+      <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
     </span>
   );
 }
@@ -447,7 +447,7 @@ function RailTile({
   // an app. Beside the name in a wide rail; the whole tile in a narrow one.
   const mark =
     tab.kind === "page" ? (
-      <SiteIcon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
+      <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
     ) : (
       <ScreenMark
         appsBySlug={appsBySlug}

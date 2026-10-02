@@ -101,10 +101,7 @@ export function WebStart({
   const recent = visited
     .filter((page) => !bookmarks.some((bookmark) => bookmark.url === page.url))
     .slice(0, RECENT_SHOWN)
-    .map((page) => ({
-      app: { name: hostOf(page.url), site: originOf(page.url) },
-      page,
-    }));
+    .map((page) => ({ page }));
   const rename = (bookmark: Bookmark, title: string) => {
     setRenamingId(undefined);
     const named = title.trim();
@@ -149,7 +146,6 @@ export function WebStart({
                 const mark = (
                   <AppIcon
                     className="size-14 bg-transparent p-0 shadow-none ring-0"
-                    name={bookmark.title}
                     site={originOf(bookmark.url)}
                     size="xl"
                   />
@@ -193,7 +189,9 @@ export function WebStart({
                       type="button"
                     >
                       {mark}
-                      <span className="w-full truncate text-[13px] leading-4 font-medium">
+                      {/* About as wide as the mark over it, on two lines at
+                          most, the way a browser's favorites name theirs. */}
+                      <span className="line-clamp-2 w-16 text-[13px] leading-4 font-medium break-words">
                         {bookmark.title || hostOf(bookmark.url)}
                       </span>
                     </button>

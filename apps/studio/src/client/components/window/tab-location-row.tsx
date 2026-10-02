@@ -1,3 +1,4 @@
+import { PageFavicon } from "@/client/components/favicon";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -10,7 +11,6 @@ import {
   type LookTarget,
 } from "@/client/components/window/look-at";
 import { Omnibar } from "@/client/components/window/omnibar";
-import { SiteIcon } from "@/client/components/window/sidebar";
 import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
@@ -395,7 +395,7 @@ function locationMark(location: TabLocation): ReactNode {
           {location.site ? (
             <AppIcon site={location.site} size="sm" />
           ) : (
-            <SiteIcon url="" />
+            <PageFavicon url={undefined} />
           )}
         </span>
       );

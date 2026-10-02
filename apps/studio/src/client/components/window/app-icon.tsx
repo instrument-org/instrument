@@ -1,7 +1,5 @@
-import { Favicon } from "@/client/components/favicon";
+import { Favicon, FaviconFallback } from "@/client/components/favicon";
 import { cn } from "@/client/lib/utils";
-
-import { TOPIC_COLORS } from "./topic-colors";
 
 /**
  * An app's icon: the site's own favicon through the proxy, set into a plate
@@ -12,9 +10,9 @@ import { TOPIC_COLORS } from "./topic-colors";
  * read as the same kind of thing, and nothing draws a second frame around
  * it. At the small size there is no room for a plate: the mark stands
  * alone, softened at the corners, the way a site's icon does on a row or in
- * a chip. With no site to ask, or a site with no icon anywhere, the app's
- * initial on a color of its own fills the box instead, so a service without
- * a mark still has a face a person can tell from the next one.
+ * a chip. A site with no icon anywhere has the initial every surface draws
+ * for it; with no site to ask, the app's own initial on the same quiet tile
+ * fills the box, so a missing mark reads as missing everywhere.
  */
 export function AppIcon({
   className,
@@ -23,7 +21,7 @@ export function AppIcon({
   size = "md",
 }: {
   className?: string;
-  /** What the app is called, which its initial and its color come from; the site's host stands in without it. */
+  /** What the app is called, which its initial comes from when it has no site. */
   name?: string | undefined;
   site?: string | undefined;
   size?: "lg" | "md" | "sm" | "xl";
@@ -39,12 +37,11 @@ export function AppIcon({
     sm: "size-4 rounded-[3px]",
     xl: "size-16 rounded-2xl p-2.5 shadow-xs ring-1 ring-border",
   }[size];
-  const label = name ?? hostOf(site);
-  const initial = label ? (
+  const initial = name ? (
     <span
-      aria-label={label}
+      aria-label={name}
       className={cn(
-        "grid size-full place-items-center rounded-[inherit] font-semibold text-white",
+        "grid size-full place-items-center rounded-[inherit] bg-foreground/10 font-semibold text-foreground/60",
         size === "xl"
           ? "text-2xl"
           : size === "lg"
@@ -58,9 +55,8 @@ export function AppIcon({
         "leading-none",
       )}
       role="img"
-      style={{ backgroundColor: colorFor(label) }}
     >
-      {initialOf(label)}
+      {initialOf(name)}
     </span>
   ) : null;
   return (
@@ -81,7 +77,15 @@ export function AppIcon({
             "size-full border-0 bg-transparent ring-0 dark:bg-transparent",
             size === "sm" ? "rounded-sm" : "rounded-[22%]",
           )}
-          fallback={initial}
+          fallback={
+            <FaviconFallback
+              className={cn(
+                "size-full",
+                size === "sm" ? "rounded-sm" : "rounded-[22%]",
+              )}
+              label={site}
+            />
+          }
           url={site}
         />
       ) : (
@@ -89,25 +93,6 @@ export function AppIcon({
       )}
     </span>
   );
-}
-
-/** A color for a name, the same every time: one of the deep topic tints. */
-function colorFor(label: string): string {
-  const deep = TOPIC_COLORS.slice(TOPIC_COLORS.length / 2);
-  let hash = 0;
-  for (const char of label.toLowerCase()) {
-    hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 2_147_483_647;
-  }
-  return deep[hash % deep.length] ?? deep[0] ?? "#3b6ef6";
-}
-
-/** The site's host without its `www.`, or nothing for no site. */
-function hostOf(site: string | undefined): string | undefined {
-  if (!site) {
-    return undefined;
-  }
-  const host = URL.canParse(site) ? new URL(site).hostname : site;
-  return host.replace(/^www\./, "") || undefined;
 }
 
 function initialOf(label: string): string {

@@ -12,7 +12,7 @@ import {
   windowTabsAtom,
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
-import { Favicon } from "@/client/components/favicon";
+import { PageFavicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -31,7 +31,6 @@ import {
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
@@ -1194,23 +1193,8 @@ export function TabIcon({
   favicon: string | undefined;
   url: string | undefined;
 }) {
-  const [failed, setFailed] = useState<string | undefined>();
-  if (favicon && failed !== favicon && isDrawableHere(favicon)) {
-    return (
-      <img
-        alt=""
-        className="size-3.5 rounded-xs"
-        draggable={false}
-        onError={() => {
-          setFailed(favicon);
-        }}
-        src={favicon}
-      />
-    );
-  }
-  if (url && /^https?:/.test(url)) {
-    return <Favicon className="size-3.5 rounded-xs" url={url} />;
-  }
+  // A page of a file on the computer wears the file's type, the way the
+  // file does everywhere else; anything else is a page of the web.
   const filePath = hostPathOfFileUrl(url);
   if (filePath !== undefined) {
     return (
@@ -1220,7 +1204,7 @@ export function TabIcon({
       />
     );
   }
-  return <GlobeIcon className="size-3.5" />;
+  return <PageFavicon className="size-3.5" favicon={favicon} url={url} />;
 }
 
 /**
@@ -1340,21 +1324,6 @@ function FilePageReload({
     shown.current = modifiedAt;
   }, [modifiedAt, target]);
   return null;
-}
-
-/**
- * The page's own icon when it has announced one and it loads; else the site's,
- * looked up by address, since a page that announced none or a stale one is
- * still on a site with one; else the globe.
- */
-/**
- * Whether the renderer's `img-src` lets it load an icon a page reported for
- * itself: embedded bytes. A site's own icon on the web is refused there, so
- * its tab is drawn from the proxy rather than from a request that can only
- * fail.
- */
-function isDrawableHere(src: string): boolean {
-  return /^(?:data|blob):/i.test(src);
 }
 
 /** A page tab of the window's own on an HTML file, which Edit can change in place. */

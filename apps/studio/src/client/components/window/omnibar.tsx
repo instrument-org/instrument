@@ -1,3 +1,4 @@
+import { PageFavicon } from "@/client/components/favicon";
 import {
   bookmarksAtom,
   CHATS_HREF,
@@ -25,7 +26,6 @@ import {
   pathQuery,
 } from "@/client/components/window/omnibar-match";
 import { ShellContext } from "@/client/components/window/shell-context";
-import { SiteIcon } from "@/client/components/window/sidebar";
 import {
   SKILLS_HREF,
   type TabLocation,
@@ -680,7 +680,7 @@ function useRows({
         ? {
             detail: known?.title,
             fill: whole,
-            icon: <SiteIcon url={site.url} />,
+            icon: <PageFavicon url={site.url} />,
             id: "site",
             name: whole,
             run: () => {
@@ -706,7 +706,7 @@ function useRows({
         (page): OmniRow => ({
           detail: bareAddress(page.url),
           fill: page.url,
-          icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+          icon: <PageFavicon favicon={page.favicon} url={page.url} />,
           id: `page:${page.url}`,
           name: page.title || bareAddress(page.url),
           run: () => {
@@ -725,7 +725,7 @@ function useRows({
             return {
               fill: suggestion,
               icon: suggestedSite ? (
-                <SiteIcon url={suggestedSite.url} />
+                <PageFavicon url={suggestedSite.url} />
               ) : (
                 <MagnifyingGlassIcon className="size-4" />
               ),

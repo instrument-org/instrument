@@ -9,10 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkillLink } from "./skill-link";
 import { WindowContext, type WindowContextValue } from "./window/context";
 
-vi.mock("@/client/hooks/use-open-in-task-browser", () => ({
-  useOpenInTaskBrowser: () => vi.fn(),
-}));
-
 vi.mock("@/client/hooks/use-open-external-link", () => ({
   useOpenExternalLink: () => vi.fn(),
 }));

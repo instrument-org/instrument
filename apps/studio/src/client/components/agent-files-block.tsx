@@ -120,7 +120,7 @@ export function FilePathsGrid({
 }) {
   const { assetVersion, taskId } = useContext(MarkdownTaskContext);
   const layout = useContext(FilesLayoutContext);
-  const showTaskFile = useShowTaskFile(taskId);
+  const showTaskFile = useShowTaskFile();
   const [folderPaths, filePaths] = fork(paths, isFolderPath);
   // The reply names files as the task knows them; the screen shows them by
   // where they are. A file the task cannot reach, or one not yet translated,

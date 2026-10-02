@@ -1,4 +1,3 @@
-import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
 import { useShowTaskFile } from "../../hooks/use-show-task-file";
@@ -25,13 +24,11 @@ const COLLAPSED_HEIGHT = 176;
 export function FileToolCard({
   content,
   filePath,
-  id,
   language,
   modifiedAt,
 }: {
   content: string;
   filePath: string;
-  id: TaskId;
   language?: string;
   modifiedAt?: number;
 }) {
@@ -39,7 +36,7 @@ export function FileToolCard({
 
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
-  const showTaskFile = useShowTaskFile(id);
+  const showTaskFile = useShowTaskFile();
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;

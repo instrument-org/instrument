@@ -29,7 +29,7 @@ const ToldSchema = z.record(z.string(), z.string());
  * What memory holds, for the turn about to run, on a chat's user message.
  *
  * Attached only when memory changed since this session was last told, the
- * way the pane report is: on the chat's first message, and again after
+ * way the browser status is: on the chat's first message, and again after
  * another chat, the user, or a file edit changed it. The first note is the
  * whole of memory; every later one carries only what was saved, corrected,
  * or forgotten since, because each note stays in the chat for good and a

@@ -130,7 +130,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const showTaskFile = useShowTaskFile(id);
+  const showTaskFile = useShowTaskFile();
 
   if (!part.input) {
     return <ToolCardEmpty message="The prompt has not arrived yet." />;
@@ -421,7 +421,7 @@ function humanizeParamKey(key: string): string {
 }
 
 function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
-  const showTaskFile = useShowTaskFile(id);
+  const showTaskFile = useShowTaskFile();
 
   const handleExpand = () => {
     showTaskFile(filePath);

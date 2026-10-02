@@ -1,7 +1,7 @@
 // Before this module's stored atoms read their values, whatever chunk the
 // bundler puts either in.
 import "@/client/lib/migrate-window-storage";
-import { TASK_PANE_DEFAULT_SHARE } from "@/client/atoms/task-pane";
+import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
   type FileSystemSortState,
@@ -223,7 +223,7 @@ export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
 /** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
 export const paneShareAtom = atomWithStorage<number>(
   "studio.pane-share.v1",
-  TASK_PANE_DEFAULT_SHARE,
+  PANE_DEFAULT_SHARE,
   undefined,
   { getOnInit: true },
 );

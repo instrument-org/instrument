@@ -1,5 +1,4 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { FileToolCard } from "./file-tool-card";
@@ -26,12 +25,6 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-vi.mock("../../hooks/use-task-pane", () => ({
-  useTaskPaneActions: () => ({ openFiles: vi.fn() }),
-}));
-
-const taskId = TaskIdSchema.parse("task-fixture");
-
 const renderCard = (content: string) =>
   renderInBrowser(
     <div style={{ width: 480 }}>
@@ -39,7 +32,6 @@ const renderCard = (content: string) =>
         <FileToolCard
           content={content}
           filePath="src/utils/helpers.ts"
-          id={taskId}
           modifiedAt={1_718_198_400_000}
         />
       </ToolCallSessionProvider>

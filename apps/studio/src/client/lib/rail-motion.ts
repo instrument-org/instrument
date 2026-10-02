@@ -1,6 +1,6 @@
 /**
  * The motion the app's two rails open and close on: the studio sidebar on the
- * left, the task pane on the right. Shared so the claim that they read as one
+ * left, the pane on the right. Shared so the claim that they read as one
  * piece of motion is enforced rather than a comment on each of them.
  */
 export const RAIL_SLIDE_TRANSITION = {

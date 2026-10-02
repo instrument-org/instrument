@@ -5,7 +5,6 @@ import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
 import { TaskIdSchema } from "../task-id";
-import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
   /**
@@ -21,11 +20,11 @@ export namespace SessionMessageDataPart {
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `memory`, `paneTabs`, `chatTopics`, `viewContext`.
+   *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
-   *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
-   *   different means, and `toModelMessages` skips a topics or view note that
+   *   told. `createBrowserStatusPart` and `createMemoryPart` each do, and
+   *   `toModelMessages` skips a topics or view note that
    *   reads the same as the last one; a new state part that forgets is not a
    *   failure anyone sees, it just quietly spends context.
    *
@@ -53,7 +52,6 @@ export namespace SessionMessageDataPart {
     "messageGap",
     "modelChange",
     "outputFormat",
-    "paneTabs",
     "projectChanges",
     "projectContext",
     "reply",
@@ -227,25 +225,6 @@ export namespace SessionMessageDataPart {
   export type BrowserStatusDataPart = z.output<
     typeof BrowserStatusDataPartSchema
   >;
-
-  /**
-   * What the task's pane is showing, at the start of a turn: whether it is
-   * open, which tab is in front, and which file tabs it holds.
-   *
-   * Attached per turn rather than written into the session context, which is
-   * written once and never rewritten: what is on screen changes several times
-   * inside one turn, and a startup snapshot would have the agent reasoning
-   * about a pane the user closed long ago.
-   */
-  const PaneTabsDataPartSchema = z.object({
-    // A part written before the pane's visibility was recorded named tabs the
-    // note called open, so an absent value reads the way that note did.
-    open: z.boolean().default(true),
-    selected: z.string().optional(),
-    tabs: z.array(TaskPane.TabSchema),
-  });
-
-  export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
   /**
    * The point where assembly stopped sending the turns before it.
@@ -982,7 +961,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
-    [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,

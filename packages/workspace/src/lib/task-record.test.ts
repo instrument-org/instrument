@@ -5,15 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
-import {
-  readTaskRecord,
-  setTaskState,
-  updateTaskPane,
-  updateTaskRecord,
-} from "./task-record";
+import { readTaskRecord, setTaskState, updateTaskRecord } from "./task-record";
 
 const id = TaskIdSchema.parse("task-record-test");
 
@@ -153,25 +147,6 @@ describe("updateTaskRecord", () => {
     });
   });
 
-  it("carries an unreadable state field through a pane change", async () => {
-    await writeRecordFile({
-      name: "Test task",
-      state: { futureNested: "keep me" },
-    });
-
-    await updateTaskPane(taskDir(taskId), (pane) =>
-      TaskPane.openTabs(pane, [TaskPane.fileTab("output/report.pdf")]),
-    );
-
-    const written: unknown = JSON.parse(
-      await fs.readFile(recordPath(), "utf8"),
-    );
-
-    expect(written).toMatchObject({
-      state: { futureNested: "keep me" },
-    });
-  });
-
   // What the empty answer to a failed read costs if a write is allowed to build
   // on it: the record read as though the task had nothing, so the write would
   // have been the title, the pin and the tabs replaced by one draft.
@@ -186,17 +161,6 @@ describe("updateTaskRecord", () => {
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
       '{ "name": "Test task", "state',
     );
-  });
-
-  it("refuses a pane change against a record it could not read", async () => {
-    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
-    await fs.writeFile(recordPath(), "not json", "utf8");
-
-    await expect(
-      updateTaskPane(taskDir(taskId), (pane) =>
-        TaskPane.openTabs(pane, [TaskPane.fileTab("output/report.pdf")]),
-      ),
-    ).rejects.toThrow(/unreadable task record/);
   });
 
   // The other half of the same rule: nothing to lose is not the same as

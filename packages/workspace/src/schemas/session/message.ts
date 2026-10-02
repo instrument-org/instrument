@@ -35,7 +35,6 @@ import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { outputFormatModelNote } from "../../lib/output-format-model-text";
-import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
@@ -315,7 +314,6 @@ export namespace SessionMessage {
   ): UIMessage[] {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
-    let previousPaneTabsNote: string | undefined;
     // What the user had on screen, told again only when it differs from the
     // last time: the same page with the same words in front of it, or the
     // same folder, is a note the agent already read and has no reason to
@@ -515,17 +513,6 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousBrowserStatusNote = note;
-        }
-
-        const paneTabsPart = message.parts.find(
-          (part) => part.type === "data-paneTabs",
-        );
-        if (paneTabsPart) {
-          const note = paneTabsModelNote(paneTabsPart.data);
-          if (note !== previousPaneTabsNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousPaneTabsNote = note;
         }
 
         const folderChangesPart = message.parts.find(

@@ -2,8 +2,6 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useOpenInTaskBrowser } from "@/client/hooks/use-open-in-task-browser";
-import { useTaskSession } from "@/client/hooks/use-task-session";
 import {
   copyableOf,
   isWebPage,
@@ -168,8 +166,9 @@ export function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
  * OS browser is a row of the menu, chosen on purpose.
  *
  * What is on the list is decided by the surface rather than by the component:
- * a window with tabs offers a tab, a task offers its browser, and anything
- * drawn outside both offers only the places outside the app.
+ * a window with tabs offers a tab, a surface that says where pages go offers
+ * that, and anything drawn outside both offers only the places outside the
+ * app.
  *
  * Asked per target, for a list whose rows each name a different one: a row
  * cannot call a hook of its own, so the surface reads what it is once and
@@ -182,14 +181,7 @@ function useDestinationsFor(): (
   const appWindow = useContext(WindowContext);
   const openPageOnSurface = useContext(PageOpenContext);
   const openPathOnSurface = useContext(FileOpenContext);
-  const session = useTaskSession();
   const openExternalLink = useOpenExternalLink();
-  // Given no task, this reaches the surface's own opener or does nothing; the
-  // list below is what decides whether it is offered at all.
-  const openInTaskBrowser = useOpenInTaskBrowser({
-    sessionId: session.sessionId,
-    taskId: session.taskId,
-  });
 
   return (target, { addReferral = true } = {}) => {
     const copyable = copyableOf(target);
@@ -224,15 +216,14 @@ function useDestinationsFor(): (
           ...copy,
         ];
       }
-      const canOpenHere = Boolean(openPageOnSurface ?? session.taskId);
       return [
-        ...(canOpenHere
+        ...(openPageOnSurface
           ? [
               {
                 id: "open" as const,
                 label: "Open",
                 run: () => {
-                  openInTaskBrowser(url);
+                  openPageOnSurface(url);
                 },
               },
             ]

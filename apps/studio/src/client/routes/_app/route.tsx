@@ -1,7 +1,7 @@
 import {
-  TASK_CHAT_WIDTH_MIN,
-  TASK_PANE_WIDTH_MIN,
-} from "@/client/atoms/task-pane";
+  CONVERSATION_WIDTH_MIN,
+  PANE_WIDTH_MIN,
+} from "@/client/atoms/right-pane";
 import {
   BROWSER_HREF,
   CHATS_HREF,
@@ -160,7 +160,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   // then both go down to those floors, and only then does the inbox step
   // aside. Widening brings them back in the other order, each a margin past
   // the width it left at.
-  const floors = TASK_CHAT_WIDTH_MIN + (showsPane ? TASK_PANE_WIDTH_MIN : 0);
+  const floors = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
   const needs = floors + (showsRail ? RAIL_COMPACT_WIDTH : 0);
   const { isCrossing, isShown, isSteppedAside } = useInboxRoom({
     isActive,

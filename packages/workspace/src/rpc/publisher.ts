@@ -109,7 +109,7 @@ export const publisher = new EventPublisher<{
     id: TaskId;
   };
   /**
-   * A task's own state file changed: the pane, the draft, the selected model.
+   * A task's own state file changed: the held tabs, the draft, the selected model.
    *
    * Deliberately not `task.updated`, which the task list subscribes to. The
    * list is ordered by a filesystem timestamp, so every re-read is a chance for

@@ -20,7 +20,7 @@ import { TabStrip } from "./tab-strip";
 
 /**
  * The strip along the top of the window: every tab, whatever it holds, drawn
- * the way the task page draws its pane tabs. A page carries its site's icon
+ * by the shared tab strip. A page carries its site's icon
  * and title; a screen is named for what it is at. A right click on any tab
  * offers to close it.
  */

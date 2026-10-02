@@ -414,7 +414,7 @@ const TaskFileLink = ({
   const { taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const showTaskFile = useShowTaskFile(taskId);
+  const showTaskFile = useShowTaskFile();
   // A window with tabs gives the file a tab of its own on a middle or
   // modified click, and offers one in the menu.
   const hasTabs = useContext(WindowContext) !== null;

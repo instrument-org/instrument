@@ -50,8 +50,8 @@ const FIXED_MARGIN = 12;
 const LAND_IN_PLACE = { layout: { duration: 0 } };
 
 // A closing tab gives its share of the row up rather than being taken out of
-// it, so the tabs beside it widen as it narrows. See the task pane's strip for
-// why this is a transition on real layout rather than an exit animation.
+// it, so the tabs beside it widen as it narrows: a transition on real layout
+// rather than an exit animation.
 const COLLAPSED = {
   flexGrow: 0,
   marginRight: -GAP,
@@ -90,7 +90,7 @@ interface StripLayout {
 type TabDensity = "compact" | "full" | "icon";
 
 /**
- * A row of tabs the way the task page draws its pane tabs: an even share of
+ * A row of tabs: an even share of
  * the row each, compressing together to icons rather than scrolling, the one
  * being read held wide enough for its name and close, dragged to reorder,
  * closed by the middle button or the cross, and arriving and leaving with a

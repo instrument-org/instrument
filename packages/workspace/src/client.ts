@@ -22,7 +22,6 @@ export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type { ComputerListing } from "./lib/orchestrator/computer";
-export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export {
   isMessageDocument,
@@ -62,7 +61,6 @@ export { StoreId } from "./schemas/store-id";
 export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
-export { TaskPane } from "./schemas/task-pane";
 export type { WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {

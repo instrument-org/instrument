@@ -175,12 +175,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-outputFormat": {
       return `<data-outputFormat name="${part.data.name}">${part.data.title}</data-outputFormat>`;
     }
-    case "data-paneTabs": {
-      const tabs = part.data.tabs
-        .map((tab) => (tab.type === "file" ? tab.filePath : "browser"))
-        .join(", ");
-      return `<data-paneTabs>${tabs}</data-paneTabs>`;
-    }
     case "data-projectChanges": {
       const projectName = ` projectName="${part.data.projectName}"`;
       const instructions = part.data.instructionsChanged

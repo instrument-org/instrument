@@ -4,7 +4,6 @@ import { z } from "zod";
 import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
 import { StoreId } from "./store-id";
-import { TaskPane } from "./task-pane";
 
 /**
  * A tab of the window a task holds: one the conversation handed it, which is
@@ -18,8 +17,8 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-// Where the user left off in a task: the draft they were typing, what the pane
-// has open, the model they picked, the folders attached. Per-task and read on
+// Where the user left off in a task: the draft they were typing, the model
+// they picked, the folders attached. Per-task and read on
 // open, never queried across tasks -- which is what separates it from the
 // settings around it, and why it is one nested key rather than a flat spread.
 //
@@ -73,9 +72,6 @@ export const StoredTaskStateSchema = z
      * message after it.
      */
     chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
-    // A pane this build cannot read costs the pane, not the folder list beside
-    // it, which the record's silent catch would otherwise write away.
-    pane: TaskPane.Schema.optional().catch(undefined),
     // The project's folders, path to access, as this task last saw them. What
     // makes a task's own edit to an inherited folder survive the next message:
     // a folder whose live access still matches what is recorded here has not
@@ -121,7 +117,6 @@ export const TaskStateSchema = z.object({
    * conversation's own `agent-browser` drives.
    */
   browserTargetId: BrowserTargetIdSchema.optional(),
-  pane: TaskPane.Schema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
 });

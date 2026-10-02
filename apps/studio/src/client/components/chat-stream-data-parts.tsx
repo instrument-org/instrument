@@ -5,7 +5,6 @@ import {
   isAddressableTaskFilePath,
   maxStepsModelNote,
   messageGapModelNote,
-  paneTabsModelNote,
   type SessionMessagePart,
   viewContextModelNote,
 } from "@instrument-org/workspace/client";
@@ -77,7 +76,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-modelChange": "always",
   // What the user asked to get back, on the record under their words.
   "data-outputFormat": "always",
-  "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
   // Drawn by the chat stream over the user's bubble, not in the part's place
@@ -328,16 +326,6 @@ export function renderDataPart({
     }
     case "data-outputFormat": {
       return <OutputFormatNote data={part.data} key={part.metadata.id} />;
-    }
-    case "data-paneTabs": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={paneTabsModelNote(part.data)}
-        />
-      );
     }
     case "data-projectChanges": {
       return <ProjectChangesNote data={part.data} key={part.metadata.id} />;

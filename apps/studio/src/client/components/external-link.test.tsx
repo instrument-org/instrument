@@ -1,5 +1,4 @@
 // Where each gesture over a link sends the page.
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
@@ -8,14 +7,11 @@ import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExternalLink } from "./external-link";
+import { PageOpenContext } from "./page-open-context";
 import { WindowContext, type WindowContextValue } from "./window/context";
 
-const openInTaskBrowser = vi.fn();
+const openPageHere = vi.fn();
 const openExternalLink = vi.fn();
-
-vi.mock("@/client/hooks/use-open-in-task-browser", () => ({
-  useOpenInTaskBrowser: () => openInTaskBrowser,
-}));
 
 vi.mock("@/client/hooks/use-open-external-link", () => ({
   useOpenExternalLink: () => openExternalLink,
@@ -24,12 +20,9 @@ vi.mock("@/client/hooks/use-open-external-link", () => ({
 const TASK_ID = TaskIdSchema.parse("a-task");
 const SESSION_ID = StoreId.newSessionId();
 
-function inTask(children: ReactNode) {
-  return (
-    <TaskSessionProvider sessionId={SESSION_ID} taskId={TASK_ID}>
-      {children}
-    </TaskSessionProvider>
-  );
+/** A surface that says where a page goes. */
+function onSurface(children: ReactNode) {
+  return <PageOpenContext value={openPageHere}>{children}</PageOpenContext>;
 }
 
 function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
@@ -61,7 +54,9 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
   } satisfies WindowContextValue;
   return {
     browserOpen,
-    element: <WindowContext value={context}>{inTask(children)}</WindowContext>,
+    element: (
+      <WindowContext value={context}>{onSurface(children)}</WindowContext>
+    ),
     openPage,
   };
 }
@@ -75,7 +70,7 @@ function onPlatform(platform: string) {
 }
 
 beforeEach(() => {
-  openInTaskBrowser.mockClear();
+  openPageHere.mockClear();
   openExternalLink.mockClear();
 });
 
@@ -91,7 +86,7 @@ describe("ExternalLink", () => {
     );
     renderWithProviders(element);
     fireEvent.click(screen.getByText("A page"));
-    expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
+    expect(openPageHere).toHaveBeenCalledWith("https://example.com/page");
     expect(browserOpen).not.toHaveBeenCalled();
     expect(openExternalLink).not.toHaveBeenCalled();
     expect(screen.queryByRole("menu")).toBeNull();
@@ -112,7 +107,7 @@ describe("ExternalLink", () => {
       behind: true,
       newTab: true,
     });
-    expect(openInTaskBrowser).not.toHaveBeenCalled();
+    expect(openPageHere).not.toHaveBeenCalled();
   });
 
   // On macOS that chord is the secondary click, so it is not asking for a tab.
@@ -149,9 +144,9 @@ describe("ExternalLink", () => {
 
   // Refusing the gesture and answering nothing would be a dead click where it
   // used to at least reach the OS browser.
-  it("sends a middle click to the task's browser where there are no window tabs", () => {
+  it("sends a middle click to the surface's opener where there are no window tabs", () => {
     renderWithProviders(
-      inTask(
+      onSurface(
         <ExternalLink href="https://example.com/page">A page</ExternalLink>,
       ),
     );
@@ -161,11 +156,11 @@ describe("ExternalLink", () => {
       cancelable: true,
     });
     fireEvent(screen.getByText("A page"), event);
-    expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
+    expect(openPageHere).toHaveBeenCalledWith("https://example.com/page");
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("leaves for the OS browser outside a task, where there is nowhere else", () => {
+  it("leaves for the OS browser where the surface opens no pages", () => {
     renderWithProviders(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
@@ -177,25 +172,25 @@ describe("ExternalLink", () => {
     });
   });
 
-  it("keeps the page in the app inside a task", () => {
+  it("keeps the page in the app on a surface that opens pages", () => {
     renderWithProviders(
-      inTask(
+      onSurface(
         <ExternalLink href="https://example.com/page">A page</ExternalLink>,
       ),
     );
 
     fireEvent.click(screen.getByText("A page"));
 
-    expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
+    expect(openPageHere).toHaveBeenCalledWith("https://example.com/page");
     expect(openExternalLink).not.toHaveBeenCalled();
   });
 
   // A scheme the OS hands to an application has one destination wherever it is
-  // clicked. Offering the task's browser for a `mailto:` would be offering to
+  // clicked. Offering the app's browser for a `mailto:` would be offering to
   // open a page that does not exist.
-  it("leaves for the OS handler inside a task when the link is not a web page", () => {
+  it("leaves for the OS handler on a surface that opens pages when the link is not a web page", () => {
     renderWithProviders(
-      inTask(
+      onSurface(
         <ExternalLink addReferral={false} href="mailto:someone@example.com">
           Email
         </ExternalLink>,

@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import { sleep } from "radashi";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
-import { TaskPane } from "../schemas/task-pane";
 import {
   type TaskSettings,
   TaskSettingsSchema,
@@ -92,7 +91,7 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
 /**
  * Reads both views, each tolerant of the other failing.
  *
- * They are parsed separately on purpose. A pane written by a newer build, or a
+ * They are parsed separately on purpose. A state written by a newer build, or a
  * draft holding something the schema rejects, must not cost the task its title
  * and its place in the list -- and a title that cannot be read must not cost the
  * attached folders that decide what the agent can reach.
@@ -120,27 +119,6 @@ export async function setTaskState(
   state: Partial<TaskState>,
 ): Promise<void> {
   await updateTaskRecord(dir, (record) => recordWithState(record, state));
-}
-
-/**
- * Apply a change to the pane, reading the current one inside the write queue.
- *
- * The tab actions are read-modify-write on top of a read-modify-write, and the
- * whole point of queuing is lost if the read happens before the queue: two
- * `show` calls in one command line would each append to the tabs they saw and
- * the second would drop the first's.
- */
-export async function updateTaskPane(
-  dir: TaskDir,
-  update: (pane: TaskPane.Type) => TaskPane.Type,
-): Promise<TaskPane.Type> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, {
-      pane: update(record.state.pane ?? TaskPane.EMPTY),
-    }),
-  );
-
-  return written.state.pane ?? TaskPane.EMPTY;
 }
 
 /**

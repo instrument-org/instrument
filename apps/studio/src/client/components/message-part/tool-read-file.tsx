@@ -1,7 +1,4 @@
-import {
-  type SessionMessagePart,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
 import { useShowTaskFile } from "../../hooks/use-show-task-file";
@@ -40,7 +37,7 @@ const UNSUPPORTED_FORMAT_MESSAGES: Record<UnsupportedFormatReason, string> = {
   "unsupported-image-format": "Unsupported image format",
 };
 
-export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
+export function ToolReadFile({ part }: { part: ReadFilePart }) {
   if (part.state !== "output-available") {
     return <ToolCardEmpty message="Nothing has been read yet." />;
   }
@@ -51,18 +48,14 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
     case "audio": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
       return (
-        <ReadFileCard
-          filePath={output.filePath}
-          id={id}
-          modifiedAt={output.modifiedAt}
-        >
+        <ReadFileCard filePath={output.filePath} modifiedAt={output.modifiedAt}>
           <audio className="w-full" controls src={src} />
         </ReadFileCard>
       );
     }
     case "does-not-exist": {
       return (
-        <ReadFileCard filePath={output.filePath} id={id}>
+        <ReadFileCard filePath={output.filePath}>
           <p className="text-xs text-muted-foreground">File not found</p>
         </ReadFileCard>
       );
@@ -72,7 +65,6 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
         <FileToolCard
           content={output.content}
           filePath={output.filePath}
-          id={id}
           modifiedAt={output.modifiedAt}
         />
       );
@@ -84,7 +76,6 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
       return (
         <ReadFileCard
           filePath={output.filePath}
-          id={id}
           modifiedAt={output.modifiedAt}
           note={
             region
@@ -110,18 +101,13 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
         <FileToolCard
           content={output.entries.join("\n")}
           filePath={output.filePath}
-          id={id}
         />
       );
     }
     case "pdf": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
       return (
-        <ReadFileCard
-          filePath={output.filePath}
-          id={id}
-          modifiedAt={output.modifiedAt}
-        >
+        <ReadFileCard filePath={output.filePath} modifiedAt={output.modifiedAt}>
           <iframe
             className="h-96 w-full rounded-lg"
             src={src}
@@ -133,11 +119,7 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
     case "unsupported-format": {
       const message = UNSUPPORTED_FORMAT_MESSAGES[output.reason];
       return (
-        <ReadFileCard
-          filePath={output.filePath}
-          id={id}
-          modifiedAt={output.modifiedAt}
-        >
+        <ReadFileCard filePath={output.filePath} modifiedAt={output.modifiedAt}>
           <p className="text-xs text-muted-foreground">{message}</p>
         </ReadFileCard>
       );
@@ -145,11 +127,7 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
     case "video": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
       return (
-        <ReadFileCard
-          filePath={output.filePath}
-          id={id}
-          modifiedAt={output.modifiedAt}
-        >
+        <ReadFileCard filePath={output.filePath} modifiedAt={output.modifiedAt}>
           <video className="max-h-96 w-full rounded-lg" controls src={src} />
         </ReadFileCard>
       );
@@ -164,20 +142,18 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
 function ReadFileCard({
   children,
   filePath,
-  id,
   modifiedAt,
   note,
   openOnContentClick = false,
 }: {
   children: React.ReactNode;
   filePath: string;
-  id: TaskId;
   modifiedAt?: number;
   note?: string;
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const showTaskFile = useShowTaskFile(id);
+  const showTaskFile = useShowTaskFile();
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {

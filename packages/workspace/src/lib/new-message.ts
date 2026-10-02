@@ -14,11 +14,9 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
-import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
-import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
@@ -219,13 +217,6 @@ export async function newMessage({
     parts.push(backgroundProcessesPart);
   }
 
-  // A fresh request is a fresh claim on the user's attention, so the first page
-  // this turn reaches may take the pane again.
-  const allowed = await allowBrowserReveal({ sessionId, taskId });
-  if (allowed.isErr()) {
-    getWorkspaceConfig().captureException(allowed.error);
-  }
-
   // An orchestrator has no browser of its own: it drives whichever of the
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
@@ -299,23 +290,6 @@ export async function newMessage({
     if (memoryPart) {
       parts.push(memoryPart);
     }
-  }
-
-  // A message that says what its window has on screen has said it all; the
-  // pane is the task page's, and a window without one has nothing to report.
-  // An orchestrator's window is never that page: whatever a message of its
-  // own leaves unsaid about the screen, the pane cannot say either.
-  const paneTabsPart =
-    viewing || settings?.kind === "orchestrator"
-      ? undefined
-      : await createPaneTabsPart({
-          createdAt,
-          messageId,
-          sessionId,
-          taskId,
-        });
-  if (paneTabsPart) {
-    parts.push(paneTabsPart);
   }
 
   // Notify agent when the live project's instructions or folders drift from the

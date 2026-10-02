@@ -135,7 +135,7 @@ function ToolCallBody({
       return <ToolConnectApp part={part} />;
     }
     case "tool-edit_file": {
-      return <ToolEditFile id={task.id} part={part} />;
+      return <ToolEditFile part={part} />;
     }
     case "tool-generate_image": {
       return <ToolGenerateImage id={task.id} onRetry={onRetry} part={part} />;
@@ -144,7 +144,7 @@ function ToolCallBody({
       return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
-      return <ToolReadFile id={task.id} part={part} />;
+      return <ToolReadFile part={part} />;
     }
     case "tool-request_folder": {
       return <ToolRequestFolder part={part} taskId={task.id} />;
@@ -162,7 +162,7 @@ function ToolCallBody({
       return <ToolWebSearch onRetry={onRetry} part={part} />;
     }
     case "tool-write_file": {
-      return <ToolWriteFile id={task.id} part={part} />;
+      return <ToolWriteFile part={part} />;
     }
   }
 }

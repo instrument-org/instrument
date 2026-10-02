@@ -42,7 +42,7 @@ const MODAL_SAFE_COMMANDS = new Set([
  */
 export function useWindowCommands(
   handlers: {
-    /** The tab's own history, which is the only history a thumb or a menu reaches. */
+    /** The tab's own history, behind whatever the tab up walks first (a site's page): the only history a thumb or a menu reaches. */
     back: () => void;
     closeTab: () => void;
     forward: () => void;

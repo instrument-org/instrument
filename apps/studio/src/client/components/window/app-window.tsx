@@ -63,7 +63,7 @@ import {
   RouterProvider,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -91,6 +91,7 @@ import { childTasksOptions } from "./child-tasks-query";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
+import { tabStepsAtom } from "./tab-steps";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
@@ -633,7 +634,12 @@ function WindowShell({
   useWindowCommands(
     {
       back: () => {
-        appTabs.activeRouter?.history.back();
+        const steps = getDefaultStore().get(tabStepsAtom);
+        if (steps) {
+          steps.back();
+        } else {
+          appTabs.activeRouter?.history.back();
+        }
       },
       closeTab: () => {
         if (appTabs.model.selectedId) {
@@ -641,7 +647,12 @@ function WindowShell({
         }
       },
       forward: () => {
-        appTabs.activeRouter?.history.forward();
+        const steps = getDefaultStore().get(tabStepsAtom);
+        if (steps) {
+          steps.forward();
+        } else {
+          appTabs.activeRouter?.history.forward();
+        }
       },
       newChat: newDraft,
       newTab: appTabs.openNewTab,

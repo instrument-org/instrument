@@ -102,6 +102,7 @@ import { ScreenTabContext } from "./screen-tab";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
+import { useTabSteps } from "./tab-steps";
 import { useTaskTitles } from "./task-titles";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -1066,6 +1067,12 @@ export function GroupItem({
   useEffect(() => {
     stepsNow.current = { goBack, goForward };
   });
+  const canGoBack = withinBack || hasPast || Boolean(before?.canGoBack);
+  const canGoForward = withinForward || hasFuture;
+  // A site of the window's own is the tab, so its steps are the window's:
+  // its bar's arrows, its chords and a thumb over the chrome walk the page
+  // first, and the row over the page leaves the arrows to the bar.
+  useTabSteps(before ? { canGoBack, canGoForward, goBack, goForward } : null);
   useEffect(() => {
     if (targetId === undefined) {
       return;
@@ -1087,12 +1094,11 @@ export function GroupItem({
   const row = (location: TabLocation, { isFileScreen = false } = {}) => {
     return (
       <TabLocationRow
-        canGoBack={withinBack || hasPast || Boolean(before?.canGoBack)}
-        canGoForward={withinForward || hasFuture}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
         location={location}
         {...(onClose ? { onClose } : {})}
-        onBack={goBack}
-        onForward={goForward}
+        {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
           if (up.kind === "page" && webview) {
             void webview.loadURL(url);

@@ -500,8 +500,8 @@ function RouteScreen({ href }: { href: string }) {
 
 /**
  * A site opened at the window's own level: the page its group has up, under
- * the address row a chat's page wears, whose arrows walk the page's own
- * history.
+ * the address row a chat's page wears. The window's own arrows walk the
+ * page's history, then the tab's, so the row leaves its arrows to them.
  */
 function SiteView({ group }: { group: string }) {
   const shell = useShell();

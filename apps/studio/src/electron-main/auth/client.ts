@@ -114,8 +114,9 @@ export async function signOut() {
       { scopes: ["auth"] },
     );
   }
-  const sessionStore = getSessionStore();
-  sessionStore.set("apiBearerToken", null);
+  // The whole record, not just the bearer token, so nothing an earlier
+  // sign-in left beside it outlives the sign-out.
+  getSessionStore().clear();
   void setDefaultModel({ onlyIfOurModel: true });
   return response;
 }

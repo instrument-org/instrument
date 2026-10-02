@@ -8,12 +8,6 @@ import { z } from "zod";
 
 const SessionStateSchema = z.object({
   apiBearerToken: z.string().nullish(),
-  provider: z.enum(["google"]).nullish(),
-  providerAccessToken: z.string().nullish(),
-  providerIdToken: z.string().nullish(),
-  providerRefreshToken: z.string().nullish(),
-  providerScopes: z.array(z.string()).nullish(),
-  providerTokenType: z.string().nullish(),
 });
 
 type SessionState = z.output<typeof SessionStateSchema>;

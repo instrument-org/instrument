@@ -187,12 +187,6 @@ async function start() {
     );
 
     const sessionStore = getSessionStore();
-    sessionStore.set("provider", "google");
-    sessionStore.set("providerAccessToken", tokens.accessToken());
-    sessionStore.set("providerRefreshToken", tokens.refreshToken());
-    sessionStore.set("providerIdToken", tokens.idToken());
-    sessionStore.set("providerScopes", tokens.scopes());
-    sessionStore.set("providerTokenType", tokens.tokenType());
 
     const headers = new Headers();
 

@@ -88,7 +88,11 @@ function openWorkspace() {
 
   for (const step of [
     ...migrateMachineSettings(userDataDir),
-    ...migrateWorkspaceSettings({ userDataDir, workspace }),
+    ...migrateWorkspaceSettings({
+      packaged: app.isPackaged,
+      userDataDir,
+      workspace,
+    }),
   ]) {
     logger.info(`Settings migration: ${step}`);
   }

@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
+- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
 
 ## Local references
 
@@ -67,7 +67,7 @@ What the hook does not cover: type errors, and any file written by something oth
 - **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
 - **Zod** 4.x
 - **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
-- **AI SDK** 6.x
+- **AI SDK** 7.x
 - **better-auth** 1.6.x
 - **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.15.0 (`engines`)
 
@@ -110,13 +110,13 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
-- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task` + `/skills` + `/mnt` mount layout and the virtual↔host path bridge.
+- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task`, `/project`, `/skills`, `/mnt`, `/apps`, and `/tasks` mount layout and the virtual↔host path bridge.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
-- `docs/architecture/asset-origin.md` — The per-task `assets.<taskId>` HTTP origin: how the host header routes it, why its path space is the virtual FS path space, who builds its URLs, its cache policy and containment, and what it does not authenticate.
-- `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
+- `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.
 - `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
+- `docs/architecture/releasing.md`: Where a build comes from and where it goes: cutting a tag, what it starts, where the artifacts land, the draft release, and the notes.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

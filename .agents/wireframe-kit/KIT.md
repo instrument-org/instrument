@@ -59,7 +59,7 @@ const states = [
 | `miniBar`, `menu(items, pos)`, `sheet(inner, size)`                    | A minimized chat, a popover menu, a modal sheet over a dimmed window                                             |
 | `onboardWin({ body, foot, tone })`, `onboardLogin()`, `brandMark(cls)` | Onboarding's own 480x600 window (brand or subtle gradient), its sign-in step as built, and the app mark          |
 
-A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the documents fixture's thread "Lisbon trip itinerary with ticket prices" (`LISBON_TITLE`, `lisbon(stage)` for its transcript); keep to it so a round's files compare. `ROWS` beyond the fixture's three threads are invented, and a page's `source` line says so.
+A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Lisbon trip itinerary with ticket prices" (`LISBON_TITLE`, `lisbon(stage)` for its transcript); keep to it so a round's files compare. It and the other `ROWS` are invented rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
 
 ## Outside the window
 

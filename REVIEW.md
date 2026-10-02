@@ -6,9 +6,9 @@ Focus on correctness and user impact. The rules below only calibrate what the re
 
 Use 🔴 Important for concrete defects that should be fixed before merging. Preserve the default bar for correctness bugs, security vulnerabilities, and regressions, and pay particular attention to:
 
-- **Containment regressions.** The agent must stay within the `/task`, `/project`, `/skills`, and `/mnt` layout, with each attached folder held to the access the user granted it (read-only or read-write). Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
+- **Containment regressions.** The agent must stay within the `/task`, `/project`, `/skills`, `/mnt`, `/apps`, and `/tasks` layout, with each attached folder held to the access the user granted it (read-only or read-write). Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
 - **Packaging and release breakage.** Main-process runtime packages belong in `dependencies`, renderer-only packages in `devDependencies`, and native binaries may require `asarUnpack`. Flag changes that work locally but break or materially bloat the packaged app.
-- **Data loss or incompatibility.** Changes must preserve `tasks/<id>/.instrument/{task.db,settings.json}` and continue loading data written by the previous release unless they include a migration.
+- **Data loss or incompatibility.** Changes must preserve `.instrument/{task.db,settings.json}` under `chats/<id>/`, `chats/<id>/tasks/<id>/`, and `tasks/<id>/`, a topic's `topics/<Name>/` folder, and continue loading data written by the previous release unless they include a migration.
 - **Privacy leaks.** Prompts, agent messages, file contents, user paths, API keys, and `.env` values must not reach telemetry, logs, or unintended network destinations.
 - **Agent-turn correctness.** Flag deterministic tool, prompt, message-assembly, or state-management defects that make turns fail, hang, or silently drop state.
 
@@ -29,7 +29,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 
 ## Always check
 
-- **Studio privilege boundaries.** Renderer code must not import Electron, Node built-ins, or platform API modules directly. Privileged operations use the narrow preload API or main-process oRPC, and remote Instrument API calls go through main-process routes. Fetching task files from validated localhost workspace URLs is expected.
+- **Studio privilege boundaries.** Renderer code must not import Electron, Node built-ins, or platform API modules directly. Privileged operations use the narrow preload API or main-process oRPC, and remote Instrument API calls go through main-process routes. Reading files through the `instrument://computer-<token>` channel (`client/lib/computer-file-url.ts`) is expected.
 - **Workspace error handling.** Do not discard neverthrow `Result` errors. Expected tool failures stay typed through the tool boundary, and RPC handlers map known failures with `toORPCError`; internal invariant failures may still throw.
 - **Persisted shapes.** Changed Zod schemas, database columns, and state keys must remain backward compatible or include a migration.
 - **Session-context freshness.** Values derived from `agent.getMessages` are a startup snapshot fixed for the life of the session. Values required in a later turn must be attached to that turn as a persisted `data-*` part, and rendering one must be deterministic from what is stored.

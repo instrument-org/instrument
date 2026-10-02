@@ -55,7 +55,7 @@ The app and onboarding windows run on the workspace's own Chromium session (`lib
 
 The app window is a single web contents (see Windows), so modals are plain `<Dialog>`s at the window root, not separate overlay views.
 
-- **App-wide** (`login`, `settings`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `orchestrator/window-frame.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. A modal created with `replaceable: false` holds the slot until it closes itself; opening another over it is ignored.
+- **App-wide** (`login`, `settings`, `shortcut-guide`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `window/window-frame.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. A modal created with `replaceable: false` holds the slot until it closes itself; opening another over it is ignored.
 - **Contextual** (`delete-chat`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
 - `useBlockTabNavigation(open)` holds the window's tab chords (Cmd+T/W/etc.) while a modal is open.
 
@@ -68,7 +68,7 @@ Quote a name the user chose — a folder, project, skill, or their own search te
 The whole window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:
 
 - Size a dialog with `DialogContent`'s `maxWidth`/`maxHeight` props (intrinsic sizes, e.g. `maxWidth="42rem"`), never a `max-w-*`/`max-h-*` class: `cn()` merges the class over the primitive's own and takes the window cap away with it. Same for `TooltipContent`'s `maxWidth` and `PopoverContent`'s `maxHeight` — a popover given no `maxHeight` takes the room Radix measured for it, so tall content wants a scroll rather than a taller panel.
-- Floating content stays clear of the toolbar band, which on macOS is where the traffic lights are drawn over the web contents: `ChromeInsetProvider` (mounted by the app window's frame, `orchestrator/window-frame.tsx`) declares its depth and `useChromeCollisionPadding` is the default `collisionPadding` on every Radix content primitive. It reaches menus that set `avoidCollisions={false}` too, since Radix hands the padding to the `size` middleware either way. Zero where no window declares a band, and inert for a `Select` left on `position="item-aligned"`.
+- Floating content stays clear of the toolbar band, which on macOS is where the traffic lights are drawn over the web contents: `ChromeInsetProvider` (mounted by the app window's frame, `window/window-frame.tsx`) declares its depth and `useChromeCollisionPadding` is the default `collisionPadding` on every Radix content primitive. It reaches menus that set `avoidCollisions={false}` too, since Radix hands the padding to the `size` middleware either way. Zero where no window declares a band, and inert for a `Select` left on `position="item-aligned"`.
 - Reuse `useAppZoomStyle` + `zoomMaxSize` on any new floating/portalled UI, or `use-portal-container.tsx` when portalling into the zoomed tree, instead of hand-rolling zoom math. A full-window overlay wants `fixed inset-0` and no viewport units at all (`file-preview-modal.tsx`).
 - Anything placed where the pointer is — a menu on right click, a flyout beside a measured rect — takes its `left`/`top` from `useWindowPointStyle`. `event.clientX`/`clientY` and every `getBoundingClientRect()` edge are on-screen px, and a length inside the zoom root is layout px, so the raw value lands at `zoom ×` the point it was read from.
 - A virtualizer inside self-zoomed content must measure in layout px: pass `measureElement: (el) => el.offsetHeight` and an `observeElementRect` reading `offsetWidth`/`offsetHeight`. The defaults read `getBoundingClientRect`, which is on-screen px.
@@ -94,8 +94,8 @@ Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs th
 
 ## Where things are
 
-- **Client**: `src/client`, file routes in `src/client/routes/` (`_app/` = layout/auth).
+- **Client**: `src/client`, file routes in `src/client/routes/` (`_app/` = the app window's pathless layout, `onboarding/` = the onboarding window's).
 - **UI**: shadcn in `src/client/components/ui`; shared in `src/client/components/`.
-- **Debug**: `_app/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
+- **Debug**: `routes/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
 - **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).

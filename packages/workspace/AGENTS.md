@@ -8,11 +8,11 @@ Core AI agents, workflow logic, RPC, and tools.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs an orchestrator's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/orchestrator/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
-- **Workspace server**: Hono app in `src/logic/server/index.ts`, for the agent alone: the per-task asset origin its browser opens files on, the CDP bridge, and the AI gateway mounted at `AI_GATEWAY_API_PATH` when provided. The person's viewers read files through Studio's own `instrument://computer-<token>` channel instead.
+- **Workspace server**: loopback Hono app in `src/logic/server/index.ts`: the CDP bridge `agent-browser` drives a guest through, and the AI gateway mounted at `AI_GATEWAY_API_PATH` when provided. It serves no files: a page on this computer opens at its `file://` address for the person and the agent alike, and the person's viewers read files through Studio's own `instrument://computer-<token>` channel.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
-- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
-- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the four virtual paths the agent works in. Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
+- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. Each skill source mounts at `/skills/<source>/` for the agent, and only the workspace's own (`/skills/workspace/`) is writable (see `docs/architecture/agent-sandbox.md`).
+- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the virtual paths the agent works in (`/task`, `/project`, `/skills`, `/mnt`, `/apps`, `/tasks`). Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
 
 ## Context messages
 
@@ -146,12 +146,13 @@ past it was composed, paid for, and dropped.
 `scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
 description in `fixtures/workspaces/` at the **repo root** (this package's own
 `fixtures/` is something else), for `ELECTRON_USER_DATA_DIR`.
-`scripts/record-fixture-session.ts` captures a real task's conversation into one.
+`scripts/record-fixture-session.ts` captures a real chat (with every task in it) or a lone task into one.
 
 ```bash
 pnpm workspace:seed --list                                # from the repo root
 pnpm workspace:seed --out <dir> --fixture documents [--fresh]
-pnpm run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...
+pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
 ```
 
 The seeder goes through `initializeTask` and `Store`, never the filesystem: task

@@ -1,4 +1,5 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { type OpenOptions } from "@/client/components/window/context";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { rpcClient } from "@/client/rpc/client";
 import { isFolderPath, type TaskId } from "@instrument-org/workspace/client";
@@ -29,7 +30,7 @@ export function useShowTaskFile(taskId: TaskId | undefined) {
   const openElsewhere = useContext(FileOpenContext);
   const { openFiles } = useTaskPaneActions(taskId);
 
-  return (filePath: string, options?: { newTab?: boolean }) => {
+  return (filePath: string, options?: OpenOptions) => {
     if (openElsewhere) {
       openElsewhere(filePath, options);
       return;

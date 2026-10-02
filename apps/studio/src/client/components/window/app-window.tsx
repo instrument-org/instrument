@@ -852,7 +852,9 @@ function WindowShell({
                   if (next === place && !newTab) {
                     return;
                   }
-                  appTabs.goToPlace(next, { newTab });
+                  // A place asked for in a tab of its own waits behind, the
+                  // way a bookmark middle-clicked in a browser does.
+                  appTabs.goToPlace(next, { behind: newTab, newTab });
                 }}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {

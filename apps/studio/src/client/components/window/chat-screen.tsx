@@ -20,7 +20,7 @@ import { type ReactNode, useContext, useEffect, useState } from "react";
 import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
 import { ChatWork } from "./chat-work";
-import { useWindow, WindowContext } from "./context";
+import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { WorkingRow } from "./working-row";
 
@@ -160,8 +160,8 @@ function ChatScreenOfRecord({
   // nothing because the group on screen was another's.
   // A new-tab gesture over any of it asks for a tab of the window's own.
   const into = { group: sessionId, ownTab: true, show: true };
-  const intoOr = (options?: { newTab?: boolean }) =>
-    options?.newTab ? { newTab: true } : into;
+  const intoOr = (options?: OpenOptions) =>
+    options?.newTab ? { behind: options.behind, newTab: true } : into;
   return (
     // The chat is the drop region, so a file let go anywhere over it lands
     // in the reply, and the pane beside it stays outside.

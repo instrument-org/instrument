@@ -23,6 +23,7 @@ import {
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
@@ -71,7 +72,6 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -1009,6 +1009,10 @@ export function ComputerPage({
     );
   }
 
+  /** A place in a tab of its own, waiting behind; the recents by their own address. */
+  const openPlaceInNewTab = (place: string) => {
+    openScreen(folderHref(place), { behind: true, newTab: true });
+  };
   const placeMenu = (place: string) => (
     <PlaceMenu
       hostPath={place}
@@ -1019,7 +1023,7 @@ export function ComputerPage({
         })
       }
       onOpenInNewTab={() => {
-        openScreen(folderHref(place), { newTab: true });
+        openPlaceInNewTab(place);
       }}
     />
   );
@@ -1066,7 +1070,7 @@ export function ComputerPage({
           : fileHref(itemPath, {
               tree: folderOnScreenPath ?? folderOf(itemPath),
             }),
-        { newTab: true },
+        { behind: true, newTab: true },
       );
     },
     onQuickLook:
@@ -1113,6 +1117,7 @@ export function ComputerPage({
     <>
       {/* What the conversation showed, before the places a person keeps things. */}
       <PlaceList
+        onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -1130,6 +1135,7 @@ export function ComputerPage({
       <PlaceList
         label="Favorites"
         menu={placeMenu}
+        onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder === homePath ? "~" : folder);
         }}
@@ -1155,6 +1161,7 @@ export function ComputerPage({
       <PlaceList
         label="Locations"
         menu={placeMenu}
+        onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -1223,7 +1230,32 @@ export function ComputerPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <ContextMenu onOpenChange={setIsMenuOpen}>
           <ContextMenuTrigger asChild>
-            <div className="relative min-h-0 flex-1" ref={browserRef}>
+            <div
+              className="relative min-h-0 flex-1"
+              // A middle click on a row opens it in a tab of its own, waiting
+              // behind, the way Open in New Tab does: a double-click is what
+              // opens one here, since a single click selects.
+              onAuxClick={(event) => {
+                if (event.button !== 1 || !(event.target instanceof Element)) {
+                  return;
+                }
+                const path = event.target
+                  .closest("[data-file-system-item]")
+                  ?.getAttribute("data-file-system-item");
+                const item = items.find((entry) => entry.path === path);
+                if (item) {
+                  event.preventDefault();
+                  menuActionsFor(item).onOpenInNewTab();
+                }
+              }}
+              // The middle button's own answer is to scroll; here it opens.
+              onMouseDown={(event) => {
+                if (event.button === 1) {
+                  event.preventDefault();
+                }
+              }}
+              ref={browserRef}
+            >
               {isCurrentNotPermitted && folderHostPath !== undefined && (
                 <NotPermitted
                   hostPath={folderHostPath}
@@ -1639,7 +1671,7 @@ function FolderMenuItems({
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>
-            <ArrowSquareOutIcon className="size-4" />
+            <NewTabIcon className="size-4" />
             <span>Open in New Tab</span>
           </Item>
           {/* The apps are listed where the Mac can be asked for them, and the
@@ -2026,6 +2058,7 @@ function PlaceList({
   label,
   menu,
   onOpen,
+  onOpenInNewTab,
   places,
 }: {
   /** Left out for a list of one, where a heading says nothing the row does not. */
@@ -2033,6 +2066,8 @@ function PlaceList({
   /** What a right-click on a place offers, left out where a place is not a folder. */
   menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
+  /** A middle click: the place in a tab of its own, waiting behind. */
+  onOpenInNewTab: (path: string) => void;
   places: {
     icon: ReactNode;
     isActive: boolean;
@@ -2057,8 +2092,19 @@ function PlaceList({
                     "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
                     place.isActive && "bg-foreground/8",
                   )}
+                  onAuxClick={(event) => {
+                    if (event.button === 1) {
+                      event.preventDefault();
+                      onOpenInNewTab(place.path);
+                    }
+                  }}
                   onClick={() => {
                     onOpen(place.path);
+                  }}
+                  onMouseDown={(event) => {
+                    if (event.button === 1) {
+                      event.preventDefault();
+                    }
                   }}
                   type="button"
                 >
@@ -2105,7 +2151,7 @@ function PlaceMenu({
         </>
       ) : null}
       <ContextMenuItem onClick={onOpenInNewTab}>
-        <ArrowSquareOutIcon className="size-4" />
+        <NewTabIcon className="size-4" />
         <span>Open in New Tab</span>
       </ContextMenuItem>
       {/* The Open in list already offers the Finder, so a row of its own

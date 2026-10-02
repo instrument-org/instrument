@@ -486,7 +486,7 @@ const TaskFileLink = ({
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => {
-                showTaskFile(filePath, { newTab: true });
+                showTaskFile(filePath, { behind: true, newTab: true });
               }}
             >
               Open in New Tab
@@ -665,7 +665,7 @@ const MarkdownLink = ({
           onAuxClick={(event) => {
             if (event.button === 1) {
               event.preventDefault();
-              openFile(hostPath, { newTab: true });
+              openFile(hostPath, { behind: true, newTab: true });
             }
           }}
           onClick={(event) => {

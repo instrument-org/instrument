@@ -147,6 +147,7 @@ export function useOpeners({
     href: string,
     {
       activate = false,
+      behind = false,
       group: into,
       newTab = false,
       ownTab = false,
@@ -163,7 +164,7 @@ export function useOpeners({
     if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
       // its history, and the chat comes up at the tab it last had up.
-      appTabs.go(`${CHATS_HREF}/${chat}`, { newTab });
+      appTabs.go(`${CHATS_HREF}/${chat}`, { behind, newTab });
       return;
     }
     if (parseHref(href).pathname.startsWith(`${CHATS_HREF}/`)) {
@@ -229,7 +230,7 @@ export function useOpeners({
     // Anything else in a tab of the window's own, wherever it was asked
     // for from.
     if (newTab) {
-      appTabs.open(href);
+      appTabs.open(href, { select: !behind });
       return;
     }
     // An app is a place a tab stands, wherever it was asked for from.

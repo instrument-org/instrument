@@ -8,7 +8,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ReactNode, useContext } from "react";
 import { toast } from "sonner";
 
-import { WindowContext } from "./context";
+import { type OpenOptions, WindowContext } from "./context";
 import { type LinkTarget, linkTargetOf } from "./link-address";
 import { setMenuLink } from "./menu-link";
 
@@ -38,13 +38,13 @@ export function LinkSurface({
 }: {
   base?: string;
   children: ReactNode;
-  openFile?: (hostPath: string, options?: { newTab?: boolean }) => void;
+  openFile?: (hostPath: string, options?: OpenOptions) => void;
 }) {
   const gesturesFor = useGesturesFor();
   // Absent while the window is still coming up, where a link has nowhere in
   // the window to open and the page's own answer stands.
   const appWindow = useContext(WindowContext);
-  const showFile = (hostPath: string, options?: { newTab?: boolean }) => {
+  const showFile = (hostPath: string, options?: OpenOptions) => {
     if (openFile) {
       openFile(hostPath, options);
       return;
@@ -68,7 +68,7 @@ export function LinkSurface({
       id: "openNewTab",
       label: "Open in New Tab",
       run: () => {
-        showFile(hostPath, { newTab: true });
+        showFile(hostPath, { behind: true, newTab: true });
       },
     },
     {
@@ -90,7 +90,10 @@ export function LinkSurface({
       if (gesture === "menu") {
         void showOpenMenu(fileDestinations(target.path));
       } else {
-        showFile(target.path, { newTab: gesture === "newTab" });
+        showFile(
+          target.path,
+          gesture === "newTab" ? { behind: true, newTab: true } : undefined,
+        );
       }
       return;
     }

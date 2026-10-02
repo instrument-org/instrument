@@ -13,7 +13,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 export interface OpenOptions {
   /** Puts the thing in front of its group without bringing the group on screen: for a group drawn by a window of its own. */
   activate?: boolean;
-  /** With `newTab`, the tab waits behind the one up, as a middle-click's does in a browser. */
+  /** With `newTab`, the tab waits behind the one up, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */
   behind?: boolean;
   group?: string;
   /**

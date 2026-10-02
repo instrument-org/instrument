@@ -200,7 +200,7 @@ function useDestinationsFor(): (
                 id: "openNewTab" as const,
                 label: "Open in New Tab",
                 run: () => {
-                  appWindow.openPage(url, { newTab: true });
+                  appWindow.openPage(url, { behind: true, newTab: true });
                 },
               },
             ]
@@ -235,7 +235,7 @@ function useDestinationsFor(): (
                 id: "openNewTab" as const,
                 label: "Open in New Tab",
                 run: () => {
-                  openPathOnSurface(path, { newTab: true });
+                  openPathOnSurface(path, { behind: true, newTab: true });
                 },
               },
             ]
@@ -260,7 +260,7 @@ function useDestinationsFor(): (
         id: "openNewTab",
         label: "Open in New Tab",
         run: () => {
-          appWindow.openScreen(href, { newTab: true });
+          appWindow.openScreen(href, { behind: true, newTab: true });
         },
       },
       ...copy,

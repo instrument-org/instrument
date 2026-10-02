@@ -27,7 +27,7 @@ import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { TabIcon } from "./browser-tabs";
-import { useWindow } from "./context";
+import { type OpenOptions, useWindow } from "./context";
 import { useNewestSessionId } from "./newest-session";
 import { useIsTaskWorking } from "./task-working";
 
@@ -280,7 +280,7 @@ function TaskBrief({ task }: { task: Task }) {
  */
 function useOpenFileNamedByTask(taskId: Task["id"]) {
   const { openScreen } = useWindow();
-  return (filePath: string, options?: { newTab?: boolean }) => {
+  return (filePath: string, options?: OpenOptions) => {
     const isFolder = isFolderPath(filePath);
     const bare = isFolder ? filePath.slice(0, -1) : filePath;
     void (async () => {

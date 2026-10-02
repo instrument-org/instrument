@@ -17,7 +17,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -41,6 +41,8 @@ interface Rows {
   menuTarget: string | undefined;
   onMenu: (entry: FileSystemItem) => void;
   onOpen: (hostPath: string) => void;
+  /** A tab of the window's own, waiting behind: a middle click or the menu's Open in New Tab. */
+  onOpenInNewTab: (hostPath: string, kind: "file" | "folder") => void;
   onToggle: (path: string) => void;
   selected: string;
 }
@@ -97,6 +99,15 @@ export function FileTree({
     typeof menuItem?.metadata?.hostPath === "string"
       ? menuItem.metadata.hostPath
       : "";
+  // A file comes up rooted where this tree is, the way one pressed here is.
+  const openInNewTab = (hostPath: string, kind: "file" | "folder") => {
+    openScreen(
+      kind === "folder"
+        ? folderHref(hostPath)
+        : fileHref(hostPath, { tree: root }),
+      { behind: true, newTab: true },
+    );
+  };
   const rows = {
     isOpen,
     menuTarget: isMenuOpen ? menuHostPath : undefined,
@@ -104,6 +115,7 @@ export function FileTree({
       setMenuItem(entry);
     },
     onOpen,
+    onOpenInNewTab: openInNewTab,
     onToggle: toggle,
     selected,
   };
@@ -148,7 +160,7 @@ export function FileTree({
           onOpen(menuHostPath);
         }}
         onOpenInNewTab={() => {
-          openScreen(folderHref(menuHostPath), { newTab: true });
+          openInNewTab(menuHostPath, menuItem?.kind ?? "file");
         }}
         onQuickLook={undefined}
         onReveal={() => {
@@ -206,6 +218,9 @@ function FileRow({
           name: entry.name,
           path: entry.path,
         });
+      }}
+      onOpenInNewTab={() => {
+        rows.onOpenInNewTab(entry.path, "file");
       }}
       onPress={() => {
         rows.onOpen(entry.path);
@@ -275,6 +290,9 @@ function Folder({
             path,
           });
         }}
+        onOpenInNewTab={() => {
+          rows.onOpenInNewTab(path, "folder");
+        }}
         onPress={() => {
           rows.onToggle(path);
         }}
@@ -331,6 +349,7 @@ function Row({
   isSelected = false,
   name,
   onMenu,
+  onOpenInNewTab,
   onPress,
 }: {
   depth: number;
@@ -341,6 +360,8 @@ function Row({
   isSelected?: boolean;
   name: string;
   onMenu: () => void;
+  /** A middle click: the row in a tab of its own, waiting behind. */
+  onOpenInNewTab: () => void;
   onPress: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -362,8 +383,20 @@ function Row({
         isSelected && SELECTED_ROW_CLASSNAME,
         isMenuTarget && MENU_TARGET_CLASSNAME,
       )}
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          onOpenInNewTab();
+        }
+      }}
       onClick={onPress}
       onContextMenu={onMenu}
+      // The middle button's own answer is to scroll; here it opens.
+      onMouseDown={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+        }
+      }}
       ref={ref}
       role="treeitem"
       title={name}

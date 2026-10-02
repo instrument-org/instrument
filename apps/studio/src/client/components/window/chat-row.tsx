@@ -25,7 +25,7 @@ import { type ReactNode, useState } from "react";
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
 import { activityLabel, type Chat, type Topic } from "./chats";
-import { useWindow, WindowContext } from "./context";
+import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
@@ -416,8 +416,8 @@ function HoldsInChat({
   const appWindow = useWindow();
   const inChat = { group: chatSessionId, ownTab: true, show: true };
   // A new-tab gesture asks for a tab of the window's own instead.
-  const options = (asked?: { newTab?: boolean }) =>
-    asked?.newTab ? { newTab: true } : inChat;
+  const options = (asked?: OpenOptions) =>
+    asked?.newTab ? { behind: asked.behind, newTab: true } : inChat;
   return (
     <WindowContext
       value={{

@@ -173,10 +173,10 @@ export function useAppTabs() {
       activeRouter.history.push(href);
     }
   };
-  /** Goes to an address in the tab up, or in a tab of its own when asked. */
-  const go = (href: string, { newTab = false } = {}) => {
+  /** Goes to an address in the tab up, or in a tab of its own when asked, which waits behind when asked to. */
+  const go = (href: string, { behind = false, newTab = false } = {}) => {
     if (newTab) {
-      open(href);
+      open(href, { select: !behind });
     } else {
       navigate(href);
     }
@@ -193,8 +193,8 @@ export function useAppTabs() {
     activeRouter,
     close,
     go,
-    goToPlace: (place: AppPlace, { newTab = false } = {}) => {
-      go(placeHrefOf(place, lastChat), { newTab });
+    goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
+      go(placeHrefOf(place, lastChat), { behind, newTab });
     },
     /** A new tab of the place the tab up stands in, or of the chat outside any place. */
     model,

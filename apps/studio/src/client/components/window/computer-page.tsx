@@ -956,6 +956,20 @@ export function ComputerPage({
     );
   }
 
+  const placeMenu = (place: string) => (
+    <PlaceMenu
+      hostPath={place}
+      onNewDraft={
+        askAbout &&
+        (() => {
+          askAbout([{ kind: "folder", path: place }]);
+        })
+      }
+      onOpenInNewTab={() => {
+        openScreen(folderHref(place), { newTab: true });
+      }}
+    />
+  );
   const rootName = isRecents
     ? "Recents"
     : root === "~"
@@ -1017,6 +1031,7 @@ export function ComputerPage({
         />
         <PlaceList
           label="Favorites"
+          menu={placeMenu}
           onOpen={(folder) => {
             rootTo(folder === homePath ? "~" : folder);
           }}
@@ -1041,6 +1056,7 @@ export function ComputerPage({
         />
         <PlaceList
           label="Locations"
+          menu={placeMenu}
           onOpen={(folder) => {
             rootTo(folder);
           }}
@@ -1861,11 +1877,14 @@ function isTextLike(file: FileSystemFileItem) {
 
 function PlaceList({
   label,
+  menu,
   onOpen,
   places,
 }: {
   /** Left out for a list of one, where a heading says nothing the row does not. */
   label?: string;
+  /** What a right-click on a place offers, left out where a place is not a folder. */
+  menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
   places: {
     icon: ReactNode;
@@ -1884,25 +1903,93 @@ function PlaceList({
       <ul className="flex flex-col gap-px">
         {places.map((place) => (
           <li key={place.path}>
-            <button
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5",
-                place.isActive && "bg-foreground/8",
-              )}
-              onClick={() => {
-                onOpen(place.path);
-              }}
-              type="button"
-            >
-              <span className="flex size-4 shrink-0 items-center justify-center">
-                {place.icon}
-              </span>
-              <span className="truncate">{place.name}</span>
-            </button>
+            <ContextMenu>
+              <ContextMenuTrigger asChild disabled={menu === undefined}>
+                <button
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
+                    place.isActive && "bg-foreground/8",
+                  )}
+                  onClick={() => {
+                    onOpen(place.path);
+                  }}
+                  type="button"
+                >
+                  <span className="flex size-4 shrink-0 items-center justify-center">
+                    {place.icon}
+                  </span>
+                  <span className="truncate">{place.name}</span>
+                </button>
+              </ContextMenuTrigger>
+              {menu?.(place.path)}
+            </ContextMenu>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * What can be done to a place in the sidebar: the folder menu's ways of
+ * opening it and pointing at it, and none of the ways of changing it. A place
+ * is a folder a person keeps things in, and Rename, Duplicate or the Trash one
+ * misplaced click away from the whole of it is not worth the row.
+ */
+function PlaceMenu({
+  hostPath,
+  onNewDraft,
+  onOpenInNewTab,
+}: {
+  hostPath: string;
+  /** Left out where no draft can be opened. */
+  onNewDraft: (() => void) | undefined;
+  onOpenInNewTab: () => void;
+}) {
+  return (
+    <ContextMenuContent className="min-w-48">
+      {onNewDraft ? (
+        <>
+          <ContextMenuItem onClick={onNewDraft}>
+            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
+            <span>New Chat</span>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+        </>
+      ) : null}
+      <ContextMenuItem onClick={onOpenInNewTab}>
+        <ArrowSquareOutIcon className="size-4" />
+        <span>Open in New Tab</span>
+      </ContextMenuItem>
+      {/* The Open in list already offers the Finder, so a row of its own
+          would name it twice. */}
+      {isMacOS() ? (
+        <OpenInMenu
+          file={{ hostPath }}
+          menuComponents={contextMenuComponents}
+        />
+      ) : (
+        <ContextMenuItem
+          onClick={() =>
+            void rpcClient.utils.showFileInFolder
+              .call({ filepath: hostPath })
+              .catch(failed)
+          }
+        >
+          <RevealInFolderIcon className="size-4" />
+          <span>{getRevealInFolderLabel()}</span>
+        </ContextMenuItem>
+      )}
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onClick={() =>
+          void navigator.clipboard.writeText(hostPath).catch(failed)
+        }
+      >
+        <ClipboardTextIcon className="size-4" />
+        <span>Copy Path</span>
+      </ContextMenuItem>
+    </ContextMenuContent>
   );
 }
 

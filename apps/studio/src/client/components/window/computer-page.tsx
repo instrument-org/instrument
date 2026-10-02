@@ -966,7 +966,7 @@ export function ComputerPage({
         if (isNarrow) {
           setPlacesOpen((open) => !open);
         } else {
-          setPlacesShown((shown) => !shown);
+          setPlacesShown((wasShown) => !wasShown);
         }
       }}
     />

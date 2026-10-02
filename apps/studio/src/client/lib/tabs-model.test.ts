@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   addTab,
+  closeOtherTabs,
   closeTab,
+  closeTabsToRight,
+  duplicateTab,
   emptyTabsModel,
   reopenClosed,
   reorderTabs,
@@ -191,6 +194,74 @@ describe("reopenClosed", () => {
   it("no-ops with empty history", () => {
     const start = model([tab({ id: id("a") })], id("a"));
     expect(reopenClosed(start, { id: id("x") })).toBe(start);
+  });
+});
+
+describe("closing several", () => {
+  const strip = () =>
+    model(
+      ["a", "b", "c", "d"].map((value) => tab({ id: id(value) })),
+      id("a"),
+    );
+  const reopenAll = (start: TabsModel) => {
+    let next = start;
+    for (const [index] of start.recentlyClosed.entries()) {
+      next = reopenClosed(next, { id: id(`r${index}`) });
+    }
+    return next.tabs.map((t) => t.id);
+  };
+
+  it.each([
+    { close: closeOtherTabs, kept: ["c"], reopened: ["r0", "r1", "c", "r2"] },
+    {
+      close: closeTabsToRight,
+      kept: ["a", "b", "c"],
+      reopened: ["a", "b", "c", "r0"],
+    },
+  ])(
+    "$close.name keeps $kept, and reopening restores the order",
+    ({ close, kept, reopened }) => {
+      const closed = close(strip(), { id: id("c") });
+      expect(closed.tabs.map((t) => t.id)).toEqual(kept);
+      expect(closed.selectedId).toBe("c");
+      expect(reopenAll(closed)).toEqual(reopened);
+    },
+  );
+
+  it("no-ops with nothing to close", () => {
+    const start = strip();
+    expect(closeTabsToRight(start, { id: id("d") })).toBe(start);
+  });
+});
+
+describe("duplicateTab", () => {
+  it("puts a copy with the same history right of the tab, up", () => {
+    const history = { entries: ["/files", "/files?path=a"], index: 1 };
+    const start = model(
+      [
+        tab({ history, id: id("a"), pathname: "/files?path=a" }),
+        tab({ id: id("b") }),
+      ],
+      id("b"),
+    );
+    const next = duplicateTab(start, { id: id("a"), newId: id("copy") });
+    expect(next.tabs.map((t) => t.id)).toEqual(["a", "copy", "b"]);
+    expect(next.tabs[1]).toMatchObject({ history, pathname: "/files?path=a" });
+    expect(next.selectedId).toBe("copy");
+  });
+
+  it("puts a copy at a place of its own where one is given", () => {
+    const start = model(
+      [tab({ id: id("a"), pathname: "/sites/one" })],
+      id("a"),
+    );
+    const next = duplicateTab(start, {
+      id: id("a"),
+      newId: id("copy"),
+      pathname: "/sites/two",
+    });
+    expect(next.tabs[1]?.pathname).toBe("/sites/two");
+    expect(next.tabs[1]?.history).toBeUndefined();
   });
 });
 

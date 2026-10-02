@@ -93,6 +93,56 @@ export function closeTab(
   return { recentlyClosed, selectedId, tabs };
 }
 
+/**
+ * Every tab but this one closed, up or not, and this one up. The closed go on
+ * the closed list leftmost first, so reopening one after another puts the
+ * strip back in the order it had.
+ */
+export function closeOtherTabs(
+  model: TabsModel,
+  { id }: { id: TabId },
+): TabsModel {
+  return closeWhere(model, id, (index, keptIndex) => index !== keptIndex);
+}
+
+/** Every tab right of this one closed, as `closeOtherTabs` closes them. */
+export function closeTabsToRight(
+  model: TabsModel,
+  { id }: { id: TabId },
+): TabsModel {
+  return closeWhere(model, id, (index, keptIndex) => index > keptIndex);
+}
+
+/**
+ * A copy of a tab, right of it and up: at the same place with the same
+ * history, or at `pathname` where the copy needs a place of its own (a site,
+ * whose page a second tab cannot share).
+ */
+export function duplicateTab(
+  model: TabsModel,
+  { id, newId, pathname }: { id: TabId; newId: TabId; pathname?: string },
+): TabsModel {
+  const at = model.tabs.findIndex((tab) => tab.id === id);
+  const source = model.tabs[at];
+  if (!source) {
+    return model;
+  }
+  const copy: Tab =
+    pathname === undefined
+      ? { ...source, id: newId }
+      : {
+          iconName: source.iconName,
+          id: newId,
+          pathname,
+          title: source.title,
+        };
+  return {
+    ...model,
+    selectedId: newId,
+    tabs: [...model.tabs.slice(0, at + 1), copy, ...model.tabs.slice(at + 1)],
+  };
+}
+
 export function emptyTabsModel(): TabsModel {
   return { recentlyClosed: [], selectedId: null, tabs: [] };
 }
@@ -196,4 +246,30 @@ export function setTabPathname(
 function neighborId(tabs: Tab[], closingIndex: number) {
   const next = tabs[closingIndex + 1] ?? tabs[closingIndex - 1];
   return next?.id ?? null;
+}
+
+/** The tabs a test picks closed, onto the closed list leftmost first, and `id` up. */
+function closeWhere(
+  model: TabsModel,
+  id: TabId,
+  closes: (index: number, keptIndex: number) => boolean,
+): TabsModel {
+  const keptIndex = model.tabs.findIndex((tab) => tab.id === id);
+  if (keptIndex === -1) {
+    return model;
+  }
+  const closed = model.tabs.flatMap((tab, index) =>
+    closes(index, keptIndex) ? [{ ...tab, index }] : [],
+  );
+  if (closed.length === 0) {
+    return model;
+  }
+  return {
+    recentlyClosed: [...closed, ...model.recentlyClosed].slice(
+      0,
+      MAX_RECENTLY_CLOSED,
+    ),
+    selectedId: id,
+    tabs: model.tabs.filter((_, index) => !closes(index, keptIndex)),
+  };
 }

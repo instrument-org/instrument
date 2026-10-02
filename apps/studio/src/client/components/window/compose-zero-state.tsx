@@ -3,8 +3,6 @@ import {
   bookmarksAtom,
   visitedPagesAtom,
 } from "@/client/atoms/window";
-import { useGesturesFor } from "@/client/hooks/use-open-target";
-import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { INSTRUMENT_FOLDER } from "@/shared/computer-href";
 import { type Icon } from "@phosphor-icons/react";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -13,10 +11,12 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
 
@@ -84,8 +84,9 @@ export function ComposeZeroState({
  * as large marks with their names under them, the way apps are, and the
  * pages lately seen under those as a list. The tab's own address row, over
  * it wherever it is drawn, is where an address goes. Anywhere it goes
- * arrives as a tab. A page is bookmarked from its own menu, and a right
- * click on its mark here offers to remove it.
+ * arrives as a tab. A page is bookmarked from its own menu; a right click on
+ * its mark here offers to rename it or remove it, and a middle click or a
+ * Cmd-click opens it in a tab of its own, waiting behind.
  */
 export function WebStart({
   onOpenPage,
@@ -94,7 +95,9 @@ export function WebStart({
 }) {
   const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  const gesturesFor = useGesturesFor();
+  const clicksFor = usePageClicks();
+  // The bookmark whose name is being typed over, by id.
+  const [renamingId, setRenamingId] = useState<string>();
   const recent = visited
     .filter((page) => !bookmarks.some((bookmark) => bookmark.url === page.url))
     .slice(0, RECENT_SHOWN)
@@ -102,65 +105,101 @@ export function WebStart({
       app: { name: hostOf(page.url), site: originOf(page.url) },
       page,
     }));
-
-  /** The OS's menu over a bookmark: everywhere it opens, then removing it. */
-  const showBookmarkMenu = async (bookmark: Bookmark) => {
-    const { destinations } = gesturesFor({ kind: "page", url: bookmark.url });
-    const items: RPCInput["utils"]["showContextMenu"]["items"] = [
-      ...destinations.flatMap((destination, index) => [
-        // The places it opens, then the clipboard, are two groups.
-        ...(destination.id === "copy" && index > 0
-          ? [{ separator: true }]
-          : []),
-        { id: destination.id, label: destination.label },
-      ]),
-      { separator: true },
-      { id: "remove", label: "Remove from bookmarks" },
-    ];
-    const picked = await rpcClient.utils.showContextMenu.call({ items });
-    if (picked.id === "remove") {
-      setBookmarks((current) =>
-        current.filter((kept) => kept.id !== bookmark.id),
-      );
+  const rename = (bookmark: Bookmark, title: string) => {
+    setRenamingId(undefined);
+    const named = title.trim();
+    if (named === bookmark.title || !named) {
       return;
     }
-    destinations.find((destination) => destination.id === picked.id)?.run();
+    setBookmarks((current) =>
+      current.map((kept) =>
+        kept.id === bookmark.id ? { ...kept, title: named } : kept,
+      ),
+    );
+  };
+  const remove = (bookmark: Bookmark) => {
+    setBookmarks((current) =>
+      current.filter((kept) => kept.id !== bookmark.id),
+    );
+    toast("Removed from Bookmarks", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setBookmarks((current) =>
+            current.some((kept) => kept.id === bookmark.id)
+              ? current
+              : [...current, bookmark],
+          );
+        },
+      },
+      description: bookmark.title || hostOf(bookmark.url),
+    });
   };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
-      <div className="mx-auto w-full max-w-3xl space-y-8">
+      <div className="mx-auto w-full max-w-5xl space-y-8">
         <PageSection title="Bookmarks">
           {bookmarks.length > 0 ? (
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
-              {bookmarks.map((bookmark) => (
-                <button
-                  className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
-                  key={bookmark.id}
-                  onClick={() => {
-                    onOpenPage(bookmark.url);
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    void showBookmarkMenu(bookmark);
-                  }}
-                  title={`${bookmark.title}\n${bookmark.url}`}
-                  type="button"
-                >
-                  {/* The site's own mark, bare: no plate around it, the way a
-                      browser's new tab shows its shortcuts. */}
+              {bookmarks.map((bookmark) => {
+                // The site's own mark, bare: no plate around it, the way a
+                // browser's new tab shows its shortcuts.
+                const mark = (
                   <AppIcon
                     className="size-14 bg-transparent p-0 shadow-none ring-0"
                     name={bookmark.title}
                     site={originOf(bookmark.url)}
                     size="xl"
                   />
-                  <span className="w-full truncate text-[13px] leading-4 font-medium">
-                    {bookmark.title || hostOf(bookmark.url)}
-                  </span>
-                </button>
-              ))}
+                );
+                if (bookmark.id === renamingId) {
+                  return (
+                    <div
+                      className="flex w-24 flex-col items-center gap-1.5 py-2"
+                      key={bookmark.id}
+                    >
+                      {mark}
+                      <BookmarkNameField
+                        name={bookmark.title || hostOf(bookmark.url)}
+                        onCancel={() => {
+                          setRenamingId(undefined);
+                        }}
+                        onCommit={(title) => {
+                          rename(bookmark, title);
+                        }}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <PageContextMenu
+                    key={bookmark.id}
+                    onOpen={onOpenPage}
+                    onRemove={() => {
+                      remove(bookmark);
+                    }}
+                    onRename={() => {
+                      setRenamingId(bookmark.id);
+                    }}
+                    removeLabel="Remove from Bookmarks"
+                    url={bookmark.url}
+                  >
+                    <button
+                      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
+                      {...clicksFor(bookmark.url, onOpenPage)}
+                      title={`${bookmark.title}\n${bookmark.url}`}
+                      type="button"
+                    >
+                      {mark}
+                      <span className="w-full truncate text-[13px] leading-4 font-medium">
+                        {bookmark.title || hostOf(bookmark.url)}
+                      </span>
+                    </button>
+                  </PageContextMenu>
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -177,6 +216,49 @@ export function WebStart({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * A bookmark's name being typed over, where its name was: all of it selected
+ * to begin with, Return or a press elsewhere keeping what was typed, Escape
+ * putting the old name back.
+ */
+function BookmarkNameField({
+  name,
+  onCancel,
+  onCommit,
+}: {
+  name: string;
+  onCancel: () => void;
+  onCommit: (name: string) => void;
+}) {
+  const [value, setValue] = useState(name);
+  return (
+    <input
+      aria-label="Bookmark name"
+      autoFocus
+      className="w-full rounded-sm border border-ring bg-background px-1 text-center text-[13px] leading-4 font-medium outline-none"
+      onBlur={() => {
+        onCommit(value);
+      }}
+      onChange={(event) => {
+        setValue(event.target.value);
+      }}
+      onFocus={(event) => {
+        event.currentTarget.select();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onCommit(value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          onCancel();
+        }
+      }}
+      value={value}
+    />
   );
 }
 

@@ -68,6 +68,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 
 // Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
 // fields; the DOM lib types it as a plain Event).
@@ -418,6 +419,7 @@ export function TaskBrowserPanel({
       setBookmarks((current) =>
         current.filter((bookmark) => bookmark.url !== pageUrl),
       );
+      toast("Removed from Bookmarks");
       return;
     }
     let title = "";
@@ -430,6 +432,11 @@ export function TaskBrowserPanel({
       ...current,
       { id: crypto.randomUUID(), title, url: pageUrl },
     ]);
+    // Said, since nothing on the page itself changes: it shows on the
+    // browser's starting view, where it can be renamed.
+    toast("Added to Bookmarks", {
+      ...(title ? { description: title } : {}),
+    });
   };
 
   return (

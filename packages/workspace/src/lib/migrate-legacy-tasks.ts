@@ -37,6 +37,7 @@ import {
 import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { windowStatePath } from "./window-paths";
+import { NOTHING_SEEN } from "./window-state";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Where what the move leaves behind is kept, so a migration that went wrong
@@ -209,8 +210,8 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
   try {
     markSeen(rootDir, seen);
   } catch {
-    // The chats are listed anyway, each with every reply unread, which the
-    // user clears by opening it.
+    // The chats are listed anyway, each read against the window's seen
+    // floor, which the user corrects by opening or marking it.
   }
   for (const stagingDir of stagedDirs) {
     try {
@@ -520,8 +521,9 @@ function isProjectFolder(folder: string): boolean {
 /**
  * Writes where each adopted chat was last read into the window's state, so a
  * chat reads as unread only where its task did. Merged into what the window
- * already holds, and a chat whose task read as unread gets no mark, or one
- * short of its newest reply, the way marking a chat unread leaves it.
+ * already holds, and a chat whose task read as unread gets a mark one short
+ * of its newest reply, or one below every message when nothing comes before
+ * that reply, the way marking a chat unread leaves it.
  */
 function markSeen(
   rootDir: string,
@@ -536,11 +538,7 @@ function markSeen(
     Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
   );
   for (const [sessionId, messageId] of seen) {
-    if (messageId === undefined) {
-      marks.delete(sessionId);
-    } else {
-      marks.set(sessionId, messageId);
-    }
+    marks.set(sessionId, messageId ?? NOTHING_SEEN);
   }
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   writeJsonFileSync(statePath, {

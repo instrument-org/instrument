@@ -19,7 +19,11 @@ import { chatOfSession, chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
 import { getTaskSettings } from "../task-settings";
-import { getWindowState, updateWindowState } from "../window-state";
+import {
+  getWindowState,
+  NOTHING_SEEN,
+  updateWindowState,
+} from "../window-state";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
@@ -116,7 +120,7 @@ export const ChatSchema = z.object({
   titled: z.boolean(),
   /** Topic ids, from the session record. */
   topics: z.array(z.string()),
-  /** Non-user messages after the newest the user has seen; all of them when nothing is recorded. */
+  /** Non-user messages after the newest the user has seen, or after the window's seen floor when nothing is recorded for the chat. */
   unread: z.number(),
   /** When anything last happened in it, in ms. */
   updatedAt: z.number(),
@@ -181,6 +185,7 @@ interface Shared {
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
   seen: Record<string, StoreId.Message>;
+  seenFloor?: StoreId.Message;
 }
 
 /**
@@ -326,7 +331,7 @@ export async function markChatUnseen(
   await updateWindowState((state) => {
     const { [sessionId]: _seen, ...rest } = state.chatSeen ?? {};
     return {
-      chatSeen: before ? { ...rest, [sessionId]: before.id } : rest,
+      chatSeen: { ...rest, [sessionId]: before?.id ?? NOTHING_SEEN },
     };
   });
   const chatId = chatOfSession(sessionId);
@@ -607,7 +612,8 @@ async function chatFor(
   const ask = working ? undefined : askOf(digest, filed);
   const state = working ? "working" : ask ? "waiting" : "idle";
 
-  const seen = shared.seen[session.id];
+  // A chat with no mark of its own has seen up to the window's floor.
+  const seen = shared.seen[session.id] ?? shared.seenFloor;
   // A reply still being written is not news yet: it counts once it has
   // finished, which is also when marking the chat seen would record it.
   const unread = digest.unreadCandidates.filter(
@@ -907,6 +913,7 @@ async function loadShared(): Promise<Shared> {
     activity: await chatActivity(WINDOW_ID),
     knownApps: await knownAppSlugs(),
     seen: state.chatSeen ?? {},
+    ...(state.seenFloor ? { seenFloor: state.seenFloor } : {}),
   };
 }
 

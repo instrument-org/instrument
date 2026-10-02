@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { encodeTime } from "ulid";
 import { z } from "zod";
 
 import { StoreId } from "../schemas/store-id";
@@ -25,9 +26,41 @@ const WindowStateSchema = z.object({
    * id. Unread is every non-user message after it.
    */
   chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
+  /**
+   * Where unread starts for a chat with no seen mark of its own: a message
+   * id stamped with the time this workspace's window state began, so what
+   * was said before the window kept marks counts as seen and what was said
+   * since counts as new. Written once, by whatever first reads or writes the
+   * window's state with none recorded.
+   */
+  seenFloor: StoreId.MessageSchema.optional(),
 });
 
 export type WindowState = z.output<typeof WindowStateSchema>;
+
+/**
+ * A seen mark below every message: the chat it is recorded for counts every
+ * finished reply as unread, floor or not.
+ */
+export const NOTHING_SEEN = StoreId.MessageSchema.parse(
+  `msg_${"0".repeat(26)}`,
+);
+
+/**
+ * The window's state with its seen floor recorded. The floor's random half
+ * is all zeros, so a message made in the same millisecond still counts as
+ * new.
+ */
+function withSeenFloor(state: WindowState): WindowState {
+  return state.seenFloor
+    ? state
+    : {
+        ...state,
+        seenFloor: StoreId.MessageSchema.parse(
+          `msg_${encodeTime(Date.now())}${"0".repeat(16)}`,
+        ),
+      };
+}
 
 const enqueue = createWriteQueue();
 
@@ -37,12 +70,22 @@ export async function ensureWindowDir(): Promise<void> {
 }
 
 /**
- * The window's state, empty when nothing has been written or the file cannot
- * be read: a seen mark or an app's chat lost costs a dot or a note sent to
- * the newest chat, never anything in a chat.
+ * The window's state, empty but for its seen floor when nothing has been
+ * written or the file cannot be read: a seen mark or an app's chat lost
+ * costs a dot or a note sent to the newest chat, never anything in a chat.
+ * The first read records the floor; one that cannot be written stands for
+ * this read alone.
  */
 export async function getWindowState(): Promise<WindowState> {
-  return readWindowState(windowStatePath());
+  const state = await readWindowState(windowStatePath());
+  if (state.seenFloor) {
+    return state;
+  }
+  try {
+    return await updateWindowState(() => ({}));
+  } catch {
+    return withSeenFloor(state);
+  }
 }
 
 /**
@@ -56,7 +99,7 @@ export async function updateWindowState(
   const target = windowStatePath();
   return enqueue(target, async () => {
     const current = await readWindowState(target);
-    const next = { ...current, ...update(current) };
+    const next = withSeenFloor({ ...current, ...update(current) });
     await fs.mkdir(path.dirname(target), { recursive: true });
     const temporary = `${target}.${process.pid}.tmp`;
     try {

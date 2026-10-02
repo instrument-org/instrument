@@ -12,6 +12,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { placeChatTask } from "../record-folders";
 import { Store } from "../store";
+import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
@@ -84,6 +85,8 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
+  // The window's state begins with the workspace, before any chat in it.
+  await getWindowState();
   return taskId;
 };
 
@@ -404,6 +407,56 @@ describe("listChats", () => {
     await markChatSeen(sessionId);
     const [seen] = await listChats();
     expect(seen?.unread).toBe(0);
+  });
+
+  it("counts a chat with no seen mark as seen up to the window's floor", async () => {
+    const taskId = await freshTask();
+    const before = await session(taskId, "Before the window");
+    await userSays(taskId, before, "make me a grocery list", 1);
+    await agentSays(taskId, before, "Here it is.", { minute: 2 });
+    // A workspace whose window state began after its chats.
+    await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
+    const after = await session(taskId, "After the window");
+    await userSays(taskId, after, "plan a trip", 3);
+    await agentSays(taskId, after, "Here is the plan.", { minute: 4 });
+
+    const chats = await listChats();
+    expect(
+      Object.fromEntries(chats.map((chat) => [chat.title, chat.unread])),
+    ).toEqual({ "After the window": 1, "Before the window": 0 });
+  });
+
+  it("records the floor once, and keeps it", async () => {
+    await freshTask();
+    const { seenFloor } = await getWindowState();
+    expect(seenFloor).toBeDefined();
+    await updateWindowState(() => ({ chatSeen: {} }));
+    expect((await getWindowState()).seenFloor).toBe(seenFloor);
+  });
+
+  it("reads a chat's own mark below the floor over the floor", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    const asked = await userSays(taskId, sessionId, "make me a list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    await updateWindowState(() => ({
+      chatSeen: { [sessionId]: asked },
+      seenFloor: StoreId.newMessageId(),
+    }));
+
+    const [chat] = await listChats();
+    expect(chat?.unread).toBe(1);
+  });
+
+  it("puts a chat's only reply back among the unread when the floor is past it", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
+
+    await markChatUnseen(sessionId);
+    const [chat] = await listChats();
+    expect(chat?.unread).toBe(1);
   });
 
   it("clears the count once seen, and counts again from there", async () => {

@@ -1,6 +1,6 @@
 # Stop paying for the same search result twice
 
-Status: **proposed, not started**. Owner: TBD. Depends on [context compaction](context-compaction.md) for the reason in "Interaction with rollover".
+Status: **proposed, not started** (checked 2026-10-02: no deduplication pass in `prepare-model-messages.ts`). Owner: TBD. Depends on [context compaction](context-compaction.md) for the reason in "Interaction with rollover"; the rollover it needs (compaction phases 0 to 2) has landed, so this is unblocked.
 
 ## Problem
 

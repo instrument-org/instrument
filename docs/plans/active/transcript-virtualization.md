@@ -1,6 +1,6 @@
 # Plan: virtualize the transcript
 
-Status: proposed. Phase 0 (tail-first rendering) has landed; phases 1 through 3 are not started.
+Status: proposed. Phase 0 (tail-first rendering) has landed (`5c745cfd0`); phases 1 through 3 are not started (checked 2026-10-02: no long-chat fixture, no placeholders).
 
 ## Why
 
@@ -39,7 +39,7 @@ Exit: the fixture seeds, and the sequence reports numbers for the current build 
 - Always mounted, whatever the distance: the last turn (it streams, and follow-bottom reads it), a turn holding an anchor the scroller is settling on, any turn containing the current selection or focus, and any turn with an open popover or menu.
 - Native scroll anchoring (`overflow-anchor`, which the scroller does not disable) absorbs a placeholder turning back into content of a slightly different height above the viewport. Verify that under zoom rather than assume it.
 
-Exit: in the fixture, switching into the long chat costs what switching into a short one does; scrolling top to bottom and back shows no jumps at 1x, 0.75x, and 1.5x zoom; follow-bottom, jump-to-end, turn anchoring on the classic task page, and opening a step (`useHoldRowInPlace`) all still work.
+Exit: in the fixture, switching into the long chat costs what switching into a short one does; scrolling top to bottom and back shows no jumps at 1x, 0.75x, and 1.5x zoom; follow-bottom, jump-to-end, turn anchoring, and opening a step (`useHoldRowInPlace`) all still work.
 
 ### Phase 3: arrive without drawing what is off screen
 
@@ -65,4 +65,3 @@ Exit: switching into the fixture's longest chat is flat in its length; the cache
 
 - **The pane beside the chat.** A chat's tab pane is rebuilt on every switch too, and a very large Markdown file open in it is drawn whole each time. That is the document viewer's cost, and its own plan: keep a chat's pane mounted per chat, or render long Markdown incrementally the way `block-split-markdown.md` does for streaming.
 - **Keeping recent chats mounted.** Removed on purpose: a tab keeps what it shows and nothing more. Revisit only if phase 3 leaves switching slow.
-- **The classic window's task page.** It draws its transcript through the same `ChatStream`, so it gains everything here without work of its own; nothing in this plan is specific to it.

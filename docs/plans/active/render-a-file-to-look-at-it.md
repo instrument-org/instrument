@@ -1,6 +1,6 @@
 # Letting a task look at what it made
 
-**Status:** proposed, 2026-09-07. Nothing built. Written up because the measurement that motivates it is unusually clean and will go stale otherwise.
+**Status:** proposed, 2026-09-07. Nothing built (checked 2026-10-02). Since it was written, a task's `show` command was removed (`90418ed30`; the conversation's `tab` command is how a file reaches the screen) and a task no longer has an `output/` folder (`c3c8df767`), so the examples below use `work/`. Written up because the measurement that motivates it is unusually clean and will go stale otherwise.
 
 ## Why
 
@@ -19,25 +19,25 @@ What it still costs is discovery. There is no verb for this, so every model impr
 
 ## Shape
 
-A shell command, sibling to `show`, in the always-loaded command list.
+A shell command in the always-loaded command list.
 
 ```
-$ render output/juggler.svg
+$ render work/juggler.svg
 ✓ work/juggler.png  800x600
   read it with the file tool to see it
 ```
 
 A command rather than a skill because a skill has to be guessed at, loaded and read before the first attempt, and because what the models typed unprompted was a verb: "Opening the SVG in the browser and screenshotting it." Two of them did load `sharp-images` — the skill that ought to have covered this — and went elsewhere. It is filed under manipulating images, not looking at them.
 
-It reads oddly beside `show`, which puts a file in front of the *user*. `render` puts one in front of the *agent*. Same neighborhood, opposite direction, and the pair is probably clearer than either alone.
+It is the opposite direction from the conversation's `tab` command, which puts a file in front of the *user*. `render` puts one in front of the *agent*.
 
 ## Build it on the browser, not on more binaries
 
-The browser already spans SVG, HTML and PDF, is already wired, and already opens a task-relative path at the file's own `file://` address, reporting it back in the agent's paths, so `render output/page.html` needs no path handling of its own:
+The browser already spans SVG, HTML and PDF, is already wired, and already opens a task-relative path at the file's own `file://` address, reporting it back in the agent's paths, so `render work/page.html` needs no path handling of its own:
 
 ```
-$ agent-browser open output/page.html
-✓ file:///task/output/page.html
+$ agent-browser open work/page.html
+✓ file:///task/work/page.html
 ```
 
 For Word, PowerPoint and Excel, render client-side in that same browser rather than bundling a converter. A small bundled viewer page takes the file's address, renders the document with a JS library, and the existing screenshot path captures it. Bundling LibreOffice to convert to PDF is tens of megabytes in the installer, a separate binary per platform, and a notarization problem, to reach formats a page can already draw.
@@ -49,7 +49,7 @@ It is worth knowing how bad the alternative is: nothing on a stock developer mac
 Make `read_file` on an `.svg` return the source **and** a rendered preview, the way it already returns the image for a `.png`:
 
 ```
-read_file output/juggler.svg
+read_file work/juggler.svg
 → <content>…the source…</content>
 → Rendered preview (800x600) [image attached]
 ```

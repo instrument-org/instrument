@@ -81,7 +81,7 @@ Each item moves on its own: one that fails (a folder another program holds open)
 
 - Tasks from 1.x and projects: [legacy-data-migration.md](../active/legacy-data-migration.md).
 - Cross-chat reach beyond what exists (archiving or steering other chats, topic-wide chats, chats messaging chats). The layout decides who owns a task, not who can reach one: the index resolves any id anywhere, so wider reach is a permission on the `task` and `chat` commands when it's wanted.
-- A single conversation store or search index across chats: [conversation-storage.md](conversation-storage.md). Per-chat databases are what that plan's fan-out measurements assume.
+- A single conversation store or search index across chats: [conversation-storage.md](../active/conversation-storage.md). Per-chat databases are what that plan's fan-out measurements assume.
 
 ## Checks
 

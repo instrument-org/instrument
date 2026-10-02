@@ -1,6 +1,6 @@
 # Dependency sweep: what upstream has fixed for us
 
-Status: first pass landed. hono, @hono/node-server, better-auth, vite, @parcel/watcher, xstate, use-stick-to-bottom, agent-browser, and electron-builder are upgraded and committed; electron and the AI SDK are blocked for the reasons recorded below; execa and dugite are untouched API migrations, and just-bash has since moved to 3.4.1, past the 3.2.0 this sweep scoped. Snapshot verified 2026-07-31 against the npm registry and upstream sources. Version claims go stale fast, so re-check anything here before acting on it.
+Status: first pass landed. hono, @hono/node-server, better-auth, vite, @parcel/watcher, xstate, use-stick-to-bottom, agent-browser, and electron-builder are upgraded and committed. Since then the AI SDK moved to v7 (`241d44b06`), vite to 8 (`e0a0d6521`), just-bash to 3.4.1 and agent-browser to 0.38.1, past what this sweep scoped. Still open: electron (42.3.3, blocked for the reason below), execa 10 and dugite 3.2.2 (untouched API migrations), and the `brace-expansion` override. Snapshot verified 2026-07-31 against the npm registry and upstream sources. Version claims go stale fast, so re-check anything here before acting on it.
 
 This is a read of the dependency tree against what we have actually been churning on: the auto-updater, the Windows launch path, the file watcher, the agent browser, the bash sandbox, and the chat transcript. It ranks by "does upstream already fix a bug we paid for", not by how far behind a version number is.
 
@@ -30,7 +30,7 @@ Also in the range, all relevant to surfaces we own:
 
 - 42.5.1: `ProtocolResponse.url` requests went through the default session instead of the session the handler was registered on. We register protocol handlers per session (the file channel, the app scheme).
 - 42.4.1: DevTools Network panel dropped most requests after navigation while `webContents.debugger` was attached, which is exactly how the in-app browser drives CDP. Same release fixes a `safeStorage.isAsyncEncryptionAvailable()` crash before async encryption finished initializing.
-- 42.5.2: windows opened from links inside a sandboxed iframe now inherit the iframe's sandbox restrictions. Feeds directly into [browser-popups-as-agent-drivable-tabs.md](browser-popups-as-agent-drivable-tabs.md).
+- 42.5.2: windows opened from links inside a sandboxed iframe now inherit the iframe's sandbox restrictions. Feeds directly into [browser-popups-as-agent-drivable-tabs.md](../completed/browser-popups-as-agent-drivable-tabs.md).
 - 42.6.0: fixes running under tsx import transpilation, which is how most of our scripts run.
 - 42.6.1: crash when replacing an open application menu.
 
@@ -78,7 +78,7 @@ Risk: medium. Validation: the `run-bash` skill for command-level behavior, then 
 
 Four releases, and the two that matter map onto open work:
 
-- Tab recovery and selection (#1543, #1532): selects a live renderer at CDP connect instead of hanging on a Memory Saver discarded tab, revives tabs on switch or after close, treats dialog-blocked tabs as live, and preserves refs on rejected operations. This is the daemon-hang class behind [lazy-browser-targets-and-multiple-tabs.md](lazy-browser-targets-and-multiple-tabs.md) and the "surface a browser only once a page loads in it" work.
+- Tab recovery and selection (#1543, #1532): selects a live renderer at CDP connect instead of hanging on a Memory Saver discarded tab, revives tabs on switch or after close, treats dialog-blocked tabs as live, and preserves refs on rejected operations. This is the daemon-hang class behind [lazy-browser-targets-and-multiple-tabs.md](../completed/lazy-browser-targets-and-multiple-tabs.md) and the "surface a browser only once a page loads in it" work.
 - Domain allowlist hardening (#1546, 0.32.0): blocks WebRTC bypasses and applies network containment across launch modes, workers, popups, restored state, and reused daemon sessions, and rejects unsafe startup arguments. We just shipped external browsers behind a flag and separately refused `--executable-path`, so the same threat model is live for us.
 
 Smaller: `a11y` command with axe-core audits and a matching MCP tool (0.33.0), HAR captures with response bodies (0.32.3), `find role` matching implicit ARIA roles and computed accessible names (0.32.4), element-not-found errors that keep the locator detail (0.32.4), and periodic restore-state autosaves (0.31.2).
@@ -142,7 +142,7 @@ We are inside the affected range of GHSA-9hp6-4448-45g2 (URL path parsing path c
 
 The CORS advisory GHSA-88fw-hqm2-52qc (`<4.12.25`) no longer has a caller: the only `cors()` use was the task file origin, which is gone.
 
-`@hono/node-server` is worse in one specific way: GHSA-9mqv-5hh9-4cgg, unauthenticated memory-leak DoS via aborted WebSocket handshake, covers `<=2.0.9`, and we proxy websockets ([websocket-proxy.ts](../../../packages/workspace/src/logic/server/websocket-proxy.ts)).
+`@hono/node-server` is worse in one specific way: GHSA-9mqv-5hh9-4cgg, unauthenticated memory-leak DoS via aborted WebSocket handshake, covers `<=2.0.9`, and the workspace server takes WebSocket upgrades for the CDP bridge ([cdp-sockets.ts](../../../packages/workspace/src/logic/server/routes/cdp-sockets.ts)).
 
 The serve-static advisories mostly do not apply to us, because [serve-static.ts](../../../packages/workspace/src/logic/server/serve-static.ts) is our own fork of node-server's implementation pinned at commit `26f5e89`, and the assets route does its own traversal check. That cuts both ways: upstream has since fixed a Windows `%5C` traversal (GHSA-frvp-7c67-39w9) that our fork will never receive from a version bump. Worth a deliberate diff of the fork against current upstream while the file is open.
 
@@ -216,7 +216,7 @@ Two things to know about the test run: the workspace suite failed twice under `t
 ## What is left
 
 1. **electron**, once the Node pin moves in this repo and the skills repo together.
-2. **The AI SDK**, once the transcript renderer stops enumerating assistant blocks through `convertToModelMessages`.
+2. ~~**The AI SDK**~~: done, as the v7 migration (`241d44b06`) rather than the v6 patch bump.
 3. **The sandbox-reachable `brace-expansion` DoS**, which needs an `overrides` entry plus a `pnpm dedupe` rather than a direct bump, and was left out of the security batch to keep that lockfile diff attributable.
 4. **just-bash 3.2.0, execa 10, dugite 3.2.2**: API migrations wearing version bumps, each worth its own review.
 5. Everything in "decide rather than drift" gets a plan doc, not a commit.

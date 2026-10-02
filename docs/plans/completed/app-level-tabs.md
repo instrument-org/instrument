@@ -1,6 +1,6 @@
 # Plan: app-level tabs in the 2.0 window
 
-Status: landed; the items under Open remain.
+Status: landed in `7e84c5a88` (v2.0.0-beta.33); the questions under Open were left unscheduled. Names below predate the classic window's removal (`a73917f45`): `OrchestratorWindow` is `AppWindow`, the atom is `studio.app-tabs.v1`, and the `/orchestrator` routes live at the root (`/chats/$id`, `/files`, `/apps`, `/discover`).
 
 ## Why
 

@@ -36,7 +36,7 @@ Tasks do not see memory. The conversation carries what matters into a brief in i
 
 ## The user's side
 
-A Memory tab in Settings, beside General and Providers: one row per memory, the memory itself, and under it the chat it was learned in and how long ago. The chat's name is a link that closes Settings and opens that chat, drawn only where there are chats to open, since a name the reader cannot reach is worth less than the room it takes. Revealing the folder sits beside the list it holds rather than adrift at the foot of the screen. Live over `orchestrator.memory.live.list`. In developer mode the transcript shows the note as a context card, the way the topics note shows.
+A Memory tab in Settings, beside General and Providers: one row per memory, the memory itself, and under it the chat it was learned in and how long ago. The chat's name is a link that closes Settings and opens that chat, drawn only where there are chats to open, since a name the reader cannot reach is worth less than the room it takes. Revealing the folder sits beside the list it holds rather than adrift at the foot of the screen. Live over `memory.live.list`. In developer mode the transcript shows the note as a context card, the way the topics note shows.
 
 A tab rather than a block under General because this is a list that grows and none of it is a setting. Not a screen of its own in the window: every screen there is a tab inside a chat or a draft, by design, and a global list has no chat to belong to.
 

@@ -3,7 +3,7 @@
 // Everything here goes through the workspace's own libraries -- `initializeTask`
 // for the directory, `Store` for the conversation -- rather than writing task
 // files directly. That is deliberate and load-bearing: task storage is moving
-// (see docs/plans/active/user-chosen-working-folder.md and
+// (see docs/plans/completed/user-chosen-working-folder.md and
 // conversation-storage.md), and a seeder that lays out `tasks/<id>/.instrument`
 // itself would keep producing plausible-looking workspaces the app can no longer
 // read. Reach for a library or a route; never for `fs.writeFile` into a task.

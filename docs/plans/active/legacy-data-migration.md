@@ -1,6 +1,6 @@
 # Plan: bringing 1.x tasks and projects into chats
 
-Status: migration built (`lib/migrate-legacy-tasks.ts`); site backfill and the eval not done. Phase 2 of two; it builds on [chat-folders.md](../completed/chat-folders.md).
+Status: migration built (`packages/workspace/src/lib/migrate-legacy-tasks.ts`, first in `3d7504b0f`) and shipped in the 2.0 betas; the `visitedHosts` site backfill and the eval are not done. Phase 2 of two; it builds on [chat-folders.md](../completed/chat-folders.md).
 
 ## Goal
 

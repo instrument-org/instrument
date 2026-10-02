@@ -1,6 +1,6 @@
 # Plan: store tool-result media once, by content hash
 
-Status: proposal, not started. Grew out of the media-bloat finding in [code-review-2026-08-29.md](../../findings/code-review-2026-08-29.md). Shares a boundary with [conversation-storage.md](conversation-storage.md), which decides where conversation data lives at all; this plan decides what a media-carrying tool result stores, and holds whichever store that plan lands on.
+Status: proposal, not started (checked 2026-10-02: `read_file` still persists `base64Data` inline). Task zip export and import, which the open decisions weigh, were deleted (`853317c6a`), so export no longer constrains where the bytes live. Grew out of the media-bloat finding in [code-review-2026-08-29.md](../../findings/code-review-2026-08-29.md). Shares a boundary with [conversation-storage.md](conversation-storage.md), which decides where conversation data lives at all; this plan decides what a media-carrying tool result stores, and holds whichever store that plan lands on.
 
 ## Problem
 

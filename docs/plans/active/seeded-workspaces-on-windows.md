@@ -1,6 +1,6 @@
 # Plan: seeded workspaces on the Windows test host
 
-Status: the helper side has landed; enrolling and verifying a host has not. `windows-studio-host.mjs` grew a `dev-seeded` target and a `seed` command, and the skill documents both. What remains is machine state and evidence: add the `devSeeded` block to a host profile, create the seeded scheduled task, and run steps 1 and 5 there. Nothing in the repo is waiting on that.
+Status: the helper side has landed; enrolling and verifying a host has not (no repo evidence of either as of 2026-10-02). `windows-studio-host.mjs` grew a `dev-seeded` target and a `seed` command, and the skill documents both. What remains is machine state and evidence: add the `devSeeded` block to a host profile, create the seeded scheduled task, and run steps 1 and 5 there. Nothing in the repo is waiting on that.
 
 Owner: whoever owns `.agents/skills/test-studio-on-windows/`. The seeder side is done and needs nothing from this work.
 
@@ -40,7 +40,7 @@ Set-Location $profile.repo
 & (Join-Path $profile.nodeHome "pnpm.cmd") workspace:seed --out "$env:LOCALAPPDATA\instrument-seeded\documents" --fixture documents
 ```
 
-Expect a JSON summary on stdout with `tasks[].id` equal to the fixture's task keys. Check the seeded tree looks right: `workspace\tasks\generated-pdf\.instrument\task.db` and `workspace\tasks\generated-pdf\output\red-and-blue-squares.pdf`.
+Expect a JSON summary on stdout with `tasks[].id` equal to the fixture's task keys. Check the seeded tree looks right: `workspace\chats\red-and-blue-squares\tasks\generated-pdf\.instrument\task.db` and `workspace\chats\red-and-blue-squares\tasks\generated-pdf\work\red-blue-squares.pdf` (the layout drawn in `fixtures/workspaces/README.md`).
 
 Two things to watch, both cheap to fix in the seeder if they bite:
 

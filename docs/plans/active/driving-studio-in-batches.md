@@ -1,6 +1,6 @@
 # Plan: drive Studio a sequence at a time, not a command at a time
 
-Status: the session runner has landed; the rest is open. Owner: TBD. Evidence base: 2,493 driving commands across 76 recorded sessions against this checkout, plus direct measurement against a booted instance.
+Status: the session runner landed (`studio-drive.mjs run` over `scripts/studio-app.mjs`), with one saved recipe (`sweep-screens.mjs`), and `boot` freezes main and preload reloads for the instances it starts. Open: `exec` on the remote host scripts, suppressing renderer HMR for a batch, and the cross-platform validation recipe. Owner: TBD. Evidence base: 2,493 driving commands across 76 recorded sessions against this checkout, plus direct measurement against a booted instance.
 
 Complements [agent-driving-studio-friction.md](agent-driving-studio-friction.md), which measured the friction in each command. This one asks a different question: whether the per-command shape is the right one at all. It is not. Every item in the friction plan makes a command cheaper; none of them make a command unnecessary, and the measurements below say that unnecessary commands are where nearly all the time goes.
 
@@ -107,7 +107,7 @@ Context is a secondary win. Driving commands emitted 1.31 M characters of output
 
 1. ~~Make `studio-drive.mjs` importable, and add the session runner over its existing primitives.~~ Landed. The primitives moved to `scripts/studio-app.mjs`, which `connect()` composes into an app that traces every call; `studio-drive.mjs` is now one caller of it, and `run` is the other. A twelve-step sequence including real-input clicks, waits, an oRPC read, a branch and a modal measured at 1.2 s end to end, against roughly two minutes as twelve commands.
 2. `exec` on the remote host scripts, taking a script rather than a shell string.
-3. HMR freeze for the lifetime of a batch. The reload *assertion* landed with the runner: a load change mid-sequence marks the step and stops the run, since a sequence cannot re-establish its own state. Suppressing the reload in the first place is still open, and is what makes long sequences dependable rather than merely honest about having been interrupted.
+3. HMR freeze for the lifetime of a batch. The reload *assertion* landed with the runner: a load change mid-sequence marks the step and stops the run, since a sequence cannot re-establish its own state. Main and preload reloads are now frozen for any instance `boot` starts (`DISABLE_DEV_RELAUNCH`); suppressing renderer HMR is still open, and is what makes long sequences dependable rather than merely honest about having been interrupted.
 4. Promote the first recurring protocol. The mechanism is already there (a helper importing `studio-app.mjs` and taking `app`), so this needs a second occurrence to justify it rather than a design. The cross-platform validation run is the obvious candidate.
 
 ## Related

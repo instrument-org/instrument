@@ -1,6 +1,6 @@
 # Plan: the Instrument 2.0 orchestrator spike
 
-Status: second iteration built and running behind developer mode. Design context is the "Instrument 2.0 - Prototype Handoff" note and the tenets it points to; this file records what the code does and what is still open.
+Status: overtaken by the product it prototyped. The spike became the 2.0 app, merged into main as the main line in `2d90d6270`; its window is the only one (`apps/studio/src/electron-main/windows/app-window.ts`), and the classic window and the `instrument_2` flag were removed in `a73917f45`. The pieces table records the spike's paths: `client/components/orchestrator/` is now `client/components/window/`, and `routes/orchestrator/` is now the root routes under `client/routes/_app/`. The Open list was not carried forward. Design context is the "Instrument 2.0 - Prototype Handoff" note and the tenets it points to.
 
 ## What it is
 

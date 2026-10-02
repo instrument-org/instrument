@@ -1,6 +1,6 @@
 # Plan: a workspace index the chat list reads from
 
-Status: stage A implemented, not merged. Stage A of the metadata index [conversation storage](conversation-storage.md) calls for, built as its option C: each chat and task keeps its own SQLite store as the source of truth, and one index per workspace is derived from them and kept in the app's data folder (`indexes/`, named by a hash of the workspace root).
+Status: stage A landed in `0f1ba5277` and `ba658eeaa` (`lib/workspace-index.ts`); stage B (paging and full-text search) is out of scope and not started. Stage A of the metadata index [conversation storage](../active/conversation-storage.md) calls for, built as its option C: each chat and task keeps its own SQLite store as the source of truth, and one index per workspace is derived from them and kept in the app's data folder (`indexes/`, named by a hash of the workspace root).
 
 ## Problem
 

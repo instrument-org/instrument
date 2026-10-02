@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: **in progress**. Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not, but phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
+Status: **in progress** (checked 2026-10-02). Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: an `unsendable-content` refusal still ends the task, now with a named error ("Content the model refused", `describe-message-error.ts`) that tells the user to start a new task. Phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
 
 ## Problem
 
@@ -8,7 +8,7 @@ One tool result the provider refuses ends a conversation permanently.
 
 The mechanism is the combination of two reasonable decisions. Parts are persisted as they stream, so a tool result exists on disk before anything validates that it can be sent. And [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) rebuilds the whole transcript from the database on every turn, so that part is replayed on every later request. A rejection is therefore not one failed turn: every subsequent turn fails the same way, for the same reason, forever. There is no way back from inside the session, and no user-facing way to remove the offending part.
 
-The rejection arrives as an `APICallError` and lands in the catch block at [llm-request.ts:640](../../../packages/workspace/src/logic/llm-request.ts#L640), which records it on the assistant message and stops. The retry machinery in [agent.ts](../../../packages/workspace/src/machines/agent.ts) is a chunk-timeout retry, not an error-class retry, so nothing reconsiders the payload.
+The rejection arrives as an `APICallError` and lands in the catch block at [llm-request.ts:921](../../../packages/workspace/src/logic/llm-request.ts#L921), which records it on the assistant message and stops. The retry machinery in [agent.ts](../../../packages/workspace/src/machines/agent.ts) is a chunk-timeout retry, not an error-class retry, so nothing reconsiders the payload.
 
 Known ways to produce unsendable content:
 
@@ -27,7 +27,7 @@ Landed with the image work (see [image-zoom-for-fine-detail.md](../completed/ima
 - [sanitize-model-text.ts](../../../packages/workspace/src/lib/sanitize-model-text.ts) strips unpaired surrogates from outgoing text, including the text a tool returned, and `truncateWithoutSplitting` stops `read_file` from creating them. Tool results were skipped until [the coordinate contract review](../completed/image-read-coordinate-contract.md) caught it, which is worth remembering: the pass had a doc comment claiming it covered everything, and the gap was in the role carrying the most text we did not write.
 - `read_file` refuses an undecodable image up front, so the failure lands in one tool result the agent can act on.
 - [probe-media.ts](../../../packages/workspace/src/lib/probe-media.ts) extends that refusal to the other media kinds: `isReadablePdf` checks that a PDF has both its header and its end marker, and `canDecodeMedia` runs ffprobe over an audio or video file. `read_file` returns `undecodable-pdf` or `undecodable-media` rather than handing the bytes on. ffprobe failing to _start_ counts as no evidence and lets the read through, since refusing every video because a binary is missing is the worse failure.
-- [classify-provider-error.ts](../../../packages/workspace/src/lib/classify-provider-error.ts) names a rejection: `auth`, `context-overflow`, `rate-limit`, `transient`, `unsendable-content`, or `unknown`. Nothing acts on it yet. It is attached to the `llm.error` event alongside the evidence layer that produced it, so which rejections actually arrive is a number rather than a guess.
+- [classify-provider-error.ts](../../../packages/workspace/src/lib/classify-provider-error.ts) names a rejection: `auth`, `context-overflow`, `rate-limit`, `transient`, `unsendable-content`, or `unknown`. Two things act on it: a `context-overflow` verdict drives the context rollover (`context-overflow.ts`), and every kind picks the error the transcript shows (`describe-message-error.ts`); nothing retries on it. It is attached to the `llm.error` event alongside the evidence layer that produced it, so which rejections actually arrive is a number rather than a guess.
 
 That covers causes 1 through 4 wherever the bytes can be decoded locally, and by construction it cannot cover cause 6.
 
@@ -105,7 +105,7 @@ A session survives content the provider will not accept, without a human editing
 
 ### Phase 3: make the repair stick
 
-10. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` ([store.ts:367](../../../packages/workspace/src/lib/store.ts#L367)) is a blunter tool than this needs.
+10. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` ([store.ts:347](../../../packages/workspace/src/lib/store.ts#L347)) is a blunter tool than this needs.
 11. `normalizeModelImages` (and its future siblings) skip flagged parts, so later turns neither send nor re-probe them.
 12. Surface it in the transcript. The user should see that an attachment could not be sent, and the model should be told too, so it can say so rather than behaving as though the image were still there.
 

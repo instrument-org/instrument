@@ -1,6 +1,6 @@
 # Plugins
 
-Status: shaping. Nothing landed. Phase 0 gates everything and is not plugin work.
+Status: phase 1 landed under another shape, phases 2-4 not started. The connectors prototype was harvested as Apps ([instrument-2-0-apps.md](../completed/instrument-2-0-apps.md)): interactive tool resolution (`session.answerToolCall`), encrypted credentials and MCP OAuth with the redirect built from the bound callback port, the URL guards, the secret scan, the request path, and the catalog. Local stdio servers, deferred below, also landed there as the `mcp-local` app type, approved per manifest hash. Phase 2's layout was not adopted: an app is one `app.json` plus `guide.md` under `/apps/<slug>/`, not `plugin.json` under `/plugins/`.
 
 The shape and the reasoning behind it are in [Plugins over connectors](../../decisions/2026-08-15-plugins-over-connectors.md). This is the order to build it in, and how to tell whether it works.
 

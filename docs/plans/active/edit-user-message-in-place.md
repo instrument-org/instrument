@@ -1,6 +1,6 @@
 # Edit a user message in place (rewind + rerun)
 
-Status: **proposed, not started.** Owner: TBD. Nothing in the app edits or rewinds a user message today.
+Status: **proposed, not started on main.** Owner: TBD. Nothing in the app edits or rewinds a user message today. An unmerged backend prototype (`message.restartFrom`, commit `85267e810`) predates 2.0 and was never merged.
 
 ## Goal
 
@@ -15,13 +15,13 @@ Behavior:
 
 ## Decided scope
 
-- **Rewind-in-place**, not fork. (Fork already exists as "branch"; see the branch feature in `packages/workspace/src/lib/branch-task.ts` and the footer action in `apps/studio/src/client/components/assistant-messages-footer.tsx`, commits `e30d6c917` / `51dbb81df`.)
-- **Files on disk are NOT rolled back.** The rerun happens against the current working tree, same accepted tradeoff as branch. No snapshot/restore work.
+- **Rewind-in-place**, not fork. (Task branching existed in 1.x, commits `e30d6c917` / `51dbb81df`, and was removed with the 1.x window in `a73917f45`.)
+- **Files on disk are NOT rolled back.** The rerun happens against the current working tree, same tradeoff 1.x branching accepted. No snapshot/restore work.
 - Edit text only. Keep the message's attachments and existing parts.
 
 ## Why this is mostly easy
 
-The data model is a flat, ULID-ordered linear list of messages per session in `task.db` (KV store). Because we truncate everything after the edited message first, that message becomes the tail again, so ordering stays valid with no schema changes. The truncation primitives already exist and are proven by the branch feature.
+The data model is a flat, ULID-ordered linear list of messages per session in `task.db` (KV store). Because we truncate everything after the edited message first, that message becomes the tail again, so ordering stays valid with no schema changes. The truncation primitives already exist in the store.
 
 ## Key files & primitives
 
@@ -32,18 +32,18 @@ Store (all in `packages/workspace/src/lib/store.ts`):
 - `Store.removeMessage(messageId, sessionId, taskId)` — delete a message + parts.
 - `Store.saveMessageWithParts(message, taskId)` / `Store.savePart` / `Store.updatePart` — overwrite the edited message's text part in place.
 
-Schema: `packages/workspace/src/schemas/session/message.ts` (user role, parts), `.../message-part.ts` (text part), `.../store-id.ts` (ids).
+Schema: `packages/workspace/src/schemas/session/message.ts` (user role, parts), `.../message-part.ts` (text part), `packages/workspace/src/schemas/store-id.ts` (ids).
 
 Send / agent-start path (the piece to decouple):
 
-- RPC `message.create` in `packages/workspace/src/rpc/routes/message.ts` (~L47) — today this builds a NEW user message (`packages/workspace/src/lib/new-message.ts`) AND kicks off the agent turn.
+- RPC `message.create` in `packages/workspace/src/rpc/routes/message.ts` — today this builds a NEW user message (`packages/workspace/src/lib/new-message.ts`) AND kicks off the agent turn.
 - Session machine `packages/workspace/src/machines/session.ts` runs the agent; `packages/workspace/src/lib/prepare-model-messages.ts` builds model messages from stored messages. Find the event that starts an agent run for the current tail.
 
 UI:
 
-- `apps/studio/src/client/components/user-message.tsx` — user bubble; already has a per-message hover row (~L105-120: RelativeTime + CopyButton). Add the edit affordance here.
-- Inline-edit reference: `useInlineRename` (`@/client/hooks/use-inline-rename`) + `InlineRenameInput`, used for task-title editing in `nav-task-item.tsx` / `project-task-row.tsx`. Consider reusing the composer/prompt input for a nicer multiline edit.
-- Retry precedent: `handleRetry` in `apps/studio/src/client/components/task/chat.tsx` -> `createMessage.mutate` -> `message.create`.
+- `apps/studio/src/client/components/user-message.tsx` — user bubble; already has a per-message hover row (RelativeTime + CopyButton). Add the edit affordance here.
+- Inline-edit reference: `useInlineRename` (`@/client/hooks/use-inline-rename`) + `InlineRenameInput`, used for chat-title editing via `apps/studio/src/client/components/window/use-chat-rename.ts`. Consider reusing the composer/prompt input for a nicer multiline edit.
+- Retry precedent: `handleRetry` in `apps/studio/src/client/components/task/chat.tsx` -> `createMessage.mutate` (`createMessageOptions` in `apps/studio/src/client/lib/message-sends.ts`) -> `message.create`.
 
 ## Implementation steps
 

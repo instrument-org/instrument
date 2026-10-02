@@ -1,6 +1,6 @@
 # Killing a degenerate stream loop
 
-**Status:** proposed, 2026-09-07. Nothing built. The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
+**Status:** proposed, 2026-09-07. Nothing built (checked 2026-10-02). The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
 
 ## What actually happens
 

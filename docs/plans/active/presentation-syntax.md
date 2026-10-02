@@ -1,6 +1,6 @@
 # Plan: how the agent presents files, data, and artifacts
 
-Status: **the file group is built and measured; everything past it is still proposal.** Owner: TBD. Shippable independently of, and ahead of, the folder work in [user-chosen-working-folder.md](user-chosen-working-folder.md).
+Status: **the file group is built and measured; everything past it is still proposal.** Owner: TBD. Shippable independently of, and ahead of, the folder work in [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
 
 A writable shared folder is what forced this: the agent can now write where the task-directory watcher cannot see, so a file it produces there reaches the user through nothing at all. The syntax is how it says what it made.
 
@@ -222,7 +222,7 @@ Haiku is unreliable here run to run — it dropped the fence on cases it had pas
 
 ## Phases
 
-1. ~~**Parser and node schema.** A flat group of paths.~~ Built: [parse-files-block.ts](../../../apps/studio/src/client/lib/parse-files-block.ts), [agent-files-block.tsx](../../../apps/studio/src/client/components/agent-files-block.tsx).
+1. ~~**Parser and node schema.** A flat group of paths.~~ Built: [parse-files-block.ts](../../../packages/workspace/src/lib/parse-files-block.ts), [agent-files-block.tsx](../../../apps/studio/src/client/components/agent-files-block.tsx).
 2. **Component family.** Built only as far as the existing grid, which now takes `preserveOrder` so an agent-chosen set is shown as given rather than bucketed by task folder. Card, list, snippets, tree, compare are unbuilt.
 3. **Resolution.** Per-path resolution is built; globs, directories, caps, and persisted results are not.
 4. ~~**Prompt.** Describe the vocabulary.~~ Built, including deleting the automatic `output/` preview rule. It had been claiming in four places that writing to `output/` is how a file reaches the user, which cost a measured failure: a model copied a file out of a shared folder into `output/` "for preview" rather than fencing it where it lay.

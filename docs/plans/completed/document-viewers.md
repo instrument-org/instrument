@@ -1,6 +1,6 @@
 # Document viewers
 
-Status: **completed**. The five document formats landed via PR #87; the data and container formats, the shared grid, and the range-read archive path via PR #88 (`9659bc76e`); the notebook viewer via PR #92. Kept for the engine, format and dependency rationale below, none of which the code states. The follow-ons it names are still open: thumbnails split out into [document-thumbnails.md](../active/document-thumbnails.md), and a custom SQL box, CSV export of a selection, multi-column sort and `.eml` were all deliberately left undone.
+Status: **completed**. The five document formats landed via PR #87; the data and container formats, the shared grid, and the range-read archive path via PR #88 (`9659bc76e`); the notebook viewer via PR #92. Kept for the engine, format and dependency rationale below, none of which the code states. The follow-ons it names are still open: thumbnails split out into [document-thumbnails.md](document-thumbnails.md), and a custom SQL box, CSV export of a selection, multi-column sort and `.eml` were all deliberately left undone.
 
 Give the artifact panel real viewers for the document formats people open in a task — PDF, DOCX, PPTX, XLSX, CSV, and Jupyter notebooks — replacing the `<iframe>` PDF preview and the "preview unavailable" card. Read-only, no editing.
 
@@ -153,7 +153,7 @@ Nothing is removed. `TaskFileViewerModal`, `atoms/task-file-viewer.ts`, `FilePre
 
 ### Cover thumbnails are deferred
 
-Cover images for files in the grid and the sidebar are their own piece of work, planned separately in [document-thumbnails.md](../active/document-thumbnails.md). The short version: the libraries' thumbnail hooks answer "draw page 7 of the document already open", not "draw a cover for this path", so a cover costs a full open — and doing that once per file, in the renderer that is drawing the transcript, is what makes it a subsystem rather than a component change.
+Cover images for files in the grid and the sidebar are their own piece of work, planned separately in [document-thumbnails.md](document-thumbnails.md). The short version: the libraries' thumbnail hooks answer "draw page 7 of the document already open", not "draw a cover for this path", so a cover costs a full open — and doing that once per file, in the renderer that is drawing the transcript, is what makes it a subsystem rather than a component change.
 
 ## The expand modal takes the window, less the window's own chrome
 

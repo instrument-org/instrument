@@ -1,6 +1,6 @@
 # Plan: privacy-first diagnostics and feedback
 
-Status: proposal, not started apart from three leaky-field fixes out of phase 0 (the two content-carrying events, the tool error text on `llm.error`, and the crash-record redaction claim). The structural work is untouched: `enableUsageMetrics` still defaults on and PostHog still ships in both processes. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](user-chosen-working-folder.md).
+Status: proposal, not started apart from three leaky-field fixes out of phase 0 (the two content-carrying events, the tool error text on `llm.error`, and the crash-record redaction claim). The structural work is untouched: `enableUsageMetrics` still defaults on and PostHog still ships in both processes. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
 
 ## Scope
 
@@ -27,30 +27,30 @@ Two carve-outs to state before someone else finds them:
 Nothing has been removed. Both PostHog SDKs are live and default-on.
 
 - [machine/preferences.ts](../../../apps/studio/src/electron-main/stores/machine/preferences.ts) defaults `enableUsageMetrics` to on for every install. It is machine-wide, so every workspace on a computer reports under the same choice.
-- [telemetry.ts](../../../apps/studio/src/client/lib/telemetry.ts) calls `posthog.init` and subscribes to the opt-out preference afterward. [main-window.tsx](../../../apps/studio/src/client/components/main-window.tsx) calls `capturePageView` on mount, so init happens at window open for opted-out users. Init fetches remote config from the PostHog host, and `capture_exceptions: true` loads the autocapture extension from a PostHog asset URL.
+- [telemetry.ts](../../../apps/studio/src/client/lib/telemetry.ts) calls `posthog.init` and subscribes to the opt-out preference afterward. [router.tsx](../../../apps/studio/src/client/router.tsx) calls `capturePageView` on every rendered route, so init happens at window open for opted-out users. Init fetches remote config from the PostHog host, and `capture_exceptions: true` loads the autocapture extension from a PostHog asset URL.
 - [telemetry.ts](../../../apps/studio/src/electron-main/lib/telemetry.ts) constructs the Node client at module load with `enableExceptionAutocapture: true`, before any preference is read.
-- [index.html:8-15](../../../apps/studio/src/index.html#L8-L15) permits `https://*.posthog.com` in `connect-src`, `script-src`, and `style-src`.
+- [index.html:19-31](../../../apps/studio/src/index.html#L19-L31) permits `https://*.posthog.com` in `connect-src`, `script-src`, and `style-src`.
 - [machine/state.ts](../../../apps/studio/src/electron-main/stores/machine/state.ts) persists a stable `telemetryId`, one per computer whichever workspace is open, sent as `distinctId` on every server event.
 - [telemetry.ts](../../../packages/shared/src/types/telemetry.ts) permits raw model-search queries and external URLs, and an exception property bag carrying `rpc_path`, `session_id`, `message_id`, `tool_call_id`, `machine_state`.
 
-**Removal is a four-file change.** There are 38 event and 54 exception call sites, but none touch PostHog. `CaptureEventFunction` and `CaptureExceptionFunction` are already injected into workspace ([types.ts:111-112](../../../packages/workspace/src/types.ts#L111-L112)) and ai-gateway ([types.ts:7](../../../packages/ai-gateway/src/types.ts#L7)). Only Studio binds them to PostHog. Swapping the sink is a constructor argument, so there is no reason to delete the event catalog on the way out.
+**Removal is a four-file change.** There are 38 event and 54 exception call sites, but none touch PostHog. `CaptureEventFunction` and `CaptureExceptionFunction` are already injected into workspace ([types.ts:164-165](../../../packages/workspace/src/types.ts#L164-L165)) and ai-gateway ([types.ts:7](../../../packages/ai-gateway/src/types.ts#L7)). Only Studio binds them to PostHog. Swapping the sink is a constructor argument, so there is no reason to delete the event catalog on the way out.
 
 **Diagnostics seed.** [server-exceptions.ts](../../../apps/studio/src/electron-main/lib/server-exceptions.ts) is an unbounded in-memory array, developer-mode only, populated only when telemetry is off.
 
 **Timing seed.** [boot-timing.ts](../../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app. [main-log-retention-and-transport.md](../../findings/main-log-retention-and-transport.md) measures what that file retains and why its transport defaults do not survive the volume Phase 1 adds.
 
-**No feedback UI.** [nav-support.tsx](../../../apps/studio/src/client/components/nav-support.tsx) is an external link. FP-653 "Conversation quality rating" was cancelled.
+**No feedback UI.** Support is an external link (`SUPPORT_URL`, from the Help menu in [menus/utils.ts](../../../apps/studio/src/electron-main/menus/utils.ts) and the error cards). FP-653 "Conversation quality rating" was cancelled.
 
 ## What the storage change does to this
 
-[user-chosen-working-folder.md](user-chosen-working-folder.md) and [conversation-storage.md](conversation-storage.md) change the payload this plan uploads. Four consequences:
+[user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) and [conversation-storage.md](conversation-storage.md) change the payload this plan uploads. Four consequences:
 
 1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table.
 2. **A conversation becomes one append-only file.** Under option D that file plus a byte range from the index _is_ the report payload. No archive walk, no multi-artifact manifest, and the zip-bomb and traversal surface drops out of the common case.
 3. **The superset risk sharpens.** The transcript already contains every file the agent read, every screenshot, every browser page, every command's output. With a writable user-chosen folder those are the user's real documents rather than sandbox copies. "Thumbs up sends the thread" reads to a user like sending a chat and behaves like sending a working folder.
 4. **The journal should match the conversation format.** Append-only plain text in application data, same delete story, same inspect story, rebuildable index. Do not introduce a second storage idiom for diagnostics.
 
-Two things this makes newly claimable, and both are stronger than anything telemetry removal buys on its own: conversations are readable files the user can grep and delete, and we write no hidden state into the user's folder ([user-chosen-working-folder.md](user-chosen-working-folder.md) keeps our state in application data).
+Two things this makes newly claimable, and both are stronger than anything telemetry removal buys on its own: conversations are readable files the user can grep and delete, and we write no hidden state into the user's folder ([user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) keeps our state in application data).
 
 One decision moves here from [conversation-storage.md](conversation-storage.md): whether the agent gets raw read access to the user's whole conversation history. That plan correctly flags it as a privacy posture decision rather than a storage one. It belongs to this plan.
 
@@ -112,7 +112,7 @@ Today it attaches account identity, email, URL, user agent, country, and Cloudfl
 
 **Phase 0, next release.** Default `enableUsageMetrics` off. Apply opt-out before `posthog.init` in both processes. Disable exception autocapture in both. Remove remote script loading. Add a cold-start network test. Fix the "anonymous" wording.
 
-**Phase 1.** `DiagnosticsSink` and journal. Span records, with the boot steps retargeted off electron-log and the main-thread stall watchdog added. Rebind the four Studio files. Reshape the two leaky catalog fields. Remove `posthog-js`, `posthog-node`, the CSP allowances, the env validation in [validate-env.ts](../../../apps/studio/validate-env.ts) and [electron.vite.config.ts:151](../../../apps/studio/electron.vite.config.ts#L151), and the persisted `telemetryId`. Diagnostics UI. Published egress registry. Offline local-model integration test.
+**Phase 1.** `DiagnosticsSink` and journal. Span records, with the boot steps retargeted off electron-log and the main-thread stall watchdog added. Rebind the four Studio files. Reshape the two leaky catalog fields. Remove `posthog-js`, `posthog-node`, the CSP allowances, the env validation in [validate-env.ts](../../../apps/studio/validate-env.ts) and [electron.vite.config.ts:239](../../../apps/studio/electron.vite.config.ts#L239), and the persisted `telemetryId`. Diagnostics UI. Published egress registry. Offline local-model integration test.
 
 **Phase 2.** Report composer, thumbs with first-run disclosure, task rating, "Report this problem". Bundle, redaction, preview, upload, receipt, deletion token, lifecycle.
 

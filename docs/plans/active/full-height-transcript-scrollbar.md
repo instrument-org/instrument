@@ -1,12 +1,12 @@
 # Plan: run the transcript scrollbar the full height of the pane
 
-Status: proposed, not started. Cosmetic goal with a load-bearing constraint: it must not cost anything in the transcript's follow-bottom behavior, and it must not introduce JS layout measurement. Turn anchoring has landed since this was written and moves where the composer has to go; see "What anchoring costs this plan".
+Status: proposed, not started (checked 2026-10-02: the composer is still a flex sibling below the scroller in `task/chat.tsx`). Cosmetic goal with a load-bearing constraint: it must not cost anything in the transcript's follow-bottom behavior, and it must not introduce JS layout measurement. Turn anchoring has landed since this was written and moves where the composer has to go; see "What anchoring costs this plan".
 
 ---
 
 ## Background / why
 
-The task pane stacks three boxes vertically: the toolbar ([sidebar.tsx](../../../apps/studio/src/client/components/task/sidebar.tsx)), the transcript scroller, and the composer ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)). A scrollbar is painted on its scroll container's box, so the transcript's scrollbar starts below the toolbar and stops above the composer. It reads as a short track floating in a well rather than an edge of the window.
+The chat pane stacks three boxes vertically: the header ([chat-header.tsx](../../../apps/studio/src/client/components/window/chat-header.tsx)), the transcript scroller, and the composer ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)). A scrollbar is painted on its scroll container's box, so the transcript's scrollbar starts below the toolbar and stops above the composer. It reads as a short track floating in a well rather than an edge of the window.
 
 The composer used to be a sticky footer *inside* the scroll viewport, which gave a full-height track. `studio: keep the chat composer out of the scroll viewport` moved it to a flex sibling below the scroller, on the diagnosis that the composer's height became scrollable space the scroller never measured and that the "at the bottom" band spanned the whole composer, re-arming follow-bottom right after a scroll-up.
 

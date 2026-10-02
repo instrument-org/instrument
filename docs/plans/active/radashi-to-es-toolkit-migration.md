@@ -1,6 +1,6 @@
 # Plan: radashi → es-toolkit migration (Instrument monorepo)
 
-**Status:** planned, not started. Do it after a few in-flight branches land, since the migration touches ~78 files; land it late to avoid a stale/conflict-heavy diff.
+**Status:** planned, not started (checked 2026-10-02: radashi is imported in 121 files, es-toolkit in none). Land it late in a quiet stretch to avoid a stale/conflict-heavy diff.
 
 ---
 
@@ -32,9 +32,9 @@ Commit **`b4d92b82a`**: `studio: flush pending tab-state write on renderer teard
 
 ~80% is mechanical import renames that `tsgo` will police. ~20% needs a decision or a per-site semantics check. Estimate: focused half-day to a day, parallelizable per package.
 
-### Footprint (radashi imports, 78 sites / 78 files at time of writing)
+### Footprint (radashi imports, 121 files as of 2026-10-02)
 
-Most-used: `dedent` (~25, mostly workspace tool/agent prompts), `noop` (~12), `isEqual` (~7), `parallel` (~6), `alphabetical` (~6), `unique` (~5), `sleep` (~4), `pick`/`sort` (3), `sift`/`fork` (2), plus singletons: `sum`, `clamp`, `capitalize`, `title`, `objectify`, `shake`, `draw`, `assign`, `listify`, `get`. `debounce`: **5 non-test sites**: `apps/studio/src/client/atoms/tabs.ts`, `.../atoms/prompt-value.ts`, `.../components/user-message.tsx`, `.../components/project/project-instructions.tsx`, `apps/studio/src/electron-main/windows/main/index.ts`.
+Most-used: `dedent` (~25, mostly workspace tool/agent prompts), `noop` (~12), `isEqual` (~7), `parallel` (~6), `alphabetical` (~6), `unique` (~5), `sleep` (~4), `pick`/`sort` (3), `sift`/`fork` (2), plus singletons: `sum`, `clamp`, `capitalize`, `title`, `objectify`, `shake`, `draw`, `assign`, `listify`, `get`. `debounce`: **7 non-test sites**: `apps/studio/src/client/atoms/tabs.ts`, `.../atoms/prompt-value.ts`, `.../components/user-message.tsx`, `.../components/model-context-debug-card.tsx`, `.../components/message-part/tool-card.tsx`, `.../components/settings/memory-section.tsx`, `apps/studio/src/electron-main/windows/window-bounds.ts`.
 
 Regenerate the footprint before starting (it will have drifted):
 
@@ -53,15 +53,15 @@ Same name: `noop`, `isEqual`, `pick`, `get`, `sum`, `clamp`, `capitalize`. Renam
 - **`parallel` (~6 sites):** concurrency-limited promise pool, no es-toolkit equivalent. The one spot where semantics matter for correctness. Keep a tiny helper or add `p-limit`.
 - Oddballs (1-2 sites each): `shake`, `listify`, `objectify`, `title`, `assign` resolve via `es-toolkit/compat` (`omitBy`/`keyBy`/`merge`/`startCase`) or a 3-line hand-roll. Verify each individually.
 
-### Bucket 3: the 5 debounce sites (the whole point; do by hand, last)
+### Bucket 3: the 7 debounce sites (the whole point; do by hand, last)
 
-Swap to es-toolkit `debounce` and re-verify each because cancel/flush semantics change. Concrete example to eyeball: `electron-main/windows/main/index.ts` does `debouncedSaveState.cancel(); saveState()`. Under radashi `.cancel()` deactivates; under es-toolkit it only clears the pending timer. That site stays correct (it calls `saveState()` right after), but confirm per-site rather than blind-replacing. `atoms/tabs.ts` only uses `debounce` for scheduling now (see "already done"), so it just needs the import swapped.
+Swap to es-toolkit `debounce` and re-verify each because cancel/flush semantics change. Concrete example to eyeball: `electron-main/windows/window-bounds.ts` calls `saveSoon.cancel()` before saving directly. Under radashi `.cancel()` deactivates; under es-toolkit it only clears the pending timer. That site stays correct (it calls `saveState()` right after), but confirm per-site rather than blind-replacing. `atoms/tabs.ts` only uses `debounce` for scheduling now (see "already done"), so it just needs the import swapped.
 
 ### Suggested sequencing
 
 1. Add `es-toolkit`; keep `radashi` installed through the transition. Settle the two Bucket-2 decisions (`dedent` dep, `parallel` helper) up front.
 2. Migrate package-by-package (`@instrument-org/workspace` is dedent-heavy and mostly mechanical; `@instrument-org/studio` has the debounce + misc). Run `tsgo` + tests after each package.
-3. Do the 5 debounce sites by hand.
+3. Do the 7 debounce sites by hand.
 4. Remove `radashi`, run full checks.
 
 ---
@@ -77,7 +77,7 @@ Swap to es-toolkit `debounce` and re-verify each because cancel/flush semantics 
 
 - `pnpm exec turbo run check:types check:lint --filter=@instrument-org/workspace`
 - `pnpm exec turbo run check:types check:lint --filter=@instrument-org/studio`
-- Per-package tests: `cd packages/<name> && pnpm test run` (workspace) / `cd apps/studio && pnpm test run` (studio).
+- Per-package tests from the repo root: `pnpm --filter @instrument-org/workspace exec vitest run` / `pnpm --filter @instrument-org/studio exec vitest run`.
 - Full: `pnpm check-and-test:ci`.
 - Package management note (from CLAUDE.md): run `pnpm add/remove` **outside** the sandbox (full permissions); `pnpm test`/`check-and-test` are sandbox-OK.
 - Commit style: scope-first, no conventional-commit types (e.g. `deps: replace radashi with es-toolkit`). See `.agents/skills/instrument-commit-message`.
@@ -85,7 +85,7 @@ Swap to es-toolkit `debounce` and re-verify each because cancel/flush semantics 
 ## Suggested skills for the next agent
 
 - **`instrument-commit-message`**: for per-package migration commits.
-- **`verify`**: sanity-check the behavior-changing spots (the 5 debounce sites, especially the electron-main cancel/flush semantics; `parallel` concurrency).
+- **`verify`**: sanity-check the behavior-changing spots (the 7 debounce sites, especially the electron-main cancel/flush semantics; `parallel` concurrency).
 - **`code-review`**: optional final pass over the full diff before landing.
 - **`typescript-result`**: only relevant if any migrated site touches Result/error handling; the migration itself is utility-only, so likely not needed.
 

@@ -1,14 +1,14 @@
 # Plan: chat stream turn-model refactor
 
-Status: proposed, not started. Prompted by the MessageScroller adoption ([landed](../completed/anchor-the-submitted-turn.md)), which wants clean per-turn rows. The activity collapsing this once gated shipped separately on the derived group model in `transcript-layout.ts`, so what remains here is debt reduction rather than a blocker for anything.
+Status: proposed, not started. Prompted by the MessageScroller adoption ([landed](../completed/anchor-the-submitted-turn.md)), which wants clean per-turn rows. The activity collapsing this once gated shipped separately on the derived group model in `transcript-layout.ts`, so what remains here is debt reduction rather than a blocker for anything. Part of the target shape exists without the refactor: `chat-stream.tsx` already draws each turn as one box in one `MessageScrollerItem` (`e436e37d1`). The pure derive step and the `kind → component` registry are not started.
 
 ---
 
 ## Background / why
 
-`chat-stream.tsx` renders the transcript by flattening every message _and every part_ into a single `chatElements` array in one large `useMemo` loop, then special-casing structure inline as it goes:
+`chat-stream.tsx` renders the transcript by flattening every message _and every part_ into a single `chatElements` array in one large loop (`buildChatElements`), then special-casing structure inline as it goes:
 
-- tool-run boundaries that span message boundaries (`toolBoundaryMap`),
+- tool-run boundaries that span message boundaries,
 - per-message chrome (assistant logo/wordmark, attachments, project-context note, error rows),
 - consecutive-assistant grouping for the footer (`lastFooterIndex`, `visibleAssistantContentCount`),
 - continue-button chrome appended after the loop.

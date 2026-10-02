@@ -38,7 +38,7 @@ One row per request:
 
 ### Storage
 
-One SQLite file per workspace, opened with `node:sqlite`, in WAL mode so two Studio instances on one workspace can both write. Not inside the workspace folder: workspaces can live in synced folders, where a SQLite file and its log invite conflict copies (the reasoning in [chat-list-index.md](chat-list-index.md)). It sits in the app's data folder beside the workspace index, keyed the same way, but as its own file: the index is derived and thrown away on any version change, and this record is the only copy of what it holds.
+One SQLite file per workspace, opened with `node:sqlite`, in WAL mode so two Studio instances on one workspace can both write. Not inside the workspace folder: workspaces can live in synced folders, where a SQLite file and its log invite conflict copies (the reasoning in [chat-list-index.md](../completed/chat-list-index.md)). It sits in the app's data folder beside the workspace index, keyed the same way, but as its own file: the index is derived and thrown away on any version change, and this record is the only copy of what it holds.
 
 ### Layers
 

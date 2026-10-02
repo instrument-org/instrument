@@ -1,6 +1,6 @@
 # Document thumbnails
 
-Status: active (not started)
+Status: overtaken, not built as designed. Covers come from the system's own thumbnailer (Quick Look on a Mac, the shell on Windows), kept on disk by path, mtime and size (`electron-main/lib/file-thumbnails.ts`, `c393c3b0e`); pages, Markdown and code are drawn by the app in a hidden window (`rendered-pictures.ts`, `8209a36d7`). No in-app renderer for DOCX, PPTX or XLSX: where the system draws none (Linux), they keep the file-type icon.
 
 Cover images for documents wherever Studio lists files — the message file grid and the sidebar file list — instead of the file-type icons drawn today. Split out of [document-viewers.md](../completed/document-viewers.md), which established the viewers this would reuse.
 

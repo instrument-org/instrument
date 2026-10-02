@@ -69,7 +69,7 @@ There is no Chrome. There is a Studio Electron instance that is not running, or 
 
 The CLI has two further papercuts that are individually trivial and collectively noisy. Its daemon does not notice when the app it points at dies, so the error above is emitted long after the useful moment. And 293 of 1,105 CLI invocations omitted `CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1`, leaving 156 outputs polluted with an update nag or a Google telemetry banner that the agent then has to parse around. Requiring an env var on every invocation to get clean output is a contract nobody keeps.
 
-`connect-cli.sh` already solves this for itself (`CHROME_DEVTOOLS=(env CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools)`), but agents call `pnpm exec chrome-devtools` directly instead. A `scripts/cdt` wrapper that sets the env and passes `--no-usage-statistics` (a server arg, so it only matters on `start`) makes the quiet path the short one. Two lines, and the skill can then name one invocation rather than one invocation plus an env var to remember.
+`connect-cli.sh` already solves this for itself (`CHROME_DEVTOOLS=(env CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools)`), but agents call `pnpm exec chrome-devtools` directly instead. A `cdt` wrapper (`.agents/skills/studio-chrome-devtools/scripts/cdt`) that sets the env and passes `--no-usage-statistics` (a server arg, so it only matters on `start`) makes the quiet path the short one. Two lines, and the skill can then name one invocation rather than one invocation plus an env var to remember.
 
 ### 4. Two mechanisms, and the better one has not displaced the worse one
 
@@ -91,7 +91,7 @@ Small but recurring. Observed failures include `studio-drive: ReferenceError: aw
 
 ## Suggested order
 
-1. A `scripts/cdt` wrapper carrying the env, and a skill that names `studio-drive` as the entry point with the CLI demoted to troubleshooting. Two small edits, no design work, and together they retire the telemetry noise and most of the 177 calls a month still going down the flakier path.
+1. A `cdt` wrapper (beside `studio-drive.mjs`) carrying the env, and a skill that names `studio-drive` as the entry point with the CLI demoted to troubleshooting. Two small edits, no design work, and together they retire the telemetry noise and most of the 177 calls a month still going down the flakier path.
 2. Failure messages that name the resolved checkout root and port. `window.__studioDrive never appeared` currently describes the symptom and not the cause, which is usually that the script and the working directory belong to different checkouts.
 3. Coarse `wait` modes. The largest remaining share of the 134 minutes of sleeps, now that boot is no longer the culprit.
 4. Clean up leftover per-run app identities.

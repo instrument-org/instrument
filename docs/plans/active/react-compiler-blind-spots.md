@@ -1,6 +1,6 @@
 # Plan: the code React Compiler never sees
 
-Status: proposal, not started. Owner: TBD. Written after two frozen-clock bugs traced to the same root: a value read during render that the compiler cached and never recomputed.
+Status: proposal, not started (checked 2026-10-02: the lowercase markdown overrides and the four `Date`-carrying memos are unchanged). The audit below predates 2.0: `NavTaskItem` and `tasks-data-table/columns.tsx` went with the 1.x window, `markdownCode` no longer exists, and 2.0 added `memo` on `MarkdownBlock`, `ListedChat` (`window/chat-list.tsx`), and `FileSystemColumn`, none re-audited. Owner: TBD. Written after two frozen-clock bugs traced to the same root: a value read during render that the compiler cached and never recomputed.
 
 ## Problem
 
@@ -17,13 +17,14 @@ Every `.tsx` under `apps/studio/src/client` was parsed for top-level functions t
 
 ### A. Components in disguise — worth fixing, mechanically safe
 
-`markdown.tsx` passes three lowercase functions to `ReactMarkdown` as component types:
+`markdown.tsx` passes four lowercase functions to `ReactMarkdown` as component types:
 
 | Function | Renders for |
 | --- | --- |
 | `markdownPre` | every fenced block |
 | `markdownOrderedList` | every ordered list |
-| `markdownCode` | every code span and every fenced block |
+| `markdownParagraph` | every paragraph |
+| `markdownDetails` | every `<details>` block |
 
 React calls these through `createElement` exactly as it calls any component. They are components in every respect except the capital letter, and that letter is the whole difference: two functions with identical bodies compile differently on casing alone, the lowercase one emitting no cache at all.
 
@@ -31,7 +32,7 @@ React calls these through `createElement` exactly as it calls any component. The
 
 The `img` override is an arrow function written inline in the `components={{...}}` object. It is inside the compiled `Markdown` component, so its identity is cached, but its body is never compiled as a component either.
 
-**Fix:** rename to `MarkdownPre`, `MarkdownOrderedList`, `MarkdownCode`; lift `img` to a named capitalized component. No behavior changes — the compiler starts caching bodies that currently rebuild per element. This is the highest value for the lowest risk in this plan, and markdown renders on every message in every transcript.
+**Fix:** rename to `MarkdownPre`, `MarkdownOrderedList`, `MarkdownParagraph`, `MarkdownDetails`; lift `img` to a named capitalized component. No behavior changes — the compiler starts caching bodies that currently rebuild per element. This is the highest value for the lowest risk in this plan, and markdown renders on every message in every transcript.
 
 ### B. Render helpers on the transcript path — needs measurement before changing
 
@@ -70,7 +71,7 @@ Parts carry real `Date` instances client-side (the store round-trips them throug
 
 ### D. Assembly helpers — not a problem, leave them
 
-`collectGroups` and `wrapRow` (`chat-stream.tsx`), `renderCode` and `renderPdf` (`file-viewer.tsx`), `renderTriggerIcon` (`update-status-indicator.tsx`), `createColumns` (`tasks-data-table/columns.tsx`).
+`collectGroups` and `wrapRow` (`chat-stream.tsx`), `renderCode` and `renderPdf` (`file-viewer.tsx`), `renderTriggerIcon` (`update-status-indicator.tsx`).
 
 These are called from inside compiled components, and their results are cached as part of the enclosing block. They wrap or arrange nodes rather than being rendered as component types, so React never treats them as components and nothing is lost by their casing. Renaming them would misrepresent what they are.
 

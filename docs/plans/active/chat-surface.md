@@ -1,6 +1,6 @@
 # Plan: chat surface
 
-Status: slices 1 through 8 built, except suggesting the output (open question 7); 9 (app-level tabs) gets its own plan.
+Status: slices 1 through 8 built, except suggesting the output, which waits on open question 7; 9 landed under its own plan, [app-level tabs](../completed/app-level-tabs.md).
 
 ---
 
@@ -10,7 +10,7 @@ The 2.0 draft window grew into a corner. Its head carries the name, the topic, t
 
 ## Decisions
 
-- **Chat, not chat.** Everything a person reads says "chat": "New chat", never "New chat". Code names can follow separately.
+- **Chat, not thread.** Everything a person reads says "chat": "New chat", never "New thread". Code names can follow separately.
 - **The draft's head stays a chat.** The person is starting a chat, so the head says "New chat", followed by the topic. Its dropdown is where an output is picked by hand, which is rare; once one is picked or suggested the head reads "Make a [page type] in [topic]". Suggesting the output from the draft's words does most of the work. Both pills are filled by Instrument when it is confident (the topic already is, from the draft's words), tinted while they are its pick, removable with × (and then left alone for that draft), and pickable by hand. "in" is the only joiner.
 - **One topic picker.** A search field that also makes a topic, best fit first, New topic at the foot; the same component in the draft head, on rows, and in a chat's head.
 - **Bringing things in is two steps.** A fresh draft's band shows tiles to open (Web, This Mac, Apps) and, under them and smaller, a place to attach a file or a folder that is also the drop zone, leaving room above for typing; the whole window takes a drop. Pressing Apps opens the Apps landing page (the same page the rail's Apps place shows, without its prompts to connect more) in the band, and pressing an app goes into that app's own page there, so a connected Gmail can be opened and browsed in the draft; naming an app in the words is the @ mention, not the tile. Pressing Web opens the browser right there in its own zero state (bookmarks, recents, an address bar), with no popover in between; This Mac opens the Finder the same way. A dropped or pasted file opens as a tab, never a chip. The first zero state never shows tabs; once something is open, bringing in more goes through +, which opens a new tab showing the same zero state.
@@ -86,7 +86,7 @@ So thumbnails are pictures, never scaled live pages: a guest can be shown in onl
 
 Each step lands and is checked in the app on its own.
 
-1. Copy: "chat" becomes "chat" in everything a person reads.
+1. Copy: "thread" becomes "chat" in everything a person reads.
 2. The Finder opens a double-clicked file in place, with back and forward; the "where to open" choice goes.
 3. Rail thumbnails as captured pictures (measured; see above).
 4. The reply box's +: tiles, Attach files and Add a folder, skills, model, apps to mention; / stays the keyboard path.

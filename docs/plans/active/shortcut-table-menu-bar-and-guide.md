@@ -1,12 +1,12 @@
 # One shortcut table: in-app menu bar and a shortcut guide
 
-Status: **phases 1-3 landed, phase 4 not started.** Owner: TBD. The table is [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
+Status: **phases 1-3 landed, phase 4 not started** (checked 2026-10-02; the table, binder, and guide carried over into the 2.0 app window). Owner: TBD. The table is [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
 
 ## Problem
 
 Shortcut definitions used to live inside the native menu template, with the chord, the label, and the action fused into each `MenuItemConstructorOptions`. That is fine while the native menu is the only consumer, and it stops being fine three ways:
 
-1. **Windows/Linux draw their own chrome.** Those platforms already run frameless (`frame: false`, [windows/main/index.ts](../../../apps/studio/src/electron-main/windows/main/index.ts)) with a custom title bar, so we want our own menu bar in the app boundary rather than the native one. It needs the same items the native menu has, in the renderer, as data.
+1. **Windows/Linux draw their own chrome.** Those platforms already run frameless (`frame` is false off macOS, [windows/app-window.ts](../../../apps/studio/src/electron-main/windows/app-window.ts)) with a custom title bar, so we want our own menu bar in the app boundary rather than the native one. It needs the same items the native menu has, in the renderer, as data.
 2. **Users can't discover shortcuts.** There was no directory, and the only in-app hint was a hardcoded `⌘+K` string in `command-menu-cta.tsx` -- exactly the kind of copy that goes stale when a chord changes.
 3. **Chords already need a second consumer in main.** A menu accelerator is a fallback rather than a binding: Electron offers the native menu only the key events web content left unhandled, so `bindShortcutAccelerators` runs the app's own chords from `before-input-event` instead. That consumer reads the same entries, which is why the table started in the main process.
 
@@ -33,9 +33,9 @@ One declaration per shortcut, read by every surface that shows or runs it:
 - **The main-side actions**: `SHORTCUT_ACTIONS` (a `Record<ShortcutId, null | ShortcutAction>`, so a new descriptor forces a decision), `shortcutMenuItem(id)` to project one into a menu item, and `bindShortcutAccelerators()` to run every menu-owned chord ahead of the page ([menus/shortcuts.ts](../../../apps/studio/src/electron-main/menus/shortcuts.ts)).
 - **The display formatter**: `formatAccelerator()` splits an accelerator into per-`Kbd` tokens for this platform ([format-accelerator.ts](../../../apps/studio/src/client/lib/format-accelerator.ts)).
 - **Menu rebuild plumbing**: `createApplicationMenu()` re-runs `Menu.buildFromTemplate` on window focus/blur, `window.focus-changed`, and `preferences.updated` ([menus/index.ts](../../../apps/studio/src/electron-main/menus/index.ts)), so a table-driven template stays live without new invalidation.
-- **Command transport**: menu actions call `sendAppCommand` ([app-command.ts](../../../apps/studio/src/electron-main/app-command.ts)), streamed to the renderer and applied by `useAppCommands`, which already gates on `MODAL_SAFE_COMMANDS` and `blockingModalCountAtom` ([use-app-commands.ts](../../../apps/studio/src/client/hooks/use-app-commands.ts)). An in-app menu bar can dispatch the same `AppCommand` union directly instead of routing through main.
+- **Command transport**: menu actions call `sendAppCommand` ([app-command.ts](../../../apps/studio/src/electron-main/app-command.ts)), streamed to the renderer and applied by `useWindowCommands`, which already gates on `MODAL_SAFE_COMMANDS` and `blockingModalCountAtom` ([use-window-commands.ts](../../../apps/studio/src/client/components/window/use-window-commands.ts)). An in-app menu bar can dispatch the same `AppCommand` union directly instead of routing through main.
 - **UI primitives on hand**: `ui/menubar.tsx` (Radix Menubar, currently only used by [dev-panel.tsx](../../../apps/studio/src/client/components/dev-panel.tsx)) and `ui/kbd.tsx` for rendering chords.
-- **Where the bar mounts**: [studio-toolbar.tsx:95](../../../apps/studio/src/client/components/studio-toolbar.tsx#L95) is the custom title bar row, and `WindowControls` already self-gates on `isWindows() || isLinux() || (isMacOS() && forceShow)` ([window-controls.tsx:16](../../../apps/studio/src/client/components/window-controls.tsx#L16)) with a debug-panel override to force it on macOS. The menu bar wants the same gate and the same override so it stays testable on a Mac.
+- **Where the bar mounts**: [window-bar.tsx](../../../apps/studio/src/client/components/window/window-bar.tsx) is the custom title bar row, which in 2.0 also carries the app-level tab strip, so the menu bar competes with the tabs for its width, and `WindowControls` already self-gates on `isWindows() || isLinux() || (isMacOS() && forceShow)` ([window-controls.tsx:16](../../../apps/studio/src/client/components/window-controls.tsx#L16)) with a debug-panel override to force it on macOS. The menu bar wants the same gate and the same override so it stays testable on a Mac.
 
 ## Design decisions
 
@@ -52,7 +52,7 @@ One declaration per shortcut, read by every surface that shows or runs it:
 
 ### Phase 1 - Grow the table in place (done)
 
-Menu construction is a projection over the table: `shortcutMenuItem(id)` for every item that has a chord, in `main-window.ts` and `utils.ts` alike, and `hiddenShortcutItems(id)` for the accelerator-only ones (numpad zoom, `Cmd+=`, `Cmd+1..8`, the `Cmd+Shift+[`/`]` duplicates), which are `alternates` on the entry they belong to rather than hand-written rows.
+Menu construction is a projection over the table: `shortcutMenuItem(id)` for every item that has a chord, in `menus/app-window.ts` and `menus/utils.ts` alike, and `hiddenShortcutItems(id)` for the accelerator-only ones (numpad zoom, `Cmd+=`, `Cmd+1..8`, the `Cmd+Shift+[`/`]` duplicates), which are `alternates` on the entry they belong to rather than hand-written rows.
 
 ### Phase 2 - Cross the process boundary (done)
 

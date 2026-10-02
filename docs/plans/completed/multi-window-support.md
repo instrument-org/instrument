@@ -1,6 +1,6 @@
 # Plan: multiple top-level app windows
 
-Status: not started, under consideration. Investigation complete; gated behind a `multi_window` feature flag if we build it. Owner: TBD.
+Status: not built, and overtaken: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`. The 2.0 window is again a singleton (`getAppWindow` in `apps/studio/src/electron-main/windows/app-window.ts`), so the blockers carry over in kind, but every path and shortcut below is the 1.x one. Multi-window starts from a fresh investigation if it comes back.
 
 ---
 

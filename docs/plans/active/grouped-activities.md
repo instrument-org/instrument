@@ -1,6 +1,6 @@
 # Plan: grouping a run of tool calls under what it is for
 
-Status: **in progress -- the control tool, the heading, and collapsing groups are built; the cadence nudge and the animated swap are not.** Owner: TBD.
+Status: **in progress -- the control tool, the heading, and collapsing groups are built; the cadence nudge and the animated swap are not.** `start_activity` ships behind the `activity_headings` feature flag, off by default since `3c80f1910` because models always send it as a step of its own (a model round trip that does nothing else), so groups in a default build are the inferred kind. Owner: TBD.
 
 A transcript that gives every call its own sentence repeats itself: "Reading the note", "Reading the next note", "Reading the third note". The user needs one line above the run of them saying why it is happening. The research behind this, including what Manus, Codex, ACP, and Gemini CLI actually expose, is [Research: Grouped Tool-Call Activities in Provider-Agnostic Agent Harnesses](https://app.notion.com/p/3b38f368f2d781c2b942ea62328f7a0e).
 

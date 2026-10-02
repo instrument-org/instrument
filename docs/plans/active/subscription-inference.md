@@ -1,6 +1,6 @@
 # Inference through the user's Claude and ChatGPT subscriptions
 
-Status: **ChatGPT direct route spiked; Claude and the Codex harness not started.** Policy snapshot verified 2026-09-26 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before building anything.
+Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37); the Codex and Claude Code harnesses (everything under "Approach" and "Phases") not started** (checked 2026-10-02). Policy snapshot verified 2026-09-26 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before building anything.
 
 ## Goal
 
@@ -48,7 +48,7 @@ That keeps our own loop, tools, prompt, and transcript, so none of the harness w
 - **The provider** is a synthesized `chatgpt` config, like our own, whose key is the current access token ([`get-ai-provider-configs.ts`](../../../apps/studio/src/electron-main/lib/get-ai-provider-configs.ts)). Models come from the account's `/v1/models` catalog, which is `{ models: [{ slug, display_name, visibility }] }` rather than the API's list.
 - **The request rewrite** happens in the local gateway ([`chatgpt-plan-request.ts`](../../../packages/ai-gateway/src/lib/providers/chatgpt-plan-request.ts)): `store: false` and `stream: true` always, the refused fields (`max_output_tokens`, `user`, `temperature` and the rest) dropped, system items rewritten as developer items, and a request that asked for JSON collapsed from `response.completed`. The platform gateway is never involved.
 
-Open on this route: whether plain top-level function tools are accepted (the docs say to group them in namespaces or send them as `additional_tools`), image generation and hosted web search needing another provider, usage-limit errors surfaced in the composer, and the first-sign-in and "Using ChatGPT plan" UI the guidelines ask for.
+Since landed on this route: Continue with ChatGPT on the login screen (`f6d266516`), a settings card (`settings/chatgpt-plan-card.tsx`), and a spent or declined plan reported as a usage-limit error rather than retried (`822768ad7`, `c38549d8f`). Not rechecked here: whether plain top-level function tools are accepted (the docs say to group them in namespaces or send them as `additional_tools`), and image generation and hosted web search needing another provider.
 
 ## Approach
 

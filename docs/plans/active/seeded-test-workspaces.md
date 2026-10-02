@@ -1,8 +1,8 @@
 # Plan: seeded, disposable workspaces for driving and testing Studio
 
-Status: corpus, seeder and `studio-drive` wiring landed. CI is the remaining step.
+Status: corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout. CI (step 4) is the remaining step; no workflow seeds or drives a workspace yet (checked 2026-10-02).
 
-Context for why this is wanted: [driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) lists ambient workspace state as the last unaddressed source of flakiness in scripted runs. Adjacent and worth reading before starting, because both move where task data lives: [user-chosen-working-folder.md](./user-chosen-working-folder.md) and [conversation-storage.md](./conversation-storage.md).
+Context for why this is wanted: [driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) lists ambient workspace state as the last unaddressed source of flakiness in scripted runs. Adjacent and worth reading before starting, because both move where task data lives: [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) and [conversation-storage.md](./conversation-storage.md).
 
 ## Summary
 
@@ -92,7 +92,7 @@ Not done, and deliberately last: only once the above is boring. `.agents/cloud-d
 
 ## Settings are per workspace, and that is a feature
 
-Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json`, `window-state.json` and `providers.json` all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, window size. Zoom is not among them; like the open tabs below, it is renderer state in `localStorage`.
+Redirecting `userData` moves more than the tasks. The workspace's `preferences.json`, `features.json`, `state.json`, `window-state.json` and `providers.json` live under `<workspace>/.instrument/settings/`, and the machine-wide `machine-preferences.json` and `machine-state.json` at the `userData` root, all inside the redirected directory, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, window size. Zoom is not among them; like the open tabs below, it is renderer state in `localStorage`.
 
 The manifest declares only what the fixture actually depends on, and everything else falls through to the app's own defaults. A fixture that pins every setting will break every time a default changes, which is the opposite of what it is for. A fixture for the skills UI should say "skills enabled" and nothing more. The keys themselves are written verbatim and validated by the app's own store schemas on load, since those schemas live in Studio and the seeder does not: a typo silently does nothing rather than failing the seed.
 

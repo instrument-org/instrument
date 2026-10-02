@@ -1,10 +1,10 @@
 # Plan: conversation storage the agent can read across
 
-Status: proposal, not started. Owner: TBD. Split out from [user-chosen-working-folder.md](user-chosen-working-folder.md) because it is a separate axis: that plan decides where the user's _files_ live, this one decides where the app's _conversation data_ lives. Neither blocks the other.
+Status: the backing-store change (phases 0-2, 4-5) is not started; storage is still per-task SQLite. Two pieces landed around it on option C's terms instead: the metadata index as [chat-list-index](../completed/chat-list-index.md) (one derived index per workspace, per-chat stores stay the truth), and the agent's cross-chat search as `chat search`, an on-demand fan-out (`lib/shell-commands/chat.ts`). Owner: TBD. Split out from [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) because it is a separate axis: that plan decides where the user's _files_ live, this one decides where the app's _conversation data_ lives. Neither blocks the other.
 
 ## Problem
 
-Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. Any cross-task question — "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" — has to open every database in turn, and every such capability needs a bespoke fan-out tool.
+Each chat's and task's conversation lives in its own SQLite file at `.instrument/task.db` in its folder (`chats/<id>/`, `chats/<id>/tasks/<id>/`, or `tasks/<id>/`). Any cross-task question — "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" — has to open every database in turn, and every such capability needs a bespoke fan-out tool.
 
 This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects.
 
@@ -123,7 +123,7 @@ Falling back to the path when there is no repository is the obvious completion, 
 
 A category we have never had to name, because the task folder absorbed it: files that belong to the **exchange** rather than to the user's work or to the agent's scratch. Generated images, browser screenshots, tool-output spill logs, document thumbnails, chart renders.
 
-Today they live under `work/` inside the task directory, and the transcript references them by task-relative path. That works only because the task directory is simultaneously the conversation's home and the working directory. Both of this plan and [user-chosen-working-folder.md](user-chosen-working-folder.md) sever that: the conversation moves to a file in application data, and the working directory becomes a folder the user owns. Neither is the right home for a screenshot.
+Today they live under `work/` inside the task directory, and the transcript references them by task-relative path. That works only because the task directory is simultaneously the conversation's home and the working directory. Both of this plan and [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) sever that: the conversation moves to a file in application data, and the working directory becomes a folder the user owns. Neither is the right home for a screenshot.
 
 - Not the working folder: writing our screenshots into a user's repository is exactly the pollution that plan exists to stop.
 - Not scratch: scratch is disposable by definition, and a transcript that renders an image from six months ago needs that image to still exist.
@@ -163,14 +163,14 @@ The prior art supports the shape directly. Reference A's documented pattern is e
 
 **The link parser becomes shared infrastructure.** The presentation plan's rule that everything parses into one schema currently serves the renderer. If the indexer extracts references too, both must extract the *same* set from the same text, or the sidebar lists files the transcript does not show, or misses ones it does. Extract once, at append time, and let the renderer and the index read the same parsed nodes.
 
-**An indexed reference is not a guarantee the file exists.** Under [user-chosen-working-folder.md](user-chosen-working-folder.md) a linked file may live in a folder the user owns, edits, moves, or disconnects. The index records that a conversation referred to a path; whether that path resolves is a question for render time, and the sidebar needs an answer for "linked, but gone" that is not a broken row.
+**An indexed reference is not a guarantee the file exists.** Under [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) a linked file may live in a folder the user owns, edits, moves, or disconnects. The index records that a conversation referred to a path; whether that path resolves is a question for render time, and the sidebar needs an answer for "linked, but gone" that is not a broken row.
 
 ## Sequencing across the plans
 
 Four plans now interlock, and the order matters more than usual because two of them change what a path means. The dependencies are narrower than they look:
 
 1. **Split the task id from the task title** (above). Small, self-contained, and a prerequisite for both storage and the origin work. Nothing else should start before it, because both of the following choose durable names.
-2. **[The folder work's phases 1 and 2](user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
+2. **[The folder work's phases 1 and 2](../completed/user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
 3. **This plan's phases 1 through 3** — prototype the write path, introduce the storage seam, build the metadata index. Independent of the folder work and can run in parallel with it; Reference B is the evidence that the seam is worth having before the backing decision, not after.
 4. **Conversation-scoped assets** need both: a conversation that owns a directory (this plan) and an origin that serves more than one root (the folder plan). It is the join point, and it is where the two plans stop being separable.
 5. **[Presentation](presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the task's layout) whose interface does not change even though everything under it does.

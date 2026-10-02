@@ -1,8 +1,8 @@
 # Plan: temporary tasks
 
-Status: designed, not started. Owner: TBD.
+Status: not built; overtaken by 2.0. The design targets the 1.x model, where a task was the conversation the user saw in the sidebar, lived at `tasks/<id>/`, had its own browser profile, and could be zip-exported. In 2.0 the conversation is a chat that owns its tasks (`chats/<id>/tasks/<id>/`), the workspace has one browser profile, and zip export is gone (`853317c6a`). A temporary conversation, if wanted, would be a temporary chat and needs a fresh design; the tiers, the id-as-flag idea, and rename-then-reap below still apply.
 
-Related, because both move where conversation data lives and would change the mechanism below if they land first: [conversation-storage.md](conversation-storage.md) and [user-chosen-working-folder.md](user-chosen-working-folder.md). Related on the claim rather than the code: [privacy-first-diagnostics-and-feedback.md](privacy-first-diagnostics-and-feedback.md), whose carve-out about the hosted model path applies here verbatim.
+Related, because both move where conversation data lives and would change the mechanism below if they land first: [conversation-storage.md](../active/conversation-storage.md) and [user-chosen-working-folder.md](user-chosen-working-folder.md). Related on the claim rather than the code: [privacy-first-diagnostics-and-feedback.md](../active/privacy-first-diagnostics-and-feedback.md), whose carve-out about the hosted model path applies here verbatim.
 
 ## Summary
 
@@ -109,7 +109,7 @@ The word carries no built-in mental model, so two surfaces have to supply one.
 
 **Creation disclosure, once.** Along the lines of: "Your conversation is never written to this computer. Files this task creates are deleted when you quit. Sites you sign into are forgotten, and other tasks never see them. This does not change how your messages reach the model."
 
-Keep that last sentence even when it is tempting to drop. It is the carve-out that [privacy-first-diagnostics-and-feedback.md](privacy-first-diagnostics-and-feedback.md) argues should be stated by us rather than discovered by somebody else.
+Keep that last sentence even when it is tempting to drop. It is the carve-out that [privacy-first-diagnostics-and-feedback.md](../active/privacy-first-diagnostics-and-feedback.md) argues should be stated by us rather than discovered by somebody else.
 
 "Your conversation is never written to this computer" is accurate without qualification in v1, because there is no user-facing path that writes a transcript out. Should conversation export become user-facing later, it arrives with its own opt-in disclosure and this sentence gains "unless you export it".
 
@@ -135,7 +135,7 @@ Sizes are estimates from reading the code, not measurements. Nothing on this lis
 
 Item 3 is the right moment to rename `task-record` and its exports, because the file is being opened to have a seam put in it and a seam is easier to name well than to rename once callers depend on it. Worth folding in: the file and function names, the settings-versus-state split that the adapter has to model explicitly, and naming the storage contract so it visibly pairs with the one the session store already uses.
 
-Worth resisting: reshaping the settings schema, which is a migration; the broader task id and title split, which [conversation-storage.md](conversation-storage.md) should own; and anything that makes the diff hard to review, since this is the file where a subtle mistake loses someone's draft.
+Worth resisting: reshaping the settings schema, which is a migration; the broader task id and title split, which [conversation-storage.md](../active/conversation-storage.md) should own; and anything that makes the diff hard to review, since this is the file where a subtle mistake loses someone's draft.
 
 ## Deliberately out of v1
 
@@ -145,12 +145,12 @@ Worth resisting: reshaping the settings schema, which is a migration; the broade
 - **Telling the agent it is in a temporary task.** It invites divergent behavior, such as trying to persist work elsewhere, which would break the user's expectation more than the ignorance costs. Revisit when the agent gains meta operations over tasks on disk, at which point the framing is "everything is the same, but this is deleted on exit", explicitly not "behave differently".
 - **Continuing an existing task privately, or branching privately.** The existing transcript is already on disk, so the promise would be false.
 - **Restricting skills, projects, or attached folders.**
-- **Anything about telemetry.** [privacy-first-diagnostics-and-feedback.md](privacy-first-diagnostics-and-feedback.md) is replacing ambient events with client-held, user-attached reports, which resolves the gap without this feature acting.
+- **Anything about telemetry.** [privacy-first-diagnostics-and-feedback.md](../active/privacy-first-diagnostics-and-feedback.md) is replacing ambient events with client-held, user-attached reports, which resolves the gap without this feature acting.
 
 ## Risks
 
 - **Crash residue for tier 2.** Between a crash and the next launch, a temporary task's files sit in the workspace. This is a weaker promise than a browser makes, and it is the direct cost of the agent being able to run real work. The copy says "deleted when you quit" rather than "never written" for this tier, which is accurate.
-- **The storage plans would change this.** [conversation-storage.md](conversation-storage.md) moves conversations into a central index, at which point "delete the folder, delete the data" stops being true and temporary tasks need their entries excluded or purged. Build against the storage seam rather than the file layout, and add a line to that plan when this lands.
+- **The storage plans would change this.** [conversation-storage.md](../active/conversation-storage.md) moves conversations into a central index, at which point "delete the folder, delete the data" stops being true and temporary tasks need their entries excluded or purged. Build against the storage seam rather than the file layout, and add a line to that plan when this lands.
 
 ## Acceptance criteria
 

@@ -1,6 +1,6 @@
 # Dependency work behind the PR queue
 
-Status: proposed, nothing started. Every item here was deliberately held back from the 2026-08-29 sweep because it rewrites files that open pull requests are also touching, or because it is a decision rather than a bump. Most are gated on the open PR queue draining; Electron has a specific gate, [#102](https://github.com/instrument-org/instrument/pull/102), recorded below. Verified against the npm registry and upstream sources on 2026-08-29; re-check version claims before acting, because they go stale in days.
+Status: one item done, the rest not started (checked 2026-10-02). The AI SDK moved to v7 in `241d44b06`. #102 merged on 2026-09-02, so Electron's gate below is cleared, but Electron is still 42.3.3 on Node 24.15.0; Radix Phase 0, the `overrides` batch, and the decisions in item 5 are untouched. The ESLint half of the dev-tooling wave is moot: lint is oxlint alone. Every item here was deliberately held back from the 2026-08-29 sweep because it rewrites files that open pull requests are also touching, or because it is a decision rather than a bump. Most are gated on the open PR queue draining; Electron has a specific gate, [#102](https://github.com/instrument-org/instrument/pull/102), recorded below. Verified against the npm registry and upstream sources on 2026-08-29; re-check version claims before acting, because they go stale in days.
 
 This is the companion to [dependency-upgrade-sweep.md](dependency-upgrade-sweep.md), which ranks the whole tree. That plan answers "what does upstream already fix for us". This one answers "what did we choose not to do while the branch was busy, and what has to be true before we do".
 
@@ -73,7 +73,7 @@ What either buys, all of it landing on surfaces we own:
 - DevTools device-metric overrides persisting indefinitely when a remote debugging client disconnects without clearing them (42.10.0). That is exactly how the in-app browser drives CDP.
 - Browser-process crash and spurious preload `ENOENT` when `app.asar` is replaced on disk while running (42.6.2), which is the shape of the updater work in [auto-updater.md](../../architecture/auto-updater.md).
 - Downloads of files inside an asar, including saving a packed PDF from the built-in viewer (42.9.2).
-- Windows opened from a sandboxed frame not inheriting the opener's sandbox restrictions (42.5.2, 42.9.2), which feeds [browser-popups-as-agent-drivable-tabs.md](browser-popups-as-agent-drivable-tabs.md).
+- Windows opened from a sandboxed frame not inheriting the opener's sandbox restrictions (42.5.2, 42.9.2), which feeds [browser-popups-as-agent-drivable-tabs.md](../completed/browser-popups-as-agent-drivable-tabs.md).
 - `ProtocolResponse.url` requests going through the default session rather than the registering session (42.5.1). We register protocol handlers per session (the file channel, the app scheme).
 - A use-after-free in `protocol.registerStreamProtocol` on a read error (42.8.1).
 - The primary instance being killed or receiving truncated arguments when a second instance passes a long command line to `requestSingleInstanceLock` (42.10.1). That is the deep-link path.
@@ -112,7 +112,7 @@ One thing the sweep did not have: the three repos have drifted apart on exactly 
 ### 5. Decisions that are not bumps
 
 - **Base UI.** Scoped in [radix-upgrade-and-base-ui-migration.md](radix-upgrade-and-base-ui-migration.md). Nothing found in this sweep changes that plan's conclusion, including its note that upstream's own position is that switching component libraries is the worst thing to do to a working product. Decide it separately from Phase 0.
-- **AI SDK v7.** Still gated on the transcript renderer enumerating from persisted session messages rather than through `convertToModelMessages`, exactly as the sweep recorded. That gate has not moved.
+- **AI SDK v7.** Done in `241d44b06`.
 - **`arctic` is deprecated at every published version**, 3.7.0 included, and it is the Google OAuth flow on the sign-in path. Wants a replacement decision, not a version bump.
 - **`electron-store` 10 to 11** drags `conf` to 15, which still declares the loose `set(key: string, value: unknown)` overload our patch removes. The bump re-creates the patch rather than retiring it, so pair it with a decision about whether the patch still earns its keep.
 - **`tokenx` 1 to 2** recalibrates the estimator, which shifts every threshold tuned against the old one. Relevant to [context-compaction.md](context-compaction.md).

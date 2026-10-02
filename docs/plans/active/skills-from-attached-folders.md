@@ -1,6 +1,6 @@
 # Skills from attached folders
 
-Status: proposed. Waits on step 3 of [skills mount instead of copy](./skills-mount-instead-of-copy.md).
+Status: proposed, not started (checked 2026-10-02: `getSkillSources` reads no attached folders). Waits on step 3 of [skills mount instead of copy](./skills-mount-instead-of-copy.md), which has not landed.
 
 ## Problem
 

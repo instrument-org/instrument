@@ -8,7 +8,7 @@ Related: [legacy-data-migration.md](legacy-data-migration.md), which turns 1.x t
 
 ## 1.x tasks have no screen
 
-The app window lists the tasks its chats started (`workspace.chats.tasks`), and a 1.x task has no chat. With the classic window gone, a person's 1.x tasks and projects are on disk but reachable only by address (`/tasks/<id>`): no list, no search. [legacy-data-migration.md](legacy-data-migration.md) (FP-1309) is what brings them back, as chats and topics, so it has to ship with or before this removal for anyone who used 1.x.
+The app window lists the tasks its chats started (`workspace.chats.tasks`), and a 1.x task has no chat. With the classic window gone, a person's 1.x tasks and projects are on disk but reachable only by address (`/tasks/<id>`): no list, no search. [legacy-data-migration.md](legacy-data-migration.md) (FP-1309, `lib/migrate-legacy-tasks.ts`) brings them back as chats and topics; it shipped in the same beta as this removal (v2.0.0-beta.37).
 
 ## Features without a counterpart
 

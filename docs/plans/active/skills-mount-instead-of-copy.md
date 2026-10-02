@@ -1,6 +1,6 @@
 # Skills mount instead of copy, and a task installs once
 
-Status: in progress. Steps 1 and 2 landed, and step 3's mounts are live in the mount table. What is left of step 3 is the part that removes the copy: materializing the bundled set, rewriting `load_skill`, and threading the skill mounts through the native bridge's callers.
+Status: in progress (checked 2026-10-02). Steps 1 and 2 landed (step 2 as `ae997fa7d`, the task root is the one package), except that the template's `packages: work/skills/*` globs stay until the copy goes. Step 3's mounts are live in the mount table, but `load_skill` still copies into `work/skills/` (`copySkill`). What is left of step 3 is the part that removes the copy: materializing the bundled set, rewriting `load_skill`, and threading the skill mounts through the native bridge's callers.
 
 Supersedes one stated consequence of [skills as a mount, not a tool](../../decisions/2026-07-20-skills-as-a-mount-not-a-tool.md): "Running a skill's script still means loading the skill and running the copy under `work/skills/`."
 
@@ -23,7 +23,7 @@ Meanwhile the copy costs a `pnpm install` on `load_skill`'s critical path, plus 
 - The rest of that migration stays. It is not all legacy: the folds added for the task record are what every existing workspace still needs at boot. The browser-profile cleanup beside it now spells its path out, because a clone only exists where the build that wrote one put it and the temp dir has moved since.
 - Point `isRunnable` at the task root's `package.json`. It is what the heartbeat route answers `not-runnable` from, so a stale path silently reports every task as unrunnable. The check disappears with on-demand runtime creation; until then it has to follow the package.
 - Lift the machinery out of `work/` too. The venv, the subprocess temp dir, and the tool-output spill logs move to the task root as `.venv`, `.tmp`, and `.tool-output`. The venv gains something by moving: `VIRTUAL_ENV` already points at it explicitly, and at the task root it is additionally where uv and python look for one by convention. The temp dir is renamed with a dot because the plain name was chosen to keep leftover temp data browsable, and it is now excluded from the file index.
-- `work/` survives as plain scratch, holding what the agent writes plus `screenshots/`. Its one remaining job is keeping intermediates out of `attachments/`, `downloads/`, and `output/`: nothing distinguishes a scratch file from a deliverable by name, so the folder is what keeps the per-turn change list meaning "the agent made you something". Being a subdirectory of the package root, anything written there resolves the task's dependencies by walking up.
+- `work/` survives as plain scratch, holding what the agent writes plus `screenshots/`. Its one remaining job is keeping intermediates out of `attachments/` and `downloads/` (a task no longer has an `output/` folder, `c3c8df767`): nothing distinguishes a scratch file from a deliverable by name, so the folder is what keeps the per-turn change list meaning "the agent made you something". Being a subdirectory of the package root, anything written there resolves the task's dependencies by walking up.
 
 The resulting layout, with everything machine-generated either dot-prefixed or excluded from the file index:
 
@@ -35,7 +35,6 @@ The resulting layout, with everything machine-generated either dot-prefixed or e
   node_modules/  .venv/  .tmp/  .tool-output/
   attachments/              the user's inputs
   downloads/                what the agent fetched
-  output/                   deliverables
   work/                     scratch, plus screenshots/
 ```
 
@@ -69,8 +68,8 @@ That path is written down in more places than `load_skill`, and all of them have
 
 A reply names its files itself, in a fence and in links, and nothing walks the task to find them. That is what makes a skill path reach the renderer at all, and it lands on two surfaces built when everything outside the task was either an attached folder or the project:
 
-- `isAddressableTaskFilePath` accepts a relative path or one under the attached-folders mount, and nothing else. A skill path fails it, so the reply draws it as prose rather than something to click, and `show` rejects it with "outside the task and its mounts".
-- The assets route prefixes the task mount to any path not already under the attached-folders or project mount, so a linked skill file resolves inside the task folder and 404s. Its own comment names this failure: a path under an unserved mount reads as a missing file rather than an unserved one.
+- `isAddressableTaskFilePath` accepts a relative path or one under the attached-folders mount, and nothing else. A skill path fails it, so the reply draws it as prose rather than something to click.
+- Opening a linked file maps its agent path to a host path and opens it at its real `file://` address; that mapping has to know the skills sources too, or a linked skill file resolves inside the task folder and reads as missing.
 
 Both need the skills mount added. Neither is load-bearing today, because `work/skills/` is task-relative and reaches both surfaces as an ordinary task path. The move is what surfaces them, and a skill file the agent cannot link to is a worse answer than the copy it replaces.
 

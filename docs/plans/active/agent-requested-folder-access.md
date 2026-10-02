@@ -1,6 +1,6 @@
 # Plan: agent-requested folder access
 
-Status: proposal, not started. Owner: TBD. Expands the [Agent-requested folder access](user-chosen-working-folder.md#agent-requested-folder-access) section of the working-folder plan into its own design. Reintroduces a sub-agent over the `spawnAgent` primitive that [2026-07-15](../../decisions/2026-07-15-drop-agent-tool-for-attached-folder-mounts.md) deliberately retained.
+Status: phase 1 landed (usage descriptions, `5e5a2924f`). A reduced phase 2 exists for the 2.0 chat: `request_folder` (`tools/request-folder.ts`, `878caf134`) parks the turn and the user picks a folder in the system panel, with no requested path and no access choice. The discovery agent and the filtered return channel (phases 3-4) are not started. Owner: TBD. Expands the [Agent-requested folder access](../completed/user-chosen-working-folder.md#agent-requested-folder-access) section of the working-folder plan into its own design. Reintroduces a sub-agent over the `spawnAgent` primitive that [2026-07-15](../../decisions/2026-07-15-drop-agent-tool-for-attached-folder-mounts.md) deliberately retained.
 
 ## Summary
 
@@ -98,7 +98,7 @@ So the main agent's view of a successful discovery is roughly: the app's data is
 
 `request_folder_access({ path, reason, suggestedAccess })` is called **by the discovery sub-agent**, which is the only party that knows the path.
 
-It runs on the interactive-tool rail that already exists. [agent.ts](../../../packages/workspace/src/machines/agent.ts) diverts anything `isInteractiveTool` names into `pendingToolCalls`, enters `WaitingForPendingToolCalls`, and emits `agent.paused`; the connectors work generalized the other half with a discriminated resolution schema keyed on tool name and a `resolveInteractiveToolCall` RPC the renderer calls with a typed output. Adding a tool is a union member and a card. Because the rail parks a nested session the same way it parks a top-level one, the whole chain suspends on the user with no new lifecycle work.
+It runs on the interactive-tool rail that already exists. [agent.ts](../../../packages/workspace/src/machines/agent.ts) diverts anything `isInteractiveTool` names into `pendingToolCalls`, enters `WaitingForPendingToolCalls`, and emits `agent.paused`; the connectors work generalized the other half with a discriminated resolution schema keyed on tool name and a `session.answerToolCall` RPC the renderer calls with a typed output. Adding a tool is a union member and a card. Because the rail parks a nested session the same way it parks a top-level one, the whole chain suspends on the user with no new lifecycle work.
 
 The grant lands on the **task**, not on the sub-agent, so the mount is there for the main agent when the sub-agent returns.
 
@@ -107,7 +107,7 @@ The grant lands on the **task**, not on the sub-agent, so the mount is there for
 Two possible consent surfaces, ours and the operating system's, and showing both for one decision reads as broken. Route by class:
 
 - **Path needs no OS permission** (unsandboxed app data, ordinary home folders): the in-chat card approves directly. There is nothing for the OS to ask, so asking twice is theater.
-- **Path is in a TCC class** (Documents, Desktop, Downloads, containers, volumes): the card's Allow opens the native folder picker pre-navigated to the requested path, so the user's selection carries both consents at once. [showFolderPicker](../../../apps/studio/src/electron-main/rpc/routes/utils.ts) needs a `defaultPath` for this; it takes no arguments today.
+- **Path is in a TCC class** (Documents, Desktop, Downloads, containers, volumes): the card's Allow opens the native folder picker pre-navigated to the requested path, so the user's selection carries both consents at once. [showFolderPicker](../../../apps/studio/src/electron-main/rpc/routes/utils.ts) takes `startingAt`, passed through as the panel's `defaultPath`.
 
 Friction ends up proportional to how protected the path really is.
 
@@ -144,7 +144,7 @@ The complete fix is OS-level containment of the native hatches, which we have [d
 
 **The agent's browser.** It opens exactly what the agent can read, at each file's own `file://` address, and a page there reads only its own folder ([in-app-browser.md](../../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). A newly granted mount is therefore openable by the agent's browser the moment it is granted, and by nothing else: no server publishes it.
 
-**Info.plist usage descriptions.** Add `NSAppDataUsageDescription`, `NSDocumentsFolderUsageDescription`, `NSDesktopFolderUsageDescription`, `NSDownloadsFolderUsageDescription`, `NSRemovableVolumesUsageDescription`, and `NSNetworkVolumesUsageDescription` to `mac.extendInfo` in [electron-builder.ts](../../../apps/studio/electron-builder.ts), beside the local-network string already there. Without them the prompts still appear, with generic text instead of our reason. Worth doing whether or not the rest ships.
+**Info.plist usage descriptions.** Done: `NSAppDataUsageDescription`, `NSDocumentsFolderUsageDescription`, `NSDesktopFolderUsageDescription`, `NSDownloadsFolderUsageDescription`, `NSRemovableVolumesUsageDescription`, and `NSNetworkVolumesUsageDescription` are in `mac.extendInfo` in [electron-builder.ts](../../../apps/studio/electron-builder.ts). Without them the prompts still appear, with generic text instead of our reason.
 
 ## Phases
 

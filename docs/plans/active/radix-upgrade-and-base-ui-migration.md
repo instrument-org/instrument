@@ -1,6 +1,6 @@
 # Radix upgrade, and whether to move to Base UI
 
-Status: proposal / not started. Phase 0 stands alone and is worth doing on its own. Phases 1+ are optional and should only start when `components/ui/` is otherwise quiet, because every step rewrites shared wrappers that large UI work touches.
+Status: proposal, not started (checked 2026-10-02: still on the August 2025 Radix versions, no Base UI). Phase 0 stands alone and is worth doing on its own. Phases 1+ are optional and should only start when `components/ui/` is otherwise quiet, because every step rewrites shared wrappers that large UI work touches.
 
 ## The question
 
@@ -18,16 +18,18 @@ Verified July 2026. Version claims here go stale fast; re-check before acting on
 
 ## Our exposure
 
-- 22 individual `@radix-ui/react-*` packages in [apps/studio/package.json](../../../apps/studio/package.json), 45 wrappers in [apps/studio/src/client/components/ui/](../../../apps/studio/src/client/components/ui/), 28 files importing Radix directly.
-- 126 `asChild` occurrences across 68 files.
-- 154 `data-[state=…]` class selectors across 30 files, plus keyframe `animate-in`/`animate-out` from tw-animate-css.
-- 8 sites reading `--radix-*` sizing vars, all of them dividing by `--content-zoom`.
-- 6 sites using `onOpenAutoFocus` / `onCloseAutoFocus` / `onFocusOutside` / `onInteractOutside` with `preventDefault`.
+Counted 2026-10-02:
+
+- 23 individual `@radix-ui/react-*` packages in [apps/studio/package.json](../../../apps/studio/package.json), 53 wrappers in [apps/studio/src/client/components/ui/](../../../apps/studio/src/client/components/ui/), 30 files importing Radix directly.
+- 157 `asChild` occurrences across 84 files.
+- 164 `data-[state=…]` class selectors across 41 files, plus keyframe `animate-in`/`animate-out` from tw-animate-css.
+- 11 sites reading `--radix-*` sizing vars, all of them dividing by `--content-zoom`.
+- 11 files using `onOpenAutoFocus` / `onCloseAutoFocus` / `onFocusOutside` / `onInteractOutside` with `preventDefault`.
 - One non-modal overlay over the browser view ([browser-panel.tsx](../../../apps/studio/src/client/components/task/browser-panel.tsx)).
 
 Not affected either way: sonner, react-resizable-panels. cmdk is affected indirectly: it depends on Radix internally and has not released since March 2025, so Radix stays installed until the command palette moves too.
 
-Our wrappers are heavily customized. Most diverge from the stock shadcn originals by roughly their own file length, so any golden-pair three-way merge conflicts as the rule, not the exception. The largest are sidebar (568 lines), menubar (301), context-menu (273), dropdown-menu (278), command (215), select (200).
+Our wrappers are heavily customized. Most diverge from the stock shadcn originals by roughly their own file length, so any golden-pair three-way merge conflicts as the rule, not the exception. The largest are sidebar (567 lines), context-menu (325), menubar (307), dropdown-menu (288), command (215), select (209).
 
 ## Phase 0: take the Radix fixes (independent of any migration)
 
@@ -43,7 +45,7 @@ We are on roughly August 2025 versions: dialog 1.1.15, select 2.2.6, dropdown-me
 
 Steps:
 
-1. Bump all 22 packages to current, or consolidate onto the single `radix-ui` package (1.6.7), which is what shadcn's Radix registry now uses and which removes cross-package version skew. We currently resolve two copies of `react-slot`.
+1. Bump all 23 packages to current, or consolidate onto the single `radix-ui` package (1.6.7), which is what shadcn's Radix registry now uses and which removes cross-package version skew. We currently resolve two copies of `react-slot`.
 2. Pin exact versions and read the changelogs for the newest patch: 1.1.23 and 2.3.7 are "reverted breaking changes that caused compatibility issues with React Server Components", so that line has recent churn.
 3. QA overlays by hand: dialogs stacked over dialogs, menus over the browser view, select typeahead, tooltip delays, context menus in the file grid, all at more than one UI zoom level.
 
@@ -104,7 +106,7 @@ Portal container support survives: Base UI's Portal parts accept `container`, so
 - **Zoom compensation.** The highest risk, covered in phase 1. Neither library has special handling for CSS `zoom` in anchoring, so the workaround stays a workaround; it just has to be re-derived on renamed vars and a different node.
 - **Press activation.** [2026-07-27-controls-activate-on-press.md](../../decisions/2026-07-27-controls-activate-on-press.md) and [2026-07-29-controls-activate-on-release.md](../../decisions/2026-07-29-controls-activate-on-release.md) reason from Radix's per-primitive press timing and its handler composition. Base UI ships its own Button primitive with its own semantics, so the evidence behind both decisions has to be re-gathered and the docs rewritten.
 - **Electron overlays.** Webview pointer-event interplay, non-modal overlays above the browser view, and [leaking-z-index-stacks.md](../../findings/leaking-z-index-stacks.md) were all tuned against Radix's dismissable layer. Base UI has far less Electron exposure, so bugs we hit will be newer and less reported.
-- **Silent visual regressions.** 154 state selectors and an animation idiom change are wide, mechanical, and untypechecked.
+- **Silent visual regressions.** 164 state selectors and an animation idiom change are wide, mechanical, and untypechecked.
 
 ## Recommendation
 

@@ -1,6 +1,6 @@
 # Plan: validate the inspector before drawing it again
 
-Status: built on the app page as a generic browser (Views, Lookups, Actions), in dogfooding. The measurements below are what it was built on; Linear is still unmeasured.
+Status: complete. The validation passed on Drafts and Notion and the inspector was built on an app's page as a generic browser (Views, Lookups, Actions) in `d7e5c9c1b`, loaded only when asked from the page since `89f584068`; the MCP client keeps tool annotations and output schemas. Linear was never measured. The measurements below are what it was built on.
 
 ## What the inspector is
 

@@ -1,6 +1,6 @@
 # Wake on background job exit
 
-Status: **draft, not started.** Follow-on to [background shell processes](background-shell-processes.md), which should land first. Nothing here changes the shell; it is one subscriber, one tool input, and one transcript marker.
+Status: **draft, not started** (checked 2026-10-02: nothing subscribes to `backgroundProcesses.changed` to start a turn). Follow-on to [background shell processes](background-shell-processes.md), whose workspace half has landed. In 2.0 the conversation is already woken when a task it started ends, or at a time it set with `task wake <id> --in` (`6eba3a040`); a background job exiting inside a task still wakes nothing. Nothing here changes the shell; it is one subscriber, one tool input, and one transcript marker.
 
 ## Problem
 

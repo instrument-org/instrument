@@ -79,6 +79,13 @@ const SKELETON_WIDTHS = [
 ] as const;
 
 /**
+ * How many rows stand in while the chats load: more than the tallest pane
+ * holds, clipped to it, so the list arrives into the height it had rather
+ * than growing past a few rows.
+ */
+const SKELETON_ROWS = 16;
+
+/**
  * The inbox: every chat by when something last happened in it, newest at
  * the top, so a reply landing lifts its chat to the head of the list, or,
  * given drafts instead, every draft by when it was last touched. It opens at
@@ -221,10 +228,13 @@ export function ChatList({
     >
       {rows.length === 0 ? (
         isLoading ? (
-          <div aria-busy role="status">
-            {SKELETON_WIDTHS.map(([title, peek]) => (
-              <RowSkeleton key={`${title} ${peek}`} peek={peek} title={title} />
-            ))}
+          <div aria-busy className="h-full overflow-hidden" role="status">
+            {Array.from({ length: SKELETON_ROWS }, (_, index) => {
+              const [title, peek] =
+                SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] ??
+                SKELETON_WIDTHS[0];
+              return <RowSkeleton key={index} peek={peek} title={title} />;
+            })}
           </div>
         ) : (
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -266,14 +276,20 @@ export function ChatList({
   );
 }
 
-/** A row's shape, standing in while the chats load. */
+/**
+ * A row's shape, standing in while the chats load, at a row's own height: the
+ * title's line, then the two lines' room a row keeps for its latest line.
+ */
 function RowSkeleton({ peek, title }: { peek: string; title: string }) {
   return (
-    <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5 first:border-t-0">
+    <div className="border-t border-border px-3 py-2.5 first:border-t-0">
       <div className="flex h-5 items-center">
         <Skeleton className="h-3" style={{ width: title }} />
       </div>
-      <Skeleton className="h-3" style={{ width: peek }} />
+      <div className="mt-0.5 flex min-h-10 flex-col justify-center gap-2">
+        <Skeleton className="h-3" style={{ width: peek }} />
+        <Skeleton className="h-3" style={{ width: "40%" }} />
+      </div>
     </div>
   );
 }

@@ -81,6 +81,19 @@ describe("siteTabTitles", () => {
         { title: "Notes.html", url: "file:///a/Notes.html" },
       ],
     },
+    {
+      expected: ["Splenda", "Stevia", "www.amazon.com/dp/B01", ""],
+      name: "what loaded tabs share, while another loads",
+      tabs: [
+        { title: "Amazon.com: Splenda", url: "https://www.amazon.com/a" },
+        { title: "Amazon.com: Stevia", url: "https://www.amazon.com/b" },
+        {
+          title: "www.amazon.com/dp/B01",
+          url: "https://www.amazon.com/dp/B01",
+        },
+        { title: "", url: "https://www.amazon.com/c" },
+      ],
+    },
   ])("drops $name", ({ expected, tabs }) => {
     expect(shown(tabs)).toEqual(expected);
   });

@@ -15,7 +15,10 @@ const SEPARATORS = [": ", " - ", " – ", " — ", " | ", " · ", " • "];
 export function siteTabTitles(
   tabs: readonly { key: string; title: string; url?: string | undefined }[],
 ): Map<string, string> {
-  const bySite = new Map<string, { key: string; title: string }[]>();
+  const bySite = new Map<
+    string,
+    { key: string; title: string; url?: string | undefined }[]
+  >();
   for (const tab of tabs) {
     const site = siteOf(tab.url);
     if (site === undefined) {
@@ -25,16 +28,24 @@ export function siteTabTitles(
   }
   const titles = new Map<string, string>();
   for (const sameSite of bySite.values()) {
-    const distinct = new Set(sameSite.map((tab) => tab.title));
-    if (sameSite.length < 2 || distinct.size < 2) {
+    // What the site's tabs share is read from the pages that have said what
+    // they are. A tab still loading stands under its address, or under
+    // nothing, and counting it would have the shared part vanish from every
+    // tab of the site for the moment a new one takes to load.
+    const loaded = new Set(
+      sameSite.filter((tab) => !isAddress(tab)).map((tab) => tab.title),
+    );
+    if (loaded.size < 2) {
       continue;
     }
-    const all = [...distinct];
+    const all = [...loaded];
     const prefix = sharedPart(all, "start");
     const suffix = sharedPart(all, "end");
     for (const tab of sameSite) {
+      const start = prefix !== "" && tab.title.startsWith(prefix) ? prefix : "";
+      const end = suffix !== "" && tab.title.endsWith(suffix) ? suffix : "";
       const shortened = tab.title
-        .slice(prefix.length, tab.title.length - suffix.length)
+        .slice(start.length, tab.title.length - end.length)
         .trim();
       if (shortened !== "" && shortened !== tab.title) {
         titles.set(tab.key, shortened);
@@ -42,6 +53,16 @@ export function siteTabTitles(
     }
   }
   return titles;
+}
+
+/** Whether a tab's title is only its address, the way a page is named before it says. */
+function isAddress(tab: { title: string; url?: string | undefined }) {
+  const title = tab.title.trim();
+  if (title === "" || tab.url === undefined) {
+    return true;
+  }
+  const bare = tab.url.replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
+  return title === tab.url || bare.startsWith(title.replace(/\/$/, ""));
 }
 
 /** The host a page is on, without the `www.` most sites answer to either way. */

@@ -7,7 +7,7 @@ description: Create or revise a reusable agent skill from a user's workflow, dom
 
 Create and revise focused, reusable skill packages in the Instrument workspace.
 
-Skills live in `/skills/<name>/`, a writable mount outside the task root. Write and edit them with the ordinary file tools. A skill saved there is available to `load_skill` immediately.
+Skills live in `/skills/workspace/<name>/`, a writable mount outside the task root. Write and edit them with the ordinary file tools. A skill saved there is available to `load_skill` immediately. The other folders under `/skills/` hold other tools' skills and are read-only.
 
 ## Workflow
 
@@ -15,7 +15,7 @@ Skills live in `/skills/<name>/`, a writable mount outside the task root. Write 
 2. Ask only the questions whose answers would materially change the skill. Use concrete examples to resolve ambiguity.
 3. Decide whether the skill needs only instructions or also reusable scripts, references, or assets.
 4. Draft a concise `SKILL.md` body. Assume the agent already knows general concepts and include only domain-specific procedures, constraints, and decision guidance.
-5. Write the package to `/skills/<name>/`. Check whether that directory already exists first. If it does, stop and ask whether to revise that existing skill or choose another name; revising is fine, silently replacing the wrong skill is not.
+5. Write the package to `/skills/workspace/<name>/`. Check whether that directory already exists first. If it does, stop and ask whether to revise that existing skill or choose another name; revising is fine, silently replacing the wrong skill is not.
 6. Run `validate-skill <name>` and fix what it reports. A skill with broken frontmatter fails silently by never appearing at all, so this is the only confirmation that what you wrote is a skill.
 7. Tell the user the skill name and that it is available from Skills and the prompt slash menu.
 

@@ -97,14 +97,24 @@
     --warn-soft: rgb(247 144 9 / 0.12);
     --warn-tag: #b54708;
 
-    --elev-xs: 0 0 0 1px rgb(255 255 255 / 0.06), 0 0 0 2px rgb(0 0 0 / 0.04);
-    --elev-sm: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px 0 rgb(0 0 0 / 0.08);
+    /* The ring sits outside the edge, over whatever page is under the
+       toolbar, so it is the white already composited over the app's dark
+       background rather than a translucent white. */
+    --elev-xs:
+      0 0 0 1px color-mix(in srgb, #fff 6%, #1c1917),
+      0 0 0 2px rgb(0 0 0 / 0.04);
+    --elev-sm:
+      0 0 0 1px color-mix(in srgb, #fff 8%, #1c1917),
+      0 2px 4px 0 rgb(0 0 0 / 0.08);
     --elev-md:
-      0 0 0 1px rgb(255 255 255 / 0.1), 0 8px 16px -2px rgb(0 0 0 / 0.12);
+      0 0 0 1px color-mix(in srgb, #fff 10%, #1c1917),
+      0 8px 16px -2px rgb(0 0 0 / 0.12);
     --elev-lg:
-      0 0 0 1px rgb(255 255 255 / 0.11), 0 14px 28px -5px rgb(0 0 0 / 0.17);
+      0 0 0 1px color-mix(in srgb, #fff 11%, #1c1917),
+      0 14px 28px -5px rgb(0 0 0 / 0.17);
     --elev-xl:
-      0 0 0 1px rgb(255 255 255 / 0.13), 0 20px 40px -7px rgb(0 0 0 / 0.21);
+      0 0 0 1px color-mix(in srgb, #fff 13%, #1c1917),
+      0 20px 40px -7px rgb(0 0 0 / 0.21);
     --knob: rgb(255 255 255 / 0.1);
     color-scheme: dark;
   }

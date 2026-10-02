@@ -3678,6 +3678,79 @@ function handleEntryReturn({
     onOpen(entry);
   }
 }
+/**
+ * How long a second click on a selected name waits before it renames, so a
+ * double-click (which opens) can still claim it, the way the Finder waits.
+ */
+const SLOW_CLICK_RENAME_MS = 600;
+/**
+ * A second, unhurried click on the name of what is already selected renames
+ * it, the Finder's other way into a name. The press says whether the row was
+ * selected before it, the click starts the wait, and anything else first (a
+ * double-click, another press, a key, a scroll, the selection moving) calls
+ * it off. Only the name counts, not the glyph or the rest of the row.
+ */
+function useSlowClickRename(
+  onRenameStart: ((item: FileSystemItem) => void) | undefined,
+  selectedPath: null | string | undefined,
+) {
+  const pending = React.useRef<{ path: string; timer?: number } | null>(null);
+  const [isWaiting, setIsWaiting] = React.useState(false);
+  const cancel = React.useCallback(() => {
+    window.clearTimeout(pending.current?.timer);
+    pending.current = null;
+    setIsWaiting(false);
+  }, []);
+  React.useEffect(() => cancel, [cancel]);
+  React.useEffect(() => {
+    if (pending.current && pending.current.path !== selectedPath) cancel();
+  }, [cancel, selectedPath]);
+  React.useEffect(() => {
+    if (!isWaiting) return;
+    window.addEventListener("keydown", cancel, true);
+    window.addEventListener("wheel", cancel, true);
+    return () => {
+      window.removeEventListener("keydown", cancel, true);
+      window.removeEventListener("wheel", cancel, true);
+    };
+  }, [cancel, isWaiting]);
+  return {
+    cancel,
+    /** On the press, before it selects: whether the row was selected already. */
+    press: (
+      entry: FileSystemEntry,
+      wasSelected: boolean,
+      event: React.PointerEvent,
+    ) => {
+      cancel();
+      if (
+        !onRenameStart ||
+        !wasSelected ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        !(event.target instanceof Element) ||
+        !event.target.closest("[data-file-system-name]")
+      ) {
+        return;
+      }
+      pending.current = { path: entry.path };
+    },
+    /** On the click that finishes that press: the wait starts. */
+    release: (entry: FileSystemEntry) => {
+      const press = pending.current;
+      if (!onRenameStart || press?.path !== entry.path || press.timer) return;
+      press.timer = window.setTimeout(() => {
+        pending.current = null;
+        setIsWaiting(false);
+        onRenameStart(entry);
+      }, SLOW_CLICK_RENAME_MS);
+      setIsWaiting(true);
+    },
+  };
+}
 // Letters and digits only, so shortcuts
 // and whitespace scrolling stay untouched.
 function isTypeAheadKey(event: React.KeyboardEvent) {
@@ -3823,6 +3896,7 @@ function FileSystemIconsView({
   const itemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const typeAhead = useEntryTypeAhead();
+  const slowRename = useSlowClickRename(onRenameStart, selectedPath);
   // The column count mirrors what `repeat(auto-fill, minmax(6.5rem, 1fr))`
   // produces (the CSS owns the actual layout) so item indices map to grid
   // rows — the windowing below depends on that mapping. It stays null until
@@ -4017,13 +4091,20 @@ function FileSystemIconsView({
                 onClick={(event) => {
                   // A Control-click is the Mac's right click.
                   if (!event.ctrlKey) onSelect(entry);
+                  slowRename.release(entry);
                 }}
                 // Right-clicking marks what the menu acts on without moving
                 // the selection, the way the Finder does.
                 onContextMenu={(event) => {
                   onItemContextMenu?.(entry, event);
                 }}
-                onDoubleClick={() => onOpen(entry)}
+                onDoubleClick={() => {
+                  slowRename.cancel();
+                  onOpen(entry);
+                }}
+                onPointerDown={(event) => {
+                  slowRename.press(entry, isSelected, event);
+                }}
                 onKeyDown={(event) => {
                   handleEntryReturn({
                     entry,
@@ -4049,6 +4130,7 @@ function FileSystemIconsView({
                     "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
                     isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
                   )}
+                  data-file-system-name=""
                 >
                   <span className="line-clamp-2">{entry.name}</span>
                 </span>
@@ -4338,6 +4420,7 @@ function FileSystemListView({
   treeExpansionRef,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  const slowRename = useSlowClickRename(onRenameStart, selectedPath);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
   const pendingFocusPathRef = React.useRef<null | string>(null);
   const typeAhead = useEntryTypeAhead();
@@ -4625,11 +4708,15 @@ function FileSystemListView({
                       // Pointer presses select on the way down; this is the
                       // click a touch or an assistive tool makes.
                       if (event.detail === 0) onSelect(entry);
+                      slowRename.release(entry);
                     }}
                     onContextMenu={(event) => {
                       onItemContextMenu?.(entry, event);
                     }}
-                    onDoubleClick={() => onOpen(entry)}
+                    onDoubleClick={() => {
+                      slowRename.cancel();
+                      onOpen(entry);
+                    }}
                     onPointerEnter={() => {
                       if (entry.kind === "folder") onFolderHover?.(entry.path);
                     }}
@@ -4642,6 +4729,7 @@ function FileSystemListView({
                       });
                     }}
                     onPointerDown={(event) => {
+                      slowRename.press(entry, isSelected, event);
                       // A Control-click is the Mac's right click, which
                       // marks what its menu acts on without selecting it.
                       if (event.button !== 0 || event.ctrlKey) return;
@@ -4709,7 +4797,10 @@ function FileSystemListView({
                           onCommit={(name) => onRenameCommit?.(entry, name)}
                         />
                       ) : (
-                        <span className="ml-1.5 min-w-0 flex-1 truncate">
+                        <span
+                          className="ml-1.5 min-w-0 flex-1 truncate"
+                          data-file-system-name=""
+                        >
                           {entry.name}
                         </span>
                       )}
@@ -5128,6 +5219,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   trailChildPath: null | string;
   width: number;
 }) {
+  const slowRename = useSlowClickRename(onRenameStart, selectedChildPath);
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const { end, start } = useVirtualWindow({
     count: entries.length,
@@ -5238,13 +5330,17 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     key={entry.path}
                     onClick={(event) => {
                       if (!event.ctrlKey) onSelect(entry);
+                      slowRename.release(entry);
                     }}
                     // Right-clicking marks what the menu acts on without
                     // moving the selection, the way the Finder does.
                     onContextMenu={(event) => {
                       onItemContextMenu?.(entry, event);
                     }}
-                    onDoubleClick={() => onOpen(entry)}
+                    onDoubleClick={() => {
+                      slowRename.cancel();
+                      onOpen(entry);
+                    }}
                     onPointerEnter={() => {
                       if (entry.kind === "folder") onFolderHover?.(entry.path);
                     }}
@@ -5260,6 +5356,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     // child column a beat before mouseup. Touch keeps
                     // selection on the click so scroll gestures don't select.
                     onPointerDown={(event) => {
+                      slowRename.press(entry, isSelected, event);
                       // A Control-click is the Mac's right click.
                       if (
                         event.pointerType === "mouse" &&
@@ -5281,7 +5378,10 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     type="button"
                   >
                     {glyph}
-                    <span className="min-w-0 flex-1 truncate">
+                    <span
+                      className="min-w-0 flex-1 truncate"
+                      data-file-system-name=""
+                    >
                       {entry.name}
                     </span>
                     {entry.kind === "folder" &&

@@ -19,6 +19,11 @@ describe("screenPresentation", () => {
     expect(screenPresentation(INBOX_HREF, CONTEXT).title).toBe("Chat");
   });
 
+  it("names the Discover screen as the rail does", () => {
+    expect(screenPresentation("/discover", CONTEXT).title).toBe("Discover");
+    expect(screenLocation("/discover", CONTEXT)).toEqual({ kind: "discover" });
+  });
+
   it("names a tasks tab, and a task's by its title once known", () => {
     const task = TaskIdSchema.parse("book");
     const taskTitles = new Map([[task, "Book the hotel"]]);

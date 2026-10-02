@@ -449,7 +449,8 @@ function RouteScreen({ href }: { href: string }) {
   // The catalogs (the apps and Discover's ideas) are places you arrive at
   // from the rail, with nothing above them to walk back up to and nothing to
   // type an address for: a row there would only offer to leave for the web.
-  const hasLocationRow = location.kind !== "apps" && location.kind !== "ideas";
+  const hasLocationRow =
+    location.kind !== "apps" && location.kind !== "discover";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

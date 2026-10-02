@@ -72,7 +72,7 @@ export type TabLocation =
   | { kind: "chat"; title: string }
   | { kind: "folder"; path: string }
   | { kind: "idea"; title: string }
-  | { kind: "ideas" }
+  | { kind: "discover" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | { kind: "skill"; name: string }
@@ -120,12 +120,12 @@ export function locationCrumbs(
     }
     case "idea": {
       return [
-        { label: "Ideas", to: { href: DISCOVER_HREF, kind: "screen" } },
+        { label: "Discover", to: { href: DISCOVER_HREF, kind: "screen" } },
         { label: location.title },
       ];
     }
-    case "ideas": {
-      return [{ label: "Ideas" }];
+    case "discover": {
+      return [{ label: "Discover" }];
     }
     case "newTab":
     case "page": {

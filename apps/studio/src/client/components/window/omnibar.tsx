@@ -106,8 +106,8 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "folder": {
       return "files";
     }
-    case "idea":
-    case "ideas": {
+    case "discover":
+    case "idea": {
       return "ideas";
     }
     case "skill":

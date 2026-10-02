@@ -193,11 +193,9 @@ async function start() {
     try {
       const res = await auth.signIn.social(
         {
-          idToken: {
-            accessToken: tokens.accessToken(),
-            refreshToken: tokens.refreshToken(),
-            token: tokens.idToken(),
-          },
+          // The ID token alone proves who signed in; Google's access and
+          // refresh tokens are never sent to the platform.
+          idToken: { token: tokens.idToken() },
           provider: "google",
         },
         {

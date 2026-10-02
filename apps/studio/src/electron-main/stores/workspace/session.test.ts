@@ -72,4 +72,12 @@ describe("session store", () => {
 
     expect(readEncrypted()).toEqual({ apiBearerToken: "next" });
   });
+
+  it("reads another workspace's bearer token without opening its store", async () => {
+    writeEncrypted({ apiBearerToken: "elsewhere" });
+    const { readBearerTokenIn } = await import("./session");
+
+    expect(readBearerTokenIn(dir.value)).toBe("elsewhere");
+    expect(readBearerTokenIn(path.join(dir.value, "missing"))).toBeNull();
+  });
 });

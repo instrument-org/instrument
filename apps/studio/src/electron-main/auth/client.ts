@@ -100,11 +100,16 @@ export async function signInSocial() {
   return promise;
 }
 
-export async function signOut() {
+/**
+ * End the platform session a bearer token belongs to. Reported rather than
+ * thrown when the platform refuses, since every caller goes on to drop the
+ * token either way.
+ */
+export async function revokeSession(token: string) {
   const response = await auth.signOut({
     fetchOptions: {
       headers: {
-        authorization: `Bearer ${getToken() ?? ""}`,
+        authorization: `Bearer ${token}`,
       },
     },
   });
@@ -114,6 +119,11 @@ export async function signOut() {
       { scopes: ["auth"] },
     );
   }
+  return response;
+}
+
+export async function signOut() {
+  const response = await revokeSession(getToken() ?? "");
   // The whole record, not just the bearer token, so nothing an earlier
   // sign-in left beside it outlives the sign-out.
   getSessionStore().clear();

@@ -28,7 +28,7 @@ describe("createBashDescription", () => {
       A background process is stopped once it has run for 2 hours, whatever it is doing. \`jobs\` reports that as \`stopped (2h cap)\` rather than as a failure or a kill; start it again if the work still needs it.
       Only output written by real binaries (\`pnpm\`, \`node\`, \`python-native\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`python\`/\`js-exec\` run, reports its output only when it finishes.
 
-      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`node\` or \`python-native\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
+      IMPORTANT: \`curl\` refuses private and loopback addresses, so it cannot reach a server you started: it exits 7 with \`Network access denied: private/loopback IP address blocked\` (silent under \`-s\`). Make that request from a real process instead: a \`node\` or \`python-native\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
       Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.

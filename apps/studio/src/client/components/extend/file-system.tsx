@@ -2132,6 +2132,16 @@ export function FileSystem({
       }
     }
   });
+  /** The keyboard back on the listing's row, once the view it switched to has drawn it. */
+  const focusListing = () => {
+    requestAnimationFrame(() => {
+      const root = rootRef.current;
+      (
+        root?.querySelector<HTMLElement>('[role="option"][tabindex="0"]') ??
+        root
+      )?.focus({ preventScroll: true });
+    });
+  };
   // Leaving the columns leaves the window in the folder the last column
   // shows, the way the Finder does: the selected folder, or the folder the
   // selected file is in, which stays selected there.
@@ -2340,7 +2350,9 @@ export function FileSystem({
         if (
           !target ||
           isEditableTarget(target) ||
-          target.closest('[role="option"]')
+          target.closest('[role="option"]') ||
+          // The view switcher's own arrows move between the views.
+          target.closest('[role="tablist"], [role="combobox"]')
         ) {
           return;
         }
@@ -2403,7 +2415,13 @@ export function FileSystem({
                 ) : null}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent position="popper">
+            <SelectContent
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                focusListing();
+              }}
+              position="popper"
+            >
               {VIEW_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   <span className="flex items-center gap-2">
@@ -2416,6 +2434,10 @@ export function FileSystem({
           </Select>
         </div>
         <Tabs
+          // Arrows on a focused view only move between the views, and Return
+          // or Space picks one: switching on every arrow fought the listing
+          // for the same keys.
+          activationMode="manual"
           className="hidden gap-0 @md/finder-header:flex"
           onValueChange={(value) => setView(value as FileSystemView)}
           value={view}
@@ -2428,6 +2450,10 @@ export function FileSystem({
                 aria-label={`${option.label} view`}
                 className={VIEW_TAB_CLASSNAME}
                 key={option.value}
+                // Picked, a view hands the keyboard back to the listing,
+                // the way the Finder's toolbar never keeps it: the next arrow
+                // walks the folder rather than the views.
+                onClick={focusListing}
                 title={option.label}
                 value={option.value}
               >

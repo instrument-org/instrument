@@ -173,6 +173,19 @@ describe("the registry on disk", () => {
     }
   });
 
+  it("drops one damaged entry and keeps the rest of the list", () => {
+    registerWorkspace("byok");
+    const file = path.join(userDataDir, "workspaces.json");
+    const stored = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      workspaces: unknown[];
+    };
+    stored.workspaces.push({ id: "broken", path: "" });
+    fs.writeFileSync(file, JSON.stringify(stored));
+    expect(
+      readRegistry(userDataDir).workspaces.map((entry) => entry.id),
+    ).toEqual(["default", "byok"]);
+  });
+
   it("keeps an unreadable registry beside the one it writes", () => {
     fs.writeFileSync(path.join(userDataDir, "workspaces.json"), "{not json");
     resolveWorkspace({ pin: undefined, userDataDir });

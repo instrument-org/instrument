@@ -205,7 +205,29 @@ describe("deleting", () => {
     [{ isDefault: false, isResolved: false, openElsewhereBy: 42 }, true],
     [{ isDefault: false, isResolved: false, openElsewhereBy: null }, false],
   ])("blocks %o: %s", (listing, blocked) => {
-    expect(whyNotDeletable(listing) !== null).toBe(blocked);
+    expect(
+      whyNotDeletable(
+        { ...listing, path: "/home/me/Projects/notes" },
+        "/home/me/.config/Instrument",
+      ) !== null,
+    ).toBe(blocked);
+  });
+
+  it.each([
+    ["/home/me", true],
+    ["/home/me/.config/Instrument", true],
+    ["/home/me/.config/Instrument/workspaces/side", false],
+    ["/home/me/.config/Instrument-other", false],
+  ])("blocks deleting %s while userData is inside it: %s", (dir, blocked) => {
+    const listing = {
+      isDefault: false,
+      isResolved: false,
+      openElsewhereBy: null,
+      path: dir,
+    };
+    expect(
+      whyNotDeletable(listing, "/home/me/.config/Instrument") !== null,
+    ).toBe(blocked);
   });
 
   it("sends active back to the default workspace when the active one is unregistered", () => {

@@ -225,16 +225,27 @@ export function unregisterWorkspace({
 /**
  * Why a workspace cannot be deleted right now, or null when it can. The
  * default workspace never can: it holds what predates workspaces, and the dev
- * panel offers no way to remove it.
+ * panel offers no way to remove it. Nor can a folder that holds userData,
+ * which a pinned `INSTRUMENT_WORKSPACE` such as the home folder registers:
+ * deleting it would send the app's own data, and everything else in it, to
+ * the Trash.
  */
 export function whyNotDeletable(
   listing: Pick<
     WorkspaceListing,
-    "isDefault" | "isResolved" | "openElsewhereBy"
+    "isDefault" | "isResolved" | "openElsewhereBy" | "path"
   >,
+  userDataDir: string,
 ): null | string {
   if (listing.isDefault) {
     return "The default workspace cannot be deleted";
+  }
+  const toUserData = path.relative(
+    path.resolve(listing.path),
+    path.resolve(userDataDir),
+  );
+  if (!toUserData.startsWith("..") && !path.isAbsolute(toUserData)) {
+    return "This folder holds the app's own data";
   }
   if (listing.isResolved) {
     return "Switch to another workspace before deleting this one";

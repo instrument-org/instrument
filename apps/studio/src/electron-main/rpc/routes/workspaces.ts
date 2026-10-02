@@ -94,7 +94,7 @@ const list = devOnly
     return {
       pinned: resolved.pinned,
       workspaces: listings.map((listing) => ({
-        deleteBlockedBy: whyNotDeletable(listing),
+        deleteBlockedBy: whyNotDeletable(listing, userDataDir()),
         id: listing.id,
         identity: listing.identity,
         isDefault: listing.isDefault,
@@ -194,7 +194,7 @@ const remove = devOnly
     if (!listing) {
       throw errors.NOT_FOUND({ message: "No such workspace" });
     }
-    const blocked = whyNotDeletable(listing);
+    const blocked = whyNotDeletable(listing, userDataDir());
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
     }

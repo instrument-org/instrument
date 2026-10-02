@@ -66,7 +66,16 @@ const RegistryEntrySchema = z.object({
 
 const RegistrySchema = z.object({
   active: z.string().optional().catch(undefined),
-  workspaces: z.array(RegistryEntrySchema).catch([]),
+  // Entry by entry, so one damaged entry drops itself rather than the list.
+  workspaces: z
+    .array(z.unknown())
+    .catch([])
+    .transform((entries) =>
+      entries.flatMap((entry) => {
+        const parsed = RegistryEntrySchema.safeParse(entry);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
 });
 
 export interface ResolvedWorkspace {

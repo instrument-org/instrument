@@ -23,7 +23,7 @@ Grouped by area; status is the short form of each file's own line.
 | [The child task prompt contradicts its brief](the-child-task-prompt-contradicts-its-brief.md) | resolved, then superseded |
 | [The search backend returns more than we forwarded](search-result-fields-we-discard.md) — the lead image and site icon we dropped, and the freshness we cannot buy | fixed, with trade-offs recorded |
 | [Splitting media out of tool results](multipart-tool-results-and-the-split.md) — why the rewrite exists, what it costs, how a provider gets cleared | partly retired |
-| [Browsing never opens the pane](browsing-never-opens-the-pane.md) — the page the user asked to see stayed invisible | resolved; likely moot in 2.0 |
+| [Browsing never opens the pane](browsing-never-opens-the-pane.md) — the page the user asked to see stayed invisible | resolved in 1.x; pane state reaches only the model |
 | [Local transcription engine](local-transcription-engine.md) — engine comparison, deliberately unresolved | open, unmeasured |
 
 ### Sandbox and containment
@@ -58,7 +58,7 @@ Grouped by area; status is the short form of each file's own line.
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by focus reclaim |
 | [The guest's raster surface is capped at 1.3x the viewport](browser-guest-raster-cap.md) — Blink's compositing rect; past it captures crop invisibly | open, traced to source |
 | [A browser guest as a scaled-down live tile](browser-guest-as-a-scaled-tile.md) | verified, not built |
-| [The browser guest stacks under the renderer's own layers](browser-guest-stacks-under-the-renderer.md) — a draft window, a menu, and a second guest all draw over it; the reflex of hiding it dates from the native view | verified; classic window gone |
+| [The browser guest stacks under the renderer's own layers](browser-guest-stacks-under-the-renderer.md) — a draft window, a menu, and a second guest all draw over it; the reflex of hiding it dates from the native view | verified; dialogs park the page |
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | moot, iframe removed |

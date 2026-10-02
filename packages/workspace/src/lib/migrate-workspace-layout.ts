@@ -18,8 +18,6 @@ import {
   type LegacyTasksMigration,
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
-import { type ChatsMigration, migrateToChats } from "./migrate-to-chats";
-import { convertTopicFiles } from "./chat/topics";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -59,14 +57,9 @@ const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
 
 export interface WorkspaceLayoutMigration {
-  // Chats given folders of their own, tasks moved into them, and topics
-  // written as files, by the move from one conversation to a record per chat.
-  chats: ChatsMigration;
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
-  // Topics moved from one `topic.md` under their id into a folder by name.
-  convertedTopicCount: number;
   // Tasks an earlier version ran on their own, each made into a chat that
   // owns it, and projects made into topics.
   legacyTasks: LegacyTasksMigration;
@@ -93,22 +86,10 @@ export function migrateWorkspaceLayout({
 }: {
   rootDir: string;
 }): WorkspaceLayoutMigration {
-  // After the task sweep, so the window's record and the tasks it started are
-  // in their current shape when they are moved.
+  // After the task sweep, so each task an earlier version ran is in its
+  // current shape when it is made into a chat.
   const tasks = migrateTaskLayout(rootDir);
-  const chats = migrateToChats(rootDir);
-  // After the move to chats, which can write topics of its own.
-  const convertedTopicCount = convertTopicFiles(rootDir);
-  // After the topics are in their current shape, and after the move to
-  // chats, so each adopted chat is made beside the chats that already have
-  // folders, and its seen mark lands on the window record in its current
-  // shape.
-  return {
-    ...tasks,
-    chats,
-    convertedTopicCount,
-    legacyTasks: migrateLegacyTasks(rootDir),
-  };
+  return { ...tasks, legacyTasks: migrateLegacyTasks(rootDir) };
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -174,15 +155,9 @@ function mergeDirInto(source: string, destination: string) {
 
 function migrateLegacyProjectsDir(
   rootDir: string,
-): Omit<
-  WorkspaceLayoutMigration,
-  "chats" | "convertedTopicCount" | "legacyTasks"
-> {
+): Omit<WorkspaceLayoutMigration, "legacyTasks"> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
-  const migration: Omit<
-    WorkspaceLayoutMigration,
-    "chats" | "convertedTopicCount" | "legacyTasks"
-  > = {
+  const migration: Omit<WorkspaceLayoutMigration, "legacyTasks"> = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -230,14 +205,8 @@ function migrateLegacyProjectsDir(
 
 function migrateTaskLayout(
   rootDir: string,
-): Omit<
-  WorkspaceLayoutMigration,
-  "chats" | "convertedTopicCount" | "legacyTasks"
-> {
-  let migration: Omit<
-    WorkspaceLayoutMigration,
-    "chats" | "convertedTopicCount" | "legacyTasks"
-  > = {
+): Omit<WorkspaceLayoutMigration, "legacyTasks"> {
+  let migration: Omit<WorkspaceLayoutMigration, "legacyTasks"> = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,

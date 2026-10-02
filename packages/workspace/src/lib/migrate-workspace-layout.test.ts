@@ -76,9 +76,7 @@ describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir, but still records the marker", () => {
     const result = migrateWorkspaceLayout({ rootDir });
     expect(result).toEqual({
-      chats: { chatCount: 0, leftOver: 0, movedTaskCount: 0, topicCount: 0 },
       conflictedTaskIds: [],
-      convertedTopicCount: 0,
       legacyTasks: {
         adoptedCount: 0,
         emptyCount: 0,

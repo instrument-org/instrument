@@ -5,14 +5,12 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { monotonicFactory } from "ulid";
-import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
 import { TOPICS_DIR_NAME } from "../../constants";
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { validateFolderName } from "../project-folder-name";
-import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 
 const ulid = monotonicFactory();
@@ -20,8 +18,6 @@ const ulid = monotonicFactory();
 const TOPIC_ID_PREFIX = "top_";
 /** The topic's standing words, in a file of its own beside its settings. */
 const INSTRUCTIONS_FILE_NAME = "instructions.md";
-/** The single file a topic was kept in before it had a folder by name. */
-const LEGACY_TOPIC_FILE_NAME = "topic.md";
 
 /** How long a topic's name may be. Short names keep the marks readable. */
 export const TOPIC_NAME_MAX = 24;
@@ -82,52 +78,6 @@ export interface TopicChange {
 
 /** A name a topic's folder cannot take, said to the person who typed it. */
 export class TopicNameError extends Error {}
-
-/**
- * Moves every topic kept the earlier way, one `topics/top_…/topic.md` with
- * its settings in front matter, into a folder by its name. Keeps the id, so
- * the chats filed under it keep their tag. Runs on every boot and decides
- * from the data; returns how many it moved.
- */
-export function convertTopicFiles(rootDir: string): number {
-  const dir = path.join(rootDir, TOPICS_DIR_NAME);
-  const legacy = readDirNames(dir).filter(
-    (name) =>
-      name.startsWith(TOPIC_ID_PREFIX) &&
-      fs.existsSync(path.join(dir, name, LEGACY_TOPIC_FILE_NAME)),
-  );
-  let converted = 0;
-  for (const folder of legacy) {
-    // One topic that cannot be moved stays as it was, for the next boot, and
-    // never stops the rest or the migrations after this one.
-    try {
-      const topic = readLegacyTopic(path.join(dir, folder), folder);
-      if (!topic) {
-        continue;
-      }
-      // Moved already, by a boot that stopped before it removed the old
-      // folder: the new one stands, and a second copy would share its id.
-      if (readTopicsSync(rootDir).some((entry) => entry.id === topic.id)) {
-        fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
-        continue;
-      }
-      // Its own id-named folder is not yet a topic, so not a name taken.
-      const taken = [
-        ...readTopicsSync(rootDir).map((entry) => entry.name),
-        ...legacy,
-      ];
-      writeTopicSync(rootDir, {
-        ...topic,
-        name: unusedTopicName(topic.name, taken),
-      });
-      fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
-      converted += 1;
-    } catch {
-      continue;
-    }
-  }
-  return converted;
-}
 
 /**
  * Makes a topic and returns it. A name already in use returns that topic
@@ -337,65 +287,6 @@ function createTopicNow({
 
 function nameKey(name: string): string {
   return topicName(name).toLowerCase();
-}
-
-function readDirNames(dir: string): string[] {
-  try {
-    return fs
-      .readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * A topic kept the earlier way: front matter for what the window shows, then
- * the instructions, or a body alone, which is a topic called "Topic".
- */
-function readLegacyTopic(folderPath: string, id: string): Topic | undefined {
-  const filePath = path.join(folderPath, LEGACY_TOPIC_FILE_NAME);
-  let raw: string;
-  let modifiedAt: number;
-  try {
-    raw = fs.readFileSync(filePath, "utf8");
-    modifiedAt = fs.statSync(filePath).mtimeMs;
-  } catch {
-    return undefined;
-  }
-  const split = splitFrontmatter(raw);
-  let data: unknown = {};
-  if (split.ok) {
-    try {
-      data = parseYaml(split.block) as unknown;
-    } catch {
-      data = {};
-    }
-  }
-  const record = isRecord(data) ? data : {};
-  const instructions = (split.ok ? split.body : raw).trim();
-  const text = (key: string) =>
-    typeof record[key] === "string" && record[key].trim()
-      ? record[key].trim()
-      : undefined;
-  const created = text("created");
-  const about = text("about");
-  const color = text("color");
-  const emoji = text("emoji");
-  return {
-    ...(about ? { about } : {}),
-    ...(color ? { color } : {}),
-    createdAt:
-      created && !Number.isNaN(Date.parse(created))
-        ? Date.parse(created)
-        : Math.round(modifiedAt),
-    ...(emoji ? { emoji } : {}),
-    id,
-    ...(instructions ? { instructions } : {}),
-    name: text("name") ?? "Topic",
-    ...(record.retired === true ? { retired: true } : {}),
-  };
 }
 
 /**

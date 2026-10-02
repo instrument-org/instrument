@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
-  convertTopicFiles,
   createTopic,
   listTopics,
   retireTopic,
@@ -182,81 +181,10 @@ describe("topic folders", () => {
   });
 });
 
-describe("convertTopicFiles", () => {
-  it("moves a topic.md under its id into a folder by its name, keeping the id", async () => {
-    const root = getWorkspaceConfig().rootDir;
-    await writeLegacy(
-      "top_01",
-      `---\nname: "Shopping: deals"\nemoji: "🛒"\ncolor: "#e0562f"\ncreated: 2026-09-01T00:00:00.000Z\n---\nI have the Prime card.\n`,
-    );
-    await writeLegacy("top_02", "Only the words.\n");
-    await writeLegacy(
-      "top_03",
-      `---\nname: "Shopping- deals"\ncreated: 2026-09-02T00:00:00.000Z\n---\n`,
-    );
-
-    expect(convertTopicFiles(root)).toBe(3);
-
-    expect(tree(topicsDir())).toMatchInlineSnapshot(`
-      [
-        "Shopping- deals 2/.instrument/settings.json",
-        "Shopping- deals/.instrument/settings.json",
-        "Shopping- deals/instructions.md",
-        "Topic/.instrument/settings.json",
-        "Topic/instructions.md",
-      ]
-    `);
-    const converted = await listTopics();
-    expect(
-      converted.map((topic) =>
-        topic.id === "top_02" ? { ...topic, createdAt: "<mtime>" } : topic,
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        {
-          "color": "#e0562f",
-          "createdAt": 1788220800000,
-          "emoji": "🛒",
-          "id": "top_01",
-          "instructions": "I have the Prime card.",
-          "name": "Shopping- deals",
-        },
-        {
-          "createdAt": 1788307200000,
-          "id": "top_03",
-          "name": "Shopping- deals 2",
-        },
-        {
-          "createdAt": "<mtime>",
-          "id": "top_02",
-          "instructions": "Only the words.",
-          "name": "Topic",
-        },
-      ]
-    `);
-    expect(convertTopicFiles(root)).toBe(0);
-  });
-
-  it("removes an old folder whose topic a stopped boot already moved, rather than copying it again", async () => {
-    const root = getWorkspaceConfig().rootDir;
-    await writeLegacy("top_01", `---\nname: "Trips"\n---\n`);
-    convertTopicFiles(root);
-    await writeLegacy("top_01", `---\nname: "Trips"\n---\n`);
-
-    expect(convertTopicFiles(root)).toBe(0);
-    expect(tree(topicsDir())).toEqual(["Trips/.instrument/settings.json"]);
-  });
-});
-
 function tree(dir: string): string[] {
   return fsSync
     .readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .sort();
-}
-
-async function writeLegacy(id: string, content: string) {
-  await fs.mkdir(path.join(topicsDir(), id), { recursive: true });
-  await fs.writeFile(path.join(topicsDir(), id, "topic.md"), content);
 }

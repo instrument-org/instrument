@@ -49,7 +49,12 @@ export function ConnectControls({
   // The sign-in lands where the site sends it, which is the site. The app's
   // page here is where the user was doing this, so that is where they land.
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const standing = apps.data?.apps.find((app) => app.slug === slug)?.standing;
+  const listed = apps.data?.apps.find((app) => app.slug === slug);
+  const standing = listed?.standing;
+  // Where a key or sign-in given here goes. It is shown, and sent back with
+  // the key or the sign-in, so main refuses if the app was pointed elsewhere
+  // after the user read it.
+  const origin = listed?.credentialOrigin;
   useEffect(() => {
     if (waiting && standing === "connected") {
       setWaiting(false);
@@ -77,8 +82,11 @@ export function ConnectControls({
     }),
   );
   const signIn = (where: SignInDestination) => {
+    if (origin === undefined) {
+      return;
+    }
     startOAuth.mutate(
-      { opensIn: appWindow?.browser ? where : "external", slug },
+      { opensIn: appWindow?.browser ? where : "external", origin, slug },
       {
         onSuccess: (result) => {
           if (result.status === "started") {
@@ -124,6 +132,7 @@ export function ConnectControls({
   );
 
   const busy =
+    origin === undefined ||
     allow.isPending ||
     startOAuth.isPending ||
     cancelOAuth.isPending ||
@@ -171,89 +180,119 @@ export function ConnectControls({
 
   if (kind === "sign-in") {
     return (
-      // In a column too narrow for three buttons in a row they stack, each
-      // the column's width, rather than wrapping into a ragged pair.
-      <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-        <Button
-          disabled={busy || waiting}
-          onClick={() => {
-            signIn("app");
-          }}
-          size="sm"
-        >
-          {waiting
-            ? "Waiting for the sign-in…"
-            : (label ?? `Sign in to ${name}`)}
-        </Button>
-        {waiting ? null : (
+      <div className="flex flex-col gap-2">
+        <Destination origin={origin}>Signs in at</Destination>
+        {/* In a column too narrow for three buttons in a row they stack, each
+          the column's width, rather than wrapping into a ragged pair. */}
+        <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
           <Button
-            disabled={busy}
+            disabled={busy || waiting}
             onClick={() => {
-              signIn("external");
+              signIn("app");
             }}
             size="sm"
-            variant="ghost"
           >
-            Use your own browser
+            {waiting
+              ? "Waiting for the sign-in…"
+              : (label ?? `Sign in to ${name}`)}
           </Button>
-        )}
-        {dismissible || waiting ? (
-          <Button
-            disabled={busy}
-            onClick={() => {
-              if (waiting) {
-                cancelOAuth.mutate({ slug });
-              } else {
-                dismiss.mutate({ slug });
-              }
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            {waiting ? "Cancel" : "Not now"}
-          </Button>
-        ) : null}
+          {waiting ? null : (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                signIn("external");
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Use your own browser
+            </Button>
+          )}
+          {dismissible || waiting ? (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                if (waiting) {
+                  cancelOAuth.mutate({ slug });
+                } else {
+                  dismiss.mutate({ slug });
+                }
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              {waiting ? "Cancel" : "Not now"}
+            </Button>
+          ) : null}
+        </div>
       </div>
     );
   }
 
   const save = () => {
-    if (value.trim() !== "") {
-      setCredential.mutate({ slug, value: value.trim() });
+    if (value.trim() !== "" && origin !== undefined) {
+      setCredential.mutate({ origin, slug, value: value.trim() });
     }
   };
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        autoFocus
-        className="h-8 flex-1 font-mono text-xs"
-        onChange={(event) => {
-          setValue(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            save();
-          }
-        }}
-        placeholder={`Paste the ${name} key`}
-        type="password"
-        value={value}
-      />
-      <Button disabled={busy || value.trim() === ""} onClick={save} size="sm">
-        {setCredential.isPending ? "Checking…" : "Save"}
-      </Button>
-      {dismissible ? (
-        <Button
-          disabled={busy}
-          onClick={() => {
-            dismiss.mutate({ slug });
+    <div className="flex flex-col gap-2">
+      <Destination origin={origin}>The key goes only to</Destination>
+      <div className="flex items-center gap-2">
+        <Input
+          autoFocus
+          className="h-8 flex-1 font-mono text-xs"
+          onChange={(event) => {
+            setValue(event.target.value);
           }}
-          size="sm"
-          variant="ghost"
-        >
-          Not now
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              save();
+            }
+          }}
+          placeholder={`Paste the ${name} key`}
+          type="password"
+          value={value}
+        />
+        <Button disabled={busy || value.trim() === ""} onClick={save} size="sm">
+          {setCredential.isPending ? "Checking…" : "Save"}
         </Button>
-      ) : null}
+        {dismissible ? (
+          <Button
+            disabled={busy}
+            onClick={() => {
+              dismiss.mutate({ slug });
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            Not now
+          </Button>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+/** The host a key or sign-in goes to, in the words that lead into it. */
+function Destination({
+  children,
+  origin,
+}: {
+  children: string;
+  origin: string | undefined;
+}) {
+  if (origin === undefined) {
+    return null;
+  }
+  let host = origin;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    // Not a URL: shown as it is.
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      {children} <span className="font-medium text-foreground">{host}</span>.
+    </p>
   );
 }

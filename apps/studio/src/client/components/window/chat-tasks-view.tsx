@@ -32,6 +32,7 @@ export function ChatTasksScreen({
   const children = useChildren();
   const screenTab = useScreenTab();
   const router = useRouter();
+  const { openScreen } = useWindow();
   const own = (children.data ?? []).filter(
     (child) => chat === undefined || child.chatSessionId === chat,
   );
@@ -61,7 +62,15 @@ export function ChatTasksScreen({
     title: child.title,
     updatedAt: child.updatedAt,
   }));
-  return <ChatTaskList items={items} onOpen={open} />;
+  return (
+    <ChatTaskList
+      items={items}
+      onOpen={open}
+      onOpenInNewTab={(id) => {
+        openScreen(taskHref(id, chat), { behind: true, newTab: true });
+      }}
+    />
+  );
 }
 
 /** One task's page as a screen: its own chat, told to the conversation as the task and where it stands. */

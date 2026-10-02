@@ -217,7 +217,7 @@ export function useOpeners({
       }
       // In a tab of the window's own, the chat comes up there at its tasks.
       if (newTab || owner !== windowTabs.group) {
-        appTabs.go(`${CHATS_HREF}/${owner}`, { newTab });
+        appTabs.go(`${CHATS_HREF}/${owner}`, { behind, newTab });
       }
       windowTabs.openOrFocusScreen(at, {
         group: owner,

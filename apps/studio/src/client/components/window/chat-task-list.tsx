@@ -3,6 +3,7 @@ import { Button } from "@/client/components/ui/button";
 import { ROW_TINT } from "@/client/components/window/row-shell";
 import { taskTimeLabel } from "@/client/components/window/task-time";
 import { useNow } from "@/client/components/window/use-now";
+import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
@@ -34,9 +35,12 @@ export interface TaskListItem {
 export function ChatTaskList({
   items,
   onOpen,
+  onOpenInNewTab,
 }: {
   items: TaskListItem[];
   onOpen: (id: TaskId) => void;
+  /** A Cmd-click or a middle click on a row: the task in a tab of its own, behind; left out where there is none to open. */
+  onOpenInNewTab?: (id: TaskId) => void;
 }) {
   // One clock for the whole render, so every row's "20m" is measured from
   // the same moment.
@@ -93,9 +97,14 @@ export function ChatTaskList({
             >
               <button
                 className="flex w-full flex-col gap-1 px-2 py-3 text-left focus-visible:outline-hidden"
-                onClick={() => {
-                  onOpen(item.id);
-                }}
+                {...openClickGestures({
+                  open: () => {
+                    onOpen(item.id);
+                  },
+                  openInNewTab: () => {
+                    (onOpenInNewTab ?? onOpen)(item.id);
+                  },
+                })}
                 type="button"
               >
                 <span className="flex w-full items-baseline gap-3">

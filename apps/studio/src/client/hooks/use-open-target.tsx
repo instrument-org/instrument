@@ -51,21 +51,16 @@ export function useGesturesFor() {
       destinations.find((destination) => destination.id === "openNewTab") ??
       primary;
 
+    const clicks = openClickGestures({
+      open: () => primary?.run(),
+      openInNewTab: () => (separate ?? primary)?.run(),
+    });
     return {
-      onAuxClick: (event: React.MouseEvent) => {
-        if (event.button !== MIDDLE_BUTTON || !separate) {
-          return;
-        }
-        // Left alone, Chromium answers a middle click by handing the address to
-        // the window, whose open handler sends it out to the OS browser -- the
-        // one destination the gesture cannot have meant.
-        event.preventDefault();
-        separate.run();
-      },
+      onAuxClick: clicks.onAuxClick,
       /** A plain click opens where the surface says, and a modified one opens a tab of its own. */
       onClick: (event: React.MouseEvent) => {
         event.preventDefault();
-        (wantsNewTab(event) ? separate : primary)?.run();
+        clicks.onClick(event);
       },
       onContextMenu: (event: React.MouseEvent) => {
         if (destinations.length === 0) {
@@ -76,6 +71,12 @@ export function useGesturesFor() {
       },
       /** The rows, for a surface that draws its own menu rather than the OS's. */
       destinations,
+      /** The same clicks, with the surface's own open on a plain click. */
+      opening: (open: () => void) =>
+        openClickGestures({
+          open,
+          openInNewTab: () => (separate ?? primary)?.run(),
+        }),
       primary,
       separate,
     };
@@ -101,6 +102,48 @@ export function useOpenGestures(
   options?: { addReferral?: boolean },
 ) {
   return useGesturesFor()(target, options);
+}
+
+/**
+ * The clicks every openable row and card answers the same way: a plain click
+ * opens it where the surface says, and a Cmd-click (Ctrl off macOS) or a
+ * middle click opens it in a tab of its own behind the one up, the way a
+ * browser opens a link. For a surface whose own open is not a target's
+ * (a chat opened beside the list, a page in the router), spread onto the
+ * row alongside its menu's Open in New Tab, which does what these do.
+ */
+export function openClickGestures({
+  open,
+  openInNewTab,
+}: {
+  open: () => void;
+  openInNewTab: () => void;
+}) {
+  return {
+    onAuxClick: (event: React.MouseEvent) => {
+      if (event.button !== MIDDLE_BUTTON) {
+        return;
+      }
+      // Left alone, Chromium answers a middle click on a link by handing the
+      // address to the window, whose open handler sends it out to the OS
+      // browser -- the one destination the gesture cannot have meant.
+      event.preventDefault();
+      openInNewTab();
+    },
+    onClick: (event: React.MouseEvent) => {
+      if (wantsNewTab(event)) {
+        openInNewTab();
+      } else {
+        open();
+      }
+    },
+    /** The middle button's own answer, scrolling, kept from starting over a row it opens. */
+    onMouseDown: (event: React.MouseEvent) => {
+      if (event.button === MIDDLE_BUTTON) {
+        event.preventDefault();
+      }
+    },
+  };
 }
 
 /**

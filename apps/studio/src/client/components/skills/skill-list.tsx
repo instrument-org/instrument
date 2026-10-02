@@ -227,10 +227,9 @@ function SkillRow({
   return (
     <button
       className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/40"
-      onAuxClick={gestures.onAuxClick}
-      onClick={() => {
+      {...gestures.opening(() => {
         onOpen(skill);
-      }}
+      })}
       onContextMenu={gestures.onContextMenu}
       type="button"
     >

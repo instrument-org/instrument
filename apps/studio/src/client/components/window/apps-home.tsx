@@ -281,7 +281,7 @@ export function AppsHome({
  */
 function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
   const href = `/apps/${app.slug}`;
-  const { onAuxClick, onContextMenu } = useOpenGestures({
+  const { onContextMenu, opening } = useOpenGestures({
     href,
     kind: "screen",
   });
@@ -289,8 +289,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
   return (
     <button
       className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
-      onAuxClick={onAuxClick}
-      onClick={onOpen}
+      {...opening(onOpen)}
       onContextMenu={onContextMenu}
       title={waiting ? `${app.name}: ${waiting}` : app.name}
       type="button"
@@ -331,7 +330,7 @@ function CatalogTile({
   onOpen: () => void;
 }) {
   const href = `/apps/${entry.slug}`;
-  const { onAuxClick, onContextMenu } = useOpenGestures({
+  const { onContextMenu, opening } = useOpenGestures({
     href,
     kind: "screen",
   });
@@ -343,8 +342,7 @@ function CatalogTile({
     <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        onAuxClick={onAuxClick}
-        onClick={onOpen}
+        {...opening(onOpen)}
         onContextMenu={onContextMenu}
         type="button"
       >

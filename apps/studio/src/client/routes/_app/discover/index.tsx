@@ -93,8 +93,7 @@ function IdeaTile({ idea, onOpen }: { idea: Idea; onOpen: () => void }) {
       // The shadow's own hairline is the card's edge, so there is one line
       // around it rather than a border and a ring doubled up.
       className="group relative flex h-30 w-full items-stretch overflow-hidden rounded-xl bg-card text-left shadow-xs transition-shadow duration-200 hover:shadow-md"
-      onAuxClick={gestures.onAuxClick}
-      onClick={onOpen}
+      {...gestures.opening(onOpen)}
       onContextMenu={gestures.onContextMenu}
       type="button"
     >

@@ -1,5 +1,7 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { CHATS_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
   ContextMenu,
@@ -13,6 +15,7 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
+import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -97,6 +100,17 @@ export function ChatRow({
     const topic = topics.find((entry) => entry.id === id);
     return topic ? [topic] : [];
   });
+  const appWindow = useWindow();
+  // A Cmd-click or a middle click, and the menu's row, open the chat in a
+  // tab of the window's own behind the one up, where a plain click opens
+  // it beside the list.
+  const openInNewTab = () => {
+    appWindow.openScreen(`${CHATS_HREF}/${chat.id}`, {
+      behind: true,
+      newTab: true,
+    });
+  };
+  const clicks = openClickGestures({ open: onOpen, openInNewTab });
   const [isPicking, setPicking] = useState(false);
   // Held in the flow for a moment after the list closes: the list animates
   // out anchored to the control, and a control that vanished with the
@@ -209,7 +223,7 @@ export function ChatRow({
             isArriving && "chat-arrive",
           )}
           data-open={isOpen || undefined}
-          onClick={onOpen}
+          {...clicks}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();
@@ -273,6 +287,10 @@ export function ChatRow({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
+        <ContextMenuItem onSelect={openInNewTab}>
+          <NewTabIcon className="size-4" />
+          Open in New Tab
+        </ContextMenuItem>
         <ContextMenuSeparator />
         {groups.marks.map(item)}
         <ContextMenuSeparator />

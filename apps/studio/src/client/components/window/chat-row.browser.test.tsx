@@ -1,7 +1,7 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -550,14 +550,32 @@ describe("ChatRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("opens the chat in place on a modified click too: a chat is never a tab", async () => {
-    const { onOpen, openScreen, row } = await renderRow(chat());
-    titleOf(row).dispatchEvent(
-      new MouseEvent("click", { bubbles: true, metaKey: true }),
-    );
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(openScreen).not.toHaveBeenCalled();
-  });
+  it.each([
+    {
+      event: () =>
+        new MouseEvent("click", {
+          bubbles: true,
+          ctrlKey: !isMacOS(),
+          metaKey: isMacOS(),
+        }),
+      gesture: "modified click",
+    },
+    {
+      event: () => new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+      gesture: "middle click",
+    },
+  ])(
+    "opens the chat in a tab behind the one up on a $gesture",
+    async ({ event }) => {
+      const { onOpen, openScreen, row } = await renderRow(chat());
+      titleOf(row).dispatchEvent(event());
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(openScreen).toHaveBeenCalledWith(`/chats/${sessionId}`, {
+        behind: true,
+        newTab: true,
+      });
+    },
+  );
 
   it("wears the hover tint across the list's full width, and brings the corner's controls up in place of the pills then", async () => {
     const { row } = await renderRow(
@@ -901,6 +919,7 @@ describe("the row's actions", () => {
       ),
     ).toEqual([
       "Open",
+      "Open in New Tab",
       "Mark as read",
       "Star",
       "Topics",

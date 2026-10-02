@@ -100,15 +100,15 @@ export function TabLocationRow({
 }) {
   const openIn = openInAppTargetOf(location);
   const setLookAt = useSetAtom(lookAtAtom);
+  // A file is drawn larger over the window; a page is already as large as
+  // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
-    location.kind === "page" && location.url
-      ? { kind: "page", url: location.url }
-      : location.kind === "file"
-        ? {
-            kind: "file",
-            tab: { hostPath: location.path, name: location.name },
-          }
-        : undefined;
+    location.kind === "file"
+      ? {
+          kind: "file",
+          tab: { hostPath: location.path, name: location.name },
+        }
+      : undefined;
   return (
     <div
       // A container, so what a screen or a page draws into the row can give
@@ -179,8 +179,7 @@ export function TabLocationRow({
         </div>
       )}
       {trailing}
-      {/* The thing up at the size Quick Look gives a file, over the window:
-          a file by its viewer, a page drawn live. */}
+      {/* The file up at the size Quick Look gives it, over the window. */}
       {lookTarget && (
         <TabRowControl
           disabled={false}

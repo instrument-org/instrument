@@ -1,6 +1,5 @@
 import { type FileTab, pageSlotsAtom } from "@/client/atoms/window";
 import { FileViewer } from "@/client/components/file-viewer";
-import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +9,6 @@ import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -23,8 +21,8 @@ import { useWindowTabs } from "./window-tabs";
 const QUICK_LOOK_GROUP = "page:quick-look";
 
 /**
- * The panel itself: a file in its viewer, or a page drawn live, over most of
- * the window the way the Finder's Quick Look fills it.
+ * The panel itself: a file in its viewer (a page's file drawn live as the
+ * page), over most of the window the way the Finder's Quick Look fills it.
  */
 export function LookPanel({
   onClose,
@@ -39,15 +37,13 @@ export function LookPanel({
   onExpand?: (tab: FileTab) => void;
   target: LookTarget | null;
 }) {
-  const file = target?.kind === "file" ? target.tab : null;
+  const file = target?.tab ?? null;
   // Watched while the panel is up, so a write shows in it.
   const fileUrl = useWatchedFileUrl(file?.hostPath);
   const pageUrl =
-    target?.kind === "page"
-      ? target.url
-      : file && getFileType({ filename: file.name }) === "html"
-        ? fileUrlOf(file.hostPath)
-        : undefined;
+    file && getFileType({ filename: file.name }) === "html"
+      ? fileUrlOf(file.hostPath)
+      : undefined;
   const page = useLookedAtPage(pageUrl);
   return (
     <Dialog
@@ -96,10 +92,7 @@ export function LookPanel({
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">
-          {file?.name ??
-            (target?.kind === "page"
-              ? (target.title ?? target.url)
-              : "Quick Look")}
+          {file?.name ?? "Quick Look"}
         </DialogTitle>
         {file && fileUrl !== undefined ? (
           <FileViewer
@@ -122,23 +115,6 @@ export function LookPanel({
             // the tab opening it shows it.
             {...(page ? { page } : {})}
           />
-        ) : target?.kind === "page" ? (
-          <div className="flex h-full flex-col">
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 text-[13px]">
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {target.title ?? target.url}
-              </span>
-              <Button
-                aria-label="Close"
-                onClick={onClose}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <XIcon className="size-4" />
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1">{page}</div>
-          </div>
         ) : null}
       </DialogContent>
     </Dialog>

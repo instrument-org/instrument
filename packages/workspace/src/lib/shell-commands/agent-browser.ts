@@ -8,6 +8,7 @@ import path from "node:path";
 import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
+import { cdpBridgeKey, withCdpBridgeKey } from "../../logic/server/cdp-access";
 import {
   CDP_PAGE_PATH_PREFIX,
   CDP_TASK_PATH_PREFIX,
@@ -757,10 +758,11 @@ export function createAgentBrowserCommand({
       }
       drivesHeldTabs = resolved.kind === "task";
 
-      const cdpUrl =
+      const cdpUrl = withCdpBridgeKey(
         resolved.kind === "task"
           ? `ws://127.0.0.1:${serverPort}${CDP_TASK_PATH_PREFIX}${id}`
-          : `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${resolved.targetId}`;
+          : `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${resolved.targetId}`,
+      );
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -876,11 +878,13 @@ export function createAgentBrowserCommand({
       }
     }
 
+    // `get cdp-url` and connection errors print the bridge URL, whose key
+    // would let anything the agent runs drive every tab in the browser.
     const scrub = (text: string) =>
       scrubHostPaths(agentSpellingOfFileUrls(text, layout), {
         homeDir: os.homedir(),
         taskDirPath: taskDir(taskId),
-      });
+      }).replaceAll(cdpBridgeKey(), "<redacted>");
 
     const exitCode = result.exitCode ?? 1;
     return {

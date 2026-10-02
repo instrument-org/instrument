@@ -5,14 +5,20 @@ import { WebSocketServer } from "ws";
 
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { BrowserTargetIdSchema, type WorkspaceConfig } from "../../../types";
-import { CDP_PAGE_PATH_PREFIX, CDP_TASK_PATH_PREFIX } from "../constants";
+import { isAuthorizedCdpRequest } from "../cdp-access";
+import {
+  CDP_BASE_PATH,
+  CDP_PAGE_PATH_PREFIX,
+  CDP_TASK_PATH_PREFIX,
+} from "../constants";
 import { type WorkspaceServerParentRef } from "../types";
 import { handleCdpClient } from "./cdp-bridge";
 import { handleTaskCdpClient } from "./cdp-task-bridge";
 
 /**
  * Routes an agent's CDP connection by its path: a task's whole browser, the
- * tabs it holds, or one page by its target id.
+ * tabs it holds, or one page by its target id. A connection without this
+ * launch's key, or from a browser page, is refused before any routing.
  */
 export function setupCdpWebSocketBridge(
   server: ServerType,
@@ -22,6 +28,19 @@ export function setupCdpWebSocketBridge(
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if (!req.url?.startsWith(CDP_BASE_PATH)) {
+      return;
+    }
+    if (
+      !isAuthorizedCdpRequest({
+        host: req.headers.host,
+        origin: req.headers.origin,
+        url: req.url,
+      })
+    ) {
+      socket.destroy();
+      return;
+    }
     if (req.url?.startsWith(CDP_TASK_PATH_PREFIX)) {
       const taskId = TaskIdSchema.safeParse(
         req.url.slice(CDP_TASK_PATH_PREFIX.length).split("?")[0],
@@ -40,7 +59,8 @@ export function setupCdpWebSocketBridge(
       });
       return;
     }
-    if (!req.url?.startsWith(CDP_PAGE_PATH_PREFIX)) {
+    if (!req.url.startsWith(CDP_PAGE_PATH_PREFIX)) {
+      socket.destroy();
       return;
     }
 

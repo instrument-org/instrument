@@ -5,8 +5,11 @@ import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
 import { TaskDirSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { BrowserTargetIdSchema, type WorkspaceConfig } from "../../../types";
+import { withCdpBridgeKey } from "../cdp-access";
+import { CDP_BASE_PATH } from "../constants";
 import { type WorkspaceServerParentRef } from "../types";
 import {
+  cdpBridgeRoute,
   createLocalFileGate,
   createMainFrameLoadGate,
   handleCdpClient,
@@ -55,6 +58,46 @@ function track(p: Promise<void>): () => boolean {
   });
   return () => done;
 }
+
+describe("the CDP bridge listings", () => {
+  const versionPath = `${CDP_BASE_PATH}/json/version`;
+
+  it("answers a client carrying this launch's key, with keyed socket addresses", async () => {
+    const response = await cdpBridgeRoute.request(
+      withCdpBridgeKey(versionPath),
+      {
+        headers: { host: "127.0.0.1:48100" },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const { webSocketDebuggerUrl } = (await response.json()) as {
+      webSocketDebuggerUrl: string;
+    }; // The route's own JSON.
+    expect(webSocketDebuggerUrl).toBe(
+      withCdpBridgeKey(
+        `ws://127.0.0.1:${new URL(webSocketDebuggerUrl).port}${CDP_BASE_PATH}/devtools/browser`,
+      ),
+    );
+  });
+
+  it.each([
+    ["no key", versionPath, { host: "127.0.0.1:48100" }],
+    [
+      "a page's Origin",
+      withCdpBridgeKey(versionPath),
+      { host: "127.0.0.1:48100", origin: "https://evil.example" },
+    ],
+    [
+      "a rebound host name",
+      withCdpBridgeKey(versionPath),
+      { host: "evil.example:48100" },
+    ],
+  ])("refuses %s", async (_label, path, headers) => {
+    const response = await cdpBridgeRoute.request(path, { headers });
+    expect(response.status).toBe(403);
+  });
+});
 
 describe("createMainFrameLoadGate", () => {
   afterEach(() => {

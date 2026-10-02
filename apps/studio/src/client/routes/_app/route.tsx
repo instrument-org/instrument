@@ -433,7 +433,8 @@ function RouteScreen({ href }: { href: string }) {
   // panel and its actions.
   const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
   const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
-  const isFileScreen = computerTabOf(href)?.file !== undefined;
+  const computerTab = computerTabOf(href);
+  const isFileScreen = computerTab?.file !== undefined;
   const fromHref = screenLocation(href, {
     appsBySlug,
     chatTitles: shell.chatTitles,
@@ -451,7 +452,9 @@ function RouteScreen({ href }: { href: string }) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
         <TabLocationRow
-          {...(isFileScreen
+          // A folder's Finder puts the toggle for its sidebar at the head of
+          // the row, where a file puts the toggle for its tree.
+          {...(computerTab
             ? {
                 leading: (
                   <div
@@ -459,6 +462,10 @@ function RouteScreen({ href }: { href: string }) {
                     ref={setRowLead}
                   />
                 ),
+              }
+            : {})}
+          {...(isFileScreen
+            ? {
                 trailing: (
                   <div
                     className="flex shrink-0 items-center gap-0.5"

@@ -9,6 +9,7 @@ import {
   computerSortAtom,
   computerViewAtom,
   type FileTab,
+  finderPlacesOpenAtom,
 } from "@/client/atoms/window";
 import {
   FileSystem,
@@ -24,7 +25,9 @@ import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
 import { useTheme } from "@/client/components/theme-provider";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
+import { toolbarClassName } from "@/client/components/ui/toggle";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -54,8 +57,6 @@ import { folderNameFromPath } from "@instrument-org/shared";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -79,7 +80,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { useWindow } from "./context";
@@ -92,6 +100,9 @@ import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
  * back to opening the way a folder never set does.
  */
 const FOLDER_VIEWS_KEPT = 500;
+
+/** Below this width, in CSS px (Tailwind's `@xl`), the places stand over the folder rather than beside it. */
+const NARROW_FINDER_PX = 576;
 
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
@@ -205,7 +216,7 @@ export function ComputerPage({
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
 }) {
-  const { askAbout, openScreen, taskId } = useWindow();
+  const { askAbout, openScreen, rowLead, taskId } = useWindow();
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -742,33 +753,6 @@ export function ComputerPage({
     };
   }, [renamingPath]);
 
-  // The folders this tab has shown, in order, for back and forward the way
-  // the Finder's are: a step back is a folder, never a screen the window was
-  // on. A folder reached by back or forward is not pushed again.
-  const trail = useRef<{ at: number; folders: string[] }>({
-    at: 0,
-    folders: [`${root}#${path}`],
-  });
-  const walking = useRef(false);
-  useEffect(() => {
-    if (!settled) {
-      return;
-    }
-    const here = `${root}#${onScreen}`;
-    const { at, folders } = trail.current;
-    if (folders[at] === here) {
-      return;
-    }
-    if (walking.current) {
-      walking.current = false;
-      return;
-    }
-    trail.current = {
-      at: at + 1,
-      folders: [...folders.slice(0, at + 1), here],
-    };
-  }, [onScreen, root, settled]);
-
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
   // conversation still name the folder the person is standing in.
@@ -922,8 +906,25 @@ export function ComputerPage({
   }, [quickLookKey, quickLookOpen, onQuickLookFollow]);
 
   // In a narrow tab the places stand over the folder rather than beside it,
-  // put away until asked for and again once one is chosen.
+  // put away until asked for and again once one is chosen. A wide one keeps
+  // them beside it unless they were put away, which every Finder remembers.
   const [isPlacesOpen, setPlacesOpen] = useState(false);
+  const [isPlacesShown, setPlacesShown] = useAtom(finderPlacesOpenAtom);
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const isNarrow = useIsNarrow(frame);
+  const placesVisible = isNarrow ? isPlacesOpen : isPlacesShown;
+  const placesToggle = (
+    <PlacesToggle
+      isOpen={placesVisible}
+      onToggle={() => {
+        if (isNarrow) {
+          setPlacesOpen((open) => !open);
+        } else {
+          setPlacesShown((shown) => !shown);
+        }
+      }}
+    />
+  );
   const rootTo = (folder: string, prefix = "") => {
     setPlacesOpen(false);
     if (onLocationChange) {
@@ -934,18 +935,6 @@ export function ComputerPage({
       search: { path: prefix, root: folder },
       to: "/files",
     });
-  };
-
-  const walk = (direction: -1 | 1) => {
-    const { at, folders } = trail.current;
-    const next = folders[at + direction];
-    if (next === undefined) {
-      return;
-    }
-    walking.current = true;
-    trail.current = { at: at + direction, folders };
-    const [nextRoot = root, nextPath = ""] = next.split("#");
-    rootTo(nextRoot, nextPath);
   };
 
   if (!places.data) {
@@ -986,12 +975,18 @@ export function ComputerPage({
   return (
     // A container, so the places give the folder their room when the tab is
     // narrow: below it they stand over the folder, behind a toggle at the
-    // head of its toolbar.
-    <div className="@container/finder relative flex h-full min-h-0">
-      {isPlacesOpen && (
+    // head of the tab's row.
+    <div
+      className="@container/finder relative flex h-full min-h-0"
+      ref={setFrame}
+    >
+      {/* At the row's far left where the tab has one, the way a file's tree
+          toggle is; at the head of the toolbar where it does not. */}
+      {rowLead && createPortal(placesToggle, rowLead)}
+      {isNarrow && isPlacesOpen && (
         <button
-          aria-label="Hide the places"
-          className="absolute inset-0 z-20 hidden cursor-default @max-xl/finder:block"
+          aria-label="Hide the sidebar"
+          className="absolute inset-0 z-20 cursor-default"
           onClick={() => {
             setPlacesOpen(false);
           }}
@@ -1002,8 +997,9 @@ export function ComputerPage({
       <nav
         className={cn(
           "flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm select-none",
-          "@max-xl/finder:absolute @max-xl/finder:inset-y-0 @max-xl/finder:left-0 @max-xl/finder:z-30 @max-xl/finder:bg-background @max-xl/finder:shadow-xl-soft",
-          !isPlacesOpen && "@max-xl/finder:hidden",
+          isNarrow &&
+            "absolute inset-y-0 left-0 z-30 bg-background shadow-xl-soft",
+          !placesVisible && "hidden",
         )}
         onKeyDown={(event) => {
           if (event.key !== "ArrowRight") {
@@ -1216,47 +1212,15 @@ export function ComputerPage({
                     />
                   );
                 }}
-                renderHeaderLead={() => (
-                  <span className="flex items-center gap-0.5 pr-1">
-                    <button
-                      aria-label={
-                        isPlacesOpen ? "Hide the places" : "Show the places"
-                      }
-                      aria-pressed={isPlacesOpen}
-                      className="hidden rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground @max-xl/finder:block"
-                      onClick={() => {
-                        setPlacesOpen((open) => !open);
-                      }}
-                      type="button"
-                    >
-                      <SidebarSimpleIcon className="size-4" />
-                    </button>
-                    <button
-                      aria-label="Back"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
-                      disabled={trail.current.at === 0}
-                      onClick={() => {
-                        walk(-1);
-                      }}
-                      type="button"
-                    >
-                      <CaretLeftIcon className="size-4" />
-                    </button>
-                    <button
-                      aria-label="Forward"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
-                      disabled={
-                        trail.current.at >= trail.current.folders.length - 1
-                      }
-                      onClick={() => {
-                        walk(1);
-                      }}
-                      type="button"
-                    >
-                      <CaretRightIcon className="size-4" />
-                    </button>
-                  </span>
-                )}
+                {...(rowLead
+                  ? {}
+                  : {
+                      renderHeaderLead: () => (
+                        <span className="flex items-center pr-1">
+                          {placesToggle}
+                        </span>
+                      ),
+                    })}
                 renderHeaderTrail={
                   askAbout && (selectedItem || folderOnScreenPath !== undefined)
                     ? () => {
@@ -2024,4 +1988,57 @@ function previewOf(
     }),
     url,
   };
+}
+
+/**
+ * Puts the Finder's sidebar of places away and brings it back, the way the
+ * tree beside a file is toggled.
+ */
+function PlacesToggle({
+  isOpen,
+  onToggle,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
+  return (
+    <ToolbarTooltip label={label}>
+      <Button
+        aria-label={label}
+        aria-pressed={isOpen}
+        className={toolbarClassName({ className: "shrink-0", pressed: false })}
+        onClick={onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <SidebarSimpleIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
+  );
+}
+
+/**
+ * Whether the Finder is too narrow to keep its places beside the folder: the
+ * width a container query of `@xl` names, measured, since the toggle that
+ * answers to it is drawn in the tab's row, outside the container.
+ */
+function useIsNarrow(frame: HTMLElement | null) {
+  const [isNarrow, setIsNarrow] = useState(false);
+  useLayoutEffect(() => {
+    if (!frame) {
+      return;
+    }
+    const measure = () => {
+      // Layout px, the units the container query reads, whatever the zoom.
+      setIsNarrow(frame.offsetWidth < NARROW_FINDER_PX);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    return () => {
+      observer.disconnect();
+    };
+  }, [frame]);
+  return isNarrow;
 }

@@ -498,6 +498,19 @@ export const fileTreeOpenAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 );
 
+/**
+ * Whether the Finder shows its sidebar of places beside the folder, where the
+ * tab is wide enough to hold both. One answer for every Finder, the way the
+ * tree beside a file is. A narrow tab lays the places over the folder only
+ * while asked for, whatever this says.
+ */
+export const finderPlacesOpenAtom = atomWithStorage<boolean>(
+  "studio.finder-places-open.v1",
+  true,
+  undefined,
+  { getOnInit: true },
+);
+
 /** How wide the tree beside a file is, in CSS px, dragged at its right edge. One width for every file tab, as the tree is one way of working. */
 export const fileTreeWidthAtom = atomWithStorage<number>(
   "studio.file-tree-width.v1",

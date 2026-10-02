@@ -6,6 +6,7 @@ import {
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { useScreenTab } from "@/client/components/window/screen-tab";
 import { taskHref } from "@/client/components/window/tab-location";
+import { useWindow } from "@/client/components/window/context";
 import { TaskPage } from "@/client/components/window/task-page";
 import {
   type ChildTask,

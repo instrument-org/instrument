@@ -745,12 +745,12 @@ function WindowShell({
   /** A site's page reloaded in place, for the strip's Reload; undefined for a tab that is no site. */
   const reloadablePageOf = (id: TabId) => {
     const page = pageOfAppTab(id);
-    if (page === undefined || !ids) {
+    if (page === undefined) {
       return;
     }
     return () => {
       getWebviewElement(
-        encodeBrowserTargetId(ids.taskId, StoreId.SessionSchema.parse(page.id)),
+        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
       )?.reload();
     };
   };

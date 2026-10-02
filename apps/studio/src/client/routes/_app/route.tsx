@@ -541,7 +541,7 @@ function SiteView({ group }: { group: string }) {
     for (const tab of pages) {
       if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? shell.ids.taskId,
+          id: tab.taskId ?? WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           url: tab.url,
         });

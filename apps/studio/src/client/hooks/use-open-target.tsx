@@ -243,7 +243,7 @@ function useDestinationsFor(): (
         // page: the app's own browser is where a page opens, and its Open in
         // button is the way out of it, so a menu offering both was offering
         // to leave by default.
-        ...(canOpenHere || appWindow
+        ...(openPageOnSurface || appWindow
           ? []
           : [
               {

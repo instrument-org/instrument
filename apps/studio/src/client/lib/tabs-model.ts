@@ -9,8 +9,12 @@ import { z } from "zod";
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.
  */
+/** A closed tab, with where it stood in the strip so a reopen puts it back there. */
+const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
+export type ClosedTab = z.output<typeof ClosedTabSchema>;
+
 export const TabsModelSchema = z.object({
-  recentlyClosed: z.array(TabSchema),
+  recentlyClosed: z.array(ClosedTabSchema),
   selectedId: TabIdSchema.nullable(),
   tabs: z.array(TabSchema),
 });
@@ -68,10 +72,10 @@ export function closeTab(
   // `tab.history` is already fresh: TabView captures each router's live stack on
   // every navigation (see setTabPathname), so reopen restores from the model
   // rather than a separate close-time snapshot.
-  const recentlyClosed = [tab, ...model.recentlyClosed].slice(
-    0,
-    MAX_RECENTLY_CLOSED,
-  );
+  const recentlyClosed = [
+    { ...tab, index: closingIndex },
+    ...model.recentlyClosed,
+  ].slice(0, MAX_RECENTLY_CLOSED);
 
   if (tabs.length === 0) {
     return {
@@ -93,24 +97,35 @@ export function emptyTabsModel(): TabsModel {
   return { recentlyClosed: [], selectedId: null, tabs: [] };
 }
 
+/**
+ * A closed tab back, up, at the place in the strip it was closed from, or at
+ * the end of a strip that has since grown shorter than that. `entry` picks
+ * one from the closed list, newest first; the newest when left out.
+ */
 export function reopenClosed(
   model: TabsModel,
-  { id }: { id: TabId },
+  { entry = 0, id }: { entry?: number; id: TabId },
 ): TabsModel {
-  const [restored, ...rest] = model.recentlyClosed;
+  const restored = model.recentlyClosed[entry];
   if (!restored) {
     return model;
   }
-  return addTab(
-    { ...model, recentlyClosed: rest },
-    {
-      history: restored.history,
-      iconName: restored.iconName,
-      id,
-      pathname: restored.pathname,
-      title: restored.title,
-    },
+  const tab: Tab = {
+    history: restored.history,
+    iconName: restored.iconName,
+    id,
+    pathname: restored.pathname,
+    title: restored.title,
+  };
+  const at = Math.min(
+    Math.max(restored.index ?? model.tabs.length, 0),
+    model.tabs.length,
   );
+  return {
+    recentlyClosed: model.recentlyClosed.filter((_, index) => index !== entry),
+    selectedId: id,
+    tabs: [...model.tabs.slice(0, at), tab, ...model.tabs.slice(at)],
+  };
 }
 
 export function reorderTabs(

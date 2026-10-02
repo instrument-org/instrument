@@ -153,6 +153,41 @@ describe("reopenClosed", () => {
     expect(reopened.recentlyClosed).toHaveLength(0);
   });
 
+  it.each([
+    { closing: "a", expected: ["restored", "b", "c"] },
+    { closing: "b", expected: ["a", "restored", "c"] },
+    { closing: "c", expected: ["a", "b", "restored"] },
+  ])(
+    "puts tab $closing back where it was closed from",
+    ({ closing, expected }) => {
+      const start = model(
+        [tab({ id: id("a") }), tab({ id: id("b") }), tab({ id: id("c") })],
+        id("a"),
+      );
+      const closed = closeTab(start, {
+        id: id(closing),
+        newTab: { id: id("fresh"), pathname: "/new-tab" },
+      });
+      const reopened = reopenClosed(closed, { id: id("restored") });
+      expect(reopened.tabs.map((t) => t.id)).toEqual(expected);
+      expect(reopened.selectedId).toBe("restored");
+    },
+  );
+
+  it("puts a tab at the end of a strip that has grown shorter", () => {
+    const start = model(
+      [tab({ id: id("a") }), tab({ id: id("b") }), tab({ id: id("c") })],
+      id("a"),
+    );
+    const fresh = { id: id("fresh"), pathname: "/new-tab" };
+    const closedC = closeTab(start, { id: id("c"), newTab: fresh });
+    const closedB = closeTab(closedC, { id: id("b"), newTab: fresh });
+    // c was third; only a is left, so it lands after a.
+    const reopened = reopenClosed(closedB, { entry: 1, id: id("restored") });
+    expect(reopened.tabs.map((t) => t.id)).toEqual(["a", "restored"]);
+    expect(reopened.recentlyClosed.map((t) => t.id)).toEqual(["b"]);
+  });
+
   it("no-ops with empty history", () => {
     const start = model([tab({ id: id("a") })], id("a"));
     expect(reopenClosed(start, { id: id("x") })).toBe(start);

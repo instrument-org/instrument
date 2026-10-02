@@ -1239,10 +1239,10 @@ export function ComputerPage({
                 if (event.button !== 1 || !(event.target instanceof Element)) {
                   return;
                 }
-                const path = event.target
+                const itemPath = event.target
                   .closest("[data-file-system-item]")
                   ?.getAttribute("data-file-system-item");
-                const item = items.find((entry) => entry.path === path);
+                const item = items.find((entry) => entry.path === itemPath);
                 if (item) {
                   event.preventDefault();
                   menuActionsFor(item).onOpenInNewTab();

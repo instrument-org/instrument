@@ -127,7 +127,6 @@ describe("WebFetch model output", () => {
       model,
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     });
@@ -165,7 +164,6 @@ describe("WebFetch model output", () => {
       model,
       partId,
       signal: AbortSignal.timeout(10_000),
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     });
@@ -205,7 +203,6 @@ describe("WebFetch failures", () => {
       model,
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     });
@@ -298,7 +295,6 @@ describe("WebFetch page cache", () => {
         model,
         partId: StoreId.newPartId(),
         signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
         taskId,
         taskState: {},
       });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -374,7 +374,6 @@ describe("WebSearch execution", () => {
         input: { query },
         model,
         signal: new AbortController().signal,
-        spawnAgent: vi.fn(),
         taskId,
         taskState: {},
       });

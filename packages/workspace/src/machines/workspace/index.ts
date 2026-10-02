@@ -671,12 +671,6 @@ export const workspaceMachine = setup({
         });
       }),
     },
-    "session.spawnSubAgent": {
-      actions: raise(({ event }) => ({
-        type: "internal.spawnSession" as const,
-        value: event.value,
-      })),
-    },
     stopSessions: {
       actions: ({ context, event }) => {
         const sessionActorRefs = context.sessionRefsByTaskId.get(

@@ -87,9 +87,6 @@ describe("agentMachine", () => {
           parentMessageId: messageId,
           parentRef: { send: noop } as unknown as AnyActorRef,
           sessionId,
-          spawnAgent: () => {
-            throw new Error("Not expected");
-          },
           taskId,
         },
       },
@@ -115,9 +112,6 @@ describe("agentMachine", () => {
       maxStepCount: 1,
       model,
       parentRef: { send: noop } as unknown as AnyActorRef,
-      spawnAgent: () => {
-        throw new Error("Not expected");
-      },
       taskId,
       ...ids,
     };

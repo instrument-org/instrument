@@ -4,7 +4,7 @@ import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
@@ -82,7 +82,6 @@ describe("ReadFile", () => {
       get signal() {
         return AbortSignal.timeout(30_000);
       },
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     };
@@ -986,7 +985,6 @@ describe("ReadFile Unicode path fallbacks", () => {
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
         signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
         taskId: tmpTaskConfig,
         taskState: {},
       })

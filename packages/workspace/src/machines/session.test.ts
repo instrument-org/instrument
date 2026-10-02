@@ -324,57 +324,7 @@ describe("sessionMachine", () => {
           send: vi
             .fn()
             .mockImplementation((event: SessionMachineParentEvent) => {
-              if (event.type === "session.spawnSubAgent") {
-                // Create a session for the spawned agent and immediately complete it
-                void (async () => {
-                  await Store.saveSession(
-                    {
-                      createdAt: mockDate,
-                      id: event.value.sessionId,
-                      title: "Spawned session",
-                    },
-                    testTaskConfig,
-                  );
-                  await Store.saveMessageWithParts(
-                    event.value.message,
-                    testTaskConfig,
-                  );
-                  // Create a simple assistant response
-                  const assistantMessageId = StoreId.newMessageId();
-                  const responseMessage: SessionMessage.AssistantWithParts = {
-                    id: assistantMessageId,
-                    metadata: {
-                      createdAt: mockDate,
-                      finishReason: "stop",
-                      modelId: model.canonicalId,
-                      providerId: model.providerId,
-                      sessionId: event.value.sessionId,
-                    },
-                    parts: [
-                      {
-                        metadata: {
-                          createdAt: mockDate,
-                          id: StoreId.newPartId(),
-                          messageId: assistantMessageId,
-                          sessionId: event.value.sessionId,
-                        },
-                        text: "Task completed",
-                        type: "text",
-                      },
-                    ],
-                    role: "assistant",
-                  };
-                  await Store.saveMessageWithParts(
-                    responseMessage,
-                    testTaskConfig,
-                  );
-                  publisher.publish("session.done", {
-                    id: testTaskConfig,
-                    parentSessionId: undefined,
-                    sessionId: event.value.sessionId,
-                  });
-                })();
-              } else if (event.value.error) {
+              if (event.value.error) {
                 console.error("session.done error", event.value.error);
               }
             }),

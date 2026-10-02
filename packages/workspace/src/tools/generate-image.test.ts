@@ -75,7 +75,6 @@ function makeExecuteArgs(
     input,
     model,
     signal: AbortSignal.timeout(30_000),
-    spawnAgent: vi.fn(),
     taskId,
     taskState: { attachedFolders },
   };

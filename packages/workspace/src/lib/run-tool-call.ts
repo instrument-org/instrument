@@ -6,7 +6,6 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
-import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 import { taskDir } from "./task-dir-utils";
@@ -19,7 +18,6 @@ export async function runToolCall({
   part,
   sessionId,
   signal,
-  spawnAgent,
   taskId,
 }: {
   agentName: AgentName;
@@ -27,7 +25,6 @@ export async function runToolCall({
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  spawnAgent: SpawnAgentFunction;
   taskId: TaskId;
 }) {
   const tool = getToolByType(part.type);
@@ -64,7 +61,6 @@ export async function runToolCall({
         partId: part.metadata.id,
         sessionId,
         signal,
-        spawnAgent,
         taskId,
         taskState,
       },

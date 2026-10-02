@@ -13,15 +13,10 @@ import {
   stopChild,
 } from "xstate";
 
-import { type AgentName, type AnyAgent } from "../agents/types";
+import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
-import { getCurrentDate } from "../lib/get-current-date";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import {
-  type SpawnAgentFunction,
-  type SpawnAgentResult,
-} from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -49,18 +44,6 @@ export type SessionMachineParentEvent =
         parentSessionId?: StoreId.Session;
         taskId: TaskId;
         usedNonReadOnlyTools: boolean;
-      };
-    }
-  | {
-      type: "session.spawnSubAgent";
-      value: {
-        agentName: AgentName;
-        message: SessionMessage.UserWithParts;
-        model: AIGatewayModel.Type;
-        parentSessionId: StoreId.Session;
-        sessionId: StoreId.Session;
-        sessionNamePrefix?: string;
-        taskId: TaskId;
       };
     };
 
@@ -121,7 +104,6 @@ export const sessionMachine = setup({
             parentMessageId,
             parentRef: self,
             sessionId: context.sessionId,
-            spawnAgent: context.spawnAgent,
             taskId: context.taskId,
           },
         }),
@@ -264,7 +246,6 @@ export const sessionMachine = setup({
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
-      spawnAgent: SpawnAgentFunction;
       subscription?: { unsubscribe: () => void };
       taskId: TaskId;
       usedNonReadOnlyTools: boolean;
@@ -309,74 +290,6 @@ export const sessionMachine = setup({
       sessionId: input.sessionId,
     });
 
-    const spawnAgent: SpawnAgentFunction = ({
-      agentName,
-      prompt,
-      sessionNamePrefix,
-      signal,
-    }) => {
-      const newSessionId = StoreId.newSessionId();
-      const createdAt = getCurrentDate();
-      const messageId = StoreId.newMessageId();
-
-      input.parentRef.send({
-        type: "session.spawnSubAgent",
-        value: {
-          agentName,
-          message: {
-            id: messageId,
-            metadata: { createdAt, sessionId: newSessionId },
-            parts: [
-              {
-                metadata: {
-                  createdAt,
-                  id: StoreId.newPartId(),
-                  messageId,
-                  sessionId: newSessionId,
-                },
-                text: prompt,
-                type: "text",
-              },
-            ],
-            role: "user",
-          },
-          model: input.model,
-          parentSessionId: input.sessionId,
-          sessionId: newSessionId,
-          sessionNamePrefix,
-          taskId: input.taskId,
-        },
-      });
-
-      const completion: SpawnAgentResult["completion"] = new Promise(
-        (resolve, reject) => {
-          void (async () => {
-            try {
-              for await (const payload of publisher.subscribe("session.done", {
-                signal,
-              })) {
-                if (payload.sessionId === newSessionId) {
-                  const messagesResult = await Store.getMessagesWithParts(
-                    {
-                      sessionId: newSessionId,
-                      taskId: input.taskId,
-                    },
-                    { signal },
-                  );
-                  resolve(messagesResult);
-                  return;
-                }
-              }
-            } catch (error) {
-              reject(error instanceof Error ? error : new Error(String(error)));
-            }
-          })();
-        },
-      );
-
-      return { completion, sessionId: newSessionId };
-    };
-
     return {
       agent: input.agent,
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
@@ -390,7 +303,6 @@ export const sessionMachine = setup({
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
       sessionNamePrefix: input.sessionNamePrefix,
-      spawnAgent,
       subscription,
       taskId: input.taskId,
       usedNonReadOnlyTools: false,

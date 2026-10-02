@@ -1,6 +1,6 @@
 import mockFs from "mock-fs";
 import fs from "node:fs/promises";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   beginSkillChangeTracking,
@@ -31,7 +31,6 @@ function makeExecuteArgs(
     input,
     model,
     signal: AbortSignal.timeout(10_000),
-    spawnAgent: vi.fn(),
     taskId,
     taskState: {},
   };

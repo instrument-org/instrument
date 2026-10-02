@@ -22,7 +22,6 @@ import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -364,7 +363,6 @@ export const agentMachine = setup({
       /** Steering messages the sender wrote to the store on arrival. */
       savedSteerIds: StoreId.Message[];
       sessionId: StoreId.Session;
-      spawnAgent: SpawnAgentFunction;
       /** Messages waiting for the next point between steps; see `steer`. */
       steeringMessages: SessionMessage.UserWithParts[];
       stepCount: number;
@@ -389,7 +387,6 @@ export const agentMachine = setup({
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       sessionId: StoreId.Session;
-      spawnAgent: SpawnAgentFunction;
       taskId: TaskId;
       toolChoice?: "auto" | "none" | "required";
     },
@@ -411,7 +408,6 @@ export const agentMachine = setup({
     runningToolCallActorIds: [],
     savedSteerIds: [],
     sessionId: input.sessionId,
-    spawnAgent: input.spawnAgent,
     steeringMessages: [],
     stepCount: 0,
     taskId: input.taskId,
@@ -524,7 +520,6 @@ export const agentMachine = setup({
               model: context.model,
               part,
               sessionId: context.sessionId,
-              spawnAgent: context.spawnAgent,
               taskId: context.taskId,
             },
           });

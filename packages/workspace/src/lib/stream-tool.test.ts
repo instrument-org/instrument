@@ -1,5 +1,5 @@
 import { ok } from "neverthrow";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
@@ -24,7 +24,6 @@ function makeOptions(sessionId: StoreId.Session) {
     partId: StoreId.newPartId(),
     sessionId,
     signal: AbortSignal.timeout(10_000),
-    spawnAgent: vi.fn(),
     taskId,
     taskState: {},
   };

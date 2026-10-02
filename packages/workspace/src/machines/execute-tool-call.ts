@@ -5,7 +5,6 @@ import { type AgentName } from "../agents/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
-import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
@@ -86,12 +85,11 @@ const executeToolLogic = fromPromise<
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
-    spawnAgent: SpawnAgentFunction;
     taskId: TaskId;
   }
 >(
   async ({
-    input: { agentName, model, part, sessionId, spawnAgent, taskId },
+    input: { agentName, model, part, sessionId, taskId },
     signal,
   }) => {
     return runToolCall({
@@ -100,7 +98,6 @@ const executeToolLogic = fromPromise<
       part,
       sessionId,
       signal,
-      spawnAgent,
       taskId,
     });
   },
@@ -141,7 +138,6 @@ export const executeToolCallMachine = setup({
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      spawnAgent: SpawnAgentFunction;
       taskId: TaskId;
     },
     events: {} as { reason?: StopReason; type: "stop" },
@@ -150,7 +146,6 @@ export const executeToolCallMachine = setup({
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      spawnAgent: SpawnAgentFunction;
       taskId: TaskId;
     },
   },
@@ -161,7 +156,6 @@ export const executeToolCallMachine = setup({
     model: input.model,
     part: input.part,
     sessionId: input.sessionId,
-    spawnAgent: input.spawnAgent,
     taskId: input.taskId,
   }),
   id: "executeToolCall",
@@ -195,7 +189,6 @@ export const executeToolCallMachine = setup({
           model: context.model,
           part: context.part,
           sessionId: context.sessionId,
-          spawnAgent: context.spawnAgent,
           taskId: context.taskId,
         }),
         onDone: [

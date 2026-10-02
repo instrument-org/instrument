@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   killSessionBackgroundProcesses,
@@ -52,7 +52,6 @@ describe("bash background processes, end to end", () => {
       model,
       sessionId,
       signal: new AbortController().signal,
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     };

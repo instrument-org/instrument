@@ -63,7 +63,6 @@ function baseExecuteArgs() {
     agentName: "main" as const,
     model,
     signal: AbortSignal.timeout(10_000),
-    spawnAgent: vi.fn(),
     taskId: createTaskConfigWithDirs(),
     taskState: {},
   };

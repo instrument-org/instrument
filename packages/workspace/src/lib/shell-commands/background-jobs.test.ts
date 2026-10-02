@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
@@ -52,7 +52,6 @@ describe("background job commands", () => {
       model,
       sessionId,
       signal: new AbortController().signal,
-      spawnAgent: vi.fn(),
       taskId,
       taskState: {},
     });

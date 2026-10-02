@@ -142,7 +142,6 @@ describe("executeToolCallMachine", () => {
         model,
         part,
         sessionId,
-        spawnAgent: vi.fn(),
         taskId: taskConfig,
       },
     });

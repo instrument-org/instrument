@@ -1,6 +1,6 @@
 # A reply that arrives twice
 
-**Status:** fixed. OpenAI's models and our own aliases behind an OpenRouter-shaped config go through OpenRouter's Responses API, where each message item keeps its `phase` ([ai-gateway.md](../architecture/ai-gateway.md#two-request-shapes-behind-openrouter)). The measurements below are what established the cause and ruled out everything in this repo. Measured 2026-09-21.
+**Status:** fixed in f35744340, checked 2026-10-02. OpenAI's models and our own aliases behind an OpenRouter-shaped config go through OpenRouter's Responses API, where each message item keeps its `phase` ([ai-gateway.md](../architecture/ai-gateway.md#two-request-shapes-behind-openrouter)). The measurements below are what established the cause and ruled out everything in this repo. Measured 2026-09-21.
 
 A conversation reply landed as the same line twice with a blank line between: `PostHog is connected and ready to use.\n\nPostHog is connected and ready to use.` Two earlier fixes for lines said twice addressed different shapes and could not reach this one: the renderer drops a text part that repeats the part before it (`chat-stream.tsx`, `lastSaidInTurn`), and the orchestrator prompt tells the model not to say its line again after a retry or a command that worked. Here there was one text part, one step, and no command at all.
 

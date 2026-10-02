@@ -1,6 +1,6 @@
 # Every tool-output budget counts characters, and moving them to tokens buys less than it looks like
 
-**Status:** open question, nothing planned. Raised while reviewing the tool-result context budgets work, which named "character budgets are only token approximations" as a risk and left it there.
+**Status:** open question, nothing planned. Checked 2026-10-02: the budgets in the table are still character constants, and `tokenx` still feeds only `validate-skill.ts`. Raised while reviewing the tool-result context budgets work, which named "character budgets are only token approximations" as a risk and left it there.
 
 ## What we count today
 

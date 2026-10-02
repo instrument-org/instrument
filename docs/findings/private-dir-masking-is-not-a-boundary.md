@@ -1,6 +1,6 @@
 # Masking the private dir stops the shell, not native interpreters
 
-**Status:** open — known gap. Recorded 2026-07-20 while reviewing PR #66 (`workspace: hide the private dir from the agent's shell and file tools`). Last updated 2026-07-20.
+**Status:** still open, known gap, checked 2026-10-02. Recorded 2026-07-20 while reviewing PR #66 (`workspace: hide the private dir from the agent's shell and file tools`). The private dir is still inside the task folder (`chats/<id>/tasks/<id>/.instrument/` or `tasks/<id>/.instrument/`). `python`/`python3` have since become the in-sandbox WASM CPython, which reads through the virtual filesystem and so is masked; the native interpreters this applies to are now `node` and `python-native`.
 
 ## Context
 
@@ -34,7 +34,7 @@ Things that _are_ covered, and were checked rather than assumed:
 
 Move the private dir **out of the task root**, so it is not reachable by a relative path from a native process's `cwd` (e.g. a sibling `tasks/<id>.private/` or a central store). Then there is nothing to mask, and the bash decorator, the file-tool checks, and the inline-code guard can all be deleted.
 
-The cost is the on-disk layout change: `tasks/<id>/.instrument/{task.db,settings.json}` is documented in `CLAUDE.md` and assumed by task export/zip and `get-task-files` / `task-dir-utils`.
+The cost is the on-disk layout change: `<task>/.instrument/{task.db,settings.json}` is documented in `CLAUDE.md` and assumed by `get-task-files` / `task-dir-utils`.
 
 ## Guidance
 

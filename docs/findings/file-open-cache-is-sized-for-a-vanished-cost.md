@@ -1,6 +1,6 @@
 # The file-open cache is sized for a cost that no longer exists
 
-**Status:** open. Known, deliberate, not yet re-derived. Recorded 2026-07-28.
+**Status:** open. Known, deliberate, not yet re-derived. Recorded 2026-07-28; checked 2026-10-02 that the constants and startup warming are unchanged (`MAX_CONCURRENT_LOOKUPS = 2`, `CANDIDATE_SCAN_LIMIT = 64`).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Quit teardown can livelock, and every guard on that path is blind to it
 
-**Status:** open. Seen twice, on 1.6.0-beta.2 and on 2.0.0-beta.1, both macOS, both on an install triggered from the update prompt. The second sighting pinned the stage and cleared `actor.stop()`, which this finding previously named as the strongest candidate. Which loop spins is still unidentified.
+**Status:** open. Seen twice, on 1.6.0-beta.2 and on 2.0.0-beta.1, both macOS, both on an install triggered from the update prompt. The second sighting pinned the stage and cleared `actor.stop()`, which this finding previously named as the strongest candidate. Which loop spins is still unidentified. Still open, checked 2026-10-02: the teardown in `create-workspace-actor.ts` has the same stages and timer-only guards.
 
 A spin in quit teardown leaves the worst possible corpse: a process with no window that still holds the single-instance lock. The Dock icon, deep links, and every relaunch route back to it and go nowhere, and a staged update never installs because Squirrel's `ShipIt` is waiting for an exit that will never come. The user's only way out is `kill -9`.
 

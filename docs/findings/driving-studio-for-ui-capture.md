@@ -1,6 +1,6 @@
 # Driving Studio over CDP: what makes it flaky
 
-**Status:** partly addressed. Most of the list below landed behind `studio-drive`; an HMR freeze for scripted runs is still open, and the native quit dialog is uncapturable by CDP by construction.
+**Status:** partly addressed. Most of the list below landed behind `studio-drive`. The HMR freeze is half done: a `studio-drive boot` instance freezes main and preload (`DISABLE_DEV_RELAUNCH`, 1112471d7), and renderer HMR stays on by design. The native quit dialog is uncapturable by CDP by construction. Checked 2026-10-02.
 
 ## Symptom
 
@@ -75,7 +75,7 @@ Most of the list below has landed. `.agents/skills/studio-chrome-devtools/script
 
 - `boot --workspace <fixture>` runs against a workspace built from a committed description (`fixtures/workspaces/`) rather than the shared dev application-data directory, so a run no longer depends on what that machine did last.
 
-What is still open: an HMR freeze for scripted runs. The native quit dialog remains uncapturable by CDP by construction.
+What is still open: renderer HMR during scripted runs; `boot` freezes main and preload only. The native quit dialog remains uncapturable by CDP by construction.
 
 ## What would help, in leverage order
 

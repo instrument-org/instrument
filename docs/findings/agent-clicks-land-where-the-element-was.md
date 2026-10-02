@@ -1,6 +1,6 @@
 # Agent clicks land where the element was, not where it is
 
-**Status:** understood and worked around in the gateway; the root fix belongs in agent-browser.
+**Status:** understood and worked around in the gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`); the root fix belongs in agent-browser, which at v0.38.2 still measures straight after scrolling. Still open upstream, checked 2026-10-02.
 
 ## Symptom
 

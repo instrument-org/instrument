@@ -1,6 +1,6 @@
 # Agent tool surface: gaps against three reference harnesses
 
-**Status:** partly overtaken, not re-audited in full. Recorded against the tool surface as it stood; several items have since been resolved or made moot, so verify any item below against the code before acting on it. Known movement: the atomic `grep` and `glob` tools no longer exist — search moved into the shell on the real ripgrep binary ([2026-07-28](../decisions/2026-07-28-real-ripgrep-in-the-sandbox.md)), which retires sections A4, B1 and B2; `web_fetch` (C1) shipped; and A1, A3, A5 and A6 are fixed in the current tools.
+**Status:** partly overtaken, not re-audited in full. Recorded against the tool surface as it stood; several items have since been resolved or made moot, so verify any item below against the code before acting on it. Known movement: the atomic `grep` and `glob` tools no longer exist — search moved into the shell on the real ripgrep binary ([2026-07-28](../decisions/2026-07-28-real-ripgrep-in-the-sandbox.md)), which retires sections A4, B1 and B2; `web_fetch` (C1) shipped; and A1, A3, A5 and A6 are fixed in the current tools. Checked 2026-10-02: E5 shipped in aeb22a5ff and B6 in 6cdae3d3a; B3 (no batched `edit_file`) is still open; `choose` (C3) is still a stub returning "Not implemented"; for the conversation agent C4 is served by the `task` tool, while `spawnAgent` is still threaded through `machines/session.ts` and called by nothing.
 
 A review of our atomic agent tools (`packages/workspace/src/tools/`) against the built-in tool surfaces of three other coding-agent harnesses: `opencode` (`sst/opencode`), `codex` (OpenAI Codex CLI), and `pi-mono` (`badlogic/pi-mono`). Two of our tools are already adapted from the first and third, so this is partly a check for upstream drift.
 
@@ -372,7 +372,7 @@ Everything in section A is fixed, and the search tools are gone. What is left, w
 
 - **C1** (`web_fetch`) -- shipped (`tools/web-fetch.ts`).
 - **E5** (parallel tool execution) -- shipped as the middle path: `ExecutingToolCalls` in `machines/agent.ts` runs a run of consecutive `readOnly` calls at once and every other call alone, in order. Serial execution had turned a task's eight parallel `web_search` calls on a ChatGPT plan into 184 s end to end, where the slowest of them took about 25 s.
-- **B6** (bash timeout, backgrounding) -- the `spike/background-shell` branch replaces the timeout with a yield-and-promote model plus `bash_output` and `bash_kill`, which is close to codex's `exec_command`/`write_stdin` design.
+- **B6** (bash timeout, backgrounding) -- landed in 6cdae3d3a as a yield-and-promote model managed from the shell with `jobs`, `fg` and `kill` ([background-processes.md](../architecture/background-processes.md)), close to codex's `exec_command`/`write_stdin` design.
 - **B1, B2** -- moot; both tools are gone and `rg` has the full flag set.
 
 **Decided against**

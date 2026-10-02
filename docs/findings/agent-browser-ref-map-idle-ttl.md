@@ -1,6 +1,6 @@
 # agent-browser snapshot refs die on the daemon idle timeout
 
-**Status:** fixed by raising the daemon idle timeout to five minutes. The rejected alternatives are recorded below because each looks reasonable until the reason it fails is stated.
+**Status:** fixed in 20647086c by raising the daemon idle timeout to five minutes; checked 2026-10-02. The rejected alternatives are recorded below because each looks reasonable until the reason it fails is stated.
 
 ## Symptom
 

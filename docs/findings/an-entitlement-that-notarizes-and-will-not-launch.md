@@ -1,6 +1,6 @@
 # An entitlement that signs, notarizes, and will not launch
 
-**Status:** resolved, and the capability is reachable. Backed out of the shipped build; what it needs to go back in is below. Found 2026-09-04 on macOS 26.6, `v1.6.14-beta.1`.
+**Status:** resolved, and the capability shipped: backed out, then re-landed on an embedded provisioning profile in b0be0007f (`v1.6.14-beta.3`), with `verify-packaged-app` gating the release job. Checked 2026-10-02. Found 2026-09-04 on macOS 26.6, `v1.6.14-beta.1`.
 
 Adding `keychain-access-groups` to the macOS entitlements to enable Electron's Touch ID platform authenticator produced a build that passed every gate and then would not start. The update installed, the app quit to relaunch, and nothing came back.
 

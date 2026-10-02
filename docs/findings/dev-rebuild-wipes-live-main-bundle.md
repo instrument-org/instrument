@@ -1,6 +1,6 @@
 # A dev rebuild wipes the running main process's bundle
 
-**Status:** fixed. Kept for the diagnosis trail and the rejected alternatives, which is the part that is expensive to rediscover.
+**Status:** fixed in dc32a15d4; `emptyOutDir: isProduction` is still on the main and preload builds, checked 2026-10-02. Kept for the diagnosis trail and the rejected alternatives, which is the part that is expensive to rediscover.
 
 ## Symptom
 

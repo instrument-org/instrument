@@ -1,6 +1,6 @@
 # Browser identity: the client hints are ours, not Chromium's
 
-**Status:** current, with one section overtaken. The brand mismatch is fixed; the remaining gaps below are open. The Google Chrome brand this file asked for evidence about has since been removed, and the UA it treats as unchanged has changed — see [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md). Measured 2026-08-31 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64.
+**Status:** current, with one section overtaken. The brand mismatch is fixed; the remaining gaps below are open (high-entropy hints still unanswered, checked 2026-10-02). The Google Chrome brand this file asked for evidence about has since been removed, and the UA it treats as unchanged has changed — see [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md). Measured 2026-08-31 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64.
 
 ## What was measured
 

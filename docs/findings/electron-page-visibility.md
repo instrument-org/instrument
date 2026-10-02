@@ -1,6 +1,6 @@
 # What actually marks a Studio renderer hidden, and what does not
 
-**Status:** resolved — guidance for anything gating work on `document.hidden`. Recorded 2026-08-06.
+**Status:** resolved — guidance for anything gating work on `document.hidden`. Recorded 2026-08-06. Checked 2026-10-02: the guidance holds, but the files cited moved or went with the 1.x window: the window created `show: false` is now `electron-main/windows/app-window.ts`, and the projects route and `use-clear-task-indicator-on-view.ts` no longer exist; `updated-toast.tsx`, `lib/relative-time.ts` and `lib/live-file.ts` are the renderer's current `visibilitychange` listeners.
 
 ## Symptom
 

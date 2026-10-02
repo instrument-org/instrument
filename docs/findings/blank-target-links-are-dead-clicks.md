@@ -1,6 +1,6 @@
 # `target=_blank` links are dead clicks
 
-**Status:** Fixed 2026-08-28 — a denied tab-open now navigates the guest that asked for it, and the guest's context menu offers "Open Link". Real popups are unchanged.
+**Status:** fixed (f7dab2700, 2026-08-28), then overtaken for the person by real tabs: since a603285fc a `_blank` link or a middle- or Cmd-click the person makes opens a tab of the window (`newTabOpenOf` in `window-open-policy.ts`). The in-place navigation below is what remains, for a guest the agent is driving. Real popups are unchanged. Checked 2026-10-02.
 
 Clicking a link that opens in a new tab did nothing at all in the in-app browser. No navigation, no tab, no window, no message. Reported from a shopping session: on the Amazon cart, the product title in each row would not open, while the Amazon logo in the corner worked — which reads as "the browser is broken on some links and fine on others" and gives the user nothing to act on.
 

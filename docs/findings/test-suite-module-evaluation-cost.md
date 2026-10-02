@@ -1,6 +1,6 @@
 # The test suites spend most of their time re-evaluating module graphs, not running tests
 
-**Status:** all four fixes below have landed, the last of them enforced by a lint rule.
+**Status:** all four fixes below have landed, the last of them enforced by a lint rule. Checked 2026-10-02.
 
 Vitest isolates every test file: each one gets its own module registry, so every module in its import graph is evaluated once per test file that reaches it. A package's suite therefore costs `files x graph`, and a heavy module in a widely-reached position costs about a second per test file however trivial the tests are.
 

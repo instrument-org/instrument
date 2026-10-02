@@ -1,6 +1,6 @@
 # A macOS update check un-stages the build it just confirmed
 
-**Status:** resolved in `create-app-updater.ts` — guidance for anything that calls `autoUpdater.checkForUpdates()`. Recorded 2026-07-31.
+**Status:** resolved in `create-app-updater.ts` (a check downloads only when nothing is staged), with `createAutoUpdaterLogger` in `update.ts`; guidance for anything that calls `autoUpdater.checkForUpdates()`. Recorded 2026-07-31; checked 2026-10-02.
 
 ## Symptom
 

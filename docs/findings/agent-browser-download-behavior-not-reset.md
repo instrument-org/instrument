@@ -1,6 +1,6 @@
 # agent-browser `download` never restores the browser's download behavior
 
-**Status:** open upstream, contained here. The skill caveat this page names was removed with external-browser targeting; what contains it now is that the wrapper passes no download directory for an external browser (`shell-commands/agent-browser.ts`) and the `external_browser` flag ships off. The upstream fix is written but unpublished and needs an explicit go-ahead to file; the pin has moved past the reviewed v0.32.3, so re-verify against current source before filing.
+**Status:** open upstream, contained here. The skill caveat this page names was removed with external-browser targeting; what contains it now is that the wrapper passes no download directory for an external browser (`shell-commands/agent-browser.ts`) and the `external_browser` flag ships off. The upstream fix is written but unpublished and needs an explicit go-ahead to file; `handle_download` still never restores the behavior at upstream v0.38.2 (the pin is `^0.38.1`); the flag still defaults off. Checked 2026-10-02.
 
 ## Issue
 

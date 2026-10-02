@@ -1,6 +1,6 @@
 # Electron reads an app's archive as a folder
 
-**Status:** `du` fixed; the rest of the sandbox and the This Mac screen still affected. Last checked 2026-10-01.
+**Status:** `du` fixed; the rest of the sandbox and the This Mac screen still affected. Last checked 2026-10-02: `process.noAsar` is still set only in the `du` worker, and nothing reads through `original-fs`.
 
 ## What happened
 

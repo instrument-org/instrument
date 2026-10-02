@@ -1,6 +1,6 @@
 # Task attention state (unread / needs-input) must be persisted per task, not derived from live status
 
-**Status:** implemented for unread-on-completion (8cd75214b): `unreadIndicator` persists in the task's settings.json with the recommended discriminated `kind` (`packages/workspace/src/schemas/task-indicator.ts`), written by the workspace machine on the terminal session transition. The needs-input kind and the mid-run-restart reconciliation below remain open. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161) and reviewing the `jmack/connectors-v1` spike. Last updated 2026-08-30.
+**Status:** moot: per-task unread marks (`unreadIndicator`, `schemas/task-indicator.ts`, landed in 8cd75214b) were removed with the classic window in a73917f45, merged in 2d90d6270. 2.0 chats keep a persisted seen watermark instead (`chatSeen` in `schemas/task-state.ts`; unread is every non-user message after it), which keeps the persisted-not-live rule below. No needs-input projection or mid-run restart reconciliation was built. Checked 2026-10-02. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161).
 
 ## Context
 

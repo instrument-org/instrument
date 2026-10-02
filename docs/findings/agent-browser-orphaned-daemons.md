@@ -1,6 +1,6 @@
 # Orphaned agent-browser daemons
 
-**Status:** partly fixed. Per-session close presents the right daemon fingerprint; `close --all` still does not, so a clean quit can start the orphans it meant to reap. Recorded 2026-08-05, quit-path recurrence observed 2026-08-12 on the installed macOS `v1.6.0-beta.4` build.
+**Status:** partly fixed. Per-session close presents the right daemon fingerprint; `close --all` still does not, so a clean quit can start the orphans it meant to reap. Recorded 2026-08-05, quit-path recurrence observed 2026-08-12 on the installed macOS `v1.6.0-beta.4` build. Still open, checked 2026-10-02: `closeAllAgentBrowserSessions` still passes only `AGENT_BROWSER_SOCKET_DIR`, no pid backstop exists, and upstream `main.rs` still drops the runtime untimed after `run_daemon` at v0.38.2 (the pin is `^0.38.1`).
 
 ## Symptom
 

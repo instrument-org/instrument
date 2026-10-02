@@ -1,6 +1,6 @@
 # A browser guest can be shown as a scaled-down live tile
 
-**Status:** verified, not built. Last updated 2026-09-21.
+**Status:** verified, not built: `browser-pool.ts` still has no tile mode. Last checked 2026-10-02.
 
 ## Question
 

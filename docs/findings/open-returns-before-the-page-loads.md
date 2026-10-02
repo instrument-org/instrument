@@ -1,4 +1,4 @@
-**Status:** fixed and measured, 2026-09-21. In-app CDP bridge (`packages/workspace/src/logic/server/routes/cdp-bridge.ts`), against agent-browser 0.38.1.
+**Status:** fixed and measured, 2026-09-21; checked 2026-10-02. In-app CDP bridge (`packages/workspace/src/logic/server/routes/cdp-bridge.ts`), against agent-browser 0.38.1.
 
 # `agent-browser open` returned before the page had loaded
 

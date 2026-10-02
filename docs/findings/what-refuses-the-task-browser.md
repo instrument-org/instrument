@@ -1,6 +1,6 @@
 # What refuses the task browser
 
-**Status:** standing register, current. One row per refusal we have met, with what each one turned out to be and where it stands. The per-issue findings linked from the table carry the measurements and their dates; this file is the map, so a new refusal can be placed against the ones already understood instead of re-derived.
+**Status:** standing register, checked 2026-10-02. One row per refusal we have met, with what each one turned out to be and where it stands. The per-issue findings linked from the table carry the measurements and their dates; this file is the map, so a new refusal can be placed against the ones already understood instead of re-derived.
 
 Read it before spending on a refusal. Every entry below was explained wrongly at least once, and every wrong explanation came of reasoning from a single clean-looking measurement instead of running a control. The subject invites that failure specifically: these hosts answer inconsistently, so a plausible mechanism is always available and usually wrong.
 
@@ -63,7 +63,7 @@ The gap between this browser and a real Chrome is narrower than it looks, and al
 
 - **`window.chrome` is a hollow object**, and absent entirely inside an iframe, where real Chrome carries `loadTimes`, `csi`, and `app`. No native lever exists, and it is the most plausible single tell a fingerprinting vendor would key on.
 - **No WebAuthn UI.** No cross-device QR sheet, and no platform authenticator at all until `app.configureWebAuthn({ touchID })` is called.
-- **No second page target for the agent.** Its CDP connection is pinned to one page, so popups are denied while it drives and `target=_blank` clicks are redirected into the same tab. A user driving the guest gets real popups, which is what keeps popup-based sign-in flows working.
+- **No page-opened target for the agent.** A chat's task can open tabs of its own (`Target.createTarget` through `cdp-task-bridge.ts`, 2426e2f3e), but while it drives, popups are denied and `target=_blank` clicks are redirected into the same tab. A user driving the guest gets real popups, and `target=_blank` opens a new tab, which is what keeps popup-based sign-in flows working.
 - **Every permission request is denied**, because there is no browser chrome in which to prompt, so `Notification.permission` reads `denied` where an untouched Chrome reads `default`.
 - **`screen.colorDepth` and window geometry disagree with Chrome**, the second contradictorily: the guest reports the host window's outer bounds against its own layout viewport.
 

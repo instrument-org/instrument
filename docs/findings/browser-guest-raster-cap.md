@@ -1,6 +1,6 @@
 # In-app browser: the guest's rasterized surface is capped at 1.3x the viewport
 
-**Status:** open — mechanism traced to Blink source, bound confirmed on macOS, Linux and Windows. Last updated 2026-08-26.
+**Status:** open — mechanism traced to Blink source, bound confirmed on macOS, Linux and Windows. Last updated 2026-08-26; checked 2026-10-02 that the clamp in `browser-pool.ts` and the refusal in `guest-surface.ts` still stand.
 
 ## The rule
 

@@ -1,6 +1,6 @@
 # The task list ordered itself by a file mtime, so reading a task counted as changing it
 
-**Status:** fixed 2026-08-11. Both timestamps are recorded in `settings.json`; older tasks are stamped by the boot migration.
+**Status:** fixed 2026-08-11. Both timestamps are recorded in `settings.json`; older tasks are stamped by the boot migration. Checked 2026-10-02: the 1.x sidebar task list (`task.live.list`) and task zip export named below were removed in 2d90d6270, but `getTasks` still sorts on `lastActivityAt` and `task.stateUpdated` still keeps state writes off `task.updated`.
 
 `updatedAt` on a task was the mtime of `.instrument/task.db`, read by `getTaskDirTimestamps` and sorted on by `getTasks`. That is not when the task was last worked on. It is when the file was last written, and **opening a task writes it**: the session store is a SQLite database, and opening it checkpoints. Measured directly, with no message sent and nothing typed:
 

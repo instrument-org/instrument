@@ -1,6 +1,6 @@
 # The loopback block stops curl, not native interpreters
 
-**Status:** open — known gap, working as designed. Recorded 2026-07-27. Last updated 2026-07-27.
+**Status:** still open, working as designed, checked 2026-10-02. Recorded 2026-07-27. Since then `python`/`python3` became the in-sandbox WASM CPython, so the native interpreters below are `node` and `python-native`, and the bash tool description now points the agent at exactly those to reach a server it started (6cdae3d3a): the gap is relied on, not just tolerated.
 
 ## Context
 
@@ -30,7 +30,7 @@ node    net.connect(9999, ...)   ->  ECONNREFUSED
 
 **What is actually listening on loopback is narrower than it looks.** The workspace server binds `LOOPBACK_HOST` and mounts the AI gateway, but the gateway is authenticated: `createAuthMiddleware` requires an internal key, and that key is a per-process `randomBytes(32)` value, not a build-time constant. The sandbox environment is seeded with only `NO_COLOR`, `TZ`, and `PATH`, so the key is not in the agent's environment to find. Provider credentials are therefore not one raw socket away.
 
-What remains reachable by a native interpreter, and unaudited as of this writing: the workspace server's other routes (assets, shim, heartbeat, redirect, CDP bridge, app proxy), other tasks' dev servers, and whatever the user happens to be running locally.
+What remains reachable by a native interpreter, and unaudited as of this writing: the workspace server's other route (the CDP bridge), other tasks' dev servers, and whatever the user happens to be running locally.
 
 ## What would actually close it
 

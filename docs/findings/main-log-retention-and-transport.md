@@ -1,6 +1,6 @@
 # The main log is sized for today's volume, not the volume we are about to add
 
-**Status:** partly addressed. Rotation and write mode changed 2026-08-14; the transport question is open.
+**Status:** partly addressed. Rotation and write mode changed 2026-08-14; the transport question is still open, checked 2026-10-02.
 
 ## Context
 

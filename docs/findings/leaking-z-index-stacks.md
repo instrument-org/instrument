@@ -1,6 +1,6 @@
 # Leaking z-index stacks in the renderer
 
-**Status:** resolved for the surfaces listed below; the rule stands for new ones.
+**Status:** resolved for the surfaces listed below; the rule stands for new ones. Checked 2026-10-02.
 
 ## The problem
 
@@ -42,12 +42,10 @@ which is the second reason the composer's slash menu now uses `Popover`.
 
 - `components/media-card-shell.tsx` -- scrim, overlay actions, expand button,
   and the video progress bar and duration
-- `components/prompt-input.tsx` -- the drag-and-drop overlay
-- `components/markdown.tsx` -- the copy button over a code block
-- `components/server-exceptions-alert.tsx` -- the per-row copy button
+- `components/file-drop-region.tsx` -- the drag-and-drop overlay
+- `components/code-block.tsx` -- the copy button over a code block
+- `components/window/server-exceptions.tsx` -- the per-row copy button
 - `components/icons/planning-dot.tsx` -- the dot over its shockwave ring
-- `routes/_app/skills/index.tsx` -- badges and copy button over the row's
-  full-bleed link
 
 Left raised on purpose, because each has to paint above a sibling subtree: the
 sidebar rail's resize handle, `ui/sidebar.tsx`'s

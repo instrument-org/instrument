@@ -1,6 +1,6 @@
 # Code review: guards over real binaries and mounts that do not hold
 
-**Status:** one finding and three nits open, five findings fixed. First recorded 2026-08-05 reviewing 804 commits from 2026-07-05 to `c8a4c39ed` (v1.6.0-beta.0). Re-validated 2026-08-10 at `c2ee91221`, 139 commits later, which added the `/project` mount and one new finding. Every item below was re-reproduced at that revision.
+**Status:** one finding and three nits open, five findings fixed. Checked 2026-10-02: finding 6 and all three nits still stand as described, at moved line numbers (`isBrowserFreeRead` is now `agent-browser.ts:330` with no private-range check; the Windows `command-output-<runId>` logs are around `:1196`; `bridgePathArgs` in `rg.ts` and the `Home` relabel in `assign-mount-names.ts` are unchanged). First recorded 2026-08-05 reviewing 804 commits from 2026-07-05 to `c8a4c39ed` (v1.6.0-beta.0). Re-validated 2026-08-10 at `c2ee91221`, 139 commits later, which added the `/project` mount and one new finding. Every item below was re-reproduced at that revision.
 
 Re-checked 2026-08-12 at `451daa198`: all six findings and all three nits still stood, unchanged. None of the files they name had been touched in between except by a repo-wide spelling pass (`df0aa68e5`).
 

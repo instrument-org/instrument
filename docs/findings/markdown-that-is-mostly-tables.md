@@ -1,6 +1,6 @@
 # Markdown that is mostly tables
 
-**Status:** fixed for the two quadratic costs. Parsing a 2 MB, 12,454-row markdown file took 22.9 s; the whole open now takes about 2.7 s of a dev build, nearly all of it React. Both causes were the same shape — a pass that walks the whole document once per item it finds — and neither was in our code. Measured 2026-09-08 on an M1 Max, against a downloads inventory the agent wrote: 1.97 MB, 89 tables, 12,454 rows, 24,552 backticks, no fences and no images.
+**Status:** fixed for the two quadratic costs, checked 2026-10-02. Parsing a 2 MB, 12,454-row markdown file took 22.9 s; the whole open now takes about 2.7 s of a dev build, nearly all of it React. Both causes were the same shape — a pass that walks the whole document once per item it finds — and neither was in our code. Measured 2026-09-08 on an M1 Max, against a downloads inventory the agent wrote: 1.97 MB, 89 tables, 12,454 rows, 24,552 backticks, no fences and no images.
 
 ## The two costs
 

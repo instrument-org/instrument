@@ -1,6 +1,6 @@
 # Connector authentication: technical notes
 
-**Status:** reference. Nothing here is built; the summary table ranks the identified changes by size and what each one buys.
+**Status:** reference, partly overtaken. Connectors became apps in 2.0 (`packages/workspace/src/lib/apps/`, the `app` shell command, the `connect_app` tool), so the body's `connector.json`, connectors mount and `connector_test` names are the old ones. Checked 2026-10-02: changes 1 (`app catalog` puts the catalog in front of the agent), 2 (`connect_app` puts a sign-in card in the conversation), 4 (`appOAuthRedirectUrl` uses the bound port) and 6 (local MCP servers, `lib/apps/mcp/local-server.ts`) have landed in some form; 3 (still `token_endpoint_auth_method: "none"`) and 7 (`api` apps have no OAuth) are open; 5 was not re-checked. The summary table ranks the changes as first identified.
 
 Where connector authentication stands, and what each identified change actually involves.
 

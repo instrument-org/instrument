@@ -1,6 +1,6 @@
 # A dependency's tool auto-detection froze the app on Windows
 
-**Status:** fixed by pinning the watcher backend. The two upstream issues are unresolved, and the pin is the durable answer regardless.
+**Status:** fixed by pinning the watcher backend, checked 2026-10-02. The two upstream issues are unresolved, and the pin is the durable answer regardless.
 
 `@parcel/watcher` picks its backend automatically when `subscribe` is not given one, and it prefers Watchman. On Windows it looks for Watchman by running `watchman get-sockname` through `cmd.exe`. On a machine without Watchman installed that probe opens a console window and takes about six seconds to fail before falling back to the OS-native backend.
 

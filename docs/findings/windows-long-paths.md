@@ -1,6 +1,6 @@
 # Windows long paths in the task directory
 
-**Status:** partly fixed. Git is fixed; the 260-character ceiling is not, so anything else the agent runs can still hit it.
+**Status:** partly fixed, still open, checked 2026-10-02. Git is fixed; the 260-character ceiling is not, so anything else the agent runs can still hit it. Since the 2.0 layout a chat's task lives at `…\workspace\chats\<chat id>\tasks\<task id>\`, so the prefix measured below is now longer by `chats\<chat id>\`.
 
 ## Symptom
 

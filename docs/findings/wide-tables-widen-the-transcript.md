@@ -1,6 +1,6 @@
 # Wide tables widen the transcript
 
-**Status:** Resolved 2026-08-28. Built as described below; see the three `studio:` commits for markdown tables. Kept because the measurements and the two CSS traps behind them are what any later change to this has to know.
+**Status:** Resolved 2026-08-28; checked 2026-10-02 (the `dev:web` browser harness used below was removed in 2d90d6270). Built as described below; see the three `studio:` commits for markdown tables. Kept because the measurements and the two CSS traps behind them are what any later change to this has to know.
 
 A Markdown table whose columns need more room than the message column has spills past it and pushes the transcript's own scroller wider, so the whole conversation gains a horizontal scrollbar. It is no longer able to disturb the prompt input, but the transcript still scrolls sideways and the table's rightmost columns are clipped at the pane edge with no way to reach them.
 

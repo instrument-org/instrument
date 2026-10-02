@@ -1,6 +1,6 @@
 # Which Workers AI models can run the product
 
-**Status:** measured 2026-09-06/07 against the Cloudflare Workers AI catalog, GPT 5.6 Luna as the paid control. The verdict is **GLM 5.3 Flash in both seats**, with a reasoning level set. Eligibility rules out most of the catalog before behavior is even scored, and validity checks rule out nothing — the models separate on design and reliability, which only rendering the output shows. Re-running this costs roughly four hours of wall clock and a few million tokens, so the numbers are recorded rather than the method alone.
+**Status:** measured 2026-09-06/07 against the Cloudflare Workers AI catalog, GPT 5.6 Luna as the paid control. The verdict is **GLM 5.3 Flash in both seats**, with a reasoning level set. Eligibility rules out most of the catalog before behavior is even scored, and validity checks rule out nothing — the models separate on design and reliability, which only rendering the output shows. Re-running this costs roughly four hours of wall clock and a few million tokens, so the numbers are recorded rather than the method alone. Code references checked 2026-10-02; the catalog figures were not re-measured.
 
 Companion reading: [the reasoning level was never connected](reasoning-effort-was-never-connected.md) for why every number here would have been different a day earlier, and [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md) for why the self-check numbers below are a floor rather than a measurement.
 

@@ -1,6 +1,6 @@
 # CSS zoom: mixing rect (on-screen px) with layout px
 
-**Status:** guidance, with an audit heuristic. Every site listed below is fixed, including the three once flagged as open candidates. Kept for the heuristic, which is what a new site needs.
+**Status:** guidance, with an audit heuristic. Every site listed below is fixed, including the three once flagged as open candidates. Kept for the heuristic, which is what a new site needs. Checked 2026-10-02: `studio-command-menu.tsx`, `nav-tasks.tsx` and `welcome-modal.tsx` were deleted with the 1.x window (a73917f45); the other files named below still exist.
 
 ## Symptom
 

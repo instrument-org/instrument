@@ -1,6 +1,6 @@
 # WebMCP: what it would take for the agent's browser to call a site's own tools
 
-**Status:** open, researched and probed, nothing implemented. Blocked on an Electron major upgrade. Last checked 2026-08-27.
+**Status:** open, researched and probed, nothing implemented. Blocked on an Electron major upgrade. Still open, checked 2026-10-02: Studio still pins Electron 42 and nothing WebMCP-related is in the code.
 
 ## Why this is here
 

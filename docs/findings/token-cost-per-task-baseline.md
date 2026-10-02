@@ -1,6 +1,6 @@
 # Token cost per task: where it goes and what would move it
 
-**Status:** open. Baseline measured once, 2026-09-24, over one developer's local task history. The ranked list is the live part; each item names how it would be validated. Two direct fixes from this pass landed (reasoning replay for current OpenAI models, cache-aware eval cost); nothing prompt-side has moved.
+**Status:** open. Baseline measured once, 2026-09-24, over one developer's local task history. The ranked list is the live part; each item names how it would be validated. Two direct fixes from this pass landed (reasoning replay for current OpenAI models, cache-aware eval cost); nothing prompt-side has moved (checked 2026-10-02: the `bash` description still carries the `IMPORTANT:` blocks the system-prompt pass below proposes rewriting).
 
 The question is price-weighted token cost per completed task, not tokens per request: every step resends the prefix and the whole conversation so far, so a change that shrinks one request but adds steps can cost more. This is the cost counterpart to [agent-prompt-surface-review.md](./agent-prompt-surface-review.md), which measured the prompt's wording, and to [prompt-cache-provider-affinity-and-breakpoints.md](./prompt-cache-provider-affinity-and-breakpoints.md), which this measurement partly retires.
 

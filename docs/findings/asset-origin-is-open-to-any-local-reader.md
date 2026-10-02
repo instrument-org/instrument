@@ -1,6 +1,6 @@
 # The asset origin is readable by anything that can name a task
 
-**Status:** resolved 2026-09-26 by removal. The asset origin no longer exists: the agent's browser opens a file at its own `file://` address, the same one the person's tab shows, and the workspace server serves no files ([in-app-browser.md](../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). What follows is the exposure as it stood, kept because any future local HTTP server for task files would reopen it.
+**Status:** moot: the asset origin was removed in 631709f88 (landed with 8958cbab6), 2026-09-26; checked 2026-10-02, no route serves task files. The asset origin no longer exists: the agent's browser opens a file at its own `file://` address, the same one the person's tab shows, and the workspace server serves no files ([in-app-browser.md](../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). What follows is the exposure as it stood, kept because any future local HTTP server for task files would reopen it.
 
 ## What is true
 
@@ -21,7 +21,7 @@ Today an attacker who wins this reads the task directory plus whatever folders t
 
 Two in-flight changes remove both bounds, and neither does it alone:
 
-- **[user-chosen-working-folder](../plans/active/user-chosen-working-folder.md)** makes the origin's root a folder the user picked — plausibly a source repository with `.env`, deploy keys, and customer data, or a whole documents directory. The reader no longer gets our scratch; it gets the user's real files.
+- **[user-chosen-working-folder](../plans/completed/user-chosen-working-folder.md)** makes the origin's root a folder the user picked — plausibly a source repository with `.env`, deploy keys, and customer data, or a whole documents directory. The reader no longer gets our scratch; it gets the user's real files.
 - **An HTML file the person opens is a `<webview>` guest page** ([in-app-browser.md](../architecture/in-app-browser.md)), loaded at its `file://` address rather than on this origin, and confined by `local-file-policy.ts` to reading its own folder. That keeps agent-authored HTML off this origin as a real origin; had it been loaded here, under the folder plan the page would be same-origin with the entire working folder, so `fetch("/.env")` would need no CORS grant at all, and the fetch-then-POST pair would run the next time a human opened a preview. The HTML that does it need not be something the agent intended to write: a prompt-injected instruction in a `/mnt` source is enough. The agent's own browser still loads this origin as a real origin, which is the exposure that remains.
 
 Nothing the person looks at reads this origin any more: their viewers read a file by its real path over Studio's own tokened `instrument://computer-<token>` channel, which no guest and no other process can name. What is left open is the agent's side, and the folder plan is what makes it load-bearing.

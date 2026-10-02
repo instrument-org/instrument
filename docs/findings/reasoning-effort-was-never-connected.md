@@ -1,6 +1,6 @@
 # Reasoning effort was never connected
 
-**Status:** fixed 2026-09-06 across `llm-request.ts`, `reasoning-effort.ts` and `parse-workers-ai-models.ts`. The durable part is why it looked like a tuning problem for weeks: three independent gates were closed, each sufficient on its own to make every setting a no-op, and none of them logged anything. Companion reading: [which Workers AI models can run the product](which-workers-ai-models-can-run-the-product.md), every number in which would have been different a day earlier.
+**Status:** fixed 2026-09-06 across `llm-request.ts`, `reasoning-effort.ts` and `parse-workers-ai-models.ts`; checked 2026-10-02. The durable part is why it looked like a tuning problem for weeks: three independent gates were closed, each sufficient on its own to make every setting a no-op, and none of them logged anything. Companion reading: [which Workers AI models can run the product](which-workers-ai-models-can-run-the-product.md), every number in which would have been different a day earlier.
 
 Changing a task's reasoning level did nothing, and could not have. Asked to think less, the free model kept taking a median 22.8 seconds before saying a word.
 

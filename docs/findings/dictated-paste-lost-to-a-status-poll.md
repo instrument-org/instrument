@@ -1,6 +1,6 @@
 # A dictated paste lands the old clipboard, because a status poll holds the main thread
 
-**Status:** fixed. Measured on 2026-09-30 against 103 filed tasks and on 2026-10-01 against a copy of a real workspace of 353 chats and 388 filed tasks after the 1.x migration, then fixed and re-measured on that copy the same day. The cause and the measurements below are the record; the fix is at the end.
+**Status:** fixed in 4962c9595, 16fb93fab and f9413ee76; checked 2026-10-02. Measured on 2026-09-30 against 103 filed tasks and on 2026-10-01 against a copy of a real workspace of 353 chats and 388 filed tasks after the 1.x migration, then fixed and re-measured on that copy the same day. The cause and the measurements below are the record; the fix is at the end.
 
 Dictation tools that insert text by pasting (Handy is the one this was found with) sometimes put the user's previous clipboard into the composer instead of what they just said. Other apps on the same machine do not. The cause is not our paste handling and not the agent's turn: it is a two-second poll whose every answer reads the whole message history of every task the window has filed.
 
@@ -74,7 +74,7 @@ It is not the shape to ship. Holding every transcript it has read is unbounded, 
 - Task databases idle for 30 seconds close once more than 64 are open.
 - The chat list mounts only the rows near the view.
 
-On the same 353-chat copy afterwards: `chats.tasks` took 55 to 66 ms, the window idled at main event-loop p99 8 ms with no stall over 30 ms, twenty quick changes to one chat caused two list rebuilds, and open task databases settled at 64. A Handy paste into the composer landed. What the list still pays on boot and on each rebuild is the subject of [the chat list index plan](../plans/active/chat-list-index.md).
+On the same 353-chat copy afterwards: `chats.tasks` took 55 to 66 ms, the window idled at main event-loop p99 8 ms with no stall over 30 ms, twenty quick changes to one chat caused two list rebuilds, and open task databases settled at 64. A Handy paste into the composer landed. What the list still pays on boot and on each rebuild is the subject of [the chat list index plan](../plans/completed/chat-list-index.md).
 
 A regression test is `main-stalls.mjs` from the `studio-chrome-devtools` skill, or the simulator above, against a workspace with a hundred filed tasks: pastes should land 60 of 60 with a 60 ms restore, and main's event-loop p99 should stay under 20 ms at idle.
 

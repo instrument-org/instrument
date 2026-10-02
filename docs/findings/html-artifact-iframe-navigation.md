@@ -1,6 +1,6 @@
 # HTML file artifacts: in-iframe link navigation can't be tracked or driven
 
-**Status:** resolved — an HTML file the person opens is shown in a `<webview>` guest of the orchestrator window at its `file://` address, with the guest's own back, forward and reload; the sandboxed iframe is gone. See [in-app-browser.md](../architecture/in-app-browser.md). The symptom and root cause below describe the iframe as it was.
+**Status:** moot: the sandboxed iframe was removed in 15dae28cb (checked 2026-10-02). An HTML file the person opens is shown in a `<webview>` guest of the app window at its `file://` address, with the guest's own back, forward and reload; the sandboxed iframe is gone. See [in-app-browser.md](../architecture/in-app-browser.md). The symptom and root cause below describe the iframe as it was.
 
 ## Symptom
 

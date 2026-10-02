@@ -1,6 +1,6 @@
 # The macOS folder ask holds a listing, not a write
 
-**Status:** observed on macOS 27 with an installed beta build, and worked around in `task new`. The mechanism inside macOS is not established; the behavior is.
+**Status:** observed on macOS 27 with an installed beta build, and worked around in `task new`. The mechanism inside macOS is not established; the behavior is. Workaround checked against the code 2026-10-02.
 
 ## What happened
 

@@ -1,6 +1,6 @@
 # The agent's filesystem work stalls the window, and not by blocking it
 
-**Status:** open, measured and traced to source. The mechanism is understood and reproducible; the fix is [moving the agent turn off the main thread](../plans/active/agent-turn-off-the-main-thread.md). Last checked 2026-09-08 against 2.0.0-beta.1.
+**Status:** contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main; the rest of [moving the agent turn off the main thread](../plans/active/agent-turn-off-the-main-thread.md) is open. The body describes the process as it was before that, measured 2026-09-08 against 2.0.0-beta.1. Checked 2026-10-02.
 
 The window becomes unresponsive while the agent does broad filesystem work, most visibly when a task has a large user folder attached and the agent searches it. The obvious reading is a long synchronous block on the thread that owns the window. That reading is wrong, and acting on it leads to fixes that do not work.
 

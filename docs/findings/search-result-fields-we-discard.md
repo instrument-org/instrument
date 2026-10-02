@@ -1,6 +1,6 @@
 # The search backend returns more per result than we forwarded
 
-**Status:** fixed for what was fixable. `image` and `favicon` are forwarded and rendered, the false freshness claim is gone from the excerpt preamble, and lines three results share are charged for once. What remains is a set of measured trade-offs and one thing that is simply true about the backend, all recorded below so nobody re-derives them. Measured 2026-09-02 against the live backend.
+**Status:** fixed for what was fixable. `image` and `favicon` are forwarded and rendered, the false freshness claim is gone from the excerpt preamble, and lines three results share are charged for once. What remains is a set of measured trade-offs and one thing that is simply true about the backend, all recorded below so nobody re-derives them. Measured 2026-09-02 against the live backend; forwarding checked in `tools/web-search.ts` 2026-10-02.
 
 Every search result carries a lead image and a site icon on the source's own CDN. The platform API's response schema picked five fields and dropped both, so an agent that needed a picture of a search result had to open the page — and the pages most worth illustrating are the ones most likely to refuse.
 

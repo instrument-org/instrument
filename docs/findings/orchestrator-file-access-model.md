@@ -1,18 +1,18 @@
 # What the orchestrator can reach, and whether attachment is the right shape for it
 
-**Status:** open question, researched 2026-09-08 against `spike/orchestrator`. Nothing here is built. The premise that started it — "the orchestrator cannot modify files, so it could safely read the whole disk" — is half true, and the half that is false is where the design turns. Recorded because the answer is not "yes" or "no" but "read and write have to come apart first", and that is a change to how a task's grant is derived rather than to how the shell is mounted.
+**Status:** still open, checked 2026-10-02. Researched 2026-09-08. Nothing here is built. The premise that started it — "the orchestrator cannot modify files, so it could safely read the whole disk" — is half true, and the half that is false is where the design turns. Recorded because the answer is not "yes" or "no" but "read and write have to come apart first", and that is a change to how a task's grant is derived rather than to how the shell is mounted.
 
 ## The question
 
-The orchestrator reaches exactly two folders: the user's home folder and the workspace folder, both attached to its conversation at window open. Everything else needs `request_folder`. The intended model was different — the conversation understands the machine, and the boundary lives at the task, which is where code runs and files are written. So: could the attachment mechanism be dropped for the conversation, and replaced with ambient read of the whole filesystem?
+The orchestrator reaches two standing folders, the user's home folder and the workspace folder, plus any folder the user sent the chat and the folders of the topics it is filed under. Everything else needs `request_folder`. The intended model was different — the conversation understands the machine, and the boundary lives at the task, which is where code runs and files are written. So: could the attachment mechanism be dropped for the conversation, and replaced with ambient read of the whole filesystem?
 
 ## What is true today
 
-**Attachment is the only path to visibility.** `tools/bash.ts` rebuilds the sandbox on every call from `taskState.attachedFolders`, and `buildWorkspaceFsLayout` turns each into a mount. Nothing attached means nothing visible. There is no ambient read anywhere in the agent's path.
+**Attachment is the only path to visibility.** `tools/bash.ts` rebuilds the sandbox on every call from `folderReach` (`lib/orchestrator/folder-reach.ts`), and `buildWorkspaceFsLayout` turns each folder into a mount. Nothing attached means nothing visible. There is no ambient read anywhere in the agent's path.
 
-**The two folders are the app's own doing, stamped as the user's.** `ensureHomeFolder` and `ensureOutputFolder` (`rpc/routes/orchestrator.ts`) attach them when the window opens. `FolderAttachment.Source` is only `"project" | "user"`, so they are recorded as `"user"` — and the conversation's context tells the model "The user has attached these folders to this conversation" about a home folder the user never attached. They also diff as arrivals in the note built for user grants, which is how this question surfaced.
+**The two folders are the app's own doing, stamped as the user's.** `folderReach` adds them on every read rather than writing them to the chat. `FolderAttachment.Source` is only `"project" | "user"`, so they carry `"user"`. The conversation's context now names them for what they are ("their home folder, the workspace folder where results go"), but the `source` still claims the user attached them. When this was researched they were written to the chat at window open and diffed as arrivals in the note built for user grants, which is how this question surfaced.
 
-**The conversation can already modify the filesystem.** The allowlist in `orchestratorRefusal` is `app cat chat cp file find head ls mkdir mv open stat tail task wc`, plus a filter after a pipe, plus a ban on redirecting output. `cp`, `mv`, and `mkdir` are on it deliberately: putting a finished file where it belongs is the conversation's job. So it cannot author a file's contents, but it can move one over another and destroy it. **What bounds that today is not the command list; it is the mount table.**
+**The conversation can already modify the filesystem.** The allowlist in `orchestratorRefusal` (`tools/bash.ts`) is `task app chat memory open`, the file commands `ls cat head tail wc stat file find du cp mv mkdir`, `jobs`/`fg`/`kill`, and `grep`/`rg` on a path, plus a filter after a pipe, plus a ban on redirecting output. `cp`, `mv`, and `mkdir` are on it deliberately: putting a finished file where it belongs is the conversation's job. So it cannot author a file's contents, but it can move one over another and destroy it. **What bounds that today is not the command list; it is the mount table.**
 
 **The mount table is what makes writes safe, and it is doing two jobs.** A mount carries `readOnly` per folder. The home mount is recorded `read-write` and downgraded to read-only *as a whole* by `effectiveFolderAccess`, because the workspace lives inside it — and folders inside it keep the write grant. That one rule is doing two unrelated things: it stops the agent writing into the user's home, and it is also the thing that lets the conversation hand a task `Downloads:rw`.
 
@@ -20,11 +20,11 @@ The orchestrator reaches exactly two folders: the user's home folder and the wor
 
 **The app already reads the whole disk — just not for the agent.** `lib/orchestrator/computer.ts` walks `/Volumes` and any host path with the app's own permissions, and computes an access label per folder from the grants. So the This Mac screen sees everything while the agent sees two mounts. Point at an external drive and say "this folder" and the conversation has to ask for it.
 
-**The privacy delta is narrower than it sounds.** The home mount is readable in full, and nothing is masked: attached folders are mounted `masksPrivateDir: false`, and the workspace-overlap rule is a write rule rather than a read mask. `~/.ssh`, shell history, and application support directories are already readable by the conversation today. Ambient read would add `/Volumes`, `/Applications`, system directories, and other users' homes — real, but not the step from nothing to everything it reads like.
+**The privacy delta is narrower than it sounds.** The home mount is readable in full, and nothing is masked: attached folders are mounted with empty `maskedEntries`, and the workspace-overlap rule is a write rule rather than a read mask. `~/.ssh`, shell history, and application support directories are already readable by the conversation today. Ambient read would add `/Volumes`, `/Applications`, system directories, and other users' homes — real, but not the step from nothing to everything it reads like.
 
 ## What the change would actually be
 
-**Read is trivially expressible.** A mount is `{ hostRoot, mountPoint, readOnly, masksPrivateDir }`, so `{ hostRoot: "/", readOnly: true }` needs no new machinery. The asset origin resolves through the same layout, so file previews follow automatically.
+**Read is trivially expressible.** A mount is `{ hostRoot, mountPoint, readOnly, maskedEntries }`, so `{ hostRoot: "/", readOnly: true }` needs no new machinery. Files open at their real host path, so file previews need nothing either.
 
 **Write is the whole decision.** Mount `/` read-only and two things break at once:
 

@@ -1,6 +1,6 @@
 # A page the user asked to see does not appear, because driving the browser never opens the pane
 
-**Status:** resolved. Recorded 2026-08-11, fixed 2026-08-12. Measured by `show-a-page` in [show.ts](../../packages/workspace/evals/cases/show.ts).
+**Status:** resolved in the 1.x window, likely moot in 2.0. Recorded 2026-08-11, fixed 2026-08-12, measured by the `show-a-page` eval case, which was deleted with the task's `show` command in 39cbe8ab6. Checked 2026-10-02: `revealBrowserTab` in `browser-state.ts` still selects the task pane's browser tab once per turn, but no 2.0 surface reads the task pane (`useTaskPane` has no callers), and a 2.0 task opens a page in a tab of its chat, behind what the user has up. Not checked in the running app.
 
 Asked "Pull up example.com so I can see it", both models tested navigated the task browser and left the pane closed, so nothing appeared on screen. The user's request was satisfied inside the agent and invisible outside it.
 

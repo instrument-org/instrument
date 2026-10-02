@@ -1,6 +1,6 @@
 # Preview.app cannot open the file types tasks mostly produce
 
-**Status:** closed. Working as designed, nothing to fix in our code. Recorded 2026-07-28.
+**Status:** closed. Working as designed, nothing to fix in our code. Recorded 2026-07-28; checked 2026-10-02.
 
 ## Context
 

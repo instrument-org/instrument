@@ -1,6 +1,6 @@
 # TypeScript 7 (tsgo): why we run a dual TypeScript setup
 
-**Status:** open — waiting on upstream. Last updated 2026-07-10.
+**Status:** still open, checked 2026-10-02, but the first trigger below may already be clear on our side. ESLint, `typescript-eslint` and the ESLint plugins listed under "Why the classic `typescript` stays" were dropped in 4fd1acd37, and the lockfile now shows no installed package peer-requiring classic `typescript` beyond optional type peers (`valibot`, `msw`, `@t3-oss/env-core`, `vue`). `typescript` (5.9.x) is still declared at the root, in `apps/studio` and in `packages/workspace`; whether anything still calls its compiler API was not established. The VS Code trigger still waits on upstream.
 
 ## What
 

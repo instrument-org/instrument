@@ -1,6 +1,6 @@
 # In-app browser: device/viewport emulation isn't safe for agent-browser
 
-**Status:** superseded — the request is honored again, by a different mechanism. Last updated 2026-08-26.
+**Status:** superseded: the request is honored again, by a different mechanism. Last updated 2026-08-26; checked 2026-10-02.
 
 ## Symptom
 

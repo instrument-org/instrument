@@ -1,6 +1,6 @@
 # A driven chord opens the About panel
 
-**Status:** fixed on both paths. The drive skill's `press` no longer sends `nativeVirtualKeyCode` on macOS, and the guest relay strips it from what the browser client sends. The durable part is the belief it corrects: a CDP-injected key event can reach the native macOS menu, so a chord that appears to do nothing is not proof that nothing happened. Measured 2026-09-08.
+**Status:** fixed on both paths (drive skill and guest relay d91dd7a74), checked 2026-10-02. The drive skill's `press` no longer sends `nativeVirtualKeyCode` on macOS, and the guest relay strips it from what the browser client sends. The durable part is the belief it corrects: a CDP-injected key event can reach the native macOS menu, so a chord that appears to do nothing is not proof that nothing happened. Measured 2026-09-08.
 
 Driving Studio with the chrome-devtools skill's `press` verb could open the macOS standard About panel over whatever window the person at the machine was in. It read as unrelated to the agent's work: the chord did not do the thing it was sent for, the run reported a successful press and moved on, and the panel arrived on someone else's screen a moment later.
 

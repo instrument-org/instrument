@@ -1,6 +1,6 @@
 # Reloading the app destroys every task browser
 
-**Status:** contained. Recorded 2026-08-12.
+**Status:** contained. Recorded 2026-08-12. Checked 2026-10-02: the guest is still a renderer `<webview>`, Cmd+R still reloads only the page on screen, and the app reload is still developer-only; whether the 2.0 window's tabs reopen a lost page at its URL was not checked.
 
 Reloading the renderer takes every task's browser with it. The page the user was on is gone, the browser comes back at `about:blank`, and the task's `agent-browser` daemon sessions are closed underneath a running agent. This is why the app reload is a developer-mode affordance rather than a chord any user can hit.
 
@@ -18,7 +18,7 @@ What survives: the browser profile on disk, so cookies and storage are intact an
 
 ## What has been done about it
 
-Cmd+R means the page in front of the user and nothing else. The foreground browser panel claims the chord through [foreground-browser-registry.ts](../../apps/studio/src/client/lib/foreground-browser-registry.ts), the same way it claims Cmd+F, and with no panel claiming it the chord does nothing ([use-app-commands.ts](../../apps/studio/src/client/hooks/use-app-commands.ts)). The app reload is `reloadApp` (Cmd+Shift+R) alone, in the Developer group, whose chords are bound only in developer mode — so one gate in the accelerator binder decides who can reach it, rather than a second policy sitting in the renderer. The other way back from a wedged app is the button [app-error-fallback.tsx](../../apps/studio/src/client/components/app-error-fallback.tsx) puts on screen when the shell crashes, which is the salvage path Cmd+R was being kept for and the one that is actually discoverable in the situation it is meant for.
+Cmd+R means the page in front of the user and nothing else. The foreground browser panel claims the chord through [foreground-browser-registry.ts](../../apps/studio/src/client/lib/foreground-browser-registry.ts), the same way it claims Cmd+F, and with no panel claiming it the chord does nothing ([use-window-commands.ts](../../apps/studio/src/client/components/window/use-window-commands.ts)). The app reload is `reloadApp` (Cmd+Shift+R) alone, in the Developer group, whose chords are bound only in developer mode — so one gate in the accelerator binder decides who can reach it, rather than a second policy sitting in the renderer. The other way back from a wedged app is the button [app-error-fallback.tsx](../../apps/studio/src/client/components/app-error-fallback.tsx) puts on screen when the shell crashes, which is the salvage path Cmd+R was being kept for and the one that is actually discoverable in the situation it is meant for.
 
 That leaves the destruction reachable only where someone is equipped to understand it. It does not make it any less destructive when it happens, which is what the rest of this note is about.
 

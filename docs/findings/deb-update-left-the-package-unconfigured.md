@@ -1,6 +1,6 @@
 # A deb update can leave the package unpacked but not configured
 
-**Status:** fixed and verified in a shipped build. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day, fixed by moving the install into a transient systemd scope, and confirmed across two betas on 2026-08-28. What performed the teardown during the original incident was never established and is no longer load-bearing. Last updated 2026-08-28.
+**Status:** fixed (df48c5507) and verified in a shipped build; the transient-scope install is still in `update.ts`, checked 2026-10-02. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day, fixed by moving the install into a transient systemd scope, and confirmed across two betas on 2026-08-28. What performed the teardown during the original incident was never established and is no longer load-bearing. Last updated 2026-08-28.
 
 ## Why an unconfigured package cannot start
 

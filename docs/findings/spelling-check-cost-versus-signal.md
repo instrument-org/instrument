@@ -1,6 +1,6 @@
 # Why the spell checker is `typos` and not `cspell`
 
-**Status:** resolved. cspell removed, `typos` adopted. Recorded 2026-08-12.
+**Status:** resolved. cspell removed, `typos` adopted. Recorded 2026-08-12; checked 2026-10-02.
 
 ## Context
 
@@ -83,6 +83,8 @@ Two things had to be excluded rather than corrected, both because their misspell
 Bumping the version means updating `TYPOS_VERSION` and every entry in `CHECKSUMS`. crate-ci publishes no checksum sidecar, so the hashes are pinned in the script rather than fetched.
 
 ## The pedantic lint rules are a different verdict
+
+Overtaken since: ESLint, `perfectionist` and markdownlint were dropped in 4fd1acd37, and `check:lint` is `oxlint --type-aware` alone, with no rule checking ordering. The section below records the verdict as it stood.
 
 Worth separating, because the intuition that they are the same kind of waste does not hold up.
 

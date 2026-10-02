@@ -1,6 +1,6 @@
 # A quit confirmation must run before the window is destroyed on Windows/Linux
 
-**Status:** resolved — guidance for anything that gates or delays a quit. Recorded 2026-07-25.
+**Status:** resolved, guidance for anything that gates or delays a quit. Recorded 2026-07-25; checked 2026-10-02 (the ask lives in `windows/app-window.ts`'s `close` handler).
 
 ## Symptom
 

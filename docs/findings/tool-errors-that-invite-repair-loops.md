@@ -1,6 +1,6 @@
 # Tool errors that invite repair loops
 
-**Status:** fixed. The durable part is the guidance in "What to take from it", which applies to every tool error message.
+**Status:** fixed, checked 2026-10-02. The durable part is the guidance in "What to take from it", which applies to every tool error message.
 
 A tool error is not only a report. It is an instruction, and models follow it further than intended. A message that suggests a way forward on a file that has no way forward turns a bounded failure into an unbounded one.
 

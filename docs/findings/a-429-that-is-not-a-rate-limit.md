@@ -1,6 +1,6 @@
 # A 429 that is not a rate limit
 
-**Status:** fixed. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable part is the methodology: the host answers the same request differently seconds apart, so the single-sample comparisons two sessions each built a mechanism on were both unsound, and only the aggregate survives. Companion reading from the browser side is [what the task browser reports about itself](task-browser-self-report.md). Measured 2026-09-02.
+**Status:** fixed in 2cc483a89, checked 2026-10-02. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable part is the methodology: the host answers the same request differently seconds apart, so the single-sample comparisons two sessions each built a mechanism on were both unsound, and only the aggregate survives. Companion reading from the browser side is [what the task browser reports about itself](task-browser-self-report.md). Measured 2026-09-02.
 
 A large retail site refuses most requests from any scripted HTTP client, including the first one, with **HTTP 429** and no `Retry-After`. No prior traffic, nothing to rate-limit. `web_fetch` cancelled the body and reported `Request failed with status 429 Too Many Requests.`, so the model read a rate limit, did what a rate limit calls for, and could not succeed.
 

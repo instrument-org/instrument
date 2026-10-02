@@ -1,6 +1,6 @@
 # Loading a Python skill popped the macOS Command Line Tools installer
 
-**Status:** resolved by `DEVELOPER_DIR`. Recorded 2026-07-29. Last updated 2026-07-29.
+**Status:** resolved by `DEVELOPER_DIR`, checked 2026-10-02. Recorded 2026-07-29.
 
 ## Context
 

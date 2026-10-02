@@ -1,6 +1,6 @@
 # Prompt cache provider affinity and breakpoint gaps
 
-**Status:** open, deliberately deferred. See "Why this remains deferred" for what would have to change first.
+**Status:** still open, deliberately deferred, checked 2026-10-02. The ChatGPT plan route alone now sends a per-session `prompt_cache_key` (620d455bf, `chatgpt-plan-request.ts`); direct OpenAI Responses requests still send none. See "Why this remains deferred" for what would have to change first.
 
 ## Finding
 
@@ -10,7 +10,7 @@ Byte-stable prompts are necessary but not sufficient for reliable prompt-cache r
 
 - Anthropic-family requests add ephemeral cache control to the first two system messages and the final two non-system messages. No independent cache point is placed at the end of the stable tool-definition block.
 - Direct OpenAI Responses requests disable storage and request encrypted reasoning content for supported reasoning models. They do not receive a stable session-level prompt cache key.
-- The provider-options helper accepts only a model, so it cannot derive any session-affinity value without a signature change.
+- The provider-options helper (`providerOptionsForModel`) accepts only a model and its reasoning settings, so it cannot derive any session-affinity value without a signature change.
 - Routing through a gateway or aggregator can send identical requests to different upstream workers or providers unless that route exposes and receives a stable affinity key.
 - Usage telemetry records provider-reported cached input when available, but the harness does not explain whether a miss came from changed bytes, routing, expiry, or a provider policy.
 

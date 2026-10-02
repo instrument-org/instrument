@@ -1,6 +1,6 @@
 # Local transcription: engine choice
 
-**Status:** the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run. How the engine is invoked was measured separately and acted on: see [Decode parameters, measured](#decode-parameters-measured).
+**Status:** the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run. How the engine is invoked was measured separately and acted on: see [Decode parameters, measured](#decode-parameters-measured). Checked 2026-10-02: the skill (`local-ml`'s `speech-to-text.py`) still carries the shipped defaults and `--device auto`.
 
 A user attached a multi-gigabyte podcast MP4, asked for a transcript, and stopped the task after an hour with nothing produced (FP-1245). This records what was measured about the engine underneath that path, whether the JavaScript implementation it replaced was better, and what changing the decode parameters was worth.
 

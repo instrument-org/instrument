@@ -1,6 +1,6 @@
 # The transcript column jumps while a turn runs
 
-**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement exists and is committed, and two bugs in the instrument itself are fixed; the jumping has not been isolated and nothing fails when it happens. Two known sources of movement have since been taken out of the transcript by hand — see below — without anything having been measured to say how much of the symptom they were.
+**Status:** still open, instrumented but not diagnosed, checked 2026-10-02. Recorded 2026-08-10. The measurement exists and is committed, and two bugs in the instrument itself are fixed; the jumping has not been isolated and nothing fails when it happens. Two known sources of movement have since been taken out of the transcript by hand — see below — without anything having been measured to say how much of the symptom they were.
 
 **This is about the chat transcript in the product, not about the page it is being watched on.** The transcript page is the instrument and nothing more.
 

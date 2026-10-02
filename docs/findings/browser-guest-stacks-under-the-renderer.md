@@ -1,6 +1,6 @@
 # The browser guest stacks under the renderer's own layers
 
-**Status:** verified on macOS. The 2.0 window no longer parks the pane's page under a draft window or a thread's small view. The classic window's dialog coverage is left as it was.
+**Status:** verified on macOS. The 2.0 window no longer parks the pane's page under a draft window or a thread's small view. The classic window was removed in a73917f45, and with it the only reader of the dialog coverage count: dialogs, sheets and alert dialogs still register through `useCoversGuests`, but `useGuestCovered` has no callers, so no guest is parked under a dialog. Checked 2026-10-02.
 
 ## The belief
 

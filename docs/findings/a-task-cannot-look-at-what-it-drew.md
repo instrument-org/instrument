@@ -1,6 +1,6 @@
 # A task cannot look at what it drew
 
-**Status:** measured 2026-09-07 across four models on five visual deliverables. Three of the four tried to open their own finished page or drawing and were stopped by the same error. One of them found a way through after six failed attempts. The eval harness is where this was found and where the fix belongs; whether the packaged app has the same gap is untested and stated as such below.
+**Status:** harness gap fixed in 95af4cfc3 (`hasNoWindow`; the CDP bridge now lives at `packages/workspace/src/logic/server/routes/cdp-bridge.ts`). The asset-origin URL shown below is overtaken: the origin was removed and `open` goes to the file's own `file://` address. Whether a task has a supported way to rasterize a drawing is still open, not re-measured. Checked 2026-10-02. Originally measured 2026-09-07 across four models on five visual deliverables. Three of the four tried to open their own finished page or drawing and were stopped by the same error. One of them found a way through after six failed attempts. The eval harness is where this was found and where the fix belongs; whether the packaged app has the same gap is untested and stated as such below.
 
 ## What happens
 

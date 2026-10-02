@@ -1,15 +1,11 @@
 // ---- the window kit ------------------------------------------------------------
 // The Studio window, measured off a 1240x840 window on the documents fixture
-// (2026-10-01, after the classic window was removed) and redrawn at 1280x800 in the
-// light theme. The bar (40) and the rail (76) sit on the gray ground; everything else
-// is one rounded card inset 8px from the right and bottom. Chat is the inbox column
-// (320) beside a thread or the empty state; a chat's pane sits flush beside it with
-// its tiles on a 120px rail. Window tabs live in the bar. Onboarding is its own
-// 480x600 window. build.mjs pastes this whole file, after brands.js, into the
-// wireframe template's kit section.
-
-const W2 = 1280;
-const H2 = 800;
+// (2026-10-01) and redrawn at 1280x800 in the light theme. The bar (40) and the rail
+// (76) sit on the gray ground; everything else is one rounded card inset 8px from the
+// right and bottom. Chat is the inbox column (320) beside a thread or the empty state;
+// a chat's pane sits flush beside it with its tiles on a 120px rail. Window tabs live
+// in the bar. Onboarding is its own 480x600 window. build.mjs pastes this whole file,
+// after brands.js, into the wireframe template's kit section.
 
 const brand = (key, cls = "size-4") =>
   `<img src="${BRAND_URI[key]}" class="${cls} shrink-0" alt="">`;
@@ -146,7 +142,7 @@ const rail = (on = "chat", { mark = {}, user = false } = {}) => `
   </nav>`;
 
 /** The whole window. `over` is drawn on a layer over everything (floating chats, menus, sheets). */
-const win2 = ({
+const appWindow = ({
   bar = winBar(),
   on = "chat",
   body = inboxCol({ on: -1 }) + noChatOpen(),

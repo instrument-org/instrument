@@ -1,4 +1,4 @@
-// Brand marks for the 2.0 kit as data URIs, keyed by name (airbnb, apple, figma, github,
+// Brand marks for the kit as data URIs, keyed by name (airbnb, apple, figma, github,
 // gmail, googlechrome, ikea, linear, notion, obsidian, posthog, target, todoist, wikipedia,
 // youtube). Inlined so a page draws them offline and on the share host.
 const BRAND_URI = {

@@ -1,6 +1,6 @@
 // node build.mjs <part.js> <out.html>
-// Builds a create-page wireframe of the 2.0 window from the skill's starter, the
-// wireframe template's main.html, this kit (brands.js + window-2.js) and a part that
+// Builds a create-page wireframe of the Studio window from the skill's starter, the
+// wireframe template's main.html, this kit (brands.js + window.js + mac.js) and a part that
 // defines META and states. CREATE_PAGE_DIR points at the create-page skill when it is
 // not installed at ~/.claude/skills/create-page.
 import fs from "node:fs";
@@ -18,10 +18,9 @@ let main = fs.readFileSync(
   path.join(SKILL, "templates/wireframe/main.html"),
   "utf8",
 );
-const kit =
-  fs.readFileSync(path.join(here, "brands.js"), "utf8") +
-  "\n" +
-  fs.readFileSync(path.join(here, "window-2.js"), "utf8");
+const kit = ["brands.js", "window.js", "mac.js"]
+  .map((f) => fs.readFileSync(path.join(here, f), "utf8"))
+  .join("\n");
 const part = fs.readFileSync(partPath, "utf8");
 
 const cut = (s, from, to, insert) => {

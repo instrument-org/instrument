@@ -171,7 +171,7 @@ It gives a fresh `Instrument (<timestamp>)` userData via `ELECTRON_USE_NEW_USER_
 ## Tests
 
 - Registry: missing, unreadable, and dangling-path files resolve to Default; `INSTRUMENT_WORKSPACE` wins over `active`; a pinned process never writes `active`; two writers each keep the other's entry.
-- Migration over a temp userData for both name sets (dev and packaged): the machine files are built from the legacy root files; Default's version 1 lands every file under `settings/` and removes the three legacy root files; a second run is a no-op; an existing target is never overwritten; a non-Default workspace opened first leaves the legacy files alone; a workspace that is not opened is not touched.
+- Migration over a temp userData for both name sets (dev and packaged): the machine files are built from the legacy root files; Default's version 1 lands every file under `settings/`, copying the legacy root files and leaving them in place, and moves only the ChatGPT plan; a second run is a no-op; an existing target is never overwritten; a non-Default workspace opened first leaves the legacy files alone; a workspace that is not opened is not touched.
 - Store construction: a workspace store opened with a temp `cwd` reads and writes there and nowhere else.
 - App session: the app window's session path is under the resolved workspace, and `configureAppSession` applies the user agent, permission handler, authenticator, and `app:` handler to it.
 - Supervisor: restarts on the relaunch code with the same environment and arguments, exits with the child's code otherwise.

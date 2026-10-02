@@ -10,9 +10,10 @@ import { z } from "zod";
 
 /**
  * Where every app stands, keyed by slug: connected on which manifest, or what
- * is missing. Not a secret, so plain JSON, but deliberately outside the
- * workspace, where the agent's file tools cannot reach it: a call goes
- * through on this record and never on the manifest's say-so.
+ * is missing. Not a secret, so plain JSON, but deliberately in the
+ * workspace's private `.instrument/` folder, which the agent's file tools
+ * mask: a call goes through on this record and never on the manifest's
+ * say-so.
  */
 const AppConnectionsStoreSchema = z
   .object({

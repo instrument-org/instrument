@@ -2,7 +2,10 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
-import { scheduleRefresh as scheduleChatGPTPlanRefresh } from "@/electron-main/lib/chatgpt-plan";
+import {
+  refreshAfterWake as refreshChatGPTPlanAfterWake,
+  scheduleRefresh as scheduleChatGPTPlanRefresh,
+} from "@/electron-main/lib/chatgpt-plan";
 import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
@@ -31,6 +34,7 @@ import {
   BrowserWindow,
   dialog,
   nativeTheme,
+  powerMonitor,
   protocol,
   session,
 } from "electron";
@@ -210,6 +214,7 @@ async function bootstrapPrimaryInstance() {
 
   // A signed-in ChatGPT plan's access token lasts an hour.
   scheduleChatGPTPlanRefresh();
+  powerMonitor.on("resume", refreshChatGPTPlanAfterWake);
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,

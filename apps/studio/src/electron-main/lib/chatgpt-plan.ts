@@ -519,6 +519,25 @@ export function scheduleRefresh(): void {
   refreshTimer.unref();
 }
 
+/**
+ * Catch the token up after the machine wakes. The refresh timer counts on a
+ * clock that stops while the machine sleeps, so after a sleep longer than the
+ * token's hour it is still waiting for a token that has already expired, and
+ * the first request after waking would carry it. A token still good is left
+ * to a timer counted again from now.
+ */
+export function refreshAfterWake(): void {
+  const account = activeAccount();
+  if (!account?.refreshToken) {
+    return;
+  }
+  if ((account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
+    void refreshActiveAccount();
+  } else {
+    scheduleRefresh();
+  }
+}
+
 export async function signOutOfChatGPT(): Promise<{ revoked: boolean }> {
   const account = activeAccount();
   if (!account) {

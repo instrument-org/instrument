@@ -2366,7 +2366,7 @@ export function FileSystem({
                 ) : null}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper">
               {VIEW_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   <span className="flex items-center gap-2">
@@ -2941,7 +2941,7 @@ function FileSystemSortSelect({
           <ArrowUpDown className="size-4" />
         </SelectValue>
       </SelectTrigger>
-      <SelectContent align="end">
+      <SelectContent align="end" position="popper">
         {SORT_OPTIONS.map((option) => (
           <SelectItem key={option.key} value={option.key}>
             {option.label}

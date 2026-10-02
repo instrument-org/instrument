@@ -2342,7 +2342,12 @@ export function FileSystem({
         // rows' single tab stop names takes the keyboard and is handed the
         // press, which its own view answers as it would any other. The synthetic
         // press is untrusted, which is what keeps it from arriving back here.
-        if (!event.isTrusted || !ARROW_KEYS.has(event.key)) {
+        // Return on the browser itself is the same: a rename just put away
+        // leaves the keyboard here while its row is rebuilt under the new
+        // name, and Return renames again from where the arrows would walk.
+        const isReturnHere =
+          event.key === "Enter" && event.target === event.currentTarget;
+        if (!event.isTrusted || !(ARROW_KEYS.has(event.key) || isReturnHere)) {
           return;
         }
         const target =
@@ -3678,8 +3683,13 @@ function FileSystemNameField({
   return (
     <input
       aria-label="Name"
+      // Typed over where the name stood, the way the Finder does it: the
+      // row's own font, an opaque box of the Finder's ground over the
+      // selection, as wide as the name, and an outline that takes no room,
+      // the box bleeding a hair past the name (each caller's margin gives
+      // the hair back) so not a letter moves.
       className={cn(
-        "min-w-0 flex-1 rounded-sm border border-ring bg-background px-1 py-0 text-sm text-foreground outline-none",
+        "field-sizing-content min-w-4 max-w-full shrink rounded-[3px] bg-background px-0.5 py-0 [font:inherit] text-foreground ring-1 ring-ring outline-none",
         className,
       )}
       defaultValue={name}
@@ -4139,12 +4149,21 @@ function FileSystemIconsView({
               return (
                 <div className={tileClassName} key={entry.path}>
                   {glyph}
-                  <FileSystemNameField
-                    className="w-full text-center"
-                    name={entry.name}
-                    onCancel={() => onRenameCancel?.()}
-                    onCommit={(name) => onRenameCommit?.(entry, name)}
-                  />
+                  {/* In the selected name's own pill, so the field sits where
+                      the name did. */}
+                  <span
+                    className={cn(
+                      "flex max-w-full justify-center rounded-sm px-1.5 py-px text-xs leading-tight",
+                      SELECTED_ROW_CLASSNAME,
+                    )}
+                  >
+                    <FileSystemNameField
+                      className="-mx-0.5 text-center"
+                      name={entry.name}
+                      onCancel={() => onRenameCancel?.()}
+                      onCommit={(name) => onRenameCommit?.(entry, name)}
+                    />
+                  </span>
                 </div>
               );
             }
@@ -4858,7 +4877,7 @@ function FileSystemListView({
                       </span>
                       {isRenaming ? (
                         <FileSystemNameField
-                          className="ml-1.5 h-5"
+                          className="-mr-0.5 ml-1 h-5"
                           name={entry.name}
                           onCancel={() => onRenameCancel?.()}
                           onCommit={(name) => onRenameCommit?.(entry, name)}
@@ -5366,11 +5385,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                   // nothing above or below it moves.
                   return (
                     <div
-                      className={cn(rowClassName, "bg-accent")}
+                      className={cn(rowClassName, SELECTED_ROW_CLASSNAME)}
                       key={entry.path}
                     >
                       {glyph}
                       <FileSystemNameField
+                        className="-mx-0.5"
                         name={entry.name}
                         onCancel={() => onRenameCancel?.()}
                         onCommit={(name) => onRenameCommit?.(entry, name)}

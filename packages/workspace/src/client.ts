@@ -33,7 +33,6 @@ export {
   parseMessage,
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
-export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
@@ -53,7 +52,7 @@ export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
-export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
+export { ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { type SessionMessagePart } from "./schemas/session/message-part";

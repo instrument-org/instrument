@@ -150,25 +150,6 @@ export async function updateTaskRecord(
   });
 }
 
-/**
- * Applies a change to the state, reading the current one inside the write
- * queue.
- *
- * For the fields that are read-modify-write on one value with several writers
- * at once: the tabs a task holds, as the chat hands it one while the task
- * opens another. Reading before the queue means the
- * slower writer restores the value the faster one had just changed.
- */
-export async function updateTaskState(
-  dir: TaskDir,
-  update: (state: TaskState) => Partial<TaskState>,
-): Promise<TaskState> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, update(record.state)),
-  );
-  return written.state;
-}
-
 function emptyRecord(unreadable: boolean): TaskRecord {
   return {
     raw: {},

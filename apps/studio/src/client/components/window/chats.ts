@@ -222,26 +222,6 @@ export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
 }
 
 /**
- * The head a day's rows sit under: today and yesterday by name, the rest of
- * the week by weekday, and past that the date, since a weekday alone stops
- * saying which one it was.
- */
-export function dayLabel(date: Date, now: Date): string {
-  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-  const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
-  if (days < 0) {
-    return "Today";
-  }
-  if (days < 1) {
-    return "Yesterday";
-  }
-  if (days < 6) {
-    return format(date, "EEEE");
-  }
-  return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
-}
-
-/**
  * What a draft's row calls it: the first line of its words that says
  * anything, read as a person reads it (a skill as `/name`, an app or a page
  * by the name it was given, no Markdown marks), or a name for one with no

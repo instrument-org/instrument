@@ -21,5 +21,3 @@ export const ProjectIdSchema = z
     }
   })
   .brand("ProjectId");
-
-export type ProjectId = z.output<typeof ProjectIdSchema>;

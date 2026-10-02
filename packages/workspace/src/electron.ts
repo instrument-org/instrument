@@ -63,8 +63,6 @@ export {
 export { attachChats } from "./lib/chat/attach";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
-export { readTaskFile } from "./lib/read-task-file";
-export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
@@ -82,7 +80,6 @@ export {
   RelativePathSchema,
   WorkspaceFilePathSchema,
 } from "./schemas/paths";
-export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";

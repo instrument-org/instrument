@@ -5,16 +5,9 @@ import {
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { describe, expect, it, vi } from "vitest";
 
-import { type TaskId } from "../../schemas/task-id";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { type WorkspaceConfig } from "../../types";
-import { getTaskState } from "../task-record";
-import {
-  completeModelURI,
-  listRunnableModels,
-  modelTable,
-  ownProviderConfigId,
-} from "./models";
+import { completeModelURI, listRunnableModels, modelTable } from "./models";
 
 vi.mock("@instrument-org/ai-gateway", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -38,32 +31,12 @@ vi.mock("../workspace-config", () => ({
     }) as unknown as WorkspaceConfig,
 }));
 
-const TASK_ID = "conversation" as TaskId;
-
-function taskStateWith(selectedModelURI: string | undefined) {
-  vi.mocked(getTaskState).mockResolvedValue({ selectedModelURI });
-}
-
 describe("listRunnableModels", () => {
   it("asks the conversation's own provider and no other", async () => {
     await listRunnableModels(AIProviderConfigIdSchema.parse(THEIR_CONFIG.id));
     expect(vi.mocked(fetchModelResultsForProviders).mock.calls[0]?.[0]).toEqual(
       [THEIR_CONFIG],
     );
-  });
-});
-
-describe("ownProviderConfigId", () => {
-  it("is the provider config the conversation's own model runs on", async () => {
-    taskStateWith(
-      `anthropic/claude-sonnet-5?provider=openrouter&providerConfigId=${THEIR_CONFIG.id}`,
-    );
-    expect(await ownProviderConfigId(TASK_ID)).toBe(THEIR_CONFIG.id);
-  });
-
-  it("is nothing until the conversation has been messaged", async () => {
-    taskStateWith(undefined);
-    expect(await ownProviderConfigId(TASK_ID)).toBeUndefined();
   });
 });
 

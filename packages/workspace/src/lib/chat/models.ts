@@ -94,14 +94,6 @@ export async function ownModelParams(
   return parsed.ok ? parsed.value.params : undefined;
 }
 
-/** The provider config a conversation runs on; see `ownModelParams`. */
-export async function ownProviderConfigId(
-  chatId: TaskId,
-): Promise<AIProviderConfigId | undefined> {
-  const params = await ownModelParams(chatId);
-  return params?.providerConfigId;
-}
-
 const ALL_MODEL_COLUMNS: ModelColumn[] = [
   "model",
   "name",

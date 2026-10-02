@@ -12,7 +12,7 @@ import { windowDir, windowStatePath } from "./window-paths";
  * What the app window keeps about the chats rather than any one of them,
  * in `.instrument/window.json` at the workspace root.
  */
-export const WindowStateSchema = z.object({
+const WindowStateSchema = z.object({
   /**
    * The chat each app was asked for in, by slug: what sends the news of a
    * sign-in, a key, or a decline back to the chat that asked for it.

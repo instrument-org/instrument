@@ -28,7 +28,7 @@ import {
   parseMessage,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
@@ -74,7 +74,14 @@ declare global {
  * chrome around the editor: its kind, who it is to and its subject, editable
  * and written back into the front matter, and the card's Copy and Send.
  */
-export function MarkdownEditor({ hostPath }: { hostPath: string }) {
+export function MarkdownEditor({
+  hostPath,
+  readOnlyView,
+}: {
+  hostPath: string;
+  /** What shows instead when the file is not UTF-8, which saving would corrupt. */
+  readOnlyView: ReactNode;
+}) {
   const initial = useQuery({
     ...rpcClient.files.read.queryOptions({ input: { path: hostPath } }),
     gcTime: 0,
@@ -92,6 +99,16 @@ export function MarkdownEditor({ hostPath }: { hostPath: string }) {
     return (
       <div className="p-8 text-sm text-destructive">
         {initial.error?.message ?? "Could not read the file"}
+      </div>
+    );
+  }
+  if (!initial.data.utf8) {
+    return (
+      <div className="flex size-full min-h-0 flex-col">
+        <div className="shrink-0 px-4 py-2 text-xs text-muted-foreground viewer-chrome-stroke">
+          This file is not UTF-8 text, so it opens read only.
+        </div>
+        <div className="relative min-h-0 flex-1">{readOnlyView}</div>
       </div>
     );
   }

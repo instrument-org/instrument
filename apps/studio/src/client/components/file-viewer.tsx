@@ -466,19 +466,24 @@ const VIEWERS = {
     // Keyed on the file rather than its URL: the URL carries the mtime, so a
     // save of the file being read would reset its scroll position, while a
     // different file should start at the top with an outline of its own.
-    render: (context) =>
-      context.editable ? (
+    render: (context) => {
+      const preview = (
+        <MarkdownDocument key={context.file.hostPath}>
+          <MarkdownPreview url={context.file.url} />
+        </MarkdownDocument>
+      );
+      return context.editable ? (
         <Suspense fallback={<FileLoading />}>
           <MarkdownEditor
             hostPath={context.file.hostPath}
             key={context.file.hostPath}
+            readOnlyView={preview}
           />
         </Suspense>
       ) : (
-        <MarkdownDocument key={context.file.hostPath}>
-          <MarkdownPreview url={context.file.url} />
-        </MarkdownDocument>
-      ),
+        preview
+      );
+    },
     scrolls: "self",
   },
   notebook: {

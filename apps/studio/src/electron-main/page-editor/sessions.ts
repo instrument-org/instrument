@@ -1,4 +1,5 @@
 import { committedDocumentOf } from "@/electron-main/browser-view/frame-documents";
+import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
@@ -109,7 +110,12 @@ export async function loadEditablePage({
   if (!showsFile(guest, filePath)) {
     throw new Error("That page is not showing this file");
   }
-  const disk = await fs.promises.readFile(filePath, "utf8");
+  const disk = utf8Text(await fs.promises.readFile(filePath));
+  if (disk === null) {
+    throw new Error(
+      "This page is not UTF-8 text, so editing it here would change characters it does not touch",
+    );
+  }
   const src = text ?? disk;
   const url = editAddress(guest, filePath);
   watch(guest);

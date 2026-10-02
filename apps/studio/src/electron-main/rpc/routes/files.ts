@@ -1,6 +1,7 @@
+import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
-import { eventIterator } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { shell } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
@@ -207,7 +208,12 @@ async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
  * comes back, so the editor can merge it and try again.
  */
 const write = base
-  .errors({ CANNOT_WRITE: { message: "That file cannot be written to" } })
+  .errors({
+    CANNOT_WRITE: { message: "That file cannot be written to" },
+    NOT_UTF8: {
+      message: "This file is not UTF-8 text, so it is not saved here",
+    },
+  })
   .input(
     z.object({
       baseVersion: z.string().optional(),
@@ -228,8 +234,19 @@ const write = base
   .handler(async ({ errors, input }) => {
     try {
       return await oneWriterAt(input.path, async () => {
-        if (input.baseVersion !== undefined) {
-          const disk = await fs.readFile(input.path, "utf8");
+        // A write with no version to check creates the file when it is not
+        // there; one with a version needs the file it edited.
+        const bytes =
+          input.baseVersion === undefined
+            ? await fs.readFile(input.path).catch(() => null)
+            : await fs.readFile(input.path);
+        // Text in another encoding came to the editor with its unreadable
+        // bytes replaced, so saving it would replace them on disk too.
+        const disk = bytes ? utf8Text(bytes) : null;
+        if (bytes && disk === null) {
+          throw errors.NOT_UTF8();
+        }
+        if (input.baseVersion !== undefined && disk !== null) {
           const diskVersion = versionOf(disk);
           if (diskVersion !== input.baseVersion) {
             return { content: disk, ok: false as const, version: diskVersion };
@@ -239,19 +256,30 @@ const write = base
         return { ok: true as const, version: versionOf(input.content) };
       });
     } catch (error) {
+      if (error instanceof ORPCError && error.code === "NOT_UTF8") {
+        throw error;
+      }
       throw errors.CANNOT_WRITE({
         message: error instanceof Error ? error.message : undefined,
       });
     }
   });
 
-/** A text file's contents and version, for an editor that will write it back. */
+/**
+ * A text file's contents and version, for an editor that will write it back.
+ * A file that is not UTF-8 still reads, its unreadable bytes replaced, with
+ * `utf8` false so the editor opens it read only: `write` refuses it.
+ */
 const read = base
   .input(z.object({ path: HostPathSchema }))
-  .output(z.object({ content: z.string(), version: z.string() }))
+  .output(
+    z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),
+  )
   .handler(async ({ input }) => {
-    const content = await fs.readFile(input.path, "utf8");
-    return { content, version: versionOf(content) };
+    const bytes = await fs.readFile(input.path);
+    const strict = utf8Text(bytes);
+    const content = strict ?? bytes.toString("utf8");
+    return { content, utf8: strict !== null, version: versionOf(content) };
   });
 
 const live = {

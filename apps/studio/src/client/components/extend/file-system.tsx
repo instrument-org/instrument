@@ -81,9 +81,9 @@ import {
   Columns3,
   FileArchiveIcon,
   Filter,
-  LayoutGrid,
-  List,
+  Grid2x2,
   LoaderCircle,
+  Rows3,
   Search,
   X,
 } from "lucide-react";
@@ -246,10 +246,10 @@ export type FileSystemProps = {
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
+  /** The host's primary action, drawn after the folder's name and before the view switcher. */
+  renderHeaderPrimary?: () => React.ReactNode;
   /** Controls drawn among the toolbar's own, between the filters and the search. */
   renderHeaderActions?: () => React.ReactNode;
-  /** Controls drawn at the toolbar's trailing end, after the search. */
-  renderHeaderTrail?: () => React.ReactNode;
   /**
    * What the columns view shows past the last column while no file is
    * selected, given the folder that column lists.
@@ -330,7 +330,7 @@ function fileExtension(name: string) {
   return dotIndex === -1 ? "" : name.slice(dotIndex + 1).toLowerCase();
 }
 function GridViewGlyph(props: InlineRegistryIconProps) {
-  return <LayoutGrid {...props} />;
+  return <Grid2x2 {...props} />;
 }
 // Whether a path is one the Finder would keep out of sight: any segment of it
 // starting with a dot.
@@ -351,8 +351,8 @@ function isHiddenPath(path: string, rootPrefix: string) {
 function LayoutThreeColumnGlyph(props: InlineRegistryIconProps) {
   return <Columns3 {...props} />;
 }
-function LeftToRightListBulletGlyph(props: InlineRegistryIconProps) {
-  return <List {...props} />;
+function ListRowsGlyph(props: InlineRegistryIconProps) {
+  return <Rows3 {...props} />;
 }
 function normalizeFolderPath(path: string) {
   if (!path || path === "/") return "";
@@ -450,7 +450,6 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   zip: "application/zip",
 };
 const FALLBACK_MIME_TYPE = "application/octet-stream";
-const IPAD_MIN_WIDTH = 768;
 const MIME_TYPE_LABELS: Record<string, string> = {
   "application/json": "JSON",
   "application/msword": "Word document (legacy)",
@@ -1485,7 +1484,7 @@ const VIEW_OPTIONS: Array<{
   value: FileSystemView;
 }> = [
   { icon: GridViewGlyph, label: "Grid", value: "icons" },
-  { icon: LeftToRightListBulletGlyph, label: "List", value: "list" },
+  { icon: ListRowsGlyph, label: "List", value: "list" },
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
 ];
 export function FileSystem({
@@ -1524,8 +1523,8 @@ export function FileSystem({
   renderFilePreview,
   renderFileStage,
   renderHeaderActions,
+  renderHeaderPrimary,
   renderHeaderLead,
-  renderHeaderTrail,
   renderTrailing,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
@@ -1882,14 +1881,13 @@ export function FileSystem({
     },
     [],
   );
-  // Below iPad width the view switcher collapses into a select and the sort
-  // select drops its label; below 560px the search input collapses into a
-  // popover, and below 360px the folder name is dropped too.
+  // Below 560px the search input collapses into a popover, and below 360px the
+  // folder name is dropped too. The view switcher answers to the toolbar's
+  // container instead.
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [headerLayout, setHeaderLayout] = React.useState<
     "compact" | "full" | "minimal"
   >("full");
-  const [isBelowIpadWidth, setIsBelowIpadWidth] = React.useState(false);
   React.useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof ResizeObserver === "undefined") return;
@@ -1898,7 +1896,6 @@ export function FileSystem({
       setHeaderLayout(
         width < 360 ? "minimal" : width < 560 ? "compact" : "full",
       );
-      setIsBelowIpadWidth(width < IPAD_MIN_WIDTH);
     };
     const observer = new ResizeObserver((observerEntries) =>
       applyWidth(observerEntries[0]?.contentRect.width),
@@ -2334,7 +2331,7 @@ export function FileSystem({
     >
       <FileSystemIconSpriteSheet />
       <div
-        className="relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
+        className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
         // The toolbar is not the folder, and nothing is made or acted on here.
         onContextMenu={(event) => {
           event.preventDefault();
@@ -2348,24 +2345,25 @@ export function FileSystem({
             </span>
           )}
         </div>
-        {headerLayout !== "full" || isBelowIpadWidth ? (
+        {renderHeaderPrimary ? renderHeaderPrimary() : null}
+        {/* The switcher folds into a select only once the toolbar's own width
+          cannot hold the segmented control beside the rest; the folder name
+          truncates first. Both are mounted and the container decides. */}
+        <div className="flex @md/finder-header:hidden">
           <Select
             onValueChange={(value) => setView(value as FileSystemView)}
             value={view}
           >
             <SelectTrigger
               aria-label="View"
-              // Icon-only like the sort select: sheds the base min-width to
-              // hug icon + chevron at the toolbar's 32px height.
-              className={cn(
-                TOOLBAR_CONTROL_CLASSNAME,
-                "min-h-8 w-auto min-w-0 bg-none dark:border-0 [&_svg]:size-4",
-              )}
+              className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
               size="sm"
             >
               <SelectValue>
                 {activeViewOption ? (
-                  <activeViewOption.icon className="size-4" />
+                  <activeViewOption.icon
+                    className={cn("size-4", VIEW_GLYPH_DIM_CLASSNAME)}
+                  />
                 ) : null}
               </SelectValue>
             </SelectTrigger>
@@ -2380,29 +2378,28 @@ export function FileSystem({
               ))}
             </SelectContent>
           </Select>
-        ) : (
-          <Tabs
-            className="gap-0"
-            onValueChange={(value) => setView(value as FileSystemView)}
-            value={view}
-          >
-            {/* A track a shade darker than the muted one, so it reads as a
+        </div>
+        <Tabs
+          className="hidden gap-0 @md/finder-header:flex"
+          onValueChange={(value) => setView(value as FileSystemView)}
+          value={view}
+        >
+          {/* A track a shade darker than the muted one, so it reads as a
               well the choices sit in against the toolbar's own tint. */}
-            <TabsList className="h-8 bg-foreground/8 p-0.5">
-              {VIEW_OPTIONS.map((option) => (
-                <TabsTrigger
-                  aria-label={`${option.label} view`}
-                  className={VIEW_TAB_CLASSNAME}
-                  key={option.value}
-                  title={option.label}
-                  value={option.value}
-                >
-                  <option.icon className="size-4" />
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        )}
+          <TabsList className="h-8 bg-foreground/8 p-0.5">
+            {VIEW_OPTIONS.map((option) => (
+              <TabsTrigger
+                aria-label={`${option.label} view`}
+                className={VIEW_TAB_CLASSNAME}
+                key={option.value}
+                title={option.label}
+                value={option.value}
+              >
+                <option.icon className="size-4" />
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <div className="flex min-w-0 items-center justify-end gap-1.5">
           <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
           <FileSystemFilterMenu
@@ -2423,7 +2420,6 @@ export function FileSystem({
             onValueChange={setSearchInput}
             value={searchInput}
           />
-          {renderHeaderTrail ? renderHeaderTrail() : null}
         </div>
       </div>
       {hasActiveFilters ? (
@@ -2595,30 +2591,38 @@ export function FileSystem({
     </div>
   );
 }
-// The selected layout in the view switcher, which the shared tab trigger draws
-// as a raised card: a lighter fill than the track it sits in, a shadow, and in
-// dark mode a border of its own. Against this toolbar the border and the shadow
-// read as a halo around the icon rather than as a segment being picked, and the
-// fill is barely a step off the track it is supposed to stand out from.
-//
-// The app's own pressed-toolbar treatment instead -- `accent` fill, no border,
-// no shadow -- which is what every other icon that holds a state here wears.
-// Both `dark:` and the bare variant are restated because the trigger declares
-// each separately, and only a rule of the same specificity replaces one.
-// The chosen view stands on the track as a white pill with its own edge, the
-// tabs primitive's selected state, so the three read as one control with one
-// choice made rather than three loose buttons.
+// Dark mode's muted foreground is a translucent white, and each of a view
+// glyph's frame and dividers composites on its own, so the crossings paint
+// twice and read brighter than the strokes. An opaque white faded as one layer
+// paints every pixel once at the same strength.
+const VIEW_GLYPH_DIM_CLASSNAME = "dark:text-foreground dark:opacity-60";
+// The selected layout in the view switcher stands on the track as the same
+// surface as the toolbar's buttons: card fill, the shadow's hairline as its only
+// edge, so a choice made here and a button beside it read as one family. The
+// tab trigger's own dark border is cleared for that reason; its dark fill is
+// already the buttons' `input/30`. The unselected glyphs dim as one layer, as
+// above.
 const VIEW_TAB_CLASSNAME =
-  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7";
+  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7 dark:data-[state=active]:border-transparent dark:not-data-[state=active]:[&_svg]:text-foreground dark:not-data-[state=active]:[&_svg]:opacity-60";
 // The surface every framed control on the toolbar stands on: 32px tall, the
 // track's height, 8px corners, and the shadow's own hairline as the edge, so
-// the sort, the filter, the search and whatever the host adds after them are
-// one family.
+// the sort, the filter, the search, the overflow menu and whatever the host
+// adds after them are one family. The hover is restated with `not-disabled:` so
+// it replaces the one each primitive (button, select trigger) brings.
 export const TOOLBAR_CONTROL_CLASSNAME =
-  "h-8 rounded-lg border-0 bg-card shadow-xs dark:bg-input/30";
-// Shared style for the ghost icon buttons in the toolbar.
-export const TOOLBAR_ICON_BUTTON_CLASSNAME =
-  "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
+  "h-8 rounded-lg border-0 bg-card shadow-xs not-disabled:hover:bg-accent dark:bg-input/30 dark:not-disabled:hover:bg-input/50";
+// An icon-only select in that family: sheds the base min-width to hug icon and
+// caret at the toolbar's 32px height, and draws the caret at a hint's size so
+// the icon reads as the control and the caret as the note that it opens.
+const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
+  TOOLBAR_CONTROL_CLASSNAME,
+  "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-2 dark:border-0 [&>svg:last-child]:size-2.5",
+);
+// The square, icon-only member of that family.
+export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
+  TOOLBAR_CONTROL_CLASSNAME,
+  "flex size-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+);
 // Searchable file-type list (cmdk) rendered inside a menu popup, so the
 // long MIME list can be filtered by typing. Selection toggles stay open for
 // multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
@@ -2723,7 +2727,7 @@ function FileSystemFilterMenu({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label="Filter"
-          className={cn(TOOLBAR_CONTROL_CLASSNAME, "relative size-8 sm:size-8")}
+          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative sm:size-8")}
           size="icon-sm"
           title="Filter"
           type="button"
@@ -2934,10 +2938,7 @@ function FileSystemSortSelect({
     >
       <SelectTrigger
         aria-label="Sort by"
-        className={cn(
-          TOOLBAR_CONTROL_CLASSNAME,
-          "min-h-8 w-auto min-w-0 shrink-0 bg-none dark:border-0 [&_svg]:size-4",
-        )}
+        className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
         size="sm"
         title="Sort by"
       >

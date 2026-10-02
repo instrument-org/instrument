@@ -1416,7 +1416,7 @@ export function ComputerPage({
                     onClosed={afterMenuClosed}
                   />
                 )}
-                renderHeaderTrail={
+                renderHeaderPrimary={
                   askAbout && (selectedItem || folderOnScreenPath !== undefined)
                     ? () => {
                         const about =

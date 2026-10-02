@@ -86,20 +86,16 @@ export function ZoomLevelMenu({
   // picked. A submenu is a child layer of the same menu, so the parent stays.
   if (nested) {
     return (
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger
-          className={cn(
-            "gap-1 px-2 font-medium tabular-nums",
-            zoomStepperSegmentClassName,
-            compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
-          )}
-        >
-          {Math.round(zoom * 100)}%
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-32">
-          {levels}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+      <NestedZoomLevelMenu
+        className={cn(
+          "justify-center gap-1 rounded-none px-2 font-medium tabular-nums [&>svg:last-child]:hidden",
+          zoomStepperSegmentClassName,
+          "data-[state=open]:bg-secondary dark:data-[state=open]:bg-gray-600",
+          compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
+        )}
+        levels={levels}
+        zoom={zoom}
+      />
     );
   }
 
@@ -119,6 +115,48 @@ export function ZoomLevelMenu({
         {levels}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * The level menu as a submenu of the menu it sits in, opened by a press on
+ * the readout the way the standalone one is, rather than by the pointer
+ * passing over it: a readout that opens a list on hover reads as a menu row,
+ * not as the stepper's middle. The caret a submenu row carries is hidden for
+ * the same reason.
+ */
+function NestedZoomLevelMenu({
+  className,
+  levels,
+  zoom,
+}: {
+  className: string;
+  levels: ReactNode;
+  zoom: number;
+}) {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <DropdownMenuSub onOpenChange={setOpen} open={isOpen}>
+      <DropdownMenuSubTrigger
+        className={className}
+        onClick={() => {
+          setOpen((open) => !open);
+        }}
+        // Prevented, Radix skips its own hover handling: the pointer
+        // arriving opens nothing and leaving closes nothing.
+        onPointerLeave={(event) => {
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          event.preventDefault();
+        }}
+      >
+        {Math.round(zoom * 100)}%
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="min-w-32">
+        {levels}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 

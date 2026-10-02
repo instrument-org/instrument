@@ -874,7 +874,10 @@ function useRows({
       case "tasks": {
         // A task's page finds the tasks of the chat it was opened from, the
         // list its crumb goes back to.
-        const chat = location.kind === "task" ? location.chat : undefined;
+        const chat =
+          location.kind === "task" || location.kind === "tasks"
+            ? location.chat
+            : undefined;
         const ofChat = (tasks.data ?? []).filter(
           (task) => chat === undefined || task.chatSessionId === chat,
         );

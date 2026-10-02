@@ -2,9 +2,11 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  chatOfTasksList,
   locationCrumbs,
   memoryOfHref,
   type TabLocation,
+  tasksHref,
   tasksOfHref,
 } from "./tab-location";
 
@@ -136,10 +138,11 @@ describe("locationCrumbs", () => {
   });
 
   it("puts a task under the work and an app page under Apps", () => {
+    // Opened from no chat's list, a task has no list to go back to.
     expect(readable({ kind: "task", title: "Book the hotel" }))
       .toMatchInlineSnapshot(`
       [
-        "Tasks -> /tasks",
+        "Tasks",
         "Book the hotel",
       ]
     `);
@@ -237,5 +240,22 @@ describe("tasksOfHref", () => {
     ["/memory/book", undefined],
   ])("reads %s", (href, expected) => {
     expect(tasksOfHref(href)).toEqual(expected);
+  });
+});
+
+describe("tasksHref", () => {
+  it("addresses one chat's list", () => {
+    expect(tasksHref(CHAT)).toBe(`/tasks?chat=${CHAT}`);
+  });
+});
+
+describe("chatOfTasksList", () => {
+  // A list with no chat is no list: its address goes to the inbox.
+  it.each([
+    [undefined, undefined],
+    ["nonsense", undefined],
+    [CHAT, CHAT],
+  ])("reads the list for %s as %s's", (chat, expected) => {
+    expect(chatOfTasksList(chat)).toBe(expected);
   });
 });

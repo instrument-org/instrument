@@ -110,7 +110,10 @@ export function screenLocation(
     };
   }
   if (tasks) {
-    return { kind: "tasks" };
+    return {
+      kind: "tasks",
+      ...(tasks.chat === undefined ? {} : { chat: tasks.chat }),
+    };
   }
   // A screen the window has no words for reads as the new tab: the place
   // with nothing in particular in it.

@@ -1261,11 +1261,11 @@ export function GroupItem({
               },
             }}
           >
-            {tasks.task === undefined ? (
-              <ChatTasksScreen chat={tasks.chat} />
-            ) : (
+            {tasks.task !== undefined ? (
               <TaskScreen key={tasks.task} taskId={tasks.task} />
-            )}
+            ) : tasks.chat ? (
+              <ChatTasksScreen chat={tasks.chat} />
+            ) : null}
           </ScreenTabContext>
         </Frame>
       </WindowContext>

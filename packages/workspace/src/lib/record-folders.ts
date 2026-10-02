@@ -194,14 +194,18 @@ function read() {
   const sessions = new Map<StoreId.Session, TaskId>();
   const tasks = new Map<TaskId, TaskDir>();
   const dir = absolutePathJoin(root, CHATS_DIR_NAME);
+  let skipped = 0;
   for (const name of listDirs(dir)) {
     const id = TaskIdSchema.safeParse(name);
-    const sessionId = id.success
+    const stored = id.success
       ? storedChatSession(path.join(dir, name))
       : undefined;
+    const sessionId =
+      stored && "sessionId" in stored ? stored.sessionId : undefined;
     if (!id.success || !sessionId) {
-      // Unreachable as a chat until its settings name a session again.
-      console.warn(`Skipping chat folder with no session: ${name}`);
+      // Unreachable as a chat until its settings name a session again, and
+      // listed in Settings > Storage meanwhile.
+      skipped += 1;
       continue;
     }
     chats.set(id.data, sessionId);
@@ -217,14 +221,25 @@ function read() {
       }
     }
   }
+  if (skipped > 0) {
+    console.warn(`Skipping ${skipped} chat folder(s) with no session`);
+  }
   index = { chats, root, sessions, tasks };
   return index;
 }
 
-/** The session a chat's settings name, read straight from its file. */
-function storedChatSession(chatFolder: string): StoreId.Session | undefined {
+/**
+ * The session a chat's settings name, read straight from its file, or why
+ * there is none: settings that cannot be read, or that name no session.
+ */
+export function storedChatSession(
+  chatFolder: string,
+):
+  | { problem: "no-session" | "unreadable-settings" }
+  | { sessionId: StoreId.Session } {
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(
+    parsed = JSON.parse(
       fs.readFileSync(
         path.join(
           chatFolder,
@@ -234,14 +249,16 @@ function storedChatSession(chatFolder: string): StoreId.Session | undefined {
         "utf8",
       ),
     );
-    if (typeof parsed !== "object" || parsed === null) {
-      return undefined;
-    }
-    const session = StoreId.SessionSchema.safeParse(
-      "chatSessionId" in parsed ? parsed.chatSessionId : undefined,
-    );
-    return session.success ? session.data : undefined;
   } catch {
-    return undefined;
+    return { problem: "unreadable-settings" };
   }
+  if (typeof parsed !== "object" || parsed === null) {
+    return { problem: "unreadable-settings" };
+  }
+  const session = StoreId.SessionSchema.safeParse(
+    "chatSessionId" in parsed ? parsed.chatSessionId : undefined,
+  );
+  return session.success
+    ? { sessionId: session.data }
+    : { problem: "no-session" };
 }

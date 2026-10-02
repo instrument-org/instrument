@@ -20,6 +20,7 @@ export interface AnalyticsEvents {
   "auth.logged_in": never;
   "auth.logged_out": never;
   "auth.login_started": never;
+  "chat.invalid_folder_trashed": never;
   "command_menu.opened": never;
   "eval.created": {
     eval_names: string[];

@@ -266,6 +266,21 @@ export async function listChats(): Promise<Chat[]> {
   return chats.filter((chat) => chat !== undefined);
 }
 
+/**
+ * Why `listChats` leaves a chat with a session out, or none when it lists it.
+ * A chat whose digest is kept answers from it without opening its store.
+ */
+export async function chatReadProblem(
+  chatId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<"unreadable-messages" | "unreadable-session" | undefined> {
+  if (await chatDigest(chatId, sessionId)) {
+    return undefined;
+  }
+  const session = await Store.getSession(sessionId, chatId);
+  return session.isErr() ? "unreadable-session" : "unreadable-messages";
+}
+
 /** Records what the user has seen in a chat, so its count can clear. */
 export async function markChatSeen(sessionId: StoreId.Session): Promise<void> {
   const messages = await chatMessages(sessionId);

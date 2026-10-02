@@ -17,6 +17,7 @@ import {
 } from "../../../lib/workspace-fs-layout";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
+import { isAuthorizedCdpRequest, withCdpBridgeKey } from "../cdp-access";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
 import {
   type WorkspaceServerEnv,
@@ -47,6 +48,22 @@ export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>().basePath(
   CDP_BASE_PATH,
 );
 
+// The listings name live targets and the socket addresses that drive them, so
+// they ask for the same key, and refuse a browser, the way the sockets do.
+cdpBridgeRoute.use(async (c, next) => {
+  if (
+    !isAuthorizedCdpRequest({
+      host: c.req.header("host"),
+      origin: c.req.header("origin"),
+      url: c.req.url,
+    })
+  ) {
+    return c.body(null, 403);
+  }
+  await next();
+  return undefined;
+});
+
 cdpBridgeRoute.get("/json/version", (c) => {
   const port = getWorkspaceServerPort();
   return c.json({
@@ -55,7 +72,9 @@ cdpBridgeRoute.get("/json/version", (c) => {
     "User-Agent": "Electron",
     "V8-Version": process.versions.v8,
     "WebKit-Version": "",
-    webSocketDebuggerUrl: `ws://127.0.0.1:${port}${CDP_BASE_PATH}/devtools/browser`,
+    webSocketDebuggerUrl: withCdpBridgeKey(
+      `ws://127.0.0.1:${port}${CDP_BASE_PATH}/devtools/browser`,
+    ),
   });
 });
 
@@ -79,7 +98,9 @@ cdpBridgeRoute.get("/json", async (c) => {
       title: t.title,
       type: t.type,
       url: agentSpellingOfFileUrls(t.url, layout),
-      webSocketDebuggerUrl: `ws://127.0.0.1:${port}${CDP_PAGE_PATH_PREFIX}${t.id}`,
+      webSocketDebuggerUrl: withCdpBridgeKey(
+        `ws://127.0.0.1:${port}${CDP_PAGE_PATH_PREFIX}${t.id}`,
+      ),
     })),
   );
 });

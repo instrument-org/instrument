@@ -69,7 +69,7 @@ What the hook does not cover: type errors, and any file written by something oth
 - **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
 - **AI SDK** 7.x
 - **better-auth** 1.6.x
-- **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.15.0 (`engines`)
+- **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.19.0 (`engines`)
 
 ## Package management
 

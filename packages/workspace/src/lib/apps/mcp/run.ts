@@ -1,7 +1,11 @@
 import { type Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { err, type Result } from "neverthrow";
 
-import { readConnection } from "../connection";
+import {
+  credentialMayReach,
+  movedCredentialMessage,
+  readConnection,
+} from "../connection";
 import { type LocalMcpAppManifest, type McpAppManifest } from "../manifest";
 import {
   type McpConnectionError,
@@ -37,6 +41,17 @@ export async function withAppMcpClient<T>({
   slug: string;
 }): Promise<Result<T, McpConnectionError>> {
   if (manifest.type === "mcp") {
+    // The key or the sign-in's tokens go only to the server they were given
+    // for, whatever the manifest says now.
+    if (
+      manifest.auth.kind !== "none" &&
+      !(await credentialMayReach({ manifest, manifestHash, slug }))
+    ) {
+      return err({
+        message: await movedCredentialMessage({ manifest, slug }),
+        reason: "unauthorized",
+      });
+    }
     return withMcpClient({
       authProvider: mcpAuthProviderForCommand(slug, manifest),
       config: mcpConnectionConfig(manifest, credential),

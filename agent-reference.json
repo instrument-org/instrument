@@ -2,7 +2,7 @@
   "$schema": "https://agent-reference.dev/schema/agent-reference.schema.json",
   "references": {
     "electron": {
-      "source": "npm:electron@42.3.3",
+      "source": "npm:electron@42.11.8",
       "directory": ".",
       "description": "The Electron apps/studio builds against. docs/api/ covers the APIs this build ships, lib/ the browser and renderer JS behind them, spec/ the maintainers' tests. directory is \".\" and it reports unverified because the repository root manifest is @electron-ci/dev-root and default_app/ claims the package name without a version; both are deliberate."
     },

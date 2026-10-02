@@ -49,7 +49,26 @@ export function ConnectControls({
   // The sign-in lands where the site sends it, which is the site. The app's
   // page here is where the user was doing this, so that is where they land.
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const standing = apps.data?.apps.find((app) => app.slug === slug)?.standing;
+  const app = apps.data?.apps.find((entry) => entry.slug === slug);
+  const standing = app?.standing;
+  // A key or a sign-in goes wherever the app points now, which the agent can
+  // change, so the controls name that host and give the key or the sign-in
+  // for it alone. A local server has no host; its key goes to a process.
+  const origin =
+    app && app.type !== "mcp-local"
+      ? URL.parse(app.endpoint)?.origin
+      : undefined;
+  const ready = app?.type === "mcp-local" || origin !== undefined;
+  const destination =
+    origin === undefined ? null : (
+      <p className="basis-full text-xs text-muted-foreground">
+        {kind === "sign-in" ? "Signs in to" : "The key goes only to"}{" "}
+        <span className="font-mono text-foreground">
+          {new URL(origin).host}
+        </span>
+        .
+      </p>
+    );
   useEffect(() => {
     if (waiting && standing === "connected") {
       setWaiting(false);
@@ -77,8 +96,11 @@ export function ConnectControls({
     }),
   );
   const signIn = (where: SignInDestination) => {
+    if (!ready) {
+      return;
+    }
     startOAuth.mutate(
-      { opensIn: appWindow?.browser ? where : "external", slug },
+      { opensIn: appWindow?.browser ? where : "external", origin, slug },
       {
         onSuccess: (result) => {
           if (result.status === "started") {
@@ -174,8 +196,9 @@ export function ConnectControls({
       // In a column too narrow for three buttons in a row they stack, each
       // the column's width, rather than wrapping into a ragged pair.
       <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
+        {destination}
         <Button
-          disabled={busy || waiting}
+          disabled={busy || waiting || !ready}
           onClick={() => {
             signIn("app");
           }}
@@ -187,7 +210,7 @@ export function ConnectControls({
         </Button>
         {waiting ? null : (
           <Button
-            disabled={busy}
+            disabled={busy || !ready}
             onClick={() => {
               signIn("external");
             }}
@@ -218,12 +241,13 @@ export function ConnectControls({
   }
 
   const save = () => {
-    if (value.trim() !== "") {
-      setCredential.mutate({ slug, value: value.trim() });
+    if (value.trim() !== "" && ready) {
+      setCredential.mutate({ origin, slug, value: value.trim() });
     }
   };
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {destination}
       <Input
         autoFocus
         className="h-8 flex-1 font-mono text-xs"
@@ -239,7 +263,11 @@ export function ConnectControls({
         type="password"
         value={value}
       />
-      <Button disabled={busy || value.trim() === ""} onClick={save} size="sm">
+      <Button
+        disabled={busy || value.trim() === "" || !ready}
+        onClick={save}
+        size="sm"
+      >
         {setCredential.isPending ? "Checking…" : "Save"}
       </Button>
       {dismissible ? (

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { cdpBridgeKey } from "../../logic/server/cdp-access";
 import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
@@ -154,6 +155,24 @@ describe("a task's tab", () => {
     expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
     // Nothing is opened before agent-browser asks the browser for a page.
     expect(asks).toEqual([]);
+  });
+
+  it("hands agent-browser the bridge key and keeps it out of what the agent reads", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValue({
+      exitCode: 0,
+      stderr: `could not reach ws://127.0.0.1:1/x?key=${cdpBridgeKey()}\n`,
+      stdout: `ws://127.0.0.1:1/x?key=${cdpBridgeKey()}\n`,
+    } as never);
+
+    const result = await createAgentBrowserCommand({
+      sessionId: StoreId.newSessionId(),
+      taskId: TASK_ID,
+    }).execute(["get", "cdp-url"], ctx);
+
+    expect(await spawnedCdpUrl()).toContain(`key=${cdpBridgeKey()}`);
+    expect(result.stdout).toBe("ws://127.0.0.1:1/x?key=<redacted>\n");
+    expect(result.stderr).not.toContain(cdpBridgeKey());
   });
 
   it("connects a task to the tabs it holds", async () => {

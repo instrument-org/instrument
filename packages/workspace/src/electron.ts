@@ -12,6 +12,7 @@ export {
   type AppConnection,
   AppConnectionSchema,
   type AppConnectionStore,
+  credentialOriginOf,
   isConnected,
   recordConnection,
 } from "./lib/apps/connection";

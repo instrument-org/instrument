@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getWorkspaceConfig } from "../workspace-config";
+import { type AppManifest } from "./manifest";
 
 /**
  * Where an app stands, as the app (never the agent) records it. `connected`
@@ -28,6 +29,13 @@ export const AppConnectionSchema = z.object({
    */
   approvedManifestHash: z.string().optional(),
   connectedAt: z.number().optional(),
+  /**
+   * The origin the stored key or sign-in was given for, recorded when the user
+   * hands it over. The manifest is the agent's to rewrite, so a credential
+   * only ever goes where the user gave it; an app whose address moved needs a
+   * new key or sign-in, and the card asking for it names the new host.
+   */
+  credentialOrigin: z.string().optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),
   /**
@@ -86,6 +94,68 @@ export function describeConnection(
       return "needs the user to sign in (connect_app)";
     }
   }
+}
+
+/**
+ * Where an app's credential is sent: its API base or MCP server. A local
+ * server takes its key in the environment of a process the user approved.
+ */
+export function credentialOriginOf(manifest: AppManifest): string | undefined {
+  if (manifest.type === "mcp-local") {
+    return undefined;
+  }
+  return new URL(manifest.type === "api" ? manifest.baseUrl : manifest.url)
+    .origin;
+}
+
+/**
+ * Whether the stored credential may go where the manifest now points: the
+ * origin it was given for. A record kept before origins were adopts the
+ * current one only while it is connected on this very manifest, which the
+ * user's credential has already been sent to; anything else asks again.
+ */
+export async function credentialMayReach({
+  manifest,
+  manifestHash,
+  slug,
+}: {
+  manifest: AppManifest;
+  manifestHash: string;
+  slug: string;
+}): Promise<boolean> {
+  const origin = credentialOriginOf(manifest);
+  if (origin === undefined) {
+    return true;
+  }
+  const connection = await readConnection(slug);
+  if (connection?.credentialOrigin !== undefined) {
+    return connection.credentialOrigin === origin;
+  }
+  if (
+    connection?.status === "connected" &&
+    connection.manifestHash === manifestHash
+  ) {
+    await recordConnection(slug, {
+      credentialOrigin: origin,
+      status: "connected",
+    });
+    return true;
+  }
+  return false;
+}
+
+/** Why a stored credential was held back from where the manifest points. */
+export async function movedCredentialMessage({
+  manifest,
+  slug,
+}: {
+  manifest: AppManifest;
+  slug: string;
+}): Promise<string> {
+  const origin = credentialOriginOf(manifest) ?? "";
+  const given = (await readConnection(slug))?.credentialOrigin;
+  const what = manifest.auth.kind === "oauth" ? "sign-in" : "key";
+  return `The stored ${what} for "${slug}" was given for ${given === undefined ? "another address" : new URL(given).host}, and the manifest now points at ${new URL(origin).host}, so it was not sent. Ask the user with connect_app; the card shows them the new address.`;
 }
 
 /** Whether a call may go through: connected, on the manifest that was tested. */

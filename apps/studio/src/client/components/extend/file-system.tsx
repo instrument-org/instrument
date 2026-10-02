@@ -626,29 +626,12 @@ const SORT_OPTIONS: Array<{
   defaultDirection: "asc" | "desc";
   key: FileSystemSortKey;
   label: string;
-  /** Shorter label so the toolbar trigger stays narrow. */
-  triggerLabel: string;
 }> = [
-  { defaultDirection: "asc", key: "name", label: "Name", triggerLabel: "Name" },
-  { defaultDirection: "asc", key: "kind", label: "Kind", triggerLabel: "Kind" },
-  {
-    defaultDirection: "desc",
-    key: "createdAt",
-    label: "Date created",
-    triggerLabel: "Created",
-  },
-  {
-    defaultDirection: "desc",
-    key: "updatedAt",
-    label: "Date modified",
-    triggerLabel: "Modified",
-  },
-  {
-    defaultDirection: "desc",
-    key: "size",
-    label: "Size",
-    triggerLabel: "Size",
-  },
+  { defaultDirection: "asc", key: "name", label: "Name" },
+  { defaultDirection: "asc", key: "kind", label: "Kind" },
+  { defaultDirection: "desc", key: "createdAt", label: "Date created" },
+  { defaultDirection: "desc", key: "updatedAt", label: "Date modified" },
+  { defaultDirection: "desc", key: "size", label: "Size" },
 ];
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
 type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
@@ -1976,6 +1959,7 @@ export function FileSystem({
       });
       // Navigation exits search, like Finder.
       setSearchInput("");
+      setIsSearchExpanded(false);
       selectEntry(null);
       ensureChildren(path);
     },
@@ -2417,12 +2401,7 @@ export function FileSystem({
           </Tabs>
         )}
         <div className="flex min-w-0 items-center justify-end gap-1.5">
-          <FileSystemSortSelect
-            layout={headerLayout}
-            onKeyChange={applySortKey}
-            showLabel={!isBelowIpadWidth}
-            sort={sort}
-          />
+          <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
           <FileSystemFilterMenu
             fileTypeOptions={fileTypeOptions}
             filters={filters}
@@ -2828,8 +2807,8 @@ function FileSystemSearchField({
 }) {
   const isInline = layout === "full";
   React.useEffect(() => {
-    if (!isInline && isExpanded) inputRef.current?.focus();
-  }, [inputRef, isExpanded, isInline]);
+    if (isExpanded) inputRef.current?.focus();
+  }, [inputRef, isExpanded]);
   const input = (
     <div
       className={cn(
@@ -2876,10 +2855,43 @@ function FileSystemSearchField({
     </div>
   );
   if (isInline) {
+    // A magnifying glass until asked for, the way the Finder's toolbar keeps
+    // its search: the field opens in its place, and closes again when the
+    // keyboard leaves it with nothing typed.
+    if (!isExpanded && !value) {
+      return (
+        <button
+          aria-label="Search"
+          className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+          onClick={() => onExpandedChange(true)}
+          title="Search"
+          type="button"
+        >
+          <Search className="size-4" />
+        </button>
+      );
+    }
     // A fixed basis (not flex-1) keeps the whole toolbar cluster packed
     // against the header's right edge; the input shrinks first when the
     // header tightens.
-    return <div className="flex w-56 min-w-32 items-center">{input}</div>;
+    return (
+      <div
+        className="flex w-56 min-w-32 items-center"
+        onBlur={(event) => {
+          if (
+            !value &&
+            !(
+              event.relatedTarget instanceof Node &&
+              event.currentTarget.contains(event.relatedTarget)
+            )
+          ) {
+            onExpandedChange(false);
+          }
+        }}
+      >
+        {input}
+      </div>
+    );
   }
   return (
     <Popover onOpenChange={onExpandedChange} open={isExpanded}>
@@ -2902,20 +2914,15 @@ function FileSystemSearchField({
     </Popover>
   );
 }
-// Toolbar "sort by" select. The full layout shows the active key's label; at
-// compact widths the trigger collapses to the sort glyph + chevron.
+// Toolbar "sort by" select, as the sort glyph alone: the order in force is
+// one press away in the menu, and the folder itself shows it.
 function FileSystemSortSelect({
-  layout,
   onKeyChange,
-  showLabel,
   sort,
 }: {
-  layout: "compact" | "full" | "minimal";
   onKeyChange: (key: FileSystemSortKey) => void;
-  showLabel: boolean;
   sort: FileSystemSortState;
 }) {
-  const activeOption = SORT_OPTIONS.find((option) => option.key === sort.key);
   return (
     <Select
       onValueChange={(value) => onKeyChange(value as FileSystemSortKey)}
@@ -2931,10 +2938,7 @@ function FileSystemSortSelect({
         title="Sort by"
       >
         <SelectValue>
-          <span className="flex items-center gap-1.5">
-            <ArrowUpDown className="size-4" />
-            {layout === "full" && showLabel ? activeOption?.triggerLabel : null}
-          </span>
+          <ArrowUpDown className="size-4" />
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="end">

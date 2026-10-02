@@ -97,7 +97,10 @@ export async function trashInvalidChatFolder(
   return ResultAsync.fromPromise(
     (async () => {
       if (chatId.success) {
-        await disposeSessionsStoreStorage(chatId.data);
+        const disposed = await disposeSessionsStoreStorage(chatId.data);
+        if (disposed.isErr()) {
+          throw disposed.error;
+        }
       }
       await workspaceConfig.trashItem(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),

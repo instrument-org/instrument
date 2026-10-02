@@ -13,7 +13,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
-import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
+import { FileIcon } from "@phosphor-icons/react/File";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { ChevronDown } from "lucide-react";
@@ -49,21 +49,21 @@ const PLACES: Place[] = [
   },
   {
     icon: (isOn) => (
-      <StarIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <StarIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "starred",
     label: "Starred",
   },
   {
     icon: (isOn) => (
-      <FileDashedIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <FileIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "drafts",
     label: "Drafts",
   },
   {
     icon: (isOn) => (
-      <CardsThreeIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+      <CardsThreeIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "all",
     label: "All",
@@ -340,7 +340,7 @@ function ViewPicker({
             {/* Phosphor's bubbles drawn a stroke between its light and
               regular weights: two outlines overlapping read heavier than
               the single shapes beside them at regular, thinner at light. */}
-            <ChatsOutlineIcon className="size-7" />
+            <ChatsOutlineIcon className="size-6" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Chats</TooltipContent>
@@ -368,7 +368,7 @@ function ViewPicker({
             // Filled and in the chip's own ink while it is the view, the way
             // a chosen place's mark is: an outline let halfway back read as a
             // lighter stroke than the marks beside it.
-            <ChatsCircleIcon className="size-7 shrink-0" weight="fill" />
+            <ChatsCircleIcon className="size-6 shrink-0" weight="fill" />
           )}
           <span className="truncate">{chosen ? chosen.name : "Chats"}</span>
           {/* Sized to the 15px label beside it, in the chip's green let

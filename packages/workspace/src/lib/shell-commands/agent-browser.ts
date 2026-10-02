@@ -8,10 +8,7 @@ import path from "node:path";
 import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
-import {
-  CDP_PAGE_PATH_PREFIX,
-  CDP_TASK_PATH_PREFIX,
-} from "../../logic/server/constants";
+import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
@@ -756,10 +753,12 @@ export function createAgentBrowserCommand({
       }
       drivesHeldTabs = resolved.kind === "task";
 
-      const cdpUrl =
+      const cdpUrl = cdpBridgeUrl(
+        serverPort,
         resolved.kind === "task"
-          ? `ws://127.0.0.1:${serverPort}${CDP_TASK_PATH_PREFIX}${id}`
-          : `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${resolved.targetId}`;
+          ? { id, kind: "task" }
+          : { id: resolved.targetId, kind: "page" },
+      );
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);

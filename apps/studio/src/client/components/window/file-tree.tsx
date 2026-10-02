@@ -6,6 +6,7 @@ import {
   MENU_TARGET_CLASSNAME,
   SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   ContextMenu,
@@ -232,6 +233,11 @@ function Folder({
   const { taskId } = useWindow();
   const showsHidden = useAtomValue(computerHiddenFilesAtom);
   const open = rows.isOpen(path);
+  // The Instrument folder wears its own glyph here as it does in the Finder.
+  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const isInstrument = places.data?.favorites.some(
+    (place) => place.name === "Instrument" && place.path === path,
+  );
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
       enabled: open,
@@ -252,7 +258,12 @@ function Folder({
     <>
       <Row
         depth={depth}
-        glyph={<FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />}
+        glyph={
+          <FileSystemFolderGlyph
+            className="h-3.5 w-auto shrink-0"
+            {...(isInstrument ? { src: INSTRUMENT_FOLDER_GLYPH_URL } : {})}
+          />
+        }
         isExpanded={open}
         isMenuTarget={rows.menuTarget === path}
         name={name}

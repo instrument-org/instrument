@@ -90,6 +90,50 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
+  it("should replace a PDF for a text model without inputFile, as Workers AI lists them", async () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          { text: "Read this", type: "text" },
+          {
+            data: "base64pdfdata",
+            mediaType: "application/pdf",
+            type: "file",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const model = createMockAIGatewayModel({
+      features: ["inputText", "outputText", "tools"],
+      provider: "openai-compatible",
+      providerId: "@cf/zai-org/glm-5.3-flash",
+    });
+    const result = await filterUnsupportedMedia({ messages, model });
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Read this",
+              "type": "text",
+            },
+            {
+              "text": "<system_note>
+      File file removed - your model lacks file input capability.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
+      </system_note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("should keep image files when model supports inputImage", async () => {
     const messages: ModelMessage[] = [
       {

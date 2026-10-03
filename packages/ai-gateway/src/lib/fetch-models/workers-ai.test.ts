@@ -36,11 +36,13 @@ function modelsSearchResponse(data: ReturnType<typeof openRouterModel>[]) {
 
 function openRouterModel({
   id,
+  inputModalities = ["text"],
   name,
   outputModalities = ["text"],
   supported_features,
 }: {
   id: string;
+  inputModalities?: string[];
   name: string;
   outputModalities?: string[];
   supported_features?: string[];
@@ -49,7 +51,7 @@ function openRouterModel({
     created: 1_700_000_000,
     description: name,
     id,
-    input_modalities: ["text"],
+    input_modalities: inputModalities,
     name,
     output_modalities: outputModalities,
     ...(supported_features ? { supported_features } : {}),
@@ -384,11 +386,71 @@ describe("fetchAndParseWorkersAiModels", () => {
         {
           "features": [
             "inputText",
-            "inputFile",
             "outputText",
             "tools",
           ],
           "id": "@cf/openai/gpt-oss-120b",
+        },
+      ]
+    `);
+  });
+});
+
+describe("Workers AI file input", () => {
+  beforeEach(() => {
+    clearCachedResults();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("grants inputFile only to a model declaring a file input modality", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          modelsSearchResponse([
+            openRouterModel({
+              id: "@cf/zai-org/glm-5.3-flash",
+              name: "GLM 5.3 Flash",
+              supported_features: ["tools"],
+            }),
+            openRouterModel({
+              id: "@cf/example/reads-files",
+              inputModalities: ["text", "file"],
+              name: "Reads Files",
+              supported_features: ["tools"],
+            }),
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const models = (
+      await fetchAndParseWorkersAiModels(workersAiConfig)
+    ).getOrThrow();
+
+    expect(models.map((m) => ({ features: m.features, id: m.providerId })))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "features": [
+            "inputText",
+            "outputText",
+            "tools",
+          ],
+          "id": "@cf/zai-org/glm-5.3-flash",
+        },
+        {
+          "features": [
+            "inputText",
+            "inputFile",
+            "outputText",
+            "tools",
+          ],
+          "id": "@cf/example/reads-files",
         },
       ]
     `);

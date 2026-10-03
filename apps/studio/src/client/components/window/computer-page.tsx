@@ -302,6 +302,16 @@ export function ComputerPage({
   const [selectedPath, setSelectedPath] = useState<null | string>(
     select ?? null,
   );
+  // Everything selected, when a ⌘- or Shift-click made it several. It stands
+  // while it holds `selectedPath`, the one the keyboard is on: the page moving
+  // the selection itself, onto a thing just made or renamed, moves it to one.
+  const [selectedPaths, setSelectedPaths] = useState<readonly string[]>([]);
+  const allSelectedPaths =
+    selectedPath === null
+      ? []
+      : selectedPaths.includes(selectedPath)
+        ? selectedPaths
+        : [selectedPath];
   // The address this page wrote last, so one that arrives from outside can
   // be told from the page's own echo of what the browser showed. A ref, not
   // state: the router answers a write in a render of its own, ahead of any
@@ -475,10 +485,13 @@ export function ComputerPage({
     );
   });
   const items = isRecents ? recentItems : folderItems;
+  const itemsByPath = new Map(items.map((item) => [item.path, item]));
   const selectedItem =
-    selectedPath === null
-      ? undefined
-      : items.find((item) => item.path === selectedPath);
+    selectedPath === null ? undefined : itemsByPath.get(selectedPath);
+  const selectedItems = allSelectedPaths.flatMap((selected) => {
+    const item = itemsByPath.get(selected);
+    return item ? [item] : [];
+  });
   // The recent file the selection is on, which is what stands for a folder on
   // a list of files from all over: it is the only place there is to be.
   const selectedRecent =
@@ -560,22 +573,27 @@ export function ComputerPage({
       failed(error);
     }
   };
-  const duplicate = async (item: FileSystemItem | undefined) => {
-    const hostPath = hostPathOfItem(item);
-    if (!item || !hostPath) {
-      return;
-    }
+  const duplicate = async (picked: FileSystemItem[]) => {
     try {
-      const copy = await rpcClient.files.duplicate.call({ path: hostPath });
-      // The copy is what the Finder leaves selected, and where the keyboard
-      // carries on from.
-      setSelectedPath(
-        siblingPath(item.path, copy.path.split("/").at(-1) ?? ""),
-      );
+      for (const item of picked) {
+        const hostPath = hostPathOfItem(item);
+        if (!hostPath) {
+          continue;
+        }
+        const copy = await rpcClient.files.duplicate.call({ path: hostPath });
+        // The copy is what the Finder leaves selected, and where the keyboard
+        // carries on from. Several copied leave the several selected.
+        if (picked.length === 1) {
+          setSelectedPath(
+            siblingPath(item.path, copy.path.split("/").at(-1) ?? ""),
+          );
+        }
+      }
       focusBrowser();
-      reread();
     } catch (error) {
       failed(error);
+    } finally {
+      reread();
     }
   };
   // Where the thing sits on the Mac, as a terminal, a Finder window or another
@@ -593,18 +611,23 @@ export function ComputerPage({
       failed(error);
     }
   };
-  const trash = async (item: FileSystemItem | undefined) => {
-    const hostPath = hostPathOfItem(item);
-    if (!hostPath) {
+  const trash = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
       return;
     }
     try {
-      await rpcClient.files.trash.call({ path: hostPath });
+      // One at a time, so a failure stops short of the rest rather than
+      // leaving which of them went to chance.
+      for (const hostPath of hostPaths) {
+        await rpcClient.files.trash.call({ path: hostPath });
+      }
       setSelectedPath(null);
       focusBrowser();
-      reread();
     } catch (error) {
       failed(error);
+    } finally {
+      reread();
     }
   };
 
@@ -663,12 +686,16 @@ export function ComputerPage({
   // the browser's own folder whatever is selected in it: selecting a folder
   // there, or a file in a folder opened in place in the list, is not going
   // anywhere, and neither the address nor back and forward move for it.
+  // Several selected open nothing past the column that lists them.
   const onScreen =
     selectedPath === null || shown.view !== "columns"
       ? current
-      : selectedPath.endsWith("/")
+      : selectedPath.endsWith("/") && allSelectedPaths.length === 1
         ? selectedPath
-        : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
+        : selectedPath.slice(
+            0,
+            selectedPath.lastIndexOf("/", selectedPath.length - 2) + 1,
+          );
   const currentListing = listingOf(onScreen);
   // The folder standing on screen, by its path: the listing's own once it has
   // arrived, the root the sidebar resolved until then. The recents are a list
@@ -676,11 +703,14 @@ export function ComputerPage({
   const folderOnScreenPath = isRecents
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
-  /** A draft with a row picked to go with it, or with the folder on screen when there is no row. */
-  const draftAbout = (item: FileSystemItem | undefined) => {
-    const itemPath = hostPathOfItem(item);
-    if (item && itemPath) {
-      askAbout?.([{ kind: item.kind, path: itemPath }]);
+  /** A draft with the rows picked to go with it, or with the folder on screen when there are none. */
+  const draftAbout = (picked: (FileSystemItem | undefined)[]) => {
+    const chosen = picked.flatMap((item) => {
+      const itemPath = hostPathOfItem(item);
+      return item && itemPath ? [{ kind: item.kind, path: itemPath }] : [];
+    });
+    if (chosen.length > 0) {
+      askAbout?.(chosen);
     } else if (folderOnScreenPath !== undefined) {
       askAbout?.([{ kind: "folder", path: folderOnScreenPath }]);
     }
@@ -848,15 +878,27 @@ export function ComputerPage({
   // Named from the folder on screen: a file in a folder opened in place in
   // the list is that folder's name and its own. The folder the columns are
   // showing is the folder itself rather than something selected in it.
-  const selectedName = isRecents
-    ? selectedItem?.name
-    : selectedPath !== null &&
-        selectedPath !== onScreen &&
-        selectedPath.startsWith(onScreen)
-      ? selectedPath.slice(onScreen.length).replace(/\/$/, "")
-      : undefined;
-  const selectedHostPath = selectedName ? hostPathOfItem(selectedItem) : "";
-  const selectedKind = selectedItem?.kind;
+  const selectedOnScreen = selectedItems.flatMap((item) => {
+    const name = isRecents
+      ? item.name
+      : item.path !== onScreen && item.path.startsWith(onScreen)
+        ? item.path.slice(onScreen.length).replace(/\/$/, "")
+        : undefined;
+    const itemHostPath = hostPathOfItem(item);
+    return name && itemHostPath
+      ? [
+          {
+            item: { kind: item.kind, path: itemHostPath } satisfies ChosenItem,
+            // A folder's name ends in a slash, so a reader of the name alone
+            // can tell it from a file's.
+            name: item.kind === "folder" ? `${name}/` : name,
+          },
+        ]
+      : [];
+  });
+  // One value for the selection, so the effect below runs when it changes
+  // rather than on every re-read that rebuilds the same rows.
+  const selectedKey = JSON.stringify(selectedOnScreen);
   useEffect(() => {
     // The recents with nothing selected, or a folder not yet read: no folder
     // is on screen, and the one that was is not still the answer.
@@ -869,26 +911,12 @@ export function ComputerPage({
       display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
-      // A folder's name ends in a slash, so a reader of the name alone can
-      // tell it from a file's.
-      selected: selectedName
-        ? [selectedKind === "folder" ? `${selectedName}/` : selectedName]
-        : [],
-      selectedItems:
-        selectedHostPath && selectedKind
-          ? [{ kind: selectedKind, path: selectedHostPath }]
-          : [],
+      selected: selectedOnScreen.map(({ name }) => name),
+      selectedItems: selectedOnScreen.map(({ item }) => item),
     });
-  }, [
-    access,
-    display,
-    hostPath,
-    mount,
-    onFolderChange,
-    selectedHostPath,
-    selectedKind,
-    selectedName,
-  ]);
+    // The selection by its key: the rows are rebuilt on every re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
 
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
@@ -940,7 +968,11 @@ export function ComputerPage({
       if (!event.isTrusted || !event.key.startsWith("Arrow")) {
         return;
       }
+      // The selected row the keyboard is on, of several.
       const row =
+        browserRef.current?.querySelector<HTMLElement>(
+          '[role="option"][aria-selected="true"][tabindex="0"]',
+        ) ??
         browserRef.current?.querySelector<HTMLElement>(
           '[role="option"][aria-selected="true"]',
         ) ??
@@ -1035,17 +1067,68 @@ export function ComputerPage({
     afterMenu.current = null;
   };
   /** What the folder's menus do to a row, or to the folder where there is none. */
-  const menuActionsFor = (item: FileSystemItem | undefined) => ({
-    onCopyPath: () => void copyPath(item),
-    onDuplicate: () => void duplicate(item),
-    // The recents are a list rather than a folder, so there is nowhere
-    // there to make one.
-    onNewDraft:
-      askAbout && (item || folderOnScreenPath !== undefined)
-        ? () => {
-            draftAbout(item);
+  const menuActionsFor = (item: FileSystemItem | undefined) => {
+    // A row of several selected stands for all of them, as it does in the
+    // Finder's menu.
+    const group =
+      item &&
+      allSelectedPaths.length > 1 &&
+      allSelectedPaths.includes(item.path)
+        ? selectedItems
+        : undefined;
+    const picked = group ?? (item ? [item] : []);
+    return {
+      ...menuActionsForOne(item),
+      onDuplicate: () => void duplicate(picked),
+      onNewDraft:
+        askAbout && (item || folderOnScreenPath !== undefined)
+          ? () => {
+              draftAbout(picked);
+            }
+          : undefined,
+      onTrash: () => void trash(picked),
+      ...(group
+        ? {
+            onOpen: () => {
+              openInTabs(group, { behind: false });
+            },
+            onOpenInNewTab: () => {
+              openInTabs(group, { behind: true });
+            },
+            onQuickLook: undefined,
+            onRename: undefined,
+            group,
           }
-        : undefined,
+        : {}),
+    };
+  };
+  // Several opened at once cannot all stand in this tab, so each comes up in
+  // a tab of its own: the first in front when they were opened, every one
+  // behind this when they were opened in new tabs. A file comes up with the
+  // folder it was chosen in as its tree, the way one opened in place does.
+  const openInTabs = (
+    picked: FileSystemItem[],
+    { behind }: { behind: boolean },
+  ) => {
+    let isFirst = true;
+    for (const item of picked) {
+      const itemPath = hostPathOfItem(item);
+      if (!itemPath) {
+        continue;
+      }
+      openScreen(
+        item.kind === "folder"
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+        { behind: behind || !isFirst, newTab: true },
+      );
+      isFirst = false;
+    }
+  };
+  const menuActionsForOne = (item: FileSystemItem | undefined) => ({
+    onCopyPath: () => void copyPath(item),
     onNewFolder:
       folderOnScreenPath === undefined
         ? undefined
@@ -1061,20 +1144,7 @@ export function ComputerPage({
       }
     },
     onOpenInNewTab: () => {
-      const itemPath = hostPathOfItem(item);
-      if (!itemPath) {
-        return;
-      }
-      // A file comes up with the folder it was chosen in as its tree, the
-      // way one opened in place does.
-      openScreen(
-        item?.kind === "folder"
-          ? folderHref(itemPath)
-          : fileHref(itemPath, {
-              tree: folderOnScreenPath ?? folderOf(itemPath),
-            }),
-        { behind: true, newTab: true },
-      );
+      openInTabs(item ? [item] : [], { behind: true });
     },
     onQuickLook:
       onQuickLook &&
@@ -1094,7 +1164,6 @@ export function ComputerPage({
       void rpcClient.utils.showFileInFolder
         .call({ filepath: hostPathOfItem(item) })
         .catch(failed),
-    onTrash: () => void trash(item),
   });
   const rootName = isRecents
     ? "Recents"
@@ -1308,6 +1377,9 @@ export function ComputerPage({
                 moveFocusWithSelection={!quickLookOpen}
                 onColumnWidthChange={setColumnWidth}
                 onFileOpen={openFile}
+                onOpenSeveral={(several) => {
+                  openInTabs(several, { behind: false });
+                }}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
                 }}
@@ -1324,8 +1396,9 @@ export function ComputerPage({
                 onRenameStart={(item) => {
                   setRenamingPath(item.path);
                 }}
-                onSelectionChange={(item) => {
+                onSelectionChange={(item, all) => {
                   setSelectedPath(item?.path ?? null);
+                  setSelectedPaths(all.map((each) => each.path));
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
@@ -1416,15 +1489,21 @@ export function ComputerPage({
                   askAbout && (selectedItem || folderOnScreenPath !== undefined)
                     ? () => {
                         const about =
-                          segmentsOf(
-                            hostPathOfItem(selectedItem) ||
-                              (folderOnScreenPath ?? ""),
-                          ).at(-1) ?? "this folder";
+                          selectedItems.length > 1
+                            ? `${selectedItems.length} items`
+                            : (segmentsOf(
+                                hostPathOfItem(selectedItem) ||
+                                  (folderOnScreenPath ?? ""),
+                              ).at(-1) ?? "this folder");
                         return (
                           <GlyphButton
                             className={TOOLBAR_CONTROL_CLASSNAME}
                             onClick={() => {
-                              draftAbout(selectedItem);
+                              draftAbout(
+                                selectedItems.length > 0
+                                  ? selectedItems
+                                  : [selectedItem],
+                              );
                             }}
                             size="sm"
                             title={`Ask about “${about}”`}
@@ -1486,6 +1565,11 @@ type FolderMenuActions = {
   onRename?: () => void;
   onReveal: () => void;
   onTrash: () => void;
+  /**
+   * What the menu acts on, when it is several selected: what names one thing
+   * (Rename, Copy Path, Quick Look, Open With, Reveal) is left off.
+   */
+  group?: FileSystemItem[] | undefined;
 };
 
 /**
@@ -1621,6 +1705,7 @@ function FolderMenuItems({
   onRename,
   onReveal,
   onTrash,
+  group,
 }: FolderMenuActions & {
   /** What the menu adds on the folder's empty space, after New Folder. */
   emptyTail?: ReactNode;
@@ -1631,10 +1716,11 @@ function FolderMenuItems({
 }) {
   const { Item, Separator } = menuComponents;
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
-  const file = tab ? { hostPath: tab.hostPath } : undefined;
+  const several = group?.length;
+  const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
   const { openLabel, showOpen } = useFileOpenTarget(file);
-  const itemHostPath = hostPathOfItem(item);
+  const itemHostPath = several ? "" : hostPathOfItem(item);
   const openIn =
     isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
   return (
@@ -1660,7 +1746,7 @@ function FolderMenuItems({
       ) : null}
       {item ? (
         <>
-          {item.kind === "file" && (
+          {(item.kind === "file" || several) && (
             <Item onClick={onOpen}>
               <FolderOpenIcon className="size-4" />
               <span>Open</span>
@@ -1668,7 +1754,7 @@ function FolderMenuItems({
           )}
           <Item onClick={onOpenInNewTab}>
             <NewTabIcon className="size-4" />
-            <span>Open in New Tab</span>
+            <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
           {/* The apps are listed where the Mac can be asked for them, and the
                 submenu asks only once it is opened, so the row is there from
@@ -1709,18 +1795,23 @@ function FolderMenuItems({
               <span>Quick Look</span>
             </Item>
           ) : null}
-          <Separator />
-          <Item onClick={onCopyPath}>
-            <ClipboardTextIcon className="size-4" />
-            <span>Copy Path</span>
-          </Item>
-          {/* The Open in list already offers the Finder, so a row of its
-                own would name it twice. */}
-          {openIn ? null : (
-            <Item onClick={onReveal}>
-              <RevealInFolderIcon className="size-4" />
-              <span>{getRevealInFolderLabel()}</span>
-            </Item>
+          {/* Where one thing is has no answer for several. */}
+          {several ? null : (
+            <>
+              <Separator />
+              <Item onClick={onCopyPath}>
+                <ClipboardTextIcon className="size-4" />
+                <span>Copy Path</span>
+              </Item>
+              {/* The Open in list already offers the Finder, so a row of its
+                    own would name it twice. */}
+              {openIn ? null : (
+                <Item onClick={onReveal}>
+                  <RevealInFolderIcon className="size-4" />
+                  <span>{getRevealInFolderLabel()}</span>
+                </Item>
+              )}
+            </>
           )}
         </>
       ) : (

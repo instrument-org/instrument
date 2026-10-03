@@ -544,9 +544,9 @@ const sheet = (inner, { w = 760, h = 620 } = {}) => `
 
 // ---- onboarding ------------------------------------------------------------------
 
-/** The app mark: a green rounded square with the two-bar glyph. */
+/** The app mark: the app icon from BRAND_URI, clipped to the macOS rounded square. */
 const brandMark = (cls = "size-20") =>
-  `<span class="grid ${cls} shrink-0 place-items-center rounded-[22%] bg-linear-to-b from-[#5b9e8e] to-[#0b6056] shadow-md"><span class="flex w-3/5 flex-col gap-[12%]"><span class="block h-2 rounded-full bg-white/80"></span><span class="block h-2 rounded-full bg-white/80"></span></span></span>`;
+  `<img src="${BRAND_URI.instrument}" class="block ${cls} shrink-0 rounded-[22%] shadow-md" alt="">`;
 
 /** Onboarding's own 480x600 window: a gradient, the lights, centered content and an optional pinned footer. `tone` is brand (welcome, success) or subtle (the other steps). */
 const onboardWin = ({

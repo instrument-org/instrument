@@ -19,7 +19,10 @@
     "**/routeTree.gen.ts",
     ".claude/worktrees",
     "**/bin",
-    "**/tailwind-browser.js"
+    "**/tailwind-browser.js",
+    // Script fragments build.mjs concatenates into one page script, so each
+    // one's globals come from its siblings and read as unused or untyped alone.
+    ".agents/wireframe-kit/*.js"
   ],
   "options": {
     "typeAware": true

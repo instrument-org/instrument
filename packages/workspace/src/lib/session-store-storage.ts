@@ -1,6 +1,6 @@
 import { type Connector, createDatabase, type Database } from "db0";
 import sqlite from "db0/connectors/node-sqlite";
-import { err, errAsync, ok, ResultAsync } from "neverthrow";
+import { errAsync, ok, okAsync, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import { type DatabaseSync } from "node:sqlite";
 import { createStorage } from "unstorage";
@@ -31,52 +31,68 @@ interface OpenStore {
   /** Operations started on it and not yet settled; one is never closed under them. */
   inFlight: number;
   lastUsed: number;
+  /** Told when the last operation under way settles, by a dispose waiting to close. */
+  onIdle?: () => void;
   storage: WrappedStorage;
 }
 
-/** Each task's open database, at most one, so SQLite never sees two writers from here. */
-const OPEN = new Map<TaskId, OpenStore>();
-
-/** Opens under way, so concurrent first reads share one. */
-const OPENING = new Map<TaskId, Promise<OpenStore>>();
-
 /**
- * Tasks whose store this process has migrated and swept. A database closed
- * for being idle reopens without either: the migrations have nothing left
- * to do, and the sweep is only right before any run of this process started.
+ * Where each task's database is in this process.
+ *
+ * - No entry: never opened, or disposed since. The next open migrates the
+ *   store and sweeps interrupted tool calls, which is only right before any
+ *   run of this process has started on it.
+ * - `opening`: an open under way, which concurrent first reads share.
+ * - `open`: at most one per task, so SQLite never sees two writers from here.
+ * - `closed`: closed for being idle. Reopens without migrating or sweeping:
+ *   the migrations have nothing left to do, and runs may have started.
+ * - `disposing`: being closed as a process ending would. Nothing opens or
+ *   starts on it until that finishes and the entry goes.
  */
-const PREPARED = new Set<TaskId>();
+type StoreEntry =
+  | { closing: Promise<void>; phase: "disposing" }
+  | { opening: Promise<OpenStore>; phase: "opening" }
+  | { phase: "closed" }
+  | { phase: "open"; store: OpenStore };
+
+const STORES = new Map<TaskId, StoreEntry>();
 
 /** The storage each task's callers hold, which outlives any one open of its database. */
 const HANDLES = new Map<TaskId, WrappedStorage>();
 
-// Tracks storages that are currently being disposed to prevent recreation
-const DISPOSING_STORAGES = new Set<TaskId>();
+/** Tasks being deleted, which no open may recreate until the deletion is over. */
+const DELETING = new Set<TaskId>();
+
+/** How long a dispose waits for operations under way before closing anyway. */
+const DRAIN_TIMEOUT_MS = 5000;
 
 let sweepTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Closes a task's database as a process ending would: the next open migrates and sweeps again. */
 export function disposeSessionsStoreStorage(id: TaskId) {
   bumpStoreGeneration(id);
-  PREPARED.delete(id);
   HANDLES.delete(id);
-  return ResultAsync.fromPromise(
-    (async () => {
-      // A failed open leaves nothing to close.
-      await Promise.allSettled([OPENING.get(id)]);
-      const open = OPEN.get(id);
-      if (open) {
-        OPEN.delete(id);
-        await close(open);
-      }
-      return ok(undefined);
-    })(),
-    (error: unknown) =>
-      new TypedError.Storage(
-        error instanceof Error ? error.message : "Unknown error",
-        { cause: error },
-      ),
-  );
+  const entry = STORES.get(id);
+  if (entry?.phase === "disposing") {
+    return closingResult(entry.closing);
+  }
+  const closing = (async () => {
+    // A failed open leaves nothing to close.
+    const store =
+      entry?.phase === "open"
+        ? entry.store
+        : entry?.phase === "opening"
+          ? await entry.opening.catch(() => undefined)
+          : undefined;
+    if (store) {
+      await drained(store);
+      await close(store);
+    }
+  })().finally(() => {
+    STORES.delete(id);
+  });
+  STORES.set(id, { closing, phase: "disposing" });
+  return closingResult(closing);
 }
 
 export function getSessionsStoreStorage(taskId: TaskId) {
@@ -87,16 +103,9 @@ export function getSessionsStoreStorage(taskId: TaskId) {
         cause: error,
       }),
   ).andThen(() => {
-    if (DISPOSING_STORAGES.has(taskId)) {
-      return err(
-        new TypedError.Storage(
-          `Cannot create storage for ${taskId} while it is being deleted`,
-        ),
-      );
-    }
     // Opened here rather than on first use, so a database that cannot be
     // opened or migrated fails the caller that asked for it.
-    if (OPEN.has(taskId)) {
+    if (STORES.get(taskId)?.phase === "open" && !DELETING.has(taskId)) {
       return ok(handleFor(taskId));
     }
     return openStore(taskId).map(() => handleFor(taskId));
@@ -104,11 +113,22 @@ export function getSessionsStoreStorage(taskId: TaskId) {
 }
 
 export function markStorageAsDisposing(id: TaskId) {
-  DISPOSING_STORAGES.add(id);
+  DELETING.add(id);
 }
 
 export function unmarkStorageAsDisposing(id: TaskId) {
-  DISPOSING_STORAGES.delete(id);
+  DELETING.delete(id);
+}
+
+function closingResult(closing: Promise<void>) {
+  return ResultAsync.fromPromise(
+    closing,
+    (error: unknown) =>
+      new TypedError.Storage(
+        error instanceof Error ? error.message : "Unknown error",
+        { cause: error },
+      ),
+  );
 }
 
 async function close(open: OpenStore) {
@@ -125,17 +145,22 @@ async function close(open: OpenStore) {
 function closeIdle() {
   sweepTimer = undefined;
   const now = Date.now();
-  const idle = [...OPEN]
-    .filter(([, open]) => open.inFlight === 0 && now - open.lastUsed > IDLE_MS)
-    .sort(([, a], [, b]) => a.lastUsed - b.lastUsed);
-  let excess = OPEN.size - MAX_IDLE_OPEN;
-  for (const [taskId, open] of idle) {
+  const open = [...STORES].flatMap(([taskId, entry]) =>
+    entry.phase === "open" ? [{ store: entry.store, taskId }] : [],
+  );
+  const idle = open
+    .filter(
+      ({ store }) => store.inFlight === 0 && now - store.lastUsed > IDLE_MS,
+    )
+    .sort((a, b) => a.store.lastUsed - b.store.lastUsed);
+  let excess = open.length - MAX_IDLE_OPEN;
+  for (const { store, taskId } of idle) {
     if (excess <= 0) {
       break;
     }
-    OPEN.delete(taskId);
+    STORES.set(taskId, { phase: "closed" });
     excess -= 1;
-    void close(open).catch((error: unknown) => {
+    void close(store).catch((error: unknown) => {
       if (hasWorkspaceConfig()) {
         getWorkspaceConfig().captureException(
           new TypedError.Storage(`Failed to close the database of ${taskId}`, {
@@ -146,6 +171,35 @@ function closeIdle() {
     });
   }
   scheduleCloseIdle();
+}
+
+/** Resolves once nothing is under way on the store, or after the drain timeout. */
+function drained(store: OpenStore): Promise<void> {
+  if (store.inFlight === 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      store.onIdle = undefined;
+      resolve();
+    }, DRAIN_TIMEOUT_MS);
+    timer.unref();
+    store.onIdle = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+  });
+}
+
+/** How many databases are open, for the idle sweep's cap. */
+function openCount() {
+  let count = 0;
+  for (const entry of STORES.values()) {
+    if (entry.phase === "open") {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 /** The storage a task's callers hold: each call reaches its open database, reopening it if it was closed for being idle. */
@@ -170,16 +224,19 @@ function handleFor(taskId: TaskId): WrappedStorage {
         if (write) {
           bumpStoreGeneration(taskId);
         }
+        if (open.inFlight === 0) {
+          open.onIdle?.();
+        }
       };
       return operation(open.storage).andTee(settle).orTee(settle);
     };
-    // Claimed in the same tick as the lookup, so the sweep cannot close it
-    // between the two.
-    const open = OPEN.get(taskId);
-    if (open) {
-      open.inFlight += 1;
-      open.lastUsed = Date.now();
-      return run(open);
+    // Claimed in the same tick as the lookup, so neither the sweep nor a
+    // dispose can close it between the two.
+    const entry = STORES.get(taskId);
+    if (entry?.phase === "open") {
+      entry.store.inFlight += 1;
+      entry.store.lastUsed = Date.now();
+      return run(entry.store);
     }
     return openStore(taskId).andThen((reopened) => {
       reopened.inFlight += 1;
@@ -205,14 +262,21 @@ function handleFor(taskId: TaskId): WrappedStorage {
 }
 
 function openStore(taskId: TaskId): ResultAsync<OpenStore, TypedError.Storage> {
-  if (DISPOSING_STORAGES.has(taskId)) {
+  const entry = STORES.get(taskId);
+  if (DELETING.has(taskId) || entry?.phase === "disposing") {
     return errAsync(
       new TypedError.Storage(
         `Cannot create storage for ${taskId} while it is being deleted`,
       ),
     );
   }
-  const opening = OPENING.get(taskId) ?? startOpen(taskId);
+  if (entry?.phase === "open") {
+    return okAsync(entry.store);
+  }
+  const opening =
+    entry?.phase === "opening"
+      ? entry.opening
+      : startOpen(taskId, { prepared: entry?.phase === "closed" });
   return ResultAsync.fromPromise(opening, (error) =>
     error instanceof TypedError.Storage
       ? error
@@ -224,14 +288,17 @@ function openStore(taskId: TaskId): ResultAsync<OpenStore, TypedError.Storage> {
 }
 
 function scheduleCloseIdle() {
-  if (sweepTimer || OPEN.size <= MAX_IDLE_OPEN) {
+  if (sweepTimer || openCount() <= MAX_IDLE_OPEN) {
     return;
   }
   sweepTimer = setTimeout(closeIdle, IDLE_MS);
   sweepTimer.unref();
 }
 
-function startOpen(taskId: TaskId): Promise<OpenStore> {
+function startOpen(
+  taskId: TaskId,
+  { prepared }: { prepared: boolean },
+): Promise<OpenStore> {
   const database = createDatabase(
     sqlite({ path: sessionStorePath(taskDir(taskId)) }),
   );
@@ -254,7 +321,7 @@ function startOpen(taskId: TaskId): Promise<OpenStore> {
   )
     .andThen(() => {
       const wrappedStorage = wrapStorage(storage);
-      if (PREPARED.has(taskId)) {
+      if (prepared) {
         return ok(wrappedStorage);
       }
       // Before the storage is cached, so nothing can read through it until
@@ -265,7 +332,7 @@ function startOpen(taskId: TaskId): Promise<OpenStore> {
           // Also before caching, and for a stronger reason than cost: a tool
           // call still marked in flight belongs to a process that is gone,
           // and that is only certain while no run of this process can have
-          // started, which the cache miss guarantees. A sweep that fails
+          // started, which a task with no entry guarantees. A sweep that fails
           // leaves the parts as they were, which is no worse than not
           // sweeping; opening the task is not held to it.
           sweepInterruptedToolCalls({ storage: wrappedStorage }).orElse(
@@ -298,23 +365,38 @@ function startOpen(taskId: TaskId): Promise<OpenStore> {
         lastUsed: Date.now(),
         storage: wrappedStorage,
       };
-      OPEN.set(taskId, open);
-      PREPARED.add(taskId);
-      scheduleCloseIdle();
       return open;
     });
 
-  const promise = (async () => {
-    try {
-      const result = await opened;
-      if (result.isErr()) {
-        throw result.error;
+  // The entry this open is recorded under, which it checks for once it lands.
+  let entry: StoreEntry | undefined;
+  const opening = (async () => {
+    const result = await opened;
+    // Kept only while this open is still the task's: a dispose that began
+    // meanwhile closes it rather than leaving it open on a folder going away.
+    const current = STORES.get(taskId);
+    const isCurrent = current === entry;
+    if (result.isErr()) {
+      if (isCurrent) {
+        if (prepared) {
+          STORES.set(taskId, { phase: "closed" });
+        } else {
+          STORES.delete(taskId);
+        }
       }
-      return result.value;
-    } finally {
-      OPENING.delete(taskId);
+      throw result.error;
     }
+    if (!isCurrent) {
+      await close(result.value);
+      throw new TypedError.Storage(
+        `Cannot create storage for ${taskId} while it is being deleted`,
+      );
+    }
+    STORES.set(taskId, { phase: "open", store: result.value });
+    scheduleCloseIdle();
+    return result.value;
   })();
-  OPENING.set(taskId, promise);
-  return promise;
+  entry = { opening, phase: "opening" };
+  STORES.set(taskId, entry);
+  return opening;
 }

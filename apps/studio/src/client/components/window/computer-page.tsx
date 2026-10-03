@@ -66,6 +66,7 @@ import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
+import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -1354,7 +1355,10 @@ export function ComputerPage({
                   if (
                     tab &&
                     file.url &&
-                    file.contentType?.startsWith("image/")
+                    getFileType({
+                      filename: tab.name,
+                      mimeType: file.contentType,
+                    }) === "image"
                   ) {
                     return (
                       <StagePicture fallbackAspect={4 / 3} src={file.url} />
@@ -1959,6 +1963,7 @@ const TEXT_EXTENSIONS = new Set([
  * come back as a blank page, which says less than the file's own type icon.
  */
 const THUMBNAIL_EXTENSIONS = new Set([
+  "ai",
   "bmp",
   "c",
   "cc",
@@ -1999,6 +2004,7 @@ const THUMBNAIL_EXTENSIONS = new Set([
   "php",
   "png",
   "pptx",
+  "psd",
   "py",
   "rb",
   "rs",

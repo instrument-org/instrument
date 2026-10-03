@@ -1,4 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +12,16 @@ vi.mock("../hooks/use-file-open-control", () => ({
 }));
 vi.mock("./open-task-file-button", () => ({
   OpenTaskFileButton: () => null,
+}));
+// Zoom needs browser layout; these checks exercise preview loading and failure.
+vi.mock("../hooks/use-image-panzoom", () => ({
+  IMAGE_PANZOOM_VIEWPORT_CLASS: "",
+  useImagePanzoom: () => ({ canReset: false }),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerThumbnailUrl: vi.fn(
+    () => "instrument://computer-test/artwork.psd?thumbnail=1024&version=123",
+  ),
 }));
 // The chip a blocked image stands behind hands its URL to the system browser;
 // the spy is that seam.
@@ -126,5 +137,38 @@ describe("FileViewer markdown preview", () => {
       "data:image/png;base64,QUJD",
       "instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
     ]);
+  });
+});
+
+describe("FileViewer Photoshop preview", () => {
+  const file = {
+    filename: "artwork.psd",
+    hostPath: "/artwork.psd",
+    mimeType: "image/vnd.adobe.photoshop",
+    url: "instrument://computer-test/artwork.psd?version=123",
+  };
+
+  it("loads the versioned system preview instead of the PSD bytes", () => {
+    renderWithProviders(<FileViewer file={file} />);
+
+    expect(getComputerThumbnailUrl).toHaveBeenCalledWith({
+      hostPath: file.hostPath,
+      size: 1024,
+      theme: "light",
+      version: "123",
+    });
+    expect(
+      screen.getByRole("img", { name: file.filename }).getAttribute("src"),
+    ).toBe("instrument://computer-test/artwork.psd?thumbnail=1024&version=123");
+  });
+
+  it("keeps the file actions available when the system cannot preview it", () => {
+    // Finder's Quick Look supplies a name and path without a MIME type.
+    renderWithProviders(<FileViewer file={{ ...file, mimeType: undefined }} />);
+
+    fireEvent.error(screen.getByRole("img", { name: file.filename }));
+
+    expect(screen.getByText("Preview unavailable in Instrument")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save as…" })).toBeTruthy();
   });
 });

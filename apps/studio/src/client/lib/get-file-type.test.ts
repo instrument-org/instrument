@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { EXTENSION_MAP } from "./file-extension-to-language";
-import { getFileType } from "./get-file-type";
+import { getFileKindLabel, getFileType } from "./get-file-type";
 
 describe("getFileType", () => {
   it.each([
@@ -51,6 +51,35 @@ describe("getFileType", () => {
         mimeType: "application/octet-stream",
       }),
     ).toBe("docx");
+  });
+
+  it.each([
+    ["artwork.ai", undefined],
+    ["ARTWORK.AI", "application/postscript"],
+    ["artwork.ai", "application/octet-stream"],
+  ])("previews Illustrator artwork in %s (%s)", (filename, mimeType) => {
+    expect(getFileType({ filename, mimeType })).toBe("pdf");
+    expect(getFileKindLabel({ filename, mimeType })).toBe(
+      "Illustrator artwork",
+    );
+  });
+
+  it("does not send all PostScript files to the PDF viewer", () => {
+    expect(
+      getFileType({
+        filename: "artwork.eps",
+        mimeType: "application/postscript",
+      }),
+    ).toBe("unknown");
+  });
+
+  it.each([
+    ["artwork.psd", undefined],
+    ["ARTWORK.PSD", "image/vnd.adobe.photoshop"],
+    ["artwork.psd", "application/octet-stream"],
+  ])("uses a system preview for %s (%s)", (filename, mimeType) => {
+    expect(getFileType({ filename, mimeType })).toBe("photoshop");
+    expect(getFileKindLabel({ filename, mimeType })).toBe("Photoshop document");
   });
 
   it("is case insensitive", () => {

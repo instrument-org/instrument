@@ -29,6 +29,7 @@ const HAS_LINE_THUMBNAIL: Record<FileType, boolean> = {
   notebook: true,
   parquet: false,
   pdf: false,
+  photoshop: false,
   pptx: false,
   sqlite: false,
   text: true,

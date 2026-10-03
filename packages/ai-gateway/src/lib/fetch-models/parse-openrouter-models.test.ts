@@ -39,6 +39,17 @@ function parseOne(model: Record<string, unknown>) {
 }
 
 describe("parseOpenRouterModelsList", () => {
+  it("grants inputFile to a text model, since OpenRouter parses PDFs itself", () => {
+    expect(parseOne(openRouterModel()).features).toMatchInlineSnapshot(`
+      [
+        "inputText",
+        "inputFile",
+        "outputText",
+        "tools",
+      ]
+    `);
+  });
+
   it("carries a restriction through from the gateway", () => {
     expect(
       parseOne(

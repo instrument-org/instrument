@@ -82,6 +82,21 @@ describe("getErrorAction", () => {
     expect(getErrorAction(message).type).toBe("error");
   });
 
+  it("returns stop for content the provider refused, rather than resending it", () => {
+    const message = createMessage(
+      {
+        classification: "unsendable-content",
+        kind: "api-call",
+        message: "Invalid image",
+        name: "APIError",
+        statusCode: 400,
+        url: "https://example.com",
+      },
+      "openai",
+    );
+    expect(getErrorAction(message)).toEqual({ type: "stop" });
+  });
+
   it("returns retry for no-such-tool errors", () => {
     const message = createMessage({
       kind: "no-such-tool",

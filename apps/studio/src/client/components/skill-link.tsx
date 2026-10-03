@@ -6,10 +6,10 @@ import { type ReactNode } from "react";
  * A way to a skill's page from wherever a skill is named: the token of a
  * mention, the row of a skill-changes card.
  *
- * The skill is a screen of the pane, so the link opens it as a tab of the
- * chat through the window's own openers, and a middle click or a right click
- * get the gestures every opener there answers. A transcript drawn where no
- * screen can be opened (the debug pages) shows the name alone.
+ * The window's own openers take the skill's address to Settings, open on the
+ * skill, and a middle click or a right click get the gestures every opener
+ * there answers. A transcript drawn where nothing can be opened (the debug
+ * pages) shows the name alone.
  */
 export function SkillLink({
   children,

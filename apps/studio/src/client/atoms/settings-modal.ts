@@ -17,6 +17,8 @@ interface SettingsModalState {
   memory?: string;
   // Deep-link the Providers tab straight to the add-provider dialog.
   showNewProviderDialog?: boolean;
+  /** The skill to open on the Skills tab, by the name a task loads it by, for a link to one. */
+  skill?: string;
   tab?: SettingsTab;
 }
 

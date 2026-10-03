@@ -19,7 +19,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useContext, useState } from "react";
 import { toast } from "sonner";
 
@@ -35,7 +35,17 @@ type Skill = RPCOutput["workspace"]["skill"]["byName"];
  * and close Settings, since the draft is written on the window under it.
  */
 export function SkillsSection() {
-  const [openName, setOpenName] = useState<null | string>(null);
+  // The skill a link asked for opens in place of the list, and a later link
+  // while Settings is up opens the one it names.
+  const named = useAtomValue(settingsModalAtom)?.skill;
+  const [openName, setOpenName] = useState<null | string>(named ?? null);
+  const [seenNamed, setSeenNamed] = useState(named);
+  if (named !== seenNamed) {
+    setSeenNamed(named);
+    if (named !== undefined) {
+      setOpenName(named);
+    }
+  }
   const ask = useAsk();
 
   if (openName !== null) {

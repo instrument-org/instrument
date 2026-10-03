@@ -20,7 +20,13 @@ import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
 import { visitInTab } from "./tab-history";
 import { taskRecordOptions } from "./child-tasks-query";
-import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
+import {
+  memoryOfHref,
+  skillOfHref,
+  taskHref,
+  tasksHref,
+  tasksOfHref,
+} from "./tab-location";
 import {
   chatOfHref,
   chatOfHrefPrefix,
@@ -182,6 +188,12 @@ export function useOpeners({
     const memory = memoryOfHref(href);
     if (memory) {
       openSettings({ memory, tab: "Memory" });
+      return;
+    }
+    // A skill likewise, in Settings, open on the one named.
+    const skill = skillOfHref(href);
+    if (skill) {
+      openSettings({ skill, tab: "Skills" });
       return;
     }
     // A chat's tasks, or one task, are a tab in the chat's group, a task in

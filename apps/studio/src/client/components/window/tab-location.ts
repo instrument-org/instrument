@@ -197,6 +197,28 @@ export function memoryOfHref(href: string): string | undefined {
   return name && !name.includes("/") ? name : undefined;
 }
 
+/**
+ * The skill an address names, by the name a task loads it by. Nothing for
+ * any other address, and nothing for the skills as a whole: the Settings tab
+ * is where they are, the way it is for the memories.
+ */
+export function skillOfHref(href: string): string | undefined {
+  const pathname = new URL(href, "http://tabs").pathname;
+  if (!pathname.startsWith(`${SKILLS_HREF}/`)) {
+    return undefined;
+  }
+  const segment = pathname.slice(SKILLS_HREF.length + 1);
+  if (!segment || segment.includes("/")) {
+    return undefined;
+  }
+  // The router writes a qualified name's colon as `%3A`.
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 /** A name that is a whole volume on Windows, which is where a path there starts. */
 function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);

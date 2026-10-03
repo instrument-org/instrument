@@ -90,7 +90,7 @@ export async function browserSkillToDeliver({
  * Whether any message the model is sent already carries the instructions,
  * from an earlier delivery or from the model loading the skill itself.
  */
-export function browserSkillInWindow(
+function browserSkillInWindow(
   messages: readonly SessionMessage.WithParts[],
 ): boolean {
   return messages.some((message) =>

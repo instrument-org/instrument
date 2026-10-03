@@ -1,5 +1,6 @@
+import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
@@ -60,5 +61,31 @@ describe("Favicon", () => {
         .getAllByRole("img", { name: "Favicon for no-icon.example.com" })
         .every((element) => element.tagName === "svg"),
     ).toBe(true);
+  });
+
+  it("retries mounted icons for the same host at a fresh address when a page supplies one", () => {
+    const host = "recovered-icon.example.com";
+    const first = renderFavicon(`https://${host}/first`);
+    renderFavicon(`https://${host}/second`);
+    fireEvent.error(first);
+
+    expect(
+      screen
+        .getAllByRole("img", { name: `Favicon for ${host}` })
+        .map((icon) => icon.tagName),
+    ).toEqual(["svg", "svg"]);
+
+    act(() => {
+      forgetIconlessThisSession(`https://${host}/third`);
+    });
+
+    const recovered = screen.getAllByRole("img", {
+      name: `Favicon for ${host}`,
+    });
+    expect(recovered.map((icon) => icon.tagName)).toEqual(["IMG", "IMG"]);
+    expect(recovered.map((icon) => icon.getAttribute("src"))).toEqual([
+      `${first.src}?retry=1`,
+      `${first.src}?retry=1`,
+    ]);
   });
 });

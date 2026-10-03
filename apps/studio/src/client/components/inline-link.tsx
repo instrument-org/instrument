@@ -2,8 +2,9 @@ import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import {
   getFaviconUrl,
-  isIconlessThisSession,
   markIconlessThisSession,
+  useFaviconRetry,
+  useIsIconlessThisSession,
 } from "@/client/lib/favicon-url";
 import {
   destinationParts,
@@ -22,7 +23,7 @@ import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
@@ -317,8 +318,9 @@ function MailLink({
  * otherwise hold the width of an icon about to be taken away again.
  */
 function SiteIcon({ className, href }: { className?: string; href: string }) {
-  const [isIconless, setIconless] = useState(() => isIconlessThisSession(href));
-  const src = getFaviconUrl(href);
+  const isIconless = useIsIconlessThisSession(href);
+  const retry = useFaviconRetry(href);
+  const src = getFaviconUrl(href, retry);
   const {
     attach,
     className: arrivalClassName,
@@ -347,7 +349,6 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
       )}
       onError={() => {
         markIconlessThisSession(href);
-        setIconless(true);
       }}
       onLoad={arrived}
       ref={attach}

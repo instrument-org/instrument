@@ -51,7 +51,7 @@ const PICKER_LEAVE_MS = 250;
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. The title has the
- * first line with the topics at its end, the latest line gets two, and what it holds sits on a
+ * first line with the topics at its end, the latest line gets one, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
  * with the time in the row's bottom corner. A starred chat wears a filled
@@ -155,7 +155,7 @@ export function ChatRow({
   // The topics in the row's corner, each by name; filing is the control in
   // the corner's bar.
   const pills = filed.map((topic) => (
-    <TopicPill key={topic.id} topic={topic} />
+    <TopicPill key={topic.id} quiet topic={topic} />
   ));
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
@@ -163,8 +163,10 @@ export function ChatRow({
     <>
       <span
         className={cn(
-          "min-w-0 truncate text-[13px]",
-          isUnseen ? "font-semibold" : "text-foreground/90",
+          "min-w-0 truncate text-[13px] leading-5 tracking-[-0.005em]",
+          isUnseen
+            ? "font-semibold text-foreground"
+            : "font-medium text-foreground/85",
         )}
       >
         {chat.title}
@@ -181,7 +183,9 @@ export function ChatRow({
   const time = (
     <span
       className={cn(
-        "w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums",
+        // `ml-auto` holds it to the corner when the holds' line draws no
+        // marks, as when a chat's only site has no icon yet.
+        "ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums",
         isUnseen && "font-semibold text-foreground",
       )}
     >
@@ -243,40 +247,28 @@ export function ChatRow({
                 {starMark}
               </span>
             </div>
-            {/* The time in the row's bottom corner: at the end of the
-                holds' line when the chat holds anything, and otherwise at
-                the end of the latest line, so a row with nothing held takes
-                no line for nothing. */}
-            {hasHolds ? (
-              <>
-                {/* Two lines' room whatever the latest line takes, so
-                    the row keeps one height as its chat starts work,
-                    starts a task, and settles on a reply of one line. */}
-                <Peek chat={chat} className="mt-0.5 min-h-10" />
-                <div className="mt-1 flex items-end gap-2">
-                  <HoldsInChat chatSessionId={chat.id}>
-                    <HoldMarks
-                      appsBySlug={appsBySlug}
-                      className="min-w-0 flex-1 gap-1"
-                      holds={chat.holds}
-                      namedFiles
-                      wrap={false}
-                    />
-                  </HoldsInChat>
-                  {time}
-                </div>
-              </>
-            ) : (
-              // Two lines' room whatever the latest line takes, so the
-              // time sits under the corner's bar rather than beneath it
-              // while the pointer is on the row, and the row keeps one
-              // height as the line changes. The line starts under the
-              // title, as it does in a row that holds something.
-              <div className="mt-0.5 flex min-h-10 items-start gap-2">
-                <Peek chat={chat} className="min-w-0 flex-1" />
-                <span className="ml-auto flex shrink-0 self-end">{time}</span>
-              </div>
-            )}
+            {/* A line's room whatever the latest line takes, and when there
+                is none, so the row keeps one height as its chat starts work. */}
+            <div className="h-5 min-w-0">
+              <Peek chat={chat} />
+            </div>
+            {/* What the chat holds and the time in the row's bottom corner,
+                on a line every row has whether or not it holds anything, so
+                the list keeps one row height down its length. */}
+            <div className="mt-1 flex h-5 items-center gap-2">
+              {hasHolds && (
+                <HoldsInChat chatSessionId={chat.id}>
+                  <HoldMarks
+                    appsBySlug={appsBySlug}
+                    className="min-w-0 flex-1 gap-1"
+                    holds={chat.holds}
+                    namedFiles
+                    wrap={false}
+                  />
+                </HoldsInChat>
+              )}
+              {time}
+            </div>
           </div>
           <RowActionBar
             actions={actions}
@@ -350,17 +342,23 @@ export function ChatRow({
 export function TopicPill({
   compact = false,
   onPick,
+  quiet = false,
   topic,
 }: {
   /** The mark alone, for a topic past the first on a row with a title to keep; `"narrow"` is the mark alone only on a narrow chat head. */
   compact?: "narrow" | boolean;
   onPick?: () => void;
+  /** A faint wash with the name in the topic's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
+  quiet?: boolean;
   topic: Topic;
 }) {
   // `leading-4` rather than none: the name's box has to hold its descenders,
   // or the clip that truncates it cuts them off.
   const className = cn(
-    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pl-1 text-[11px] leading-4 text-foreground/90 topic-tint",
+    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full pl-1 text-[11px] leading-4 topic-tint",
+    quiet
+      ? "bg-(--topic-tint-surface)/40 font-medium text-(--topic-tint-ink)"
+      : "bg-(--topic-tint-surface) text-foreground/90",
     compact === true
       ? "pr-1"
       : compact === "narrow"
@@ -469,7 +467,7 @@ function HoldsInChat({
  * The agent's latest line: the step while it works, in brand; the question
  * while it waits, behind an amber glyph with the words themselves in gray;
  * and the last reply's first words otherwise, in muted. Nothing when an idle
- * chat has said nothing yet. Two lines that clamp.
+ * chat has said nothing yet. One line that truncates.
  */
 function Peek({ chat, className }: { chat: Chat; className?: string }) {
   const isWaiting = chat.state === "waiting";
@@ -480,7 +478,7 @@ function Peek({ chat, className }: { chat: Chat; className?: string }) {
   return (
     <span
       className={cn(
-        "flex items-start gap-1.5 text-[12px] leading-5",
+        "flex min-w-0 items-center gap-1.5 text-[12px] leading-5",
         className,
       )}
     >
@@ -489,15 +487,15 @@ function Peek({ chat, className }: { chat: Chat; className?: string }) {
       ) : isWaiting ? (
         <>
           <QuestionIcon
-            className="mt-[3px] size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
+            className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
             weight="bold"
           />
-          <span className="line-clamp-2 min-w-0 text-foreground/80">
+          <span className="min-w-0 truncate text-foreground/80">
             {chat.latest?.text || "Waiting on you"}
           </span>
         </>
       ) : (
-        <span className="line-clamp-2 min-w-0 text-muted-foreground">
+        <span className="min-w-0 truncate text-muted-foreground">
           {chat.latest?.text}
         </span>
       )}
@@ -555,46 +553,37 @@ function TagControl({
 }
 
 /**
- * What a working chat is doing: the task at work by its title and under it
- * the step it is on, each held to one line, so the row keeps its height as
- * the step changes with every call; the step line says Instrument is working
- * until the task's first call lands. With no task at work, the chat's own
- * agent is, and the user's message it is answering goes under it.
+ * What a working chat is doing, on one line so the row keeps its height as
+ * the step changes with every call: the task at work by its title and then
+ * the step it is on, which says Instrument is working until the task's first
+ * call lands. With no task at work, the chat's own agent is, and the user's
+ * message it is answering follows.
  */
 function WorkingPeek({ chat }: { chat: Chat }) {
   const working = chat.runningTasks.filter((task) => !task.waiting);
   const lead = working.find((task) => task.step) ?? working[0];
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
-  // shrink, so each line carries its own.
+  // shrink, so it carries its own.
   if (!lead) {
-    const status = (
-      <span className="brand-shiny-text min-w-0 truncate">
-        Instrument is working
-      </span>
-    );
-    // What it is answering under it, so the second line says what the wait
-    // is for rather than standing empty until a task starts.
-    if (!chat.lastAsk) {
-      return status;
-    }
     return (
-      <span className="flex min-w-0 flex-col">
-        {status}
-        <span className="min-w-0 truncate text-muted-foreground">
-          You: {chat.lastAsk}
-        </span>
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="brand-shiny-text shrink-0">Instrument is working</span>
+        {/* What it is answering beside it, so the line says what the wait
+            is for rather than standing alone until a task starts. */}
+        {chat.lastAsk && (
+          <span className="min-w-0 truncate text-muted-foreground">
+            You: {chat.lastAsk}
+          </span>
+        )}
       </span>
     );
   }
   return (
-    <span className="flex min-w-0 flex-col">
-      <span className="min-w-0 truncate text-foreground/80">
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      <span className="max-w-1/2 shrink-0 truncate text-foreground/80">
         {lead.title}
         {working.length > 1 && (
-          <span className="text-muted-foreground">
-            {" "}
-            and {working.length - 1} more
-          </span>
+          <span className="text-muted-foreground"> +{working.length - 1}</span>
         )}
       </span>
       <span className="brand-shiny-text min-w-0 truncate">

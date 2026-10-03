@@ -12,14 +12,10 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { iconHostOf, useIconlessHosts } from "@/client/lib/favicon-url";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
-import {
-  type MouseEvent,
-  type ReactNode,
-  type SyntheticEvent,
-  useState,
-} from "react";
+import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
@@ -70,9 +66,10 @@ export function HoldMarks({
   /** Whether the marks may take a second line, or are clipped at the edge of the first with a fade. */
   wrap?: boolean;
 }) {
-  const [unresolved, setUnresolved] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  // Read live rather than kept per row: a site whose first lookup failed and
+  // that is given an icon a moment later, as when the chat opens it in a
+  // browser tab, comes back into the row.
+  const iconless = useIconlessHosts();
   const items: Hold[] = [
     // The newest first, so what the chat made last is what shows before
     // the count folds the rest away.
@@ -100,17 +97,9 @@ export function HoldMarks({
     // a row of globes says nothing about which sites the chat reached.
     ...holds.sites
       .toReversed()
-      .filter((site) => !unresolved.has(site))
+      .filter((site) => !iconless.has(iconHostOf(addressOf(site))))
       .map((site) => ({
-        icon: (
-          <Favicon
-            className="size-4"
-            onNone={() => {
-              setUnresolved((current) => new Set([site, ...current]));
-            }}
-            url={addressOf(site)}
-          />
-        ),
+        icon: <Favicon className="size-4" url={addressOf(site)} />,
         key: `site:${site}`,
         name: hostOf(site),
         target: { kind: "page" as const, url: addressOf(site) },
@@ -155,7 +144,7 @@ export function HoldMarks({
       {marked.map((item) =>
         item.named ? (
           <button
-            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-card px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/5 hover:text-foreground"
+            className="inline-flex h-5 max-w-52 shrink-0 items-center gap-1 rounded-md bg-foreground/4 pr-1.5 pl-1 text-[11px] text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
             key={item.key}
             type="button"
             {...openOf(item)}

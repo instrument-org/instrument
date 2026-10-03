@@ -1,8 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import {
   getFaviconUrl,
-  isIconlessThisSession,
   markIconlessThisSession,
+  useFaviconRetry,
+  useIsIconlessThisSession,
 } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -32,21 +33,20 @@ export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
 export function Favicon({
   className,
   fallback,
-  onNone,
   url,
 }: {
   className?: string;
   /** What to draw when the site has no icon anywhere; the site's initial on a quiet tile otherwise. */
   fallback?: ReactNode;
-  /** Told once the site turns out to have no icon anywhere, for a caller that would rather draw nothing than its initial. */
-  onNone?: () => void;
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
   // A site with no icon gets its initial rather than a bitmap scaled up, and
-  // one already found to have none this session draws it at once.
-  const [isIconless, setIconless] = useState(() => isIconlessThisSession(url));
-  const faviconUrl = getFaviconUrl(url);
+  // one already found to have none this session draws it at once. Given an
+  // icon later, it asks again.
+  const isIconless = useIsIconlessThisSession(url);
+  const retry = useFaviconRetry(url);
+  const faviconUrl = getFaviconUrl(url, retry);
   // Taken apart here: what goes to the element's ref is a ref to the lint,
   // and the class beside it is read in render.
   const {
@@ -75,8 +75,6 @@ export function Favicon({
             )}
             onError={() => {
               markIconlessThisSession(url);
-              setIconless(true);
-              onNone?.();
             }}
             onLoad={arrived}
             ref={attach}

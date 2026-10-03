@@ -1,6 +1,7 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
@@ -32,6 +33,9 @@ const calls = vi.hoisted(() => ({
   unseen: vi.fn(),
 }));
 
+/** `.invalid` sites given an icon partway through a test, as a page opened in a browser tab hands over its own. */
+const givenIcon = vi.hoisted(() => new Set<string>());
+
 // A site's icon comes over the app protocol, which only the main process
 // answers, so here every site has a one-pixel icon except a `.invalid` one,
 // which is left to the real address and fails the way a site with none does.
@@ -40,7 +44,7 @@ vi.mock("@/client/lib/favicon-url", async (importOriginal) => {
   return {
     ...actual,
     getFaviconUrl: (url: string) =>
-      url.includes(".invalid")
+      url.includes(".invalid") && !givenIcon.has(url)
         ? actual.getFaviconUrl(url)
         : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   };
@@ -385,15 +389,28 @@ describe("ChatRow", () => {
     expect(time?.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
   });
 
-  it("gives the latest line two lines", async () => {
+  it("keeps one row height whether a chat holds anything or has said anything", async () => {
+    const { rows } = await renderRows([
+      chat({ holds: { apps: [], files: ["/task/out/report.md"], sites: [] } }),
+      chat(),
+      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ state: "working" }),
+    ]);
+    const heights = new Set(
+      rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+    );
+    expect(heights.size).toBe(1);
+  });
+
+  it("gives the latest line one line", async () => {
     const { row } = await renderRow(
       chat({
         latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
       }),
     );
     const peek = peekOf(row);
-    expect(peek?.querySelector(".line-clamp-2")).not.toBeNull();
-    expect(peek?.getBoundingClientRect().height).toBeGreaterThan(30);
+    expect(peek?.querySelector(".truncate")).not.toBeNull();
+    expect(peek?.getBoundingClientRect().height).toBeLessThan(24);
   });
 
   it("carries no reply count, and the time", async () => {
@@ -501,7 +518,7 @@ describe("ChatRow", () => {
     expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
   });
 
-  it("says what it is answering under Instrument is working until a task starts, in two lines only", async () => {
+  it("says what it is answering beside Instrument is working until a task starts, on one line", async () => {
     const working = chat({
       lastAsk: "Check the Nest schedule",
       latest: undefined,
@@ -513,7 +530,7 @@ describe("ChatRow", () => {
     );
   });
 
-  it("says Instrument is working under a task's title until its first step lands", async () => {
+  it("says Instrument is working after a task's title until its first step lands", async () => {
     const { row } = await renderRow(
       chat({
         latest: undefined,
@@ -735,6 +752,27 @@ describe("ChatRow", () => {
     expect(
       row.querySelector('[aria-label="Favicon for no-such-site.invalid"]'),
     ).toBe(null);
+  });
+
+  it("brings a site back once it is given the icon it failed to have", async () => {
+    const site = "later-icon.invalid";
+    const { row } = await renderRow(
+      chat({ holds: { apps: [], files: [], sites: [site] } }),
+    );
+    // Gone once its first lookup fails...
+    await vi.waitFor(
+      () => {
+        expect(marksOf(row)).toHaveLength(0);
+      },
+      { timeout: 5000 },
+    );
+    // ...and back in the same row, with no remount, once it has an icon.
+    givenIcon.add(`https://${site}`);
+    forgetIconlessThisSession(site);
+    await vi.waitFor(() => {
+      expect(marksOf(row)).toHaveLength(1);
+    });
+    expect(row.querySelector(`img[alt="Favicon for ${site}"]`)).not.toBeNull();
   });
 
   it("lists every hold by name behind the count, never a slug or a path", async () => {

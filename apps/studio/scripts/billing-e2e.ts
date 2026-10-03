@@ -807,8 +807,9 @@ async function main() {
       return current;
     });
     const page = await capturePage(app, "5h-reset");
+    // A reset reads as unused: only the one cent burned since counts.
     assert(
-      page.windows["5h"]?.[1] !== "100%",
+      Number.parseFloat(page.windows["5h"]?.[1] ?? "100") < 1,
       `page 5h ${String(page.windows["5h"]?.join(" "))}`,
     );
     return `burn answered ${result.status}; page 5h ${String(page.windows["5h"]?.[1])}`;

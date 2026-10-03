@@ -108,6 +108,9 @@ overrides:
   # vite variants, making Plugin types "unrelated" and breaking tsgo on
   # electron.vite.config.ts.
   jiti: 2.7.0
+  # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown and
+  # posthog-js bundle it too; 3.4.5 carries several sanitizer-bypass advisories.
+  dompurify: ^3.4.16
 
 patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch

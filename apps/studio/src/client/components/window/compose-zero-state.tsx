@@ -158,7 +158,7 @@ export function WebStart({
     <div className="h-full min-h-0 overflow-y-auto">
       {/* Discover's column and the Apps place's, so moving between the
           three places never moves the edges the page is read against. */}
-      <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-16 pb-14">
+      <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
         <PageSection title="Bookmarks">
           {bookmarks.length === 0 ? (
             <NoBookmarks />
@@ -259,14 +259,16 @@ function NoBookmarks() {
     <div className="flex flex-col items-center rounded-2xl bg-black/2 px-6 pt-10 pb-11 dark:bg-white/3">
       <div
         aria-hidden
-        className="relative mb-5 grid size-16 place-items-center"
+        className="relative mb-5 grid size-16 scale-90 place-items-center"
       >
         {/* The two behind: a size down, fanned out from under the front
             one so only their outer corners show. They arrive tucked in a
-            little closer and open out once, slowly, as the page appears. */}
-        <span className="absolute size-13 -translate-x-4.5 -rotate-12 rounded-xl bg-card/80 shadow-xs ring-1 ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:-translate-x-2 starting:-rotate-4" />
-        <span className="absolute size-13 translate-x-4.5 rotate-12 rounded-xl bg-card/80 shadow-xs ring-1 ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:translate-x-2 starting:rotate-4" />
-        <span className="relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-card shadow-md ring-1 ring-border">
+            little closer and open out once, slowly, as the page appears.
+            Opaque fills and inset rings keep each edge on its own card;
+            soft shadows leave out elevation's translucent outer ring. */}
+        <span className="absolute size-13 -translate-x-4.5 -rotate-12 rounded-xl bg-card shadow-xs-soft inset-ring inset-ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:-translate-x-2 starting:-rotate-4" />
+        <span className="absolute size-13 translate-x-4.5 rotate-12 rounded-xl bg-card shadow-xs-soft inset-ring inset-ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:translate-x-2 starting:rotate-4" />
+        <span className="relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-card shadow-md-soft inset-ring inset-ring-border">
           <GlobeIcon
             className="size-7 text-muted-foreground/45"
             weight="light"
@@ -275,7 +277,7 @@ function NoBookmarks() {
               taken from the icon set, whose bookmark stands a little below
               the top of its box. */}
           <svg
-            className="absolute top-0 right-3 h-4.5 w-3.5 fill-brand-400"
+            className="absolute top-0 right-3 h-4.5 w-3.5 fill-brand-300"
             viewBox="0 0 14 18"
           >
             <path d="M0 0h14v18l-7-4.5L0 18z" />

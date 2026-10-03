@@ -17,6 +17,7 @@ import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
+import { DISCOVER_HREF } from "./ideas";
 import { openMenuLink } from "./menu-link";
 import { visitInTab } from "./tab-history";
 import { taskRecordOptions } from "./child-tasks-query";
@@ -261,8 +262,14 @@ export function useOpeners({
       appTabs.open(href, { select: !behind });
       return;
     }
-    // An app is a place a tab stands, wherever it was asked for from.
-    if (parseHref(href).pathname.startsWith(`${APPS_HREF}/`)) {
+    // An app is a place a tab stands, wherever it was asked for from, and so
+    // is Discover and each idea on it: the pane beside a chat draws neither.
+    const { pathname } = parseHref(href);
+    if (
+      pathname.startsWith(`${APPS_HREF}/`) ||
+      pathname === DISCOVER_HREF ||
+      pathname.startsWith(`${DISCOVER_HREF}/`)
+    ) {
       appTabs.navigate(href);
       return;
     }

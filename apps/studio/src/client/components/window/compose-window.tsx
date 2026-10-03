@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -39,7 +40,6 @@ import { cn } from "@/client/lib/utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
-  type BrowserTargetId,
   encodeBrowserTargetId,
   type FileUpload,
   StoreId,
@@ -1003,16 +1003,19 @@ export function GroupItem({
           StoreId.SessionSchema.parse(up.id),
         )
       : undefined;
-  const guest = useGuestSteps(targetId);
+  const targets = useBrowserTargets();
+  const guest = useGuestNavigation(
+    targetId !== undefined && targets.has(targetId) ? targetId : null,
+  );
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
   // the window's own, where the window's tab was before the site. The row's
   // arrows and the mouse's thumb buttons over the page both take these.
   const webview = targetId ? getWebviewElement(targetId) : null;
   const at = atOf(up);
-  const withinBack = up.kind === "page" ? guest.back : at > 0;
+  const withinBack = up.kind === "page" ? guest.canGoBack : at > 0;
   const withinForward =
-    up.kind === "page" ? guest.forward : at < trailOf(up).length - 1;
+    up.kind === "page" ? guest.canGoForward : at < trailOf(up).length - 1;
   // A site of the window's own has nothing of its own before its page.
   const hasPast = !before && Boolean(up.past?.length);
   const hasFuture = Boolean(up.future?.length);
@@ -1645,42 +1648,4 @@ function TopicSlot({
       )}
     </span>
   );
-}
-
-/** Whether a page's guest has anywhere of its own to go back or forward to, kept as it moves. */
-function useGuestSteps(targetId: BrowserTargetId | undefined) {
-  const [steps, setSteps] = useState({ back: false, forward: false });
-  const targets = useBrowserTargets();
-  const isAttached = targetId !== undefined && targets.has(targetId);
-  useEffect(() => {
-    const webview = targetId ? getWebviewElement(targetId) : null;
-    if (!webview) {
-      return;
-    }
-    const read = () => {
-      try {
-        setSteps({
-          back: webview.canGoBack(),
-          forward: webview.canGoForward(),
-        });
-      } catch {
-        // Not attached yet: its first navigation reads it again.
-      }
-    };
-    const events = [
-      "did-navigate",
-      "did-navigate-in-page",
-      "did-stop-loading",
-    ] as const;
-    for (const event of events) {
-      webview.addEventListener(event, read);
-    }
-    read();
-    return () => {
-      for (const event of events) {
-        webview.removeEventListener(event, read);
-      }
-    };
-  }, [targetId, isAttached]);
-  return steps;
 }

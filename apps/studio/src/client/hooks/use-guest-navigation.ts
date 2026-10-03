@@ -69,10 +69,14 @@ export function useGuestNavigation(
     webview.addEventListener("did-navigate", sync);
     webview.addEventListener("did-navigate-in-page", sync);
     webview.addEventListener("did-fail-load", syncSteps);
+    // A redirect can move the history once loading stops without a
+    // navigation event for it.
+    webview.addEventListener("did-stop-loading", syncSteps);
     return () => {
       webview.removeEventListener("did-navigate", sync);
       webview.removeEventListener("did-navigate-in-page", sync);
       webview.removeEventListener("did-fail-load", syncSteps);
+      webview.removeEventListener("did-stop-loading", syncSteps);
       // The guest this described is being let go. Reopening the same target
       // builds a fresh one at about:blank, and `sync()` cannot read that until
       // its WebContents attaches, so an answer left standing across the gap

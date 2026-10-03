@@ -70,7 +70,7 @@ import {
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { folderNameFromPath } from "@instrument-org/shared";
 import {
@@ -624,11 +624,19 @@ export function ComputerPage({
     if (hostPaths.length === 0) {
       return;
     }
+    // What went, by the journal entries that bring each back: the toast's
+    // Undo is about these whatever is done after them.
+    const undoable: string[] = [];
     try {
       // One at a time, so a failure stops short of the rest rather than
       // leaving which of them went to chance.
       for (const hostPath of hostPaths) {
-        await rpcClient.files.trash.call({ path: hostPath });
+        const { journalId } = await rpcClient.files.trash.call({
+          path: hostPath,
+        });
+        if (journalId !== null) {
+          undoable.push(journalId);
+        }
       }
       // The columns open as far as the selection reaches, so they stay in
       // the folder that held what went, with that folder selected the way
@@ -646,6 +654,38 @@ export function ComputerPage({
       failed(error);
     } finally {
       reread();
+      if (undoable.length > 0) {
+        const [only] = hostPaths;
+        toast(
+          undoable.length === 1 && only
+            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the Trash`
+            : `Moved ${undoable.length} items to the Trash`,
+          {
+            action: {
+              label: "Undo",
+              onClick: () => {
+                void undoTrash(undoable);
+              },
+            },
+          },
+        );
+      }
+    }
+  };
+  // The toast's Undo: each of them back, the last trashed first, stopping at
+  // the first that cannot come back and saying why.
+  const undoTrash = async (journalIds: string[]) => {
+    let first: null | RPCOutput["files"]["undo"] = null;
+    try {
+      for (const journalId of journalIds.toReversed()) {
+        first = await rpcClient.files.undo.call({ journalId });
+      }
+    } catch (error) {
+      failed(error);
+    }
+    reread();
+    if (first) {
+      selectUndone(first);
     }
   };
 
@@ -935,6 +975,22 @@ export function ComputerPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, onQuickLook, isActiveTab]);
 
+  // What was put back is selected, when it is under the root on screen now:
+  // a toast's Undo can come after a move to another root.
+  const rootHostPathRef = useRef(rootHostPath);
+  useEffect(() => {
+    rootHostPathRef.current = rootHostPath;
+  });
+  const selectUndone = (undone: { isFolder: boolean; path: null | string }) => {
+    const onScreenRoot = rootHostPathRef.current;
+    if (undone.path === null || !onScreenRoot) {
+      return;
+    }
+    const relative = relativeHostPath(onScreenRoot, undone.path);
+    if (relative !== null) {
+      setSelectedPath(`${relative}${undone.isFolder ? "/" : ""}`);
+    }
+  };
   // ⌘Z takes back the newest thing the Finder did to the computer's files (a
   // rename, a duplicate, a new folder, a move to the Trash), the way the
   // Finder's own Edit > Undo does. What was put back is selected; what cannot
@@ -958,14 +1014,7 @@ export function ComputerPage({
         .call()
         .then((undone) => {
           reread();
-          const restored = undone.path;
-          if (restored === null || !rootHostPath) {
-            return;
-          }
-          const relative = relativeHostPath(rootHostPath, restored);
-          if (relative !== null) {
-            setSelectedPath(`${relative}${undone.isFolder ? "/" : ""}`);
-          }
+          selectUndone(undone);
         })
         .catch(failed);
     };
@@ -973,9 +1022,10 @@ export function ComputerPage({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-    // `reread` is rebuilt each render and reads nothing that changes.
+    // `reread` and `selectUndone` are rebuilt each render and read nothing
+    // that changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActiveTab, isRecents, rootHostPath]);
+  }, [isActiveTab, isRecents]);
 
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are

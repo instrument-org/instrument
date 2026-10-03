@@ -165,6 +165,12 @@ const duplicate = base
 const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
   .input(z.object({ path: HostPathSchema }))
+  .output(
+    z.object({
+      /** The journal entry that takes it back, when there is one. */
+      journalId: z.string().nullable(),
+    }),
+  )
   .handler(async ({ errors, input }) => {
     const identity = await identityOf(input.path);
     try {
@@ -177,14 +183,16 @@ const trash = base
     // The Trash keeps no record of where a thing came from that an app can
     // read, so where it landed is found by its identity now, while it is
     // still the newest thing there.
-    if (identity) {
-      getFileJournal().record({
-        from: input.path,
-        identity,
-        kind: "trash",
-        trashed: await findInTrash(identity),
-      });
+    if (!identity) {
+      return { journalId: null };
     }
+    const entry = getFileJournal().record({
+      from: input.path,
+      identity,
+      kind: "trash",
+      trashed: await findInTrash(identity),
+    });
+    return { journalId: entry.id };
   });
 
 /** Writes an action to the journal, by the identity of what it left at `at`. */
@@ -203,12 +211,17 @@ async function record(
  * folder, or a move to the Trash. One that cannot be taken back safely is
  * refused with the reason and stays in the journal, so nothing older is
  * undone out of order behind it.
+ *
+ * `journalId` takes back that one entry instead, as the Undo on the toast an
+ * action raised does: it is about those items whatever was done since, and
+ * the same checks keep it from touching anything that has changed.
  */
 const undo = base
   .errors({
     CANNOT_UNDO: { message: "That cannot be undone" },
     NOTHING_TO_UNDO: { message: "There is nothing to undo" },
   })
+  .input(z.object({ journalId: z.string().optional() }).optional())
   .output(
     z.object({
       kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
@@ -218,9 +231,12 @@ const undo = base
       path: z.string().nullable(),
     }),
   )
-  .handler(async ({ errors }) => {
+  .handler(async ({ errors, input }) => {
     const journal = getFileJournal();
-    const entry = journal.latest();
+    const entry =
+      input?.journalId === undefined
+        ? journal.latest()
+        : journal.byId(input.journalId);
     if (!entry) {
       throw errors.NOTHING_TO_UNDO();
     }

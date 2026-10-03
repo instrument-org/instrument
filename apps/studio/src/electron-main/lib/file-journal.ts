@@ -78,6 +78,9 @@ export function createFileJournal(
   }: { makeId?: () => string; now?: () => number } = {},
 ) {
   return {
+    /** One entry by its id, or null once it is undone or has aged out. */
+    byId: (id: string) =>
+      storage.read().find((entry) => entry.id === id) ?? null,
     /** The newest entry, the one ⌘Z takes back next. */
     latest: () => storage.read().at(-1) ?? null,
     record: (entry: NewJournalEntry) => {

@@ -192,6 +192,10 @@ describe("the journal", () => {
       made: `/folder ${JOURNAL_LIMIT + 4}`,
     });
 
+    // An older entry is found by its id, as a toast's Undo asks for one.
+    const older = entries[0];
+    expect(journal.byId(older?.id ?? "")).toBe(older);
+
     journal.remove(journal.latest()?.id ?? "");
     expect(journal.latest()).toMatchObject({
       made: `/folder ${JOURNAL_LIMIT + 3}`,

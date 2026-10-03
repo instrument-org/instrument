@@ -3,7 +3,7 @@ import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import {
   isQuitGuardForcedInDev,
   setQuitGuardForcedInDev,
-} from "@/electron-main/lib/quit-guard";
+} from "@/electron-main/lib/quit";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { setRecentVersionBump } from "@/electron-main/stores/machine/state";

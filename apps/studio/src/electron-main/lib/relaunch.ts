@@ -1,6 +1,6 @@
 import { app } from "electron";
 
-import { requestQuitApproval } from "./quit-guard";
+import { requestQuitApproval } from "./quit";
 import { installedFromDeb } from "./update";
 
 /**

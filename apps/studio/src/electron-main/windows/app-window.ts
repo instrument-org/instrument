@@ -7,7 +7,7 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import {
   isQuitApproved,
   requestQuitApproval,
-} from "@/electron-main/lib/quit-guard";
+} from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";

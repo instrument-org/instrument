@@ -6,7 +6,6 @@ import {
   refreshAfterWake as refreshChatGPTPlanAfterWake,
   scheduleRefresh as scheduleChatGPTPlanRefresh,
 } from "@/electron-main/lib/chatgpt-plan";
-import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
@@ -49,6 +48,7 @@ import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
+import { requestQuitApproval } from "./lib/quit";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
@@ -58,7 +58,6 @@ import {
 import { configurePlatformAuthenticator } from "./lib/web-authn";
 import { servePageEditorBoot } from "./page-editor/sessions";
 import { initializeRPC } from "./rpc/initialize";
-let appUpdater: AppUpdaterHandle | undefined;
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -200,14 +199,8 @@ async function bootstrapPrimaryInstance() {
   const {
     actor: workspaceRef,
     browserViewManager,
-    confirmQuitWithRunningAgents,
     workspaceConfig,
-  } = await timeBootStep("createWorkspaceActor", () =>
-    createWorkspaceActor({
-      isQuitAlreadyConfirmed: () =>
-        appUpdater?.getStatus()?.type === "installing",
-    }),
-  );
+  } = await timeBootStep("createWorkspaceActor", createWorkspaceActor);
 
   // A signed-in ChatGPT plan's access token lasts an hour.
   scheduleChatGPTPlanRefresh();
@@ -221,9 +214,10 @@ async function bootstrapPrimaryInstance() {
   });
 
   const updater = createStudioAppUpdater({
-    confirmQuit: confirmQuitWithRunningAgents,
+    // Approving the install approves the quit it ends in, so before-quit and
+    // the window close go ahead without asking again.
+    confirmQuit: requestQuitApproval,
   });
-  appUpdater = updater;
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
   }

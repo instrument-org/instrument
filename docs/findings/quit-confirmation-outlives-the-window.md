@@ -30,7 +30,7 @@ Two things compounded it:
 ## Guidance
 
 - **Ask on `close`, not just `before-quit`.** `event.preventDefault()` in the window's `close` handler, await the answer, then close for real. `before-quit` is where a quit _starts_ only on macOS; everywhere else it is where a quit _ends_, long after the window is gone. Closing the last window quits on every platform here, so every close has to ask (see [the decision](../decisions/2026-07-25-quit-when-the-last-window-closes.md)).
-- **Latch the answer for one quit.** A confirmed close travels `close` → `window-all-closed` → `before-quit`; without a shared latch the user is asked twice (`electron-main/lib/quit-guard.ts`).
+- **Latch the answer for one quit.** A confirmed close travels `close` → `window-all-closed` → `before-quit`; without a shared latch the user is asked twice (`electron-main/lib/quit-machine.ts`).
 - **Never leave a non-macOS process without a window.** There is no dock or menu bar to reopen from, and the single-instance lock turns a fresh launch into a no-op. Any path that can cancel a quit has to put a window back, and `second-instance` must be able to create one rather than assuming one exists.
 - **Treat window handles as expiring.** Clear the singleton on `closed` and report destroyed windows as absent, so callers get `null` instead of an object that throws on every method.
 - **Fail open in quit prompts.** A prompt that errors must not abort the quit half-done; that is how a process ends up alive but unreachable.

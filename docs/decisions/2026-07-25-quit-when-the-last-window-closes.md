@@ -23,5 +23,5 @@ Windows and Linux already worked this way by platform convention. This makes mac
 
 - [Main window close handler](../../apps/studio/src/electron-main/windows/main/index.ts)
 - [window-all-closed](../../apps/studio/src/electron-main/index.ts)
-- [Quit approval, shared by close and before-quit](../../apps/studio/src/electron-main/lib/quit-guard.ts)
+- [Quit approval, shared by close and before-quit](../../apps/studio/src/electron-main/lib/quit-machine.ts)
 - [Why the confirmation cannot live on `before-quit` alone](../findings/quit-confirmation-outlives-the-window.md)

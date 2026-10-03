@@ -2,9 +2,9 @@ import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-config
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   isQuitGuardForcedInDev,
-  requestQuitApproval,
-  setQuitApproval,
-} from "@/electron-main/lib/quit-guard";
+  requestQuit,
+  startQuit,
+} from "@/electron-main/lib/quit";
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
@@ -32,7 +32,7 @@ import { app, dialog, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
 import { noop } from "radashi";
-import { createActor } from "xstate";
+import { createActor, fromPromise } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
 import { searchWeb } from "../platform-api/web-search";
@@ -42,6 +42,7 @@ import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
+import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
@@ -64,13 +65,7 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   "../../../../packages/workspace/system-skills",
 );
 
-export function createWorkspaceActor({
-  isQuitAlreadyConfirmed,
-}: {
-  // True when quitAndInstall already confirmed, so before-quit skips a second
-  // prompt for the quit it triggered.
-  isQuitAlreadyConfirmed: () => boolean;
-}) {
+export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
 
   // Normalize the on-disk layout of any legacy tasks before the workspace reads
@@ -232,121 +227,78 @@ export function createWorkspaceActor({
     return response === 1;
   };
 
-  setQuitApproval(async () => {
-    // Dev hot reload quits the app (SIGTERM -> before-quit) on every
-    // main-process rebuild. Skip the running-agents prompt in dev so a reload is
-    // never blocked waiting on a dialog nobody sees, which would strand the old
-    // instance while electron-vite launches a new one. Teardown still runs.
-    // The dev panel can opt back in to exercise the prompt deliberately.
-    if ((is.dev && !isQuitGuardForcedInDev()) || isQuitAlreadyConfirmed()) {
-      return true;
-    }
-    return confirmQuitWithRunningAgents();
-  });
-
-  let isQuitHandling = false;
-  let isQuitInProgress = false;
-
-  app.on("before-quit", (e) => {
-    // Always intercept; we call app.exit(0) after teardown. A second quit
-    // during shutdown must not bypass preventDefault and skip cleanup.
-    e.preventDefault();
-
-    if (isQuitInProgress || isQuitHandling) {
-      return;
-    }
-
-    void (async () => {
-      isQuitHandling = true;
-      try {
-        if (!(await requestQuitApproval())) {
-          // Canceling has to leave the user somewhere. This quit may have
-          // started from a window close, and outside macOS a process whose last
-          // window is gone can't be reached again at all.
-          ensureForegroundWindowVisible();
-          return;
-        }
-
-        isQuitInProgress = true;
-        // Teardown runs to `app.exit`, which logs nothing on its way out, so
-        // each stage announces itself: a quit that never finishes is otherwise
-        // indistinguishable from one that did, and the log is all there is.
-        logger.info("Quit teardown started");
-        // The app.exit below skips `will-quit`, where the telemetry flush and
-        // crash-marker cleanup would otherwise run, so drive them from here.
-        // Started now so they overlap the rest of the teardown instead of
-        // adding to it.
-        const telemetryFinalized = finalizeTelemetry();
-
-        let hasExited = false;
-        const doExit = () => {
-          if (hasExited) {
-            return;
-          }
-          hasExited = true;
-          logger.info("Quit teardown: tearing down browser views");
-          browserViewManager.teardown();
-
-          let finalized = false;
-          const finalize = () => {
-            if (finalized) {
-              return;
-            }
-            finalized = true;
-            logger.info("Quit teardown: stopping the workspace actor");
-            actor.stop();
-            logger.info("Quit teardown: exiting");
-            app.exit(quitExitCode());
-          };
-          // @parcel/watcher aborts the process (SIGABRT) if a live subscription
-          // is torn down while Node frees the environment, so stop the skills
-          // watcher and await its unsubscribe before app.exit. Bounded so a
-          // stuck unsubscribe can't wedge the quit.
-          //
-          // The three below run concurrently, so the deadline is the slowest
-          // one's own bound plus room for the other two. Killing background
-          // processes is that slowest one, and it is derived rather than
-          // restated here: a hand-picked number would go quietly wrong the next
-          // time the termination grace moves.
-          const forceFinalize = setTimeout(
-            finalize,
-            BACKGROUND_PROCESS_TEARDOWN_MS + QUIT_TEARDOWN_SLACK_MS,
-          );
-          void Promise.all([
-            stopWorkspaceSkillWatcher().catch(noop),
-            // Agent-started servers and watchers outlive the turn that started
-            // them, so quitting is what ends them.
-            killAllBackgroundProcesses().catch(noop),
-            telemetryFinalized,
-          ]).finally(() => {
-            logger.info("Quit teardown: skills watcher and telemetry settled");
-            clearTimeout(forceFinalize);
-            finalize();
-          });
-        };
-        const timeout = setTimeout(() => {
+  startQuit(
+    quitMachine.provide({
+      actions: {
+        announce: (_, { stage }) => {
+          logger.info(`Quit teardown: ${stage}`);
+        },
+        exit: () => {
+          actor.stop();
+          app.exit(quitExitCode());
+        },
+        reportBrowserSessionsTimeout: () => {
           captureServerException(
             new Error("agent-browser close --all timed out on quit"),
             { scopes: ["studio"] },
           );
-          doExit();
-        }, 3000);
-        void closeAllAgentBrowserSessions().finally(() => {
-          clearTimeout(timeout);
-          doExit();
-        });
-      } finally {
-        if (!isQuitInProgress) {
-          isQuitHandling = false;
-        }
-      }
-    })();
+        },
+        reveal: ensureForegroundWindowVisible,
+        teardownBrowserViews: () => {
+          browserViewManager.teardown();
+        },
+      },
+      actors: {
+        approve: fromPromise(() => {
+          // Dev hot reload quits the app (SIGTERM -> before-quit) on every
+          // main-process rebuild. Skip the running-agents prompt in dev so a
+          // reload is never blocked waiting on a dialog nobody sees, which would
+          // strand the old instance while electron-vite launches a new one.
+          // Teardown still runs. The dev panel can opt back in to exercise the
+          // prompt deliberately.
+          if (is.dev && !isQuitGuardForcedInDev()) {
+            return Promise.resolve(true);
+          }
+          return confirmQuitWithRunningAgents();
+        }),
+        closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
+        // The app.exit at the end skips `will-quit`, where the telemetry flush
+        // and crash-marker cleanup would otherwise run, so drive them from here.
+        finalizeTelemetry: fromPromise(() => finalizeTelemetry()),
+        stopServices: fromPromise(async () => {
+          // @parcel/watcher aborts the process (SIGABRT) if a live subscription
+          // is torn down while Node frees the environment, so stop the skills
+          // watcher and await its unsubscribe before app.exit.
+          await Promise.all([
+            stopWorkspaceSkillWatcher().catch(noop),
+            // Agent-started servers and watchers outlive the turn that started
+            // them, so quitting is what ends them.
+            killAllBackgroundProcesses().catch(noop),
+          ]);
+        }),
+      },
+      delays: {
+        // Killing background processes is the slowest step, and its bound is
+        // derived rather than restated here: a hand-picked number would go
+        // quietly wrong the next time the termination grace moves.
+        teardown:
+          BROWSER_SESSIONS_CLOSE_MS +
+          BACKGROUND_PROCESS_TEARDOWN_MS +
+          QUIT_TEARDOWN_SLACK_MS,
+      },
+    }),
+  );
+
+  app.on("before-quit", (e) => {
+    // Always intercept; the teardown ends in app.exit. A second quit during
+    // shutdown must not bypass preventDefault and skip cleanup.
+    e.preventDefault();
+    requestQuit();
   });
 
   return {
     actor,
     browserViewManager,
-    confirmQuitWithRunningAgents,
     workspaceConfig,
   };
 }

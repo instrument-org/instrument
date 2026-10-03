@@ -91,6 +91,9 @@ async function renderRow(
   if (!element) {
     throw new Error("no row");
   }
+  // The pointer is wherever the last test left it, which may be over this row,
+  // and a hovered row trades its time for the delete action.
+  await userEvent.unhover(element);
   return { ...rendered, onDelete, onOpen, row: element };
 }
 

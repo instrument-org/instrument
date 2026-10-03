@@ -1,3 +1,4 @@
+import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
   type WebSearchClient,
@@ -25,7 +26,9 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
     response = await fetch(
       `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/search`,
       {
-        body: JSON.stringify(input),
+        // The country biases ranking toward local results ("weather", "DMV
+        // hours"); a server that predates the field drops it.
+        body: JSON.stringify({ ...input, userLocation: systemCountry() }),
         headers: {
           ...getPlatformApiHeaders(),
           "content-type": "application/json",

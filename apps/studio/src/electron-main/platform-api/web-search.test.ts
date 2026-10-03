@@ -13,6 +13,9 @@ vi.mock(import("./headers"), () => ({
     "x-client-version": "1.4.2",
   }),
 }));
+vi.mock(import("@/electron-main/lib/system-country"), () => ({
+  systemCountry: () => "US",
+}));
 vi.mock(import("./utils"), () => ({
   getToken: vi.fn(),
 }));
@@ -65,7 +68,10 @@ describe("searchWeb", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(expect.stringMatching(/\/search$/), {
-      body: JSON.stringify({ query: "latest TypeScript release" }),
+      body: JSON.stringify({
+        query: "latest TypeScript release",
+        userLocation: "US",
+      }),
       headers: {
         authorization: "Bearer test-token",
         "content-type": "application/json",

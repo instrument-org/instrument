@@ -8,6 +8,10 @@ import { proxy } from "hono/proxy";
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { apiURL } from "../lib/providers/api-url";
 import {
+  readPlatformRefusal,
+  REFUSAL_STATUSES,
+} from "../lib/read-platform-refusal";
+import {
   collapseResponsesStream,
   rewriteChatGPTPlanResponsesBody,
   withoutRetryOnSpentLimit,
@@ -79,9 +83,24 @@ providerApp.all("/:providerConfigId/*", async (context) => {
     return streamed ? answered : collapseResponsesStream(answered);
   }
 
-  return proxy(targetUrl.toString(), {
+  const response = await proxy(targetUrl.toString(), {
     body: context.req.raw.body,
     headers,
     method: context.req.raw.method,
   });
+  const report = context.var.reportPlatformRefusal;
+  if (
+    report &&
+    config.type === OUR_PROVIDER_CONFIG.type &&
+    REFUSAL_STATUSES.has(response.status)
+  ) {
+    void readPlatformRefusal(response.clone(), pathResult.data).then(
+      (refusal) => {
+        if (refusal) {
+          report(refusal);
+        }
+      },
+    );
+  }
+  return response;
 });

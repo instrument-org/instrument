@@ -3,48 +3,90 @@ import { z } from "zod";
 
 const base = oc.errors({
   BAD_REQUEST: {},
+  CONFLICT: {},
   FORBIDDEN: {},
   INTERNAL_SERVER_ERROR: {},
   UNAUTHORIZED: {},
 });
 
-export const contract = {
-  plans: {
-    get: base.input(z.void()).output(
-      z.array(
-        z.object({
-          description: z.string(),
-          features: z.array(z.object({ text: z.string() })),
-          monthlyPrice: z.number(),
-          name: z.string(),
-          priceIds: z.object({
-            monthly: z.string().nullable(),
-            yearly: z.string().nullable(),
+/**
+ * What the platform says about a user's plan: percent and reset time per
+ * enabled window, never dollars. `binding` names the window closest to its
+ * limit.
+ */
+const BillingStatusSchema = z.object({
+  binding: z.string().optional(),
+  canSubscribe: z.boolean(),
+  plan: z.string(),
+  subscription: z
+    .object({
+      cancelAtPeriodEnd: z.boolean(),
+      currentPeriodEnd: z.string().optional(),
+      status: z.string(),
+    })
+    .optional(),
+  trial: z.object({
+    endsAt: z.string().optional(),
+    percentUsed: z.number().optional(),
+    state: z.enum(["active", "available", "ended"]),
+  }),
+  windows: z.array(
+    z.object({
+      key: z.string(),
+      percentUsed: z.number(),
+      resetsAt: z.string().optional(),
+    }),
+  ),
+});
+
+/** The one pricing document every surface renders. */
+const BillingOfferSchema = z.object({
+  offerVersion: z.string(),
+  plans: z.array(
+    z.object({
+      allowance: z.object({
+        multiple: z.number(),
+        windows: z.array(
+          z.object({
+            anchor: z.string(),
+            duration: z.string().optional(),
+            key: z.string(),
           }),
-          yearlyPrice: z.number(),
-        }),
-      ),
-    ),
+        ),
+      }),
+      description: z.string().nullable(),
+      features: z.array(z.string()),
+      key: z.string(),
+      name: z.string(),
+      price: z
+        .object({
+          currency: z.string(),
+          interval: z.string().nullable(),
+          unitAmount: z.number().nullable(),
+        })
+        .nullable(),
+    }),
+  ),
+  trial: z
+    .object({
+      available: z.boolean().optional(),
+      cardRequired: z.boolean(),
+      days: z.number(),
+    })
+    .nullable(),
+});
+
+export const contract = {
+  billing: {
+    createCheckout: base
+      .input(z.object({ plan: z.string() }))
+      .output(z.object({ url: z.string() })),
+    createPortal: base.input(z.void()).output(z.object({ url: z.string() })),
+    offer: base.input(z.void()).output(BillingOfferSchema),
+    status: base.input(z.void()).output(BillingStatusSchema),
   },
   root: {
     ping: base.input(z.void()).output(z.string()),
-  },
-  stripe: {
-    createCheckoutSession: base
-      .input(z.object({ priceId: z.string() }))
-      .output(z.object({ url: z.string().nullable() })),
-    createPortalSession: base
-      .input(z.void())
-      .output(z.object({ url: z.string() })),
-    getInvoicePreview: base.input(z.object({ priceId: z.string() })).output(
-      z.object({
-        amountDue: z.number(),
-        currency: z.string(),
-        endingBalance: z.number(),
-        prorationDate: z.number(),
-        subtotal: z.number(),
-      }),
-    ),
   },
   users: {
     getMe: base.input(z.void()).output(
@@ -55,16 +97,6 @@ export const contract = {
         image: z.string().nullable().optional(),
         name: z.string(),
         updatedAt: z.date(),
-      }),
-    ),
-    getSubscriptionStatus: base.input(z.void()).output(
-      z.object({
-        billingCycle: z.enum(["monthly", "yearly"]).nullable(),
-        freeUsagePercent: z.number(),
-        hasEnoughCredits: z.boolean(),
-        nextAllocation: z.date().nullable(),
-        plan: z.string().nullable(),
-        usagePercent: z.number(),
       }),
     ),
   },

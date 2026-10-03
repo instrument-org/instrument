@@ -88,7 +88,6 @@ function renderError({
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         message={messageWithError(error, provider)}
-        onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRunAgain={vi.fn()}
       />

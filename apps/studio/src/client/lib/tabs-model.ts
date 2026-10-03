@@ -11,7 +11,6 @@ import { z } from "zod";
  */
 /** A closed tab, with where it stood in the strip so a reopen puts it back there. */
 const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
-export type ClosedTab = z.output<typeof ClosedTabSchema>;
 
 export const TabsModelSchema = z.object({
   recentlyClosed: z.array(ClosedTabSchema),

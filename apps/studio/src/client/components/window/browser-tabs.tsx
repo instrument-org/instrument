@@ -50,7 +50,7 @@ import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
-import { strayWindowGuests } from "./stray-window-guests";
+import { EMPTY_GUEST_MEMO, reconcileGuests } from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
 import { isHomeTab, selectTab, useWindowTabs } from "./window-tabs";
 
@@ -299,33 +299,6 @@ export function BrowserTabs({
     }),
   );
 
-  // A tab closed anywhere takes its guest with it. Each is asked for once:
-  // the guest stays attached until the close lands.
-  const closingGuests = useRef(new Set<BrowserTargetId>());
-  useEffect(() => {
-    const stray = strayWindowGuests({
-      attached,
-      heldIds: everyTabId,
-    });
-    for (const target of closingGuests.current) {
-      if (!attached.has(target)) {
-        closingGuests.current.delete(target);
-      }
-    }
-    for (const target of stray) {
-      const decoded = decodeBrowserTargetId(target);
-      if (!decoded || closingGuests.current.has(target)) {
-        continue;
-      }
-      closingGuests.current.add(target);
-      void rpcClient.workspace.browser.close
-        .call({ id: decoded.id, sessionId: decoded.sessionId })
-        .catch(() => {
-          closingGuests.current.delete(target);
-        });
-    }
-  }, [attached, everyTabId]);
-
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     encodeBrowserTargetId(
       tab.taskId ?? WINDOW_ID,
@@ -465,61 +438,44 @@ export function BrowserTabs({
     latest.current = { active, activeByGroup, allTabs, group, tabs };
   });
 
-  // A task browsing in a guest of its own (one filed outside any chat, since
-  // a chat's tasks browse in tabs of the chat) is mounted in this window, and
-  // the moment one attaches it gets a tab in its chat's list, behind
-  // whatever is up: the user finds it there when they want to watch, and
-  // nothing moves under them. Only a guest arriving is a tab to add: one the
-  // user closed is still attached until the close lands, and must not come
-  // straight back.
-  const seenTargets = useRef(new Set<BrowserTargetId>());
+  // A tab closed anywhere takes its guest with it, and a task browsing in a
+  // guest of its own gets a tab the moment it attaches, behind whatever is
+  // up: the user finds it there when they want to watch, and nothing moves
+  // under them.
+  const guestMemo = useRef(EMPTY_GUEST_MEMO);
   useEffect(() => {
-    const arrived = [...attached].filter(
-      (target) => !seenTargets.current.has(target),
-    );
-    // A guest whose task the window has not read yet is not seen: it is
-    // still arriving, and is placed by the read that names its chat.
-    const waiting = new Set<BrowserTargetId>();
-    const newcomers = arrived.flatMap((target) => {
-      const decoded = decodeBrowserTargetId(target);
-      // Checked against every visit the window holds, not only the tabs on the
-      // strip: a task browsing behind a screen already has one.
-      if (
-        !decoded ||
-        decoded.id === WINDOW_ID ||
-        everyTabId.has(decoded.sessionId)
-      ) {
-        return [];
-      }
-      if (!chatOfTask.has(decoded.id)) {
-        waiting.add(target);
-        return [];
-      }
-      return [
-        {
-          id: decoded.sessionId,
-          openedAt: Date.now(),
-          taskId: decoded.id,
-        } satisfies BrowserTab,
-      ];
+    const { add, close, memo } = reconcileGuests({
+      attached,
+      chatOfTask,
+      heldIds: everyTabId,
+      memo: guestMemo.current,
     });
-    seenTargets.current = new Set(
-      [...attached].filter((target) => !waiting.has(target)),
-    );
-    if (newcomers.length === 0) {
+    guestMemo.current = memo;
+    for (const target of close) {
+      const decoded = decodeBrowserTargetId(target);
+      if (!decoded) {
+        continue;
+      }
+      // The guest stays attached until the close lands; one that fails is
+      // asked for again on the next run.
+      void rpcClient.workspace.browser.close
+        .call({ id: decoded.id, sessionId: decoded.sessionId })
+        .catch(() => {
+          const closing = new Set(guestMemo.current.closing);
+          closing.delete(target);
+          guestMemo.current = { ...guestMemo.current, closing };
+        });
+    }
+    if (add.length === 0) {
       return;
     }
-    // In the group of the chat the task was filed from, so a task's
-    // browsing stays with its chat; a task filed outside any chat
-    // browses among the window's own tabs.
-    const arriving = newcomers.map((tab) => ({
-      ...tab,
-      group: chatOfTask.get(tab.taskId),
-      kind: "page" as const,
-    }));
+    const openedAt = Date.now();
     setAllTabs((current) => ({
       ...current,
-      tabs: [...current.tabs, ...arriving],
+      tabs: [
+        ...current.tabs,
+        ...add.map((tab) => ({ ...tab, kind: "page" as const, openedAt })),
+      ],
     }));
   }, [attached, everyTabId, setAllTabs, chatOfTask]);
 

@@ -17,6 +17,7 @@ import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
+import { Route as DebugBillingRouteImport } from './routes/debug/billing'
 import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
 import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
@@ -90,6 +91,11 @@ const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
 const DebugIndexRoute = DebugIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugBillingRoute = DebugBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
@@ -288,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
@@ -330,6 +337,7 @@ export interface FileRoutesByTo {
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
@@ -420,6 +429,7 @@ export interface FileRouteTypes {
     | '/browser'
     | '/files'
     | '/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -462,6 +472,7 @@ export interface FileRouteTypes {
     | '/browser'
     | '/files'
     | '/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
@@ -505,6 +516,7 @@ export interface FileRouteTypes {
     | '/_app/browser'
     | '/_app/files'
     | '/_app/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -606,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/debug/'
       preLoaderRoute: typeof DebugIndexRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/billing': {
+      id: '/debug/billing'
+      path: '/billing'
+      fullPath: '/debug/billing'
+      preLoaderRoute: typeof DebugBillingRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/debug/browser-views': {
@@ -951,6 +970,7 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 )
 
 interface DebugRouteRouteChildren {
+  DebugBillingRoute: typeof DebugBillingRoute
   DebugBrowserViewsRoute: typeof DebugBrowserViewsRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
   DebugErrorsRoute: typeof DebugErrorsRoute
@@ -960,6 +980,7 @@ interface DebugRouteRouteChildren {
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
+  DebugBillingRoute: DebugBillingRoute,
   DebugBrowserViewsRoute: DebugBrowserViewsRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
   DebugErrorsRoute: DebugErrorsRoute,

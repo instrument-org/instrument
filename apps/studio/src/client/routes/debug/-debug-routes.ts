@@ -45,6 +45,15 @@ const debugRoutes = [
     to: "/debug/notifications",
   },
   {
+    description: "Plan, trial, usage windows, and the last refusal.",
+    id: "billing",
+    label: "Billing",
+    showCard: true,
+    showNav: true,
+    title: "Debug billing",
+    to: "/debug/billing",
+  },
+  {
     id: "browserView",
     showCard: false,
     showNav: false,

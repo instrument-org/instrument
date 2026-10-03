@@ -36,6 +36,13 @@ const calls = vi.hoisted(() => ({
 /** `.invalid` sites given an icon partway through a test, as a page opened in a browser tab hands over its own. */
 const givenIcon = vi.hoisted(() => new Set<string>());
 
+/** Whether the row is drawn in developer mode, which is off unless a test turns it on. */
+const developerMode = vi.hoisted(() => ({ enabled: false }));
+
+vi.mock("@/client/hooks/use-developer-mode", () => ({
+  useDeveloperMode: () => developerMode.enabled,
+}));
+
 // A site's icon comes over the app protocol, which only the main process
 // answers, so here every site has a one-pixel icon except a `.invalid` one,
 // which is left to the real address and fails the way a site with none does.
@@ -885,6 +892,7 @@ describe("the row's actions", () => {
 
   afterEach(() => {
     toast.dismiss();
+    developerMode.enabled = false;
   });
 
   it("stand over the row's right end while the pointer is on it, out of the flow at rest", async () => {
@@ -970,7 +978,6 @@ describe("the row's actions", () => {
       "Mark as read",
       "Star",
       "Topics",
-      "Save transcript",
       getRevealInFolderLabel(),
       "Archive",
     ]);
@@ -992,6 +999,18 @@ describe("the row's actions", () => {
     await userEvent.click(house);
     expect(onSetTopics).toHaveBeenCalledWith(["house"]);
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers saving the transcript in developer mode alone, in its color", async () => {
+    developerMode.enabled = true;
+    const { row } = await renderRow(chat());
+    await userEvent.click(titleOf(row), { button: "right" });
+    const save = page.getByRole("menuitem", { name: "Save transcript" });
+    await expect.element(save).toHaveAttribute("data-variant", "developer");
+    await userEvent.click(save);
+    expect(calls.transcript).toHaveBeenCalledWith(
+      expect.objectContaining({ format: "markdown", sessionId }),
+    );
   });
 
   // The click that puts a row's menu away is a click on whatever it landed

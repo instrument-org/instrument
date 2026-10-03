@@ -206,7 +206,11 @@ export function ChatRow({
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
   const item = (action: RowAction) => (
-    <ContextMenuItem key={action.id} onSelect={action.run}>
+    <ContextMenuItem
+      key={action.id}
+      onSelect={action.run}
+      variant={action.developerMode ? "developer" : "default"}
+    >
       {action.icon}
       {action.label}
     </ContextMenuItem>

@@ -21,8 +21,7 @@ interface Target {
  * thing the app moves, and neither action has any use for it here. That also
  * keeps them callable from a menu item, with nothing fetched.
  *
- * Saving is offered to everyone; copying is behind developer mode, so a caller
- * outside it wants `save` alone.
+ * Both are behind developer mode.
  */
 export function useTranscriptActions({
   id,

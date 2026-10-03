@@ -249,7 +249,11 @@ export function ChatMenu({
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
   const item = (action: RowAction) => (
-    <DropdownMenuItem key={action.id} onSelect={action.run}>
+    <DropdownMenuItem
+      key={action.id}
+      onSelect={action.run}
+      variant={action.developerMode ? "developer" : "default"}
+    >
       {action.icon}
       {action.label}
     </DropdownMenuItem>

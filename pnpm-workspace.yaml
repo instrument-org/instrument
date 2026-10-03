@@ -35,7 +35,7 @@ catalog:
   "@vitejs/plugin-react": ^6.0.5
   ai: ^7.0.107
   better-auth: ^1.6.25
-  hono: ^4.12.32
+  hono: ^4.13.9
   react: ^19.2.1
   react-dom: ^19.2.1
   typescript: 5.9.2

@@ -43,8 +43,8 @@ catalogs:
       specifier: ^1.6.25
       version: 1.6.25
     hono:
-      specifier: ^4.12.32
-      version: 4.12.32
+      specifier: ^4.13.9
+      version: 4.13.9
     react:
       specifier: ^19.2.1
       version: 19.2.1
@@ -148,8 +148,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(electron@42.3.3)
       '@hono/node-server':
-        specifier: ^2.0.11
-        version: 2.0.11(hono@4.12.32)
+        specifier: ^2.1.1
+        version: 2.1.1(hono@4.13.9)
       '@instrument-org/ai-gateway':
         specifier: workspace:*
         version: link:../../packages/ai-gateway
@@ -218,7 +218,7 @@ importers:
         version: 5.0.0
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.9
       isbinaryfile:
         specifier: ^6.0.0
         version: 6.0.0
@@ -841,7 +841,7 @@ importers:
         version: 4.1.0
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.9
       lru-cache:
         specifier: ^11.1.0
         version: 11.5.2
@@ -895,8 +895,8 @@ importers:
   packages/workspace:
     dependencies:
       '@hono/node-server':
-        specifier: ^2.0.11
-        version: 2.0.11(hono@4.12.32)
+        specifier: ^2.1.1
+        version: 2.1.1(hono@4.13.9)
       '@instrument-org/ai-gateway':
         specifier: workspace:*
         version: link:../ai-gateway
@@ -947,7 +947,7 @@ importers:
         version: 13.0.6
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.9
       ignore:
         specifier: ^7.0.3
         version: 7.0.5
@@ -2135,8 +2135,8 @@ packages:
   '@fontsource/roboto-serif@5.2.9':
     resolution: {integrity: sha512-Pv8AmbOwquqcvr0NXBZIViHrhmMdEDSAqZSsggFYPMw+qpBZZ4wj3ylf5G09GB0WPlaG5Ttq+BAS0zRBlOImpw==}
 
-  '@hono/node-server@2.0.11':
-    resolution: {integrity: sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA==}
+  '@hono/node-server@2.1.1':
+    resolution: {integrity: sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -6803,8 +6803,8 @@ packages:
   headers-polyfill@4.0.3:
     resolution: {integrity: sha512-IScLbePpkvO846sIwOtOTDjutRMWdXdJmXdMvk6gCBHxFO8d+QKOQedyZSxFTTFYRSmlgSTDtXqqq4pcenBXLQ==}
 
-  hono@4.12.32:
-    resolution: {integrity: sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg==}
+  hono@4.13.9:
+    resolution: {integrity: sha512-7dMkQmZoC4E6F7AtaQSPhlWAdnBti+j7rreMZl8QB4jFiEhP9TWbGWUMi8WYzBCgmgulxuvLQupKqo+Co6Omyg==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@4.1.0:
@@ -7687,11 +7687,6 @@ packages:
     resolution: {integrity: sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA==}
     engines: {node: ^18.17.0 || >=20.5.0}
 
-  nanoid@3.3.16:
-    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
-    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
-    hasBin: true
-
   nanoid@3.3.19:
     resolution: {integrity: sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -8157,10 +8152,6 @@ packages:
   postcss-selector-parser@6.0.10:
     resolution: {integrity: sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==}
     engines: {node: '>=4'}
-
-  postcss@8.5.23:
-    resolution: {integrity: sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==}
-    engines: {node: ^10 || ^12 || >=14}
 
   postcss@8.5.28:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
@@ -10850,9 +10841,9 @@ snapshots:
 
   '@fontsource/roboto-serif@5.2.9': {}
 
-  '@hono/node-server@2.0.11(hono@4.12.32)':
+  '@hono/node-server@2.1.1(hono@4.13.9)':
     dependencies:
-      hono: 4.12.32
+      hono: 4.13.9
 
   '@iconify/types@2.0.0': {}
 
@@ -11419,7 +11410,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(zod@4.4.3)':
     dependencies:
-      '@hono/node-server': 2.0.11(hono@4.12.32)
+      '@hono/node-server': 2.1.1(hono@4.13.9)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -11429,7 +11420,7 @@ snapshots:
       eventsource-parser: 3.0.8
       express: 5.2.1
       express-rate-limit: 8.7.0(express@5.2.1)
-      hono: 4.12.32
+      hono: 4.13.9
       jose: 6.2.4
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -13857,7 +13848,7 @@ snapshots:
       '@vue/shared': 3.5.40
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.23
+      postcss: 8.5.28
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.40':
@@ -15726,7 +15717,7 @@ snapshots:
   headers-polyfill@4.0.3:
     optional: true
 
-  hono@4.12.32: {}
+  hono@4.13.9: {}
 
   hosted-git-info@4.1.0:
     dependencies:
@@ -16799,8 +16790,6 @@ snapshots:
   mute-stream@2.0.0:
     optional: true
 
-  nanoid@3.3.16: {}
-
   nanoid@3.3.19: {}
 
   nanoid@6.0.1: {}
@@ -17198,12 +17187,6 @@ snapshots:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
-
-  postcss@8.5.23:
-    dependencies:
-      nanoid: 3.3.16
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
 
   postcss@8.5.28:
     dependencies:

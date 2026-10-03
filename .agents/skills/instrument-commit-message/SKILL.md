@@ -21,13 +21,13 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 
 The final paragraph, one `Key: value` per line, no wrapped continuations. Write only lines the session actually supports; skip any you would have to invent.
 
-| Trailer | Records |
-| --- | --- |
-| `Rejected: <alternative> \| <reason>` | An alternative actually raised in the session, by the user or the agent. Repeatable. |
-| `Commits-to:` | A shape, contract, or invariant later code has to keep honoring. |
-| `Not-tested:` | What was not checked: never run in the app, not checked against a real agent, a known gap left open. |
-| `Related: <sha>` | A commit this one reverses or extends. |
-| `Tested:` | Only a check beyond the unit suites: the running app, a real agent run, a test host. Never test counts. |
+| Trailer                               | Records                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `Rejected: <alternative> \| <reason>` | An alternative actually raised in the session, by the user or the agent. Repeatable.                    |
+| `Commits-to:`                         | A shape, contract, or invariant later code has to keep honoring.                                        |
+| `Not-tested:`                         | What was not checked: never run in the app, not checked against a real agent, a known gap left open.    |
+| `Related: <sha>`                      | A commit this one reverses or extends.                                                                  |
+| `Tested:`                             | Only a check beyond the unit suites: the running app, a real agent run, a test host. Never test counts. |
 
 Every reason stands without the session. `Rejected: per-folder read-only setting | user dropped it` is chat history; `Rejected: per-folder read-only setting | the allowlist and task grants already limit writes` is a reason.
 

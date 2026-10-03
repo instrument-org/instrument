@@ -35,6 +35,6 @@
     "@typescript/native-preview": "catalog:"
   },
   "engines": {
-    "node": ">=24.15.0"
+    "node": ">=24.21.0"
   }
 }

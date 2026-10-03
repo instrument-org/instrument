@@ -21,6 +21,7 @@ import { Route as DebugNotificationsRouteImport } from './routes/debug/notificat
 import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
 import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
+import { Route as DebugBillingRouteImport } from './routes/debug/billing'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
@@ -111,6 +112,11 @@ const DebugComponentsRoute = DebugComponentsRouteImport.update({
 const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
   id: '/browser-views',
   path: '/browser-views',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugBillingRoute = DebugBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
@@ -294,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
@@ -382,6 +390,7 @@ export interface FileRoutesById {
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
@@ -429,6 +438,7 @@ export interface FileRouteTypes {
     | '/browser'
     | '/files'
     | '/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -472,6 +482,7 @@ export interface FileRouteTypes {
     | '/browser'
     | '/files'
     | '/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
@@ -516,6 +527,7 @@ export interface FileRouteTypes {
     | '/_app/browser'
     | '/_app/files'
     | '/_app/release-notes'
+    | '/debug/billing'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -646,6 +658,13 @@ declare module '@tanstack/react-router' {
       path: '/browser-views'
       fullPath: '/debug/browser-views'
       preLoaderRoute: typeof DebugBrowserViewsRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/billing': {
+      id: '/debug/billing'
+      path: '/billing'
+      fullPath: '/debug/billing'
+      preLoaderRoute: typeof DebugBillingRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/_app/release-notes': {
@@ -972,6 +991,7 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 )
 
 interface DebugRouteRouteChildren {
+  DebugBillingRoute: typeof DebugBillingRoute
   DebugBrowserViewsRoute: typeof DebugBrowserViewsRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
   DebugErrorsRoute: typeof DebugErrorsRoute
@@ -981,6 +1001,7 @@ interface DebugRouteRouteChildren {
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
+  DebugBillingRoute: DebugBillingRoute,
   DebugBrowserViewsRoute: DebugBrowserViewsRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
   DebugErrorsRoute: DebugErrorsRoute,

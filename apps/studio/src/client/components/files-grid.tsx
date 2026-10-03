@@ -255,6 +255,7 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   notebook: true,
   parquet: true,
   pdf: true,
+  photoshop: true,
   pptx: true,
   sqlite: true,
   text: true,

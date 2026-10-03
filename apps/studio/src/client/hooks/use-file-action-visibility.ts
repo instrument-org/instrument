@@ -25,6 +25,7 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
   notebook: true,
   parquet: false,
   pdf: false,
+  photoshop: false,
   pptx: false,
   sqlite: false,
   text: true,

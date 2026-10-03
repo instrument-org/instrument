@@ -1,6 +1,7 @@
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import {
   LazyArchiveViewer,
   LazyCsvViewer,
@@ -505,6 +506,31 @@ const VIEWERS = {
     scrolls: "self",
   },
   pdf: { hasToolbar: true, render: renderPdf, scrolls: "self" },
+  photoshop: {
+    hasToolbar: false,
+    render: ({ fallback, file, imageLoadError, onImageError }) => {
+      const previewUrl = getComputerThumbnailUrl({
+        hostPath: file.hostPath,
+        size: 1024,
+        // System previews do not depend on the app's theme.
+        theme: "light",
+        version: URL.parse(file.url)?.searchParams.get("version") ?? undefined,
+      });
+      return imageLoadError || !previewUrl ? (
+        <div className="flex size-full items-center justify-center">
+          {fallback}
+        </div>
+      ) : (
+        <ImageViewer
+          file={file}
+          key={file.hostPath}
+          onError={onImageError}
+          previewUrl={previewUrl}
+        />
+      );
+    },
+    scrolls: "container",
+  },
   pptx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (

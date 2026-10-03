@@ -22,12 +22,15 @@ import { Button } from "./ui/button";
 export function ImageViewer({
   file,
   onError,
+  previewUrl,
 }: {
   // Only the name and the bytes are certain: this also draws images a markdown
   // embed pointed at by URL, which name no file anyone could be handed.
   file: Partial<Pick<ViewerFile, "hostPath">> &
     Pick<ViewerFile, "filename" | "url">;
   onError: () => void;
+  /** A rendered preview when the original file is not browser-decodable. */
+  previewUrl?: string;
 }) {
   const { filename, hostPath, url } = file;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -63,7 +66,7 @@ export function ImageViewer({
               setIsLoaded(true);
             }}
             showCheckerboard
-            src={url}
+            src={previewUrl ?? url}
             {...dragProps}
           />
         </div>

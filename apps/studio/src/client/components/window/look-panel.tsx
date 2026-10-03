@@ -12,13 +12,19 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { useAtom, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { COMPOSE_GUEST_LAYER } from "./compose-layout";
 import { useWindow } from "./context";
 import { lookAtAtom, type LookTarget } from "./look-at";
 import { useWindowTabs } from "./window-tabs";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
 const QUICK_LOOK_GROUP = "page:quick-look";
+
+/**
+ * The window layer a looked-at page's guest is shown on: over the panel
+ * (`z-45`), which is itself over the floating chats and drafts (`z-40`), and
+ * under every menu and popover (`z-50`).
+ */
+const LOOK_GUEST_LAYER = 46;
 
 /**
  * The panel itself: a file in its viewer (a page's file drawn live as the
@@ -55,12 +61,13 @@ export function LookPanel({
       open={target !== null}
     >
       <DialogContent
-        // Under the menus (`z-50`), with the page's guest a layer over the
-        // panel, the way a draft window holds its page.
+        // Over the floating chats and drafts (`z-40`), which otherwise win
+        // the tie from later in the window, and under the menus (`z-50`),
+        // with the page's guest a layer over the panel.
         // Faded rather than zoomed in: a page is drawn over the panel's
         // box where it is measured, and a box still growing would put the
         // page where the panel is not yet.
-        className="z-40 h-full gap-0 p-0 outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
+        className="z-45 h-full gap-0 p-0 outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
         // Most of the window, the way Quick Look fills it, whatever the zoom.
         maxHeight="calc(85vh / var(--content-zoom))"
         // A document's shape rather than the window's: on a wide screen
@@ -87,7 +94,7 @@ export function LookPanel({
             event.currentTarget.focus();
           }
         }}
-        overlayClassName="z-40"
+        overlayClassName="z-45"
         // The viewer's own head closes it, beside the file's actions.
         showCloseButton={false}
       >
@@ -179,7 +186,7 @@ function useLookedAtPage(url: string | undefined): ReactNode {
       [QUICK_LOOK_GROUP]: {
         insideOverlay: true,
         into: slot,
-        layer: COMPOSE_GUEST_LAYER,
+        layer: LOOK_GUEST_LAYER,
       },
     }));
     return () => {

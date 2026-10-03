@@ -16,6 +16,7 @@ export type FileType =
   | "notebook"
   | "parquet"
   | "pdf"
+  | "photoshop"
   | "pptx"
   | "sqlite"
   | "text"
@@ -64,6 +65,9 @@ export function fileKindLabel(fileType: FileType): string {
     case "pdf": {
       return "PDF";
     }
+    case "photoshop": {
+      return "Photoshop document";
+    }
     case "pptx": {
       return "PowerPoint presentation";
     }
@@ -87,6 +91,7 @@ export function fileKindLabel(fileType: FileType): string {
 
 const EXTENSION_KIND_LABELS: Record<string, string> = {
   "7z": "7Z archive",
+  ai: "Illustrator artwork",
   ass: "Subtitle file",
   avro: "Avro data",
   bib: "Bibliography",
@@ -303,6 +308,10 @@ const NAMED_FILE_TYPES: Record<string, FileType> = {
 // and a hard parse failure still degrades to it. `.doc` is absent because
 // `@extend-ai/react-docx` reads OOXML only.
 export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
+  // Illustrator's PDF-compatible saves contain artwork the PDF engine can
+  // render directly. Older PostScript files still reach the fallback card
+  // when the engine rejects them; their extension alone cannot distinguish it.
+  ai: "pdf",
   csv: "csv",
   // A database has no registered mime type of its own, so the extension is the
   // only thing that identifies one. `.db` is the loosest of the three and does
@@ -328,6 +337,9 @@ export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   ppt: "pptx",
   pptm: "pptx",
   pptx: "pptx",
+  // Shown through the system's saved composite preview, not an <img> of the
+  // PSD bytes: browsers cannot decode Photoshop documents themselves.
+  psd: "photoshop",
   sqlite: "sqlite",
   sqlite3: "sqlite",
   tsv: "csv",

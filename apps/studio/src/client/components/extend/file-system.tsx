@@ -4922,8 +4922,8 @@ const failedRowThumbnails = new Set<string>();
 /**
  * The small picture a row leads with: the folder glyph, a picture's own
  * thumbnail in its own shape with a hairline around it, or the file's type.
- * Only a picture is drawn as itself at this size; a page or a document's
- * thumbnail would be a smudge, and its type says more.
+ * Pictures and design artwork are drawn as themselves at this size; a text
+ * document's thumbnail would be a smudge, and its type says more.
  */
 export function FileSystemRowGlyph({
   entry,
@@ -4944,9 +4944,11 @@ export function FileSystemRowGlyph({
       />
     );
   }
-  const coverUrl = mimeTypeForFile(entry).startsWith("image/")
-    ? filePreviewUrls(entry)[0]
-    : undefined;
+  const coverUrl =
+    mimeTypeForFile(entry).startsWith("image/") ||
+    /\.(?:ai|psd)$/i.test(entry.name)
+      ? filePreviewUrls(entry)[0]
+      : undefined;
   if (!coverUrl || failedRowThumbnails.has(coverUrl)) {
     return <FileTypeIcon className="size-4" fileName={entry.name} />;
   }

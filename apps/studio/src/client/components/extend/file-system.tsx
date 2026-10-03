@@ -1927,12 +1927,27 @@ export function FileSystem({
   }, [selectEntry, selectedPath, visiblePaths]);
   // Dragging a row out of the window, to the desktop or another app. One
   // gesture for every view, on the browser itself; the rows say they drag.
+  // A row of several selected carries the rest of them with it.
   const dragArea = useFileDragArea(
     getHostPath
       ? (event) => {
           const entry = entryFromEventPath(event);
           const hostPath = entry ? getHostPath(entry) : undefined;
-          return hostPath ? { hostPath } : undefined;
+          if (!entry || !hostPath) return undefined;
+          if (selection.size < 2 || !selection.has(entry.path)) {
+            return { hostPath };
+          }
+          return {
+            hostPath,
+            others: selectedPaths.flatMap((path) => {
+              const other =
+                path === entry.path
+                  ? undefined
+                  : (index.files.get(path) ?? index.folders.get(path));
+              const otherHostPath = other ? getHostPath(other) : undefined;
+              return otherHostPath ? [otherHostPath] : [];
+            }),
+          };
         }
       : undefined,
   );

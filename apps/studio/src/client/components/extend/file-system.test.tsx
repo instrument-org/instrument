@@ -168,6 +168,38 @@ describe("FileSystem", () => {
       expect(reported()).toEqual(["a.txt", "b.txt", "c.txt"]);
     });
   
+    it("drags the rest of a selection along with the row pressed", () => {
+      const startFileDrag = vi.fn();
+      Object.defineProperty(window, "api", {
+        configurable: true,
+        value: { ...window.api, startFileDrag },
+      });
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          getHostPath={(item) => `/Users/sam/${item.path}`}
+          items={FILES}
+        />,
+      );
+      const row = (name: string) => screen.getByRole("option", { name });
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.click(row("c.txt"), { metaKey: true });
+      fireEvent.pointerDown(row("c.txt"), {
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        pointerType: "mouse",
+      });
+      fireEvent.dragStart(row("c.txt"));
+      fireEvent.pointerMove(window, { clientX: 40, clientY: 0 });
+
+      expect(startFileDrag).toHaveBeenCalledWith([
+        "/Users/sam/c.txt",
+        "/Users/sam/a.txt",
+      ]);
+    });
+  
     it("says what several are where one file's preview stands", () => {
       renderWithProviders(
         <FileSystem

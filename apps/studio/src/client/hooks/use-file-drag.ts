@@ -15,6 +15,13 @@ export type FileDragProps = ReturnType<typeof useFileDrag>;
 
 type FileRef = Pick<ViewerFile, "hostPath">;
 
+/**
+ * The file a press landed on, and the others selected with it, which go
+ * along in the same drag the way a Finder selection does. The drag image is
+ * the pressed file's.
+ */
+type DraggedFiles = FileRef & { others?: readonly string[] };
+
 // Starting a drag cannot wait on anything, so the main process renders the
 // file's drag image before the gesture (see electron-main/lib/file-drag).
 // Deduped only while a request is open, not by result.
@@ -87,7 +94,7 @@ export function useFileDrag(file: FileRef | undefined) {
  * field inside the container still drags as text.
  */
 export function useFileDragArea(
-  resolve: ((event: SyntheticEvent) => FileRef | undefined) | undefined,
+  resolve: ((event: SyntheticEvent) => DraggedFiles | undefined) | undefined,
 ) {
   const canDrag = Boolean(resolve && window.api.startFileDrag);
   const gesture = useDragGesture();
@@ -183,7 +190,7 @@ function useDragGesture() {
       event.stopPropagation();
     },
     /** A press on `file`, or on nothing that drags when it is left out. */
-    press: (event: ReactPointerEvent, file: FileRef | undefined) => {
+    press: (event: ReactPointerEvent, file: DraggedFiles | undefined) => {
       // A fresh press is a fresh gesture, whatever the last one turned into.
       draggedRef.current = false;
       endGesture();
@@ -210,7 +217,7 @@ function useDragGesture() {
         // enough to beat the OS still finds them.
         trackSelfFileDrag();
         draggedRef.current = true;
-        window.api.startFileDrag?.([file.hostPath]);
+        window.api.startFileDrag?.([file.hostPath, ...(file.others ?? [])]);
       };
 
       gestureRef.current = {

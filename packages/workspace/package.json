@@ -96,7 +96,7 @@
     "mock-fs": "^5.5.0",
     "tsx": "^4.20.3",
     "typescript": "catalog:",
-    "undici": "^8.1.0",
+    "undici": "^8.11.2",
     "vitest": "catalog:"
   },
   "optionalDependencies": {

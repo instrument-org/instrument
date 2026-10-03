@@ -1,6 +1,6 @@
 # Dependency sweep: what upstream has fixed for us
 
-Status: first pass landed. hono, @hono/node-server, better-auth, vite, @parcel/watcher, xstate, use-stick-to-bottom, agent-browser, and electron-builder are upgraded and committed. Since then the AI SDK moved to v7 (`241d44b06`), vite to 8 (`e0a0d6521`), just-bash to 3.4.1 and agent-browser to 0.38.1, past what this sweep scoped. Still open: electron (42.3.3, blocked for the reason below), execa 10 and dugite 3.2.2 (untouched API migrations), and the `brace-expansion` override. Snapshot verified 2026-07-31 against the npm registry and upstream sources. Version claims go stale fast, so re-check anything here before acting on it.
+Status: second pass landed. Electron is on 44.4.5 with the Node pins (repo, Studio, and the skills repo behind `registry/`) moved to its bundled 24.21.0, which retired the blocker below. The same pass took electron-builder 26.17.0 (dropping our app-builder-lib patch), Radix to current patches, Tailwind's Vite plugin to 4.3.3, hono 4.13, the AI SDK 7.0.116 line, pnpm 11.28, Zod 4.6, TanStack Query 5.104 and Router 1.170.39, better-auth 1.7.6, and overrides for dompurify and defu. Still open: execa 10 and dugite 3.2.x (untouched API migrations), the `brace-expansion` override, and TypeScript 7, which waits for 7.1 because 7.0 ships no `tsserver` for the editor. Version claims go stale fast, so re-check anything here before acting on it.
 
 This is a read of the dependency tree against what we have actually been churning on: the auto-updater, the Windows launch path, the file watcher, the agent browser, the bash sandbox, and the chat transcript. It ranks by "does upstream already fix a bug we paid for", not by how far behind a version number is.
 
@@ -18,9 +18,9 @@ Four mechanical constraints apply to every bump below:
 
 ## Tier 1: upstream fixes for bugs we have been paying for
 
-### electron 42.3.3 to 42.8.0: blocked
+### electron 42.3.3 to 42.8.0: landed as 44.4.5
 
-**Blocked, and not by the seven-day rule.** `check:electron-node-version` requires `.node-version`, `.tool-versions`, and `engines.node` in the repo root, in Studio, and in `registry/` to equal Electron's bundled Node exactly. We are pinned to 24.15.0; Electron 42.4.x bundles 24.16.0, 42.5.x bundles 24.17.0, and 42.6.0 and later bundle 24.18.0, so there is no 42.x bump available that leaves the pin alone. Three of the files that would have to move live in `registry/`, which is the read-only skills submodule, so this is a coordinated change across two repos and a submodule pointer update, not a version bump. Worth scheduling, because the payoff below is real.
+**Was blocked, and not by the seven-day rule.** `check:electron-node-version` requires `.node-version`, `.tool-versions`, and `engines.node` in the repo root, in Studio, and in `registry/` to equal Electron's bundled Node exactly. We are pinned to 24.15.0; Electron 42.4.x bundles 24.16.0, 42.5.x bundles 24.17.0, and 42.6.0 and later bundle 24.18.0, so there is no 42.x bump available that leaves the pin alone. Three of the files that would have to move live in `registry/`, which is the read-only skills submodule, so this is a coordinated change across two repos and a submodule pointer update, not a version bump. Worth scheduling, because the payoff below is real.
 
 Same major, patch line, and it contains the fix for a crash class we have hit from two directions.
 

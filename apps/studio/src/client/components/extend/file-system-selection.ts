@@ -6,7 +6,7 @@
  */
 
 /** Several selected, held beside the one the keyboard is on. */
-export type SeveralSelected = {
+type SeveralSelected = {
   /** Where a Shift-click or Shift-arrow reaches from. */
   anchor: string;
   /** All of them, in the order they were picked. */

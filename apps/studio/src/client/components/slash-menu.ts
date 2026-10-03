@@ -6,7 +6,7 @@ import {
 } from "prosemirror-state";
 
 /** The slash being typed: where it starts, where the caret is, and what follows the slash. */
-export interface SlashMenuRange {
+interface SlashMenuRange {
   from: number;
   query: string;
   to: number;
@@ -32,7 +32,7 @@ type SlashMenuMeta =
 
 const CLOSED: SlashMenuState = { index: 0, menu: null, scroll: false };
 
-export const slashMenuKey = new PluginKey<SlashMenuState>("slashMenu");
+const slashMenuKey = new PluginKey<SlashMenuState>("slashMenu");
 
 /**
  * The menu a typed slash opens, held in the editor's state so every

@@ -37,7 +37,7 @@ const DIRECTIONS: Record<string, ListingDirection> = {
 };
 
 /** ⌘A, or Ctrl+A off the Mac. */
-export function isSelectAllPress(press: KeyPress, isMac: boolean) {
+function isSelectAllPress(press: KeyPress, isMac: boolean) {
   return (
     press.key.toLowerCase() === "a" &&
     !press.shiftKey &&

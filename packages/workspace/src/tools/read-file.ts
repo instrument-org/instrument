@@ -72,8 +72,8 @@ type MediaFileState = "audio" | "image" | "pdf" | "video";
  * The full judgment needs the pixel space the model was shown and so belongs
  * in `cropRegion`. This is the part of it available before a file has been read
  * at all, and it exists for one case: a model that fills the parameter in on
- * every `read_file` call reaches text files too, and failing that read over a
- * rectangle it did not mean would cost more than the rectangle is worth.
+ * every `read_file` call reaches text files too, and a note about a rectangle
+ * it did not mean would only be noise on that read.
  */
 function aimsSomewhere(region: RegionInput) {
   return !(
@@ -401,6 +401,9 @@ export const ReadFile = setupTool({
       hasMoreLines: z.boolean(),
       modifiedAt: z.number(),
       offset: z.number(),
+      // Set when a region aimed at a place came with a file that is not an
+      // image, which is read as usual instead.
+      regionIgnored: z.literal("not-an-image").optional(),
       state: z.literal("exists"),
       totalLines: z.number(),
       truncatedByBytes: z.boolean().default(false),
@@ -552,15 +555,15 @@ export const ReadFile = setupTool({
       });
     }
 
-    if (
+    // A rectangle has nothing to crop in any other kind of file, and a model
+    // that sends one there is nearly always filling the parameter in rather
+    // than aiming it, so the file is read as usual and the result says so.
+    const regionIgnored =
       region &&
       aimsSomewhere(region) &&
       !isReadableImage(getMimeType(absolutePath))
-    ) {
-      return executeError(
-        `${INPUT_PARAMS.region} only applies to images, and ${displayPath} is not one.`,
-      );
-    }
+        ? ("not-an-image" as const)
+        : undefined;
 
     const isBinary = await isBinaryFile(absolutePath);
     if (!isBinary) {
@@ -621,6 +624,7 @@ export const ReadFile = setupTool({
         hasMoreLines,
         modifiedAt: stats.mtimeMs,
         offset: clampedOffset,
+        ...(regionIgnored && { regionIgnored }),
         state: "exists" as const,
         totalLines: lines.length,
         truncatedByBytes,
@@ -879,10 +883,14 @@ export const ReadFile = setupTool({
     }
 
     const result = `<path>${output.filePath}</path>\n<content${isPartial ? ` lines="${header}"` : ""}>\n${contentBody}\n</content>`;
+    const regionNote =
+      output.regionIgnored === "not-an-image"
+        ? systemNote`${INPUT_PARAMS.region} only applies to images, and ${output.filePath} is not one, so it was ignored and the file read as text. Leave ${INPUT_PARAMS.region} out when reading anything but an image.`
+        : "";
 
     return {
       type: "text",
-      value: result,
+      value: result + regionNote,
     };
   },
 });

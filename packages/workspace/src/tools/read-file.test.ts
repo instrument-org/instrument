@@ -848,24 +848,47 @@ describe("ReadFile", () => {
       });
 
       // A model that fills the parameter in on every call reaches text files
-      // too, and failing the read over a rectangle it did not mean costs more
-      // than the rectangle is worth.
-      expect(result._unsafeUnwrap().state).toBe("exists");
+      // too, and a note about a rectangle it did not mean is noise.
+      const value = result._unsafeUnwrap();
+      expect(value).toMatchObject({ state: "exists" });
+      expect(value).not.toHaveProperty("regionIgnored");
     }, 60_000);
 
-    it("refuses a region on something that is not an image", async () => {
-      const result = await runTool(TOOLS.ReadFile, {
-        ...baseInput,
-        input: {
-          explanation: "zoom",
-          filePath: "./grep-test.txt",
-          region: { x1: 0, x2: 10, y1: 0, y2: 10 },
-        },
-      });
+    it("reads a text file whole when a region is aimed at it, and says so", async () => {
+      const value = (
+        await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: {
+            explanation: "zoom",
+            filePath: "./grep-test.txt",
+            limit: 1,
+            region: { x1: 0, x2: 1000, y1: 0, y2: 1000 },
+          },
+        })
+      )._unsafeUnwrap();
 
-      expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-        `"region only applies to images, and ./grep-test.txt is not one."`,
-      );
+      expect(value.state).toBe("exists");
+      expect(
+        ReadFile.toModelOutput({
+          input: { explanation: "zoom", filePath: "./grep-test.txt" },
+          output: value,
+          toolCallId: "123",
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "<path>./grep-test.txt</path>
+        <content lines="lines 1-1 (total 30 lines)">
+           1→This is a test file for grep functionality.
+        ... 29 lines not shown ...
+
+        (Use offset parameter to read beyond line 2)
+        </content>
+        <instrument-system-note>
+        region only applies to images, and ./grep-test.txt is not one, so it was ignored and the file read as text. Leave region out when reading anything but an image.
+        </instrument-system-note>",
+        }
+      `);
     }, 60_000);
 
     it("reads a file from a read-only attached folder by its mount path", async () => {

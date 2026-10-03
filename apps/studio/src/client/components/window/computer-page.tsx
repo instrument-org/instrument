@@ -935,6 +935,48 @@ export function ComputerPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, onQuickLook, isActiveTab]);
 
+  // ⌘Z takes back the newest thing the Finder did to the computer's files (a
+  // rename, a duplicate, a new folder, a move to the Trash), the way the
+  // Finder's own Edit > Undo does. What was put back is selected; what cannot
+  // be taken back safely says why.
+  useEffect(() => {
+    if (!isActiveTab || isRecents) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "z" ||
+        event.shiftKey ||
+        event.altKey ||
+        !(isMacOS() ? event.metaKey : event.ctrlKey) ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void rpcClient.files.undo
+        .call()
+        .then((undone) => {
+          reread();
+          const restored = undone.path;
+          if (restored === null || !rootHostPath) {
+            return;
+          }
+          const relative = relativeHostPath(rootHostPath, restored);
+          if (relative !== null) {
+            setSelectedPath(`${relative}${undone.isFolder ? "/" : ""}`);
+          }
+        })
+        .catch(failed);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+    // `reread` is rebuilt each render and reads nothing that changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActiveTab, isRecents, rootHostPath]);
+
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are
   // handed to the browser's selected row, which answers them as its own;
@@ -1835,6 +1877,18 @@ function combineListings(
     isError: result.isError,
     isPending: result.isPending,
   }));
+}
+
+/**
+ * Where a path on this computer sits under a root, as the browser spells a
+ * prefix (with slashes, whatever the computer); null when it is not under it.
+ */
+function relativeHostPath(root: string, hostPath: string) {
+  const separator = root.includes("\\") ? "\\" : "/";
+  const base = root.endsWith(separator) ? root : `${root}${separator}`;
+  return hostPath.startsWith(base)
+    ? hostPath.slice(base.length).split(separator).join("/")
+    : null;
 }
 
 /** What went wrong with a file action, said where the folder is. */

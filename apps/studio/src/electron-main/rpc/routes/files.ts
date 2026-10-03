@@ -1,6 +1,15 @@
+import {
+  findInTrash,
+  type Identity,
+  identityOf,
+  type NewJournalEntry,
+  undoEntry,
+  UndoRefusedError,
+} from "@/electron-main/lib/file-journal";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
+import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { eventIterator, ORPCError } from "@orpc/server";
 import { shell } from "electron";
 import { createHash, randomUUID } from "node:crypto";
@@ -14,7 +23,8 @@ import { z } from "zod";
  * These are the user's own actions on their own files, taken from the folder
  * they are looking at, so nothing here is gated by what the agent may reach.
  * Deleting is `shell.trashItem`, which is undoable in the Finder; no route
- * here unlinks anything.
+ * here unlinks anything. Each action is written to the file journal before it
+ * answers, so `undo` can take it back.
  */
 
 /** The name the Finder gives a new folder, and how it counts the next one. */
@@ -79,6 +89,11 @@ const newFolder = base
     try {
       const made = await freePath(input.parent, UNTITLED);
       await fs.mkdir(made);
+      await record(made, (identity) => ({
+        identity,
+        kind: "new-folder",
+        made,
+      }));
       return { path: made };
     } catch (error) {
       throw errors.CANNOT_WRITE({
@@ -103,14 +118,18 @@ const rename = base
     // A name taken by something else is refused. One that differs only in
     // letter case finds the item itself there on a disk that does not tell
     // them apart, and is a rename like any other.
-    const [there, self] = await Promise.all([
-      fs.lstat(moved).catch(() => null),
-      fs.lstat(input.path).catch(() => null),
-    ]);
+    const there = await identityOf(moved);
+    const self = await identityOf(input.path);
     if (there && !(self && there.dev === self.dev && there.ino === self.ino)) {
       throw errors.NAME_IN_USE();
     }
     await fs.rename(input.path, moved);
+    await record(moved, (identity) => ({
+      from: input.path,
+      identity,
+      kind: "rename",
+      to: moved,
+    }));
     return { path: moved };
   });
 
@@ -130,6 +149,11 @@ const duplicate = base
         extension,
       );
       await fs.cp(input.path, copy, { recursive: true });
+      await record(copy, (identity) => ({
+        identity,
+        kind: "duplicate",
+        made: copy,
+      }));
       return { path: copy };
     } catch (error) {
       throw errors.CANNOT_WRITE({
@@ -142,11 +166,79 @@ const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
   .input(z.object({ path: HostPathSchema }))
   .handler(async ({ errors, input }) => {
+    const identity = await identityOf(input.path);
     try {
       await shell.trashItem(input.path);
     } catch (error) {
       throw errors.CANNOT_TRASH({
         message: error instanceof Error ? error.message : undefined,
+      });
+    }
+    // The Trash keeps no record of where a thing came from that an app can
+    // read, so where it landed is found by its identity now, while it is
+    // still the newest thing there.
+    if (identity) {
+      getFileJournal().record({
+        from: input.path,
+        identity,
+        kind: "trash",
+        trashed: await findInTrash(identity),
+      });
+    }
+  });
+
+/** Writes an action to the journal, by the identity of what it left at `at`. */
+async function record(
+  at: string,
+  entry: (identity: Identity) => NewJournalEntry,
+) {
+  const identity = await identityOf(at);
+  if (identity) {
+    getFileJournal().record(entry(identity));
+  }
+}
+
+/**
+ * Takes back the newest action in the journal: a rename, a duplicate, a new
+ * folder, or a move to the Trash. One that cannot be taken back safely is
+ * refused with the reason and stays in the journal, so nothing older is
+ * undone out of order behind it.
+ */
+const undo = base
+  .errors({
+    CANNOT_UNDO: { message: "That cannot be undone" },
+    NOTHING_TO_UNDO: { message: "There is nothing to undo" },
+  })
+  .output(
+    z.object({
+      kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
+      /** Whether what was put back is a folder. */
+      isFolder: z.boolean(),
+      /** Where the thing is now, for whatever was put back rather than removed. */
+      path: z.string().nullable(),
+    }),
+  )
+  .handler(async ({ errors }) => {
+    const journal = getFileJournal();
+    const entry = journal.latest();
+    if (!entry) {
+      throw errors.NOTHING_TO_UNDO();
+    }
+    try {
+      const restored = await undoEntry(entry, {
+        trash: (at) => shell.trashItem(at),
+      });
+      journal.remove(entry.id);
+      const isFolder =
+        restored !== null &&
+        (await fs.lstat(restored).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ));
+      return { isFolder, kind: entry.kind, path: restored };
+    } catch (error) {
+      throw errors.CANNOT_UNDO({
+        message: error instanceof UndoRefusedError ? error.message : undefined,
       });
     }
   });
@@ -318,5 +410,6 @@ export const files = {
   read,
   rename,
   trash,
+  undo,
   write,
 };

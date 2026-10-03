@@ -102,8 +102,8 @@ dir>` re-runs every assertion against the sessions already recorded. The run
 
 Committed cases live in `packages/workspace/evals/cases/` (`pnpm eval list
 [pattern]` names them, `pnpm eval run <pattern>` runs them); add one when a
-behavior is worth guarding permanently. Details in
-`packages/workspace/AGENTS.md`.
+behavior is worth guarding permanently. Details in the
+`workspace-evals` skill.
 
 **There is no task browser at this rung, or at rung 2.** The managed browser
 lives in the Electron app, so outside it `agent-browser open` fails at the

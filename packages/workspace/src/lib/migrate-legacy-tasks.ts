@@ -126,9 +126,10 @@ interface StoreRow {
  * joins the topic already called that, and its instructions become the
  * topic's; the chats of its tasks carry that topic.
  *
- * Runs on every boot and decides from the data: a task under `tasks/` that
- * no chat started is one to adopt, and `projects/` holding a project is one
- * to turn into a topic.
+ * Runs with the layout sweep in `migrateWorkspaceLayout`, once per layout
+ * version, and decides from the data: a task under `tasks/` that no chat
+ * started is one to adopt, and `projects/` holding a project is one to turn
+ * into a topic.
  * Synchronous and file-level, with no store open and no workspace config.
  *
  * A chat is written under a hidden name inside `chats/`, the task moved into

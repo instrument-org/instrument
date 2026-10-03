@@ -3,24 +3,26 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { migrateLegacyTasks } from "./migrate-legacy-tasks";
 import { migrateWorkspaceLayout } from "./migrate-workspace-layout";
 
 // The tasks here are 1.x-shaped on purpose, which is what the adoption into
 // chats looks for; it has tests of its own, and would move them out from under
 // the normalization these check.
-vi.mock("./migrate-legacy-tasks", () => ({
-  migrateLegacyTasks: () => ({
-    adoptedCount: 0,
-    emptyCount: 0,
-    leftOver: 0,
-    topicCount: 0,
-  }),
-}));
+vi.mock("./migrate-legacy-tasks", () => ({ migrateLegacyTasks: vi.fn() }));
+
+const NOTHING_ADOPTED = {
+  adoptedCount: 0,
+  emptyCount: 0,
+  leftOver: 0,
+  topicCount: 0,
+};
 
 let rootDir: string;
 
 beforeEach(() => {
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-layout-"));
+  vi.mocked(migrateLegacyTasks).mockReset().mockReturnValue(NOTHING_ADOPTED);
 });
 
 afterEach(() => {
@@ -431,6 +433,27 @@ describe("migrateWorkspaceLayout", () => {
 
       expect(readSettings("abc").name).toBe("Abc");
       expect(exists("tasks", "abc", "instrument.json")).toBe(false);
+    });
+
+    it("adopts 1.x tasks only on a sweep, so a boot with a current marker skips it", () => {
+      migrateWorkspaceLayout({ rootDir });
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(migrateLegacyTasks).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves the marker unwritten while a 1.x task is left over, so the next boot retries it", () => {
+      vi.mocked(migrateLegacyTasks).mockReturnValueOnce({
+        ...NOTHING_ADOPTED,
+        leftOver: 1,
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+      expect(exists(...LAYOUT_MARKER)).toBe(false);
+
+      migrateWorkspaceLayout({ rootDir });
+      expect(migrateLegacyTasks).toHaveBeenCalledTimes(2);
+      expect(exists(...LAYOUT_MARKER)).toBe(true);
     });
 
     it("sweeps tasks the legacy projects/ move brought in even when the marker is current", () => {

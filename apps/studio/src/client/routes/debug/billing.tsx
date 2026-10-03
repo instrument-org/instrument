@@ -120,7 +120,9 @@ function RouteComponent() {
                 rows={status.data.windows.map((window) => [
                   window.key,
                   `${window.percentUsed}%`,
-                  window.resetsAt ?? "-",
+                  // A window with no reset time has not opened: the next
+                  // hosted request starts it.
+                  window.resetsAt ?? "starts when you next use it",
                 ])}
               />
               <p className="text-xs text-muted-foreground">

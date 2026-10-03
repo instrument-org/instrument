@@ -622,7 +622,17 @@ export function ComputerPage({
       for (const hostPath of hostPaths) {
         await rpcClient.files.trash.call({ path: hostPath });
       }
-      setSelectedPath(null);
+      // The columns open as far as the selection reaches, so they stay in
+      // the folder that held what went, with that folder selected the way
+      // the Finder leaves it.
+      const first = picked[0]?.path;
+      const holder =
+        first === undefined
+          ? current
+          : first.slice(0, first.lastIndexOf("/", first.length - 2) + 1);
+      setSelectedPath(
+        shown.view === "columns" && holder !== current ? holder : null,
+      );
       focusBrowser();
     } catch (error) {
       failed(error);

@@ -28,7 +28,12 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { createActor, fromCallback } from "xstate";
 
+import {
+  pageEditSessionMachine,
+  type PageEditServeEvent,
+} from "./page-edit-session";
 import { usePageEdit } from "./page-edit-state";
 import {
   linesLabel,
@@ -54,10 +59,6 @@ import {
 
 /** How long a flush waits for the guest to answer, for a guest that is gone or stuck. */
 const FLUSH_TIMEOUT_MS = 3000;
-
-/** How long to wait for a guest to attach before looking again, and how many looks. */
-const ATTACH_RETRY_MS = 250;
-const ATTACH_RETRIES = 40;
 
 /**
  * Each tab's loads, writes and stops, in order across Edit sessions, so a
@@ -138,227 +139,35 @@ export function PageEditSession({
   // served once it does, and a guest recreated under the tab is served anew.
   const attached = useBrowserTargets().has(target);
   const guestGeneration = attached ? getGuestGeneration(target) : undefined;
-  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    const webview = getWebviewElement(target);
-    let webContentsId = -1;
-    try {
-      webContentsId = webview?.getWebContentsId() ?? -1;
-    } catch {
-      // Not attached yet; looked for again below.
-    }
-    if (!webview || webContentsId === -1) {
-      if (attempt >= ATTACH_RETRIES) {
-        return;
-      }
-      const timer = setTimeout(() => {
-        setAttempt((current) => current + 1);
-      }, ATTACH_RETRY_MS);
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-    // The file version the editor holds, as it last said or as a write
-    // returned; a change on disk at any other version is someone else's.
-    let known: string | undefined;
-    // The load this session last made, which its stop names.
-    let generation: number | undefined;
-    const serial = (work: () => Promise<unknown>) => {
-      serialFor(tabId, work);
-    };
-    // Back to the page as it is, saying why.
-    const giveUp = (message: string, description?: string) => {
-      toast.error(message, description ? { description } : {});
-      latest.current.setEditing(false);
-    };
-    const load = async (input: { state: unknown; text?: string }) => {
-      let result;
-      try {
-        result = await rpcClient.pageEditor.load.call({
-          path,
-          webContentsId,
-          ...input,
-        });
-      } catch (error) {
-        giveUp(
-          "Could not open this page to edit",
-          error instanceof Error ? error.message : undefined,
-        );
-        return;
-      }
-      generation = result.generation;
-    };
-    const send = (message: PageEditorHostMessage) => {
-      try {
-        webview.send(PAGE_EDITOR_CHANNEL, message);
-      } catch {
-        // The guest is gone; the tab closing ends this session too.
-      }
-    };
-    const check = () => {
-      serial(async () => {
-        if (known === undefined) {
-          return;
-        }
-        const disk = await rpcClient.files.read.call({ path });
-        if (disk.version !== known) {
-          known = disk.version;
-          send({
-            content: disk.content,
-            type: "external",
-            version: disk.version,
-          });
-        }
-      });
-    };
-    session.current = { check };
-    // Asked of the file by another view of it (its source) before that view
-    // reads it: the editor commits what is being typed, and the flush settles
-    // once every write it queued is on disk.
-    const flushes = new Map<number, () => void>();
-    let nextFlush = 0;
-    const unregisterFlush = registerFileFlush(path, async () => {
-      const id = ++nextFlush;
-      await new Promise<void>((resolve) => {
-        flushes.set(id, resolve);
-        send({ id, type: "flush" });
-        setTimeout(resolve, FLUSH_TIMEOUT_MS);
-      });
-      flushes.delete(id);
-      await tabChains.get(tabId);
+    const actor = createActor(
+      pageEditSessionMachine.provide({
+        actors: {
+          serve: fromCallback<{ type: "none" }, void, PageEditServeEvent>(
+            ({ sendBack }) => {
+              // Looked up again: the guard that entered serving only answers
+              // whether there is one.
+              const guest = attachedGuest(target);
+              return guest
+                ? serveGuest({ guest, latest, path, sendBack, session, tabId })
+                : undefined;
+            },
+          ),
+        },
+        guards: { hasGuest: () => attachedGuest(target) !== undefined },
+      }),
+    );
+    const subscription = actor.subscribe((snapshot) => {
+      setCover(snapshot.context.cover);
     });
-    const onMessage = (event: Event) => {
-      const { args, channel } = event as Event & {
-        args?: unknown[];
-        channel?: string;
-      };
-      if (channel !== PAGE_EDITOR_CHANNEL) {
-        return;
-      }
-      const parsed = PageEditorGuestMessageSchema.safeParse(args?.[0]);
-      if (!parsed.success) {
-        return;
-      }
-      const message = parsed.data;
-      switch (message.type) {
-        case "ask": {
-          const where = message.lines
-            ? linesLabel(message.lines)
-            : "on the page";
-          latest.current.stageAsk({
-            ...(message.context ? { context: message.context } : {}),
-            excerpt: message.quote,
-            id: message.id,
-            instruction: message.instruction,
-            path,
-            target: `${message.label} · ${where}`,
-          });
-          break;
-        }
-        case "flushed": {
-          flushes.get(message.id)?.();
-          break;
-        }
-        case "hello": {
-          known = message.version;
-          send(latest.current.staged);
-          check();
-          setTimeout(() => {
-            setCover(null);
-          }, 80);
-          break;
-        }
-        case "leave": {
-          latest.current.setEditing(false);
-          break;
-        }
-        case "move": {
-          latest.current.moveWaiting();
-          break;
-        }
-        case "reload": {
-          serial(async () => {
-            try {
-              const picture = await webview.capturePage();
-              setCover(picture.toDataURL());
-            } catch {
-              // Nothing to hold over it; the reload shows as it is.
-            }
-            await load({ state: message.state, text: message.text });
-          });
-          break;
-        }
-        case "save": {
-          serial(async () => {
-            try {
-              const result = await rpcClient.files.write.call({
-                baseVersion: message.baseVersion,
-                content: message.content,
-                path,
-              });
-              known = result.version;
-              send({ id: message.id, result, type: "reply" });
-            } catch (error) {
-              // Answered either way: the editor's saves wait on this one.
-              send({
-                error:
-                  error instanceof Error ? error.message : "Could not save",
-                id: message.id,
-                type: "replyFailed",
-              });
-              throw error;
-            }
-          });
-          break;
-        }
-        case "status": {
-          // An editor that could not start says so, and the page goes back
-          // to View; any other status line is the editor's own, and nothing
-          // here shows one.
-          if (message.kind === "error") {
-            setCover(null);
-            giveUp("The editor could not start", message.message);
-          }
-          break;
-        }
-        case "unstage": {
-          latest.current.removeAsks([message.id]);
-          break;
-        }
-      }
-    };
-    // The guest leaving the stamped copy (Back, a link, the page's own
-    // script) leaves Edit: what it shows then is not what is being edited.
-    const onNavigate = (event: Event) => {
-      const { url } = event as Event & { url?: string };
-      if (generation !== undefined && url && !isPageEditAddress(url)) {
-        latest.current.setEditing(false);
-      }
-    };
-    webview.addEventListener("ipc-message", onMessage);
-    webview.addEventListener("did-navigate", onNavigate);
-    serial(() => load({ state: { placement: latest.current.placement } }));
+    actor.start();
     return () => {
-      webview.removeEventListener("ipc-message", onMessage);
-      webview.removeEventListener("did-navigate", onNavigate);
-      session.current = null;
-      unregisterFlush();
-      for (const done of flushes.values()) {
-        done();
-      }
-      // After every write in flight, so leaving never drops an edit.
-      serial(async () => {
-        if (generation !== undefined) {
-          await rpcClient.pageEditor.stop.call({
-            generation,
-            path,
-            webContentsId,
-          });
-        }
-      });
+      subscription.unsubscribe();
+      actor.stop();
+      setCover(null);
     };
-  }, [attempt, guestGeneration, path, tabId, target]);
+  }, [guestGeneration, path, tabId, target]);
 
   useEffect(() => {
     try {
@@ -404,18 +213,6 @@ export function PageEditSession({
       session.current?.check();
     }
   }, [modifiedAt]);
-  // A reload that never reports back must not leave a picture standing.
-  useEffect(() => {
-    if (cover === null) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setCover(null);
-    }, 6000);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [cover]);
   return cover && isShown ? (
     <img
       alt=""
@@ -503,6 +300,249 @@ export function PageEditToggle({ tabId }: { tabId: string }) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** The tab's guest, once it is attached and has web contents to serve. */
+function attachedGuest(target: BrowserTargetId) {
+  const webview = getWebviewElement(target);
+  let webContentsId = -1;
+  try {
+    webContentsId = webview?.getWebContentsId() ?? -1;
+  } catch {
+    // Not attached yet.
+  }
+  return webview && webContentsId !== -1
+    ? { webContentsId, webview }
+    : undefined;
+}
+
+/**
+ * Serves the editor in an attached guest: loads the stamped page, answers what
+ * the editor asks, and stops it again once every write in flight has landed.
+ * Returns the stop.
+ */
+function serveGuest({
+  guest: { webContentsId, webview },
+  latest,
+  path,
+  sendBack,
+  session,
+  tabId,
+}: {
+  guest: NonNullable<ReturnType<typeof attachedGuest>>;
+  /** The component's latest callbacks, read when a message arrives. */
+  latest: {
+    current: {
+      moveWaiting: () => void;
+      placement: "row";
+      removeAsks: (ids: string[]) => void;
+      setEditing: (editing: boolean) => void;
+      stageAsk: ReturnType<typeof useStageAsk>;
+      staged: PageEditorHostMessage;
+    };
+  };
+  path: string;
+  sendBack: (event: PageEditServeEvent) => void;
+  session: { current: null | { check: () => void } };
+  tabId: string;
+}) {
+  // The file version the editor holds, as it last said or as a write
+  // returned; a change on disk at any other version is someone else's.
+  let known: string | undefined;
+  // The load this session last made, which its stop names.
+  let generation: number | undefined;
+  const serial = (work: () => Promise<unknown>) => {
+    serialFor(tabId, work);
+  };
+  // Back to the page as it is, saying why.
+  const giveUp = (message: string, description?: string) => {
+    toast.error(message, description ? { description } : {});
+    latest.current.setEditing(false);
+  };
+  const load = async (input: { state: unknown; text?: string }) => {
+    let result;
+    try {
+      result = await rpcClient.pageEditor.load.call({
+        path,
+        webContentsId,
+        ...input,
+      });
+    } catch (error) {
+      giveUp(
+        "Could not open this page to edit",
+        error instanceof Error ? error.message : undefined,
+      );
+      return;
+    }
+    generation = result.generation;
+  };
+  const send = (message: PageEditorHostMessage) => {
+    try {
+      webview.send(PAGE_EDITOR_CHANNEL, message);
+    } catch {
+      // The guest is gone; the tab closing ends this session too.
+    }
+  };
+  const check = () => {
+    serial(async () => {
+      if (known === undefined) {
+        return;
+      }
+      const disk = await rpcClient.files.read.call({ path });
+      if (disk.version !== known) {
+        known = disk.version;
+        send({
+          content: disk.content,
+          type: "external",
+          version: disk.version,
+        });
+      }
+    });
+  };
+  session.current = { check };
+  // Asked of the file by another view of it (its source) before that view
+  // reads it: the editor commits what is being typed, and the flush settles
+  // once every write it queued is on disk.
+  const flushes = new Map<number, () => void>();
+  let nextFlush = 0;
+  const unregisterFlush = registerFileFlush(path, async () => {
+    const id = ++nextFlush;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
+      flushes.set(id, () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      send({ id, type: "flush" });
+    });
+    flushes.delete(id);
+    await tabChains.get(tabId);
+  });
+  const onMessage = (event: Event) => {
+    const { args, channel } = event as Event & {
+      args?: unknown[];
+      channel?: string;
+    };
+    if (channel !== PAGE_EDITOR_CHANNEL) {
+      return;
+    }
+    const parsed = PageEditorGuestMessageSchema.safeParse(args?.[0]);
+    if (!parsed.success) {
+      return;
+    }
+    const message = parsed.data;
+    switch (message.type) {
+      case "ask": {
+        const where = message.lines ? linesLabel(message.lines) : "on the page";
+        latest.current.stageAsk({
+          ...(message.context ? { context: message.context } : {}),
+          excerpt: message.quote,
+          id: message.id,
+          instruction: message.instruction,
+          path,
+          target: `${message.label} · ${where}`,
+        });
+        break;
+      }
+      case "flushed": {
+        flushes.get(message.id)?.();
+        break;
+      }
+      case "hello": {
+        known = message.version;
+        send(latest.current.staged);
+        check();
+        sendBack({ type: "guestReady" });
+        break;
+      }
+      case "leave": {
+        latest.current.setEditing(false);
+        break;
+      }
+      case "move": {
+        latest.current.moveWaiting();
+        break;
+      }
+      case "reload": {
+        serial(async () => {
+          try {
+            const picture = await webview.capturePage();
+            sendBack({ cover: picture.toDataURL(), type: "coverCaptured" });
+          } catch {
+            // Nothing to hold over it; the reload shows as it is.
+          }
+          await load({ state: message.state, text: message.text });
+        });
+        break;
+      }
+      case "save": {
+        serial(async () => {
+          try {
+            const result = await rpcClient.files.write.call({
+              baseVersion: message.baseVersion,
+              content: message.content,
+              path,
+            });
+            known = result.version;
+            send({ id: message.id, result, type: "reply" });
+          } catch (error) {
+            // Answered either way: the editor's saves wait on this one.
+            send({
+              error: error instanceof Error ? error.message : "Could not save",
+              id: message.id,
+              type: "replyFailed",
+            });
+            throw error;
+          }
+        });
+        break;
+      }
+      case "status": {
+        // An editor that could not start says so, and the page goes back
+        // to View; any other status line is the editor's own, and nothing
+        // here shows one.
+        if (message.kind === "error") {
+          sendBack({ type: "editorFailed" });
+          giveUp("The editor could not start", message.message);
+        }
+        break;
+      }
+      case "unstage": {
+        latest.current.removeAsks([message.id]);
+        break;
+      }
+    }
+  };
+  // The guest leaving the stamped copy (Back, a link, the page's own
+  // script) leaves Edit: what it shows then is not what is being edited.
+  const onNavigate = (event: Event) => {
+    const { url } = event as Event & { url?: string };
+    if (generation !== undefined && url && !isPageEditAddress(url)) {
+      latest.current.setEditing(false);
+    }
+  };
+  webview.addEventListener("ipc-message", onMessage);
+  webview.addEventListener("did-navigate", onNavigate);
+  serial(() => load({ state: { placement: latest.current.placement } }));
+  return () => {
+    webview.removeEventListener("ipc-message", onMessage);
+    webview.removeEventListener("did-navigate", onNavigate);
+    session.current = null;
+    unregisterFlush();
+    for (const done of flushes.values()) {
+      done();
+    }
+    // After every write in flight, so leaving never drops an edit.
+    serial(async () => {
+      if (generation !== undefined) {
+        await rpcClient.pageEditor.stop.call({
+          generation,
+          path,
+          webContentsId,
+        });
+      }
+    });
+  };
 }
 
 function serialFor(tabId: string, work: () => Promise<unknown>) {

@@ -34,7 +34,7 @@ catalog:
   "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^6.0.5
   ai: ^7.0.116
-  better-auth: ^1.6.25
+  better-auth: ^1.7.6
   hono: ^4.13.9
   react: ^19.2.1
   react-dom: ^19.2.1
@@ -111,6 +111,9 @@ overrides:
   # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown and
   # posthog-js bundle it too; 3.4.5 carries several sanitizer-bypass advisories.
   dompurify: ^3.4.16
+  # better-auth merges options with defu; 6.1.4 lets a __proto__ key in the
+  # defaults pollute the prototype.
+  defu: ^6.1.7
 
 patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch

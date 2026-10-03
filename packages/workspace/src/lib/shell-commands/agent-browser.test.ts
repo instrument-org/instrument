@@ -19,6 +19,10 @@ import {
   resolveAgentBrowserPathArgs,
   scrubHostPaths,
 } from "./agent-browser";
+import {
+  BrowserFollowUp,
+  withBrowserFollowUp,
+} from "./agent-browser-follow-up";
 
 vi.mock("execa");
 
@@ -420,6 +424,54 @@ describe("agent-browser routing", () => {
     const { execa } = await import("execa");
     expect(execa).not.toHaveBeenCalled();
   });
+
+  it.each([
+    {
+      args: ["click", "@e1"],
+      name: "a click on the task browser",
+      snapshotArgs: ["--session", sessionId, "snapshot", "-i", "--delta"],
+    },
+    {
+      args: ["--cdp", "9222", "click", "@e1"],
+      name: "a click on an external browser",
+      snapshotArgs: undefined,
+    },
+    {
+      args: ["read", "https://example.com"],
+      name: "a browser-free read",
+      snapshotArgs: undefined,
+    },
+  ])(
+    "follows $name with a snapshot of the same page only when it has one",
+    async ({ args, snapshotArgs }) => {
+      const { execa } = await import("execa");
+      vi.mocked(execa).mockResolvedValue({
+        exitCode: 0,
+        stderr: "",
+        stdout: "unchanged (revision 2)\n",
+      } as never);
+      const followUp = new BrowserFollowUp();
+
+      await withBrowserFollowUp(followUp, () =>
+        command.execute(args, commandCtx),
+      );
+      const page = await followUp.take(new AbortController().signal);
+
+      const calls = vi.mocked(execa).mock.calls.map((call) => {
+        const positional: unknown[] = [...call];
+        const spawned = positional[1];
+        return Array.isArray(spawned) ? spawned.map(String) : [];
+      });
+      if (snapshotArgs === undefined) {
+        expect(page).toBeUndefined();
+        expect(calls).toHaveLength(1);
+        return;
+      }
+      expect(page).toMatchObject({ after: "click", kind: "unchanged" });
+      expect(calls).toHaveLength(2);
+      expect(calls[1]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
+    },
+  );
 
   it("routes an external targeting flag to the sibling session with no provider", async () => {
     const { args, env } = await spawnedWith([

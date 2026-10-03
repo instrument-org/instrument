@@ -26,6 +26,12 @@ import {
   KILL_COMMAND,
 } from "../lib/shell-commands/background-jobs";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import {
+  BrowserFollowUp,
+  PageAfterSchema,
+  pageAfterText,
+  withBrowserFollowUp,
+} from "../lib/shell-commands/agent-browser-follow-up";
 import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
@@ -313,6 +319,11 @@ export const BashTool = setupTool({
     durationMs: z.number().default(0),
     /** Absent when the command was still running when the call returned. */
     exitCode: z.number().optional(),
+    /**
+     * The page after the call's agent-browser commands changed it, when
+     * nothing in the call read it afterwards.
+     */
+    pageAfter: PageAfterSchema.optional(),
     /** Set when the command was promoted; holds its bounded process log. */
     logFilePath: RelativePathSchema.optional(),
     logOmittedBytes: z.number().optional(),
@@ -362,6 +373,7 @@ export const BashTool = setupTool({
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
+    const browserFollowUp = new BrowserFollowUp();
 
     const handle = startBackgroundRun({
       callerSignal: signal,
@@ -369,7 +381,9 @@ export const BashTool = setupTool({
       explanation: input.explanation,
       run: async ({ signal: runSignal }) => {
         try {
-          const result = await bash.exec(input.command, { signal: runSignal });
+          const result = await withBrowserFollowUp(browserFollowUp, () =>
+            bash.exec(input.command, { signal: runSignal }),
+          );
           commands = Array.isArray(result.metadata?.commands)
             ? result.metadata.commands.filter(
                 (command): command is string => typeof command === "string",
@@ -443,6 +457,7 @@ export const BashTool = setupTool({
       });
     }
 
+    const pageAfter = await browserFollowUp.take(signal);
     // The chat's shell refuses the command, so only a task can have run it.
     const browserSkill =
       agentName !== "instrument" &&
@@ -458,6 +473,7 @@ export const BashTool = setupTool({
       exitCode: outcome.exitCode,
       omittedBytes: 0,
       output: outcome.output,
+      ...(pageAfter ? { pageAfter } : {}),
       spillFilePath,
     });
   },
@@ -522,6 +538,9 @@ export const BashTool = setupTool({
 
     const hasErrors = output.exitCode !== 0;
     const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
+    const pageAfterSection = output.pageAfter
+      ? ["", pageAfterText(output.pageAfter)]
+      : [];
     const browserSkillSection = output.browserSkill
       ? ["", browserSkillText(output.browserSkill, toolCallId)]
       : [];
@@ -538,6 +557,7 @@ export const BashTool = setupTool({
           "The command produced no output on stdout or stderr.",
           "",
           durationLine,
+          ...pageAfterSection,
           ...browserSkillSection,
         ].join("\n"),
       };
@@ -564,6 +584,7 @@ export const BashTool = setupTool({
         ...outputParts,
         "",
         durationLine,
+        ...pageAfterSection,
         ...browserSkillSection,
       ].join("\n"),
     };

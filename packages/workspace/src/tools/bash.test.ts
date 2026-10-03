@@ -90,6 +90,35 @@ describe("BashTool", () => {
       `);
     });
 
+    it("ends with the page a browser action left behind", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "agent-browser click @e2", yieldMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "agent-browser click @e2",
+          commands: ["agent-browser"],
+          durationMs: 120,
+          output: "✓ Done\n",
+          pageAfter: { after: "click", kind: "unchanged", text: "" },
+        },
+        toolCallId: "1",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "Exit code: 0
+
+        Command output:
+
+        ✓ Done
+
+        Duration: 120 ms
+
+        Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it.",
+        }
+      `);
+    });
+
     it("formats duration in seconds for longer commands", () => {
       const result = BashTool.toModelOutput({
         input: { command: "sleep 2", yieldMs: 1000 },

@@ -55,6 +55,10 @@ import {
 } from "./agent-browser-args";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 import {
+  currentBrowserFollowUp,
+  FOLLOW_UP_SNAPSHOT_ARGS,
+} from "./agent-browser-follow-up";
+import {
   attachedMountLiteralError,
   privateDirLiteralError,
   resolveCommandContext,
@@ -100,6 +104,7 @@ export function agentBrowserCommandDescription() {
   return [
     `Control a browser to navigate the web, interact with pages, and extract content.`,
     `The first agent-browser command in a session returns the \`${AGENT_BROWSER_SKILL_NAME}\` skill with its output, documenting the subcommands and the workflow this wrapper expects; read it before the next command rather than loading the skill first.`,
+    `A bash call whose last page-changing command (open, click, press, select, check, back, ...) is not followed by a read of the page ends with the page's interactive snapshot, or only what changed in it, so act on those refs instead of running \`snapshot -i\` after it.`,
     `IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.`,
     ...external,
     `Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.`,
@@ -208,9 +213,9 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Core workflow:
     1. agent-browser open <url>
-    2. agent-browser snapshot -i
-    3. Act on @refs from the snapshot
-    4. Re-run snapshot -i after navigation or DOM changes
+    2. Act on @refs from the snapshot the result ends with
+    3. Each action that changes the page ends with what changed in it;
+       run snapshot -i yourself only for what that leaves out
 
   Inspecting a file you created:
     agent-browser open work/report.html     Task files load in the browser
@@ -849,16 +854,19 @@ export function createAgentBrowserCommand({
       ...(isExternal ? {} : { HOME: homeDir }),
     };
 
+    const spawnOptions = {
+      cwd: taskCwd,
+      env: browserFreeRead ? browserFreeReadEnv(spawnEnv) : spawnEnv,
+      managedConfigPath: isInfoOnly ? undefined : configPath,
+      stateDir: agentBrowserStateDir,
+    };
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
       result = await runAgentBrowser({
+        ...spawnOptions,
         args: commandArgs,
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
-        env: browserFreeRead ? browserFreeReadEnv(spawnEnv) : spawnEnv,
         input: subprocessStdin(ctx.stdin),
-        managedConfigPath: isInfoOnly ? undefined : configPath,
-        stateDir: agentBrowserStateDir,
       });
     } finally {
       if (targetId) {
@@ -881,6 +889,31 @@ export function createAgentBrowserCommand({
       });
 
     const exitCode = result.exitCode ?? 1;
+
+    // The task's own browser only: an external one is reached through flags
+    // the follow-up would have to repeat, and a fetch or --help has no page.
+    if (!isInfoOnly && !isExternal && !browserFreeRead) {
+      // The session and connection flags this invocation was given, ahead of
+      // the agent's own arguments, so the snapshot reaches the same page.
+      const connectionArgs = commandArgs.slice(
+        0,
+        commandArgs.length - resolvedArgs.length,
+      );
+      currentBrowserFollowUp()?.note({
+        args: resolvedArgs,
+        exitCode,
+        snapshot: async (signal) => {
+          const snapshot = await runAgentBrowser({
+            ...spawnOptions,
+            args: [...connectionArgs, ...FOLLOW_UP_SNAPSHOT_ARGS],
+            cancelSignal: signal,
+            input: undefined,
+          });
+          return snapshot.exitCode === 0 ? scrub(snapshot.stdout) : undefined;
+        },
+      });
+    }
+
     return {
       exitCode,
       stderr: scrub(result.stderr),

@@ -56,6 +56,7 @@ describe("createBashDescription", () => {
         yq - Parse and manipulate YAML (like jq but for YAML; e.g. \`yq '.key' file.yaml\`)
         agent-browser - Control a browser to navigate the web, interact with pages, and extract content.
       The first agent-browser command in a session returns the \`agent-browser\` skill with its output, documenting the subcommands and the workflow this wrapper expects; read it before the next command rather than loading the skill first.
+      A bash call whose last page-changing command (open, click, press, select, check, back, ...) is not followed by a read of the page ends with the page's interactive snapshot, or only what changed in it, so act on those refs instead of running \`snapshot -i\` after it.
       IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`web_search\` first to discover the correct URL before opening the browser.
       Drives the Instrument-managed task browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.
       Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.

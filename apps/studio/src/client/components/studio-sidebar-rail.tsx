@@ -11,7 +11,7 @@ import {
   motion,
   useMotionValue,
 } from "motion/react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
 
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
@@ -79,12 +79,8 @@ export function StudioSidebarRail({
   // making it a dependency: width tweaks (drag, keyboard, double-click) apply
   // their own animation, so re-running the slide spring on every width change
   // would fight them and jitter.
-  const storedWidthRef = useRef(storedWidth);
-  const isAtOnceRef = useRef(isAtOnce);
-  useEffect(() => {
-    storedWidthRef.current = storedWidth;
-    isAtOnceRef.current = isAtOnce;
-  }, [isAtOnce, storedWidth]);
+  const currentStoredWidth = useEffectEvent(() => storedWidth);
+  const currentIsAtOnce = useEffectEvent(() => isAtOnce);
 
   const applyWidth = (value: number) => {
     layoutWidth.set(value);
@@ -122,12 +118,12 @@ export function StudioSidebarRail({
       return;
     }
 
-    if (isAtOnceRef.current) {
+    if (currentIsAtOnce()) {
       for (const control of widthAnimationsRef.current) {
         control.stop();
       }
       widthAnimationsRef.current = [];
-      const width = storedWidthRef.current;
+      const width = currentStoredWidth();
       layoutWidth.set(isOpen ? width : 0);
       panelWidth.set(width);
       panelX.set(isOpen ? 0 : away * width);
@@ -136,7 +132,7 @@ export function StudioSidebarRail({
     }
     const controls: AnimationPlaybackControls[] = [];
     if (isOpen) {
-      const width = storedWidthRef.current;
+      const width = currentStoredWidth();
       // Opening: always drive panelX/opacity home so a reopen mid-close-fade
       // can't leave the panel translated out or dimmed. Only when genuinely
       // closed (no reserved layout width) pre-size the panel so it slides in at

@@ -58,6 +58,7 @@ import { motion } from "motion/react";
 import {
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -368,10 +369,7 @@ export function ComposeWindow({
   // A box seeded empty, with what was kept still to be put back into it, is
   // not the user clearing the words: the first reading is let go.
   const isRestoringRef = useRef(snapshot !== undefined);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  });
+  const onChangeEvent = useEffectEvent(onChange);
   // The record follows the box a beat behind it rather than on every key:
   // writing the record lays the whole window out again, transcripts and all,
   // and that on each keystroke is felt in the keys. What the record is for
@@ -386,7 +384,7 @@ export function ComposeWindow({
       return;
     }
     const timer = setTimeout(() => {
-      onChangeRef.current((current) => ({ ...current, words }));
+      onChangeEvent((current) => ({ ...current, words }));
     }, WORDS_SETTLE_MS);
     return () => {
       clearTimeout(timer);
@@ -396,14 +394,14 @@ export function ComposeWindow({
   }, [words]);
   // On the way out the record catches up at once, so a draft put down or
   // closed mid-word keeps the word.
-  const wordsRef = useRef(words);
-  wordsRef.current = words;
+  const catchUpWords = useEffectEvent(() => {
+    onChangeEvent((current) =>
+      current.words === words ? current : { ...current, words },
+    );
+  });
   useEffect(
     () => () => {
-      const latest = wordsRef.current;
-      onChangeRef.current((current) =>
-        current.words === latest ? current : { ...current, words: latest },
-      );
+      catchUpWords();
     },
     [],
   );
@@ -535,10 +533,7 @@ export function ComposeWindow({
   // is said by the screen drawing it, since only that screen knows where the
   // browser has walked to.
   const [filesView, setFilesView] = useState<null | ScreenView>(null);
-  const onViewChangeRef = useRef(onViewChange);
-  useEffect(() => {
-    onViewChangeRef.current = onViewChange;
-  });
+  const onViewChangeEvent = useEffectEvent(onViewChange);
   const upKind =
     up === undefined || (up.kind === "screen" && isHomeTab(up))
       ? "home"
@@ -548,7 +543,7 @@ export function ComposeWindow({
           ? "computer"
           : "other";
   useEffect(() => {
-    onViewChangeRef.current(
+    onViewChangeEvent(
       upKind === "home"
         ? { screen: "home" }
         : upKind === "page"
@@ -560,7 +555,7 @@ export function ComposeWindow({
   }, [upKind, filesView]);
   useEffect(
     () => () => {
-      onViewChangeRef.current(null);
+      onViewChangeEvent(null);
     },
     [],
   );
@@ -569,16 +564,13 @@ export function ComposeWindow({
   // called with null and then the element on every render, and reporting
   // each of those up re-renders the layout, which renders this again.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostRef = useRef(onPageHost);
+  const onPageHostEvent = useEffectEvent(onPageHost);
   useEffect(() => {
-    onPageHostRef.current = onPageHost;
-  });
-  useEffect(() => {
-    onPageHostRef.current(pageHost);
+    onPageHostEvent(pageHost);
   }, [pageHost]);
   useEffect(
     () => () => {
-      onPageHostRef.current(null);
+      onPageHostEvent(null);
     },
     [],
   );
@@ -991,19 +983,16 @@ export function GroupItem({
   // in the pane beside a chat, rather than into a bar of the page's own.
   const [reloadSlot, setReloadSlot] = useState<HTMLDivElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
-  const onPageChromeRef = useRef(onPageChrome);
-  useEffect(() => {
-    onPageChromeRef.current = onPageChrome;
-  });
+  const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
   useEffect(() => {
-    onPageChromeRef.current(
+    onPageChromeEvent(
       isPage ? { into: controlsSlot, reloadInto: reloadSlot } : undefined,
     );
   }, [isPage, controlsSlot, reloadSlot]);
   useEffect(
     () => () => {
-      onPageChromeRef.current(undefined);
+      onPageChromeEvent(undefined);
     },
     [],
   );
@@ -1051,9 +1040,12 @@ export function GroupItem({
       windowTabs.stepVisitOf(up.id, 1);
     }
   };
-  const stepsNow = useRef({ goBack, goForward });
-  useEffect(() => {
-    stepsNow.current = { goBack, goForward };
+  const stepByThumb = useEffectEvent((direction: "back" | "forward") => {
+    if (direction === "back") {
+      goBack();
+    } else {
+      goForward();
+    }
   });
   const canGoBack = withinBack || hasPast || Boolean(before?.canGoBack);
   const canGoForward = withinForward || hasFuture;
@@ -1066,11 +1058,7 @@ export function GroupItem({
       return;
     }
     return onPageThumb(targetId, (direction) => {
-      if (direction === "back") {
-        stepsNow.current.goBack();
-      } else {
-        stepsNow.current.goForward();
-      }
+      stepByThumb(direction);
     });
   }, [targetId]);
 

@@ -41,6 +41,7 @@ import { EditorView } from "prosemirror-view";
 import {
   Fragment,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -232,12 +233,15 @@ export function PromptEditor({
   const mountRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
-  const actionsRef = useRef(actions);
-  const appsRef = useRef(apps);
-  const skillsRef = useRef(skills);
-  const onChangeRef = useRef(onChange);
-  const onPasteRef = useRef(onPaste);
-  const onSubmitRef = useRef(onSubmit);
+  // The view below is built once, so its callbacks read the props as they
+  // stand through these rather than as the build captured them.
+  const currentSkills = useEffectEvent(() => skills);
+  const currentEntries = useEffectEvent((query: string) =>
+    menuEntries(actions, skills, apps, query),
+  );
+  const onChangeEvent = useEffectEvent(onChange);
+  const onPasteEvent = useEffectEvent(onPaste);
+  const onSubmitEvent = useEffectEvent(onSubmit);
   // The slash menu as the editor's state last had it, for drawing. The state
   // itself is the plugin's (`slash-menu.ts`); the view's handlers read it
   // there.
@@ -258,15 +262,6 @@ export function PromptEditor({
   useLayoutEffect(() => {
     defaultValueRef.current = defaultValue;
   });
-
-  useEffect(() => {
-    actionsRef.current = actions;
-    appsRef.current = apps;
-    skillsRef.current = skills;
-    onChangeRef.current = onChange;
-    onPasteRef.current = onPaste;
-    onSubmitRef.current = onSubmit;
-  }, [actions, apps, onChange, onPaste, onSubmit, skills]);
   const entries = menu ? menuEntries(actions, skills, apps, menu.query) : [];
   // Where the apps and the skills start, so the rule that names each is drawn
   // once and only when there is something above it to separate them from.
@@ -304,7 +299,7 @@ export function PromptEditor({
     const view = new EditorView(mount, {
       attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
-        Slice.maxOpen(promptDocFromPastedText(text, skillsRef.current).content),
+        Slice.maxOpen(promptDocFromPastedText(text, currentSkills()).content),
       clipboardTextSerializer: (slice) =>
         promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
       dispatchTransaction: (transaction) => {
@@ -315,7 +310,7 @@ export function PromptEditor({
         // the empty view a page load starts with reports itself as the draft --
         // overwriting the stored one before it has finished loading in.
         if (transaction.docChanged) {
-          onChangeRef.current(promptTextFromDoc(nextState.doc));
+          onChangeEvent(promptTextFromDoc(nextState.doc));
         }
         setSlashMenu(slashMenuOf(nextState));
       },
@@ -324,19 +319,14 @@ export function PromptEditor({
           blurred.dispatch(closeSlashMenu(blurred.state));
           return false;
         },
-        paste: (_view, event) => onPasteRef.current(event),
+        paste: (_view, event) => onPasteEvent(event),
       },
       handleKeyDown: (_view, event) => {
         const { index, menu: activeMenu } = slashMenuOf(view.state);
         if (activeMenu) {
-          const currentEntries = menuEntries(
-            actionsRef.current,
-            skillsRef.current,
-            appsRef.current,
-            activeMenu.query,
-          );
+          const entriesNow = currentEntries(activeMenu.query);
           if (
-            currentEntries.length > 0 &&
+            entriesNow.length > 0 &&
             (event.key === "ArrowDown" || event.key === "ArrowUp")
           ) {
             event.preventDefault();
@@ -344,7 +334,7 @@ export function PromptEditor({
               moveSlashMenu(
                 view.state,
                 event.key === "ArrowDown" ? 1 : -1,
-                currentEntries.length,
+                entriesNow.length,
               ),
             );
             return true;
@@ -354,9 +344,9 @@ export function PromptEditor({
             view.dispatch(closeSlashMenu(view.state));
             return true;
           }
-          if (event.key === "Enter" && currentEntries.length > 0) {
+          if (event.key === "Enter" && entriesNow.length > 0) {
             event.preventDefault();
-            const entry = currentEntries[index];
+            const entry = entriesNow[index];
             if (entry) {
               applyMenuEntry(view, activeMenu, entry);
             }
@@ -365,7 +355,7 @@ export function PromptEditor({
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
-          onSubmitRef.current();
+          onSubmitEvent();
           return true;
         }
         return false;
@@ -379,7 +369,7 @@ export function PromptEditor({
           return false;
         }
         const slice = Slice.maxOpen(
-          promptDocFromPastedText(text, skillsRef.current).content,
+          promptDocFromPastedText(text, currentSkills()).content,
         );
         editorView.dispatch(
           editorView.state.tr

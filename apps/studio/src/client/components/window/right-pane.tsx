@@ -20,6 +20,7 @@ import {
 import {
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -65,10 +66,9 @@ export function RightPane({
   const zoom = useAtomValue(zoomAtom);
   const rowRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
-  const shareRef = useRef(storedShare);
-  useEffect(() => {
-    shareRef.current = storedShare;
-  }, [storedShare]);
+  // Read from the effects below without making it a dependency of the
+  // open/close slide; the measure lists it on its own.
+  const currentShare = useEffectEvent(() => storedShare);
 
   // The room the pane takes in the row, and the pane's own width, which
   // holds while the room closes so nothing inside reflows on the way out.
@@ -106,7 +106,7 @@ export function RightPane({
     const target = fills
       ? row.offsetWidth
       : isOpen
-        ? widthOfShare(shareRef.current, row.offsetWidth)
+        ? widthOfShare(currentShare(), row.offsetWidth)
         : 0;
     const isNewKey = shownKeyRef.current !== paneKey;
     shownKeyRef.current = paneKey;
@@ -147,7 +147,7 @@ export function RightPane({
     }
     let keptConversation: number | undefined;
     const widthFor = (width: number) => {
-      keptConversation ??= width - widthOfShare(shareRef.current, width);
+      keptConversation ??= width - widthOfShare(currentShare(), width);
       return Math.min(
         Math.max(width - keptConversation, PANE_WIDTH_MIN),
         widthOfShare(1, width),

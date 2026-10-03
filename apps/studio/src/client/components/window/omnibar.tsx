@@ -25,6 +25,10 @@ import {
   pathFromWords,
   pathQuery,
 } from "@/client/components/window/omnibar-match";
+import {
+  initialOmnibarField,
+  omnibarField,
+} from "@/client/components/window/omnibar-field";
 import { ShellContext } from "@/client/components/window/shell-context";
 import {
   type TabLocation,
@@ -62,6 +66,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -201,19 +206,11 @@ export function Omnibar({
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const [query, setQuery] = useState(initial);
-  // Which row the arrows have picked; the first is what Enter does with the
-  // words as they stand.
-  const [highlight, setHighlight] = useState(0);
-  // Whether the field may finish the words ahead of the caret: only just
-  // after a letter typed at the end, never after one taken away, so deleting
-  // the part it wrote does not write it straight back.
-  const [canComplete, setCanComplete] = useState(false);
-  const [isEditing, setEditing] = useState(resting === undefined);
-  // Whether the caret is in the box: a new tab's box is editing whether or
-  // not it has focus, so this is the one that says where the placeholder
-  // sits.
-  const [isFocused, setFocused] = useState(false);
+  const [{ canComplete, highlight, isEditing, isFocused, query }, send] =
+    useReducer(
+      omnibarField,
+      initialOmnibarField(initial, resting === undefined),
+    );
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
   // What was typed over the place, which is what the rows answer to; the
@@ -248,7 +245,7 @@ export function Omnibar({
   // new tab, which has no place to show.
   const leave = () => {
     if (resting === undefined) {
-      setQuery("");
+      send({ type: "clear" });
     }
     input.current?.blur();
   };
@@ -352,9 +349,7 @@ export function Omnibar({
   };
   /** The words as the field shows them become the words typed, and the field goes on from there. */
   const takeShown = (words: string) => {
-    setQuery(words);
-    setHighlight(0);
-    setCanComplete(false);
+    send({ query: words, type: "take" });
   };
 
   return (
@@ -384,30 +379,25 @@ export function Omnibar({
             "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
-          setFocused(false);
-          setHighlight(0);
-          setCanComplete(false);
-          // The list goes with the caret, wherever the box is; a place's own
-          // name comes back into the box once it is left.
-          setEditing(false);
-          if (resting !== undefined) {
-            setQuery(initial);
-          }
+          send({
+            place: resting === undefined ? undefined : initial,
+            type: "blur",
+          });
         }}
         onChange={(event) => {
           const box = event.currentTarget;
           const { nativeEvent } = event;
-          setQuery(box.value);
-          setHighlight(0);
-          setCanComplete(
-            nativeEvent instanceof InputEvent &&
+          send({
+            canComplete:
+              nativeEvent instanceof InputEvent &&
               nativeEvent.inputType === "insertText" &&
               box.selectionEnd === box.value.length,
-          );
+            query: box.value,
+            type: "input",
+          });
         }}
         onFocus={(event) => {
-          setFocused(true);
-          setEditing(true);
+          send({ type: "focus" });
           // The place, selected whole, so typing replaces it the way it does
           // in a browser's address bar.
           event.currentTarget.select();
@@ -416,7 +406,10 @@ export function Omnibar({
           switch (event.key) {
             case "ArrowDown": {
               event.preventDefault();
-              setHighlight(Math.max(0, Math.min(rows.length - 1, current + 1)));
+              send({
+                index: Math.max(0, Math.min(rows.length - 1, current + 1)),
+                type: "highlight",
+              });
               break;
             }
             case "ArrowRight":
@@ -429,7 +422,7 @@ export function Omnibar({
             }
             case "ArrowUp": {
               event.preventDefault();
-              setHighlight(Math.max(0, current - 1));
+              send({ index: Math.max(0, current - 1), type: "highlight" });
               break;
             }
             case "Enter": {
@@ -465,10 +458,9 @@ export function Omnibar({
               // Back to the words typed first, then to the place.
               if (picked || completion) {
                 event.preventDefault();
-                setHighlight(0);
-                setCanComplete(false);
+                send({ type: "revert" });
               } else if (resting === undefined) {
-                setQuery("");
+                send({ type: "clear" });
               } else {
                 event.currentTarget.blur();
               }

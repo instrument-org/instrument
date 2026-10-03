@@ -3,6 +3,7 @@ import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import {
   type GetProviderConfigs,
   type ModelCache,
+  type ReportPlatformRefusal,
 } from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
@@ -201,6 +202,8 @@ export interface WorkspaceConfig {
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
+  /** Told about each hosted request our platform refused (no plan, a spent window). */
+  reportPlatformRefusal?: ReportPlatformRefusal;
   // Where the skills the app ships are prepared for use. They cannot run from
   // the bundle -- it is signed, notarized, and replaced wholesale by the updater,
   // so nothing may write a `node_modules` there -- so they are materialized once

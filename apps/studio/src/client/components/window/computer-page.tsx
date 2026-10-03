@@ -1567,7 +1567,8 @@ type FolderMenuActions = {
   onTrash: () => void;
   /**
    * What the menu acts on, when it is several selected: what names one thing
-   * (Rename, Copy Path, Quick Look, Open With, Reveal) is left off.
+   * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
+   * the apps every one of them opens in.
    */
   group?: FileSystemItem[] | undefined;
 };
@@ -1720,9 +1721,14 @@ function FolderMenuItems({
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
   const { openLabel, showOpen } = useFileOpenTarget(file);
-  const itemHostPath = several ? "" : hostPathOfItem(item);
+  const itemHostPath = hostPathOfItem(item);
   const openIn =
     isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
+  // The rest of the selection, opened along with the row in the app picked.
+  const openInOthers = (group ?? []).flatMap((each) => {
+    const hostPath = hostPathOfItem(each);
+    return hostPath && hostPath !== itemHostPath ? [{ hostPath }] : [];
+  });
   return (
     <>
       {newFolderFirst && onNewFolder ? (
@@ -1762,7 +1768,11 @@ function FolderMenuItems({
                 lookup has answered. Elsewhere the one row hands the file to
                 whichever program the system has chosen for it. */}
           {openIn ? (
-            <OpenInMenu file={openIn} menuComponents={menuComponents} />
+            <OpenInMenu
+              file={openIn}
+              menuComponents={menuComponents}
+              others={openInOthers}
+            />
           ) : file && showOpen ? (
             <Item
               onClick={() => {

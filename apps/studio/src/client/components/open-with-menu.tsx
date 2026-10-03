@@ -1,7 +1,7 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   useFileManagerApp,
-  useFileOpenCandidates,
+  useSharedFileOpenCandidates,
 } from "@/client/hooks/use-file-open-target";
 import { useOpenFileWith } from "@/client/hooks/use-open-file";
 import { hasFilesView, revealInFileManager } from "@/client/lib/show-in-files";
@@ -30,15 +30,22 @@ type FileRef = Pick<ViewerFile, "hostPath">;
  * would use first. Where a menu also offers the default on its own row, it
  * asks for the others alone, under "Open with". Candidates are fetched
  * lazily: the query only runs once the submenu content mounts (opens).
+ *
+ * Given others, the menu is for all of them together, as the Finder's is for
+ * a selection: it lists the apps every one of them opens in, and the app
+ * picked opens them all.
  */
 export function OpenInMenu({
   file,
   menuComponents,
   onlyAlternatives = false,
+  others = [],
 }: {
   file: FileRef;
   menuComponents: MenuComponents;
   onlyAlternatives?: boolean;
+  /** The rest of a selection the file is opened with. */
+  others?: readonly FileRef[];
 }) {
   const { Sub, SubContent, SubTrigger } = menuComponents;
 
@@ -51,12 +58,15 @@ export function OpenInMenu({
       <SubContent className="flex min-w-52 flex-col p-0">
         <MenuScrollArea className="max-h-80">
           <OpenWithCandidates
-            file={file}
+            files={[file, ...others]}
             menuComponents={menuComponents}
             omitDefault={onlyAlternatives}
           />
         </MenuScrollArea>
-        <FileManagerFooter file={file} menuComponents={menuComponents} />
+        {/* The file manager shows one file where it is; several have no one place. */}
+        {others.length === 0 ? (
+          <FileManagerFooter file={file} menuComponents={menuComponents} />
+        ) : null}
       </SubContent>
     </Sub>
   );
@@ -75,7 +85,7 @@ export function OpenWithDropdown({
       <DropdownMenuContent align="end" className="flex min-w-52 flex-col p-0">
         <MenuScrollArea className="max-h-80">
           <OpenWithCandidates
-            file={file}
+            files={[file]}
             menuComponents={dropdownMenuComponents}
             omitDefault
           />
@@ -135,16 +145,17 @@ function FileManagerItem({
 }
 
 function OpenWithCandidates({
-  file,
+  files,
   menuComponents,
   omitDefault = false,
 }: {
-  file: FileRef;
+  /** One file, or several to open together in the app picked. */
+  files: readonly FileRef[];
   menuComponents: MenuComponents;
   omitDefault?: boolean;
 }) {
   const { Item } = menuComponents;
-  const { apps, isError, isPending } = useFileOpenCandidates(file, {
+  const { apps, isError, isPending } = useSharedFileOpenCandidates(files, {
     enabled: true,
   });
   const openWith = useOpenFileWith();
@@ -185,7 +196,9 @@ function OpenWithCandidates({
   if (candidates.length === 0) {
     return (
       <Item disabled>
-        <span>No apps available</span>
+        <span>
+          {files.length > 1 ? "No app opens all of these" : "No apps available"}
+        </span>
       </Item>
     );
   }
@@ -196,7 +209,9 @@ function OpenWithCandidates({
         <Item
           key={candidate.appPath}
           onClick={() => {
-            openWith(file, candidate.appPath);
+            for (const file of files) {
+              openWith(file, candidate.appPath);
+            }
           }}
         >
           <IconWithFallback

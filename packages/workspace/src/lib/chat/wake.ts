@@ -34,6 +34,7 @@ import {
 } from "./mount-paths";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
+import { replacesPendingEvent } from "./wake-event";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
 /** What a wake carries: the part that starts the chat's turn. */
@@ -229,16 +230,18 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
       continue;
     }
     overdueReportedAt.set(task.id, now);
-    schedule(
-      parentTaskId,
-      await stillWorkingEvent({
-        chatId: parentTaskId,
-        taskId: task.id,
-        title: task.title,
-        turnStart,
-      }),
-      workspaceRef,
-    );
+    const event = await stillWorkingEvent({
+      chatId: parentTaskId,
+      taskId: task.id,
+      title: task.title,
+      turnStart,
+    });
+    // The note took several reads to compose; a task that finished meanwhile
+    // has already woken the chat with its finish.
+    if (!isWorking(task.id)) {
+      continue;
+    }
+    schedule(parentTaskId, event, workspaceRef);
   }
 }
 
@@ -287,19 +290,16 @@ async function deliverAskedWake(
   }
   const settings = await getTaskSettings(taskDir(taskId));
   overdueReportedAt.set(taskId, Date.now());
-  schedule(
+  const event = await stillWorkingEvent({
     chatId,
-    {
-      ...(await stillWorkingEvent({
-        chatId,
-        taskId,
-        title: settings?.name ?? taskId,
-        turnStart: await turnStartedAt(taskId),
-      })),
-      askedAfterMs: afterMs,
-    },
-    workspaceRef,
-  );
+    taskId,
+    title: settings?.name ?? taskId,
+    turnStart: await turnStartedAt(taskId),
+  });
+  if (!isWorking(taskId)) {
+    return;
+  }
+  schedule(chatId, { ...event, askedAfterMs: afterMs }, workspaceRef);
 }
 
 /**
@@ -396,6 +396,9 @@ function schedule(
   workspaceRef: WorkspaceActorRef,
 ) {
   const existing = pending.get(chatId);
+  if (!replacesPendingEvent(existing?.events.get(event.taskId), event)) {
+    return;
+  }
   if (existing) {
     clearTimeout(existing.timer);
   }

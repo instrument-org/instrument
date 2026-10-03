@@ -1,6 +1,6 @@
 # Moving files in the Finder
 
-**Status:** accepted, 2026-10-02: undo-backed drag-to-move. Nothing built.
+**Status:** accepted, 2026-10-02: undo-backed drag-to-move. Several selected (phase 1's selection half) and the journal with ⌘Z for the existing actions (rename, duplicate, new folder, move to Trash) are built; `files.transfer`, drops, the pasteboard and the sidebar are not.
 
 ## Thesis
 
@@ -23,12 +23,12 @@ What this plan does not try: tags, Get Info, smart folders, compression, burning
 ## What exists today
 
 - **Drag out.** `useFileDrag` / `useFileDragArea` (`apps/studio/src/client/hooks/use-file-drag.ts`) start a native OS drag through `webContents.startDrag` after a 20px threshold, with a QuickLook drag image prepared on hover (`apps/studio/src/electron-main/lib/file-drag.ts`). Always one file: the hook passes `[file.hostPath]`, though the IPC already accepts `files`. Blink's own `dragstart` is cancelled, so no row is ever an HTML5 drag.
-- **File actions.** `files.newFolder`, `rename`, `duplicate`, `trash` in `apps/studio/src/electron-main/rpc/routes/files.ts`. Each takes one path. No move, no copy-to, no undo.
-- **Selection.** `FileSystem` (`apps/studio/src/client/components/extend/file-system.tsx`) and `ComputerPage` hold `selectedPath: string | null`. One item.
+- **File actions.** `files.newFolder`, `rename`, `duplicate`, `trash` in `apps/studio/src/electron-main/rpc/routes/files.ts`. Each takes one path, and each writes an entry to the file journal (`apps/studio/src/electron-main/lib/file-journal.ts`) that `files.undo` takes back. No move, no copy-to.
+- **Selection.** `FileSystem` (`apps/studio/src/client/components/extend/file-system.tsx`) holds several selected beside the one the keyboard is on, as pure functions in `file-system-selection.ts`; ⌘- and Shift-click, Shift-arrows and ⌘A make several, and the menus act on all of them.
 - **Drops.** Only the chat screen has a `FileDropRegion`, and it deliberately ignores drags this app started (`apps/studio/src/client/lib/self-file-drag.ts`) so a click that drifted past the threshold does not attach a task's own file to itself. The Finder takes no drops at all. Read from the code rather than tried: a file dropped anywhere outside the chat's region falls through to the window's default, a navigation to its `file://` URL, which `guardNavigation` refuses and `openExternal` then blocks and reports as an unsafe protocol. So the present behavior is a silent no-op that files an exception report.
 - **Attaching.** A file dropped on the composer is attached by path, and on send `writeUploadedAttachments` copies it into the task's attachments folder with `fs.copyFile(..., COPYFILE_FICLONE)`. Its comment says that is a copy-on-write clone on APFS; measured, it is not (see "Measured" below): Node on macOS makes a full byte copy. A file the task already holds is attached where it lies, with no copy.
 - **Sidebar.** `computerPlaces()` (`packages/workspace/src/lib/orchestrator/computer.ts`) returns a fixed list: Favorites are Instrument (`~/Documents/Instrument`), the home folder, Desktop, Documents and Downloads, each shown only if it exists; Locations are whatever is in `/Volumes` (the root on other systems). Recents sits above both with no heading. Nothing is stored, nothing can be added or removed, and a place's context menu (`PlaceMenu`) offers only opening and pointing at it.
-- **Keyboard.** Return renames, ⌘O / ⌘↓ open, Space is Quick Look, arrows and type-ahead walk the list, ⌘F searches. No ⌘⌫, ⌘D, ⇧⌘N, ⌘C/⌘V, ⌘Z.
+- **Keyboard.** Return renames, ⌘O / ⌘↓ open, Space is Quick Look, arrows and type-ahead walk the list, ⌘F searches, ⌘Z undoes the newest journaled action. No ⌘⌫, ⌘D, ⇧⌘N, ⌘C/⌘V.
 - **Refresh.** Listings poll every 4s, and the page re-reads after each of its own actions.
 
 ## Why the drag already works the way we want
@@ -114,9 +114,9 @@ output:
 - **Refused:** a folder into itself or its own descendant; a source whose parent already is the destination with mode `move` (a no-op, reported so the drop does nothing); everything on the protected list.
 - **Conflicts:** with `"ask"`, main checks every target first and returns the conflicts without touching anything; the renderer shows the Finder's sheet ("An item named 'notes.txt' already exists in this location." Keep Both / Stop / Replace, with "Apply to all" when there are several) and calls again with the answer. Keep Both reuses `freePath` (`notes 2.txt`). Replace trashes the existing item rather than deleting it.
 - **Partial failure:** stop at the first error, journal what moved, return it, and say what did not.
-- **The journal** (see the safety model) is written by this route and by `rename`, `duplicate` and `newFolder`, in main, before the call returns. `files.undo({ journalId })` reverses one entry: move and rename go back, copy, duplicate and new folder (if still empty) go to the Trash. Trash itself is not journaled as undoable: `shell.trashItem` discards the path the item landed at, so "Put Back" would mean guessing in `~/.Trash`.
+- **The journal** (see the safety model) exists for `rename`, `duplicate`, `newFolder` and `trash`, and this route joins it: each writes its entry in main before the call returns, with the device and inode of what it left. `files.undo` reverses the newest entry and refuses, keeping it, when the item has been moved or replaced since or its old place is taken: rename goes back, duplicate goes to the Trash, a new folder is removed only while empty (`rmdir`), and a trashed item is moved back. `shell.trashItem` discards where the item landed, so `trash` finds it in the Trash afterward by its inode, which a move on one disk keeps; where the Trash cannot be read the entry says to use Put Back in the Finder. A move adds a `move` entry and a copy a `copy` entry to the same journal.
 - The existing single-path routes (`trash`, `duplicate`) take a `paths` array in the same pass, since phase 1 makes every menu act on a set.
-- **⌘Z** and Edit > Undo, through the window's command table, undo the newest journal entry made from that window; the Edit menu names it ("Undo Move of 'Invoices'").
+- **⌘Z** in the Finder undoes the newest journal entry (built: a keydown on the page, which runs ahead of the Edit menu's native Undo). Still to do: Edit > Undo clicked with the mouse, which reaches only the native undo today, and naming the entry in the menu ("Undo Move of 'Invoices'").
 
 **Big copies, later.** Copies across volumes, or onto a disk that cannot clone, are what the first cut refuses. When they come, they do not run as a Node copy loop in main:
 
@@ -309,6 +309,6 @@ Settled:
 - **Site tabs keep the browser's drop behavior.**
 - **A file from the Finder dropped on the composer attaches** by reference, per `chat-attachments-by-reference.md`.
 - **External drops copy;** ⌘ moves.
-- **Trash undo is out** until there is a trustworthy way to find the trashed item.
+- **Trash undo finds the item by its inode** in the Trash right after trashing it. Unverified in a packaged build: macOS may refuse an app without Full Disk Access a read of `~/.Trash`, and then the entry falls back to pointing at the Finder's Put Back.
 
 - **Undo-backed drag-to-move** for the first cut: no confirmation on same-volume moves, the Undo toast on every drop, and ⌘Z from the journal. Copy-only drops and confirm-until-proven were the more cautious alternatives, kept in the safety model in case practice argues for them.

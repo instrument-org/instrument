@@ -49,6 +49,9 @@ export function mapOpenRouterShapedModel({
   const features = modalityFeatures({
     inputModalities: model.architecture.input_modalities,
     outputModalities: model.architecture.output_modalities,
+    // OpenRouter parses a PDF into text itself for any model, so a model that
+    // reads text reads PDFs here whatever its own modalities say.
+    providerParsesPdfs: true,
     toolSupport: model.supported_parameters?.includes("tools") ?? false,
   });
 

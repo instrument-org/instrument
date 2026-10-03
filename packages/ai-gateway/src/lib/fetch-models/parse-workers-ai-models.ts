@@ -111,6 +111,9 @@ export function parseWorkersAiModelsList({
     const features = modalityFeatures({
       inputModalities: model.input_modalities,
       outputModalities: model.output_modalities,
+      // Workers AI forwards a `file` part to the model as is and rejects it
+      // unless the model declares file input.
+      providerParsesPdfs: false,
       toolSupport: model.supported_features?.includes("tools") ?? false,
     });
 

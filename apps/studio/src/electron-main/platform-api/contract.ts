@@ -76,9 +76,6 @@ const BillingOfferSchema = z.object({
     .nullable(),
 });
 
-export type BillingOffer = z.output<typeof BillingOfferSchema>;
-export type BillingStatus = z.output<typeof BillingStatusSchema>;
-
 export const contract = {
   billing: {
     createCheckout: base

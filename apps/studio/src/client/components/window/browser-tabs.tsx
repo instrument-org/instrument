@@ -35,12 +35,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  type Ref,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from "react";
+import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 

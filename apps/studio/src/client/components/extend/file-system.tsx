@@ -90,6 +90,39 @@ import {
 import * as React from "react";
 import { createPortal } from "react-dom";
 
+import {
+  GESTURE_IDLE,
+  type GestureEvent,
+  type GestureState,
+  step as gestureStep,
+  waitFor,
+} from "./file-system-gestures";
+import {
+  type ListingCommand,
+  type ListingDirection,
+  listingCommandOf,
+  NO_TYPE_AHEAD,
+  typeAhead,
+} from "./file-system-keys";
+import {
+  RENAME_IDLE,
+  type RenameEvent,
+  type RenameState,
+  renameStep,
+  renamingPathOf,
+} from "./file-system-rename";
+import {
+  keepShown,
+  normalizeSelection,
+  sameSelection,
+  type Selection,
+  selectedPathsOf,
+  selectExactly,
+  type SelectionMode,
+  selectOnly,
+  selectWithMode,
+} from "./file-system-selection";
+
 export type FileSystemFileItem = {
   contentType?: string;
   createdAt?: string;
@@ -232,12 +265,13 @@ export type FileSystemProps = {
   onOpenSeveral?: (items: FileSystemItem[]) => void;
   /** Called with the folder prefix on screen whenever it changes. */
   onPathChange?: (path: string) => void;
-  /** The row's name field, left without a new name. */
-  onRenameCancel?: () => void;
-  /** The name typed in the row, accepted. */
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  /** Return on a focused item, which is how the Finder starts a rename. */
-  onRenameStart?: (item: FileSystemItem) => void;
+  /**
+   * A new name typed over an item where it sits, to be written. Return on the
+   * item, a second slow click on its name, or `startRename` opens the field;
+   * left out, nothing renames. A rejected promise opens the field again with
+   * what was typed, so a name that could not be used is not lost.
+   */
+  onRenameCommit?: (item: FileSystemItem, name: string) => Promise<void> | void;
   /**
    * The selection moved. `item` is the one of it the keyboard is on, the last
    * picked; `items` is all of it, several after a ⌘- or Shift-click.
@@ -249,8 +283,6 @@ export type FileSystemProps = {
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
   onViewChange?: (view: FileSystemView) => void;
-  /** The item whose name is being typed over in its own row, by path. */
-  renamingPath?: null | string;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   /** Custom preview node for files without `previewImageUrl`. */
@@ -284,9 +316,19 @@ export type FileSystemProps = {
    * browser keeps its own, opening in `defaultSort`.
    */
   sort?: FileSystemSortState;
+  /** What a caller can ask of the browser itself. */
+  ref?: React.Ref<FileSystemHandle>;
   /** Label for the root folder. */
   title?: string;
   view?: FileSystemView;
+};
+export type FileSystemHandle = {
+  /**
+   * Type over this item's name where it sits, by path. An item not listed yet
+   * (a folder just made, before the re-read that lists it) opens its field
+   * once it is, unless the person does something else first.
+   */
+  startRename: (path: string) => void;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list";
 type FileEntry = FileSystemFileItem & {
@@ -331,20 +373,11 @@ type FolderEntry = FileSystemFolderItem & {
  * the order picked, the one a Shift-click or Shift-arrow reaches from, and the
  * reach the last of those took, which the next one replaces.
  */
-type SeveralSelected = {
-  anchor: string;
-  paths: readonly string[];
-  range: readonly string[];
-};
 /** A press or key that adds to the selection, and the order the view draws its rows in. */
 type SelectionGesture = {
-  mode: "extend" | "toggle";
+  mode: SelectionMode;
   order: readonly FileSystemEntry[];
 };
-/** Everything selected, when `lead` is the one the keyboard is on. */
-function heldPaths(lead: null | string, held: null | SeveralSelected) {
-  return lead === null ? [] : held?.paths.includes(lead) ? held.paths : [lead];
-}
 /**
  * The modifier a click or an arrow carries that adds to the selection rather
  * than replacing it: Shift reaches, and ⌘ (Ctrl off the Mac) picks one more.
@@ -353,7 +386,7 @@ function selectionModeOf(event: {
   ctrlKey: boolean;
   metaKey: boolean;
   shiftKey: boolean;
-}): SelectionGesture["mode"] | null {
+}): null | SelectionMode {
   if (event.shiftKey) return "extend";
   if (isMacOS() ? event.metaKey : event.ctrlKey) return "toggle";
   return null;
@@ -361,15 +394,6 @@ function selectionModeOf(event: {
 /** A Control-click, which on a Mac is the right click and selects nothing. */
 function isMacContextClick(event: { ctrlKey: boolean }) {
   return event.ctrlKey && isMacOS();
-}
-/** ⌘A, or Ctrl+A off the Mac. */
-function isSelectAllKey(event: React.KeyboardEvent | KeyboardEvent) {
-  return (
-    event.key.toLowerCase() === "a" &&
-    !event.shiftKey &&
-    !event.altKey &&
-    (isMacOS() ? event.metaKey : event.ctrlKey)
-  );
 }
 function ArrowDown01Glyph(props: InlineRegistryIconProps) {
   return <ChevronDown {...props} />;
@@ -1575,15 +1599,13 @@ export function FileSystem({
   onListColumnWidthsChange,
   onOpenSeveral,
   onPathChange,
-  onRenameCancel,
   onRenameCommit,
-  onRenameStart,
   onSelectionChange,
   onShowHiddenFilesChange,
   onSortChange,
   onViewChange,
   prefetchChildren,
-  renamingPath,
+  ref,
   renderFileActions,
   renderFilePreview,
   renderFileStage,
@@ -1639,11 +1661,24 @@ export function FileSystem({
   React.useLayoutEffect(() => {
     onPathChange?.(currentPath);
   }, [currentPath, onPathChange]);
-  const [ownSelectedPath, setSelectedPath] = React.useState<null | string>(
-    defaultSelectedPath ?? null,
+  // The selection, as one value: the one the keyboard is on and, after a ⌘-
+  // or Shift-click, the several held beside it. A caller holding `selectedPath`
+  // holds the first half; the several stand only while they include it, so a
+  // caller moving the selection onto a thing just made or renamed moves it to
+  // that one thing.
+  const [ownSelection, setOwnSelection] = React.useState(() =>
+    selectOnly(defaultSelectedPath ?? null),
   );
-  const selectedPath =
-    selectedPathProp === undefined ? ownSelectedPath : selectedPathProp;
+  const selectionState = React.useMemo(
+    () =>
+      normalizeSelection(
+        selectedPathProp === undefined
+          ? ownSelection
+          : { lead: selectedPathProp, several: ownSelection.several },
+      ),
+    [ownSelection, selectedPathProp],
+  );
+  const selectedPath = selectionState.lead;
   const selectedEntry = React.useMemo(() => {
     if (selectedPath === null) return null;
     return (
@@ -1753,9 +1788,6 @@ export function FileSystem({
     }
     return { ...visibleIndex, children };
   }, [sort, visibleIndex]);
-  // The ref mirrors the state so re-selecting the same entry (e.g. the
-  // pointerdown + click pair the columns view emits per press) stays a
-  // no-op without widening the callback's dependencies.
   // Which right-click a row has already answered for. The component's own
   // handler runs after it, and reports the empty space only for a press no
   // row claimed.
@@ -1779,61 +1811,55 @@ export function FileSystem({
     }
     return null;
   };
-  const selectedPathRef = React.useRef<null | string>(null);
-  // A caller holding the selection can move it without going through the
-  // callback, and a row the mirror still calls selected would answer no click.
+  const entryOf = React.useCallback(
+    (path: null | string) =>
+      path === null
+        ? null
+        : (index.files.get(path) ?? index.folders.get(path) ?? null),
+    [index],
+  );
+  // What callbacks read the selection from, so the memoized columns are not
+  // drawn again for every change to it. It is moved at once by a change made
+  // here, and follows one the caller makes once that has drawn.
+  const selectionRef = React.useRef(selectionState);
   React.useEffect(() => {
-    selectedPathRef.current = selectedPath;
-  }, [selectedPath]);
-  // A selection of several, held beside the one the keyboard is on, which is
-  // the last of them picked. It stands only while it still holds that one: a
-  // caller moving the selection itself, onto a thing just made or renamed,
-  // moves it to one thing, which is a selection of that one.
-  const [several, setSeveral] = React.useState<null | SeveralSelected>(null);
-  const severalRef = React.useRef<null | SeveralSelected>(null);
+    selectionRef.current = selectionState;
+  }, [selectionState]);
   // What is selected and still shown: a search, a filter or a re-read can
   // take some of it out from under the views.
   const selectedPaths = React.useMemo(
     () =>
-      heldPaths(selectedPath, several).filter(
+      selectedPathsOf(selectionState).filter(
         (path) =>
           path === selectedPath ||
           ((index.files.has(path) || index.folders.has(path)) &&
             (!visiblePaths || visiblePaths.has(path))),
       ),
-    [index, selectedPath, several, visiblePaths],
+    [index, selectedPath, selectionState, visiblePaths],
   );
   const selection = React.useMemo(
     () => new Set(selectedPaths),
     [selectedPaths],
   );
   const commitSelection = React.useCallback(
-    (lead: FileSystemEntry | null, next: null | SeveralSelected) => {
-      selectedPathRef.current = lead?.path ?? null;
-      severalRef.current = next;
-      setSelectedPath(lead?.path ?? null);
-      setSeveral(next);
+    (next: Selection) => {
+      const normal = normalizeSelection(next);
+      if (sameSelection(selectionRef.current, normal)) return;
+      selectionRef.current = normal;
+      setOwnSelection(normal);
       onSelectionChange?.(
-        lead,
-        next
-          ? next.paths.flatMap((path) => {
-              const entry = index.files.get(path) ?? index.folders.get(path);
-              return entry ? [entry] : [];
-            })
-          : lead
-            ? [lead]
-            : [],
+        entryOf(normal.lead),
+        selectedPathsOf(normal).flatMap((path) => {
+          const entry = entryOf(path);
+          return entry ? [entry] : [];
+        }),
       );
     },
-    [index, onSelectionChange],
+    [entryOf, onSelectionChange],
   );
   const selectEntry = React.useCallback(
     (entry: FileSystemEntry | null) => {
-      const path = entry?.path ?? null;
-      if (selectedPathRef.current === path && severalRef.current === null) {
-        return;
-      }
-      commitSelection(entry, null);
+      commitSelection(selectOnly(entry?.path ?? null));
     },
     [commitSelection],
   );
@@ -1841,98 +1867,45 @@ export function FileSystem({
   // stays on it when it is among them.
   const selectEntries = React.useCallback(
     (entries: readonly FileSystemEntry[]) => {
-      const current = selectedPathRef.current;
-      const lead =
-        entries.find((entry) => entry.path === current) ?? entries[0] ?? null;
-      const paths = entries.map((entry) => entry.path);
       commitSelection(
-        lead,
-        paths.length > 1 && paths[0] !== undefined
-          ? { anchor: paths[0], paths, range: paths }
-          : null,
+        selectExactly(
+          selectionRef.current,
+          entries.map((entry) => entry.path),
+        ),
       );
     },
     [commitSelection],
   );
   // A ⌘-click picks one more or lets one go; a Shift-click reaches from the
-  // last thing clicked to this one in the order the view draws them, in place
-  // of the reach the last Shift-click took from there, the way every Mac
-  // list does it.
+  // last thing clicked to this one in the order the view draws them. Both
+  // add to a selection among the rows they reach along: one made elsewhere
+  // (another of the columns) is started over from this one, the way the
+  // Finder's columns pick several in one column.
   const selectWithGesture = React.useCallback(
     (entry: FileSystemEntry, { mode, order }: SelectionGesture) => {
-      const lead = selectedPathRef.current;
-      const held =
-        lead !== null && severalRef.current?.paths.includes(lead)
-          ? severalRef.current
-          : null;
-      const current = heldPaths(lead, held);
-      if (mode === "toggle") {
-        if (!current.includes(entry.path)) {
-          const paths = [...current, entry.path];
-          commitSelection(
-            entry,
-            paths.length > 1
-              ? { anchor: entry.path, paths, range: [entry.path] }
-              : null,
-          );
-          return;
-        }
-        const rest = current.filter((path) => path !== entry.path);
-        const nextLead = rest.at(-1);
-        const nextEntry =
-          nextLead === undefined
-            ? null
-            : (index.files.get(nextLead) ??
-              index.folders.get(nextLead) ??
-              null);
-        commitSelection(
-          nextEntry,
-          rest.length > 1 && nextLead !== undefined
-            ? { anchor: nextLead, paths: rest, range: [nextLead] }
-            : null,
-        );
-        return;
-      }
-      const anchor = held?.anchor ?? lead;
-      const from = order.findIndex((candidate) => candidate.path === anchor);
-      const to = order.findIndex((candidate) => candidate.path === entry.path);
-      if (anchor === null || from === -1 || to === -1) {
-        selectEntry(entry);
-        return;
-      }
-      const range = (
-        from <= to
-          ? order.slice(from, to + 1)
-          : order.slice(to, from + 1).reverse()
-      ).map((candidate) => candidate.path);
-      const previousRange = held?.range ?? [anchor];
-      const paths = [
-        ...current.filter(
-          (path) => !previousRange.includes(path) && !range.includes(path),
-        ),
-        ...range,
-      ];
+      const current = selectionRef.current;
+      const paths = order.map((candidate) => candidate.path);
       commitSelection(
-        entry,
-        paths.length > 1 ? { anchor, paths, range } : null,
+        current.lead !== null && !paths.includes(current.lead)
+          ? selectOnly(entry.path)
+          : selectWithMode(current, entry.path, mode, paths),
       );
     },
-    [commitSelection, index, selectEntry],
+    [commitSelection],
   );
   // A query or filter change can hide some of the selection out from under
   // the views. What is left is what is shown, so an action on the selection
   // never reaches a row the search has taken off the screen.
   React.useEffect(() => {
-    if (!visiblePaths || !selectedPath) return;
-    const held = heldPaths(selectedPath, several);
-    if (held.every((path) => visiblePaths.has(path))) return;
-    selectEntries(
-      held.flatMap((path) => {
-        const entry = index.files.get(path) ?? index.folders.get(path);
-        return entry && visiblePaths.has(path) ? [entry] : [];
-      }),
+    if (!visiblePaths || selectionState.lead === null) return;
+    const kept = keepShown(
+      selectionState,
+      (path) =>
+        (index.files.has(path) || index.folders.has(path)) &&
+        visiblePaths.has(path),
     );
-  }, [index, selectEntries, selectedPath, several, visiblePaths]);
+    if (kept !== selectionState) commitSelection(kept);
+  }, [commitSelection, index, selectionState, visiblePaths]);
   // Dragging a row out of the window, to the desktop or another app. One
   // gesture for every view, on the browser itself; the rows say they drag.
   // A row of several selected carries the rest of them with it.
@@ -1959,12 +1932,6 @@ export function FileSystem({
         }
       : undefined,
   );
-  // Read when something is opened, so opening does not change identity with
-  // every selection and redraw the memoized columns.
-  const selectedPathsRef = React.useRef(selectedPaths);
-  React.useEffect(() => {
-    selectedPathsRef.current = selectedPaths;
-  }, [selectedPaths]);
   const applySortKey = (key: FileSystemSortKey) => {
     if (sort.key !== key) {
       setSort({ direction: defaultSortDirection(key), key });
@@ -2439,12 +2406,14 @@ export function FileSystem({
   // way the Finder does.
   const openEntry = React.useCallback(
     (entry: FileSystemEntry) => {
-      const selected = selectedPathsRef.current;
-      if (selected.length > 1 && selected.includes(entry.path)) {
-        const entries = selected.flatMap((path) => {
-          const each = index.files.get(path) ?? index.folders.get(path);
-          return each ? [each] : [];
-        });
+      const entries = selectedPathsOf(selectionRef.current).flatMap((path) => {
+        const each = entryOf(path);
+        return each ? [each] : [];
+      });
+      if (
+        entries.length > 1 &&
+        entries.some((each) => each.path === entry.path)
+      ) {
         if (onOpenSeveral) {
           onOpenSeveral(entries);
         } else {
@@ -2460,7 +2429,7 @@ export function FileSystem({
         openFile(entry);
       }
     },
-    [index, navigateTo, onOpenSeveral, openFile],
+    [entryOf, navigateTo, onOpenSeveral, openFile],
   );
   // Selecting a lazy folder (columns view, keyboard nav) prefetches children.
   const selectAndPrefetchEntry = React.useCallback(
@@ -2474,6 +2443,327 @@ export function FileSystem({
     },
     [ensureChildren, selectEntry, selectWithGesture],
   );
+  // Renaming in place: one rename at a time, run by `renameStep`. The field
+  // is drawn by whichever view shows the row; everything else about the
+  // rename (when it opens, what ends it, the save, the keyboard after it)
+  // is here, the same for every view.
+  const canRename = onRenameCommit !== undefined;
+  // What a row is called, while it is listed and on screen; a rename waits
+  // for that, and ends when it stops being so.
+  const listedNameOf = React.useCallback(
+    (path: string) => {
+      const entry = entryOf(path);
+      return entry && (!visiblePaths || visiblePaths.has(path))
+        ? entry.name
+        : null;
+    },
+    [entryOf, visiblePaths],
+  );
+  const [renameState, setRenameState] =
+    React.useState<RenameState>(RENAME_IDLE);
+  const renameRef = React.useRef(renameState);
+  const nameInputRef = React.useRef<HTMLInputElement | null>(null);
+  const refocusAfterRenameRef = React.useRef(false);
+  // The latest of what the machines' effects call, so the senders below stay
+  // one function for the component's life and the memoized columns that are
+  // handed them are not drawn again.
+  const effectsRef = React.useRef({
+    entryOf,
+    onRenameCommit,
+    selectAndPrefetchEntry,
+  });
+  React.useLayoutEffect(() => {
+    effectsRef.current = { entryOf, onRenameCommit, selectAndPrefetchEntry };
+  });
+  const sendRename = React.useCallback((event: RenameEvent) => {
+    const { effects, state } = renameStep(renameRef.current, event);
+    if (state === renameRef.current) return;
+    renameRef.current = state;
+    setRenameState(state);
+    for (const effect of effects) {
+      if (effect.type === "ended") {
+        refocusAfterRenameRef.current = true;
+        continue;
+      }
+      const { entryOf: lookUp, onRenameCommit: save } = effectsRef.current;
+      const entry = lookUp(effect.path);
+      // The caller hears about the name and writes it; a write it reports as
+      // failed opens the field again with what was typed.
+      void (async () => {
+        if (!entry || !save) throw new Error("Nothing to rename");
+        await save(entry, effect.name);
+      })().then(
+        () => sendRename({ type: "saved" }),
+        () => sendRename({ type: "save-failed" }),
+      );
+    }
+  }, []);
+  const startRename = React.useCallback(
+    (path: string) => {
+      if (!canRename) return;
+      sendRename({ name: listedNameOf(path), path, type: "start" });
+    },
+    [canRename, listedNameOf, sendRename],
+  );
+  React.useImperativeHandle(ref, () => ({ startRename }), [startRename]);
+  React.useEffect(() => {
+    sendRename({ nameOf: listedNameOf, type: "listed" });
+  }, [listedNameOf, sendRename]);
+  // A rename asked for before its row is listed is called off by anything
+  // the person does first; one being typed is accepted by a press anywhere
+  // but the field, the way the Finder takes a click away as Return.
+  const renamePhase = renameState.phase;
+  React.useEffect(() => {
+    if (renamePhase !== "waiting" && renamePhase !== "editing") return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (renamePhase === "waiting") {
+        sendRename({ type: "interrupt" });
+        return;
+      }
+      const input = nameInputRef.current;
+      if (
+        input &&
+        event.target instanceof Node &&
+        input.contains(event.target)
+      ) {
+        return;
+      }
+      sendRename({ text: input?.value ?? "", type: "accept" });
+    };
+    const onKeyDown = () => {
+      if (renamePhase === "waiting") sendRename({ type: "interrupt" });
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [renamePhase, sendRename]);
+  // Going to another folder leaves the field behind: what was typed is kept,
+  // and a rename still waiting for its row is called off.
+  const renamedFromPathRef = React.useRef(currentPath);
+  React.useEffect(() => {
+    if (renamedFromPathRef.current === currentPath) return;
+    renamedFromPathRef.current = currentPath;
+    sendRename({ type: "interrupt" });
+    sendRename({ text: nameInputRef.current?.value ?? "", type: "accept" });
+  }, [currentPath, sendRename]);
+  // A field put away leaves the keyboard on nothing, since the row it was in
+  // is being rebuilt under its new name. The browser itself takes it, which
+  // is where an arrow walks the folder from and Return renames again; a press
+  // that put the field away has already given it to what was pressed.
+  React.useLayoutEffect(() => {
+    if (!refocusAfterRenameRef.current || renamingPathOf(renameState)) return;
+    refocusAfterRenameRef.current = false;
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      rootRef.current?.focus({ preventScroll: true });
+    }
+  }, [renameState]);
+  const renamingPath = renamingPathOf(renameState);
+  const renderNameField = React.useCallback(
+    (entry: FileSystemEntry, className?: string) => {
+      if (
+        (renameState.phase !== "editing" && renameState.phase !== "saving") ||
+        renameState.path !== entry.path
+      ) {
+        return null;
+      }
+      return (
+        <FileSystemNameField
+          className={className}
+          draft={renameState.draft}
+          inputRef={nameInputRef}
+          key={renameState.attempt}
+          onAccept={(text) => {
+            sendRename({ text, type: "accept" });
+          }}
+          onCancel={() => {
+            sendRename({ type: "cancel" });
+          }}
+          readOnly={renameState.phase === "saving"}
+        />
+      );
+    },
+    [renameState, sendRename],
+  );
+  // Rows pressed and clicked, run by `gestureStep`: one machine for every
+  // view and every column, so a press in one column lands a narrowing a
+  // click in another left waiting.
+  const startRenameRef = React.useRef(startRename);
+  React.useLayoutEffect(() => {
+    startRenameRef.current = startRename;
+  });
+  const canRenameRef = React.useRef(canRename);
+  React.useLayoutEffect(() => {
+    canRenameRef.current = canRename;
+  });
+  const gestureRef = React.useRef<GestureState>(GESTURE_IDLE);
+  const gestureTimerRef = React.useRef<number | undefined>(undefined);
+  const gestureInterruptRef = React.useRef<(() => void) | null>(null);
+  const sendGesture = React.useCallback(
+    (event: GestureEvent, order?: () => readonly FileSystemEntry[]) => {
+      const previous = gestureRef.current;
+      const { effects, state } = gestureStep(previous, event);
+      gestureRef.current = state;
+      if (state !== previous) {
+        window.clearTimeout(gestureTimerRef.current);
+        const ms = waitFor(state);
+        if (ms !== null) {
+          gestureTimerRef.current = window.setTimeout(() => {
+            const current = selectionRef.current;
+            sendGesture({
+              lead: current.lead,
+              selectionSize: selectedPathsOf(current).length,
+              type: "timeout",
+            });
+          }, ms);
+        }
+        // A key or a scroll calls off a rename the pointer is waiting on,
+        // wherever in the window it lands.
+        const listens = state.phase !== "idle" && state.then === "rename";
+        const interrupt = gestureInterruptRef.current;
+        if (!listens && interrupt) {
+          window.removeEventListener("keydown", interrupt, true);
+          window.removeEventListener("wheel", interrupt, true);
+          gestureInterruptRef.current = null;
+        } else if (listens && !interrupt) {
+          const next = () => sendGesture({ type: "interrupt" });
+          window.addEventListener("keydown", next, true);
+          window.addEventListener("wheel", next, true);
+          gestureInterruptRef.current = next;
+        }
+      }
+      const { entryOf: lookUp, selectAndPrefetchEntry: select } =
+        effectsRef.current;
+      for (const effect of effects) {
+        const entry = lookUp(effect.path);
+        if (!entry) continue;
+        if (effect.type === "rename") {
+          startRenameRef.current(effect.path);
+        } else if (effect.type === "select" && effect.mode) {
+          select(entry, { mode: effect.mode, order: order?.() ?? [] });
+        } else {
+          select(entry);
+        }
+      }
+    },
+    [],
+  );
+  React.useEffect(
+    () => () => {
+      window.clearTimeout(gestureTimerRef.current);
+      const interrupt = gestureInterruptRef.current;
+      if (interrupt) {
+        window.removeEventListener("keydown", interrupt, true);
+        window.removeEventListener("wheel", interrupt, true);
+      }
+    },
+    [],
+  );
+  React.useEffect(() => {
+    sendGesture({ lead: selectionState.lead, type: "selection" });
+  }, [selectionState, sendGesture]);
+  const rowGestures = React.useMemo<RowGestures>(
+    () => ({
+      click: (entry, event, order) => {
+        sendGesture(
+          {
+            detail: event.detail,
+            isContextClick: isMacContextClick(event),
+            mode: selectionModeOf(event),
+            path: entry.path,
+            type: "click",
+          },
+          order,
+        );
+      },
+      doubleClick: () => {
+        sendGesture({ type: "double-click" });
+      },
+      press: (entry, event, order) => {
+        const held = selectedPathsOf(selectionRef.current);
+        sendGesture(
+          {
+            button: event.button,
+            isContextClick: isMacContextClick(event),
+            isOnName:
+              event.target instanceof Element &&
+              event.target.closest("[data-file-system-name]") !== null,
+            mode: selectionModeOf(event),
+            path: entry.path,
+            pointerType: event.pointerType,
+            renames: canRenameRef.current,
+            selection: { has: held.includes(entry.path), size: held.length },
+            type: "press",
+          },
+          order,
+        );
+      },
+    }),
+    [sendGesture],
+  );
+  // The keys, read once for every view (`listingCommandOf`) and answered by
+  // the view on screen, which says how its rows are walked.
+  const listingNavRef = React.useRef<ListingNav | null>(null);
+  const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
+  const runListingCommand = (command: ListingCommand) => {
+    const nav = listingNavRef.current;
+    if (!nav) return false;
+    const lead = entryOf(selectionRef.current.lead);
+    switch (command.type) {
+      case "move": {
+        const moved = nav.move(command.direction);
+        if (typeof moved === "boolean") return moved;
+        selectAndPrefetchEntry(
+          moved.entry,
+          command.extend && moved.order
+            ? { mode: "extend", order: moved.order }
+            : undefined,
+        );
+        nav.reveal(moved.entry);
+        return true;
+      }
+      case "open":
+        if (!lead) return false;
+        openEntry(lead);
+        return true;
+      case "return":
+        if (!lead) return false;
+        // Several selected are renamed one at a time or not at all.
+        if (selectedPathsOf(selectionRef.current).length > 1) return true;
+        if (canRename && nav.renames) {
+          startRename(lead.path);
+        } else {
+          openEntry(lead);
+        }
+        return true;
+      case "select-all":
+        selectEntries(nav.rows);
+        return true;
+      case "space":
+        return true;
+      case "type-ahead": {
+        const current = nav.current;
+        const { match, state } = typeAhead({
+          char: command.char,
+          currentIndex: current
+            ? nav.rows.findIndex((entry) => entry.path === current.path)
+            : -1,
+          entries: nav.rows,
+          now: performance.now(),
+          state: typeAheadRef.current,
+        });
+        typeAheadRef.current = state;
+        if (match) {
+          selectAndPrefetchEntry(match);
+          nav.reveal(match);
+        }
+        return true;
+      }
+    }
+  };
   const currentEntries = sortedIndex.children.get(currentPath) ?? [];
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
@@ -2503,10 +2793,8 @@ export function FileSystem({
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
     onListColumnsChange: setListColumns,
     onListColumnWidthsChange: setListColumnWidths,
+    listingNavRef,
     onOpen: openEntry,
-    onRenameCancel,
-    onRenameCommit,
-    onRenameStart,
     onSelect: selectAndPrefetchEntry,
     onSelectEntries: selectEntries,
     onSortColumnClick: toggleSortColumn,
@@ -2517,7 +2805,9 @@ export function FileSystem({
     renderFileActions,
     renderFilePreview,
     renderFileStage,
+    renderNameField,
     renderTrailing,
+    rowGestures,
     searchQuery,
     selectedEntry,
     selectedPath,
@@ -2572,53 +2862,37 @@ export function FileSystem({
           searchInputRef.current?.focus();
           return;
         }
-        // An arrow that reached the component without a row under it: the
-        // keyboard is on the browser itself (empty space clicked, the toolbar
-        // left behind), where the Finder still walks the folder. The row the
-        // rows' single tab stop names takes the keyboard and is handed the
-        // press, which its own view answers as it would any other. The synthetic
-        // press is untrusted, which is what keeps it from arriving back here.
-        // Return on the browser itself is the same: a rename just put away
-        // leaves the keyboard here while its row is rebuilt under the new
-        // name, and Return renames again from where the arrows would walk.
-        // ⌘A there is every row, as it is on a row.
-        const isReturnHere =
-          event.key === "Enter" && event.target === event.currentTarget;
+        // The rows' keys, read here for every view. A press already answered
+        // (a menu's own arrows), one from something portalled out of the
+        // browser (its menus and dialogs), and one typed into a field are
+        // someone else's; so are the view switcher's arrows.
+        const target = event.target;
         if (
-          !event.isTrusted ||
-          !(ARROW_KEYS.has(event.key) || isReturnHere || isSelectAllKey(event))
-        ) {
-          return;
-        }
-        const target =
-          event.target instanceof HTMLElement ? event.target : null;
-        if (
-          !target ||
+          event.defaultPrevented ||
+          !(target instanceof HTMLElement) ||
+          !rootRef.current?.contains(target) ||
           isEditableTarget(target) ||
-          target.closest('[role="option"]') ||
-          // The view switcher's own arrows move between the views.
           target.closest('[role="tablist"], [role="combobox"]')
         ) {
           return;
         }
-        const row = rootRef.current?.querySelector<HTMLElement>(
-          '[role="option"][tabindex="0"]',
-        );
-        if (!row) {
+        const command = listingCommandOf(event, isMacOS());
+        if (!command) return;
+        // On the rows, or on the browser itself (empty space clicked, a name
+        // field just put away), every key is the listing's. On the toolbar
+        // only the arrows and ⌘A walk the folder, as the Finder's do: Return
+        // and Space there press the button, and letters are nobody's.
+        const isOnListing =
+          target === event.currentTarget ||
+          target.closest("[data-file-system-listing]") !== null;
+        if (
+          !isOnListing &&
+          command.type !== "move" &&
+          command.type !== "select-all"
+        ) {
           return;
         }
-        event.preventDefault();
-        row.focus();
-        row.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            bubbles: true,
-            cancelable: true,
-            ctrlKey: event.ctrlKey,
-            key: event.key,
-            metaKey: event.metaKey,
-            shiftKey: event.shiftKey,
-          }),
-        );
+        if (runListingCommand(command)) event.preventDefault();
       }}
       onPointerDown={dragArea.onPointerDown}
       onPointerOver={dragArea.onPointerOver}
@@ -3506,10 +3780,9 @@ type FileSystemViewProps = {
   onListColumnWidthsChange: (
     widths: Partial<Record<FileSystemListColumn, number>>,
   ) => void;
+  /** Where the view says how its rows are walked, for the keys the browser reads. */
+  listingNavRef: React.RefObject<ListingNav | null>;
   onOpen: (entry: FileSystemEntry) => void;
-  onRenameCancel?: () => void;
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  onRenameStart?: (item: FileSystemItem) => void;
   /** Selects the entry alone, or adds to the selection with a gesture. */
   onSelect: (entry: FileSystemEntry | null, gesture?: SelectionGesture) => void;
   /** Selects exactly these, keeping the keyboard on the one it is on when it is among them. */
@@ -3521,11 +3794,16 @@ type FileSystemViewProps = {
   poolStagePath: (path: string) => void;
   /** Mounts/unmounts the gallery host element for a pooled path. */
   registerStageHost: (path: string, element: HTMLElement | null) => void;
-  renamingPath?: null | string;
+  /** The row whose name is being typed over, which draws `renderNameField` in place of its name. */
+  renamingPath: null | string;
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
+  /** The name field for the row being renamed, with the view's own spacing. */
+  renderNameField: RenderNameField;
   renderTrailing?: (folderPath: string) => React.ReactNode;
+  /** What every row's press, click and double-click go through. */
+  rowGestures: RowGestures;
   searchQuery: string;
   /** The one of the selection the keyboard is on, the last picked. */
   selectedEntry: FileSystemEntry | null;
@@ -3536,6 +3814,104 @@ type FileSystemViewProps = {
   /** The list's open folders per folder on screen, surviving view switches. */
   treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
 };
+/** How a view's rows are walked by the keys the browser reads (`listingCommandOf`). */
+type ListingNav = {
+  /** The row the keyboard is on, which type-ahead searches on from. */
+  current: FileSystemEntry | null;
+  /**
+   * Where an arrow goes: a row, with the order a Shift-arrow reaches along
+   * (null where it does not reach, as across columns); true for a step the
+   * view took itself (a folder opened or closed in place); false for none.
+   */
+  move: (
+    direction: ListingDirection,
+  ) =>
+    | boolean
+    | { entry: FileSystemEntry; order: null | readonly FileSystemEntry[] };
+  /** Whether Return renames here; where it does not, it opens. */
+  renames: boolean;
+  /** The keyboard onto the row the selection landed on, once it is drawn. */
+  reveal: (entry: FileSystemEntry) => void;
+  /** The rows the keys walk, in order: ⌘A takes them, letters search them. */
+  rows: readonly FileSystemEntry[];
+};
+/** The view on screen walks the rows; the last one drawn holds the keys. */
+function useListingNav(
+  navRef: React.RefObject<ListingNav | null>,
+  nav: ListingNav,
+) {
+  const ownRef = React.useRef<ListingNav | null>(null);
+  React.useLayoutEffect(() => {
+    navRef.current = nav;
+    ownRef.current = nav;
+  });
+  // A layout cleanup, so a view leaving lets go before the one replacing it
+  // takes the keys, and never after.
+  React.useLayoutEffect(
+    () => () => {
+      if (navRef.current === ownRef.current) navRef.current = null;
+    },
+    [navRef],
+  );
+}
+type RenderNameField = (
+  entry: FileSystemEntry,
+  className?: string,
+) => React.ReactNode;
+/** A row's pointer, handed to the browser's one gesture machine with the order the view draws its rows in. */
+type RowGestures = {
+  click: (
+    entry: FileSystemEntry,
+    event: React.MouseEvent,
+    order: () => readonly FileSystemEntry[],
+  ) => void;
+  doubleClick: () => void;
+  press: (
+    entry: FileSystemEntry,
+    event: React.PointerEvent,
+    order: () => readonly FileSystemEntry[],
+  ) => void;
+};
+/**
+ * The keyboard onto a row by its path: at once when it is drawn, or once it
+ * is, as a row scrolled into a virtual window or a column not mounted yet.
+ */
+function useFocusWhenDrawn<T extends HTMLElement>(
+  refs: React.RefObject<Map<string, T>>,
+  {
+    enabled,
+    preventScroll,
+  }: {
+    /** False while something outside holds the keyboard and walks the rows from there. */
+    enabled: boolean;
+    /** Whether the view scrolls the row in itself, rather than leaving it to the focus. */
+    preventScroll: boolean;
+  },
+) {
+  const pendingRef = React.useRef<null | string>(null);
+  React.useEffect(() => {
+    const path = pendingRef.current;
+    if (!path) return;
+    const element = refs.current.get(path);
+    if (element) {
+      pendingRef.current = null;
+      element.focus({ preventScroll });
+    }
+  });
+  return (path: string) => {
+    if (!enabled) {
+      pendingRef.current = null;
+      return;
+    }
+    const element = refs.current.get(path);
+    if (element) {
+      pendingRef.current = null;
+      element.focus({ preventScroll });
+    } else {
+      pendingRef.current = path;
+    }
+  };
+}
 function calendarDayKey(date: Date) {
   return date.getFullYear() * 10_000 + date.getMonth() * 100 + date.getDate();
 }
@@ -3878,7 +4254,6 @@ function useSettledValue<T>(value: T, delay: number): T {
   }, [delay, settled, value]);
   return settled;
 }
-const ARROW_KEYS = new Set(["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"]);
 // Somewhere a keypress belongs to whoever is typing there.
 function isEditableTarget(target: HTMLElement) {
   return (
@@ -3888,47 +4263,39 @@ function isEditableTarget(target: HTMLElement) {
     target.tagName === "SELECT"
   );
 }
-// Type-ahead buffers reset after this idle period, like Finder.
-const TYPE_AHEAD_RESET_MS = 700;
 /**
  * A name typed over where it sits, the way the Finder edits one: the field
  * opens with the base name selected so typing keeps the extension, Return
- * accepts it, Escape and an unchanged name abandon it, and clicking away
- * accepts it. Every press stays in the field, so the letters and arrows a
- * name is typed with are never read as walking the folder.
+ * accepts it, Escape abandons it, and the field losing the keyboard accepts
+ * it. What an accept means (an unchanged name is none) is the rename
+ * machine's; the field only reports. Every press stays in the field, so the
+ * letters and arrows a name is typed with are never read as walking the
+ * folder.
  */
 function FileSystemNameField({
   className,
-  name,
+  draft,
+  inputRef,
+  onAccept,
   onCancel,
-  onCommit,
+  readOnly,
 }: {
   className?: string;
-  name: string;
+  /** What the field opens holding. */
+  draft: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onAccept: (text: string) => void;
   onCancel: () => void;
-  onCommit: (name: string) => void;
+  /** While the name is being written, so it can be neither changed nor accepted twice. */
+  readOnly: boolean;
 }) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  // Accepting unmounts the field, which blurs it; the second answer would
-  // rename what the first one already renamed.
-  const settledRef = React.useRef(false);
-  const settle = (next: string) => {
-    if (settledRef.current) return;
-    settledRef.current = true;
-    const trimmed = next.trim();
-    if (trimmed && trimmed !== name) {
-      onCommit(trimmed);
-    } else {
-      onCancel();
-    }
-  };
   React.useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     const dot = input.value.lastIndexOf(".");
     input.focus();
     input.setSelectionRange(0, dot > 0 ? dot : input.value.length);
-  }, []);
+  }, [inputRef]);
   return (
     <input
       aria-label="Name"
@@ -3941,9 +4308,13 @@ function FileSystemNameField({
         "field-sizing-content min-w-4 max-w-full shrink rounded-[3px] bg-background px-0.5 py-0 [font:inherit] text-foreground ring-1 ring-ring outline-none",
         className,
       )}
-      defaultValue={name}
+      defaultValue={draft}
       onBlur={(event) => {
-        settle(event.currentTarget.value);
+        // The window going to another app takes the keyboard from the field
+        // and gives it back on return, as the Finder's does; only the
+        // keyboard going elsewhere in the window ends the naming.
+        if (!document.hasFocus()) return;
+        onAccept(event.currentTarget.value);
       }}
       onDoubleClick={(event) => {
         event.stopPropagation();
@@ -3952,348 +4323,64 @@ function FileSystemNameField({
         event.stopPropagation();
         if (event.key === "Enter") {
           event.preventDefault();
-          settle(event.currentTarget.value);
+          onAccept(event.currentTarget.value);
         } else if (event.key === "Escape") {
           event.preventDefault();
-          settledRef.current = true;
           onCancel();
         }
       }}
       onPointerDown={(event) => {
         event.stopPropagation();
       }}
+      readOnly={readOnly}
       ref={inputRef}
       type="text"
     />
   );
 }
 /**
- * What Return does to the item holding the keyboard: renames it where it sits,
- * the way the Finder does, with ⌘O and ⌘↓ left to open it. Without a rename to
- * start, Return opens, which is what it did before one existed.
+ * The tile an arrow reaches in a grid drawn by the browser's own auto-fill:
+ * the next or previous in order across, and up or down by where the tiles
+ * actually stand, so the walk follows the rendered grid.
  */
-function handleEntryReturn({
-  entry,
-  event,
-  isOneOfSeveral = false,
-  onOpen,
-  onRenameStart,
-}: {
-  entry: FileSystemEntry;
-  event: React.KeyboardEvent;
-  /** Whether the entry is one of several selected, which Return renames none of. */
-  isOneOfSeveral?: boolean;
-  onOpen: (entry: FileSystemEntry) => void;
-  onRenameStart?: (item: FileSystemItem) => void;
-}) {
-  const isOpenKey =
-    (event.metaKey || event.ctrlKey) &&
-    (event.key === "o" || event.key === "ArrowDown");
-  if (isOpenKey) {
-    event.preventDefault();
-    // ⌘↓ is an arrow, and the view around the row walks the folder on those.
-    event.stopPropagation();
-    onOpen(entry);
-    return;
-  }
-  if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) {
-    return;
-  }
-  // Return on a `<button>` would otherwise be a click as well.
-  event.preventDefault();
-  if (isOneOfSeveral) return;
-  if (onRenameStart) {
-    onRenameStart(entry);
-  } else {
-    onOpen(entry);
-  }
-}
-/**
- * How long a second click on a selected name waits before it renames, so a
- * double-click (which opens) can still claim it, the way the Finder waits.
- */
-const SLOW_CLICK_RENAME_MS = 600;
-/**
- * A second, unhurried click on the name of what is already selected renames
- * it, the Finder's other way into a name. The press says whether the row was
- * selected before it, the click starts the wait, and anything else first (a
- * double-click, another press, a key, a scroll, the selection moving) calls
- * it off. Only the name counts, not the glyph or the rest of the row.
- */
-function useSlowClickRename(
-  onRenameStart: ((item: FileSystemItem) => void) | undefined,
-  selectedPath: null | string | undefined,
-) {
-  const pending = React.useRef<{ path: string; timer?: number } | null>(null);
-  const [isWaiting, setIsWaiting] = React.useState(false);
-  const cancel = React.useCallback(() => {
-    window.clearTimeout(pending.current?.timer);
-    pending.current = null;
-    setIsWaiting(false);
-  }, []);
-  React.useEffect(() => cancel, [cancel]);
-  React.useEffect(() => {
-    if (pending.current && pending.current.path !== selectedPath) cancel();
-  }, [cancel, selectedPath]);
-  React.useEffect(() => {
-    if (!isWaiting) return;
-    window.addEventListener("keydown", cancel, true);
-    window.addEventListener("wheel", cancel, true);
-    return () => {
-      window.removeEventListener("keydown", cancel, true);
-      window.removeEventListener("wheel", cancel, true);
-    };
-  }, [cancel, isWaiting]);
-  return {
-    cancel,
-    /** On the press, before it selects: whether the row was selected already. */
-    press: (
-      entry: FileSystemEntry,
-      wasSelected: boolean,
-      event: React.PointerEvent,
-    ) => {
-      cancel();
-      if (
-        !onRenameStart ||
-        !wasSelected ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey ||
-        !(event.target instanceof Element) ||
-        !event.target.closest("[data-file-system-name]")
-      ) {
-        return;
-      }
-      pending.current = { path: entry.path };
-    },
-    /** On the click that finishes that press: the wait starts. */
-    release: (entry: FileSystemEntry) => {
-      const press = pending.current;
-      if (!onRenameStart || press?.path !== entry.path || press.timer) return;
-      press.timer = window.setTimeout(() => {
-        pending.current = null;
-        setIsWaiting(false);
-        onRenameStart(entry);
-      }, SLOW_CLICK_RENAME_MS);
-      setIsWaiting(true);
-    },
-  };
-}
-/**
- * A row pressed the way the Finder's are: alone it is the selection, with ⌘
- * it is one more picked or let go, with Shift the reach from the last one
- * clicked. A mouse selects on the way down, so a column opens a beat before
- * the button comes up; a touch or an assistive tool selects on the click it
- * makes. Pressed alone, a row already among several selected leaves them
- * standing, so they can be dragged, and so a double-click can open them all:
- * the click narrows them to its row only once a second click has had time
- * not to come.
- */
-/**
- * How long a click waits to be the first of a double-click, in ms: Windows'
- * default double-click time, a little past the Mac's. The page cannot read
- * the system's own setting, so someone who set theirs slower narrows several
- * to one before the second click lands, and opens that one alone.
- */
-const DOUBLE_CLICK_MS = 500;
-function usePressSelection(
-  onSelect: FileSystemViewProps["onSelect"],
-  selection: ReadonlySet<string>,
-) {
-  // The press that has already answered for the click ending it, and whether
-  // that click still has to narrow several to its row.
-  const pressedRef = React.useRef<null | { narrow: boolean; path: string }>(
-    null,
-  );
-  const narrowingRef = React.useRef<number | undefined>(undefined);
-  // The row a click is waiting to narrow several to, until the wait is over.
-  const narrowingEntryRef = React.useRef<FileSystemEntry | null>(null);
-  React.useEffect(() => () => window.clearTimeout(narrowingRef.current), []);
-  const select = (
-    entry: FileSystemEntry,
-    event: React.MouseEvent,
-    order: () => readonly FileSystemEntry[],
-  ) => {
-    const mode = selectionModeOf(event);
-    if (mode) {
-      onSelect(entry, { mode, order: order() });
-    } else {
-      onSelect(entry);
-    }
-  };
-  return {
-    click: (
-      entry: FileSystemEntry,
-      event: React.MouseEvent,
-      order: () => readonly FileSystemEntry[],
-    ) => {
-      const pressed = pressedRef.current;
-      pressedRef.current = null;
-      if (pressed?.path === entry.path) {
-        // The second click of a double-click leaves the several standing for
-        // the double-click to open.
-        if (pressed.narrow && event.detail < 2) {
-          narrowingEntryRef.current = entry;
-          narrowingRef.current = window.setTimeout(() => {
-            narrowingEntryRef.current = null;
-            onSelect(entry);
-          }, DOUBLE_CLICK_MS);
-        }
-        return;
-      }
-      if (isMacContextClick(event)) return;
-      select(entry, event, order);
-    },
-    press: (
-      entry: FileSystemEntry,
-      event: React.PointerEvent,
-      order: () => readonly FileSystemEntry[],
-    ) => {
-      pressedRef.current = null;
-      window.clearTimeout(narrowingRef.current);
-      // A press on another row while a click still waits to narrow several to
-      // its own: that wait is over, so the narrowing lands first and the
-      // press answers the one row it left rather than the several before it.
-      const narrowing = narrowingEntryRef.current;
-      narrowingEntryRef.current = null;
-      const narrowed = narrowing !== null && narrowing.path !== entry.path;
-      if (narrowed) onSelect(narrowing);
-      if (
-        event.pointerType !== "mouse" ||
-        event.button !== 0 ||
-        isMacContextClick(event)
-      ) {
-        return;
-      }
-      const narrow =
-        !narrowed &&
-        selectionModeOf(event) === null &&
-        selection.size > 1 &&
-        selection.has(entry.path);
-      pressedRef.current = { narrow, path: entry.path };
-      if (!narrow) select(entry, event, order);
-    },
-  };
-}
-// Letters and digits only, so shortcuts
-// and whitespace scrolling stay untouched.
-function isTypeAheadKey(event: React.KeyboardEvent) {
-  return (
-    event.key.length === 1 &&
-    /^[\p{L}\p{N}]$/u.test(event.key) &&
-    !event.altKey &&
-    !event.ctrlKey &&
-    !event.metaKey
-  );
-}
-// Selects (and focuses) the entry reached by an arrow key. Up/down use row
-// geometry so navigation follows the rendered auto-fill grid.
-function moveGridSelection({
+function gridNeighbor({
+  current,
+  direction,
   entries,
   itemRefs,
-  key,
-  moveFocus,
-  onSelect,
-  selectedPath,
 }: {
-  entries: FileSystemEntry[];
-  itemRefs: Map<string, HTMLButtonElement>;
-  key: string;
-  /** Whether the tile the selection lands on takes the keyboard with it. */
-  moveFocus: boolean;
-  onSelect: (entry: FileSystemEntry | null) => void;
-  selectedPath: null | string;
+  current: null | string;
+  direction: ListingDirection;
+  entries: readonly FileSystemEntry[];
+  itemRefs: Map<string, HTMLElement>;
 }) {
-  if (entries.length === 0) return false;
-  const currentIndex = entries.findIndex(
-    (entry) => entry.path === selectedPath,
-  );
-  let nextEntry: FileSystemEntry | undefined;
-  if (currentIndex === -1) {
-    nextEntry = entries[0];
-  } else if (key === "ArrowLeft" || key === "ArrowRight") {
-    nextEntry = entries[currentIndex + (key === "ArrowLeft" ? -1 : 1)];
-  } else {
-    const currentElement = itemRefs.get(entries[currentIndex]?.path ?? "");
-    if (!currentElement) return false;
-    const currentRect = currentElement.getBoundingClientRect();
-    let bestScore = Infinity;
-    for (const entry of entries) {
-      if (entry.path === selectedPath) continue;
-      const rect = itemRefs.get(entry.path)?.getBoundingClientRect();
-      if (!rect) continue;
-      const rowDelta =
-        key === "ArrowDown"
-          ? rect.top - currentRect.top
-          : currentRect.top - rect.top;
-      if (rowDelta <= 1) continue;
-      const score = rowDelta * 1000 + Math.abs(rect.left - currentRect.left);
-      if (score < bestScore) {
-        bestScore = score;
-        nextEntry = entry;
-      }
+  const currentIndex = entries.findIndex((entry) => entry.path === current);
+  if (currentIndex === -1) return entries[0] ?? null;
+  if (direction === "left" || direction === "right") {
+    return entries[currentIndex + (direction === "left" ? -1 : 1)] ?? null;
+  }
+  const currentRect = itemRefs
+    .get(entries[currentIndex]?.path ?? "")
+    ?.getBoundingClientRect();
+  if (!currentRect) return null;
+  let best: FileSystemEntry | null = null;
+  let bestScore = Infinity;
+  for (const entry of entries) {
+    if (entry.path === current) continue;
+    const rect = itemRefs.get(entry.path)?.getBoundingClientRect();
+    if (!rect) continue;
+    const rowDelta =
+      direction === "down"
+        ? rect.top - currentRect.top
+        : currentRect.top - rect.top;
+    if (rowDelta <= 1) continue;
+    const score = rowDelta * 1000 + Math.abs(rect.left - currentRect.left);
+    if (score < bestScore) {
+      bestScore = score;
+      best = entry;
     }
   }
-  if (!nextEntry) return false;
-  onSelect(nextEntry);
-  if (moveFocus) itemRefs.get(nextEntry.path)?.focus();
-  return true;
-}
-// Shared Finder-style type-ahead used by every view: printable keys
-// accumulate a buffer that jumps to the next entry whose name starts with
-// it, and repeating a single letter cycles through entries with that
-// prefix. Each view passes its own display-ordered candidate list, so the
-// same keystrokes land on the same file everywhere.
-function useEntryTypeAhead() {
-  const stateRef = React.useRef({ buffer: "", timeout: 0 });
-  React.useEffect(() => {
-    const state = stateRef.current;
-    return () => window.clearTimeout(state.timeout);
-  }, []);
-  return React.useCallback(
-    (
-      event: React.KeyboardEvent,
-      entries: readonly FileSystemEntry[],
-      currentIndex: number,
-    ) => {
-      if (!isTypeAheadKey(event) || entries.length === 0) return null;
-      // Embedded viewers (and any future inputs) keep their keystrokes.
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT")
-      ) {
-        return null;
-      }
-      const state = stateRef.current;
-      window.clearTimeout(state.timeout);
-      state.timeout = window.setTimeout(() => {
-        state.buffer = "";
-      }, TYPE_AHEAD_RESET_MS);
-      state.buffer += event.key.toLowerCase();
-      // A repeated single letter advances past the current entry; a longer
-      // buffer refines the match in place.
-      const startIndex =
-        currentIndex < 0
-          ? 0
-          : currentIndex + (state.buffer.length === 1 ? 1 : 0);
-      for (let step = 0; step < entries.length; step += 1) {
-        const entry = entries[(startIndex + step) % entries.length];
-        if (entry?.name.toLowerCase().startsWith(state.buffer)) {
-          event.preventDefault();
-          return entry;
-        }
-      }
-      event.preventDefault();
-      return null;
-    },
-    [],
-  );
+  return best;
 }
 // Icon grid geometry (px at the default 16px root font size). Tiles have a
 // fixed height — a 4rem glyph box plus a reserved two-line label — so rows
@@ -4307,25 +4394,45 @@ const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 function FileSystemIconsView({
   draggable,
   entries,
+  listingNavRef,
   menuTargetPath,
   moveFocusWithSelection,
   onItemContextMenu,
   onOpen,
-  onRenameCancel,
-  onRenameCommit,
-  onRenameStart,
   onSelect,
-  onSelectEntries,
   renamingPath,
   renderFilePreview,
+  renderNameField,
+  rowGestures,
+  selectedEntry,
   selectedPath,
   selection,
 }: FileSystemViewProps) {
   const itemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
-  const typeAhead = useEntryTypeAhead();
-  const slowRename = useSlowClickRename(onRenameStart, selectedPath);
-  const pressSelection = usePressSelection(onSelect, selection);
+  // A tile the keyboard lands on may be outside the virtual window; the
+  // selection effect scrolls it in, and the keyboard follows once it mounts.
+  const focusTile = useFocusWhenDrawn(itemRefs, {
+    enabled: moveFocusWithSelection,
+    preventScroll: false,
+  });
+  useListingNav(listingNavRef, {
+    current: selectedEntry,
+    move: (direction) => {
+      const entry = gridNeighbor({
+        current: selectedPath,
+        direction,
+        entries,
+        itemRefs: itemRefs.current,
+      });
+      return entry ? { entry, order: entries } : false;
+    },
+    renames: true,
+    reveal: (entry) => {
+      focusTile(entry.path);
+    },
+    rows: entries,
+  });
   // The column count mirrors what `repeat(auto-fill, minmax(6.5rem, 1fr))`
   // produces (the CSS owns the actual layout) so item indices map to grid
   // rows — the windowing below depends on that mapping. It stays null until
@@ -4423,51 +4530,7 @@ function FileSystemIconsView({
         <div
           aria-label="Files"
           className="absolute inset-x-0 grid gap-x-1 gap-y-3"
-          onKeyDown={(event) => {
-            if (isSelectAllKey(event)) {
-              event.preventDefault();
-              onSelectEntries(entries);
-              return;
-            }
-            if (!ARROW_KEYS.has(event.key)) {
-              const match = typeAhead(
-                event,
-                entries,
-                entries.findIndex((entry) => entry.path === selectedPath),
-              );
-              if (match) {
-                onSelect(match);
-                // The matched tile may be outside the virtual window; the
-                // selection effect scrolls it in, and focus follows once it
-                // has mounted.
-                if (moveFocusWithSelection) {
-                  requestAnimationFrame(() =>
-                    itemRefs.current.get(match.path)?.focus(),
-                  );
-                }
-              }
-              return;
-            }
-            if (
-              moveGridSelection({
-                entries,
-                itemRefs: itemRefs.current,
-                key: event.key,
-                moveFocus: moveFocusWithSelection,
-                // Shift and an arrow reach from where the selection began.
-                onSelect: (entry) => {
-                  if (event.shiftKey && entry) {
-                    onSelect(entry, { mode: "extend", order: entries });
-                  } else {
-                    onSelect(entry);
-                  }
-                },
-                selectedPath,
-              })
-            ) {
-              event.preventDefault();
-            }
-          }}
+          data-file-system-listing=""
           role="listbox"
           // The auto-fill expression produces the same column count the
           // ResizeObserver measures (the measurement exists only for the
@@ -4523,12 +4586,7 @@ function FileSystemIconsView({
                       SELECTED_ROW_CLASSNAME,
                     )}
                   >
-                    <FileSystemNameField
-                      className="-mx-0.5 text-center"
-                      name={entry.name}
-                      onCancel={() => onRenameCancel?.()}
-                      onCommit={(name) => onRenameCommit?.(entry, name)}
-                    />
+                    {renderNameField(entry, "-mx-0.5 text-center")}
                   </span>
                 </div>
               );
@@ -4541,8 +4599,7 @@ function FileSystemIconsView({
                 draggable={draggable}
                 key={entry.path}
                 onClick={(event) => {
-                  pressSelection.click(entry, event, () => entries);
-                  slowRename.release(entry);
+                  rowGestures.click(entry, event, () => entries);
                 }}
                 // Right-clicking marks what the menu acts on without moving
                 // the selection, the way the Finder does.
@@ -4550,25 +4607,11 @@ function FileSystemIconsView({
                   onItemContextMenu?.(entry, event);
                 }}
                 onDoubleClick={() => {
-                  slowRename.cancel();
+                  rowGestures.doubleClick();
                   onOpen(entry);
                 }}
                 onPointerDown={(event) => {
-                  slowRename.press(
-                    entry,
-                    isSelected && selection.size === 1,
-                    event,
-                  );
-                  pressSelection.press(entry, event, () => entries);
-                }}
-                onKeyDown={(event) => {
-                  handleEntryReturn({
-                    entry,
-                    event,
-                    isOneOfSeveral: selection.size > 1,
-                    onOpen,
-                    ...(onRenameStart ? { onRenameStart } : {}),
-                  });
+                  rowGestures.press(entry, event, () => entries);
                 }}
                 ref={(element) => {
                   if (element) {
@@ -4863,15 +4906,15 @@ function FileSystemListView({
   onFolderHover,
   onItemContextMenu,
   onListColumnsChange,
+  listingNavRef,
   onListColumnWidthsChange,
   onOpen,
-  onRenameCancel,
-  onRenameCommit,
-  onRenameStart,
   onSelect,
   onSelectEntries,
   onSortColumnClick,
   renamingPath,
+  renderNameField,
+  rowGestures,
   searchQuery,
   selectedPath,
   selection,
@@ -4879,11 +4922,11 @@ function FileSystemListView({
   treeExpansionRef,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
-  const slowRename = useSlowClickRename(onRenameStart, selectedPath);
-  const pressSelection = usePressSelection(onSelect, selection);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
-  const pendingFocusPathRef = React.useRef<null | string>(null);
-  const typeAhead = useEntryTypeAhead();
+  const focusRow = useFocusWhenDrawn(rowRefs, {
+    enabled: moveFocusWithSelection,
+    preventScroll: true,
+  });
   // The folders left open here, kept by the browser per folder so walking
   // away and back, or to another layout and back, finds them open again.
   const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(
@@ -5018,80 +5061,39 @@ function FileSystemListView({
       viewport: viewportRef.current,
     });
   }, [selectedPath, selectedRowIndex]);
-  React.useEffect(() => {
-    const path = pendingFocusPathRef.current;
-    if (!path) return;
-    const row = rowRefs.current.get(path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus({ preventScroll: true });
-    }
-  });
-  const selectAndFocus = (
-    entry: FileSystemEntry,
-    gesture?: SelectionGesture,
-  ) => {
-    onSelect(entry, gesture);
-    if (!moveFocusWithSelection) return;
-    const row = rowRefs.current.get(entry.path);
-    if (row) {
-      row.focus({ preventScroll: true });
-    } else {
-      pendingFocusPathRef.current = entry.path;
-    }
-  };
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    // Space is Quick Look's, which the page holding the browser answers; a
-    // row never takes it to open or close a folder, and the list does not
-    // scroll on it.
-    if (event.key === " ") {
-      event.preventDefault();
-      return;
-    }
-    if (isSelectAllKey(event)) {
-      event.preventDefault();
-      onSelectEntries(rowEntries);
-      return;
-    }
-    if (!ARROW_KEYS.has(event.key)) {
-      const match = typeAhead(event, rowEntries, selectedEntryIndex);
-      if (match) selectAndFocus(match);
-      return;
-    }
-    if (event.metaKey || event.ctrlKey) return;
-    const selectedRow = entryRows[selectedEntryIndex];
-    let next: FileSystemEntry | undefined;
-    if (!selectedRow) {
-      next = entryRows[0]?.entry;
-    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      next =
-        entryRows[selectedEntryIndex + (event.key === "ArrowUp" ? -1 : 1)]
-          ?.entry;
-    } else if (event.key === "ArrowRight") {
-      if (selectedRow.entry.kind === "folder") {
-        toggleFolder(selectedRow.entry, true);
+  // Up and down walk the rows as drawn; right opens a folder in place and
+  // left closes it, or goes to the folder holding the row.
+  useListingNav(listingNavRef, {
+    current: entryRows[selectedEntryIndex]?.entry ?? null,
+    move: (direction) => {
+      const selectedRow = entryRows[selectedEntryIndex];
+      const first = entryRows[0]?.entry;
+      if (!selectedRow) {
+        return first ? { entry: first, order: null } : true;
       }
-    } else if (
-      selectedRow.entry.kind === "folder" &&
-      expanded.has(selectedRow.entry.path) &&
-      !isRevealing
-    ) {
-      toggleFolder(selectedRow.entry, false);
-    } else if (selectedRow.depth > 0) {
-      next = index.folders.get(selectedRow.entry.parentPath);
-    }
-    event.preventDefault();
-    if (!next) return;
-    // Shift and an arrow up or down reach from where the selection began.
-    const reaches =
-      event.shiftKey &&
-      selectedRow !== undefined &&
-      (event.key === "ArrowUp" || event.key === "ArrowDown");
-    selectAndFocus(
-      next,
-      reaches ? { mode: "extend", order: rowEntries } : undefined,
-    );
-  };
+      if (direction === "up" || direction === "down") {
+        const next =
+          entryRows[selectedEntryIndex + (direction === "up" ? -1 : 1)]?.entry;
+        return next ? { entry: next, order: rowEntries } : true;
+      }
+      const { depth, entry } = selectedRow;
+      if (direction === "right") {
+        if (entry.kind === "folder") toggleFolder(entry, true);
+        return true;
+      }
+      if (entry.kind === "folder" && expanded.has(entry.path) && !isRevealing) {
+        toggleFolder(entry, false);
+        return true;
+      }
+      const parent = depth > 0 ? index.folders.get(entry.parentPath) : null;
+      return parent ? { entry: parent, order: null } : true;
+    },
+    renames: true,
+    reveal: (entry) => {
+      focusRow(entry.path);
+    },
+    rows: rowEntries,
+  });
   // The rows' single tab stop: the selected row when it is drawn, else the
   // first drawn one.
   const tabStopPath =
@@ -5146,7 +5148,7 @@ function FileSystemListView({
           >
             <div
               className="absolute inset-x-0 flex flex-col"
-              onKeyDown={handleKeyDown}
+              data-file-system-listing=""
               style={{ top: start * LIST_ROW_HEIGHT }}
             >
               {rows.slice(start, end).map((row) => {
@@ -5183,35 +5185,20 @@ function FileSystemListView({
                     draggable={draggable && !isRenaming}
                     key={entry.path}
                     onClick={(event) => {
-                      pressSelection.click(entry, event, () => rowEntries);
-                      slowRename.release(entry);
+                      rowGestures.click(entry, event, () => rowEntries);
                     }}
                     onContextMenu={(event) => {
                       onItemContextMenu?.(entry, event);
                     }}
                     onDoubleClick={() => {
-                      slowRename.cancel();
+                      rowGestures.doubleClick();
                       onOpen(entry);
                     }}
                     onPointerEnter={() => {
                       if (entry.kind === "folder") onFolderHover?.(entry.path);
                     }}
-                    onKeyDown={(event) => {
-                      handleEntryReturn({
-                        entry,
-                        event,
-                        isOneOfSeveral: selection.size > 1,
-                        onOpen,
-                        ...(onRenameStart ? { onRenameStart } : {}),
-                      });
-                    }}
                     onPointerDown={(event) => {
-                      slowRename.press(
-                        entry,
-                        isSelected && selection.size === 1,
-                        event,
-                      );
-                      pressSelection.press(entry, event, () => rowEntries);
+                      rowGestures.press(entry, event, () => rowEntries);
                     }}
                     ref={(element) => {
                       if (element) {
@@ -5264,12 +5251,7 @@ function FileSystemListView({
                         <FileSystemRowGlyph entry={entry} />
                       </span>
                       {isRenaming ? (
-                        <FileSystemNameField
-                          className="-mr-0.5 ml-1 h-5"
-                          name={entry.name}
-                          onCancel={() => onRenameCancel?.()}
-                          onCommit={(name) => onRenameCommit?.(entry, name)}
-                        />
+                        renderNameField(entry, "-mr-0.5 ml-1 h-5")
                       ) : (
                         <span
                           className="ml-1.5 min-w-0 flex-1 truncate"
@@ -5367,40 +5349,21 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     onColumnWidthChange,
     onFolderHover,
     onItemContextMenu,
+    listingNavRef,
     onOpen,
-    onRenameCancel,
-    onRenameCommit,
-    onRenameStart,
-    onSelect: selectAnywhere,
-    onSelectEntries,
+    onSelect,
     pageUrlCache,
     renamingPath,
     renderFileActions,
     renderFilePreview,
     renderFileStage,
+    renderNameField,
     renderTrailing,
+    rowGestures,
     selectedEntry,
     selectedPath,
     selection,
   } = props;
-  // Several are picked in one column, as the Finder's columns pick them: ⌘ or
-  // Shift in another column starts the selection over there. Read through a
-  // ref so the columns, memoized, are not drawn again for every selection.
-  const selectedEntryRef = React.useRef(selectedEntry);
-  React.useEffect(() => {
-    selectedEntryRef.current = selectedEntry;
-  });
-  const onSelect = React.useCallback(
-    (entry: FileSystemEntry | null, gesture?: SelectionGesture) => {
-      const lead = selectedEntryRef.current;
-      if (gesture && entry && lead?.parentPath !== entry.parentPath) {
-        selectAnywhere(entry);
-        return;
-      }
-      selectAnywhere(entry, gesture);
-    },
-    [selectAnywhere],
-  );
   const isSeveral = selection.size > 1;
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
   const rowRefs = React.useRef(new Map<string, HTMLButtonElement>());
@@ -5409,84 +5372,50 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   // doesn't pay that DOM churn per step.
   const deferredSelectedEntry = React.useDeferredValue(selectedEntry);
   const deferredSelectedPath = React.useDeferredValue(selectedPath);
-  const pendingFocusPathRef = React.useRef<null | string>(null);
-  const typeAhead = useEntryTypeAhead();
   // The keyboard follows the selection, except while something outside holds
-  // it and walks the folder from there: taking it back into a row would take
-  // it away from whatever has it. A row in a column that has not mounted yet
-  // is focused by the effect below, once it exists.
-  const focusRow = (path: string) => {
-    if (!moveFocusWithSelection) {
-      pendingFocusPathRef.current = null;
-      return;
-    }
-    const row = rowRefs.current.get(path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus();
-    } else {
-      pendingFocusPathRef.current = path;
-    }
-  };
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    // Type-ahead and ⌘A stay within the active column's rows, like Finder.
-    const siblings =
-      selectedEntry && selectedPath?.startsWith(currentPath)
-        ? (index.children.get(selectedEntry.parentPath) ?? [])
-        : (index.children.get(currentPath) ?? []);
-    if (isSelectAllKey(event)) {
-      event.preventDefault();
-      onSelectEntries(siblings);
-      return;
-    }
-    if (!ARROW_KEYS.has(event.key)) {
-      const match = typeAhead(
-        event,
-        siblings,
-        siblings.findIndex((sibling) => sibling.path === selectedPath),
-      );
-      if (match) {
-        onSelect(match);
-        focusRow(match.path);
+  // it and walks the folder from there. A row in a column that has not
+  // mounted yet takes it once it exists.
+  const focusRow = useFocusWhenDrawn(rowRefs, {
+    enabled: moveFocusWithSelection,
+    preventScroll: false,
+  });
+  // Up and down walk the column the selection is in; left goes back to the
+  // folder that column lists, right into the first of a selected folder.
+  // Letters and ⌘A stay within that column, like the Finder's.
+  const isInColumns =
+    selectedEntry !== null && selectedPath?.startsWith(currentPath) === true;
+  const activeColumn = isInColumns
+    ? (index.children.get(selectedEntry.parentPath) ?? [])
+    : (index.children.get(currentPath) ?? []);
+  useListingNav(listingNavRef, {
+    current: isInColumns ? selectedEntry : null,
+    move: (direction) => {
+      if (!isInColumns) {
+        const first = index.children.get(currentPath)?.[0];
+        return first ? { entry: first, order: null } : false;
       }
-      return;
-    }
-    let nextEntry: FileSystemEntry | null | undefined;
-    if (!selectedEntry || !selectedPath?.startsWith(currentPath)) {
-      nextEntry = index.children.get(currentPath)?.[0];
-    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      const siblings = index.children.get(selectedEntry.parentPath) ?? [];
-      const currentIndex = siblings.findIndex(
-        (sibling) => sibling.path === selectedEntry.path,
-      );
-      nextEntry = siblings[currentIndex + (event.key === "ArrowUp" ? -1 : 1)];
-      // Shift and an arrow reach from where the selection began.
-      if (nextEntry && event.shiftKey) {
-        onSelect(nextEntry, { mode: "extend", order: siblings });
-        focusRow(nextEntry.path);
-        event.preventDefault();
-        return;
+      if (direction === "up" || direction === "down") {
+        const at = activeColumn.findIndex(
+          (sibling) => sibling.path === selectedEntry.path,
+        );
+        const next = activeColumn[at + (direction === "up" ? -1 : 1)];
+        return next ? { entry: next, order: activeColumn } : false;
       }
-    } else if (event.key === "ArrowLeft") {
-      if (selectedEntry.parentPath !== currentPath) {
-        nextEntry = index.folders.get(selectedEntry.parentPath);
-      }
-    } else if (selectedEntry.kind === "folder") {
-      nextEntry = index.children.get(selectedEntry.path)?.[0];
-    }
-    if (!nextEntry) return;
-    onSelect(nextEntry);
-    focusRow(nextEntry.path);
-    event.preventDefault();
-  };
-  React.useEffect(() => {
-    const path = pendingFocusPathRef.current;
-    if (!path) return;
-    const row = rowRefs.current.get(path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus();
-    }
+      const next =
+        direction === "left"
+          ? selectedEntry.parentPath === currentPath
+            ? undefined
+            : index.folders.get(selectedEntry.parentPath)
+          : selectedEntry.kind === "folder"
+            ? index.children.get(selectedEntry.path)?.[0]
+            : undefined;
+      return next ? { entry: next, order: null } : false;
+    },
+    renames: true,
+    reveal: (entry) => {
+      focusRow(entry.path);
+    },
+    rows: activeColumn,
   });
   // Several selected open nothing past the column they are in.
   const deferredIsSeveral = React.useDeferredValue(isSeveral);
@@ -5575,7 +5504,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             class, so the full-width floor is inline too. */}
       <InlineScrollAreaContent
         className="flex h-full w-max"
-        onKeyDown={handleKeyDown}
+        data-file-system-listing=""
         style={{ minWidth: "100%" }}
       >
         {columnPaths.map((columnPath, columnIndex) => (
@@ -5593,9 +5522,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             onFolderHover={onFolderHover}
             onItemContextMenu={onItemContextMenu}
             onOpen={onOpen}
-            onRenameCancel={onRenameCancel}
-            onRenameCommit={onRenameCommit}
-            onRenameStart={onRenameStart}
             onResize={setColumnWidth}
             onSelect={onSelect}
             ownFolder={
@@ -5609,6 +5535,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                 ? renamingPath
                 : null
             }
+            renderNameField={renderNameField}
+            rowGestures={rowGestures}
             rowRefs={rowRefs}
             selectedChildPath={
               selectedPath && pathParent(selectedPath) === columnPath
@@ -5703,7 +5631,6 @@ const COLUMN_ROW_STRIDE = COLUMN_ROW_HEIGHT + COLUMN_ROW_GAP;
 // Memoized with scalar selection props: pressing into a deep trail only
 // re-renders the columns whose rows actually change.
 const COLUMN_WIDTH_DEFAULT = 240;
-const NO_PATHS: ReadonlySet<string> = new Set();
 const COLUMN_WIDTH_MIN = 160;
 const COLUMN_WIDTH_MAX = 640;
 const FileSystemColumn = React.memo(function FileSystemColumn({
@@ -5715,13 +5642,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onFolderHover,
   onItemContextMenu,
   onOpen,
-  onRenameCancel,
-  onRenameCommit,
-  onRenameStart,
   onResize,
   onSelect,
   ownFolder,
   renamingChildPath,
+  renderNameField,
+  rowGestures,
   rowRefs,
   selectedChildPath,
   selection,
@@ -5737,14 +5663,13 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onFolderHover?: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
-  onRenameCancel?: () => void;
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  onRenameStart?: (item: FileSystemItem) => void;
   onResize: (width: number) => void;
   onSelect: FileSystemViewProps["onSelect"];
   /** The folder this column lists, selected by a press past its rows; null for the first column. */
   ownFolder: FolderEntry | null;
   renamingChildPath: null | string;
+  renderNameField: RenderNameField;
+  rowGestures: RowGestures;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
   /** The row the keyboard is on, when it is in this column. */
   selectedChildPath: null | string;
@@ -5754,8 +5679,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   trailChildPath: null | string;
   width: number;
 }) {
-  const slowRename = useSlowClickRename(onRenameStart, selectedChildPath);
-  const pressSelection = usePressSelection(onSelect, selection ?? NO_PATHS);
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const { end, start } = useVirtualWindow({
     count: entries.length,
@@ -5841,12 +5764,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       key={entry.path}
                     >
                       {glyph}
-                      <FileSystemNameField
-                        className="-mx-0.5"
-                        name={entry.name}
-                        onCancel={() => onRenameCancel?.()}
-                        onCommit={(name) => onRenameCommit?.(entry, name)}
-                      />
+                      {renderNameField(entry, "-mx-0.5")}
                     </div>
                   );
                 }
@@ -5868,8 +5786,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     draggable={draggable}
                     key={entry.path}
                     onClick={(event) => {
-                      pressSelection.click(entry, event, () => entries);
-                      slowRename.release(entry);
+                      rowGestures.click(entry, event, () => entries);
                     }}
                     // Right-clicking marks what the menu acts on without
                     // moving the selection, the way the Finder does.
@@ -5877,31 +5794,17 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       onItemContextMenu?.(entry, event);
                     }}
                     onDoubleClick={() => {
-                      slowRename.cancel();
+                      rowGestures.doubleClick();
                       onOpen(entry);
                     }}
                     onPointerEnter={() => {
                       if (entry.kind === "folder") onFolderHover?.(entry.path);
                     }}
-                    onKeyDown={(event) => {
-                      handleEntryReturn({
-                        entry,
-                        event,
-                        isOneOfSeveral: (selection?.size ?? 0) > 1,
-                        onOpen,
-                        ...(onRenameStart ? { onRenameStart } : {}),
-                      });
-                    }}
                     // Selecting on press (mouse only) starts mounting the
                     // child column a beat before mouseup. Touch keeps
                     // selection on the click so scroll gestures don't select.
                     onPointerDown={(event) => {
-                      slowRename.press(
-                        entry,
-                        isSelected && selection?.size === 1,
-                        event,
-                      );
-                      pressSelection.press(entry, event, () => entries);
+                      rowGestures.press(entry, event, () => entries);
                     }}
                     ref={(element) => {
                       if (element) {
@@ -6221,26 +6124,52 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     draggable,
     entries,
     index,
+    listingNavRef,
+    moveFocusWithSelection,
     onItemContextMenu,
     onOpen,
     onSelect,
-    onSelectEntries,
     poolStagePath,
     registerStageHost,
     renderFilePreview,
     renderFileStage,
+    rowGestures,
     selectedEntry,
     selectedPath,
     selection,
   } = props;
-  const pressSelection = usePressSelection(onSelect, selection);
   const stripRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const stripViewportRef = React.useRef<HTMLDivElement | null>(null);
-  const typeAhead = useEntryTypeAhead();
   const activeEntry =
     selectedEntry && entries.some((entry) => entry.path === selectedEntry.path)
       ? selectedEntry
       : (entries[0] ?? null);
+  // A tile the keyboard lands on may be outside the strip's virtual window;
+  // the active-tile effect scrolls it in, and the keyboard follows once it
+  // has mounted.
+  const focusTile = useFocusWhenDrawn(stripRefs, {
+    enabled: moveFocusWithSelection,
+    preventScroll: false,
+  });
+  // The strip runs one way: left and right walk it, from the tile on show.
+  // Return opens, since the strip has no name to type over.
+  useListingNav(listingNavRef, {
+    current: activeEntry,
+    move: (direction) => {
+      if (direction === "up" || direction === "down") return false;
+      const at = activeEntry
+        ? entries.findIndex((entry) => entry.path === activeEntry.path)
+        : -1;
+      const next =
+        entries[at === -1 ? 0 : at + (direction === "left" ? -1 : 1)];
+      return next ? { entry: next, order: at === -1 ? null : entries } : false;
+    },
+    renames: false,
+    reveal: (entry) => {
+      focusTile(entry.path);
+    },
+    rows: entries,
+  });
   const activeFile = activeEntry?.kind === "file" ? activeEntry : null;
   // While arrow keys are scrubbing the strip, the center pane shows a
   // spinner; a file is only admitted to the preview pool (mounting its
@@ -6270,42 +6199,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
   const activeFileSize = activeFile ? formatByteSize(activeFile.size) : null;
   const fileStage =
     activeFile && renderFileStage ? renderFileStage(activeFile) : null;
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (entries.length === 0) return;
-    if (isSelectAllKey(event)) {
-      event.preventDefault();
-      onSelectEntries(entries);
-      return;
-    }
-    const currentIndex = activeEntry
-      ? entries.findIndex((entry) => entry.path === activeEntry.path)
-      : -1;
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-      const match = typeAhead(event, entries, currentIndex);
-      if (match) {
-        onSelect(match);
-        // The matched tile may be outside the strip's virtual window; the
-        // active-tile effect scrolls it in, and focus follows once mounted.
-        requestAnimationFrame(() => stripRefs.current.get(match.path)?.focus());
-      }
-      return;
-    }
-    const nextEntry =
-      entries[
-        currentIndex === -1
-          ? 0
-          : currentIndex + (event.key === "ArrowLeft" ? -1 : 1)
-      ];
-    if (!nextEntry) return;
-    // Shift and an arrow reach from where the selection began.
-    if (event.shiftKey && currentIndex !== -1) {
-      onSelect(nextEntry, { mode: "extend", order: entries });
-    } else {
-      onSelect(nextEntry);
-    }
-    stripRefs.current.get(nextEntry.path)?.focus();
-    event.preventDefault();
-  };
   const { end: stripEnd, start: stripStart } = useVirtualWindow({
     count: entries.length,
     horizontal: true,
@@ -6329,7 +6222,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     });
   }, [activePath, entries]);
   return (
-    <div className="flex size-full flex-col" onKeyDown={handleKeyDown}>
+    <div className="flex size-full flex-col" data-file-system-listing="">
       {/* The strip comes first in DOM order (rendered below via order-last)
             so the filmstrip is the view's single tab stop: Shift+Tab exits to
             the toolbar instead of landing inside the embedded viewers. */}
@@ -6369,15 +6262,18 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   draggable={draggable}
                   key={entry.path}
                   onClick={(event) => {
-                    pressSelection.click(entry, event, () => entries);
+                    rowGestures.click(entry, event, () => entries);
                   }}
                   onContextMenu={(event) => {
                     if (!selection.has(entry.path)) onSelect(entry);
                     onItemContextMenu?.(entry, event);
                   }}
-                  onDoubleClick={() => onOpen(entry)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onOpen(entry);
+                  onDoubleClick={() => {
+                    rowGestures.doubleClick();
+                    onOpen(entry);
+                  }}
+                  onPointerDown={(event) => {
+                    rowGestures.press(entry, event, () => entries);
                   }}
                   ref={(element) => {
                     if (element) {

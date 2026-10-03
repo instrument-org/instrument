@@ -1,11 +1,14 @@
 import { renderWithProviders } from "@/tests/render";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   FileSystem,
+  type FileSystemHandle,
   type FileSystemItem,
   FileSystemRowGlyph,
+  type FileSystemView,
 } from "./file-system";
 
 const FILES = ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"].map(
@@ -278,6 +281,226 @@ describe("FileSystem", () => {
       expect(screen.getByText("3 items")).toBeTruthy();
       expect(screen.getByText(/^1 folder, 2 documents/)).toBeTruthy();
     });
+  });
+});
+
+describe("renaming in place", () => {
+  /** A list of five files that can be renamed, with the saves it was asked for. */
+  function renderRenamable({
+    save = () => Promise.resolve(),
+    view = "list",
+  }: {
+    save?: (item: FileSystemItem, name: string) => Promise<void>;
+    view?: FileSystemView;
+  } = {}) {
+    const onRenameCommit = vi.fn(save);
+    const onFileOpen = vi.fn();
+    const handle = React.createRef<FileSystemHandle>();
+    const props = {
+      defaultView: view,
+      onFileOpen,
+      onRenameCommit,
+      ref: handle,
+    };
+    const { rerender } = renderWithProviders(
+      <FileSystem {...props} items={FILES} />,
+    );
+    const field = () =>
+      screen.queryByRole<HTMLInputElement>("textbox", {
+        name: "Name",
+      });
+    const row = (name: string) => screen.getByRole("option", { name });
+    return {
+      field,
+      handle,
+      onFileOpen,
+      onRenameCommit,
+      rerenderWith: (items: FileSystemItem[]) => {
+        rerender(<FileSystem {...props} items={items} />);
+      },
+      row,
+    };
+  }
+
+  it("renames on Return and saves the new name once", async () => {
+    const { field, onRenameCommit, row } = renderRenamable();
+
+    fireEvent.click(row("b.txt"));
+    fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+    const input = field();
+    expect(input?.value).toBe("b.txt");
+    // The base name is selected, so typing keeps the extension.
+    expect([input?.selectionStart, input?.selectionEnd]).toEqual([0, 1]);
+
+    fireEvent.change(input!, { target: { value: "plans.txt" } });
+    fireEvent.keyDown(input!, { key: "Enter" });
+    fireEvent.blur(input!);
+    fireEvent.pointerDown(row("a.txt"));
+
+    expect(onRenameCommit).toHaveBeenCalledTimes(1);
+    expect(onRenameCommit.mock.lastCall?.[1]).toBe("plans.txt");
+    await waitFor(() => expect(field()).toBeNull());
+  });
+
+  it("saves nothing on Escape", () => {
+    const { field, onRenameCommit, row } = renderRenamable();
+
+    fireEvent.click(row("b.txt"));
+    fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+    fireEvent.change(field()!, { target: { value: "plans.txt" } });
+    fireEvent.keyDown(field()!, { key: "Escape" });
+
+    expect(field()).toBeNull();
+    expect(onRenameCommit).not.toHaveBeenCalled();
+  });
+
+  it("accepts what was typed when something else is pressed", () => {
+    const { field, onRenameCommit, row } = renderRenamable();
+
+    fireEvent.click(row("b.txt"));
+    fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+    fireEvent.change(field()!, { target: { value: "plans.txt" } });
+    fireEvent.pointerDown(row("d.txt"));
+
+    expect(onRenameCommit.mock.lastCall?.[1]).toBe("plans.txt");
+  });
+
+  it("opens the field again with what was typed when the save fails", async () => {
+    const { field, onRenameCommit, row } = renderRenamable({
+      save: () =>
+        Promise.reject(new Error("Something with that name is already there")),
+    });
+
+    fireEvent.click(row("b.txt"));
+    fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+    fireEvent.change(field()!, { target: { value: "c.txt" } });
+    fireEvent.keyDown(field()!, { key: "Enter" });
+
+    await waitFor(() => expect(field()?.readOnly).toBe(false));
+    expect(field()?.value).toBe("c.txt");
+    expect(onRenameCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("renames none of several on Return", () => {
+    const { field, row } = renderRenamable();
+
+    fireEvent.click(row("a.txt"));
+    fireEvent.click(row("c.txt"), { metaKey: true });
+    fireEvent.keyDown(row("c.txt"), { key: "Enter" });
+
+    expect(field()).toBeNull();
+  });
+
+  it("opens rather than renames on Return in the gallery, which has no name to type over", async () => {
+    const { field, onFileOpen } = renderRenamable({ view: "gallery" });
+    const tile = screen.getByTitle("b.txt");
+
+    fireEvent.click(tile);
+    fireEvent.keyDown(tile, { key: "Enter" });
+
+    expect(field()).toBeNull();
+    await waitFor(() => expect(onFileOpen).toHaveBeenCalledTimes(1));
+    expect(onFileOpen.mock.lastCall?.[0]).toMatchObject({ path: "b.txt" });
+  });
+
+  // Named to sort first: jsdom has no layout, so the list's virtual window
+  // never grows past the rows it first drew.
+  const MADE: FileSystemItem = { kind: "folder", path: "a folder/" };
+
+  it("names a thing asked for before its row is listed, once it is", () => {
+    const { field, handle, rerenderWith } = renderRenamable();
+
+    act(() => {
+      handle.current?.startRename(MADE.path);
+    });
+    expect(field()).toBeNull();
+
+    rerenderWith([...FILES, MADE]);
+    expect(field()?.value).toBe("a folder");
+  });
+
+  it("calls off a rename still waiting for its row when a key is pressed first", () => {
+    const { field, handle, rerenderWith } = renderRenamable();
+
+    act(() => {
+      handle.current?.startRename(MADE.path);
+    });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    rerenderWith([...FILES, MADE]);
+
+    expect(field()).toBeNull();
+  });
+
+  it("renames on a second, slow click on the name, and not on a double-click", () => {
+    vi.useFakeTimers();
+    try {
+      const { field, row } = renderRenamable();
+      const name = (file: string) =>
+        row(file).querySelector("[data-file-system-name]")!;
+      const clickName = (file: string, detail = 1) => {
+        fireEvent.pointerDown(name(file), { button: 0, pointerType: "mouse" });
+        fireEvent.click(name(file), { detail });
+      };
+
+      clickName("b.txt");
+      clickName("b.txt");
+      clickName("b.txt", 2);
+      fireEvent.doubleClick(name("b.txt"));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(field()).toBeNull();
+
+      clickName("b.txt");
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(field()?.value).toBe("b.txt");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the keyboard", () => {
+  it("walks the rows from the browser itself when no row has it", () => {
+    const { reported } = renderList();
+    const browser = document.querySelector<HTMLElement>(
+      '[data-slot="file-system"]',
+    )!;
+
+    fireEvent.keyDown(browser, { key: "ArrowDown" });
+    expect(reported()).toEqual(["a.txt"]);
+    fireEvent.keyDown(browser, { key: "ArrowDown" });
+    expect(reported()).toEqual(["b.txt"]);
+  });
+
+  it("jumps to a name by its first letters", () => {
+    const { reported, row } = renderList();
+
+    fireEvent.click(row("a.txt"));
+    fireEvent.keyDown(row("a.txt"), { key: "d" });
+    expect(reported()).toEqual(["d.txt"]);
+  });
+
+  it("does not narrow several to one after an arrow has moved the selection", () => {
+    vi.useFakeTimers();
+    try {
+      const { mouseClick, reported, row } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.click(row("c.txt"), { shiftKey: true });
+      mouseClick("b.txt");
+      fireEvent.keyDown(row("b.txt"), { key: "ArrowDown" });
+      expect(reported()).toEqual(["d.txt"]);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(reported()).toEqual(["d.txt"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

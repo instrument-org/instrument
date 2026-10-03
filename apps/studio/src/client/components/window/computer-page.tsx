@@ -16,6 +16,7 @@ import {
   FileSystem,
   type FileSystemFileItem,
   FileSystemFolderGlyph,
+  type FileSystemHandle,
   type FileSystemItem,
   type FileSystemSortKey,
   type FileSystemSortState,
@@ -364,9 +365,8 @@ export function ComputerPage({
   // out, so a name field opened any sooner lost it at once, and a field that
   // loses the keyboard with its name unchanged closes.
   const afterMenu = useRef<(() => void) | null>(null);
-  // The item whose name is being typed over, by the path the browser knows it
-  // by; the row itself holds the field.
-  const [renamingPath, setRenamingPath] = useState<null | string>(null);
+  // The browser itself, asked to type over a name where it sits.
+  const fileSystemRef = useRef<FileSystemHandle>(null);
 
   const listings = useQueries({
     combine: combineListings,
@@ -553,25 +553,30 @@ export function ComputerPage({
       reread();
       // Made and named in one move, the way the Finder does it: the field
       // opens on the row as soon as the re-read puts the folder there.
-      setRenamingPath(`${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`);
+      fileSystemRef.current?.startRename(
+        `${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`,
+      );
     } catch (error) {
       failed(error);
     }
   };
+  // A failure is said and thrown on, so the browser opens the name field
+  // again with what was typed.
   const rename = async (item: FileSystemItem, name: string) => {
     const hostPath = hostPathOfItem(item);
     if (!hostPath) {
-      return;
+      throw new Error("Nothing on this computer to rename");
     }
     try {
       await rpcClient.files.rename.call({ name, path: hostPath });
-      // The thing renamed is the thing still selected, so the column it sits
-      // in stays open rather than closing under a selection that has gone.
-      setSelectedPath(siblingPath(item.path, name));
-      reread();
     } catch (error) {
       failed(error);
+      throw error;
     }
+    // The thing renamed is the thing still selected, so the column it sits
+    // in stays open rather than closing under a selection that has gone.
+    setSelectedPath(siblingPath(item.path, name));
+    reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {
     try {
@@ -820,45 +825,6 @@ export function ComputerPage({
     // Once per opening, when its rows are first there, or when its tab comes
     // up.
   }, [openings, hasRows, isActiveTab]);
-
-  // A name field closing leaves the keyboard on nothing, since the row it was
-  // in is being rebuilt under a new name. The browser itself takes it instead,
-  // which is where an arrow goes on to find the folder again.
-  const wasRenaming = useRef(false);
-  useEffect(() => {
-    if (renamingPath !== null) {
-      wasRenaming.current = true;
-      return;
-    }
-    if (!wasRenaming.current) {
-      return;
-    }
-    wasRenaming.current = false;
-    focusBrowser();
-  }, [renamingPath]);
-
-  // Anywhere else pressed is the end of the naming, the way it is in the
-  // Finder: the field is unmounted, which blurs it, and a blurred field keeps
-  // whatever was typed in it.
-  useEffect(() => {
-    if (renamingPath === null) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        target.closest('input[aria-label="Name"]')
-      ) {
-        return;
-      }
-      setRenamingPath(null);
-    };
-    window.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [renamingPath]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
@@ -1165,9 +1131,12 @@ export function ComputerPage({
         }
       }),
     onRename: () => {
-      const renaming = item?.path ?? null;
+      const renaming = item?.path;
+      if (renaming === undefined) {
+        return;
+      }
       afterMenu.current = () => {
-        setRenamingPath(renaming);
+        fileSystemRef.current?.startRename(renaming);
       };
     },
     onReveal: () =>
@@ -1396,16 +1365,7 @@ export function ComputerPage({
                 onListColumnsChange={setListColumns}
                 onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
-                onRenameCancel={() => {
-                  setRenamingPath(null);
-                }}
-                onRenameCommit={(item, name) => {
-                  setRenamingPath(null);
-                  void rename(item, name);
-                }}
-                onRenameStart={(item) => {
-                  setRenamingPath(item.path);
-                }}
+                onRenameCommit={rename}
                 onSelectionChange={(item, all) => {
                   setSelectedPath(item?.path ?? null);
                   setSelectedPaths(all.map((each) => each.path));
@@ -1430,7 +1390,7 @@ export function ComputerPage({
                     staleTime: REFRESH_MS,
                   });
                 }}
-                renamingPath={renamingPath}
+                ref={fileSystemRef}
                 renderFileStage={(file) => {
                   const tab = fileTabOf(file);
                   // A picture at its own size: the thumbnail the rows and

@@ -11,7 +11,6 @@ const ProviderQuirksSchema = z
   .object({
     supportsMultipartToolResults: z.boolean().optional().default(false),
   })
-  .optional()
   .prefault({});
 
 export const ProviderMetadataSchema = z.object({

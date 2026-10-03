@@ -17,6 +17,7 @@ import {
   listBackgroundProcesses,
   listTaskBackgroundProcesses,
   MAX_RUNNING_BACKGROUND_PROCESSES,
+  nextStatus,
   promoteBackgroundProcess,
   readBackgroundProcess,
   startBackgroundRun,
@@ -958,4 +959,39 @@ describe("background processes", () => {
     expect(second.controllable.aborted).toBe(true);
     expect(listBackgroundProcesses(owner.sessionId)).toEqual([]);
   });
+});
+
+describe("nextStatus", () => {
+  const exit = (exitCode: number) => ({ exitCode, output: "" });
+  const stopped = { errorMessage: "", terminationConfirmed: true };
+  const crashed = { errorMessage: "spawn failed", terminationConfirmed: true };
+  const timedOut = { errorMessage: "still up", terminationConfirmed: false };
+
+  it.each([
+    ["running", undefined, exit(0), "exited"],
+    ["running", undefined, exit(1), "failed"],
+    ["running", undefined, stopped, "killed"],
+    ["running", undefined, crashed, "failed"],
+    ["running", undefined, timedOut, "termination-uncertain"],
+    // A stop that was asked for reads as one however the run ended.
+    ["running", "requested", exit(0), "killed"],
+    ["running", "expired", exit(1), "expired"],
+    ["running", "requested", crashed, "killed"],
+    ["running", "requested", timedOut, "termination-uncertain"],
+    // The late answer to a stop that timed out.
+    ["termination-uncertain", "requested", exit(143), "killed"],
+    ["termination-uncertain", "expired", stopped, "expired"],
+    ["termination-uncertain", undefined, exit(0), "failed"],
+    ["termination-uncertain", "requested", timedOut, undefined],
+    // Settled records take nothing further.
+    ["exited", undefined, exit(1), undefined],
+    ["killed", "requested", exit(0), undefined],
+  ] as const)(
+    "%s (stop: %s) on %j -> %s",
+    (status, stopReason, outcome, expected) => {
+      expect(
+        nextStatus({ status, ...(stopReason ? { stopReason } : {}) }, outcome),
+      ).toBe(expected);
+    },
+  );
 });

@@ -764,6 +764,38 @@ function comparableOutput(text: string): string {
   return text.replaceAll("\\", "/");
 }
 
+/**
+ * The status a run's outcome moves its record to, or undefined when the record
+ * is already settled and the outcome changes nothing.
+ *
+ * A stop that was asked for reads as a stop however the run happened to end,
+ * so that a race between the kill and the process exiting on its own does not
+ * change what the agent is told it did. A stop that timed out settles the
+ * record as `termination-uncertain`; the process then exiting after all is the
+ * answer the agent was owed, so that one late outcome is taken too.
+ */
+export function nextStatus(
+  record: Pick<BackgroundProcessRecord, "status" | "stopReason">,
+  outcome: BackgroundRunOutcome,
+): BackgroundProcessStatus | undefined {
+  const requested = stoppedStatus(record);
+  const exited = !("errorMessage" in outcome);
+  if (record.status === "termination-uncertain") {
+    return exited || outcome.terminationConfirmed
+      ? (requested ?? "failed")
+      : undefined;
+  }
+  if (record.status !== "running") {
+    return undefined;
+  }
+  if (exited) {
+    return requested ?? (outcome.exitCode === 0 ? "exited" : "failed");
+  }
+  return outcome.terminationConfirmed
+    ? (requested ?? (outcome.errorMessage ? "failed" : "killed"))
+    : "termination-uncertain";
+}
+
 function finish({
   outcome,
   record,
@@ -771,43 +803,33 @@ function finish({
   outcome: BackgroundRunOutcome;
   record: BackgroundProcessRecord;
 }) {
+  const status = nextStatus(record, outcome);
+  if (status === undefined) {
+    return;
+  }
   if (record.status !== "running") {
-    if (
-      record.status === "termination-uncertain" &&
-      (!("errorMessage" in outcome) || outcome.terminationConfirmed)
-    ) {
-      // A stop that timed out settled the record already; the process running
-      // on and then exiting is the answer the agent was actually owed, so take
-      // its code and its last output now. The log closed with the first pass,
-      // so that output reaches the buffer alone.
-      if (!("errorMessage" in outcome)) {
-        record.exitCode = outcome.exitCode;
-        appendFinalOutput({ output: outcome.output, record });
-      }
-      record.status = stoppedStatus(record) ?? "failed";
-      notify(record);
-      publishChanged(record.taskId);
+    // The late exit of a stop that timed out. The log closed with the first
+    // pass, so its last output reaches the buffer alone.
+    if (!("errorMessage" in outcome)) {
+      record.exitCode = outcome.exitCode;
+      appendFinalOutput({ output: outcome.output, record });
     }
+    record.status = status;
+    notify(record);
+    publishChanged(record.taskId);
     return;
   }
   record.endedAt = getCurrentDate();
   clearTimeout(record.ageTimer);
 
-  // A stop that was asked for reads as a stop however the run happened to end,
-  // so that a race between the kill and the process exiting on its own does not
-  // change what the agent is told it did.
-  const requested = stoppedStatus(record);
+  record.status = status;
   if ("errorMessage" in outcome) {
-    record.status = outcome.terminationConfirmed
-      ? (requested ?? (outcome.errorMessage ? "failed" : "killed"))
-      : "termination-uncertain";
     if (outcome.errorMessage) {
       record.buffer.write(`${outcome.errorMessage}\n`);
       void record.logWriter.write(`${outcome.errorMessage}\n`);
     }
   } else {
     record.exitCode = outcome.exitCode;
-    record.status = requested ?? (outcome.exitCode === 0 ? "exited" : "failed");
     appendFinalOutput({ output: outcome.output, record });
   }
 
@@ -880,7 +902,7 @@ function reapFinished(records: Map<string, BackgroundProcessRecord>) {
 
 /** The terminal status a stop produces, or nothing if none was asked for. */
 function stoppedStatus(
-  record: BackgroundProcessRecord,
+  record: Pick<BackgroundProcessRecord, "stopReason">,
 ): BackgroundProcessStatus | undefined {
   switch (record.stopReason) {
     case "expired": {

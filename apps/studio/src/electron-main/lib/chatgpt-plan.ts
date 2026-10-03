@@ -60,6 +60,7 @@ const AccountSchema = z.object({
   earliestRefreshAt: z.number().optional(),
   email: z.string().optional(),
   expiresAt: z.number().optional(),
+  name: z.string().optional(),
   refreshToken: z.string().optional(),
   scopes: z.array(z.string()).default([]),
   subject: z.string(),
@@ -112,6 +113,18 @@ export function chatGPTPlanProviderConfig():
     void refreshActiveAccount();
   }
   return { ...CHATGPT_PLAN_PROVIDER_CONFIG, apiKey: account.accessToken };
+}
+
+/**
+ * Who the signed-in ChatGPT account belongs to, as its ID token named them:
+ * the email, and the name when the token carried one. Undefined while signed
+ * out.
+ */
+export function chatGPTPlanUser(): undefined | { email: string; name?: string } {
+  const account = activeAccount();
+  return account?.refreshToken && account.email
+    ? { email: account.email, name: account.name }
+    : undefined;
 }
 
 export function chatGPTPlanStatus(): ChatGPTPlanStatus {
@@ -330,7 +343,12 @@ export function signInWithChatGPT({
 
 function accountFromTokens(
   tokens: z.output<typeof TokenResponseSchema>,
-  identity: { clientId: string; email?: string; subject: string },
+  identity: {
+    clientId: string;
+    email?: string;
+    name?: string;
+    subject: string;
+  },
   previous?: Account,
 ): Account {
   const now = Date.now();
@@ -343,6 +361,7 @@ function accountFromTokens(
         : tokens.earliest_refresh_at * 1000,
     email: identity.email ?? previous?.email,
     expiresAt: now + tokens.expires_in * 1000,
+    name: identity.name ?? previous?.name,
     refreshToken: tokens.refresh_token ?? previous?.refreshToken,
     scopes: tokens.scope ? tokens.scope.split(" ") : (previous?.scopes ?? []),
     subject: identity.subject,
@@ -468,6 +487,7 @@ async function runSignIn({
     accountFromTokens(tokens, {
       clientId: issuedClientId,
       email: claims.email,
+      name: claims.name,
       subject: claims.sub,
     }),
     { activate: true },
@@ -643,6 +663,7 @@ const IdTokenClaimsSchema = z.object({
   email: z.string().optional(),
   exp: z.number(),
   iss: z.string(),
+  name: z.string().optional(),
   nonce: z.string().optional(),
   sub: z.string(),
 });

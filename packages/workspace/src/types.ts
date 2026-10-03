@@ -174,11 +174,11 @@ export interface WorkspaceConfig {
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
-   * name and email, or undefined while nobody is. Read when a session's
+   * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;
    * absent altogether where there is no account to read (scripts, evals).
    */
-  getUser?: () => Promise<undefined | { email: string; name: string }>;
+  getUser?: () => Promise<undefined | { email: string; name?: string }>;
   /**
    * Where each workspace's index of its chats and tasks is kept: derived,
    * rebuilt from the workspace whenever it is missing or out of date, and

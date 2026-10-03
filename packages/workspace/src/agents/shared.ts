@@ -135,18 +135,21 @@ export async function getTaskLayoutContext(dir: AbsolutePath) {
 }
 
 /**
- * Who the agent is working for, when someone is signed in: their name, so a
- * reply can address them and a service reached under their account is read
- * as theirs, and the email that account goes by. Nothing while signed out,
+ * Who the agent is working for, when someone is signed in: their name when
+ * the account gives one, so a reply can address them and a service reached
+ * under their account is read as theirs, and the email that account goes by. Nothing while signed out,
  * and nothing when the account cannot be read, since a guessed name is worse
  * than none. A startup snapshot like the rest of the context, so a session
  * opened before a sign-in never learns the name.
  */
 export async function getUserText(): Promise<string | undefined> {
   const user = await getWorkspaceConfig().getUser?.();
-  return user
+  if (!user) {
+    return undefined;
+  }
+  return user.name
     ? `The user's name is ${user.name}, signed in as ${user.email}.`
-    : undefined;
+    : `The user is signed in as ${user.email}.`;
 }
 
 export function shouldContinueWithToolCalls({

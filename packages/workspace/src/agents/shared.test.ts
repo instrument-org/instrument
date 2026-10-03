@@ -16,7 +16,7 @@ import { getTaskLayoutContext, getUserText } from "./shared";
 const root = withTempDir("task-layout");
 
 describe("getUserText", () => {
-  it("names the signed-in user, and nobody while signed out or where there is no account to read", async () => {
+  it("names the signed-in user, by email alone when the account has no name, and nobody while signed out or where there is no account to read", async () => {
     const config = getWorkspaceConfig();
     setWorkspaceConfig({
       ...config,
@@ -25,6 +25,13 @@ describe("getUserText", () => {
     });
     await expect(getUserText()).resolves.toBe(
       "The user's name is Ada Lovelace, signed in as ada@example.com.",
+    );
+    setWorkspaceConfig({
+      ...config,
+      getUser: () => Promise.resolve({ email: "ada@example.com" }),
+    });
+    await expect(getUserText()).resolves.toBe(
+      "The user is signed in as ada@example.com.",
     );
     setWorkspaceConfig({
       ...config,

@@ -577,7 +577,7 @@ describe("ChatRow", () => {
     },
   );
 
-  it("wears the hover tint across the list's full width, and brings the corner's controls up in place of the pills then", async () => {
+  it("tints the full width on hover and swaps the pills for the corner's controls", async () => {
     const { row } = await renderRow(
       chat({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -589,6 +589,9 @@ describe("ChatRow", () => {
     if (!control || !pill) {
       throw new Error("no tag control or pill");
     }
+    // The pointer is shared across test files, so it may sit wherever another
+    // file left it, over the row just drawn. Move it off before reading rest.
+    await userEvent.unhover(row);
     // Out of the flow at rest: it takes no room until the pointer arrives.
     expect(control.getClientRects().length).toBe(0);
     expect(getComputedStyle(pill).visibility).toBe("visible");

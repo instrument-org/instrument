@@ -100,9 +100,11 @@ describe("icon-only buttons", () => {
  * it cannot do is name the control.
  *
  * Both spellings are covered because both are in use -- `SelectTrigger`, which
- * sets the role itself, and a `Button role="combobox"` driving a popover.
+ * sets the role itself, and a `Button role="combobox"` driving a popover. The
+ * attribute must follow whitespace, so a `[role="combobox"]` CSS selector in a
+ * string is not mistaken for a tag.
  */
-const COMBOBOX_MARKER = /<SelectTrigger\b|role="combobox"/g;
+const COMBOBOX_MARKER = /<SelectTrigger\b|\srole="combobox"/g;
 
 /**
  * The opening tag containing `index`.

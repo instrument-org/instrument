@@ -2,7 +2,7 @@
 
 Date: 2026-08-27
 
-Narrowed by [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md), [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md), [2026-09-10-carry-the-cross-mount-copy-patch.md](2026-09-10-carry-the-cross-mount-copy-patch.md), [2026-09-10-carry-the-python-worker-patch.md](2026-09-10-carry-the-python-worker-patch.md), [2026-09-21-carry-the-stdin-connected-patch.md](2026-09-21-carry-the-stdin-connected-patch.md), and [2026-09-22-carry-the-ls-and-awk-output-patch.md](2026-09-22-carry-the-ls-and-awk-output-patch.md): each carries a patch for a gap that turned out to sit on the main path, and [just-bash-upstream.md](../architecture/just-bash-upstream.md) lists the full patch set. #365 is still not patched. The reasoning below still decides everything else.
+Narrowed by [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md), [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md), [2026-09-10-carry-the-cross-mount-copy-patch.md](2026-09-10-carry-the-cross-mount-copy-patch.md), [2026-09-10-carry-the-python-worker-patch.md](2026-09-10-carry-the-python-worker-patch.md), [2026-09-21-carry-the-stdin-connected-patch.md](2026-09-21-carry-the-stdin-connected-patch.md), [2026-09-22-carry-the-ls-and-awk-output-patch.md](2026-09-22-carry-the-ls-and-awk-output-patch.md), and [2026-10-03-carry-the-rmdir-patch.md](2026-10-03-carry-the-rmdir-patch.md): each carries a patch for a gap that turned out to sit on the main path, and [just-bash-upstream.md](../architecture/just-bash-upstream.md) lists the full patch set. #365 is still not patched. The reasoning below still decides everything else.
 
 ## Context
 

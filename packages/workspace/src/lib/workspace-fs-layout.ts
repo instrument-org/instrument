@@ -3,6 +3,7 @@ import {
   InMemoryFs,
   MountableFs,
   OverlayFs,
+  ReadWriteFs,
 } from "just-bash";
 import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -24,7 +25,6 @@ import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { ReadWriteFsWithRmdir } from "./read-write-fs-with-rmdir";
 import { chatsDir } from "./record-folders";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import {
@@ -177,7 +177,7 @@ export async function buildBashFs(
     layout.task.mountPoint,
     masked(
       layout.task,
-      new ReadWriteFsWithRmdir({ maxFileReadSize, root: layout.task.hostRoot }),
+      new ReadWriteFs({ maxFileReadSize, root: layout.task.hostRoot }),
     ),
   );
 
@@ -203,7 +203,7 @@ export async function buildBashFs(
               readOnly: true,
               root: mount.hostRoot,
             })
-          : new ReadWriteFsWithRmdir({ maxFileReadSize, root: mount.hostRoot }),
+          : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
       ),
     );
   }
@@ -233,7 +233,7 @@ export async function buildBashFs(
     fs.mount(
       mount.mountPoint,
       skillWriteTrackingFs(
-        new ReadWriteFsWithRmdir({ maxFileReadSize, root: mount.hostRoot }),
+        new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
       ),
     );
   }
@@ -244,7 +244,7 @@ export async function buildBashFs(
     await mkdir(layout.apps.hostRoot, { recursive: true });
     fs.mount(
       layout.apps.mountPoint,
-      new ReadWriteFsWithRmdir({ maxFileReadSize, root: layout.apps.hostRoot }),
+      new ReadWriteFs({ maxFileReadSize, root: layout.apps.hostRoot }),
     );
   }
 

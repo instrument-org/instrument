@@ -12,9 +12,9 @@ import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
- * Guards `ReadWriteFsWithRmdir`: just-bash's `ReadWriteFs` hands a
- * non-recursive `rm` of a directory to Node's `fs.promises.rm`, which refuses
- * every directory with EISDIR, so `rmdir` and `find -delete` failed on every
+ * Guards the just-bash patch for upstream #527: unpatched, `ReadWriteFs` hands
+ * a non-recursive `rm` of a directory to Node's `fs.promises.rm`, which refuses
+ * every directory with EISDIR, so `rmdir` and `find -delete` fail on every
  * writable mount. Plain `rm` of a directory has to keep failing.
  */
 const model = createMockAIGatewayModel();
@@ -90,6 +90,13 @@ describe("rmdir on a writable mount", () => {
     expect(await fs.readdir(path.join(taskRoot, "work", "full"))).toEqual([
       "a.txt",
     ]);
+  });
+
+  it("leaves an empty attached folder's own directory in place", async () => {
+    await fs.rm(path.join(attachedDir, "empty"), { recursive: true });
+
+    expect((await run("rmdir /mnt/Docs")).exitCode).toBe(1);
+    expect((await fs.stat(attachedDir)).isDirectory()).toBe(true);
   });
 
   it("lets find -delete remove empty directories", async () => {

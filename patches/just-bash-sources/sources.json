@@ -58,6 +58,12 @@
     {
       "name": "worker exit",
       "diff": "worker-exit-3.4.1.diff"
+    },
+    {
+      "name": "rmdir",
+      "pulls": [
+        { "number": 527, "commit": "82cb4a7fecd3a8f8d314f1eae9761b1ee50b3688" }
+      ]
     }
   ]
 }

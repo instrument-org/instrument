@@ -488,8 +488,10 @@ export function createAppUpdater({
 
   const runPoll = async () => {
     // Nothing to learn once the app is on its way out, but keep the timer alive
-    // so a failed install resumes polling.
-    if (!phase.installing) {
+    // so a failed install resumes polling. Nor during the pre-install check,
+    // which is already asking the feed, and on the user's behalf: a background
+    // check would clear the notify the user's click set.
+    if (!phase.installing && !phase.verifying) {
       // A throw here must not skip the reschedule below, or polling stops for
       // the life of the process. Recording the check writes preferences, which
       // fails on a full disk.

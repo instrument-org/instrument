@@ -715,6 +715,26 @@ describe("pollForUpdates", () => {
     expect(h.checks).toHaveBeenCalledTimes(2);
   });
 
+  it("skips a poll that falls during the pre-install check", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(undefined);
+
+    h.updater.pollForUpdates();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(STAGED_POLL_INTERVAL_MS - 1000);
+    const before = h.checks.mock.calls.length;
+
+    h.respondWithStall();
+    void h.updater.quitAndInstall();
+    // The poll comes due a second into the check, which waits out its timeout.
+    await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS);
+
+    // Only the pre-install check, and the user's notify still stands.
+    expect(h.checks).toHaveBeenCalledTimes(before + 1);
+    expect(h.published.every((status) => status.notifyUser)).toBe(true);
+  });
+
   it("stops checking once an install is under way", async () => {
     const h = createHarness();
     h.stage(STAGED);

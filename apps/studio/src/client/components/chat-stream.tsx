@@ -747,7 +747,6 @@ export function ChatStream({
             isLastMessage={isLastMessage}
             key={`error-${message.id}`}
             message={message}
-            onContinue={onContinue}
             onModelChange={onModelChange}
             onRunAgain={onRunAgain}
           />,

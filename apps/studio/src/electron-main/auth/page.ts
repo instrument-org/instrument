@@ -2,31 +2,51 @@ import { APP_NAME, APP_PROTOCOL, SUPPORT_URL } from "@instrument-org/shared";
 import { html, raw } from "hono/html";
 
 // Light mode: dark text on warm gradient. Dark mode: white text on dark gradient.
-const defaultBtn = [
+const baseBtn = [
   "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5",
-  "text-sm font-medium whitespace-nowrap transition-all outline-none h-10 min-w-36",
+  "text-sm font-medium whitespace-nowrap transition-all outline-none h-10 min-w-44",
+].join(" ");
+
+const primaryBtn = [
+  baseBtn,
   "bg-white text-stone-900 shadow-sm hover:bg-stone-100",
   "dark:bg-stone-200 dark:text-stone-900 dark:hover:bg-stone-300",
 ].join(" ");
 
-const outlineBtn = [
-  "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5",
-  "text-sm font-medium whitespace-nowrap transition-all outline-none h-10 min-w-36",
-  "text-black/50 hover:bg-black/5 hover:text-black/70",
-  "dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70",
+const secondaryBtn = [
+  baseBtn,
+  "bg-black/5 text-stone-700 hover:bg-black/10 hover:text-stone-900",
+  "dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15 dark:hover:text-white",
 ].join(" ");
 
-const button = (variant: "default" | "outline", href: string, label: string) =>
+const button = (
+  variant: "primary" | "secondary",
+  href: string,
+  label: string,
+) =>
   html`<a
-    class="${variant === "default" ? defaultBtn : outlineBtn}"
+    class="${variant === "primary" ? primaryBtn : secondaryBtn}"
     href="${href}"
     >${label}</a
   >`;
 
-const contactUsButton = button("outline", SUPPORT_URL, "Contact us");
+// Stacked, every button as wide as the widest, the primary one on top.
+const actions = (buttons: ReturnType<typeof button>[]) =>
+  html`<div class="mt-4 flex flex-col gap-2">${buttons}</div>`;
+
+// Every page's headline, so they all set it the same way.
+const heading = (text: string) =>
+  html`<h1
+    class="auth-serif text-3xl font-normal tracking-tight text-center text-stone-900 dark:text-white"
+  >
+    ${text}
+  </h1>`;
+
+const contactUsButton = button("secondary", SUPPORT_URL, "Contact us");
 
 export const testStates: { href: string; label: string }[] = [
   { href: "/test/success", label: "Success" },
+  { href: "/test/connected", label: "Connected" },
   { href: "/test/error", label: "Error" },
 ];
 
@@ -49,56 +69,32 @@ export function renderAuthPage({
 }: AuthPageProps = {}) {
   const renderContent = () => {
     if (indexHref && states) {
-      return html` <h1
-          class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
-        >
-          Auth Page States
-        </h1>
-        <p class="text-sm text-stone-600 dark:text-white/60 text-center">
+      return html`${heading("Auth Page States")}
+        <p class="-mt-2 text-sm text-stone-600 dark:text-white/60 text-center">
           Preview each state of the login callback page.
         </p>
-        <div class="flex flex-col gap-3 w-full">
-          ${states.map((s) => button("outline", s.href, s.label))}
-        </div>`;
+        ${actions(states.map((s) => button("secondary", s.href, s.label)))}`;
     }
     if (isError) {
-      return html` <h1
-          class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
-        >
-          There was an error signing in.
-        </h1>
-        <p class="text-sm text-stone-600 dark:text-white/60 text-center">
+      return html`${heading("There was an error signing in")}
+        <p class="-mt-2 text-sm text-stone-600 dark:text-white/60 text-center">
           Please try again or contact us if the issue persists.
         </p>
-        <div class="flex gap-3">
-          ${contactUsButton}
-          ${button("default", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`)}
-        </div>`;
+        ${actions([
+          button("primary", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`),
+          contactUsButton,
+        ])}`;
     }
     if (signedInTo) {
-      return html` <h1
-          class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
-        >
-          ${signedInTo} is connected
-        </h1>
-        <p class="text-sm text-stone-600 dark:text-white/60 text-center">
-          ${APP_NAME} can use it now. You can close this tab.
-        </p>
-        <div class="flex gap-3">
-          ${button("default", `${APP_PROTOCOL}://home`, `Back to ${APP_NAME}`)}
-        </div>`;
+      return html`${heading(`${signedInTo} is connected`)}
+      ${actions([
+        button("primary", `${APP_PROTOCOL}://home`, `Back to ${APP_NAME}`),
+      ])}`;
     }
-    return html` <h1
-        class="auth-serif text-3xl font-medium tracking-tight text-center text-stone-900 dark:text-white"
-      >
-        You're signed in
-      </h1>
-      <p class="text-sm text-stone-600 dark:text-white/60 text-center">
-        Taking you back to ${APP_NAME}. You can close this tab.
-      </p>
-      <div class="flex gap-3">
-        ${button("default", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`)}
-      </div>`;
+    return html`${heading("You're signed in")}
+    ${actions([
+      button("primary", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`),
+    ])}`;
   };
 
   return html`
@@ -110,13 +106,13 @@ export function renderAuthPage({
         <link rel="icon" href="/favicon.ico" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
         <script src="/tailwind.js"></script>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto+Serif:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
         <style>
+          @font-face {
+            font-family: "Roboto Serif";
+            font-weight: 400;
+            font-display: swap;
+            src: url("/fonts/roboto-serif-400.woff2") format("woff2");
+          }
           .auth-serif {
             font-family: "Roboto Serif", ui-serif, Georgia, serif;
           }
@@ -156,7 +152,7 @@ export function renderAuthPage({
             .getElementById("app-icon")
             .addEventListener("error", function () {
               document.getElementById("icon-container").innerHTML =
-                '<p class="text-3xl font-bold auth-serif text-stone-900 dark:text-white">' +
+                '<p class="text-3xl font-normal auth-serif text-stone-900 dark:text-white">' +
                 ${raw(JSON.stringify(APP_NAME))} +
                 "</p>";
             });

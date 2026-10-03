@@ -148,6 +148,16 @@ async function start() {
       "image/png",
     ),
   );
+  // The app's own Roboto Serif, so the pages set their headings in the
+  // face the window uses even where the browser can't reach Google Fonts.
+  app.get("/fonts/roboto-serif-400.woff2", (c) =>
+    serveAsset(
+      c,
+      () =>
+        import("@fontsource/roboto-serif/files/roboto-serif-latin-400-normal.woff2?asset"),
+      "font/woff2",
+    ),
+  );
   app.get("/tailwind.js", (c) =>
     serveAsset(
       c,
@@ -339,6 +349,9 @@ async function start() {
     ),
   );
   app.get("/test/success", (c) => c.html(renderAuthPage({})));
+  app.get("/test/connected", (c) =>
+    c.html(renderAuthPage({ signedInTo: "Your ChatGPT plan" })),
+  );
   app.get("/test/error", (c) => c.html(renderAuthPage({ isError: true })));
 
   return { port };

@@ -46,6 +46,8 @@ describe.skipIf(process.platform !== "darwin")("output folder icon", () => {
     expect(resource.length).toBeGreaterThan(1000);
   });
 
+  // Two cold AppKit launches through osascript, which take several seconds
+  // each while the rest of the suite holds the CPU.
   it("preserves a preexisting custom icon", async () => {
     const script = `ObjC.import("AppKit"); function run(argv) {
       const ws = $.NSWorkspace.sharedWorkspace;
@@ -63,7 +65,7 @@ describe.skipIf(process.platform !== "darwin")("output folder icon", () => {
     await ensureOutputFolderIcon(folder);
     const after = await fs.readFile(`${iconFile}/..namedfork/rsrc`);
     expect(after).toEqual(before);
-  });
+  }, 30_000);
 
   it("leaves other folders alone, including Instrument outside Documents", async () => {
     for (const other of [

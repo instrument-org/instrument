@@ -47,7 +47,6 @@ describe("searchWeb", () => {
     const signal = new AbortController().signal;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({
-        costDollars: 0.007,
         results: [
           {
             publishedDate: "2026-07-28",
@@ -81,7 +80,6 @@ describe("searchWeb", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "data": {
-          "costDollars": 0.007,
           "results": [
             {
               "publishedDate": "2026-07-28",

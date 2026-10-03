@@ -85,7 +85,7 @@ describe("getUsageSummaryFromMessages", () => {
     {
       name: "an output that reports no usage at all",
       output: {
-        results: { costDollars: 0.007, kind: "excerpts", sources: [] },
+        results: { kind: "excerpts", sources: [] },
         state: "success",
       },
     },

@@ -44,15 +44,23 @@ export function VisitedPageRows({
       <ul
         className={cn(
           "grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-x-2",
-          // Rows past the first take no height, and the list clips them.
-          isOneRow && "auto-rows-[0] grid-rows-[auto] overflow-hidden",
+          // Rows past the first take no height, and the list clips them;
+          // a gap between rows would still be counted under the one shown.
+          isOneRow
+            ? "auto-rows-[0] grid-rows-[auto] overflow-hidden"
+            : "gap-y-2",
         )}
       >
         {visits.map(({ page }) => (
           <li className="min-w-0" key={page.url}>
             <PageContextMenu {...menuFor(page.url)}>
+              {/* Each page on a tint of its own, so the list reads as things
+                  to press rather than as text; under the pointer, a step
+                  further from the page's ground. Dark's accent is a faint
+                  white, too close to its own tint to read as a step, so
+                  the step there is drawn outright. */}
               <button
-                className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-accent/60 data-[state=open]:bg-accent/60"
+                className="flex h-9 w-full min-w-0 items-center gap-2.5 rounded-lg bg-accent/60 px-2.5 text-left hover:bg-accent data-[state=open]:bg-accent dark:hover:bg-white/8 dark:data-[state=open]:bg-white/8"
                 {...clicksFor(page.url, onOpen)}
                 // The title has the row; where it is on the web is a hover
                 // away rather than a second column cutting it short.

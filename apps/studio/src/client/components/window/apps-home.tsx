@@ -4,6 +4,7 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { visitsWithin } from "@/client/components/window/app-visits";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
+import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { appMentionToken } from "@/client/lib/app-mention";
@@ -13,7 +14,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
@@ -133,19 +134,17 @@ export function AppsHome({
         {/* Where the person was lately comes first, as a browser's new tab
             puts it; the apps themselves under it. */}
         {visits.length > 0 ? (
-          <Shelf title="Recent pages">
-            <div className="-mx-2">
-              <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-            </div>
-          </Shelf>
+          <PageSection title="Recent pages">
+            <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
+          </PageSection>
         ) : null}
 
         {list.data === undefined ? (
-          <Shelf title="Your apps">
+          <PageSection title="Your apps">
             <MarkSkeletons />
-          </Shelf>
+          </PageSection>
         ) : own.length > 0 ? (
-          <Shelf title="Your apps">
+          <PageSection title="Your apps">
             {/* Pulled in by the gap between a mark's box and its icon, so
                 the icons line up under the heading. */}
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
@@ -159,7 +158,7 @@ export function AppsHome({
                 />
               ))}
             </div>
-          </Shelf>
+          </PageSection>
         ) : null}
 
         {!showsConnect &&
@@ -177,7 +176,7 @@ export function AppsHome({
             Every Connect is a message to the conversation, since Instrument
             does the connecting. */}
         {showsConnect && (
-          <Shelf
+          <PageSection
             title={own.length > 0 ? "Connect more apps" : "Connect an app"}
           >
             <form
@@ -238,11 +237,11 @@ export function AppsHome({
                 {showsAll ? "Show fewer" : `Show all ${more.length}`}
               </button>
             ) : null}
-          </Shelf>
+          </PageSection>
         )}
 
         {showsConnect && list.data && list.data.invalid.length > 0 ? (
-          <Shelf title="Broken">
+          <PageSection title="Broken">
             <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
               {list.data.invalid.map((entry) => (
                 <div className="flex items-center gap-3 p-4" key={entry.slug}>
@@ -266,7 +265,7 @@ export function AppsHome({
                 </div>
               ))}
             </div>
-          </Shelf>
+          </PageSection>
         ) : null}
       </div>
     </div>
@@ -410,24 +409,6 @@ function matchesWords(entry: CatalogEntry, typed: string): boolean {
     .toLowerCase()
     .split(/\s+/)
     .every((word) => haystack.includes(word));
-}
-
-/**
- * A shelf of the page, labeled the way Discover labels its own: a quiet name
- * on a hairline that runs out to the column's edge.
- */
-function Shelf({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <section>
-      <div className="flex items-center gap-3">
-        <h2 className="shrink-0 text-[13px] font-medium text-muted-foreground">
-          {title}
-        </h2>
-        <span aria-hidden className="h-px flex-1 bg-border" />
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
 }
 
 /** Tiles holding the directory's place while it is still on its way. */

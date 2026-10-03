@@ -5,12 +5,14 @@ import {
 } from "@/client/atoms/window";
 import { INSTRUMENT_FOLDER } from "@/shared/computer-href";
 import { type Icon } from "@phosphor-icons/react";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
+import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
@@ -94,7 +96,7 @@ export function WebStart({
   onOpenPage: (url: string) => void;
 }) {
   const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
-  const visited = useAtomValue(visitedPagesAtom);
+  const [visited, setVisited] = useAtom(visitedPagesAtom);
   const clicksFor = usePageClicks();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
@@ -132,20 +134,47 @@ export function WebStart({
       description: bookmark.title || hostOf(bookmark.url),
     });
   };
+  // Every page seen, not only the dozen shown, since what the rest feed is
+  // the address field's completions, and a person clearing their recent
+  // pages means those too. Undo puts them back behind anything seen since.
+  const clearRecent = () => {
+    const cleared = visited;
+    setVisited([]);
+    toast("Removed all Recent Pages", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setVisited((current) => [
+            ...current,
+            ...cleared.filter(
+              (page) => !current.some((seen) => seen.url === page.url),
+            ),
+          ]);
+        },
+      },
+    });
+  };
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
-      <div className="mx-auto w-full max-w-5xl space-y-8">
+    <div className="h-full min-h-0 overflow-y-auto">
+      {/* Discover's column and the Apps place's, so moving between the
+          three places never moves the edges the page is read against. */}
+      <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-16 pb-14">
         <PageSection title="Bookmarks">
-          {bookmarks.length > 0 ? (
+          {bookmarks.length === 0 ? (
+            <NoBookmarks />
+          ) : (
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
-            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
+            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-3">
               {bookmarks.map((bookmark) => {
-                // The site's own mark, bare: no plate around it, the way a
-                // browser's new tab shows its shortcuts.
+                const name = bookmark.title || hostOf(bookmark.url);
+                // The site's mark on the plate every app's mark sits on, so
+                // a site that brings a square of its own and one that is bare
+                // read as the same kind of thing, the way Apps draws them.
                 const mark = (
                   <AppIcon
-                    className="size-14 bg-transparent p-0 shadow-none ring-0"
+                    className="transition-shadow group-hover:shadow-md group-data-[state=open]:shadow-md"
+                    name={name}
                     site={originOf(bookmark.url)}
                     size="xl"
                   />
@@ -153,12 +182,12 @@ export function WebStart({
                 if (bookmark.id === renamingId) {
                   return (
                     <div
-                      className="flex w-24 flex-col items-center gap-1.5 py-2"
+                      className="flex w-24 flex-col items-center gap-2 py-2"
                       key={bookmark.id}
                     >
                       {mark}
                       <BookmarkNameField
-                        name={bookmark.title || hostOf(bookmark.url)}
+                        name={name}
                         onCancel={() => {
                           setRenamingId(undefined);
                         }}
@@ -183,36 +212,90 @@ export function WebStart({
                     url={bookmark.url}
                   >
                     <button
-                      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
+                      className="group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
                       {...clicksFor(bookmark.url, onOpenPage)}
-                      title={`${bookmark.title}\n${bookmark.url}`}
+                      title={`${name}\n${bookmark.url}`}
                       type="button"
                     >
                       {mark}
-                      {/* About as wide as the mark over it, on two lines at
-                          most, the way a browser's favorites name theirs. */}
-                      <span className="line-clamp-2 w-16 text-[13px] leading-4 font-medium break-words">
-                        {bookmark.title || hostOf(bookmark.url)}
+                      {/* As wide as the mark's box, on two lines at most, the
+                        way a browser's favorites name theirs. */}
+                      <span className="line-clamp-2 w-full px-1.5 text-[13px] leading-4 font-medium break-words">
+                        {name}
                       </span>
                     </button>
                   </PageContextMenu>
                 );
               })}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Add a page to your bookmarks from its menu, and it shows here.
-            </p>
           )}
         </PageSection>
         {recent.length > 0 && (
-          <PageSection title="Recent pages">
-            <div className="-mx-2">
-              <VisitedPageRows isCompact onOpen={onOpenPage} visits={recent} />
-            </div>
+          <PageSection
+            action={{
+              icon: <BroomIcon className="size-3.5" />,
+              label: "Remove all",
+              onPress: clearRecent,
+            }}
+            title="Recent pages"
+          >
+            <VisitedPageRows isCompact onOpen={onOpenPage} visits={recent} />
           </PageSection>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the bookmarks will be, before there are any: a quiet panel the
+ * width of the column, and in it a bookmark drawn the way the shelf draws
+ * one, a plate with the brand's ribbon on it and two more tucked behind,
+ * over what the shelf is for and the way a page gets onto it, in the words
+ * and the mark of the page menu that does it.
+ */
+function NoBookmarks() {
+  return (
+    <div className="flex flex-col items-center rounded-2xl bg-black/2 px-6 pt-10 pb-11 dark:bg-white/3">
+      <div
+        aria-hidden
+        className="relative mb-5 grid size-16 place-items-center"
+      >
+        {/* The two behind: a size down, fanned out from under the front
+            one so only their outer corners show. They arrive tucked in a
+            little closer and open out once, slowly, as the page appears. */}
+        <span className="absolute size-13 -translate-x-4.5 -rotate-12 rounded-xl bg-card/80 shadow-xs ring-1 ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:-translate-x-2 starting:-rotate-4" />
+        <span className="absolute size-13 translate-x-4.5 rotate-12 rounded-xl bg-card/80 shadow-xs ring-1 ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:translate-x-2 starting:rotate-4" />
+        <span className="relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-card shadow-md ring-1 ring-border">
+          <GlobeIcon
+            className="size-7 text-muted-foreground/45"
+            weight="light"
+          />
+          {/* A ribbon hung from the plate's top edge, drawn rather than
+              taken from the icon set, whose bookmark stands a little below
+              the top of its box. */}
+          <svg
+            className="absolute top-0 right-3 h-4.5 w-3.5 fill-brand-400"
+            viewBox="0 0 14 18"
+          >
+            <path d="M0 0h14v18l-7-4.5L0 18z" />
+          </svg>
+        </span>
+      </div>
+      <p className="text-sm font-medium text-foreground/80">No bookmarks yet</p>
+      <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-1 text-center text-[13px] leading-6 text-muted-foreground">
+        Choose
+        <span className="font-medium text-foreground/70">Add to bookmarks</span>
+        from the
+        <span className="mx-1 inline-grid size-5 place-items-center rounded-md bg-card shadow-xs ring-1 ring-border">
+          <DotsThreeVerticalIcon
+            aria-label="page"
+            className="size-3.5 text-foreground/70"
+            weight="bold"
+          />
+        </span>
+        menu on a website to add bookmarks
+      </p>
     </div>
   );
 }

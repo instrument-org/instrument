@@ -314,9 +314,7 @@ export function AppFront({
               <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
                 Recent pages
               </p>
-              <div className="-mx-2">
-                <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-              </div>
+              <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
             </section>
           )
         ) : null}

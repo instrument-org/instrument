@@ -1,0 +1,246 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type * as ChatGPTPlanModule from "./chatgpt-plan";
+
+let stored: Record<string, unknown> = {};
+
+vi.mock("electron", () => ({
+  safeStorage: { isEncryptionAvailable: () => true },
+  shell: { openExternal: vi.fn() },
+}));
+
+vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
+
+vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
+  workspaceSettingsDir: () => "/workspace/.instrument/settings",
+}));
+
+vi.mock("@/electron-main/lib/electron-logger", () => {
+  const scoped = { error: vi.fn(), info: vi.fn(), warn: vi.fn() };
+  return { logger: { scope: () => scoped } };
+});
+
+vi.mock("@/electron-main/rpc/publisher", () => ({
+  publisher: { publish: vi.fn() },
+}));
+
+vi.mock("electron-store", () => ({
+  default: class {
+    delete(key: string) {
+      // oxlint-disable-next-line typescript/no-dynamic-delete -- the in-memory stand-in for a keyed store
+      delete stored[key];
+    }
+    get(key: string) {
+      return stored[key];
+    }
+    onDidAnyChange() {
+      // Nothing listens in these tests.
+    }
+    set(key: string, value: unknown) {
+      stored[key] = value;
+    }
+  },
+}));
+
+const SUBJECT = "user-1";
+const TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token";
+const DISCOVERY_URL =
+  "https://auth.openai.com/.well-known/openid-configuration";
+const REVOKE_URL = "https://auth.openai.com/oauth/revoke";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status });
+}
+
+/** An active account whose access token is close enough to expiring that reading it starts a refresh. */
+function seedAccount(overrides: Record<string, unknown> = {}) {
+  stored = {
+    accounts: {
+      [SUBJECT]: {
+        accessToken: "access-1",
+        clientId: "client-1",
+        email: "user@example.com",
+        expiresAt: Date.now() + 1000,
+        refreshToken: "refresh-1",
+        scopes: ["openid", "chatgpt.tokens.use.direct"],
+        subject: SUBJECT,
+        ...overrides,
+      },
+    },
+    activeSubject: SUBJECT,
+  };
+}
+
+function storedAccount() {
+  const accounts = stored.accounts as Record<string, Record<string, unknown>>;
+  return accounts[SUBJECT];
+}
+
+let plan: typeof ChatGPTPlanModule;
+let tokenResponse: ReturnType<typeof deferred<Response>>;
+const revoked: string[] = [];
+
+beforeEach(async () => {
+  vi.resetModules();
+  plan = await import("./chatgpt-plan");
+  tokenResponse = deferred<Response>();
+  revoked.length = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string, init?: RequestInit) => {
+      if (url === TOKEN_URL) {
+        return tokenResponse.promise;
+      }
+      if (url === DISCOVERY_URL) {
+        return Promise.resolve(
+          json({ issuer: "", jwks_uri: "", revocation_endpoint: REVOKE_URL }),
+        );
+      }
+      if (url === REVOKE_URL) {
+        const body =
+          init?.body instanceof URLSearchParams
+            ? init.body
+            : new URLSearchParams();
+        revoked.push(body.get("token") ?? "");
+        return Promise.resolve(json({}));
+      }
+      return Promise.reject(new Error(`unexpected fetch ${url}`));
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+/** Starts the refresh that reading a nearly expired token sets off. */
+function startRefresh() {
+  plan.chatGPTPlanProviderConfig();
+}
+
+describe("ChatGPT plan refresh", () => {
+  it("saves the refreshed tokens onto the account it refreshed", async () => {
+    seedAccount();
+    startRefresh();
+    tokenResponse.resolve(
+      json({
+        access_token: "access-2",
+        expires_in: 3600,
+        refresh_token: "refresh-2",
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(storedAccount()?.refreshToken).toBe("refresh-2");
+    });
+  });
+
+  it("revokes the token a refresh in flight brings back when signing out, and keeps none", async () => {
+    seedAccount();
+    startRefresh();
+    const signedOut = plan.signOutOfChatGPT();
+    tokenResponse.resolve(
+      json({
+        access_token: "access-2",
+        expires_in: 3600,
+        refresh_token: "refresh-2",
+      }),
+    );
+
+    await expect(signedOut).resolves.toEqual({ revoked: true });
+    expect(revoked).toEqual(["refresh-2"]);
+    expect(storedAccount()).not.toHaveProperty("refreshToken");
+    expect(storedAccount()).not.toHaveProperty("accessToken");
+    expect(stored.activeSubject).toBeUndefined();
+  });
+
+  it("does not overwrite a sign-in that landed while a refresh was out", async () => {
+    seedAccount();
+    startRefresh();
+    // A sign-in to the same account replaces its grant meanwhile.
+    seedAccount({
+      accessToken: "access-fresh",
+      expiresAt: Date.now() + 3_600_000,
+      refreshToken: "refresh-fresh",
+    });
+    tokenResponse.resolve(
+      json({
+        access_token: "access-2",
+        expires_in: 3600,
+        refresh_token: "refresh-2",
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        TOKEN_URL,
+        expect.anything(),
+      );
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(storedAccount()).toMatchObject({
+      accessToken: "access-fresh",
+      refreshToken: "refresh-fresh",
+    });
+  });
+
+  it("does not sign out a newer grant when a refresh of the old one is refused", async () => {
+    seedAccount();
+    startRefresh();
+    seedAccount({ accessToken: "access-fresh", refreshToken: "refresh-fresh" });
+    tokenResponse.resolve(json({ error: "refresh_token_reused" }, 400));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(storedAccount()?.refreshToken).toBe("refresh-fresh");
+  });
+});
+
+describe("refreshDelayMs", () => {
+  const now = 1_000_000_000;
+  const minutes = (n: number) => n * 60_000;
+
+  it.each([
+    [
+      "an hour left: five minutes before it expires",
+      { expiresAt: now + minutes(60) },
+      0,
+      minutes(55),
+    ],
+    [
+      "already inside the margin: a second",
+      { expiresAt: now + minutes(1) },
+      0,
+      1000,
+    ],
+    [
+      "the server's earliest time wins when later",
+      { earliestRefreshAt: now + minutes(58), expiresAt: now + minutes(60) },
+      0,
+      minutes(58),
+    ],
+    ["one failure: two seconds", { expiresAt: now }, 1, 2000],
+    ["four failures: sixteen seconds", { expiresAt: now }, 4, 16_000],
+    [
+      "many failures: capped at five minutes",
+      { expiresAt: now },
+      20,
+      minutes(5),
+    ],
+    [
+      "a failure never pulls a far-off refresh in",
+      { expiresAt: now + minutes(60) },
+      3,
+      minutes(55),
+    ],
+  ])("%s", (_label, account, failures, expected) => {
+    expect(plan.refreshDelayMs({ account, failures, now })).toBe(expected);
+  });
+});

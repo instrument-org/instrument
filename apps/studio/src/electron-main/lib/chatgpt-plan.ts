@@ -120,7 +120,9 @@ export function chatGPTPlanProviderConfig():
  * the email, and the name when the token carried one. Undefined while signed
  * out.
  */
-export function chatGPTPlanUser(): undefined | { email: string; name?: string } {
+export function chatGPTPlanUser():
+  | undefined
+  | { email: string; name?: string } {
   const account = activeAccount();
   return account?.refreshToken && account.email
     ? { email: account.email, name: account.name }
@@ -159,7 +161,7 @@ export async function verifyActiveAccount(): Promise<void> {
     });
     if (response.status === 401) {
       log.warn("ChatGPT refused the session; signing in again is required");
-      saveAccount(withoutTokens(account), { activate: false });
+      saveUnlessReplaced(account, withoutTokens(account));
     }
   } catch (error) {
     // Offline says nothing about the session.
@@ -238,6 +240,27 @@ function hostId(): string {
   const created = `urn:uuid:${randomUUID()}`;
   store.set("hostId", created);
   return created;
+}
+
+/**
+ * Writes what a request spending `spent`'s grant came back with, unless that
+ * grant was replaced while the request was out: a sign-out stripped it, or a
+ * sign-in brought a new one. The answer describes a grant that is gone, and
+ * writing it would bring back tokens the user signed out of or overwrite the
+ * ones they just signed in with.
+ */
+function saveUnlessReplaced(spent: Account, next: Account) {
+  const stored = getStore().get("accounts")[spent.subject];
+  if (
+    stored?.refreshToken !== spent.refreshToken ||
+    stored?.accessToken !== spent.accessToken
+  ) {
+    log.info(
+      "ChatGPT grant changed while a request was out; dropping its answer",
+    );
+    return;
+  }
+  saveAccount(next, { activate: false });
 }
 
 function saveAccount(account: Account, { activate }: { activate: boolean }) {
@@ -519,6 +542,28 @@ export function scheduleRefresh(): void {
   if (!account?.refreshToken) {
     return;
   }
+  refreshTimer = setTimeout(
+    () => void refreshActiveAccount(),
+    refreshDelayMs({ account, failures: failedRefreshes, now: Date.now() }),
+  );
+  refreshTimer.unref();
+}
+
+/**
+ * How long until the next refresh: a margin before the token expires, never
+ * before the server allows one, never sooner than a second, and later the
+ * more refreshes in a row have failed.
+ */
+export function refreshDelayMs({
+  account,
+  failures,
+  now,
+}: {
+  account: Pick<Account, "earliestRefreshAt" | "expiresAt">;
+  /** Refreshes that failed in a row. */
+  failures: number;
+  now: number;
+}): number {
   const due = Math.max(
     (account.expiresAt ?? 0) - REFRESH_MARGIN_MS,
     account.earliestRefreshAt ?? 0,
@@ -527,14 +572,8 @@ export function scheduleRefresh(): void {
   // growing wait the next try would come every second for as long as the
   // network or the server is down.
   const backoff =
-    failedRefreshes === 0
-      ? 0
-      : Math.min(1000 * 2 ** failedRefreshes, MAX_REFRESH_BACKOFF_MS);
-  refreshTimer = setTimeout(
-    () => void refreshActiveAccount(),
-    Math.max(due - Date.now(), 1000, backoff),
-  );
-  refreshTimer.unref();
+    failures === 0 ? 0 : Math.min(1000 * 2 ** failures, MAX_REFRESH_BACKOFF_MS);
+  return Math.max(due - now, 1000, backoff);
 }
 
 /**
@@ -557,11 +596,18 @@ export function refreshAfterWake(): void {
 }
 
 export async function signOutOfChatGPT(): Promise<{ revoked: boolean }> {
+  // A refresh in flight spends the refresh token and brings back its
+  // replacement. Waited out, so the token revoked below is the current one.
+  await refreshing;
   const account = activeAccount();
   if (!account) {
     return { revoked: true };
   }
   clearTimeout(refreshTimer);
+  // Gone from the store before the revocation is asked, so nothing that starts
+  // meanwhile can spend the token or keep it.
+  saveAccount(withoutTokens(account), { activate: false });
+  getStore().delete("activeSubject");
   let revoked = !account.refreshToken;
   if (account.refreshToken) {
     try {
@@ -580,8 +626,6 @@ export async function signOutOfChatGPT(): Promise<{ revoked: boolean }> {
       log.warn("ChatGPT token revocation failed", error);
     }
   }
-  saveAccount(withoutTokens(account), { activate: false });
-  getStore().delete("activeSubject");
   return { revoked };
 }
 
@@ -600,9 +644,7 @@ async function doRefresh(): Promise<void> {
       refresh_token: account.refreshToken,
       resource: RESOURCE,
     });
-    saveAccount(accountFromTokens(tokens, account, account), {
-      activate: false,
-    });
+    saveUnlessReplaced(account, accountFromTokens(tokens, account, account));
     failedRefreshes = 0;
   } catch (error) {
     if (
@@ -610,7 +652,7 @@ async function doRefresh(): Promise<void> {
       UNUSABLE_REFRESH_CODES.has(error.code ?? "")
     ) {
       log.warn("ChatGPT session ended; signing in again is required");
-      saveAccount(withoutTokens(account), { activate: false });
+      saveUnlessReplaced(account, withoutTokens(account));
       return;
     }
     // A network or server failure keeps the credentials for the next try.

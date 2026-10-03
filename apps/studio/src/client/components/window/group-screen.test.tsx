@@ -34,7 +34,13 @@ describe("withGroupScreensOnly", () => {
       activeId: "kept",
       tabs: [
         { group: "g", href: "/browser", id: "kept", kind: "screen" },
-        { group: "g", id: "page", kind: "page", url: "https://example.com" },
+        {
+          group: "g",
+          id: "page",
+          kind: "page",
+          openedAt: 0,
+          url: "https://example.com",
+        },
         { group: "g", href: "/release-notes", id: "notes", kind: "screen" },
         {
           at: 1,

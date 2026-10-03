@@ -377,7 +377,6 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
-      isActivityHeadingsEnabled: () => boolean;
       isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
@@ -411,7 +410,6 @@ export const workspaceMachine = setup({
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
-      isActivityHeadingsEnabled: input.isActivityHeadingsEnabled,
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),

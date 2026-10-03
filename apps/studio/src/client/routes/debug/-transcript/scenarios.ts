@@ -10,6 +10,7 @@ import {
 } from "./parts";
 import {
   type Act,
+  activity,
   batch,
   call,
   context,
@@ -27,7 +28,6 @@ import {
   user,
 } from "./script";
 import {
-  activity,
   chose,
   edited,
   fetched,

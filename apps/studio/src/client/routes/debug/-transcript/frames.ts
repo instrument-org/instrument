@@ -99,6 +99,8 @@ interface Seat {
 }
 
 class Playback {
+  /** The phase the next calls belong to; see `activity` in script.ts. */
+  private activity: string | undefined;
   private clock: number;
   private readonly frames: Frame[] = [];
   private messages: SessionMessage.WithParts[] = [];
@@ -127,12 +129,19 @@ class Playback {
 
   private act(act: Act, ownStep: boolean) {
     switch (act.kind) {
+      case "activity": {
+        this.activity = act.title === "" ? undefined : act.title;
+        return;
+      }
       case "batch": {
-        this.batch(act.calls, ownStep);
+        this.batch(
+          act.calls.map((call) => this.stamp(call)),
+          ownStep,
+        );
         return;
       }
       case "call": {
-        this.call(act, ownStep);
+        this.call(this.stamp(act), ownStep);
         return;
       }
       case "context": {
@@ -162,6 +171,7 @@ class Playback {
         return;
       }
       case "prose": {
+        this.activity = undefined;
         this.stream(act.text, "text", ownStep, act.chunkCount);
         return;
       }
@@ -182,10 +192,26 @@ class Playback {
         return;
       }
       case "user": {
+        this.activity = undefined;
         this.user(act.text, act.parts);
         return;
       }
     }
+  }
+
+  // The call as the agent writes it inside a phase: the phase's title on its
+  // input, and on whatever of the input had arrived while it streamed, since a
+  // model writes the activity first.
+  private stamp(call: ToolCall): ToolCall {
+    const { activity } = this;
+    if (activity === undefined || call.type === "tool-unavailable") {
+      return call;
+    }
+    return {
+      ...call,
+      input: { ...call.input, activity },
+      streamed: call.streamed && { ...call.streamed, activity },
+    };
   }
 
   // A response asking for several calls at once. They all arrive together and

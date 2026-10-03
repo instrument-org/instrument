@@ -76,26 +76,53 @@ interface RenderOptions {
 
 let partCounter = 0;
 
+/**
+ * Not a part: the phase the calls after it carry as their `activity`, until
+ * prose or the user's turn ends it, the way an agent writes one. `chatStream`
+ * stamps it onto those calls and drops it.
+ */
 function activity(title: string) {
-  return {
-    input: { title },
-    metadata: metadata(new Date(1)),
-    output: {},
-    state: "output-available",
-    toolCallId: StoreId.ToolCallSchema.parse(`call-a${partCounter}`),
-    type: "tool-start_activity",
-  };
+  return { title, type: PHASE };
 }
 
-/** The heading call itself, off the queue and executing. */
-function activityRunning(title: string) {
-  return {
-    input: { title },
-    metadata: metadata(new Date(1)),
-    state: "input-available",
-    toolCallId: StoreId.ToolCallSchema.parse(`call-ar${partCounter}`),
-    type: "tool-start_activity",
-  };
+const PHASE = "test-phase";
+
+/**
+ * The messages with each `activity` marker written into the calls after it,
+ * and taken out.
+ */
+function stampPhases(messages: unknown[]): unknown[] {
+  let title: string | undefined;
+  return (messages as { parts: Record<string, unknown>[]; role: string }[]).map(
+    (message) => {
+      if (message.role === "user") {
+        title = undefined;
+      }
+      const parts = message.parts.flatMap((part) => {
+        if (part.type === PHASE) {
+          title = part.title as string;
+          return [];
+        }
+        if (part.type === "text") {
+          title = undefined;
+        }
+        if (
+          title === undefined ||
+          typeof part.type !== "string" ||
+          !part.type.startsWith("tool-")
+        ) {
+          return [part];
+        }
+        return [
+          {
+            ...part,
+            input: { ...(part.input as object | undefined), activity: title },
+          },
+        ];
+      });
+      return { ...message, parts };
+    },
+  );
 }
 
 function assistantMessage(
@@ -145,7 +172,7 @@ function chatStream(
         alwaysShowFooter={alwaysShowFooter}
         isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
-        messages={messages as SessionMessage.WithParts[]}
+        messages={stampPhases(messages) as SessionMessage.WithParts[]}
         onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
@@ -420,9 +447,15 @@ describe("ChatStream groups the agent named", () => {
   // A heading that is still taking rows is what says the agent is working, and
   // it says it in the same shimmer any in-flight row uses.
   it("says it is working through the heading", () => {
-    renderSteps([[activityRunning("Reading each quarter")]], {
-      isAgentRunning: true,
-    });
+    renderSteps(
+      [
+        [
+          activity("Reading each quarter"),
+          read({ explanation: "Reading the first quarter", running: true }),
+        ],
+      ],
+      { isAgentRunning: true },
+    );
 
     expect(screen.getByText("Reading each quarter").className).toContain(
       "brand-shiny-text",

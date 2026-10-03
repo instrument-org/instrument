@@ -296,7 +296,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -379,7 +379,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -464,7 +464,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -551,7 +551,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -642,7 +642,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -736,7 +736,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -814,7 +814,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -904,7 +904,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -983,7 +983,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1021,7 +1021,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
               "input": undefined,
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
@@ -1067,7 +1067,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1105,7 +1105,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
               "input": undefined,
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
@@ -1146,7 +1146,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1184,7 +1184,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, start_activity, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "filePath": "test.txt",
               },
@@ -1243,7 +1243,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1331,7 +1331,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 39,
+              "contextVersion": 40,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1407,7 +1407,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 39,
+              "contextVersion": 40,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1474,7 +1474,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 39,
+              "contextVersion": 40,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -2351,7 +2351,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZV8888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 39,
+              "contextVersion": 40,
               "createdAt": 2013-08-31T10:00:00.000Z,
               "realRole": "system",
               "sessionId": "ses_00000000018888888888888888",
@@ -2457,7 +2457,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 39,
+            "contextVersion": 40,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",

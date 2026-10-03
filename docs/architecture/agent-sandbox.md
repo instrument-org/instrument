@@ -6,7 +6,7 @@ For why this userland approach was chosen over OS-level isolation, see the [deci
 
 ## Tools and where they live
 
-The main agent (`packages/workspace/src/agents/main.ts`) gets a fixed set of tools from `packages/workspace/src/tools/`: `EditFile`, `ReadFile`, `WriteFile`, `BashTool`, `WebSearch`, `WebFetch`, `GenerateImage`, `LoadSkill`, `StartActivity`. File discovery and search are not tools: they live in the shell, on the real `rg` binary (see the [decision record](../decisions/2026-07-28-real-ripgrep-in-the-sandbox.md)). Each tool's `execute` runs as host Node.js code; sandboxing is implemented _inside_ each tool, not by the runtime.
+The main agent (`packages/workspace/src/agents/main.ts`) gets a fixed set of tools from `packages/workspace/src/tools/`: `EditFile`, `ReadFile`, `WriteFile`, `BashTool`, `WebSearch`, `WebFetch`, `GenerateImage`, `LoadSkill`. File discovery and search are not tools: they live in the shell, on the real `rg` binary (see the [decision record](../decisions/2026-07-28-real-ripgrep-in-the-sandbox.md)). Each tool's `execute` runs as host Node.js code; sandboxing is implemented _inside_ each tool, not by the runtime.
 
 The chat's agent (`packages/workspace/src/agents/instrument.ts`) gets no file, browser, or web tool: `BashTool`, whose shell carries the `task` and `app` commands and nothing else, plus `Choose`, `ConnectApp`, and `RequestFolder`. It reaches its own work only through the tasks it starts.
 

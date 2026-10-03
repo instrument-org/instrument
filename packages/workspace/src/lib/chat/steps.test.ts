@@ -27,20 +27,9 @@ const partMetadata = (ids: PartIds, createdAt: Date) => ({
   ...ids,
 });
 
-const activity =
-  (title: string, createdAt: Date) =>
-  (ids: PartIds): Part => ({
-    input: { title },
-    metadata: { ...partMetadata(ids, createdAt), endedAt: createdAt },
-    output: {},
-    state: "output-available",
-    toolCallId: `call_${title}`,
-    type: "tool-start_activity",
-  });
-
 const call =
   (
-    input: { command: string; explanation?: string },
+    input: { activity?: string; command: string; explanation?: string },
     createdAt: Date,
     result:
       | { exitCode: number; processId?: string; state: "output-available" }
@@ -122,28 +111,49 @@ async function seed() {
   for (const message of [
     user(sessionId, at(0), "Inspect the repository and write\nan audit."),
     assistant(sessionId, at(3), [
-      activity("Inspecting runtime changes and history", at(3)),
       call(
-        { command: "git -C /mnt/repo log", explanation: "Reading history" },
+        {
+          activity: "Inspecting runtime changes and history",
+          command: "git -C /mnt/repo log",
+          explanation: "Reading history",
+        },
         at(4),
         { exitCode: 1, state: "output-available" },
       ),
-      call({ command: "rg --files /mnt/repo | head" }, at(5), {
-        exitCode: 0,
-        state: "output-available",
-      }),
+      call(
+        {
+          activity: "Inspecting runtime changes and history",
+          command: "rg --files /mnt/repo | head",
+        },
+        at(5),
+        {
+          exitCode: 0,
+          state: "output-available",
+        },
+      ),
     ]),
     user(sessionId, at(40), "Change of plan: phase one only."),
     assistant(sessionId, at(44), [
-      activity("Pinning the review range", at(44)),
       call(
-        { command: "cp -R /mnt/repo work/", explanation: "Copying" },
+        {
+          activity: "Pinning the review range",
+          command: "cp -R /mnt/repo work/",
+          explanation: "Copying",
+        },
         at(45),
         { exitCode: 0, processId: "bg_1", state: "output-available" },
       ),
-      call({ command: "fg bg_1", explanation: "Waiting" }, at(50), {
-        state: "input-available",
-      }),
+      call(
+        {
+          activity: "Pinning the review range",
+          command: "fg bg_1",
+          explanation: "Waiting",
+        },
+        at(50),
+        {
+          state: "input-available",
+        },
+      ),
       call({ command: "false", explanation: "Failing" }, at(51), {
         state: "output-error",
       }),
@@ -176,7 +186,7 @@ function user(
 }
 
 describe("sessionSteps", () => {
-  it("outlines a session as what the agent set out to do and each call's end", async () => {
+  it("outlines a session as the phases its calls named and each call's end", async () => {
     const sessionId = await seed();
     const steps = await sessionSteps({ sessionId, taskId });
 

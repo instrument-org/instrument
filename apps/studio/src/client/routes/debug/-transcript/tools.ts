@@ -16,11 +16,6 @@ const OUR_PROVIDER = {
 
 const NO_USAGE = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
-/** `start_activity`: the heading the agent puts over the phase it is starting. */
-export function activity(title: string): ToolCall {
-  return call({ input: { title }, output: {}, type: "tool-start_activity" });
-}
-
 /** A question put to the user, and the answer that came back. */
 export function chose({
   answer,

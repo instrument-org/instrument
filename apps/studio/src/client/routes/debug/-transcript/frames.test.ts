@@ -3,8 +3,16 @@ import { describe, expect, it } from "vitest";
 
 import { buildFrames, type Frame } from "./frames";
 import { scenarios } from "./scenarios";
-import { batch, fail, maxSteps, prose, sameStep, user } from "./script";
-import { activity, read } from "./tools";
+import {
+  activity,
+  batch,
+  fail,
+  maxSteps,
+  prose,
+  sameStep,
+  user,
+} from "./script";
+import { read } from "./tools";
 
 /** Each frame as what it is, then the state of every part in order. */
 function draw(frames: Frame[]): string {
@@ -92,13 +100,13 @@ describe("buildFrames", () => {
 
   it("gives each act its own step, and shares one inside sameStep", () => {
     const bare = buildFrames([
-      activity("Reading each quarter"),
       read({ explanation: "Q1", filePath: "./q1.csv" }),
+      read({ explanation: "Q2", filePath: "./q2.csv" }),
     ]);
     const shared = buildFrames([
       sameStep(
-        activity("Reading each quarter"),
         read({ explanation: "Q1", filePath: "./q1.csv" }),
+        read({ explanation: "Q2", filePath: "./q2.csv" }),
       ),
     ]);
 
@@ -106,6 +114,30 @@ describe("buildFrames", () => {
     // grouping rules have to hold a group together across.
     expect(bare.at(-1)?.messages).toHaveLength(2);
     expect(shared.at(-1)?.messages).toHaveLength(1);
+  });
+
+  it("writes the phase into the calls after it, until prose ends it", () => {
+    const frames = buildFrames([
+      activity("Reading each quarter"),
+      read({ explanation: "Q1", filePath: "./q1.csv" }),
+      batch(read({ explanation: "Q2", filePath: "./q2.csv" })),
+      prose("Two quarters in."),
+      read({ explanation: "Q3", filePath: "./q3.csv" }),
+    ]);
+    const activities = frames
+      .at(-1)
+      ?.messages.flatMap((message) => message.parts)
+      .flatMap((part) =>
+        isToolPart(part) && part.type !== "tool-unavailable"
+          ? [part.input?.activity]
+          : [],
+      );
+
+    expect(activities).toEqual([
+      "Reading each quarter",
+      "Reading each quarter",
+      undefined,
+    ]);
   });
 
   it("streams prose and then marks it done", () => {

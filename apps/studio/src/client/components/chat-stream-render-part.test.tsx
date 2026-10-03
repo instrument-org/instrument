@@ -87,7 +87,6 @@ function chatPartNode(
   return renderChatPart({
     browserStatusContextAdded: false,
     ctx,
-    isGroupWorking: false,
     message,
     part,
     partIndex: 0,
@@ -119,7 +118,6 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
       {renderChatPart({
         browserStatusContextAdded: false,
         ctx,
-        isGroupWorking: false,
         message,
         part: reasoningPart,
         partIndex: 0,

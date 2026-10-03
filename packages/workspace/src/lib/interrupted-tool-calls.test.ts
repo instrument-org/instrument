@@ -78,8 +78,8 @@ async function seed(
   }
 }
 
-// start_activity: the one tool whose input and output are small enough to
-// spell out here in every state.
+// request_folder: a tool whose input and output are small enough to spell out
+// here in every state.
 function toolPart(
   message: SessionMessage.Type,
   state: SessionMessagePart.ToolPart["state"],
@@ -91,10 +91,10 @@ function toolPart(
     sessionId: message.metadata.sessionId,
   };
   const call = {
-    input: { title: "Waiting" },
+    input: { reason: "Your Desktop." },
     metadata,
     toolCallId: `call-${metadata.id}`,
-    type: "tool-start_activity" as const,
+    type: "tool-request_folder" as const,
   };
   switch (state) {
     case "input-available": {
@@ -107,7 +107,7 @@ function toolPart(
       return {
         ...call,
         metadata: { ...metadata, endedAt: createdAt },
-        output: {},
+        output: { status: "declined" as const },
         state,
       };
     }

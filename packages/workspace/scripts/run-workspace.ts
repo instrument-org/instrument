@@ -123,8 +123,6 @@ const actor = createActor(workspaceMachine, {
       "../templates/default",
     ),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
-    isActivityHeadingsEnabled: () =>
-      process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},

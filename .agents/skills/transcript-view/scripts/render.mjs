@@ -65,8 +65,8 @@ const children = args.includes("--children")
   ? loadChildren(root).filter((c) => c.p)
   : [];
 
-// A conversation as blocks: messages, and activities (steps grouped under
-// the start_activity that opened them, or under their first action).
+// A conversation as blocks: messages, and activities (steps grouped under the
+// phase their calls' `activity` named, or under their first action).
 function blocks(l) {
   const out = [];
   let cur = null;
@@ -85,13 +85,15 @@ function blocks(l) {
       cur = null;
       continue;
     }
-    const act = e.calls.find((c) => c.name === "start_activity");
-    const work = e.calls.filter((c) => c.name !== "start_activity");
+    const act = e.calls.find(
+      (c) => c.args?.activity && c.args.activity !== cur?.title,
+    );
+    const work = e.calls;
     if (act || (!cur && work.length)) {
       cur = {
         kind: "activity",
         at: e.at,
-        title: act ? act.args.title : short(say(work[0]), 90),
+        title: act ? act.args.activity : short(say(work[0]), 90),
         start: e.at,
         end: e.at,
         calls: [],
@@ -219,10 +221,7 @@ const fails = all.reduce(
   0,
 );
 const actions = all.reduce(
-  (s, l) =>
-    s +
-    l.a.steps.flatMap((e) => e.calls).filter((c) => c.name !== "start_activity")
-      .length,
+  (s, l) => s + l.a.steps.flatMap((e) => e.calls).length,
   0,
 );
 const served = [

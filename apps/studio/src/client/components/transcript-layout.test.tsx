@@ -27,10 +27,15 @@ interface BuildOptions {
 /**
  * One part, written as `[kind, label]`. The label is both the part's contents
  * and the name the diagram reads it back under.
+ *
+ * `activity` is not a part: it names the phase the calls after it carry as
+ * their `activity`, until prose or the user's turn ends it, the way an agent
+ * writes one. `untitled-activity` leaves the calls after it with none.
  */
 type Spec = [
   (
     | "activity"
+    | "arriving"
     | "bash"
     | "blank-thinking"
     | "note"
@@ -93,7 +98,8 @@ function build(
   turns: Turns,
   { isAgentRunning = false, isDeveloperMode = false }: BuildOptions = {},
 ) {
-  const built = turns.map((turn) => buildMessage(turn.role, turn.specs));
+  const phase: Phase = {};
+  const built = turns.map((turn) => buildMessage(turn.role, turn.specs, phase));
   const labels = new Map(built.flatMap(({ labels: l }) => [...l]));
   const lastMessageId = built.at(-1)?.message.id;
   const layout = buildTranscriptLayout({
@@ -108,13 +114,30 @@ function build(
   return { labels, layout };
 }
 
+/** The phase the calls being built belong to, carried across messages. */
+interface Phase {
+  title?: string;
+}
+
 function buildMessage(
   role: "assistant" | "user",
   specs: Spec[],
+  phase: Phase = {},
 ): { labels: Map<string, string>; message: SessionMessage.WithParts } {
   const messageId = StoreId.newMessageId();
   const labels = new Map<string, string>();
-  const parts = specs.map(([kind, label]) => {
+  if (role === "user") {
+    phase.title = undefined;
+  }
+  const parts = specs.flatMap(([kind, label]) => {
+    if (kind === "activity" || kind === "untitled-activity") {
+      phase.title = kind === "activity" ? label : undefined;
+      return [];
+    }
+    if (kind === "prose") {
+      phase.title = undefined;
+    }
+    const activity = phase.title === undefined ? {} : { activity: phase.title };
     const metadata = {
       createdAt: new Date(0),
       id: StoreId.newPartId(),
@@ -126,19 +149,20 @@ function buildMessage(
     const done = { metadata, state: "output-available", toolCallId };
 
     switch (kind) {
-      case "activity":
-      case "untitled-activity": {
+      // A call still streaming in, so far as its activity: the label.
+      case "arriving": {
         return {
-          ...done,
-          input: kind === "activity" ? { title: label } : {},
-          output: {},
-          type: "tool-start_activity",
+          input: { activity: label },
+          metadata,
+          state: "input-streaming",
+          toolCallId,
+          type: "tool-read_file",
         };
       }
       case "bash": {
         return {
           ...done,
-          input: { command: label },
+          input: { ...activity, command: label },
           output: {},
           type: "tool-bash",
         };
@@ -170,7 +194,7 @@ function buildMessage(
       // Asked for by the model and waiting behind whatever is ahead of it.
       case "queued": {
         return {
-          input: { filePath: label },
+          input: { ...activity, filePath: label },
           metadata,
           state: "input-available",
           toolCallId,
@@ -180,7 +204,7 @@ function buildMessage(
       case "read": {
         return {
           ...done,
-          input: { filePath: label },
+          input: { ...activity, filePath: label },
           output: { state: "does-not-exist" },
           type: "tool-read_file",
         };
@@ -195,7 +219,7 @@ function buildMessage(
       // Picked up off the queue: started, with nothing written back yet.
       case "running": {
         return {
-          input: { filePath: label },
+          input: { ...activity, filePath: label },
           metadata: { ...metadata, startedAt: new Date(1) },
           state: "input-available",
           toolCallId,
@@ -205,7 +229,7 @@ function buildMessage(
       case "search": {
         return {
           ...done,
-          input: { query: label },
+          input: { ...activity, query: label },
           output: { results: [], state: "success" },
           type: "tool-web_search",
         };
@@ -262,23 +286,20 @@ function draw(
     if (row.groupId !== openGroupId) {
       openGroupId = row.groupId;
       if (group) {
-        const heading = generatedGroupHeading(group);
+        const heading = group.title ?? generatedGroupHeading(group);
         lines.push(
           [
             "---",
-            group.headingRowId === undefined ? "inferred" : "declared",
+            group.title === undefined ? "inferred" : "declared",
             group.phase,
             heading === undefined ? "" : `"${heading}"`,
           ]
             .filter(Boolean)
             .join(" "),
         );
-        // With no heading, the copy is the group's head line; under a
-        // generated one it follows the heading, the one line the group
-        // always draws.
-        if (group.headingRowId === undefined) {
-          standIn(group);
-        }
+        // With no heading, the copy is the group's head line; under one it
+        // follows the heading, the one line the group always draws.
+        standIn(group);
       }
     }
     // Held in the group without drawing anything.
@@ -289,11 +310,6 @@ function draw(
     lines.push(
       `${isHidden ? "·" : " "} ${isIndented ? "  " : ""}${labels.get(rowId) ?? rowId}`,
     );
-    // A declared group draws it under the heading, which is the one row of the
-    // group that is on screen for the whole of its life.
-    if (group?.headingRowId === rowId) {
-      standIn(group);
-    }
   }
 
   return lines.join("\n");
@@ -308,7 +324,7 @@ function groupSpans(turns: Turns): string[] {
   const { labels, layout } = build(turns);
   return [...layout.groups.values()].map((group) =>
     [
-      group.headingRowId === undefined ? "inferred" : "declared",
+      group.title === undefined ? "inferred" : "declared",
       `folds=${group.foldedRowCount}`,
       `opensOn="${labels.get(group.id) ?? group.id}"`,
       `canExpand=${groupCanExpand(group) ? "true" : "false"}`,
@@ -342,12 +358,10 @@ describe("groups the agent named", () => {
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
       ·   weighing it up
-      --- declared settled
-        Writing the brief
+      --- declared settled "Writing the brief"
       ·   make brief
       ~
         here is the brief"
@@ -373,8 +387,7 @@ describe("groups the agent named", () => {
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
       ~
         these are older than I expected
@@ -404,8 +417,7 @@ describe("groups the agent named", () => {
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
       ~
         here is the brief
@@ -440,14 +452,12 @@ describe("groups the agent named", () => {
       ]),
     ).toMatchInlineSnapshot(`
       "  find the notes
-      --- declared settled
-        Finding the notes
+      --- declared settled "Finding the notes"
       ·   one
       ~
         here is the brief
         now chart it
-      --- declared settled
-        Charting it
+      --- declared settled "Charting it"
       ·   two
       ~
         here is the chart"
@@ -470,18 +480,15 @@ describe("groups the agent named", () => {
         { isExpanded: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
           one
           two"
     `);
   });
 
-  // A phase boundary the model left unnamed is still a phase boundary. The row
-  // draws nothing, so it has to be read before it is a row at all: filtered out
-  // for having nothing to say, it is invisible twice over and the calls after
-  // it go on joining the phase it was ending.
-  it("ends the open phase on a heading the model left blank", () => {
+  // A model can leave the activity off a call. Nothing says the phase changed,
+  // so the call stays in the one it follows rather than breaking it up.
+  it("keeps a call that names no phase in the phase it follows", () => {
     expect(
       draw([
         {
@@ -496,10 +503,8 @@ describe("groups the agent named", () => {
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
-      --- inferred settled "Read 2 files"
       ·   two
       ·   three"
     `);
@@ -526,8 +531,7 @@ describe("groups the agent named", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
       ~
         these are older than I expected
@@ -538,23 +542,75 @@ describe("groups the agent named", () => {
     `);
   });
 
-  // Not even as a folded row: a call that draws nothing is not a row, and one
-  // that is leaves an empty box behind for as long as the title takes to
-  // arrive, which is every time an activity opens.
-  it("leaves a heading with no title out of the transcript entirely", () => {
+  // A model writes the activity first, so a call streaming in names its phase
+  // a few words at a time. Read whole at every one of those moments, the
+  // transcript would open a phase per partial title.
+  it("keeps a call whose activity is still arriving in the phase it begins", () => {
+    expect(
+      draw(
+        [
+          {
+            role: "assistant",
+            specs: [
+              ["activity", "Finding the notes"],
+              ["read", "one"],
+            ],
+          },
+          { role: "assistant", specs: [["arriving", "Finding the"]] },
+        ],
+        { isAgentRunning: true },
+      ),
+    ).toMatchInlineSnapshot(`
+      "--- declared working "Finding the notes"
+      >   Finding the
+      ·   one
+      ·   Finding the"
+    `);
+  });
+
+  it("opens the next phase as soon as an arriving activity departs from it", () => {
+    expect(
+      draw(
+        [
+          {
+            role: "assistant",
+            specs: [
+              ["activity", "Finding the notes"],
+              ["read", "one"],
+            ],
+          },
+          { role: "assistant", specs: [["arriving", "Writing"]] },
+        ],
+        { isAgentRunning: true },
+      ),
+    ).toMatchInlineSnapshot(`
+      "--- declared settled "Finding the notes"
+      ·   one
+      --- declared working "Writing"
+      >   Writing
+      ·   Writing"
+    `);
+  });
+
+  // The agent thinks before its first call, and the call is what names the
+  // phase. Left where it was, the thought would be a group of its own under no
+  // heading, above the phase it was the start of.
+  it("puts a thought before the first call under the phase that call names", () => {
     expect(
       draw([
         {
           role: "assistant",
           specs: [
-            ["untitled-activity", "still streaming"],
+            ["thought", "the notes first"],
+            ["activity", "Finding the notes"],
             ["read", "one"],
             ["read", "two"],
           ],
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- inferred settled "Read 2 files"
+      "--- declared settled "Finding the notes"
+      ·   the notes first
       ·   one
       ·   two"
     `);
@@ -625,10 +681,8 @@ describe("groups that span messages", () => {
 
     expect(draw(turns)).toMatchInlineSnapshot(`
       "  pull the product images
-      --- inferred settled
-        which page
-      --- declared settled
-        Inspecting the gallery
+      --- declared settled "Inspecting the gallery"
+      ·   which page
       ·   open the page
       ·   convert them
       ~
@@ -636,8 +690,7 @@ describe("groups that span messages", () => {
     `);
     expect(groupSpans(turns)).toMatchInlineSnapshot(`
       [
-        "inferred folds=1 opensOn="which page" canExpand=false",
-        "declared folds=2 opensOn="Inspecting the gallery" canExpand=true",
+        "declared folds=3 opensOn="which page" canExpand=true",
       ]
     `);
   });
@@ -909,8 +962,7 @@ describe("while the agent is working", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- declared working
-        Finding the notes
+      "--- declared working "Finding the notes"
       >   two
       ·   one
       ·   two"
@@ -932,8 +984,7 @@ describe("while the agent is working", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- declared working
-        Finding the notes
+      "--- declared working "Finding the notes"
       >   one
       ·   one"
     `);
@@ -995,8 +1046,7 @@ describe("while the agent is working", () => {
         { role: "assistant", specs: [["read", "two"]] },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
         and now this
       --- inferred settled
@@ -1052,11 +1102,9 @@ describe("the space around what the agent said", () => {
         },
       ]),
     ).toMatchInlineSnapshot(`
-      "--- declared settled
-        Finding the notes
+      "--- declared settled "Finding the notes"
       ·   one
-      --- declared settled
-        Writing the brief
+      --- declared settled "Writing the brief"
       ·   make brief"
     `);
   });

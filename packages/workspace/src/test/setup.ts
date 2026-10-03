@@ -57,7 +57,6 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
-  isActivityHeadingsEnabled: () => false,
   isExternalBrowserEnabled: () => false,
   modelCache: noopModelCache,
   nodeExecEnv: {},

@@ -47,16 +47,16 @@ const partMetadata = (ids: PartIds) => ({
   ...ids,
 });
 
-/** The heading the agent put over the work it was in the middle of. */
+/** A finished call labeled with the work the agent was in the middle of. */
 const activity =
-  (title: string) =>
+  (explanation: string) =>
   (ids: PartIds): SessionMessage.WithParts["parts"][number] => ({
-    input: { title },
+    input: { explanation, reason: "Your Desktop." },
     metadata: { ...partMetadata(ids), endedAt: new Date() },
-    output: {},
+    output: { status: "declined" },
     state: "output-available",
-    toolCallId: `call_${title}`,
-    type: "tool-start_activity",
+    toolCallId: `call_${explanation}`,
+    type: "tool-request_folder",
   });
 
 async function withSession(taskId: ReturnType<typeof freshTask>) {

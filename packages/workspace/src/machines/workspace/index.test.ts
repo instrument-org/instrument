@@ -42,7 +42,6 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       captureException: noop,
       defaultTaskTemplateDir: MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
       getAIProviderConfigs: () => [],
-      isActivityHeadingsEnabled: () => false,
       isExternalBrowserEnabled: () => false,
       modelCache: noopModelCache,
       nodeExecEnv: {},

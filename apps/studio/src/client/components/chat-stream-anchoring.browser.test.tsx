@@ -47,32 +47,6 @@ const task: Task = {
   updatedAt: new Date(0),
 };
 
-/** The row that opens a named phase, as its own assistant message. */
-function activityStep(title: string) {
-  return {
-    id: StoreId.newMessageId(),
-    metadata: { createdAt: new Date(0), sessionId },
-    parts: [
-      {
-        input: { title },
-        metadata: {
-          createdAt: new Date(0),
-          endedAt: new Date(2),
-          id: StoreId.newPartId(),
-          messageId: StoreId.newMessageId(),
-          sessionId,
-          startedAt: new Date(1),
-        },
-        output: {},
-        state: "output-available",
-        toolCallId: StoreId.ToolCallSchema.parse(`call-${title}`),
-        type: "tool-start_activity",
-      },
-    ],
-    role: "assistant",
-  };
-}
-
 function message(
   role: "assistant" | "user",
   text: string,
@@ -99,13 +73,18 @@ function message(
 }
 
 /** One finished read, as its own assistant message: a turn is a message a step. */
-function readStep(filePath: string) {
+/** A finished read, in the named phase `activity` when one is given. */
+function readStep(filePath: string, activity?: string) {
   return {
     id: StoreId.newMessageId(),
     metadata: { createdAt: new Date(0), sessionId },
     parts: [
       {
-        input: { explanation: `Reading ${filePath}`, filePath },
+        input: {
+          ...(activity === undefined ? {} : { activity }),
+          explanation: `Reading ${filePath}`,
+          filePath,
+        },
         metadata: {
           createdAt: new Date(0),
           endedAt: new Date(2),
@@ -484,8 +463,9 @@ const FOLDED_STEP = "Thought for 1s";
 const foldedPhase = [
   ...history,
   message("user", "Check the numbers"),
-  activityStep("Checking the numbers"),
-  ...["q1.csv", "q2.csv", "q3.csv", "q4.csv", "q5.csv"].map(readStep),
+  ...["q1.csv", "q2.csv", "q3.csv", "q4.csv", "q5.csv"].map((filePath) =>
+    readStep(filePath, "Checking the numbers"),
+  ),
   // A thought rather than a sixth read: what it opens is a paragraph, where a
   // read opens a file card and the highlighter behind it, and none of that is
   // what is being measured here.

@@ -27,12 +27,6 @@ describe("summarizeToolRun", () => {
       ["web_search", "web_search", "web_search"],
       "Searched the web",
     ],
-    [
-      "the heading's own call, which is not a step under it",
-      ["start_activity", "read_file", "read_file"],
-      "Read 2 files",
-    ],
-    ["nothing worth naming", ["start_activity"], "Worked on it"],
   ])("%s", (_case, toolNames, expected) => {
     expect(summarizeToolRun(toolNames)).toBe(expected);
   });

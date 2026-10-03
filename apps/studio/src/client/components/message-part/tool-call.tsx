@@ -20,14 +20,12 @@ import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
 import { ToolRequestFolder } from "./tool-request-folder";
-import { ToolStartActivity } from "./tool-start-activity";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
-  isActivityRunning,
   isDeveloperMode,
   isRunning,
   isStreaming,
@@ -35,7 +33,6 @@ export function ToolCall({
   part,
   task,
 }: {
-  isActivityRunning: boolean;
   isDeveloperMode: boolean;
   isRunning: boolean;
   isStreaming: boolean;
@@ -56,12 +53,6 @@ export function ToolCall({
 
   if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
     return null;
-  }
-
-  // Not a call the user inspects: it says nothing about the workspace, and its
-  // input is the whole of what it has to show.
-  if (part.type === "tool-start_activity") {
-    return <ToolStartActivity isRunning={isActivityRunning} part={part} />;
   }
 
   const isDeadDevMode =
@@ -114,9 +105,7 @@ function ToolCallBody({
   task,
 }: {
   onRetry: (prompt: string) => void;
-  // Activities are drawn by their caller, so the switch below stays exhaustive
-  // over the calls that have a body at all.
-  part: Exclude<SessionMessagePart.ToolPart, { type: "tool-start_activity" }>;
+  part: SessionMessagePart.ToolPart;
   task: Task;
 }) {
   if (part.state === "output-error") {

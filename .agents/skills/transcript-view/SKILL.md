@@ -20,4 +20,4 @@ Hand back the path. Do not also summarize the transcript unless asked; this skil
 
 ## What the page relies on
 
-The parser is `transcript-digest`'s (`../transcript-digest/scripts/parse.mjs`), so a format change is fixed once there. Activities come from `start_activity` calls; a run whose model announced none falls back to grouping steps under their first action, which reads as one long block. Durations are the export's own timestamps.
+The parser is `transcript-digest`'s (`../transcript-digest/scripts/parse.mjs`), so a format change is fixed once there. Activities come from the `activity` each call carries; a run whose model named none falls back to grouping steps under their first action, which reads as one long block. Durations are the export's own timestamps.

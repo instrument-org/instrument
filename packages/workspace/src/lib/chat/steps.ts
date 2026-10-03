@@ -3,7 +3,6 @@ import { z } from "zod";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { TOOL_NAMES } from "../../tools/name";
 import { getToolNameByType } from "../get-tool-name-by-type";
 import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
@@ -64,6 +63,9 @@ export async function sessionSteps({
     return [];
   }
   const steps: Step[] = [];
+  // The phase the calls so far belong to. A call opens a new one by carrying a
+  // different activity, the same reading the transcript draws its headings by.
+  let activity: string | undefined;
   for (const message of messages.value) {
     if (message.role === "user") {
       const text = message.parts
@@ -97,10 +99,20 @@ export async function sessionSteps({
       if (!isToolPart(part)) {
         continue;
       }
-      const step = toolStep(part, message.metadata.createdAt);
-      if (step) {
-        steps.push(step);
+      const at = partCreatedAt(part) ?? message.metadata.createdAt;
+      const input = LabelInputSchema.safeParse(part.input);
+      const callActivity = input.success
+        ? input.data.activity?.trim()
+        : undefined;
+      if (callActivity && callActivity !== activity) {
+        activity = callActivity;
+        steps.push({
+          at,
+          kind: "activity",
+          text: clip(callActivity, LABEL_MAX_LENGTH),
+        });
       }
+      steps.push(toolStep(part, at));
     }
   }
   return steps;
@@ -108,8 +120,8 @@ export async function sessionSteps({
 
 /**
  * Where a task's agent has gone since a moment, oldest first, from its newest
- * session: the activities it set, or each call it made when it set none, since
- * `start_activity` sits behind a flag. What an overdue note carries in place of
+ * session: the activities its calls named, or each call it made when they named
+ * none, which a model can leave out. What an overdue note carries in place of
  * the one latest step, so the conversation reads a trajectory rather than a
  * snapshot.
  */
@@ -140,12 +152,12 @@ function clip(text: string, maxLength: number): string {
 
 /** The fields of a call's input the outline can label it by. */
 const LabelInputSchema = z.object({
+  activity: z.string().optional(),
   command: z.string().optional(),
   explanation: z.string().optional(),
   filePath: z.string().optional(),
   name: z.string().optional(),
   query: z.string().optional(),
-  title: z.string().optional(),
   url: z.string().optional(),
 });
 
@@ -198,24 +210,14 @@ function partCreatedAt(part: SessionMessagePart.Type): Date | undefined {
 }
 
 /**
- * A tool call as one line: the activity's title for `start_activity`, and for
- * everything else the tool's name, the agent's own label for the call, and how
- * it ended. A `bash` call that outlived its window names the process it became.
+ * A tool call as one line: the tool's name, the agent's own label for the call,
+ * and how it ended. A `bash` call that outlived its window names the process it
+ * became.
  */
-function toolStep(
-  part: SessionMessagePart.ToolPart,
-  fallbackAt: Date,
-): Step | undefined {
-  const at = partCreatedAt(part) ?? fallbackAt;
+function toolStep(part: SessionMessagePart.ToolPart, at: Date): Step {
   const tool = part.type.slice("tool-".length);
   const parsed = LabelInputSchema.safeParse(part.input);
   const input = parsed.success ? parsed.data : {};
-
-  if (tool === TOOL_NAMES.startActivity) {
-    return input.title?.trim()
-      ? { at, kind: "activity", text: clip(input.title, LABEL_MAX_LENGTH) }
-      : undefined;
-  }
 
   const label =
     input.explanation?.trim() ||

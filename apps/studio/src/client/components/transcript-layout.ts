@@ -10,7 +10,6 @@ import {
 import { summarizeToolRun } from "../lib/tool-display";
 import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import {
-  isActivityHeadingVisible,
   isAwaitingUser,
   isToolCallVisible,
   isToolPartRunning,
@@ -26,9 +25,10 @@ const MIN_INFERRED_GROUP_CALLS = 2;
  * A run of steps -- tool calls and reasoning -- drawn as one unit.
  *
  * There are two kinds, and they differ only in where the heading comes from. A
- * **declared** group is opened by the agent calling `start_activity` and headed
- * by that row. An **inferred** group is any other unbroken run of steps, headed
- * by a phrase generated from what it turned out to contain.
+ * **declared** group is a run of calls the agent put in one phase, by writing
+ * the same `activity` on each, and is headed by it. An **inferred** group is
+ * any other unbroken run of steps, headed by a phrase generated from what it
+ * turned out to contain.
  *
  * A group is `working` until something closes it and `settled` after, and
  * between them that is the whole of how it draws:
@@ -65,8 +65,6 @@ export interface TranscriptGroup {
    * fraction. These are the rows the fold takes away the moment it closes.
    */
   foldedRowCount: number;
-  /** The `start_activity` row heading it. Absent on an inferred group. */
-  headingRowId?: StoreId.Part;
   /**
    * Also the id of the row the group opens on, which is how a renderer working
    * one message at a time tells the slice that starts the group from the ones
@@ -86,6 +84,8 @@ export interface TranscriptGroup {
    * group's heading counts up from.
    */
   startedAt: Date;
+  /** The phase its calls named, which heads it. Absent on an inferred group. */
+  title?: string;
   /**
    * Its tool calls in order: the names a generated heading is built from, and
    * the row each one sits in, for the run that ends up folding under a copy of
@@ -145,10 +145,12 @@ export interface TranscriptRow {
  * sit against the prose around them.
  *
  * Nothing in the data says a call belongs to a group. No tool part carries a
- * group id, and a declared group is only ever implied by the agent having
- * announced one before making the calls. So membership is read positionally: a
- * group opens at a `start_activity` row, or at the first step after a break,
- * and closes at the next heading, at a paragraph, or at the end of the turn.
+ * group id; each call carries the phase the agent put it in, as its `activity`,
+ * and a call naming a different phase from the one before it starts another.
+ * So membership is read positionally: a group opens at a call naming a new
+ * phase, or at the first step after a break, and closes at the next such call,
+ * at a paragraph, or at the end of the turn. A call naming no phase stays in the
+ * one it follows.
  *
  * Prose closes a group of either kind. The agent turning to address the user is
  * the clearest break in a run there is, and taking it as one means every
@@ -215,7 +217,7 @@ export function buildTranscriptLayout({
     }
     rowAbove = inAssistantMessage ? row : undefined;
     flat.push(row);
-    if (!open || id === open.headingRowId || isHeld) {
+    if (!open || isHeld) {
       return;
     }
     open.foldedRowCount++;
@@ -245,24 +247,11 @@ export function buildTranscriptLayout({
         continue;
       }
 
-      // A phase boundary before it is a row. The agent announcing a phase ends
-      // whatever was running, and a title it left blank ends one just the same
-      // -- it draws nothing, but the work after it is no longer what came
-      // before. Read after the row was filtered out, a blank one is invisible
-      // twice over, and the calls that follow it join the phase it ended.
-      if (part.type === "tool-start_activity") {
-        const isHeading = isActivityHeadingVisible(part);
-        // Still arriving, so it has not yet said whether it has a title. The
-        // phase it may end is left alone until it has.
-        if (!isHeading && part.state === "input-streaming") {
-          continue;
-        }
-        settle();
-        if (isHeading) {
-          open = emptyGroup(part, { headingRowId: part.metadata.id });
-          push(part.metadata.id, "step");
-        }
-        continue;
+      // A phase boundary before it is a row, and before the call is filtered
+      // out: a queued call that draws nothing still names the phase it is in,
+      // and the calls after it are read against that.
+      if (isToolPart(part)) {
+        open = openPhase(open, part, settle);
       }
 
       const isStreaming = isToolPart(part)
@@ -383,8 +372,8 @@ export function buildTranscriptLayout({
  * The summary a settled inferred group draws above its rows, or undefined when
  * it has none.
  *
- * A declared group draws its own `start_activity` row instead, and a working
- * one draws how long it has been going, so both return nothing here. A settled
+ * A declared group draws its own title instead, and a working one draws how
+ * long it has been going, so both return nothing here. A settled
  * one earns a summary only if it holds enough calls for it to say more than
  * the rows it replaces. The count is read once the run is over and never
  * while it works: a call still unfinished is a row only while it is in the
@@ -393,7 +382,7 @@ export function buildTranscriptLayout({
 export function generatedGroupHeading(
   group: TranscriptGroup,
 ): string | undefined {
-  if (group.headingRowId !== undefined || group.phase === "working") {
+  if (group.title !== undefined || group.phase === "working") {
     return undefined;
   }
   if (group.toolCalls.length < MIN_INFERRED_GROUP_CALLS) {
@@ -431,7 +420,7 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
  */
 export function groupHasHeading(group: TranscriptGroup): boolean {
   return (
-    group.headingRowId !== undefined ||
+    group.title !== undefined ||
     group.phase === "working" ||
     generatedGroupHeading(group) !== undefined
   );
@@ -528,8 +517,7 @@ export function isStepInFlight({
   part: SessionMessagePart.Type;
 }): boolean {
   if (isToolPart(part)) {
-    // A heading with no title yet is not a step, and draws nothing.
-    return isStreaming && part.type !== "tool-start_activity";
+    return isStreaming;
   }
   return (
     part.type === "reasoning" &&
@@ -594,24 +582,35 @@ export function planRow({
   if (!group || !row) {
     return { isHidden: false, isIndented: false };
   }
-  // The heading is the head line rather than something held behind it.
-  if (row.id === group.headingRowId) {
-    return { isHidden: false, isIndented: false };
-  }
   const folds = groupFoldsRows(group);
   return { isHidden: folds && !isExpanded, isIndented: folds };
 }
 
+/**
+ * The phase a call names, from its `activity`, or undefined when it names none:
+ * the field arrives first while the call streams in, and a model can leave it
+ * out or blank.
+ */
+function activityOf(part: SessionMessagePart.ToolPart): string | undefined {
+  const input: unknown = part.input;
+  if (typeof input !== "object" || input === null || !("activity" in input)) {
+    return undefined;
+  }
+  const activity =
+    typeof input.activity === "string" ? input.activity.trim() : "";
+  return activity === "" ? undefined : activity;
+}
+
 function emptyGroup(
   part: SessionMessagePart.Type,
-  { headingRowId }: { headingRowId?: StoreId.Part } = {},
+  { title }: { title?: string } = {},
 ): TranscriptGroup {
   return {
     foldedRowCount: 0,
-    headingRowId,
     id: part.metadata.id,
     phase: "working",
     startedAt: part.metadata.createdAt,
+    title,
     toolCalls: [],
   };
 }
@@ -622,7 +621,7 @@ function emptyGroup(
  * every row instead.
  */
 function groupFoldsRows(group: TranscriptGroup): boolean {
-  if (group.headingRowId !== undefined) {
+  if (group.title !== undefined) {
     return true;
   }
   if (group.phase === "working") {
@@ -713,6 +712,41 @@ function isRenderableInlinePart({
   return isReasoningPartVisible({ isLive: isLivePart, part });
 }
 
+/**
+ * The group a call joins: the open one, unless the call names a phase other
+ * than the one it heads, which settles it and opens the next.
+ *
+ * Two cases stay where they are. A call still streaming in whose activity is so
+ * far the start of the open phase's title is that phase arriving a word at a
+ * time, and opening a group for every partial title would draw a heading per
+ * keystroke. And a run that has only thought so far, with no call yet, takes
+ * the title of the first call that names one, rather than leaving the thinking
+ * behind as a group of its own under no heading.
+ */
+function openPhase(
+  open: TranscriptGroup | undefined,
+  part: SessionMessagePart.ToolPart,
+  settle: () => void,
+): TranscriptGroup | undefined {
+  const activity = activityOf(part);
+  if (activity === undefined || activity === open?.title) {
+    return open;
+  }
+  if (
+    open?.title !== undefined &&
+    part.state === "input-streaming" &&
+    open.title.startsWith(activity)
+  ) {
+    return open;
+  }
+  if (open && open.title === undefined && open.toolCalls.length === 0) {
+    open.title = activity;
+    return open;
+  }
+  settle();
+  return emptyGroup(part, { title: activity });
+}
+
 function markLive({
   group,
   id,
@@ -761,7 +795,7 @@ function opensOnSight(part: SessionMessagePart.ToolPart): boolean {
  * the line it would fold to.
  */
 function soleToolCallRowId(group: TranscriptGroup): StoreId.Part | undefined {
-  if (group.headingRowId !== undefined || group.phase !== "settled") {
+  if (group.title !== undefined || group.phase !== "settled") {
     return undefined;
   }
   if (group.toolCalls.length !== 1 || group.foldedRowCount < 2) {

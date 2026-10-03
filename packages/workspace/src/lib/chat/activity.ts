@@ -107,8 +107,8 @@ export async function latestStep(taskId: TaskId): Promise<string | undefined> {
 }
 
 /**
- * The label on the newest tool call in a transcript: the activity heading the
- * agent set, or the explanation on the call, whichever it gave.
+ * The label on the newest tool call in a transcript: the explanation on the
+ * call, or the activity it belongs to when it gave no explanation.
  */
 export function latestStepIn(
   messages: SessionMessage.WithParts[],
@@ -124,10 +124,10 @@ export function latestStepIn(
       const input: unknown = part.input;
       const label =
         typeof input === "object" && input !== null
-          ? "title" in input && typeof input.title === "string"
-            ? input.title
-            : "explanation" in input && typeof input.explanation === "string"
-              ? input.explanation
+          ? "explanation" in input && typeof input.explanation === "string"
+            ? input.explanation
+            : "activity" in input && typeof input.activity === "string"
+              ? input.activity
               : undefined
           : undefined;
       if (label?.trim()) {

@@ -4,25 +4,8 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
-type StartActivityPart = Extract<
-  SessionMessagePart.ToolPart,
-  { type: "tool-start_activity" }
->;
-
 export function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
   return part.state === "output-available" || part.state === "output-error";
-}
-
-/**
- * Whether an activity heading draws anything. A title is absent until the first
- * tokens of the call arrive, and a model can call the tool with a blank one, so
- * the indent under a heading has to be decided by the same rule that decides
- * whether the heading is there at all -- otherwise rows sit indented under
- * nothing.
- */
-export function isActivityHeadingVisible(part: StartActivityPart): boolean {
-  const title = part.input?.title;
-  return typeof title === "string" && title.trim() !== "";
 }
 
 /**
@@ -56,14 +39,6 @@ export function isToolCallVisible({
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
-  // An activity with no title yet has nothing to draw, so it is not a row in
-  // any mode. Counting it as one opens a group the call cannot head, which is a
-  // box holding a row that renders nothing: an empty gap in the transcript for
-  // as long as the title takes to arrive.
-  if (part.type === "tool-start_activity") {
-    return isActivityHeadingVisible(part);
-  }
-
   return (
     hasTerminalToolState(part) ||
     isDeveloperMode ||
@@ -83,15 +58,6 @@ export function isToolCallVisible({
  * emits while it keeps going.
  */
 export function isToolPartRunning(part: SessionMessagePart.ToolPart): boolean {
-  // A heading is not a step. `start_activity` touches nothing and returns at
-  // once, so while it runs there is nothing to watch and nothing else has
-  // started: counting it as the work in flight leaves the group it just opened
-  // as a heading with an empty space under it, in the one place the reader was
-  // invited to look.
-  if (part.type === "tool-start_activity") {
-    return false;
-  }
-
   switch (part.state) {
     case "input-available": {
       // An interactive call never reaches the queue: it is handed to the user

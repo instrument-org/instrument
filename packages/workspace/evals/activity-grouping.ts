@@ -1,9 +1,10 @@
 /**
  * Does a model group its work into activities on its own?
  *
- * `start_activity` only earns its place in the tool list if models reach for it
- * where a person would -- once before a phase of work, several times across a
- * long task, and not at all for a question answered in a sentence. This runs
+ * Every call carries an `activity`, and the transcript heads each run of calls
+ * sharing one. That only reads well if models change it where a person would --
+ * at the start of a phase of work, several times across a long task, and never
+ * for a question answered in a sentence. This runs
  * the real agent over four situations chosen to span that range and reports,
  * per model, how many activities appeared, how many tool calls fell under each,
  * and whether any work started before anything was announced.
@@ -27,7 +28,6 @@ import { ulid } from "ulid";
 import { AGENT_FILES_LANGUAGE } from "../src/constants";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { type Session } from "../src/schemas/session";
-import { TOOL_NAMES } from "../src/tools/name";
 import { type Assertion, defineEval, runEvals, sessionsFor } from "./harness";
 import { generateReport } from "./report";
 import { c, modelURI } from "./utils";
@@ -65,8 +65,6 @@ interface Timeline {
   /** Calls made before the model announced anything. */
   unannounced: string[];
 }
-
-const ACTIVITY_PART_TYPE = `tool-${TOOL_NAMES.startActivity}` as const;
 
 const activityCount = (count: number) =>
   `${count} ${count === 1 ? "activity" : "activities"}`;
@@ -107,9 +105,10 @@ function assistantText(sessions: Session.WithMessagesAndParts[]): string {
 }
 
 /**
- * Transcript order is the whole of the grouping: a call belongs to the last
- * activity opened before it. That is the contract the tool ships with, so
- * reading it back the same way is what this measures.
+ * Transcript order is the whole of the grouping: a call carrying a different
+ * activity from the one before it opens a new one, and a call carrying none
+ * stays in the last. That is how the transcript draws its headings, so reading
+ * it back the same way is what this measures.
  */
 function timelineFor(sessions: Session.WithMessagesAndParts[]): Timeline {
   const timeline: Timeline = { activities: [], unannounced: [] };
@@ -120,15 +119,14 @@ function timelineFor(sessions: Session.WithMessagesAndParts[]): Timeline {
         if (!isToolPart(part)) {
           continue;
         }
-        if (part.type === ACTIVITY_PART_TYPE) {
-          const title = part.input?.title;
-          timeline.activities.push({
-            calls: [],
-            // A call whose title never arrived is still an activity the model
-            // opened, and counting it is what makes that visible.
-            title: typeof title === "string" ? title : "(no title)",
-          });
-          continue;
+        const activity = (part.input as undefined | { activity?: unknown })
+          ?.activity;
+        if (
+          typeof activity === "string" &&
+          activity.trim() !== "" &&
+          activity !== timeline.activities.at(-1)?.title
+        ) {
+          timeline.activities.push({ calls: [], title: activity });
         }
         const toolName = part.type.replace("tool-", "");
         const current = timeline.activities.at(-1);
@@ -158,7 +156,7 @@ const assertExplanationVoice: Assertion = {
     const explanations = sessions.flatMap((session) =>
       session.messages.flatMap((message) =>
         message.parts.flatMap((part) => {
-          if (!isToolPart(part) || part.type === ACTIVITY_PART_TYPE) {
+          if (!isToolPart(part)) {
             return [];
           }
           const explanation = (
@@ -246,23 +244,6 @@ const assertActivityCadence: Assertion = {
     };
   },
   text: `Started the next activity within ${MAX_CALLS_PER_ACTIVITY} calls`,
-};
-
-/** Announcing a phase and then yielding is the early-stopping failure. */
-const assertNoEmptyActivity: Assertion = {
-  check: ({ sessions }) => {
-    const { activities } = timelineFor(sessions);
-    const empty = activities.filter((activity) => activity.calls.length === 0);
-    return {
-      evidence:
-        empty.length === 0
-          ? `All ${activityCount(activities.length)} were followed by work`
-          : `Announced with nothing under it: ${empty.map((activity) => activity.title).join(" | ")}`,
-      passed: activities.length > 0 && empty.length === 0,
-      text: "Did the work it announced",
-    };
-  },
-  text: "Did the work it announced",
 };
 
 const assertAnnouncedBeforeWorking: Assertion = {
@@ -381,7 +362,6 @@ const EVAL_CASES = [
       assertActivityCadence,
       assertExplanationVoice,
       assertGroupsSeveralCalls,
-      assertNoEmptyActivity,
       assertTitlesAreHeadings,
       assertStillShowsItsFiles,
     ],
@@ -399,7 +379,6 @@ const EVAL_CASES = [
       assertActivityCadence,
       assertExplanationVoice,
       assertGroupsSeveralCalls,
-      assertNoEmptyActivity,
       assertTitlesAreHeadings,
       assertStillShowsItsFiles,
     ],

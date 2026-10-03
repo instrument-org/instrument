@@ -438,9 +438,6 @@ export function ChatStream({
     const node = renderChatPart({
       browserStatusContextAdded: false,
       ctx: renderCtx,
-      // A settled run heads itself with its own call, so the copy is not always
-      // a copy of something in flight.
-      isGroupWorking: group.phase === "working",
       isStandIn: true,
       message: found.message,
       part: found.part,
@@ -600,7 +597,6 @@ export function ChatStream({
         const node = renderChatPart({
           browserStatusContextAdded,
           ctx: renderCtx,
-          isGroupWorking: group?.phase === "working",
           message,
           part,
           partIndex,
@@ -1063,7 +1059,11 @@ function collectGroups({
     // group that is on screen for the whole of its life.
     const openingRow = run.rows.find((row) => row.id === group.id);
     const isOpeningSlice = openingRow !== undefined;
-    const heading = isOpeningSlice ? generatedGroupHeading(group) : undefined;
+    // The phase the agent named, or for a run it did not name, a summary of
+    // what it held once it is over.
+    const heading = isOpeningSlice
+      ? (group.title ?? generatedGroupHeading(group))
+      : undefined;
     const standIn = isOpeningSlice ? renderStandIn(group) : null;
 
     // With the group folded, a middle slice holds nothing that draws, and an
@@ -1096,10 +1096,14 @@ function collectGroups({
         runningProcessCount={groupRunningProcessCount(group)}
       >
         {heading !== undefined && (
-          <GroupHeading key="heading" title={heading} />
+          <GroupHeading
+            isRunning={group.phase === "working"}
+            key="heading"
+            title={heading}
+          />
         )}
         {isOpeningSlice &&
-          group.headingRowId === undefined &&
+          heading === undefined &&
           group.phase === "working" && (
             <WorkingGroupHeading key="heading" startedAt={group.startedAt} />
           )}

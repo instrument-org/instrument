@@ -42,7 +42,6 @@ export interface RenderPartContext {
 export function renderChatPart({
   browserStatusContextAdded,
   ctx,
-  isGroupWorking,
   isStandIn = false,
   message,
   part,
@@ -50,8 +49,6 @@ export function renderChatPart({
 }: {
   browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
-  /** The group this part sits in is still taking rows; see `TranscriptGroup`. */
-  isGroupWorking: boolean;
   /**
    * This is the copy a working group draws in its own slot rather than the row
    * where it really sits, so it is arriving into a place that is already on
@@ -154,7 +151,6 @@ export function renderChatPart({
     // stream's, not this row's.
     return (
       <ToolCall
-        isActivityRunning={isGroupWorking && ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
         // A part can carry a start with no end long after the run that wrote it
         // died, so the record alone never means "running now": the live session

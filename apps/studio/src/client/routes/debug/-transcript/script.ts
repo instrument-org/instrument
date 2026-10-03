@@ -21,6 +21,7 @@ import {
 export type Act =
   | ToolCall
   | { acts: Act[]; kind: "same-step" }
+  | { kind: "activity"; title: string }
   | { calls: ToolCall[]; kind: "batch" }
   | { chunkCount?: number; kind: "prose"; text: string }
   | { error: TurnError; kind: "fail"; model?: AIGatewayModel.Type }
@@ -122,6 +123,16 @@ type UnknownToolCall = UnknownToolSpec & {
 type UnknownToolSpec =
   | { error: string; input: Record<string, unknown> }
   | { input: Record<string, unknown>; output: Record<string, unknown> };
+
+/**
+ * The phase the calls after it belong to, which the agent writes into each
+ * call's `activity` and the transcript heads them with. Holds until the next
+ * one, or until prose or the user's turn ends the phase. A blank title leaves
+ * the calls after it without one.
+ */
+export function activity(title: string): Act {
+  return { kind: "activity", title };
+}
 
 /** Calls the model asked for in one response, worked off the queue in order. */
 export function batch(...calls: ToolCall[]): Act {

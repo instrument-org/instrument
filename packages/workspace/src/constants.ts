@@ -82,4 +82,6 @@ export const AGENT_NEEDS_LANGUAGE = "needs";
  */
 export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
 
+export const TOOL_ACTIVITY_PARAM_NAME = "activity";
+
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

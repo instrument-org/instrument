@@ -97,7 +97,7 @@ function buildTool<
           Record<string, never>
         >({
           description,
-          inputSchema: toolInputSchemaForLLM(inputSchema),
+          inputSchema: toolInputSchemaForLLM(inputSchema, agentName),
           outputSchema: setup.outputSchema,
           toModelOutput,
           type: "function",

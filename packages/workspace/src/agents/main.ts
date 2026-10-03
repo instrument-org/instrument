@@ -6,6 +6,7 @@ import {
   AGENT_FILES_LANGUAGE,
   AGENT_NEEDS_LANGUAGE,
   TASK_FOLDER_NAMES as F,
+  TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { buildTaskAppsText } from "../lib/apps/context";
@@ -58,26 +59,6 @@ import {
 interface MountedFolderAttachment {
   folder: FolderAttachment.Type;
   mountPoint: string;
-}
-
-function activityGuidance(toolName: string) {
-  return `- Every turn that uses tools opens with \`${toolName}\`, and every change of objective inside that turn starts another one. Both rules are unconditional, a two-call lookup as much as a build, because work that appears with nothing said about it reads as the app acting on its own; the tool says how far one activity stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter says what each individual call does; the activity says why the group of them is happening.`;
-}
-
-/**
- * Whether this task's agent gets `start_activity`, behind the
- * `activity_headings` flag and off by default. Measured over real tasks, every
- * model sent the call as a step of its own rather than beside the first calls
- * of the phase it heads, so each heading cost a model round trip that did
- * nothing else: a quarter of one model's steps. Without it, Studio groups a
- * turn's calls itself and labels them from each call's explanation.
- *
- * The rule in the session context is written once, so a flag turned off
- * mid-session leaves an older session told to call a tool it no longer has;
- * the tool list follows the flag on every request.
- */
-function activityHeadingsEnabled() {
-  return getWorkspaceConfig().isActivityHeadingsEnabled();
 }
 
 /**
@@ -204,7 +185,6 @@ export const mainAgent = setupAgent({
     "GenerateImage",
     "LoadSkill",
     "ReadFile",
-    "StartActivity",
     "BashTool",
     "WebFetch",
     "WebSearch",
@@ -286,7 +266,7 @@ export const mainAgent = setupAgent({
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.
     - Batch independent tool calls into one response when useful.
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible. It is a label on a row the user sees, not a sentence addressed to anyone: a short phrase starting with a verb ending in -ing ('Reading the sales spreadsheet'), never first person ('I'm reading...', 'Let me check...'), never something you are about to do, never a full sentence with a period.
-    ${activityHeadingsEnabled() ? activityGuidance(agentTools.StartActivity.name) : ""}
+    - Every call carries an \`${TOOL_ACTIVITY_PARAM_NAME}\`: the phase of work it belongs to, which the user sees as a heading over the calls that share it. Calls serving one objective repeat the same heading word for word; the moment the objective changes (exploring gives way to building, building to checking the result, or something you found sends you elsewhere), the next call carries a new one. About six calls is as far as one phase stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` says what each call does; the activity says why the group of them is happening.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its declared dependencies are normally installed for you, and \`${agentTools.LoadSkill.name}\` tells you when a skill's were not.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Its full usage instructions come back with the first \`${AGENT_BROWSER_COMMAND.name}\` command you run, so start with the command itself (usually \`${AGENT_BROWSER_COMMAND.name} open <url>\`) rather than loading a skill.
     ${browserTargetingGuidance()}
@@ -398,14 +378,7 @@ export const mainAgent = setupAgent({
 
     return [systemMessage, userMessage];
   },
-  getTools: () =>
-    Promise.resolve(
-      Object.values(agentTools).filter(
-        (tool) =>
-          tool.name !== agentTools.StartActivity.name ||
-          activityHeadingsEnabled(),
-      ),
-    ),
+  getTools: () => Promise.resolve(Object.values(agentTools)),
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
     const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 

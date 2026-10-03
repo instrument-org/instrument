@@ -33,9 +33,9 @@ function renderList() {
       .filter((option) => option.getAttribute("aria-selected") === "true")
       .map((option) => option.textContent?.split("--")[0] ?? "");
   const reported = () =>
-    (
-      onSelectionChange.mock.lastCall?.[1] as FileSystemItem[] | undefined
-    )?.map((item) => item.path);
+    (onSelectionChange.mock.lastCall?.[1] as FileSystemItem[] | undefined)?.map(
+      (item) => item.path,
+    );
   const opened = () =>
     (onOpenSeveral.mock.lastCall?.[0] as FileSystemItem[] | undefined)?.map(
       (item) => item.path,
@@ -136,7 +136,7 @@ describe("FileSystem", () => {
       fireEvent.click(row("d.txt"), { metaKey: true });
       expect(selected()).toEqual(["a.txt", "d.txt"]);
     });
-  
+
     it("waits out a double-click before narrowing several to one", () => {
       vi.useFakeTimers();
       try {
@@ -154,6 +154,44 @@ describe("FileSystem", () => {
       }
     });
 
+    it("narrows before a ⌘-click that lands while the narrowing waits", () => {
+      vi.useFakeTimers();
+      try {
+        const { mouseClick, reported, row } = renderList();
+
+        fireEvent.click(row("a.txt"));
+        fireEvent.click(row("c.txt"), { shiftKey: true });
+        mouseClick("b.txt");
+        fireEvent.pointerDown(row("d.txt"), {
+          button: 0,
+          metaKey: true,
+          pointerType: "mouse",
+        });
+        fireEvent.click(row("d.txt"), { detail: 1, metaKey: true });
+        expect(reported()).toEqual(["b.txt", "d.txt"]);
+
+        vi.advanceTimersByTime(1000);
+        expect(reported()).toEqual(["b.txt", "d.txt"]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("lets go of what a search takes off the screen", () => {
+      const { reported, row, selected } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.click(row("c.txt"), { metaKey: true });
+      fireEvent.click(row("e.txt"), { metaKey: true });
+      fireEvent.click(screen.getByRole("button", { name: "Search" }));
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "c" },
+      });
+
+      expect(selected()).toEqual(["c.txt"]);
+      expect(reported()).toEqual(["c.txt"]);
+    });
+
     it("opens all of several on a double-click on one of them", () => {
       const { mouseClick, onFileOpen, opened, reported, row } = renderList();
 
@@ -167,7 +205,7 @@ describe("FileSystem", () => {
       expect(onFileOpen).not.toHaveBeenCalled();
       expect(reported()).toEqual(["a.txt", "b.txt", "c.txt"]);
     });
-  
+
     it("drags the rest of a selection along with the row pressed", () => {
       const startFileDrag = vi.fn();
       Object.defineProperty(window, "api", {
@@ -199,7 +237,7 @@ describe("FileSystem", () => {
         "/Users/sam/a.txt",
       ]);
     });
-  
+
     it("says what several are where one file's preview stands", () => {
       renderWithProviders(
         <FileSystem

@@ -1919,12 +1919,20 @@ export function FileSystem({
     },
     [commitSelection, index, selectEntry],
   );
-  // A query or filter change can hide the selected entry out from under the
-  // views.
+  // A query or filter change can hide some of the selection out from under
+  // the views. What is left is what is shown, so an action on the selection
+  // never reaches a row the search has taken off the screen.
   React.useEffect(() => {
     if (!visiblePaths || !selectedPath) return;
-    if (!visiblePaths.has(selectedPath)) selectEntry(null);
-  }, [selectEntry, selectedPath, visiblePaths]);
+    const held = heldPaths(selectedPath, several);
+    if (held.every((path) => visiblePaths.has(path))) return;
+    selectEntries(
+      held.flatMap((path) => {
+        const entry = index.files.get(path) ?? index.folders.get(path);
+        return entry && visiblePaths.has(path) ? [entry] : [];
+      }),
+    );
+  }, [index, selectEntries, selectedPath, several, visiblePaths]);
   // Dragging a row out of the window, to the desktop or another app. One
   // gesture for every view, on the browser itself; the rows say they drag.
   // A row of several selected carries the rest of them with it.
@@ -4100,6 +4108,8 @@ function usePressSelection(
     null,
   );
   const narrowingRef = React.useRef<number | undefined>(undefined);
+  // The row a click is waiting to narrow several to, until the wait is over.
+  const narrowingEntryRef = React.useRef<FileSystemEntry | null>(null);
   React.useEffect(() => () => window.clearTimeout(narrowingRef.current), []);
   const select = (
     entry: FileSystemEntry,
@@ -4125,7 +4135,9 @@ function usePressSelection(
         // The second click of a double-click leaves the several standing for
         // the double-click to open.
         if (pressed.narrow && event.detail < 2) {
+          narrowingEntryRef.current = entry;
           narrowingRef.current = window.setTimeout(() => {
+            narrowingEntryRef.current = null;
             onSelect(entry);
           }, DOUBLE_CLICK_MS);
         }
@@ -4141,6 +4153,13 @@ function usePressSelection(
     ) => {
       pressedRef.current = null;
       window.clearTimeout(narrowingRef.current);
+      // A press on another row while a click still waits to narrow several to
+      // its own: that wait is over, so the narrowing lands first and the
+      // press answers the one row it left rather than the several before it.
+      const narrowing = narrowingEntryRef.current;
+      narrowingEntryRef.current = null;
+      const narrowed = narrowing !== null && narrowing.path !== entry.path;
+      if (narrowed) onSelect(narrowing);
       if (
         event.pointerType !== "mouse" ||
         event.button !== 0 ||
@@ -4149,6 +4168,7 @@ function usePressSelection(
         return;
       }
       const narrow =
+        !narrowed &&
         selectionModeOf(event) === null &&
         selection.size > 1 &&
         selection.has(entry.path);
@@ -6076,7 +6096,11 @@ function FileSystemInformation({
   return <FileSystemInformationRows rows={rows} />;
 }
 /** The Information table under a preview: a label and its value per row. */
-function FileSystemInformationRows({ rows }: { rows: Array<[string, string]> }) {
+function FileSystemInformationRows({
+  rows,
+}: {
+  rows: Array<[string, string]>;
+}) {
   if (rows.length === 0) return null;
   return (
     <div className="border-t pt-3">

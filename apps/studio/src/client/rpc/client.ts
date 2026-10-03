@@ -23,8 +23,8 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
   // retry: 3 below are to because our default retry is 0 because most RPC calls
   // are local and won't fix if we retry. These requests ARE remote.
   experimental_defaults: {
-    plans: {
-      get: {
+    billing: {
+      offer: {
         queryOptions: {
           retry: 3,
         },

@@ -1,3 +1,4 @@
+import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import { macHelperBinPath } from "@/electron-main/lib/mac-native";
@@ -154,6 +155,7 @@ export function createWorkspaceActor() {
         ELECTRON_RUN_AS_NODE: "1",
       },
       pnpmBinPath: getPNPMBinPath(),
+      reportPlatformRefusal: recordPlatformRefusal,
       // Beside the app-managed `bin` and `uv`, and outside the workspace: the
       // set is prepared per machine, so several workspaces or a workspace the
       // user moves all source from one copy of it.

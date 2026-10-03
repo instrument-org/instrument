@@ -165,21 +165,6 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("puts a skill under Skills, by its name", () => {
-    expect(readable({ kind: "skill", name: "create-page" }))
-      .toMatchInlineSnapshot(`
-      [
-        "Skills -> /skills",
-        "create-page",
-      ]
-    `);
-    expect(readable({ kind: "skills" })).toMatchInlineSnapshot(`
-      [
-        "Skills",
-      ]
-    `);
-  });
-
   it("gives a screen that is under nothing one part, going nowhere", () => {
     expect(readable({ kind: "tasks" })).toMatchInlineSnapshot(`
       [

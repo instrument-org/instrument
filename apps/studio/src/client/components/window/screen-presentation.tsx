@@ -10,7 +10,6 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -23,7 +22,6 @@ import { joinHostPath, segmentsOf } from "./host-path";
 import { DISCOVER_HREF, ideaTitleOf } from "./ideas";
 import {
   locationCrumbs,
-  SKILLS_HREF,
   type TabLocation,
   tasksOfHref,
   type Volume,
@@ -89,14 +87,6 @@ export function screenLocation(
   }
   if (pathname === DISCOVER_HREF) {
     return { kind: "discover" };
-  }
-  // A skill is addressed by its name, which is also what it is called: the
-  // exact name a task loads it by is the one the reader has for it too.
-  if (pathname.startsWith(`${SKILLS_HREF}/`)) {
-    return { kind: "skill", name: skillNameOf(pathname) };
-  }
-  if (pathname === SKILLS_HREF) {
-    return { kind: "skills" };
   }
   if (pathname.startsWith(`${CHATS_HREF}/`)) {
     return { kind: "chat", title: chatTitleOf(pathname, chatTitles) };
@@ -180,18 +170,6 @@ export function screenPresentation(
   if (pathname === DISCOVER_HREF) {
     return { icon: <CompassIcon className="size-3.5" />, title: "Discover" };
   }
-  if (pathname.startsWith(`${SKILLS_HREF}/`)) {
-    return {
-      icon: <GraduationCapIcon className="size-3.5" />,
-      title: skillNameOf(pathname),
-    };
-  }
-  if (pathname === SKILLS_HREF) {
-    return {
-      icon: <GraduationCapIcon className="size-3.5" />,
-      title: "Skills",
-    };
-  }
   if (pathname === "/debug" || pathname.startsWith("/debug/")) {
     return {
       icon: <CodeIcon className="size-3.5" />,
@@ -262,19 +240,3 @@ function folderTitle(
   return crumbs.at(-1)?.label ?? computerName();
 }
 
-/**
- * The skill a screen address stands on, by the name the reader has for it:
- * the part after the source's prefix, since `workspace:tdd` is an address
- * for a task to load and `tdd` is what the tab is called. The router writes
- * that colon into the address as `%3A`, so the segment is decoded first.
- */
-function skillNameOf(pathname: string) {
-  const segment = pathname.slice(`${SKILLS_HREF}/`.length);
-  let name = segment;
-  try {
-    name = decodeURIComponent(segment);
-  } catch {
-    // Not valid encoding, so the segment is the name as written.
-  }
-  return name.slice(name.lastIndexOf(":") + 1);
-}

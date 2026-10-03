@@ -31,8 +31,6 @@ import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
 import { Route as AppDiscoverIdRouteImport } from './routes/_app/discover/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
-import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
-import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
 import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
@@ -161,16 +159,6 @@ const AppDiscoverIdRoute = AppDiscoverIdRouteImport.update({
 const AppSitesIdRoute = AppSitesIdRouteImport.update({
   id: '/sites/$id',
   path: '/sites/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
-  id: '/skills/',
-  path: '/skills/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
-  id: '/skills/$name',
-  path: '/skills/$name',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
@@ -306,7 +294,6 @@ export interface FileRoutesByFullPath {
   '/chats/$id': typeof AppChatsIdRoute
   '/discover/$id': typeof AppDiscoverIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/skills/$name': typeof AppSkillsNameRoute
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -323,7 +310,6 @@ export interface FileRoutesByFullPath {
   '/apps/': typeof AppAppsIndexRoute
   '/chats/': typeof AppChatsIndexRoute
   '/discover/': typeof AppDiscoverIndexRoute
-  '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -348,7 +334,6 @@ export interface FileRoutesByTo {
   '/chats/$id': typeof AppChatsIdRoute
   '/discover/$id': typeof AppDiscoverIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/skills/$name': typeof AppSkillsNameRoute
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -364,7 +349,6 @@ export interface FileRoutesByTo {
   '/apps': typeof AppAppsIndexRoute
   '/chats': typeof AppChatsIndexRoute
   '/discover': typeof AppDiscoverIndexRoute
-  '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/debug/components': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -394,7 +378,6 @@ export interface FileRoutesById {
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/discover/$id': typeof AppDiscoverIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
-  '/_app/skills/$name': typeof AppSkillsNameRoute
   '/_app/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -411,7 +394,6 @@ export interface FileRoutesById {
   '/_app/apps/': typeof AppAppsIndexRoute
   '/_app/chats/': typeof AppChatsIndexRoute
   '/_app/discover/': typeof AppDiscoverIndexRoute
-  '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -441,7 +423,6 @@ export interface FileRouteTypes {
     | '/chats/$id'
     | '/discover/$id'
     | '/sites/$id'
-    | '/skills/$name'
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -458,7 +439,6 @@ export interface FileRouteTypes {
     | '/apps/'
     | '/chats/'
     | '/discover/'
-    | '/skills/'
     | '/tasks/'
     | '/debug/components/'
     | '/debug/components/onboarding/complete'
@@ -483,7 +463,6 @@ export interface FileRouteTypes {
     | '/chats/$id'
     | '/discover/$id'
     | '/sites/$id'
-    | '/skills/$name'
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -499,7 +478,6 @@ export interface FileRouteTypes {
     | '/apps'
     | '/chats'
     | '/discover'
-    | '/skills'
     | '/tasks'
     | '/debug/components'
     | '/debug/components/onboarding/complete'
@@ -528,7 +506,6 @@ export interface FileRouteTypes {
     | '/_app/chats/$id'
     | '/_app/discover/$id'
     | '/_app/sites/$id'
-    | '/_app/skills/$name'
     | '/_app/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -545,7 +522,6 @@ export interface FileRouteTypes {
     | '/_app/apps/'
     | '/_app/chats/'
     | '/_app/discover/'
-    | '/_app/skills/'
     | '/_app/tasks/'
     | '/debug/components/'
     | '/debug/components/onboarding/complete'
@@ -718,20 +694,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSitesIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/skills/': {
-      id: '/_app/skills/'
-      path: '/skills'
-      fullPath: '/skills/'
-      preLoaderRoute: typeof AppSkillsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/skills/$name': {
-      id: '/_app/skills/$name'
-      path: '/skills/$name'
-      fullPath: '/skills/$name'
-      preLoaderRoute: typeof AppSkillsNameRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/_app/tasks/': {
       id: '/_app/tasks/'
       path: '/tasks'
@@ -883,12 +845,10 @@ interface AppRouteRouteChildren {
   AppChatsIdRoute: typeof AppChatsIdRoute
   AppDiscoverIdRoute: typeof AppDiscoverIdRoute
   AppSitesIdRoute: typeof AppSitesIdRoute
-  AppSkillsNameRoute: typeof AppSkillsNameRoute
   AppTasksIdRoute: typeof AppTasksIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
   AppDiscoverIndexRoute: typeof AppDiscoverIndexRoute
-  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
 }
 
@@ -900,12 +860,10 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppChatsIdRoute: AppChatsIdRoute,
   AppDiscoverIdRoute: AppDiscoverIdRoute,
   AppSitesIdRoute: AppSitesIdRoute,
-  AppSkillsNameRoute: AppSkillsNameRoute,
   AppTasksIdRoute: AppTasksIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
   AppDiscoverIndexRoute: AppDiscoverIndexRoute,
-  AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
 }
 

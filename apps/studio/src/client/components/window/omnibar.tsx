@@ -27,7 +27,6 @@ import {
 } from "@/client/components/window/omnibar-match";
 import { ShellContext } from "@/client/components/window/shell-context";
 import {
-  SKILLS_HREF,
   type TabLocation,
   taskHref,
 } from "@/client/components/window/tab-location";
@@ -35,7 +34,6 @@ import { ideasQueryOptions } from "@/client/components/window/use-ideas";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { siteFromWords } from "@/client/lib/site-from-words";
-import { matchSkills } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
@@ -45,7 +43,6 @@ import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import {
@@ -89,7 +86,6 @@ export type OmnibarMode =
   | "chats"
   | "files"
   | "ideas"
-  | "skills"
   | "tasks"
   | "web";
 
@@ -110,10 +106,6 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "idea": {
       return "ideas";
     }
-    case "skill":
-    case "skills": {
-      return "skills";
-    }
     case "task":
     case "tasks": {
       return "tasks";
@@ -131,7 +123,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
   chats: "Find a chat",
   files: "Go to a folder or file",
   ideas: "Find an idea",
-  skills: "Find a skill",
   tasks: "Find a task",
   web: "Search or enter address",
 };
@@ -141,7 +132,6 @@ const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   apps: "apps",
   chats: "chats",
   ideas: "ideas",
-  skills: "skills",
   tasks: "tasks",
 };
 
@@ -649,9 +639,6 @@ function useRows({
     ...ideasQueryOptions(),
     enabled: mode === "ideas",
   });
-  const skills = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({ enabled: mode === "skills" }),
-  );
   // The tasks of the chat the tasks screen or the task's page is for.
   const tasks = useChatTasks(
     mode === "tasks" && (location.kind === "task" || location.kind === "tasks")
@@ -860,19 +847,6 @@ function useRows({
             },
           }),
         );
-      }
-      case "skills": {
-        return matchSkills(skills.data ?? [], words, {
-          scope: "name-and-description",
-        }).map(({ skill }) => ({
-          detail: skill.description,
-          icon: <GraduationCapIcon className="size-4" />,
-          id: `skill:${skill.id}`,
-          name: skill.name,
-          run: () => {
-            open.visit(`${SKILLS_HREF}/${skill.id}`);
-          },
-        }));
       }
       case "tasks": {
         // A task's page finds the tasks of the chat it was opened from, the

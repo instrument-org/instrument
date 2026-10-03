@@ -95,15 +95,6 @@ describe("screenPresentation", () => {
     ).toBe("Documents");
   });
 
-  // The router writes a qualified name's colon as `%3A`; the tab reads the
-  // name after the source's prefix.
-  it.each([
-    ["a plain name", "/skills/create-page", "create-page"],
-    ["a qualified name", "/skills/workspace%3Atdd", "tdd"],
-  ])("names a skill tab by %s", (_, href, title) => {
-    expect(screenPresentation(href, CONTEXT).title).toBe(title);
-  });
-
   it.each([
     ["the debug home", "/debug", "Debug home"],
     ["a debug tool", "/debug/errors", "Errors"],

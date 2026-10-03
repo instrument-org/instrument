@@ -69,17 +69,9 @@ type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
 
 const PAGES = [
   { label: "/release-notes", to: "/release-notes" },
-  // No skill can answer to this, so it exercises what a deleted skill's page
-  // shows.
-  {
-    label: "/skills/<missing>",
-    params: { name: "no-such-skill" },
-    to: "/skills/$name",
-  },
   { label: "/", to: "/" },
 ] as const satisfies {
   label: string;
-  params?: Record<string, string>;
   to: NavigateTo;
 }[];
 
@@ -205,14 +197,10 @@ export function DevPanel() {
 
   const isPackaged = appEnvironment?.isPackaged === true;
 
-  function handleNavigate(
-    to: NavigateTo,
-    search?: { scenario: string },
-    params?: Record<string, string>,
-  ) {
+  function handleNavigate(to: NavigateTo, search?: { scenario: string }) {
     // `to` is widened to the full route union here, so TS can't correlate it
-    // with a per-route search or param schema the way a literal `to` would.
-    void navigate({ params, search, to } as Parameters<typeof navigate>[0]);
+    // with a per-route search schema the way a literal `to` would.
+    void navigate({ search, to } as Parameters<typeof navigate>[0]);
   }
 
   if (hidden) {
@@ -367,11 +355,7 @@ export function DevPanel() {
                       className="font-mono text-xs"
                       key={page.label}
                       onSelect={() => {
-                        handleNavigate(
-                          page.to,
-                          undefined,
-                          "params" in page ? page.params : undefined,
-                        );
+                        handleNavigate(page.to);
                       }}
                     >
                       {page.label}

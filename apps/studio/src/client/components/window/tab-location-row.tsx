@@ -25,7 +25,6 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -434,14 +433,6 @@ function locationMark(location: TabLocation): ReactNode {
         <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
-    // The skills, and one of them: a skill is under Skills the way an app
-    // page is under Apps.
-    case "skill":
-    case "skills": {
-      return (
-        <GraduationCapIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
-    }
     // A task is under the list it was opened from, the way an app page is
     // under Apps: the list wears the mark the chat's menu opens it with, and
     // one task a single box of it.
@@ -487,12 +478,6 @@ function locationText(location: TabLocation) {
     }
     case "page": {
       return location.url;
-    }
-    case "skill": {
-      return location.name;
-    }
-    case "skills": {
-      return "Skills";
     }
     case "task": {
       return location.title;

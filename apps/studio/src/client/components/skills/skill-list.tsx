@@ -2,8 +2,6 @@ import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
 import { Input } from "@/client/components/ui/input";
-import { SKILLS_HREF } from "@/client/components/window/tab-location";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
@@ -204,8 +202,7 @@ function showsSourcePaths(source: Skill["source"]) {
 
 /**
  * One skill: its name the way it is invoked, what it is, and how much it
- * brings with it. The whole row opens the skill's page, and a middle or
- * right click offers it in a tab of its own.
+ * brings with it. The whole row opens the skill's page.
  *
  * Two lines rather than columns, because the pane this stands in is narrow:
  * a name column wide enough for the longest name left the description no
@@ -220,17 +217,12 @@ function SkillRow({
   ranges: SkillMatch<Skill> | undefined;
   skill: Skill;
 }) {
-  const gestures = useOpenGestures({
-    href: `${SKILLS_HREF}/${skill.id}`,
-    kind: "screen",
-  });
   return (
     <button
       className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/40"
-      {...gestures.opening(() => {
+      onClick={() => {
         onOpen(skill);
-      })}
-      onContextMenu={gestures.onContextMenu}
+      }}
       type="button"
     >
       <span className="min-w-0 flex-1">

@@ -48,8 +48,13 @@ export function chatOfTasksList(chat: unknown): StoreId.Session | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-/** The route the Skills screen is at: every skill a task can load, and each one's page under it. */
-export const SKILLS_HREF = "/skills";
+/** The address of the skills, which the window shows in Settings rather than as a screen. */
+const SKILLS_HREF = "/skills";
+
+/** The address of one skill, by the name a task loads it by. */
+export function skillHref(name: string): string {
+  return `${SKILLS_HREF}/${name}`;
+}
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
@@ -75,8 +80,6 @@ export type TabLocation =
   | { kind: "discover" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
-  | { kind: "skill"; name: string }
-  | { kind: "skills" }
   | {
       /** The chat whose tasks these are; none only on the way to the inbox. */
       chat?: StoreId.Session;
@@ -130,15 +133,6 @@ export function locationCrumbs(
     case "newTab":
     case "page": {
       return [];
-    }
-    case "skill": {
-      return [
-        { label: "Skills", to: { href: SKILLS_HREF, kind: "screen" } },
-        { label: location.name },
-      ];
-    }
-    case "skills": {
-      return [{ label: "Skills" }];
     }
     // A task opened from no chat's list has no list to go back to.
     case "task": {

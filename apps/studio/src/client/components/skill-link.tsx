@@ -1,4 +1,4 @@
-import { SKILLS_HREF } from "@/client/components/window/tab-location";
+import { skillHref } from "@/client/components/window/tab-location";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { type ReactNode } from "react";
 
@@ -24,7 +24,7 @@ export function SkillLink({
   tabIndex?: number;
 }) {
   const gestures = useOpenGestures({
-    href: `${SKILLS_HREF}/${name}`,
+    href: skillHref(name),
     kind: "screen",
   });
   const open = gestures.destinations.find((entry) => entry.id === "open");

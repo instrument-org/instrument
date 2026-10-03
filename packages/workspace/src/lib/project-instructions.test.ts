@@ -34,7 +34,7 @@ describe("normalizeProjectInstructions", () => {
     expect(normalizeProjectInstructions(exact)).toBe(exact);
   });
 
-  it("cuts back to the last whole paragraph and says where the rest is", () => {
+  it("cuts back to the last whole paragraph and says the rest was left out", () => {
     const kept = paragraph(
       "First rule.\n\n",
       MAX_PROJECT_INSTRUCTIONS_LENGTH - 100,
@@ -44,7 +44,7 @@ describe("normalizeProjectInstructions", () => {
 
     expect(result).toContain("First rule.");
     expect(result).not.toContain("Second rule.");
-    expect(result).toContain("/project/AGENTS.md");
+    expect(result).toContain("[Cut off here:");
     // The cut lands on the paragraph break, so the surviving text ends as a
     // whole paragraph rather than partway through the dropped one.
     expect(result?.startsWith(kept)).toBe(true);
@@ -56,7 +56,7 @@ describe("normalizeProjectInstructions", () => {
     expect(result).toMatchInlineSnapshot(`
       "Keep this.
 
-      [Cut off here: these instructions are too long to include in full. The rest is in /project/AGENTS.md -- read that file if you need it.]"
+      [Cut off here: these instructions are too long to include in full.]"
     `);
   });
 
@@ -69,7 +69,7 @@ describe("normalizeProjectInstructions", () => {
 
     expect(result).toBeDefined();
     expect(result).toContain("z".repeat(1000));
-    expect(result).toContain("/project/AGENTS.md");
+    expect(result).toContain("[Cut off here:");
   });
 
   it("keeps the retained text within the budget however it was cut", () => {

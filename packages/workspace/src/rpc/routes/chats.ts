@@ -4,12 +4,11 @@ import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
-import { isWorking, latestStep } from "../../lib/orchestrator/activity";
-import { ensureChat } from "../../lib/orchestrator/chat-records";
+import { isWorking, latestStep } from "../../lib/chat/activity";
+import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
-  chatRecordTitle,
   ChatSchema,
   listChats,
   markChatSeen,
@@ -19,19 +18,18 @@ import {
   setChatTopics,
   settleChatTitle,
   unarchiveChat,
-} from "../../lib/orchestrator/chats";
-import { listChildTasks } from "../../lib/orchestrator/children";
-import { retitleChat } from "../../lib/orchestrator/retitle";
-import { taskStanding } from "../../lib/orchestrator/standing";
+} from "../../lib/chat/chats";
+import { listChildTasks } from "../../lib/chat/children";
+import { retitleChat } from "../../lib/chat/retitle";
+import { taskStanding } from "../../lib/chat/standing";
 import {
+  chatIdOfTask,
   chatOfSession,
   chatTaskIds,
   isChatId,
-  sessionOfChat,
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
-import { getTaskSettings } from "../../lib/task-settings";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
@@ -39,7 +37,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
-/** Where one task the orchestrator created stands this moment, for a card that follows it. */
+/** Where one task the chat created stands this moment, for a card that follows it. */
 const childStatus = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
@@ -78,43 +76,27 @@ const ChildTaskSchema = TaskSchema.extend({
     kind: z.enum(["done", "failed", "running", "waiting"]),
     line: z.string(),
   }),
-  /** The chat it was filed from, absent for a task filed outside a turn. */
-  chatSessionId: StoreId.SessionSchema.optional(),
-  /** That chat's title, as the user knows it. */
-  chatTitle: z.string().optional(),
   /** Whether a stop has something to end: an agent at work, or a hold on its start. */
   stoppable: z.boolean(),
 });
 
-/** The tasks an orchestrator created, newest activity first. */
+export type ChildTask = z.output<typeof ChildTaskSchema>;
+
+/** The tasks a chat created, newest activity first. */
 async function childTasks(id: TaskId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
-      const chatSessionId =
-        task.parentTaskId === undefined
-          ? undefined
-          : sessionOfChat(task.parentTaskId);
-      const chatTitle = chatSessionId
-        ? await chatRecordTitle(chatSessionId)
-        : undefined;
       const running = isWorking(task.id);
       return {
         ...task,
         dir: taskDir(task.id),
         standing: await taskStanding({ isRunning: running, taskId: task.id }),
         stoppable: running || taskHold(task.id) !== undefined,
-        ...(chatSessionId ? { chatSessionId } : {}),
-        ...(chatTitle === undefined ? {} : { chatTitle }),
       };
     }),
   );
 }
-
-const children = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(ChildTaskSchema.array())
-  .handler(({ input }) => childTasks(input.id));
 
 /**
  * Fires whenever something a filed task's row shows may have moved: a task
@@ -165,11 +147,28 @@ function childTaskChanges(signal: AbortSignal | undefined) {
   return collapsed(merged());
 }
 
-/** The same tasks, re-read whenever one of them may have changed. */
+/**
+ * A chat's tasks once, as the live list's first answer. The id must be a
+ * chat's: nothing lists every chat's tasks.
+ */
+const childTasksRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(ChildTaskSchema.array())
+  .handler(async ({ errors, input }) => {
+    if (!isChatId(input.id)) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
+    return await childTasks(input.id);
+  });
+
+/** A chat's tasks, re-read whenever one of them may have changed. */
 const liveChildTasksRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
-  .handler(async function* ({ input, signal }) {
+  .handler(async function* ({ errors, input, signal }) {
+    if (!isChatId(input.id)) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
     const changes = childTaskChanges(signal);
     try {
       yield await childTasks(input.id);
@@ -186,11 +185,6 @@ const chatByIdRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(ChatSchema.optional())
   .handler(({ input }) => chatById(input.sessionId));
-
-/** The conversation's chats, oldest first. */
-const listChatsRoute = base
-  .output(ChatSchema.array())
-  .handler(() => listChats());
 
 /**
  * Fires whenever anything lands in any chat of the task, a chat's
@@ -238,26 +232,13 @@ export function chatChanges(signal: AbortSignal | undefined) {
       }
     }
   }
-  const parents = new Map<TaskId, Promise<TaskId | undefined>>();
-  const parentOf = (taskId: TaskId) => {
-    const known = parents.get(taskId);
-    if (known) {
-      return known;
-    }
-    const read = getTaskSettings(taskDir(taskId)).then(
-      (settings) => settings?.parentTaskId,
-    );
-    parents.set(taskId, read);
-    return read;
-  };
   async function* childSteps() {
     for await (const { id: childId, part } of partUpdates) {
       if (
-        !isChatId(childId) &&
         part.type.startsWith("tool-") &&
         "state" in part &&
         part.state === "input-available" &&
-        isChatId((await parentOf(childId)) ?? "")
+        chatIdOfTask(childId) !== undefined
       ) {
         yield null;
       }
@@ -344,7 +325,7 @@ async function* everyOne(generator: AsyncIterable<unknown>) {
   }
 }
 
-/** The same list, re-read on every change in any chat, bursts collapsed. */
+/** The chats, oldest first, re-read on every change in any chat, bursts collapsed. */
 const liveListChatsRoute = base
   .output(eventIterator(ChatSchema.array()))
   .handler(async function* ({ signal }) {
@@ -520,7 +501,6 @@ export const chats = {
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
-  list: listChatsRoute,
   live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
   of: chatOfRoute,
   rename: renameChatRoute,
@@ -528,7 +508,7 @@ export const chats = {
   seen: seenChatRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
-  tasks: children,
+  tasks: childTasksRoute,
   taskStatus: childStatus,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,

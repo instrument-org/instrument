@@ -1,6 +1,5 @@
 import { type Draft } from "@/client/atoms/window";
 import { renderInBrowser } from "@/tests/render-browser";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -17,7 +16,6 @@ const WINDOW: WindowContextValue = {
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: vi.fn(),
-  taskId: TaskIdSchema.parse("orchestrator"),
 };
 
 /** The moment every row is read at: a Wednesday afternoon. */
@@ -93,6 +91,9 @@ async function renderRow(
   if (!element) {
     throw new Error("no row");
   }
+  // The pointer is wherever the last test left it, which may be over this row,
+  // and a hovered row trades its time for the delete action.
+  await userEvent.unhover(element);
   return { ...rendered, onDelete, onOpen, row: element };
 }
 

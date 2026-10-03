@@ -1,23 +1,56 @@
+import {
+  TASK_PRIVATE_FOLDER_NAME,
+  TASK_SETTINGS_FILE_NAME,
+} from "@instrument-org/shared";
 import { glob } from "glob";
 import { err, type Result, ResultAsync } from "neverthrow";
+import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
+import { TaskSettingsSchema } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
+import { disposeSessionsStoreStorage } from "./session-store-storage";
 
 interface InvalidTaskFolder {
   name: string;
   reason: string;
 }
 
-// Directories under tasks/ whose name is not a valid task id. These show up when
-// a user (or an external tool) manually creates or renames a folder inside the
-// workspace. They are a recoverable, user-visible data condition rather than a
-// bug, so getTasks skips them silently -- instead of reporting one telemetry
-// exception per folder on every scan -- and we surface them here for the UI.
+/** Why a task folder is listed in Settings > Storage when its settings are the trouble. */
+export const UNREADABLE_SETTINGS_REASON =
+  "Missing or unreadable settings (.instrument/settings.json)";
+
+/**
+ * Whether a task folder's settings are missing or cannot be read as a
+ * task's: the same test the task record applies, made on the file alone so
+ * nothing is opened or written inside the folder.
+ */
+export function hasReadableTaskSettings(taskDir: string): boolean {
+  try {
+    return TaskSettingsSchema.safeParse(
+      JSON.parse(
+        readFileSync(
+          path.join(taskDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+          "utf8",
+        ),
+      ),
+    ).success;
+  } catch {
+    return false;
+  }
+}
+
+// Directories under tasks/ that the task list cannot show: a name that is not a
+// valid task id, or settings that are missing or unreadable. These show up when
+// a user (or an external tool) manually creates, renames, or edits a folder
+// inside the workspace. They are a recoverable, user-visible data condition
+// rather than a bug, so the lists skip them silently -- instead of reporting
+// one telemetry exception per folder on every scan -- and we surface them here
+// for the UI.
 export async function listInvalidTaskFolders(
   workspaceConfig: WorkspaceConfig,
 ): Promise<InvalidTaskFolder[]> {
@@ -42,20 +75,25 @@ export async function listInvalidTaskFolders(
         reason:
           parsed.error.issues[0]?.message ?? "Not a recognized task folder",
       });
+    } else if (!hasReadableTaskSettings(path.join(rootDir, name))) {
+      invalid.push({ name, reason: UNREADABLE_SETTINGS_REASON });
     }
   }
   return invalid;
 }
 
-// Sends a single unrecognized folder to the OS trash. Deliberately narrow: it
-// refuses anything that is a valid task id (those go through trashTask) and any
+// Sends a single folder the scan reports to the OS trash. Deliberately narrow:
+// it refuses a task the list can show (those go through trashTask) and any
 // name that isn't a direct child of tasks/, so it can't be used to traverse out
 // of the workspace.
 export async function trashInvalidTaskFolder(
   name: string,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<void, TypedError.FileSystem | TypedError.Parse>> {
-  if (TaskIdSchema.safeParse(name).success) {
+  if (
+    TaskIdSchema.safeParse(name).success &&
+    hasReadableTaskSettings(path.join(workspaceConfig.tasksDir, name))
+  ) {
     return err(
       new TypedError.Parse("Refusing to trash a valid task folder this way"),
     );
@@ -75,8 +113,18 @@ export async function trashInvalidTaskFolder(
     return err(new TypedError.Parse("Folder is outside the tasks directory"));
   }
 
+  const taskId = TaskIdSchema.safeParse(name);
   return ResultAsync.fromPromise(
-    workspaceConfig.trashItem(AbsolutePathSchema.parse(target)),
+    (async () => {
+      // A store something opened is closed before its folder goes.
+      if (taskId.success) {
+        const disposed = await disposeSessionsStoreStorage(taskId.data);
+        if (disposed.isErr()) {
+          throw disposed.error;
+        }
+      }
+      await workspaceConfig.trashItem(AbsolutePathSchema.parse(target));
+    })(),
     (error) =>
       new TypedError.FileSystem(
         error instanceof Error ? error.message : "Unknown error",

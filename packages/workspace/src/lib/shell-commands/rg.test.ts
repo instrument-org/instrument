@@ -342,7 +342,7 @@ describe("rg command in a chat", () => {
       "NEEDLE report\n",
     );
     const bash = await createBashEnv({
-      orchestrator: {
+      chat: {
         childMounts: [
           {
             hostRoot: AbsolutePathSchema.parse(childDir),

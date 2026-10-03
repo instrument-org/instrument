@@ -5,7 +5,7 @@ import path from "node:path";
 /**
  * Gives the run a home directory of its own, before anything reads one.
  *
- * The orchestrator attaches the user's real home and their real
+ * The chat attaches the user's real home and their real
  * `~/Documents/Instrument` to its conversation, and `task new` hands that same
  * workspace folder to every task it starts. Left alone, a suite is several
  * agents at once holding read-write on the developer's actual files, one

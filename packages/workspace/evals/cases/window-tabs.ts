@@ -201,7 +201,7 @@ export const WINDOW_TABS_EVALS = [
   defineEval({
     // The Windows run that started this, in the words it was typed in.
     assertions: [delegated, neverOpenedToHandOver],
-    kind: "orchestrator",
+    kind: "chat",
     name: "window-tabs-new-page",
     prompt:
       "go to wikipedia to the Jar page, then navigate to 5 other pages from there",
@@ -210,7 +210,7 @@ export const WINDOW_TABS_EVALS = [
 
   defineEval({
     assertions: [delegated, handedTab(JAR_TAB), neverRanTab("open")],
-    kind: "orchestrator",
+    kind: "chat",
     name: "window-tabs-hands-open-page",
     prompt: "follow five links from this page, one after another",
     viewing: {
@@ -238,7 +238,7 @@ export const WINDOW_TABS_EVALS = [
       startedNoTask,
       ranTab("close", { exactly: [EXAMPLE_TAB, IANA_TAB] }),
     ],
-    kind: "orchestrator",
+    kind: "chat",
     name: "window-tabs-close-named",
     prompt: "Close the example.com and IANA tabs.",
     viewing: homeWith([
@@ -258,7 +258,7 @@ export const WINDOW_TABS_EVALS = [
       ranTab("show", { exactly: [JAR_TAB] }),
       neverRanTab("open"),
     ],
-    kind: "orchestrator",
+    kind: "chat",
     name: "window-tabs-show-open",
     prompt: "Pull up the Jar article again.",
     viewing: homeWith([
@@ -272,7 +272,7 @@ export const WINDOW_TABS_EVALS = [
     // conversation can fairly quote instead.
     assertions: [delegated, ranTab("open", { matching: /\.html$/ })],
     followUps: ["Put it on my screen."],
-    kind: "orchestrator",
+    kind: "chat",
     name: "window-tabs-show-result",
     prompt:
       "Make a small HTML page about jars, with a heading and three facts, in my Instrument folder.",

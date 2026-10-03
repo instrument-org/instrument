@@ -43,7 +43,7 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 
 /** What `memory` needs from the `bash` call it runs inside. */
 export interface MemoryCommandContext {
-  orchestratorTaskId: TaskId;
+  chatId: TaskId;
   /** The chat the call runs in: named on what it saves, and spared the note about its own change. */
   sessionId: StoreId.Session;
 }
@@ -92,10 +92,10 @@ export function createMemoryCommand(context: MemoryCommandContext) {
 
 /** The chat a memory is learned in, by title, so a reader knows where it came from. */
 async function chatOf({
-  orchestratorTaskId,
+  chatId,
   sessionId,
 }: MemoryCommandContext): Promise<Memory["from"]> {
-  const session = await Store.getSession(sessionId, orchestratorTaskId);
+  const session = await Store.getSession(sessionId, chatId);
   if (session.isErr() || !session.value.title.trim()) {
     return undefined;
   }
@@ -128,14 +128,11 @@ function origin(memory: Memory): string {
  * Where the chat stands after the agent changed memory itself: the change
  * is in front of it, so the next message's note has nothing to add.
  */
-async function rememberTold({
-  orchestratorTaskId,
-  sessionId,
-}: MemoryCommandContext) {
+async function rememberTold({ chatId, sessionId }: MemoryCommandContext) {
   await recordMemoryReported({
     memories: await listMemories(memoryDir()),
     sessionId,
-    taskId: orchestratorTaskId,
+    taskId: chatId,
   });
 }
 

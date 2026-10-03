@@ -13,12 +13,8 @@ import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 
 import { type WorkspaceConfig } from "../../types";
 import { DEFAULT_APPS_SERVER_PORT, LOOPBACK_HOST } from "./constants";
-import { cdpBridgeRoute } from "./routes/cdp-bridge";
 import { setupCdpWebSocketBridge } from "./routes/cdp-sockets";
-import {
-  type WorkspaceServerEnv,
-  type WorkspaceServerParentRef,
-} from "./types";
+import { type WorkspaceServerParentRef } from "./types";
 import { setWorkspaceServerPort } from "./url";
 
 /**
@@ -35,15 +31,8 @@ export const workspaceServerLogic = fromCallback<
     workspaceConfig: WorkspaceConfig;
   }
 >(({ input }) => {
-  const app = new Hono<WorkspaceServerEnv>();
+  const app = new Hono();
 
-  app.use(async (c, next) => {
-    c.set("parentRef", input.parentRef);
-    c.set("workspaceConfig", input.workspaceConfig);
-    await next();
-  });
-
-  app.route("/", cdpBridgeRoute);
   if (input.aiGatewayApp) {
     app.use<string, AIGatewayEnv>(
       `${AI_GATEWAY_API_PATH}/*`,

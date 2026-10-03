@@ -8,7 +8,7 @@ Windows uses `../resources/instrument-folder-windows.svg`, with a stepped front 
 
 Linux writes a hidden SVG and a `.directory` entry for KDE. When GIO is available, it also sets `metadata::custom-icon` for GNOME Files and compatible file managers. Support depends on the file manager and desktop metadata service; there is no universal Linux folder-icon API.
 
-The orchestrator requests decoration after creating and attaching its default output folder. Icon assignment is best-effort, skips symlinked folders and other locations, and preserves existing custom icons and customization files. Headless workspaces do not apply it. The Windows and Linux asset files stay beside the folder metadata so their paths survive app updates.
+The chat's agent requests decoration after creating and attaching its default output folder. Icon assignment is best-effort, skips symlinked folders and other locations, and preserves existing custom icons and customization files. Headless workspaces do not apply it. The Windows and Linux asset files stay beside the folder metadata so their paths survive app updates.
 
 ## App artwork
 

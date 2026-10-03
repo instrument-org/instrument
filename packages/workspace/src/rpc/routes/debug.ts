@@ -3,9 +3,8 @@ import { z } from "zod";
 
 import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
-import { childTaskMounts } from "../../lib/orchestrator/children";
-import { folderReach } from "../../lib/orchestrator/folder-reach";
-import { resolveTaskProjectFolder } from "../../lib/task-project-folder";
+import { childTaskMounts } from "../../lib/chat/children";
+import { folderReach } from "../../lib/chat/folder-reach";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
@@ -70,20 +69,18 @@ const runBash = base
     }),
   )
   .handler(async ({ input, signal }) => {
-    // A chat's own shell, with the commands the conversation runs, for the
-    // conversation's agent; a task's otherwise, the way the bash tool builds it.
-    const isConversation =
-      (await agentNameForTask(input.taskId)) === "instrument";
+    // A chat's own shell, with the commands the chat runs, for the chat's
+    // agent; a task's otherwise, the way the bash tool builds it.
+    const isChat = agentNameForTask(input.taskId) === "instrument";
     const bash = await createBashEnv({
       attachedFolders: await folderReach(input.taskId),
-      ...(isConversation
+      ...(isChat
         ? {
-            orchestrator: {
+            chat: {
               childMounts: await childTaskMounts(input.taskId),
             },
           }
         : {}),
-      projectFolderName: await resolveTaskProjectFolder(input.taskId),
       sessionId: input.sessionId,
       taskId: input.taskId,
     });

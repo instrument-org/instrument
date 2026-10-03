@@ -64,6 +64,14 @@ function configureUserDataDirectory() {
 
 configureUserDataDirectory();
 
+// A dev build is a different binary in every checkout, so macOS asks again for
+// the keychain's Safe Storage item on each one's first launch. Dev keeps its
+// own stores in plaintext, and the mock keychain leaves Chromium's cookie
+// encryption with nothing to ask for.
+if (is.dev && platform.isMacOS) {
+  app.commandLine.appendSwitch("use-mock-keychain");
+}
+
 initializeElectronLogging();
 installAISDKWarningLogger();
 
@@ -88,7 +96,11 @@ function openWorkspace() {
 
   for (const step of [
     ...migrateMachineSettings(userDataDir),
-    ...migrateWorkspaceSettings({ userDataDir, workspace }),
+    ...migrateWorkspaceSettings({
+      packaged: app.isPackaged,
+      userDataDir,
+      workspace,
+    }),
   ]) {
     logger.info(`Settings migration: ${step}`);
   }

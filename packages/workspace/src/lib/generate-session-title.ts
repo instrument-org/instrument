@@ -8,17 +8,13 @@ const DEFAULT_UNTITLED_BASE = "Untitled chat";
 const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
 
 export async function generateSessionTitle({
-  sessionNamePrefix,
   signal,
   taskId,
 }: {
-  sessionNamePrefix?: string;
   signal?: AbortSignal;
   taskId: TaskId;
 }): Promise<string> {
-  const baseTitle = sessionNamePrefix
-    ? `Untitled ${sessionNamePrefix}`
-    : DEFAULT_UNTITLED_BASE;
+  const baseTitle = DEFAULT_UNTITLED_BASE;
 
   const sessionsResult = await Store.getSessions(taskId, {
     includeChildSessions: true,

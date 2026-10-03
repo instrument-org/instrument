@@ -1,7 +1,7 @@
 import {
-  TASK_CHAT_WIDTH_MIN,
-  TASK_PANE_WIDTH_MIN,
-} from "@/client/atoms/task-pane";
+  CONVERSATION_WIDTH_MIN,
+  PANE_WIDTH_MIN,
+} from "@/client/atoms/right-pane";
 import {
   BROWSER_HREF,
   CHATS_HREF,
@@ -55,6 +55,7 @@ import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
   StoreId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -160,7 +161,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   // then both go down to those floors, and only then does the inbox step
   // aside. Widening brings them back in the other order, each a margin past
   // the width it left at.
-  const floors = TASK_CHAT_WIDTH_MIN + (showsPane ? TASK_PANE_WIDTH_MIN : 0);
+  const floors = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
   const needs = floors + (showsRail ? RAIL_COMPACT_WIDTH : 0);
   const { isCrossing, isShown, isSteppedAside } = useInboxRoom({
     isActive,
@@ -384,7 +385,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                 tabs={tabs}
                 targetOf={(tab) =>
                   encodeBrowserTargetId(
-                    tab.taskId ?? shell.ids.taskId,
+                    tab.taskId ?? WINDOW_ID,
                     StoreId.SessionSchema.parse(tab.id),
                   )
                 }
@@ -448,7 +449,8 @@ function RouteScreen({ href }: { href: string }) {
   // The catalogs (the apps and Discover's ideas) are places you arrive at
   // from the rail, with nothing above them to walk back up to and nothing to
   // type an address for: a row there would only offer to leave for the web.
-  const hasLocationRow = location.kind !== "apps" && location.kind !== "ideas";
+  const hasLocationRow =
+    location.kind !== "apps" && location.kind !== "discover";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
@@ -540,7 +542,7 @@ function SiteView({ group }: { group: string }) {
     for (const tab of pages) {
       if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? shell.ids.taskId,
+          id: tab.taskId ?? WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           url: tab.url,
         });

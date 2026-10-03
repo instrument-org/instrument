@@ -1,7 +1,4 @@
-import { monotonicFactory } from "ulid";
 import { z } from "zod";
-
-const ulid = monotonicFactory();
 
 const PREFIX = "prj_";
 
@@ -24,9 +21,3 @@ export const ProjectIdSchema = z
     }
   })
   .brand("ProjectId");
-
-export type ProjectId = z.output<typeof ProjectIdSchema>;
-
-export function newProjectId(): ProjectId {
-  return ProjectIdSchema.parse(`${PREFIX}${ulid()}`);
-}

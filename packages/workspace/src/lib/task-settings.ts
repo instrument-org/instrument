@@ -68,7 +68,7 @@ export function updateTaskSettings(
         ),
     );
 
-    // Only the settings view publishes this. A draft or a tab is a change to
+    // Only the settings view publishes this. A model pick or a tab is a change to
     // the same file and no business of the task list, so its writers publish
     // `task.stateUpdated` instead and the list is not woken by them.
     publisher.publish("task.updated", {
@@ -98,12 +98,6 @@ async function writeMergedSettings(
       ...record.settings,
       ...updates,
     };
-
-    // A `null` projectId is the clear sentinel: drop the key entirely rather
-    // than persisting `null`.
-    if (updates.projectId === null) {
-      delete merged.projectId;
-    }
 
     return merged;
   });

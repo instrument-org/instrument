@@ -52,7 +52,7 @@ export function useDraftTopicSuggestion({
   const asking =
     open && topics.length > 0 && settled.split(/\s+/).length >= MIN_WORDS;
   // Topics are offered by name, which the model reads, rather than by id,
-  // which it would only guess at; names are unique within an orchestrator.
+  // which it would only guess at; names are unique, each a folder of its own.
   const criteria = Object.fromEntries(
     topics.map((topic) => [topic.name, topic.about ?? null]),
   );

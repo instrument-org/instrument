@@ -8,12 +8,12 @@ Related: [legacy-data-migration.md](legacy-data-migration.md), which turns 1.x t
 
 ## 1.x tasks have no screen
 
-The app window lists the tasks its chats started (`workspace.chats.tasks`), and a 1.x task has no chat. With the classic window gone, a person's 1.x tasks and projects are on disk but reachable only by address (`/tasks/<id>`): no list, no search. [legacy-data-migration.md](legacy-data-migration.md) (FP-1309, `lib/migrate-legacy-tasks.ts`) brings them back as chats and topics; it shipped in the same beta as this removal (v2.0.0-beta.37).
+The app window lists the tasks its chats started (`workspace.chats.live.tasks`), and a 1.x task has no chat. With the classic window gone, a person's 1.x tasks and projects are on disk but reachable only by address (`/tasks/<id>`): no list, no search. [legacy-data-migration.md](legacy-data-migration.md) (FP-1309, `lib/migrate-legacy-tasks.ts`) brings them back as chats and topics; it shipped in the same beta as this removal (v2.0.0-beta.37).
 
 ## Features without a counterpart
 
 - **Subscribe page.** Plan picker and checkout. Kept: `plans.get`, `stripe.createCheckoutSession`, `stripe.getInvoicePreview`, `useLiveSubscriptionStatus`. Settings still has the account card and "Manage subscription" (`stripe.createPortalSession`), so a subscriber can manage a plan but nobody can start one from the app. The page itself was only reachable from the dev panel.
-- **Export and import a task as a zip.** Deleted: `utils.exportZip`, `workspace.task.exportZip`, `workspace.task.import`, `lib/export-task-zip.ts`, `lib/import-task.ts`. A chat's menu offers "Save transcript" and nothing that takes the files with it. `lib/extract-task-zip.ts` stays for the scripts that read a zip exported by an older build.
+- **Export and import a task as a zip.** Deleted: `utils.exportZip`, `workspace.task.exportZip`, `workspace.task.import`, `lib/export-task-zip.ts`, `lib/import-task.ts`. A chat's menu offers "Save transcript" and nothing that takes the files with it. The scripts that read a transcript take a folder, not a zip.
 - **Open a task in an editor or terminal** (VS Code, Cursor, iTerm and the rest, developer mode). Deleted: `utils.openTaskIn`, `utils.getSupportedEditors`, `shared/schemas/editors.ts`, and the app icons for them.
 - **Server exceptions banner.** Back in the app window as a red count beside the dev badge (developer mode), opening the exceptions with copy and clear and a way into Settings' diagnostic log.
 - **Per-task usage summary** (tokens across the task). Back in the task page's header in developer mode, from `workspace.task.live.usageSummary`. Usage per reply is gone from the footer on purpose.
@@ -25,8 +25,8 @@ The app window lists the tasks its chats started (`workspace.chats.tasks`), and 
 - **Welcome modal and tutorial task.** Deleted, and not migrated; to be replaced by a first run designed for the app window.
 - **Transcript viewer** (developer mode). Deleted, with `transcript.content`, the route that rendered a transcript for it. "Save transcript" stays in a chat's menu; `/debug/components/transcript` is the chat transcript's component gallery, not a viewer.
 - **Chat replay** (developer mode). Deleted: `workspace.debug.replaySession`, `workspace.replay.*`, `lib/session-replay.ts`, and the replay sessions a task's activity reported. The seeder inserts recorded transcripts without re-running them.
-- **Pins and unread marks on tasks.** Deleted; tasks are a detail the chat manages and need neither. Chats have their own: `starredAt` on the chat's session, and a seen watermark per chat (`chatSeen` on the window's record). The legacy migration carries 1.x `pinnedAt` over as a star and `unreadIndicator` over as the watermark.
-- **Projects.** Topics replace them; the legacy migration makes each project a topic, with its instructions and folders. `workspace.project.byId` stays for the transcript note that names a task's project, and `lib/project.ts` stays for 1.x tasks still in a project and for the migration.
+- **Pins and unread marks on tasks.** Deleted; tasks are a detail the chat manages and need neither. Chats have their own: `starredAt` on the chat's session, and a seen watermark per chat (`chatSeen` in the window's state, `.instrument/window.json`). The legacy migration carries 1.x `pinnedAt` over as a star and `unreadIndicator` over as the watermark.
+- **Projects.** Topics replace them; the legacy migration makes each project a topic, with its instructions and folders. The import strips every task's `projectId` and sets `projects/` aside, so the project route, `lib/project.ts`, and the `/project` mount are gone; a 1.x transcript's project notes name the project from the name stored on the part.
 
 ## Edge cases the removal surfaced
 

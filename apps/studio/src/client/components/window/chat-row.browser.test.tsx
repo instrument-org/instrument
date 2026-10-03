@@ -242,7 +242,6 @@ function paneWindow(openScreen = vi.fn()): WindowContextValue {
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen,
-    taskId: TaskIdSchema.parse("orchestrator"),
   };
 }
 
@@ -810,10 +809,17 @@ describe("ChatRow", () => {
     expect(onSetTopics).toHaveBeenCalledWith(["house", "money"]);
     expect(onOpen).not.toHaveBeenCalled();
     // The pointer leaves as the list closes; the control stays for the
-    // list's way out, so the list is not left without an anchor.
-    await userEvent.keyboard("{Escape}");
-    await userEvent.unhover(row);
-    expect(control.getClientRects().length).toBeGreaterThan(0);
+    // list's way out, so the list is not left without an anchor. The hold is
+    // a timer, faked so the two round trips to the browser cannot outlast it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await userEvent.keyboard("{Escape}");
+      await userEvent.unhover(row);
+      expect(control.getClientRects().length).toBeGreaterThan(0);
+      vi.runOnlyPendingTimers();
+    } finally {
+      vi.useRealTimers();
+    }
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBe(0);
     });

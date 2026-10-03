@@ -51,9 +51,6 @@ export function createStubWorkspaceConfig({
     preparedSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "prepared-skills"),
     ),
-    projectsDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "projects"),
-    ),
     registryDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry"),
     ),

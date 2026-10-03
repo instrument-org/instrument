@@ -11,7 +11,6 @@ const cases: {
     input: {
       appWindowAvailable: true,
       isAppWindowFocused: false,
-      isRootSession: true,
       isSupported: true,
       mode: "unfocused",
     },
@@ -21,7 +20,6 @@ const cases: {
     input: {
       appWindowAvailable: true,
       isAppWindowFocused: true,
-      isRootSession: true,
       isSupported: true,
       mode: "always",
     },
@@ -31,7 +29,6 @@ const cases: {
     input: {
       appWindowAvailable: true,
       isAppWindowFocused: true,
-      isRootSession: true,
       isSupported: true,
       mode: "unfocused",
     },
@@ -41,7 +38,6 @@ const cases: {
     input: {
       appWindowAvailable: true,
       isAppWindowFocused: false,
-      isRootSession: true,
       isSupported: true,
       mode: "never",
     },
@@ -49,19 +45,8 @@ const cases: {
   {
     expected: false,
     input: {
-      appWindowAvailable: true,
-      isAppWindowFocused: false,
-      isRootSession: false,
-      isSupported: true,
-      mode: "unfocused",
-    },
-  },
-  {
-    expected: false,
-    input: {
       appWindowAvailable: false,
       isAppWindowFocused: false,
-      isRootSession: true,
       isSupported: true,
       mode: "unfocused",
     },
@@ -71,19 +56,8 @@ const cases: {
     input: {
       appWindowAvailable: true,
       isAppWindowFocused: false,
-      isRootSession: true,
       isSupported: false,
       mode: "unfocused",
-    },
-  },
-  {
-    expected: false,
-    input: {
-      appWindowAvailable: true,
-      isAppWindowFocused: true,
-      isRootSession: false,
-      isSupported: true,
-      mode: "always",
     },
   },
 ];

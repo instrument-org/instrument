@@ -4,7 +4,7 @@ import path from "node:path";
 import { noop } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
-import { MOUNT } from "../../mount-points";
+import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { type FileUpload } from "../../schemas/file-upload";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { getMimeType } from "../get-mime-type";
@@ -294,6 +294,16 @@ export function resolveFolders(
   return specs.map((spec) => {
     const { access, name, subpath } = parseFolderSpec(spec);
     const folder = byMount.get(name);
+    if (!folder && spec.startsWith(`${MOUNT.skills}/`)) {
+      throw new Error(
+        `"${spec}" needs no --folder: every task writes skills to ${WORKSPACE_SKILLS_MOUNT}/<name>/ on its own.`,
+      );
+    }
+    if (!folder && name === "") {
+      throw new Error(
+        `"${spec}" is not one of this conversation's folders: --folder takes ${MOUNT.attachedFolders}/<mount>[/<folder>]. Yours: ${available}.`,
+      );
+    }
     if (!folder) {
       throw new Error(
         `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.attachedFolders}/<mount>/<folder>. Ask for one outside them with request_folder.`,

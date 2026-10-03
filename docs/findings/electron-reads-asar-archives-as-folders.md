@@ -27,7 +27,7 @@ Run in the app against a folder holding an Electron app:
 | `find` | 137 entries inside it |
 | `wc -c` | No such file or directory |
 
-The This Mac screen (`listComputerFolder` in `lib/orchestrator/computer.ts`) lists it as a folder too.
+The This Mac screen (`listComputerFolder` in `lib/chat/computer.ts`) lists it as a folder too.
 
 The same switch does not work in the bash worker. just-bash loads each command's code on first use with `import()` from its package folder, and in a packaged build that folder is inside Instrument's own `app.asar`; with archive support off, the first `ls` would fail to load. The main thread cannot take it either, for the same reason.
 

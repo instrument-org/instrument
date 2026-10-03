@@ -3,16 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
   TaskDirSchema,
+  WorkspaceDirSchema,
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 import { setTaskState } from "./task-record";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
@@ -60,6 +63,25 @@ describe("resolveWorkspaceFilePath", () => {
     });
 
     expect(resolved).toBe(expected());
+  });
+
+  it("resolves a workspace skill's file where its source is mounted", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(root),
+    });
+    const skillFile = path.join(root, "skills", "csv-table", "SKILL.md");
+    await fs.mkdir(path.dirname(skillFile), { recursive: true });
+    await fs.writeFile(skillFile, "---\nname: csv-table\n---\n");
+
+    const resolved = await resolveWorkspaceFilePath({
+      filePath: WorkspaceFilePathSchema.parse(
+        `${WORKSPACE_SKILLS_MOUNT}/csv-table/SKILL.md`,
+      ),
+      taskId,
+    });
+
+    expect(resolved).toBe(skillFile);
   });
 
   it.each([

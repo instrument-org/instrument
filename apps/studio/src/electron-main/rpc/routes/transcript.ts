@@ -76,9 +76,8 @@ const transcriptInput = z.object({
   format: TranscriptFormatSchema,
   id: TaskIdSchema,
   /**
-   * What the saved file is named after, when the task's own name is not what
-   * the user asked for: a conversation holds one session per channel, and every
-   * one of them would otherwise land in Downloads under the conversation's name.
+   * What the saved file is named after, when the record's own name is not
+   * what the user knows it by: a chat is saved under its title.
    */
   label: z.string().optional(),
   sessionId: StoreId.SessionSchema,

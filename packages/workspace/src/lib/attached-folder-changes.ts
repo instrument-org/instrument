@@ -23,9 +23,9 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * session so an idle chat only learns about changes once it next sends a
  * message.
  *
- * Must run after any folder attach for this message (writeUploadedAttachments,
- * detectProjectChanges), so a rename either of them triggers is read here as
- * part of "current" and reported the same turn instead of lagging behind.
+ * Must run after any folder attach for this message (writeUploadedAttachments),
+ * so a rename it triggers is read here as part of "current" and reported the
+ * same turn instead of lagging behind.
  */
 export function detectAttachedFolderChanges({
   announced,

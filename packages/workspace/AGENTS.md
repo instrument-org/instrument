@@ -4,21 +4,21 @@ Core AI agents, workflow logic, RPC, and tools.
 
 ## Structure
 
-- **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, project, session, skill, storage, decision, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
+- **RPC**: Router in `src/rpc/index.ts` (browser, chats, computer, debug, memory, message, session, skill, storage, decision, task, topics, window). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
-- **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs an orchestrator's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/orchestrator/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
+- **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs a chat's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/chat/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
 - **Workspace server**: loopback Hono app in `src/logic/server/index.ts`: the CDP bridge `agent-browser` drives a guest through, and the AI gateway mounted at `AI_GATEWAY_API_PATH` when provided. It serves no files: a page on this computer opens at its `file://` address for the person and the agent alike, and the person's viewers read files through Studio's own `instrument://computer-<token>` channel.
-- **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
+- **Schemas**: `src/schemas/` (paths, project-id, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
 - **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. Each skill source mounts at `/skills/<source>/` for the agent, and only the workspace's own (`/skills/workspace/`) is writable (see `docs/architecture/agent-sandbox.md`).
-- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the virtual paths the agent works in (`/task`, `/project`, `/skills`, `/mnt`, `/apps`, `/tasks`). Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
+- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the virtual paths the agent works in (`/task`, `/skills`, `/mnt`, `/apps`, `/tasks`). Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
 
 ## Context messages
 
 - `session-context` message (system prompt + `agent.getMessages`) is the session's immutable baseline: written once by `prepare-model-messages.ts` when the session first needs model input, then reused byte for byte, so the request prefix a provider cache is keyed on does not move.
 - The single exception is an upgrade. Each stored baseline carries the `SESSION_CONTEXT_VERSION` it was written under, and one older than the running build's (or from before the marker existed) is replaced on the first turn after the upgrade, then reused like any other. Bump that constant when a change to `getMessages` has to reach tasks that already have a baseline stored, or those tasks never see it.
-- So every `getMessages`-derived value (system date, project instructions, folder list, skill catalog, task layout) is a startup snapshot for the life of the session. A fact that must reach the model later is an **append-only correction**: a persisted `data-*` part rendered onto a user turn (`detect-project-changes.ts`, `create-pane-tabs-part.ts`, `date-change.ts`), never an edit to an earlier message. Corrections must be deterministic to render from what is stored, so no live reads or timers during model-message conversion.
+- So every `getMessages`-derived value (system date, project instructions, folder list, skill catalog, task layout) is a startup snapshot for the life of the session. A fact that must reach the model later is an **append-only correction**: a persisted `data-*` part rendered onto a user turn (`attached-folder-changes.ts`, `create-browser-status-part.ts`, `date-change.ts`), never an edit to an earlier message. Corrections must be deterministic to render from what is stored, so no live reads or timers during model-message conversion.
 - Derive standing values from current state (`getEffectiveProjectContext`) so a value read at baseline time is not pinned to a snapshot that later parts already superseded.
 - A correction recorded on an assistant message (`data-maxSteps`, `data-skillChanges`) is carried forward in `SessionMessage.toModelMessages` to the next user turn, since injection only runs for user messages.
 
@@ -61,11 +61,11 @@ case with follow-ups cannot quietly take three times the number you set.
 
 Every run gets a home directory of its own under `$TMPDIR`, or wherever
 `INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not
-optional tidiness: an orchestrator attaches the user's real home and their real
+optional tidiness: a chat attaches the user's real home and their real
 `~/Documents/Instrument` to its conversation and hands that workspace folder to
 every task it starts, so an unsandboxed suite is several agents at once holding
 read-write on your actual files. Both folders derive from one `$HOME` for the
-whole process, so orchestrator cases want `--concurrency 1` and a separate
+whole process, so chat cases want `--concurrency 1` and a separate
 process per model when two runs must not see each other's output.
 
 **There is no default model set, and `--model` is required.** A list of models
@@ -118,9 +118,9 @@ until the OS reaps it or the storage format moves past it. What lasts is
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.
 
-## Orchestrator evals
+## Chat evals
 
-`kind: "orchestrator"` (or `--orchestrator` with `--prompt`) runs a case through
+`kind: "chat"` (or `--chat` with `--prompt`) runs a case through
 the agent the user talks to, which delegates to tasks of its own. Three things
 differ from an ordinary case:
 
@@ -136,7 +136,7 @@ differ from an ordinary case:
 - Assertions get `childSessions()` alongside `sessions`, because the work being
   scored happened in the tasks rather than in the conversation.
 
-`scripts/orchestrator-handoff-report.ts <workspace-dir>` prints what each task
+`scripts/chat-handoff-report.ts <workspace-dir>` prints what each task
 handed back and whether the wake note's ceiling cut it, which is the number to
 watch: a task's last message travels whole up to that ceiling, and everything
 past it was composed, paid for, and dropped.
@@ -152,7 +152,7 @@ description in `fixtures/workspaces/` at the **repo root** (this package's own
 pnpm workspace:seed --list                                # from the repo root
 pnpm workspace:seed --out <dir> --fixture documents [--fresh]
 pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...
-pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir> --fixture <name> --task <key>
 ```
 
 The seeder goes through `initializeTask` and `Store`, never the filesystem: task

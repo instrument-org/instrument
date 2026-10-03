@@ -3,12 +3,9 @@
  *
  * One object because they are one vocabulary: a prompt that names where files
  * live usually names two or three of these in a sentence, and a reader looking
- * up any of them wants to see the set. They were three modules apart for
- * reasons of import weight rather than meaning -- `/project` carries a comment
- * recording that it was moved out of `workspace-fs-layout` so the renderer
- * could name it without dragging `just-bash` and `node:fs` along. This file
- * imports nothing, so that pressure is gone and there is nowhere else for the
- * fourth one to drift to.
+ * up any of them wants to see the set. This file imports nothing, so the
+ * renderer can name a mount without dragging `just-bash` and `node:fs` along,
+ * and there is nowhere else for a new one to drift to.
  *
  * `/dev` is deliberately absent. It exists so the shell idiom of redirecting
  * into a sink resolves instead of failing, and it is not part of the agent's
@@ -19,7 +16,7 @@ export const MOUNT = {
    * The workspace's own `apps/` directory: one folder per app the agent has
    * set up, each holding a manifest and a guide and never a secret.
    *
-   * Writable for the orchestrator, which authors apps; a task reaches the
+   * Writable for the chat, which authors apps; a task reaches the
    * apps it was handed through the `app` command rather than the folder.
    */
   apps: "/apps",
@@ -32,17 +29,6 @@ export const MOUNT = {
    * from it.
    */
   attachedFolders: "/mnt",
-
-  /**
-   * The folder of the project a task belongs to.
-   *
-   * Top-level and singular rather than a name under `/mnt`, because a task
-   * belongs to at most one project: `/mnt` entries need names to tell several
-   * folders apart, and this one has nothing to be told apart from. A fixed path
-   * also survives a project rename, which moves the real directory
-   * (`updateProject`) and would otherwise change the path mid-task.
-   */
-  project: "/project",
 
   /**
    * The skills the agent can see, one mount per skill source at
@@ -66,9 +52,9 @@ export const MOUNT = {
   task: "/task",
 
   /**
-   * Where an orchestrator sees the tasks it created, one read-only mount per
+   * Where a chat sees the tasks it created, one read-only mount per
    * task at `/tasks/<id>`. Plural, beside the singular `/task` that is the
-   * orchestrator's own scratch, because the two are different things: its own
+   * chat's own scratch, because the two are different things: its own
    * folder is where it keeps notes, and these are the folders of the work it
    * delegated, which it reads and never writes.
    */

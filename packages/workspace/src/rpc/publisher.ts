@@ -14,7 +14,7 @@ export const publisher = new EventPublisher<{
   /**
    * The user acted on an app outside the conversation: finished a sign-in,
    * saved a key, declined, disconnected. Published by the host app, which
-   * owns those surfaces; the orchestrator is woken with it.
+   * owns those surfaces; the chat is woken with it.
    */
   "app.event": {
     detail?: string;
@@ -75,7 +75,6 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     part: SessionMessagePart.Type;
   };
-  "project.updated": null;
   "runtime.log.updated": {
     id: TaskId;
   };
@@ -85,7 +84,6 @@ export const publisher = new EventPublisher<{
   };
   "session.done": {
     id: TaskId;
-    parentSessionId: StoreId.Session | undefined;
     sessionId: StoreId.Session;
   };
   "session.removed": {
@@ -109,7 +107,7 @@ export const publisher = new EventPublisher<{
     id: TaskId;
   };
   /**
-   * A task's own state file changed: the pane, the draft, the selected model.
+   * A task's own state file changed: the held tabs, the draft, the selected model.
    *
    * Deliberately not `task.updated`, which the task list subscribes to. The
    * list is ordered by a filesystem timestamp, so every re-read is a chance for

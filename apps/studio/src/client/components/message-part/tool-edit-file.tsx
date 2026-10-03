@@ -1,7 +1,4 @@
-import {
-  type SessionMessagePart,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
 import { stripPatchHeader } from "./tool-call-utils";
@@ -12,7 +9,7 @@ type EditFilePart = Extract<
   { type: "tool-edit_file" }
 >;
 
-export function ToolEditFile({ id, part }: { id: TaskId; part: EditFilePart }) {
+export function ToolEditFile({ part }: { part: EditFilePart }) {
   const filePath =
     part.state === "output-available"
       ? part.output.filePath
@@ -42,7 +39,6 @@ export function ToolEditFile({ id, part }: { id: TaskId; part: EditFilePart }) {
     <FileToolCard
       content={content}
       filePath={filePath}
-      id={id}
       language={language}
       modifiedAt={isDone ? part.output.modifiedAt : undefined}
     />

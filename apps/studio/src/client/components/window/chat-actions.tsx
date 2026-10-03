@@ -17,7 +17,6 @@ import { toast } from "sonner";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
-import { useWindow } from "./context";
 import { type RowAction } from "./row-shell";
 
 /** Which chat a call is about, as every chat mutation takes it. */
@@ -60,8 +59,7 @@ export function useChatActions(chat: Chat): RowAction[] {
  * archive. Everything that depends on the chat happens in the call.
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
-  const { taskId } = useWindow();
-  const transcript = useTranscriptActions({ id: taskId, sessionId: undefined });
+  const transcript = useTranscriptActions({ sessionId: undefined });
   const queryClient = useQueryClient();
   const paint = (sessionId: string, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { sessionId }, change);

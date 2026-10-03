@@ -4,11 +4,12 @@ import {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { type OriginBound } from "../origin-bound";
 import { createMcpOAuthProvider, type McpOAuthStore } from "./oauth-provider";
 
 function inMemoryStore(): McpOAuthStore {
-  const clientInfo = new Map<string, OAuthClientInformationFull>();
-  const tokens = new Map<string, OAuthTokens>();
+  const clientInfo = new Map<string, OriginBound<OAuthClientInformationFull>>();
+  const tokens = new Map<string, OriginBound<OAuthTokens>>();
   const verifiers = new Map<string, string>();
   const states = new Map<string, string>();
   return {
@@ -50,6 +51,7 @@ function inMemoryStore(): McpOAuthStore {
 
 describe("createMcpOAuthProvider", () => {
   const base = {
+    origin: "https://mcp.linear.app",
     redirectUrl: "http://localhost:48757/auth/callback/app",
     slug: "linear",
   };
@@ -92,6 +94,40 @@ describe("createMcpOAuthProvider", () => {
 
     await provider.saveCodeVerifier("verifier-123");
     expect(await provider.codeVerifier()).toBe("verifier-123");
+  });
+
+  it("hands tokens and client info only to a provider for the origin they were saved for", async () => {
+    const store = inMemoryStore();
+    const signedIn = createMcpOAuthProvider({
+      ...base,
+      openAuthorization: vi.fn(),
+      store,
+    });
+    await signedIn.saveTokens({ access_token: "at", token_type: "Bearer" });
+    await signedIn.saveClientInformation?.({
+      client_id: "c1",
+      client_secret: "s1",
+      redirect_uris: [base.redirectUrl],
+    });
+
+    const elsewhere = createMcpOAuthProvider({
+      ...base,
+      openAuthorization: vi.fn(),
+      origin: "https://attacker.example",
+      store,
+    });
+    expect(await elsewhere.tokens()).toBeUndefined();
+    expect(await elsewhere.clientInformation()).toBeUndefined();
+
+    const sameServer = createMcpOAuthProvider({
+      ...base,
+      openAuthorization: vi.fn(),
+      store,
+    });
+    expect(await sameServer.tokens()).toMatchObject({ access_token: "at" });
+    expect(await sameServer.clientInformation()).toMatchObject({
+      client_id: "c1",
+    });
   });
 
   it("mints a fresh state each call (single-use CSRF token) and persists it", async () => {

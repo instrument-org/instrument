@@ -34,9 +34,18 @@ export function taskHref(id: TaskId, chat?: StoreId.Session): string {
     : `${TASKS_HREF}/${id}?chat=${chat}`;
 }
 
-/** The address of a chat's task list, or of every task with no chat named. */
-export function tasksHref(chat?: StoreId.Session): string {
-  return chat === undefined ? TASKS_HREF : `${TASKS_HREF}?chat=${chat}`;
+/** The address of a chat's task list; there is no list of every chat's tasks. */
+export function tasksHref(chat: StoreId.Session): string {
+  return `${TASKS_HREF}?chat=${chat}`;
+}
+
+/**
+ * The chat a task list's address names, which every list is for; none for
+ * no chat or one that is not a chat's id, an address with no list at it.
+ */
+export function chatOfTasksList(chat: unknown): StoreId.Session | undefined {
+  const parsed = StoreId.SessionSchema.safeParse(chat);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** The route the Skills screen is at: every skill a task can load, and each one's page under it. */
@@ -63,12 +72,16 @@ export type TabLocation =
   | { kind: "chat"; title: string }
   | { kind: "folder"; path: string }
   | { kind: "idea"; title: string }
-  | { kind: "ideas" }
+  | { kind: "discover" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | { kind: "skill"; name: string }
   | { kind: "skills" }
-  | { kind: "tasks" };
+  | {
+      /** The chat whose tasks these are; none only on the way to the inbox. */
+      chat?: StoreId.Session;
+      kind: "tasks";
+    };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -107,12 +120,12 @@ export function locationCrumbs(
     }
     case "idea": {
       return [
-        { label: "Ideas", to: { href: DISCOVER_HREF, kind: "screen" } },
+        { label: "Discover", to: { href: DISCOVER_HREF, kind: "screen" } },
         { label: location.title },
       ];
     }
-    case "ideas": {
-      return [{ label: "Ideas" }];
+    case "discover": {
+      return [{ label: "Discover" }];
     }
     case "newTab":
     case "page": {
@@ -127,12 +140,15 @@ export function locationCrumbs(
     case "skills": {
       return [{ label: "Skills" }];
     }
+    // A task opened from no chat's list has no list to go back to.
     case "task": {
       return [
-        {
-          label: "Tasks",
-          to: { href: tasksHref(location.chat), kind: "screen" },
-        },
+        location.chat === undefined
+          ? { label: "Tasks" }
+          : {
+              label: "Tasks",
+              to: { href: tasksHref(location.chat), kind: "screen" },
+            },
         { label: location.title },
       ];
     }

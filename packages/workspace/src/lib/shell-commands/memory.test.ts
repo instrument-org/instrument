@@ -49,7 +49,7 @@ afterEach(async () => {
 });
 
 function run(args: string[], stdin = "") {
-  return createMemoryCommand({ orchestratorTaskId: taskId, sessionId }).execute(
+  return createMemoryCommand({ chatId: taskId, sessionId }).execute(
     args,
     createCommandContext({
       cwd: "/task",

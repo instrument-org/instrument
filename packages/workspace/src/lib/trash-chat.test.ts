@@ -46,16 +46,12 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, parentTaskId?: string) {
+async function make(id: string, chatId?: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      initialSettings: {
-        name: id,
-        ...(parentTaskId
-          ? { parentTaskId: TaskIdSchema.parse(parentTaskId) }
-          : {}),
-      },
+      ...(chatId ? { chatId: TaskIdSchema.parse(chatId) } : {}),
+      initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },

@@ -34,7 +34,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 
 Two top-level windows, each its own `BrowserWindow` / web contents, both loaded from the same renderer bundle. `client/main.tsx` picks the root by `window.api.windowType` (set via the `--windowType` preload arg):
 
-- **app** — renders `<AppWindow />`: the app window (`windows/app-window.ts`), its tabs across the bar, each a router of its own kept mounted in one web contents. This is what "single web contents" below refers to. It has its own menu (`menus/app-window.ts`) and hosts every browser guest. Its screens are the routes under the pathless `client/routes/_app/` layout, drawn from `client/components/window/`; its state is in `client/atoms/window.ts`. "Orchestrator" names the agent a chat runs on (task kind `orchestrator`, agent `instrument`) and nothing else.
+- **app** — renders `<AppWindow />`: the app window (`windows/app-window.ts`), its tabs across the bar, each a router of its own kept mounted in one web contents. This is what "single web contents" below refers to. It has its own menu (`menus/app-window.ts`) and hosts every browser guest. Its screens are the routes under the pathless `client/routes/_app/` layout, drawn from `client/components/window/`; its state is in `client/atoms/window.ts`. A chat is a record under `chats/` and runs agent `instrument`; the window's own tabs and file views are scoped to `WINDOW_ID`, not to a record.
 - **onboarding** — renders `<App />`: a small (480×600), fixed-size, non-resizable "Welcome" window (`windows/onboarding.ts`) that runs the single-router onboarding flow at `/onboarding`. Shown before the app window on first run; dismissing it without completing quits the app.
 
 They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to the app window (tab commands, its chrome) must not assume it is running in the onboarding window.
@@ -98,4 +98,4 @@ Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs th
 - **UI**: shadcn in `src/client/components/ui`; shared in `src/client/components/`.
 - **Debug**: `routes/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
-- **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).
+- **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.live.me`, `plans.get`).

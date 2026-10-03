@@ -10,9 +10,8 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { createTopic } from "../orchestrator/topics";
+import { createTopic } from "../chat/topics";
 import { Store } from "../store";
-import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createChatCommand } from "./chat";
 
@@ -20,9 +19,9 @@ vi.mock(import("../session-store-storage"));
 
 // The list asks the machine which chats and tasks are at work; a test has
 // no machine, so nothing is.
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  orchestratorActivity: () => Promise.resolve({ running: [] }),
+  chatActivity: () => Promise.resolve({ running: [] }),
 }));
 vi.mock(import("../workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
@@ -38,8 +37,8 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // id reused across runs would read the last run's chats.
 let counter = 0;
 /**
- * The window's record, in a workspace of its own: chats, topics and the
- * window's record all live under the root, so each test gets one.
+ * A workspace of its own: chats, topics and the window's state all live
+ * under the root, so each test gets one.
  */
 const freshTask = async () => {
   const taskId = createMockTaskConfig(
@@ -51,11 +50,6 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
-  const made = await updateTaskSettings(taskId, {
-    kind: "orchestrator",
-    name: "Instrument",
-  });
-  expect(made.isOk()).toBe(true);
   return taskId;
 };
 

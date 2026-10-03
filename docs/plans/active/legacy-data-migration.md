@@ -21,9 +21,9 @@ Each 1.x task becomes a chat that owns that task:
 ```text
 chats/<new chat id>/
   .instrument/task.db       the old conversation's words
-  .instrument/settings.json kind "chat", the task's name, its dates, its topic
+  .instrument/settings.json its session, the task's name, its dates, its folders
   attachments/              files the user sent in it, copied
-  tasks/<task id>/          the 1.x task, moved in untouched but for parentTaskId
+  tasks/<task id>/          the 1.x task, moved in untouched but for its projectId
 ```
 
 **What the chat holds, in order:** every user message, then every assistant text part with words, each in the message it came from. That's all a 2.0 chat shows anyway: tool calls, reasoning, and running tasks never draw in the chat view (`chat-stream-render-part.tsx:123`).
@@ -80,13 +80,12 @@ This is the layout version after [chat-folders.md](../completed/chat-folders.md)
 
 1. Projects to topics, as above, so the topics exist before the chats that carry them.
 2. Tasks with no user message go to the trash.
-3. For each remaining top-level task that isn't a chat (`kind` unset or `"task"`, no `parentTaskId`):
+3. For each remaining task under `tasks/` (the folder it is in is what makes it a task no chat owns):
    1. Create the chat folder and record.
    2. Copy the words and the attachment files.
    3. Write the adoption part.
    4. Backfill `visitedHosts`.
-   5. Move the task folder into `tasks/`.
-   6. Set `parentTaskId`.
+   5. Move the task folder into the chat's `tasks/`, which is what makes the chat its owner.
 
    This also covers any parentless task a 2.0 build made, such as the tutorial task.
 4. Tasks with more than one session (7 on the real workspace) copy every session's words in order, into the one chat session.
@@ -96,9 +95,9 @@ This is the layout version after [chat-folders.md](../completed/chat-folders.md)
 
 Where `migrate-legacy-tasks.ts` differs from the above, or adds to it:
 
-- **Runs after the move to chats**, from `migrateWorkspaceLayout`, data-gated like it: a parentless task under `tasks/` that is not a window record, or a project under `projects/`, is work to do. A boot with neither costs one `readdir` and a settings read per task.
-- **Staged chats.** A chat is written as `chats/.<name>.partial`, its task moved in and pointed at it, and only then renamed, so no chat is listed without its task. A boot cut short finishes a staged chat that holds its task and discards one that does not.
-- **Unread and pins carry over.** Each chat's `chatSeen` mark goes on the window record before any chat is listed: read up to its newest message, or one short of its newest reply where 1.x had `unreadIndicator`. `pinnedAt` becomes the session's `starredAt`.
+- **Runs on every boot**, from `migrateWorkspaceLayout`, and decides from the data: a task under `tasks/` whose settings name neither a chat's session nor a chat that started it (fields only a 2.0 build wrote), or a project under `projects/`, is work to do. A boot with neither costs one `readdir` and a settings read per task.
+- **Staged chats.** A chat is written as `chats/.<name>.partial`, its task moved in, and only then renamed, so no chat is listed without its task. A boot cut short finishes a staged chat that holds its task and discards one that does not.
+- **Unread and pins carry over.** Each chat's `chatSeen` mark goes into the window's state, `.instrument/window.json`, before any chat is listed: read up to its newest message, or one short of its newest reply where 1.x had `unreadIndicator`. `pinnedAt` becomes the session's `starredAt`.
 - **Set aside, not trashed.** Tasks with no user message, and the tutorial replay (its assistant turns name the `tutorial-task-replay` model), move to `.pre-chats/empty-tasks/`. A task with a database and no settings file counts as a task.
 - **Project folders stay on the tasks that had them.** Clearing `projectId` stops project reconciliation, so an adopted task keeps the folders it already mounted, and its chat is granted them too (see files below).
 - **Replies keep their steps.** Each 1.x assistant message with words stays its own message, marked finished so it counts as a reply. Tool-only steps are dropped. Paths in `files` fences and under `/task/` are rewritten to `/tasks/<id>/`; bare relative paths in prose are left as written.

@@ -1,5 +1,4 @@
 import { type Draft } from "@/client/atoms/window";
-import { type RPCOutput } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -25,9 +24,9 @@ export interface PageSlot {
 }
 
 /**
- * What the window keeps once and every app tab reads: the orchestrator and
- * its lists, the drafts and floating windows, and the ways back into the
- * window's own state from inside a tab.
+ * What the window keeps once and every app tab reads: its lists, the drafts
+ * and floating windows, and the ways back into the window's own state from
+ * inside a tab.
  */
 export interface WindowShell {
   appTabs: ReturnType<typeof useAppTabs>;
@@ -41,7 +40,6 @@ export interface WindowShell {
   deleteDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
   drafts: Draft[];
-  ids: RPCOutput["workspace"]["window"]["ensure"];
   /** Opens a new draft, as the rail's New does. */
   newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */

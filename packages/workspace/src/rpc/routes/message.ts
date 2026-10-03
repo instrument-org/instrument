@@ -10,13 +10,12 @@ import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { chatContextFor } from "../../lib/orchestrator/chat-context";
-import { setChatTopics } from "../../lib/orchestrator/chats";
-import { getTaskProjectName } from "../../lib/project";
-import { sessionOfChat } from "../../lib/record-folders";
+import { chatContextFor } from "../../lib/chat/chat-context";
+import { setChatTopics } from "../../lib/chat/chats";
+
+import { isChatId, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
-import { taskDir } from "../../lib/task-dir-utils";
-import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
+import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
@@ -123,8 +122,7 @@ const create = base
 
         // A chat's record holds one session, the one its settings name.
         const chatSession = sessionOfChat(taskId);
-        const settings = await getTaskSettings(taskDir(taskId));
-        const isOrchestrator = settings?.kind === "orchestrator";
+        const isChat = isChatId(taskId);
 
         let finalSessionId: StoreId.Session;
         // The other chats as they stand when a new one opens, read before
@@ -133,7 +131,7 @@ const create = base
         if (sessionId) {
           finalSessionId = sessionId;
         } else {
-          if (isOrchestrator) {
+          if (isChat) {
             chatContext = await chatContextFor();
           }
           const sessionResult = await createSession({
@@ -145,7 +143,7 @@ const create = base
             throw toORPCError(sessionResult.error, errors);
           }
           finalSessionId = sessionResult.value.id;
-          if (isOrchestrator && topics && topics.length > 0) {
+          if (isChat && topics && topics.length > 0) {
             await setChatTopics(finalSessionId, topics);
           }
         }
@@ -186,23 +184,12 @@ const create = base
         const message = messageResult.value;
 
         if (isFirstMessageInSession) {
-          // Titling is deliberately non-blocking, and so is finding the project
-          // it reads: resolving one scans `projects/` and reads each settings
-          // file until the id matches, which is a serial walk the agent's turn
-          // would otherwise wait behind on the first message of every session.
+          // Titling is deliberately non-blocking, so the agent's turn never
+          // waits behind it on the first message of a session.
           void (async () => {
-            let projectName: string | undefined;
-            try {
-              projectName = await getTaskProjectName(taskId);
-            } catch {
-              // A title that does not know its project is worth more than no
-              // title, so a failed lookup falls through rather than ending the run.
-            }
-
             const title = await generateTitleFromUserMessage({
               message,
               model,
-              projectName,
               workspaceConfig: context.workspaceConfig,
             });
             if (title.isOk()) {
@@ -224,7 +211,7 @@ const create = base
         context.workspaceRef.send({
           type: "addMessage",
           value: {
-            agentName: await agentNameForTask(taskId),
+            agentName: agentNameForTask(taskId),
             id,
             message,
             model,
@@ -240,30 +227,6 @@ const create = base
         return { sessionId: message.metadata.sessionId };
       }),
   );
-
-const count = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema.optional(),
-    }),
-  )
-  .output(z.number())
-  .handler(async ({ errors, input }) => {
-    const { id, sessionId } = input;
-    const taskId = id;
-
-    const messageIds = sessionId
-      ? await Store.getMessageIds(sessionId, taskId)
-      : await Store.getAllMessageIds(taskId);
-
-    if (messageIds.isErr()) {
-      const error = toORPCError(messageIds.error, errors);
-      throw error;
-    }
-
-    return messageIds.value.length;
-  });
 
 const live = {
   list: base
@@ -361,7 +324,6 @@ const live = {
 };
 
 export const message = {
-  count,
   create,
   list: listWithParts,
   live,

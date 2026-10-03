@@ -1,16 +1,24 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
+import { type StoredAppCredential } from "@instrument-org/workspace/electron";
 import { safeStorage } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
 
-// One secret per app, keyed by the app's folder slug. Values only ever leave
-// this store through the workspace config's `getCredential` at request time;
-// the RPC layer exposes presence, never values.
+// One secret per app, keyed by the app's folder slug, with the origin it was
+// saved for: the workspace sends it nowhere else. Values only ever leave this
+// store through the workspace config's `getCredential` at request time; the
+// RPC layer exposes presence, never values. A file whose entries carry no
+// origin fails the parse and reads as empty, so those apps ask for a key again.
 const AppCredentialsStoreSchema = z
   .object({
-    credentials: z.record(z.string(), z.string()).default({}),
+    credentials: z
+      .record(
+        z.string(),
+        z.object({ origin: z.string().min(1), value: z.string() }),
+      )
+      .default({}),
   })
   .default({ credentials: {} });
 
@@ -79,7 +87,7 @@ const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
   return APP_CREDENTIALS_STORE;
 };
 
-export function getAppCredential(slug: string): null | string {
+export function getAppCredential(slug: string): null | StoredAppCredential {
   return getAppCredentialsStore().get("credentials")[slug] ?? null;
 }
 
@@ -93,7 +101,10 @@ export function removeAppCredential(slug: string): void {
   store.set("credentials", rest);
 }
 
-export function setAppCredential(slug: string, value: string): void {
+export function setAppCredential(
+  slug: string,
+  credential: StoredAppCredential,
+): void {
   const store = getAppCredentialsStore();
-  store.set("credentials", { ...store.get("credentials"), [slug]: value });
+  store.set("credentials", { ...store.get("credentials"), [slug]: credential });
 }

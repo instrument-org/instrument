@@ -115,7 +115,7 @@ describe("buildAttachedFoldersText", () => {
     expect(text).not.toContain(path.basename(os.homedir()));
   });
 
-  // The orchestrator has no file tools and a shell that refuses to write, so
+  // The chat has no file tools and a shell that refuses to write, so
   // its copy names the task as the writer rather than tools it has not got.
   it("names a task as the writer for a reader without file tools", () => {
     const folders = [

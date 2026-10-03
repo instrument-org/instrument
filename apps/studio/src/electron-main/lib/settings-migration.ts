@@ -40,10 +40,7 @@ const MACHINE_STATE_KEYS_FROM_PREFERENCES = [
   "lastLaunchedVersion",
   "lastUpdateCheck",
 ];
-const MACHINE_STATE_KEYS_FROM_APP_STATE = [
-  "telemetryId",
-  "lastMigratedVersion",
-];
+const MACHINE_STATE_KEYS_FROM_APP_STATE = ["telemetryId"];
 const WORKSPACE_PREFERENCE_KEYS = [
   "agentCompletionNotifications",
   "defaultModelURI",
@@ -56,7 +53,8 @@ const WORKSPACE_STATE_KEYS = ["hasCompletedProviderSetup"];
  * Root files that belong wholly to the default workspace, copied as they are.
  * Copied rather than moved so an older build sharing this userData (another
  * worktree on the shared dev directory, or a downgrade) still finds them; from
- * here on the two copies are independent. Both name sets are listed, since dev
+ * here on the two copies are independent. A packaged build then removes the
+ * root copies of the ones holding secrets ({@link PACKAGED_SECRET_FILES}). Both name sets are listed, since dev
  * builds write plaintext (`session-dev`) and packaged builds write safeStorage
  * ciphertext (`.json.enc`); a byte copy stays readable under the same key.
  */
@@ -72,6 +70,20 @@ const COPIED_FILES = [
   "app-connections.json",
   "features.json",
   "window-state.json",
+];
+
+/**
+ * The copied files that hold secrets in a packaged build. A packaged build
+ * deletes its root copies once the workspace holds them, so a signed-in session
+ * or a key does not outlive a sign-out or a disconnect in a file nothing reads.
+ * Dev builds keep them, since every checkout on the machine shares one dev
+ * userData and an older one may still read them.
+ */
+const PACKAGED_SECRET_FILES = [
+  "session.json.enc",
+  "providers.json.enc",
+  "app-oauth.json.enc",
+  "app-credentials.json.enc",
 ];
 
 /**
@@ -122,9 +134,12 @@ export function migrateMachineSettings(userDataDir: string): string[] {
  * every other workspace.
  */
 export function migrateWorkspaceSettings({
+  packaged,
   userDataDir,
   workspace,
 }: {
+  /** Whether this is a packaged build, which removes the root copies of {@link PACKAGED_SECRET_FILES}. */
+  packaged: boolean;
   userDataDir: string;
   workspace: ResolvedWorkspace;
 }): string[] {
@@ -143,7 +158,13 @@ export function migrateWorkspaceSettings({
     if (workspace.isDefault) {
       const overwrite = fs.existsSync(marker);
       writeJsonAtomic(marker, { pid: process.pid });
-      takeInLegacyRootFiles(userDataDir, workspace.path, done, overwrite);
+      takeInLegacyRootFiles({
+        done,
+        overwrite,
+        packaged,
+        userDataDir,
+        workspacePath: workspace.path,
+      });
     }
 
     writeWorkspaceIdentity(workspace.path, {
@@ -244,12 +265,19 @@ function readObject(filePath: string): Record<string, unknown> | undefined {
   }
 }
 
-function takeInLegacyRootFiles(
-  userDataDir: string,
-  workspacePath: string,
-  done: string[],
-  overwrite: boolean,
-) {
+function takeInLegacyRootFiles({
+  done,
+  overwrite,
+  packaged,
+  userDataDir,
+  workspacePath,
+}: {
+  done: string[];
+  overwrite: boolean;
+  packaged: boolean;
+  userDataDir: string;
+  workspacePath: string;
+}) {
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const legacyPreferencesPath = path.join(userDataDir, LEGACY_PREFERENCES);
   const legacyAppStatePath = path.join(userDataDir, LEGACY_APP_STATE);
@@ -274,6 +302,15 @@ function takeInLegacyRootFiles(
       done,
       overwrite,
     );
+  }
+  if (packaged) {
+    for (const name of PACKAGED_SECRET_FILES) {
+      const from = path.join(userDataDir, name);
+      if (fs.existsSync(from) && fs.existsSync(path.join(settingsDir, name))) {
+        fs.rmSync(from, { force: true });
+        done.push(`removed the root copy of ${name}`);
+      }
+    }
   }
   for (const name of MOVED_FILES) {
     moveIfAbsent(

@@ -10,7 +10,7 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 /**
- * The Ideas screen: the kinds of page Instrument can make, each a template
+ * The Discover screen: the kinds of page Instrument can make, each a template
  * of the page skill the app ships, grouped by what the reader arrives with.
  * A tile opens the idea's page, with its examples and a way to ask for one.
  */
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_app/discover/")({
 });
 
 function IdeasRoute() {
-  useOnScreen({ screen: "ideas" });
+  useOnScreen({ screen: "discover" });
   const navigate = useNavigate();
   const ideas = useIdeas();
   const groups = groupIdeas(ideas.data ?? []);

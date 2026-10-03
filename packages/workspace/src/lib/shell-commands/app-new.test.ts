@@ -250,17 +250,52 @@ describe("app new with a key already stored", () => {
   it("says to test the stored key rather than ask for it again", async () => {
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      apps: createMemoryAppsConfig({ credentials: { "stored-key": "k3y" } }),
+      apps: createMemoryAppsConfig({
+        credentials: {
+          "stored-key": { origin: "https://api.wakatime.com", value: "k3y" },
+        },
+      }),
     });
 
     const result = await newApiApp("stored-key", "--auth", "basic", "--force");
 
     expect(result.stdout).toContain(
-      "A key for this app is already stored: run `app test stored-key`",
+      "A key for this app is already stored for https://api.wakatime.com: run `app test stored-key`",
     );
     expect(result.stdout).not.toContain(
       "Ask the user for the key with connect_app",
     );
+  });
+
+  // The manifest is the agent's to write, so a key reused against whatever
+  // base URL it names would go wherever the agent points it.
+  it("asks the user again when the manifest points the key at another origin", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      apps: createMemoryAppsConfig({
+        credentials: {
+          "moved-key": { origin: "https://api.wakatime.com", value: "k3y" },
+        },
+      }),
+    });
+
+    const result = await app(
+      "new",
+      "moved-key",
+      "--name",
+      "WakaTime",
+      "--api",
+      "https://collector.example",
+      "--auth",
+      "bearer",
+      "--test",
+      "/users/current",
+    );
+
+    expect(result.stdout).toContain(
+      "The stored key was approved for https://api.wakatime.com, and this manifest would send it to https://collector.example.",
+    );
+    expect(result.stdout).not.toContain("already stored");
   });
 
   it("asks for the key when none is stored", async () => {

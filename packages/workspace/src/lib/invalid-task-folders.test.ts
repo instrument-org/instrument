@@ -22,7 +22,13 @@ beforeEach(async () => {
   trashed = [];
 
   // Seed a valid task so the mock config's tasksDir points at our temp dir.
-  await fs.mkdir(path.join(tasksDir, "valid-task"), { recursive: true });
+  await fs.mkdir(path.join(tasksDir, "valid-task", ".instrument"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(tasksDir, "valid-task", ".instrument", "settings.json"),
+    JSON.stringify({ name: "Valid" }),
+  );
   createMockTaskConfigForDir(path.join(tasksDir, "valid-task"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -34,13 +40,25 @@ beforeEach(async () => {
   });
 });
 
+/** A task folder under `tasks/`, with these settings when there are any. */
+async function taskFolder(name: string, settings?: string) {
+  const dir = path.join(tasksDir, name);
+  await fs.mkdir(path.join(dir, ".instrument"), { recursive: true });
+  if (settings !== undefined) {
+    await fs.writeFile(
+      path.join(dir, ".instrument", "settings.json"),
+      settings,
+    );
+  }
+}
+
 afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
 describe("listInvalidTaskFolders", () => {
   it("returns only folders whose name isn't a valid task id", async () => {
-    await fs.mkdir(path.join(tasksDir, "another-valid-task"));
+    await taskFolder("another-valid-task", JSON.stringify({ name: "Another" }));
     await fs.mkdir(path.join(tasksDir, "Has Spaces"));
     await fs.mkdir(path.join(tasksDir, "UPPERCASE"));
     await fs.mkdir(path.join(tasksDir, "has.dots"));
@@ -53,6 +71,37 @@ describe("listInvalidTaskFolders", () => {
       "has.dots",
     ]);
     expect(invalid.every((folder) => folder.reason.length > 0)).toBe(true);
+  });
+
+  it("returns a task whose settings are missing or unreadable, creating nothing in it", async () => {
+    await taskFolder("2026-09-30-no-settings");
+    await taskFolder("2026-09-30-truncated", '{"name": "Half');
+    await taskFolder("2026-09-30-not-a-task", JSON.stringify({ name: 7 }));
+
+    const invalid = await listInvalidTaskFolders(getWorkspaceConfig());
+
+    expect(invalid.toSorted((a, b) => a.name.localeCompare(b.name)))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "name": "2026-09-30-no-settings",
+          "reason": "Missing or unreadable settings (.instrument/settings.json)",
+        },
+        {
+          "name": "2026-09-30-not-a-task",
+          "reason": "Missing or unreadable settings (.instrument/settings.json)",
+        },
+        {
+          "name": "2026-09-30-truncated",
+          "reason": "Missing or unreadable settings (.instrument/settings.json)",
+        },
+      ]
+    `);
+    expect(
+      await fs.readdir(
+        path.join(tasksDir, "2026-09-30-no-settings", ".instrument"),
+      ),
+    ).toEqual([]);
   });
 
   it("returns an empty list when the tasks dir is missing", async () => {
@@ -82,6 +131,18 @@ describe("trashInvalidTaskFolder", () => {
 
     expect(result.isErr()).toBe(true);
     expect(trashed).toEqual([]);
+  });
+
+  it("trashes a task whose settings cannot be read", async () => {
+    await taskFolder("2026-09-30-truncated", '{"name": "Half');
+
+    const result = await trashInvalidTaskFolder(
+      "2026-09-30-truncated",
+      getWorkspaceConfig(),
+    );
+
+    expect(result.isOk()).toBe(true);
+    expect(trashed).toEqual([path.join(tasksDir, "2026-09-30-truncated")]);
   });
 
   it("refuses path traversal outside the tasks dir", async () => {

@@ -1,0 +1,188 @@
+import { ulid } from "ulid";
+
+import { publisher } from "../../rpc/publisher";
+import { StoreId } from "../../schemas/store-id";
+import { type TaskId } from "../../schemas/task-id";
+import { type HeldTab } from "../../schemas/task-state";
+import {
+  type WindowTabAction,
+  type WindowTabAnswer,
+} from "../../schemas/window-tab";
+import { decodeBrowserTargetId } from "../../types";
+import { chatIdOfTask, isChatId, sessionOfChat } from "../record-folders";
+import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
+import { getTaskState } from "../task-record";
+import { getWorkspaceConfig } from "../workspace-config";
+import { isWorking } from "./activity";
+import { listChildTasks } from "./children";
+
+/**
+ * How long an ask waits for the window's answer. The window answers in
+ * milliseconds; the wait is for a conversation with no window on it (an
+ * eval), where nothing ever answers.
+ */
+export const WINDOW_TAB_TIMEOUT_MS = 2000;
+
+/**
+ * Asks the window to act on its tabs and waits for its answer, or for the
+ * wait to run out, which answers undefined: no window is there to ask. The
+ * answer is listened for before the ask goes out, so a window that answers at
+ * once is not missed.
+ *
+ * `group` is the chat the tab belongs to, by its session.
+ */
+export async function askWindow({
+  action,
+  askedBy,
+  group,
+  timeoutMs = WINDOW_TAB_TIMEOUT_MS,
+}: {
+  action: WindowTabAction;
+  askedBy: TaskId;
+  group: StoreId.Session | undefined;
+  timeoutMs?: number;
+}): Promise<undefined | WindowTabAnswer> {
+  const requestId = ulid();
+  const controller = new AbortController();
+  const answers = publisher.subscribe("window.tabDone", {
+    signal: controller.signal,
+  });
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  publisher.publish("window.tab", {
+    action,
+    id: askedBy,
+    requestId,
+    ...(group ? { sessionId: group } : {}),
+  });
+  try {
+    for await (const answer of answers) {
+      if (answer.requestId === requestId) {
+        return answer;
+      }
+    }
+  } catch {
+    // The wait ran out: no window answered.
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+  return undefined;
+}
+
+/**
+ * The chat a record is or was started in, by the chat's session: a chat's
+ * own, or the chat whose folder a task is in. Undefined for a task no chat
+ * owns.
+ */
+export function chatSessionOfTask(taskId: TaskId): StoreId.Session | undefined {
+  const chatId = isChatId(taskId) ? taskId : chatIdOfTask(taskId);
+  return chatId === undefined ? undefined : sessionOfChat(chatId);
+}
+
+/**
+ * The tabs a task holds with a live guest, after asking the window to bring
+ * back any that are still in its list but have not been shown since a
+ * launch. A tab the window no longer has stays out: it was closed.
+ */
+export async function liveHeldTabs(
+  taskId: TaskId,
+  heldTabs: HeldTab[],
+): Promise<HeldTab[]> {
+  const { browser } = getWorkspaceConfig();
+  const live: HeldTab[] = [];
+  for (const held of heldTabs) {
+    if (browser.getTargetMeta(held.id)) {
+      live.push(held);
+      continue;
+    }
+    const decoded = decodeBrowserTargetId(held.id);
+    if (!decoded) {
+      continue;
+    }
+    const answer = await askWindow({
+      action: { kind: "restore", tabId: decoded.sessionId },
+      askedBy: taskId,
+      group: chatSessionOfTask(taskId),
+    });
+    if (answer?.tabId === undefined) {
+      continue;
+    }
+    // The window opens the guest; asking here as well waits for it to
+    // attach, and asking twice for one tab makes one guest.
+    await browser.createTarget(
+      decoded.id,
+      decoded.sessionId,
+      getBrowserSessionDir(),
+    );
+    live.push(held);
+  }
+  return live;
+}
+
+/**
+ * Asks the window for a page tab and returns its id, or undefined when no
+ * window answered. `show` puts the tab on screen; without it the tab joins
+ * the chat's list behind whatever is up, which is how every tab an agent
+ * opens for its own work arrives.
+ */
+export async function requestWindowTab({
+  askedBy,
+  group,
+  show,
+  timeoutMs,
+  url,
+}: {
+  askedBy: TaskId;
+  group: StoreId.Session | undefined;
+  show: boolean;
+  timeoutMs?: number;
+  url?: string;
+}): Promise<StoreId.Session | undefined> {
+  const answer = await askWindow({
+    action: {
+      kind: "open",
+      show,
+      target: { kind: "page", ...(url ? { url } : {}) },
+    },
+    askedBy,
+    group,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  });
+  const tabId = StoreId.SessionSchema.safeParse(answer?.tabId);
+  return tabId.success ? tabId.data : undefined;
+}
+
+/**
+ * The tasks of a chat at work in each of its tabs, by the tab's id: what
+ * lets the conversation see whose page a tab is before it closes or replaces
+ * it. A task that has finished holds nothing here.
+ */
+export async function tabHolders(
+  chatId: TaskId,
+): Promise<Map<string, { id: TaskId; title: string }>> {
+  const holders = new Map<string, { id: TaskId; title: string }>();
+  for (const task of await listChildTasks(chatId)) {
+    if (!isWorkingNow(task.id)) {
+      continue;
+    }
+    const state = await getTaskState(taskDir(task.id));
+    for (const held of state.browserTabs ?? []) {
+      const decoded = decodeBrowserTargetId(held.id);
+      if (decoded) {
+        holders.set(decoded.sessionId, { id: task.id, title: task.title });
+      }
+    }
+  }
+  return holders;
+}
+
+/** Whether a task is working, or false where no workspace is running to ask. */
+function isWorkingNow(taskId: TaskId): boolean {
+  try {
+    return isWorking(taskId);
+  } catch {
+    return false;
+  }
+}

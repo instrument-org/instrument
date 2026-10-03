@@ -118,7 +118,7 @@ const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const SANDBOX_MAX_TRAVERSAL = 300_000;
 
 /**
- * The same budget for the orchestrator's shell, which only reads what its
+ * The same budget for the chat's shell, which only reads what its
  * tasks produced and moves finished files into place. It holds the user's
  * whole home folder, so a stray `find` over it is the likeliest runaway walk
  * there is, and the budget counts entries rather than time: 300,000 of them
@@ -126,7 +126,7 @@ const SANDBOX_MAX_TRAVERSAL = 300_000;
  * all on the thread that paints the window. A walk bigger than this is a
  * task's to do.
  */
-const ORCHESTRATOR_MAX_TRAVERSAL = 20_000;
+const CHAT_MAX_TRAVERSAL = 20_000;
 
 /**
  * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
@@ -312,7 +312,6 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
  */
 interface CustomCommandContext {
   attachedFolders?: Record<string, FolderAttachment.Type>;
-  projectFolderName?: string;
   taskId: TaskId;
 }
 
@@ -479,12 +478,11 @@ function customCommandDefs(): CustomCommandDef[] {
 export interface BashEnvOptions {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
-   * Present when the task is an orchestrator: its children mount read-only and
+   * Present when the task is a chat: its children mount read-only and
    * its command set shrinks to reading and `task`. See
-   * `createOrchestratorBashDescription`.
+   * `createChatBashDescription`.
    */
-  orchestrator?: { childMounts: WorkspaceFsMount[] };
-  projectFolderName?: string;
+  chat?: { childMounts: WorkspaceFsMount[] };
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -494,8 +492,8 @@ export interface BashEnvOptions {
 export type BashRunner = Pick<Bash, "exec">;
 
 export function createBashDescription({
-  orchestrator = false,
-}: { orchestrator?: boolean } = {}) {
+  chat = false,
+}: { chat?: boolean } = {}) {
   const allowedCommandNames = getCommandNames().filter(
     (name) => !BROKEN_COMMANDS.has(name),
   );
@@ -504,8 +502,8 @@ export function createBashDescription({
     .filter((name) => !(name in DESCRIBED_COMMANDS))
     .sort();
 
-  if (orchestrator) {
-    return createOrchestratorBashDescription(namedOnly);
+  if (chat) {
+    return createChatBashDescription(namedOnly);
   }
 
   const described = Object.entries(DESCRIBED_COMMANDS)
@@ -595,8 +593,7 @@ export async function createBashEnv(
 
 export async function createLocalBashEnv({
   attachedFolders,
-  orchestrator,
-  projectFolderName,
+  chat,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
@@ -608,52 +605,50 @@ export async function createLocalBashEnv({
   standIn?: (name: string) => Command;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory), the
-  // project folder at /project when the task belongs to one, plus any
+  // writable task directory mounted at /task (the working directory), plus any
   // user-attached folders under /mnt, each read-only or writable. The bash
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
-    // The orchestrator authors apps, so it gets their folders; a task reaches
+    // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
-    apps: orchestrator !== undefined,
+    apps: chat !== undefined,
     attachedFolders,
-    extraMounts: orchestrator?.childMounts,
-    projectFolderName,
+    extraMounts: chat?.childMounts,
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...(orchestrator ? [] : getNetworkCommandNames()),
+    ...(chat ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the two shells apart: the orchestrator gets `task`, `chat`,
+  // What sets the two shells apart: the chat gets `task`, `chat`,
   // `memory` and `tab` and nothing else beyond reading, the working agent
   // gets the native hatches. Both get `app`, which does its network work host-side behind its
-  // own guards, so the orchestrator's shell stays network-free. Putting a
-  // thing on the user's screen is the orchestrator's `tab`: a task's reply is
-  // read by the orchestrator, and a pane of the task's own has nobody looking.
-  const specializedCommands = orchestrator
+  // own guards, so the chat's shell stays network-free. Putting a
+  // thing on the user's screen is the chat's `tab`: a task's reply is
+  // read by the chat, and a pane of the task's own has nobody looking.
+  const specializedCommands = chat
     ? [
         createTaskCommand({
-          orchestratorTaskId: taskId,
+          chatId: taskId,
           remainingYieldMs,
           sessionId,
         }),
         createChatCommand(),
-        createMemoryCommand({ orchestratorTaskId: taskId, sessionId }),
+        createMemoryCommand({ chatId: taskId, sessionId }),
         createAppCommand({ taskId }),
         createTabCommand({ sessionId, taskId }),
       ]
     : [
         createAppCommand({ taskId }),
         ...customCommandDefs().map((cmd) =>
-          cmd.factory({ attachedFolders, projectFolderName, taskId }),
+          cmd.factory({ attachedFolders, taskId }),
         ),
       ];
-  const specializedCommandNames = orchestrator
+  const specializedCommandNames = chat
     ? [
         TASK_COMMAND.name,
         CHAT_COMMAND.name,
@@ -666,7 +661,7 @@ export async function createLocalBashEnv({
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
-      // For the orchestrator, the tab the user has on screen or none: it never
+      // For the chat, the tab the user has on screen or none: it never
       // creates a browser of its own, so a command with no tab up refuses.
       createAgentBrowserCommand({ sessionId, taskId }),
       // Registered after the bundled commands, which is what lets it shadow
@@ -675,15 +670,13 @@ export async function createLocalBashEnv({
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({
         attachedFolders,
-        extraMounts: orchestrator?.childMounts,
-        projectFolderName,
+        extraMounts: chat?.childMounts,
         taskId,
       }),
       createDuCommand({
-        apps: orchestrator !== undefined,
+        apps: chat !== undefined,
         attachedFolders,
-        extraMounts: orchestrator?.childMounts,
-        projectFolderName,
+        extraMounts: chat?.childMounts,
         taskId,
       }),
       ...specializedCommands,
@@ -713,12 +706,8 @@ export async function createLocalBashEnv({
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
-      maxTraversalEntries: orchestrator
-        ? ORCHESTRATOR_MAX_TRAVERSAL
-        : SANDBOX_MAX_TRAVERSAL,
-      maxTraversalWork: orchestrator
-        ? ORCHESTRATOR_MAX_TRAVERSAL
-        : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalEntries: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
     },
     network: {
       // No per-domain allow-list to maintain; the agent legitimately fetches
@@ -746,10 +735,10 @@ export async function createLocalBashEnv({
     // skill's script to the native interpreter. `javascript` also registers
     // a `node` stub, which the native `node` command shadows, and runs the
     // bootstrap inside QuickJS before every script to give its Node shims
-    // Node's shapes. The orchestrator's shell runs no scripts at all, so it
+    // Node's shapes. The chat's shell runs no scripts at all, so it
     // gets neither.
-    javascript: orchestrator === undefined && { bootstrap: JS_EXEC_BOOTSTRAP },
-    python: orchestrator === undefined,
+    javascript: chat === undefined && { bootstrap: JS_EXEC_BOOTSTRAP },
+    python: chat === undefined,
   });
 
   // Order matters: the alias runs first so the recorded command list names
@@ -761,14 +750,14 @@ export async function createLocalBashEnv({
 }
 
 /**
- * The orchestrator's shell is for reading, for `task`, and for the one tab
+ * The chat's shell is for reading, for `task`, and for the one tab
  * the user has on screen. It has no network commands and none of the native
  * hatches (python, node, pnpm, ffmpeg, git), because it never does long work:
  * a shell that can read, delegate, and act on the page in front of the user is
  * what keeps every turn short, and what keeps the host paths of the user's
  * folders out of a process that could act on them.
  */
-function createOrchestratorBashDescription(_builtins: string[]) {
+function createChatBashDescription(_builtins: string[]) {
   return dedent`
     Run one of the commands that are your job, \`${TASK_COMMAND.name}\`, \`${APP_COMMAND.name}\`, \`${CHAT_COMMAND.name}\`, \`${MEMORY_COMMAND.name}\` and \`${TAB_COMMAND.name}\`, or a file command for looking at a file (ls, cat, head, tail, wc, stat, file, find) or putting a finished one where it belongs (cp, mv, mkdir). Output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: nothing that writes a file's contents, no python or node, no browser, no network. That work is a task's job, and you start the task instead. Each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\`; the user's folders under \`${MOUNT.attachedFolders}\` are yours to read and write.
 

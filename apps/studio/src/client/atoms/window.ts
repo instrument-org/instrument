@@ -1,7 +1,4 @@
-// Before this module's stored atoms read their values, whatever chunk the
-// bundler puts either in.
-import "@/client/lib/migrate-window-storage";
-import { TASK_PANE_DEFAULT_SHARE } from "@/client/atoms/task-pane";
+import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
   type FileSystemSortState,
@@ -223,12 +220,12 @@ export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
 /** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
 export const paneShareAtom = atomWithStorage<number>(
   "studio.pane-share.v1",
-  TASK_PANE_DEFAULT_SHARE,
+  PANE_DEFAULT_SHARE,
   undefined,
   { getOnInit: true },
 );
 
-/** A tab of the window's browser: a browser session of the orchestrator's. */
+/** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */
   favicon?: string;
@@ -270,7 +267,7 @@ export interface FileTab {
 }
 
 /**
- * A tab of the window. A page is a browser session of the orchestrator's,
+ * A tab of the window. A page is a browser session of the window's own,
  * drawn by a guest the pool holds; a screen is anything else the product
  * shows (a folder, a file, a task, the apps, a new tab), addressed by the
  * route it is at, so navigating inside it changes the tab and not the row.
@@ -372,56 +369,9 @@ export interface WindowTabs {
 export const windowTabsAtom = atomWithStorage<WindowTabs>(
   "studio.window-tabs.v8",
   { activeId: null, tabs: [] },
-  windowTabsStorage(),
+  createJSONStorage<WindowTabs>(() => localStorage),
   { getOnInit: true },
 );
-
-/**
- * The window's tabs with every chat's new-tab page read as a chat's new tab,
- * the web's starting view. The new-tab page is a draft's own face and only
- * a draft draws it; chats kept from when their new tab was that page still
- * hold it, in a tab or in where a tab has been.
- */
-export function withChatNewTabs(state: WindowTabs): WindowTabs {
-  return {
-    ...state,
-    tabs: state.tabs.map((tab) =>
-      draftOfGroup(tab.group) === undefined
-        ? {
-            ...visitAsWeb(tab),
-            ...(tab.past ? { past: tab.past.map(visitAsWeb) } : {}),
-            ...(tab.future ? { future: tab.future.map(visitAsWeb) } : {}),
-          }
-        : tab,
-    ),
-  };
-}
-
-/** An address on the new-tab page as a chat's new tab, the web's starting view. */
-function newTabAsWeb(href: string) {
-  return href.split(/[?#]/)[0] === NEW_TAB_HREF ? BROWSER_HREF : href;
-}
-
-/** A visit to the new-tab page, or through it, as one to the web's starting view. */
-function visitAsWeb<Visit extends TabVisit>(visit: Visit): Visit {
-  return visit.kind === "screen"
-    ? {
-        ...visit,
-        href: newTabAsWeb(visit.href),
-        ...(visit.trail ? { trail: visit.trail.map(newTabAsWeb) } : {}),
-      }
-    : visit;
-}
-
-/** localStorage backing for the window's tabs, reading what was kept through {@link withChatNewTabs}. */
-function windowTabsStorage() {
-  const json = createJSONStorage<WindowTabs>(() => localStorage);
-  return {
-    ...json,
-    getItem: (key: string, initialValue: WindowTabs) =>
-      withChatNewTabs(json.getItem(key, initialValue)),
-  };
-}
 
 export const SIDEBAR_WIDTH_MIN = 320;
 /** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */

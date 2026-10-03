@@ -38,7 +38,6 @@ export function generateTitleFromUserMessage({
   currentTitle,
   message,
   model,
-  projectName,
   reply,
   workspaceConfig,
 }: {
@@ -49,7 +48,6 @@ export function generateTitleFromUserMessage({
   currentTitle?: string;
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
-  projectName?: string;
   /**
    * The agent's latest reply to the message, when the work has gone on: what
    * it turned out to be about, which a title written from the opening words
@@ -95,7 +93,6 @@ export function generateTitleFromUserMessage({
         headers: { [CLIENT_SESSION_ID_HEADER]: message.metadata.sessionId },
         instructions: buildSystemPrompt({
           hasCurrentTitle: currentTitle !== undefined,
-          projectName,
           withReply: reply !== undefined,
         }),
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
@@ -221,27 +218,11 @@ export function titleSourceText(message: SessionMessage.UserWithParts): string {
 
 function buildSystemPrompt({
   hasCurrentTitle,
-  projectName,
   withReply,
 }: {
   hasCurrentTitle: boolean;
-  projectName: string | undefined;
   withReply: boolean;
 }): string {
-  // The project name is what every task in the project has in common, which
-  // makes it the one thing a title cannot spend words on and the one thing that
-  // fills in what a short message leaves out. Given both ways round, with the
-  // same message titled well and badly, since the pull towards writing it into
-  // the title is the stronger instinct.
-  const projectSection = projectName
-    ? `${dedent`
-        <project>
-        This task belongs to the "${projectName}" project, and so does every task it will sit beside in the list.
-        Read the message through it. It supplies what a short message leaves unsaid: in a project about a store, "lower my prices for black friday" is about that store's prices, and the title is "Black Friday price cuts".
-        Never write the project's name into the title. What every neighbor shares cannot tell them apart, and the app shows the project beside the title already, so "${projectName} Black Friday prices" wastes the words that would have said which task this is.
-        </project>`}\n\n`
-    : "";
-
   // The reply is evidence of the subject, the way attachments are: it says
   // what the work became, which the opening words alone may not. The message
   // still says what the user wanted, so the title stays theirs.
@@ -309,7 +290,7 @@ function buildSystemPrompt({
     If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is.
     </important>
 
-    ${projectSection}${replySection}${currentTitleSection}<rules>
+    ${replySection}${currentTitleSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
     - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")

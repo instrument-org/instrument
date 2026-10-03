@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { childTasksOptions } from "./child-tasks-query";
-import { useWindow } from "./context";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
 const TASKS_NAMED = 5;
@@ -31,13 +30,13 @@ export function DeleteChatDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const { taskId } = useWindow();
   const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
-  const children = useQuery({ ...childTasksOptions(taskId), enabled: open });
-  const tasks = (children.data ?? []).filter(
-    (task) => task.chatSessionId === chat.id,
-  );
+  const children = useQuery({
+    ...childTasksOptions(chat.taskId),
+    enabled: open,
+  });
+  const tasks = children.data ?? [];
   const named = tasks.slice(0, TASKS_NAMED);
   const more = tasks.length - named.length;
 

@@ -13,7 +13,7 @@
 //   node studio-drive.mjs click --text "All file types"
 //   node studio-drive.mjs shot out.png --selector '[role=dialog]'
 //   node studio-drive.mjs wait 'document.querySelectorAll("webview").length > 0'
-//   node studio-drive.mjs rpc workspace.task.list '{}'
+//   node studio-drive.mjs rpc workspace.chats.tasks '{"id":"<chat-id>"}'
 //   node studio-drive.mjs wait --idle --task <id>
 //   node studio-drive.mjs run sequence.mjs
 //   node studio-drive.mjs stop
@@ -1030,7 +1030,7 @@ async function cmdRpc(app, route, rawInput) {
   if (!route) {
     fail(
       `Usage: rpc <route> [json]\n` +
-        `  rpc workspace.task.list '{}'\n` +
+        `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'\n` +
         `  rpc workspace.task.agentStatus.byIds '{"ids":["<task-id>"]}'`,
     );
   }

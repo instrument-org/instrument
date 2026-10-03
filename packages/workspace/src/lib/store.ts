@@ -15,22 +15,6 @@ import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
 
 export namespace Store {
-  export function getAllMessageIds(
-    taskId: TaskId,
-    { signal }: { signal?: AbortSignal } = {},
-  ) {
-    return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
-
-      const messageKeys = yield* storage.getKeys(StorageKey.MESSAGES_KEY, {
-        signal,
-      });
-
-      const allMessageIds = messageKeys.map(StorageKey.extractMessageId);
-      return ok(allMessageIds);
-    });
-  }
-
   export function getMessageIds(
     sessionId: StoreId.Session,
     taskId: TaskId,
@@ -374,30 +358,6 @@ export namespace Store {
     });
   }
 
-  export function removeSession(
-    sessionId: StoreId.Session,
-    taskId: TaskId,
-    { signal }: { signal?: AbortSignal } = {},
-  ) {
-    return safeTry(async function* () {
-      const allSessions = yield* getSessions(taskId, {
-        includeChildSessions: true,
-        signal,
-      });
-      const childSessions = allSessions.filter(
-        (session) => session.parentId === sessionId,
-      );
-
-      for (const childSession of childSessions) {
-        yield* removeSessionAndMessages(childSession.id, taskId, { signal });
-      }
-
-      yield* removeSessionAndMessages(sessionId, taskId, { signal });
-
-      return ok(undefined);
-    });
-  }
-
   export function saveMessage(
     message: SessionMessage.Type,
     taskId: TaskId,
@@ -636,44 +596,6 @@ export namespace Store {
       }
       const saved = yield* savePart(next, taskId, { publish, signal });
       return ok(saved);
-    });
-  }
-
-  function removeSessionAndMessages(
-    sessionId: StoreId.Session,
-    taskId: TaskId,
-    { signal }: { signal?: AbortSignal } = {},
-  ) {
-    return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
-
-      yield* storage.removeItem(StorageKey.session(sessionId), { signal });
-      yield* storage.removeItem(StorageKey.browserState(sessionId), { signal });
-
-      const messageIds = yield* getMessageIds(sessionId, taskId, {
-        signal,
-      });
-      for (const messageId of messageIds) {
-        const partIds = yield* getPartIds(sessionId, messageId, taskId, {
-          signal,
-        });
-        for (const partId of partIds) {
-          yield* storage.removeItem(
-            StorageKey.part(sessionId, messageId, partId),
-            { signal },
-          );
-        }
-        yield* storage.removeItem(StorageKey.message(sessionId, messageId), {
-          signal,
-        });
-      }
-
-      publisher.publish("session.removed", {
-        id: taskId,
-        sessionId,
-      });
-
-      return ok(undefined);
     });
   }
 }

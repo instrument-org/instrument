@@ -16,7 +16,13 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
-import { chatDirs, chatTaskDirs, recordDir } from "./record-folders";
+import {
+  chatDirs,
+  chatIdOfTask,
+  chatTaskDirs,
+  isChatId,
+  recordDir,
+} from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
 export interface TaskListOptions {
@@ -70,7 +76,33 @@ export async function getTasks(
   return sortTasks(tasks, options);
 }
 
-async function readTask({ dir }: { dir: TaskDir }) {
+/**
+ * The tasks in these folders, ordered as asked, leaving out any whose
+ * settings are missing or cannot be read. Such a folder is listed in
+ * Settings > Storage rather than as a task, and nothing past its settings is
+ * read, so listing it never makes anything inside it.
+ */
+export async function getTasksIn(
+  dirs: TaskDir[],
+  options: TaskListOptions = {},
+): Promise<Task[]> {
+  const results = await parallel({ limit: 12 }, dirs, (dir) =>
+    readTask({ dir, requireSettings: true }),
+  );
+  return sortTasks(
+    results.filter((result) => result.isOk()).map((result) => result.value),
+    options,
+  ).tasks;
+}
+
+async function readTask({
+  dir,
+  requireSettings = false,
+}: {
+  dir: TaskDir;
+  /** Refuses a folder whose settings are missing or cannot be read. */
+  requireSettings?: boolean;
+}) {
   const rawFolderName = path.basename(dir);
   const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
 
@@ -84,14 +116,16 @@ async function readTask({ dir }: { dir: TaskDir }) {
 
   const id = taskIdResult.data;
   const settings = await getTaskSettings(dir);
+  if (requireSettings && !settings) {
+    return err(new TypedError.NotFound("No readable settings"));
+  }
 
   const task: Task = {
     ...(await taskTimestamps(dir, settings)),
     apps: settings?.apps,
     id,
-    kind: settings?.kind,
-    parentTaskId: settings?.parentTaskId,
-    projectId: settings?.projectId,
+    isChat: isChatId(id),
+    parentTaskId: chatIdOfTask(id),
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };

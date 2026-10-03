@@ -7,7 +7,6 @@ import {
   byActivity,
   type ChatFilters,
   choose,
-  dayLabel,
   draftTitle,
   type Filterable,
   hasWords,
@@ -416,24 +415,6 @@ describe("the time at a row's end", () => {
     ["Dec 30, 2025", new Date(2025, 11, 30, 8)],
   ])("says %s", (label, date) => {
     expect(activityLabel(date, now)).toBe(label);
-  });
-});
-
-describe("day heads", () => {
-  const now = new Date(2026, 8, 16, 14, 30);
-
-  it.each([
-    ["Today", new Date(2026, 8, 16, 9)],
-    ["Yesterday", new Date(2026, 8, 15, 23)],
-    ["Monday", new Date(2026, 8, 14, 8)],
-    ["Friday", new Date(2026, 8, 11, 8)],
-    ["Thursday", new Date(2026, 8, 10, 8)],
-    // A week back the weekday would name today, so it is a date.
-    ["Sep 9", new Date(2026, 8, 9, 8)],
-    ["Aug 14", new Date(2026, 7, 14, 8)],
-    ["Dec 30, 2025", new Date(2025, 11, 30, 8)],
-  ])("says %s", (label, date) => {
-    expect(dayLabel(date, now)).toBe(label);
   });
 });
 

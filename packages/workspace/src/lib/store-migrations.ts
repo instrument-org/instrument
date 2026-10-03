@@ -87,41 +87,13 @@ const MIGRATIONS: StoreMigration[] = [
     },
   },
   {
-    // A conversation in the 2.0 window was a thread before it was a chat.
+    // Empty: parts 2.0 betas stored while chats were called threads are
+    // beta-era data, which is not carried forward. It keeps its slot
+    // because a task's stored version is the count of migrations run:
+    // removing it would re-run every later migration on a task that had
+    // already run this one.
     name: "chat parts say chat",
-    run: async ({ storage }) => {
-      await eachStoredPart(storage, (part) => {
-        if (!isRecord(part.data)) {
-          return UNCHANGED;
-        }
-        if (part.type === "data-threadContext") {
-          const { threads, ...rest } = part.data;
-          return replaceWith({
-            ...part,
-            data: { ...rest, chats: threads },
-            type: "data-chatContext",
-          });
-        }
-        if (part.type === "data-threadTopics") {
-          return replaceWith({ ...part, type: "data-chatTopics" });
-        }
-        if (
-          part.type === "data-viewContext" &&
-          (part.data.screen === "thread" || "thread" in part.data)
-        ) {
-          const { thread, ...rest } = part.data;
-          return replaceWith({
-            ...part,
-            data: {
-              ...rest,
-              ...(thread === undefined ? {} : { chat: thread }),
-              screen: rest.screen === "thread" ? "chat" : rest.screen,
-            },
-          });
-        }
-        return UNCHANGED;
-      });
-    },
+    run: async () => {},
   },
 ];
 

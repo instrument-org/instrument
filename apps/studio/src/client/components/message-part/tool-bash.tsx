@@ -99,7 +99,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   const label = isStreaming
     ? getToolStreamingLabel("bash")
     : getToolLabel("bash");
-  // The orchestrator's `task new`: the task it made follows the command as a
+  // The chat's `task new`: the task it made follows the command as a
   // card, so the work handed off stays in view here rather than only in a
   // note when it ends.
   const createdTask = createdTaskId(part);

@@ -19,7 +19,6 @@ const DEFAULT_TELEMETRY_ID = "studio-main-default";
  */
 const MachineStateSchema = z.object({
   lastLaunchedVersion: z.string().optional(),
-  lastMigratedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
   telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });

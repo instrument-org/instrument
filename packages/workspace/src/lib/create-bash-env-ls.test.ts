@@ -22,8 +22,8 @@ import { createBashEnv } from "./create-bash-env";
  * budget stops it.
  *
  * The second is observable only against a budget the tree exceeds, which is
- * what the orchestrator's smaller one is for here, so this also pins that the
- * orchestrator's shell has that smaller budget and a task's does not.
+ * what the chat's smaller one is for here, so this also pins that the
+ * chat's shell has that smaller budget and a task's does not.
  */
 const DIRECTORIES = 3;
 const FILES_PER_DIRECTORY = 10_000;
@@ -34,7 +34,7 @@ let tmpDir: string;
 let attachedDir: string;
 let taskId: TaskId;
 
-async function run(command: string, { orchestrator = false } = {}) {
+async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
     attachedFolders: {
       Home: {
@@ -46,7 +46,7 @@ async function run(command: string, { orchestrator = false } = {}) {
         source: "user",
       },
     },
-    orchestrator: orchestrator ? { childMounts: [] } : undefined,
+    chat: chat ? { childMounts: [] } : undefined,
     sessionId,
     taskId,
   });
@@ -83,17 +83,17 @@ describe("ls over a large attached folder", () => {
     expect(result.stdout.trim()).toBe(String(FILES_PER_DIRECTORY + 1));
   });
 
-  it("stops a recursive listing at the orchestrator's entry budget", async () => {
-    const result = await run("ls -R /mnt/Home", { orchestrator: true });
+  it("stops a recursive listing at the chat's entry budget", async () => {
+    const result = await run("ls -R /mnt/Home", { chat: true });
 
     expect(result.exitCode).toBe(126);
     expect(result.stdout).toBe("");
     expect(result.stderr).toMatch(/ls: filesystem traversal .*limit exceeded/);
   });
 
-  it("lists directories past the orchestrator's entry budget when not recursing", async () => {
+  it("lists directories past the chat's entry budget when not recursing", async () => {
     const result = await run("ls /mnt/Home/d00 /mnt/Home/d01 /mnt/Home/d02", {
-      orchestrator: true,
+      chat: true,
     });
 
     expect(result.stderr).toBe("");
@@ -106,7 +106,7 @@ describe("ls over a large attached folder", () => {
     // A directory read still in flight when find fails used to settle after
     // the command returned and surface as an unhandled rejection, which
     // vitest reports as a failed run (vercel-labs/just-bash#451).
-    const result = await run("find /mnt/Home -type f", { orchestrator: true });
+    const result = await run("find /mnt/Home -type f", { chat: true });
 
     expect(result.exitCode).toBe(126);
     expect(result.stderr).toMatch(

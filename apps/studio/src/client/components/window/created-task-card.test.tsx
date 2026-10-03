@@ -26,6 +26,19 @@ vi.mock("@/client/rpc/client", () => ({
           mutationOptions: () => ({ mutationFn: stopSessions }),
         },
       },
+      // The task's record, which names the chat whose list it is read from.
+      task: {
+        byId: {
+          queryOptions: () => ({
+            queryFn: () =>
+              Promise.resolve({
+                id: "lisbon-hotel",
+                parentTaskId: "instrument",
+              }),
+            queryKey: ["task", "lisbon-hotel"],
+          }),
+        },
+      },
     },
   },
 }));
@@ -41,7 +54,7 @@ vi.mock("@/client/hooks/use-open-target", () => ({
   }),
 }));
 
-const ORCHESTRATOR_ID = TaskIdSchema.parse("instrument");
+const CHAT_ID = TaskIdSchema.parse("instrument");
 const TASK_ID = "lisbon-hotel";
 
 function renderCard() {
@@ -55,7 +68,6 @@ function renderCard() {
         openPage: vi.fn(),
         openPath: vi.fn(),
         openScreen,
-        taskId: ORCHESTRATOR_ID,
       }}
     >
       <CreatedTaskCard taskId={TASK_ID} />
@@ -80,7 +92,7 @@ function renderFinished(standing: {
   });
   childrenOptions.mockReturnValue({
     queryFn: () => Promise.resolve([{ id: TASK_ID, standing }]),
-    queryKey: ["children", ORCHESTRATOR_ID],
+    queryKey: ["children", CHAT_ID],
   });
   return renderCard();
 }
@@ -99,7 +111,7 @@ function renderHeld(held: string) {
   });
   childrenOptions.mockReturnValue({
     queryFn: () => Promise.resolve([]),
-    queryKey: ["children", ORCHESTRATOR_ID],
+    queryKey: ["children", CHAT_ID],
   });
   return renderCard();
 }
@@ -118,7 +130,7 @@ function renderWorking(step: string) {
   });
   childrenOptions.mockReturnValue({
     queryFn: () => Promise.resolve([]),
-    queryKey: ["children", ORCHESTRATOR_ID],
+    queryKey: ["children", CHAT_ID],
   });
   return renderCard();
 }

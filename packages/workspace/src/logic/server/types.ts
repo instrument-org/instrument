@@ -4,14 +4,7 @@ import { type WorkspaceContext } from "../../machines/workspace/types";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
-
-export interface WorkspaceServerEnv {
-  Variables: {
-    parentRef: WorkspaceServerParentRef;
-    workspaceConfig: WorkspaceConfig;
-  };
-}
+import { type BrowserTargetId } from "../../types";
 
 export type WorkspaceServerParentEvent =
   // Surfaced by the CDP bridge when an agent-browser daemon connects so the

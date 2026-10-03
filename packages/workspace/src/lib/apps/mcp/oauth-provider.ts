@@ -7,6 +7,8 @@ import {
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
+import { boundTo, type OriginBound } from "../origin-bound";
+
 /**
  * Everything the OAuth flow must persist for one app, keyed by slug. The
  * host app backs this with its encrypted store (tokens, client secret) so
@@ -15,6 +17,9 @@ import {
  *
  * - client info: the result of dynamic client registration (RFC 7591).
  * - tokens: access/refresh tokens; the SDK reads them on connect and refreshes.
+ *
+ * Client info and tokens are kept with the origin of the MCP server they were
+ * obtained for, and handed back only to a provider for that same origin.
  * - codeVerifier/state: transient PKCE material for one in-flight authorization.
  */
 export interface McpOAuthStore {
@@ -26,17 +31,17 @@ export interface McpOAuthStore {
   clearTransient(slug: string): Promise<void>;
   getClientInformation(
     slug: string,
-  ): Promise<OAuthClientInformationFull | undefined>;
+  ): Promise<OriginBound<OAuthClientInformationFull> | undefined>;
   getCodeVerifier(slug: string): Promise<string | undefined>;
   getState(slug: string): Promise<string | undefined>;
-  getTokens(slug: string): Promise<OAuthTokens | undefined>;
+  getTokens(slug: string): Promise<OriginBound<OAuthTokens> | undefined>;
   saveClientInformation(
     slug: string,
-    info: OAuthClientInformationFull,
+    info: OriginBound<OAuthClientInformationFull>,
   ): Promise<void>;
   saveCodeVerifier(slug: string, verifier: string): Promise<void>;
   saveState(slug: string, state: string): Promise<void>;
-  saveTokens(slug: string, tokens: OAuthTokens): Promise<void>;
+  saveTokens(slug: string, tokens: OriginBound<OAuthTokens>): Promise<void>;
 }
 
 /**
@@ -47,15 +52,23 @@ export interface McpOAuthStore {
  *
  * `openAuthorization` is injected by the host (Electron opens the system
  * browser); in a non-interactive context it can throw or no-op.
+ *
+ * `origin` is the MCP server's origin under the manifest as it stands. What
+ * this provider saves is recorded against it, and what it reads back is only
+ * what was saved for it: a manifest pointed at another server gets no token
+ * and no client registration, so the SDK asks for a fresh sign-in there
+ * instead of handing that server the user's session.
  */
 export function createMcpOAuthProvider({
   openAuthorization,
+  origin,
   redirectUrl,
   scope,
   slug,
   store,
 }: {
   openAuthorization: (url: URL) => Promise<void> | void;
+  origin: string;
   redirectUrl: string;
   scope?: string;
   slug: string;
@@ -71,7 +84,8 @@ export function createMcpOAuthProvider({
   };
 
   return {
-    clientInformation: () => store.getClientInformation(slug),
+    clientInformation: async () =>
+      boundTo(await store.getClientInformation(slug), origin),
     clientMetadata,
     codeVerifier: async () => {
       const verifier = await store.getCodeVerifier(slug);
@@ -101,9 +115,12 @@ export function createMcpOAuthProvider({
     redirectUrl,
     saveClientInformation: (info: OAuthClientInformation) =>
       // DCR always returns the full shape; persist it for later reads.
-      store.saveClientInformation(slug, info as OAuthClientInformationFull),
+      store.saveClientInformation(slug, {
+        origin,
+        value: info as OAuthClientInformationFull,
+      }),
     saveCodeVerifier: (verifier) => store.saveCodeVerifier(slug, verifier),
-    saveTokens: (tokens) => store.saveTokens(slug, tokens),
+    saveTokens: (tokens) => store.saveTokens(slug, { origin, value: tokens }),
     // Always mint a fresh state per authorization -- never reuse a stored one,
     // so state stays single-use (its CSRF purpose) and a stale value can't make
     // a later begin misfire.
@@ -112,6 +129,6 @@ export function createMcpOAuthProvider({
       await store.saveState(slug, state);
       return state;
     },
-    tokens: () => store.getTokens(slug),
+    tokens: async () => boundTo(await store.getTokens(slug), origin),
   };
 }

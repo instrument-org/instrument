@@ -3,8 +3,6 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
-import { StoreId } from "./store-id";
-import { TaskPane } from "./task-pane";
 
 /**
  * A tab of the window a task holds: one the conversation handed it, which is
@@ -18,24 +16,10 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-// Where the user left off in a task: the draft they were typing, what the pane
-// has open, the model they picked, the folders attached. Per-task and read on
-// open, never queried across tasks -- which is what separates it from the
-// settings around it, and why it is one nested key rather than a flat spread.
-//
-// `projectFolderName` names the folder under `projects/` belonging to the
-// project this task is in, kept here beside the attached folders because every
-// caller that builds the filesystem layout already reads this state and needs
-// both. Denormalized rather than resolved from the project id per call, because
-// the file tools build a layout on every read and write and every asset request,
-// synchronously, while resolving an id means reading every project's settings to
-// find the match.
-//
-// The folder name and not its absolute path, so that nothing here is true only
-// of the machine that wrote it: this file ships inside an exported task, and a
-// host path from someone else's disk names nothing on the machine that imports
-// it. `syncTaskProjectRoot` owns keeping it current; nothing else should write
-// it.
+// Where the user left off in a task: the model they picked, the folders
+// attached. Per-task and read on open, never queried across tasks -- which is
+// what separates it from the settings around it, and why it is one nested key
+// rather than a flat spread.
 export const StoredTaskStateSchema = z
   .object({
     // The apps whose guide this task has read, so `app request` hands the
@@ -43,72 +27,11 @@ export const StoredTaskStateSchema = z
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTabs: z.array(HeldTabSchema).optional(),
-    browserTargetId: BrowserTargetIdSchema.optional(),
-    /**
-     * The orchestrator's topics, in the order they were made: the tags a
-     * chat carries, many chats to many topics. Which chats carry one is
-     * on each chat's own session record (`Session.topics`), so retiring a
-     * topic touches no chat and a filter is a predicate over the list.
-     */
-    topics: z
-      .array(
-        z.object({
-          /** The agent's line about what goes here, for later. */
-          about: z.string().optional(),
-          /** The tint its mark is drawn on, as a hex string. */
-          color: z.string().optional(),
-          createdAt: z.number(),
-          /** What stands for it: one emoji, chosen when it was made. */
-          emoji: z.string().optional(),
-          id: z.string(),
-          name: z.string(),
-          /** Out of the menus, with the chats that carry it left alone. */
-          retired: z.boolean().optional(),
-        }),
-      )
-      .optional(),
-    /**
-     * The newest settled message the user has seen in each chat, by session
-     * id. Window state, kept off the session record; unread is every non-user
-     * message after it.
-     */
-    chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
-    // A pane this build cannot read costs the pane, not the folder list beside
-    // it, which the record's silent catch would otherwise write away.
-    pane: TaskPane.Schema.optional().catch(undefined),
-    // The project's folders, path to access, as this task last saw them. What
-    // makes a task's own edit to an inherited folder survive the next message:
-    // a folder whose live access still matches what is recorded here has not
-    // been touched in the project since, so the task's version is the newer
-    // edit and stands. A path recorded here but no longer attached is one the
-    // task detached, which is the same rule read the other way.
-    //
-    // Not in the RPC shape below, for the reason `projectFolderName` is not: it
-    // decides what the agent may reach, so it is not a client's to set.
-    projectFolderBaseline: z
-      .record(z.string(), FolderAttachment.AccessSchema)
-      .optional(),
-    projectFolderName: z.string().optional(),
-    promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
-    /**
-     * The one-conversation layout's map of the chat each task was filed
-     * from, by task id, under the name that layout gave it. Nothing writes
-     * it; it is kept through a write so `migrate-to-chats` can finish moving
-     * a task whose chat is still to be made.
-     */
-    taskThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
-    /**
-     * The chat each app was asked for in, by slug: what sends the news of
-     * a sign-in, a key, or a decline back to the chat that asked for it.
-     */
-    appChats: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 
-// The RPC-facing shape. Deliberately without `projectFolderName`: the renderer
-// has no use for it, and it selects the directory of a writable agent mount, so
-// it is not something a client should be able to set.
+// The RPC-facing shape.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   /**
@@ -116,13 +39,6 @@ export const TaskStateSchema = z.object({
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
   browserTabs: z.array(HeldTabSchema).optional(),
-  /**
-   * On the window's own record, the tab its user has on screen, which the
-   * conversation's own `agent-browser` drives.
-   */
-  browserTargetId: BrowserTargetIdSchema.optional(),
-  pane: TaskPane.Schema.optional(),
-  promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
 });
 
@@ -144,7 +60,7 @@ export function migrateTaskState(state: unknown): unknown {
   if (!isRecord(state)) {
     return state;
   }
-  return migrateAttachedFolders(migrateChatKeys(state));
+  return migrateAttachedFolders(state);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -168,19 +84,4 @@ function migrateAttachedFolders(state: Record<string, unknown>) {
   );
 
   return { ...state, attachedFolders: Object.fromEntries(folders) };
-}
-
-// A conversation in the 2.0 window was a thread before it was a chat, and the
-// window's state named its maps for that.
-function migrateChatKeys(state: Record<string, unknown>) {
-  const { appThreads, threadSeen, ...rest } = state;
-  return {
-    ...rest,
-    ...(appThreads === undefined || rest.appChats !== undefined
-      ? {}
-      : { appChats: appThreads }),
-    ...(threadSeen === undefined || rest.chatSeen !== undefined
-      ? {}
-      : { chatSeen: threadSeen }),
-  };
 }

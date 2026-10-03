@@ -34,7 +34,7 @@ function isHandledFolderAnswer(error: unknown): boolean {
   );
 }
 
-// INVALID_INPUT is input the person typed and the app refused (e.g. a project
+// INVALID_INPUT is input the person typed and the app refused (e.g. a topic
 // name with a character Windows forbids in a file name). The UI shows it by the
 // field, so it is theirs to fix rather than a bug; rethrow, skip the capture.
 function isHandledInvalidInput(error: unknown): boolean {
@@ -52,9 +52,9 @@ function isHandledInvalidUrl(error: unknown): boolean {
 }
 
 // NOT_FOUND is a defined error code that every consumer is expected to handle as
-// control flow (e.g. a task whose project was deleted on disk keeps querying
-// `project.byId`). Capturing it floods telemetry with non-actionable noise, so
-// we still rethrow it to the client but skip the exception capture.
+// control flow (e.g. a task or file deleted on disk while the window still
+// shows it). Capturing it floods telemetry with non-actionable noise, so we
+// still rethrow it to the client but skip the exception capture.
 function isHandledNotFound(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "NOT_FOUND";
 }

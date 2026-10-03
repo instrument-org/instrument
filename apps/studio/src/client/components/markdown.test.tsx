@@ -1,15 +1,20 @@
 import {
+  type PromptDraftKey,
+  promptDraftAtom,
+} from "@/client/atoms/prompt-value";
+import {
   type ImageSourceKind,
   MARKDOWN_IMAGE_KINDS,
   UNTRUSTED_FILE_IMAGE_KINDS,
   UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { ComposerDraftContext } from "./composer-draft-context";
 import { Markdown } from "./markdown";
 import { WindowContext, type WindowContextValue } from "./window/context";
 
@@ -35,6 +40,18 @@ vi.mock("./files-grid", () => ({
       ))}
     </ul>
   ),
+}));
+
+// The file actions under a chip's right-click menu ask the main process what
+// opens the file, which is their own tests' business. All that is asked here is
+// where "Add to chat" sends the file, so the item is drawn only when offered.
+vi.mock("./file-actions-menu", () => ({
+  FileActionsMenuItems: ({ onAddToChat }: { onAddToChat?: () => void }) =>
+    onAddToChat ? (
+      <button onClick={onAddToChat} type="button">
+        Add to chat
+      </button>
+    ) : null,
 }));
 
 // A chip is drawn from its path, so nothing under `workspace` may be reached
@@ -267,7 +284,6 @@ describe("Markdown links", () => {
       openPage: vi.fn(),
       openPath: vi.fn(),
       openScreen,
-      taskId: TASK_ID,
     } satisfies WindowContextValue;
     renderWithProviders(
       <WindowContext value={context}>
@@ -1233,5 +1249,40 @@ describe("Markdown front matter in a task's own file", () => {
     expect(container.querySelector("h2")?.textContent).toContain(
       "title: Field notes",
     );
+  });
+});
+
+describe("Markdown file chips", () => {
+  const CHIP = "Wrote [`notes.md`](output/notes.md).";
+
+  // The composer under a chat's transcript edits the chat's own draft, so a
+  // file added from a chip in that transcript has to land in it rather than
+  // in a draft no composer shows.
+  it("adds a file to the draft of the composer under the transcript", async () => {
+    const draftKey: PromptDraftKey = {
+      scope: "chat",
+      sessionId: StoreId.newSessionId(),
+    };
+    const { store } = renderWithProviders(
+      <ComposerDraftContext value={draftKey}>
+        <Markdown markdown={CHIP} taskId={TASK_ID} />
+      </ComposerDraftContext>,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "notes.md" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add to chat" }));
+
+    expect(store.get(promptDraftAtom(draftKey))).toContain("output/notes.md");
+  });
+
+  // A task's own transcript has no composer under it, so there is nowhere
+  // for the file to go that anyone would see.
+  it("offers no Add to chat where no composer is drawn", async () => {
+    renderMarkdown(CHIP);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "notes.md" }));
+    await screen.findByRole("menu");
+
+    expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
   });
 });

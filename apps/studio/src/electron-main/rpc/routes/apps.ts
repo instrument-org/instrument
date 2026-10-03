@@ -9,6 +9,7 @@ import { appOAuthStore } from "@/electron-main/stores/workspace/app-oauth";
 import {
   AppConnectionSchema,
   appHomeFor,
+  credentialOrigin,
   appSiteFor,
   AppSlugSchema,
   beginMcpOAuth,
@@ -23,6 +24,7 @@ import {
   readAppGuide,
   recordConnection,
   removeLocalServer,
+  requireAppCredential,
   runAppTest,
   withAppMcpClient,
   workspacePublisher,
@@ -53,6 +55,11 @@ const AppStandingSchema = z.enum([
 const AppListItemSchema = z.object({
   authKind: z.string(),
   connection: AppConnectionSchema.optional(),
+  /**
+   * Where a key or sign-in given now would go: the card shows it and sends it
+   * back with the key, so the user approves the place along with the secret.
+   */
+  credentialOrigin: z.string(),
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
@@ -92,6 +99,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
         return {
           authKind: app.manifest.auth.kind,
           connection,
+          credentialOrigin: credentialOrigin(app.manifest),
           endpoint:
             app.manifest.type === "api"
               ? app.manifest.baseUrl
@@ -132,52 +140,6 @@ const live = {
 
 /** The directory: what the product knows how to reach before anyone connects it. */
 const catalog = base.handler(() => getAppCatalog());
-
-/** An app's guide, for its page. */
-const guide = base
-  .input(z.object({ slug: AppSlugSchema }))
-  .output(z.string().nullable())
-  .handler(async ({ context, errors, input }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (loaded.isErr()) {
-      throw errors.NOT_FOUND({ message: loaded.error.message });
-    }
-    return readAppGuide(loaded.value.dir);
-  });
-
-/** What a connected MCP app can do, for its page. */
-const tools = base
-  .input(z.object({ slug: AppSlugSchema }))
-  .output(z.array(z.object({ description: z.string(), name: z.string() })))
-  .handler(async ({ context, errors, input, signal }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (loaded.isErr()) {
-      throw errors.NOT_FOUND({ message: loaded.error.message });
-    }
-    const { manifest, manifestHash, slug } = loaded.value;
-    if (!isMcpManifest(manifest)) {
-      return [];
-    }
-    const credential =
-      manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-        ? null
-        : await context.workspaceConfig.apps.getCredential(slug);
-    const result = await withAppMcpClient({
-      credential,
-      manifest,
-      manifestHash,
-      run: (client) => listMcpTools(client),
-      signal,
-      slug,
-    });
-    if (result.isErr()) {
-      throw errors.API_ERROR({ message: result.error.message });
-    }
-    return result.value.map((tool) => ({
-      description: tool.description,
-      name: tool.name,
-    }));
-  });
 
 /**
  * Whether a tool may be pressed from the inspector: the server says it only
@@ -331,7 +293,6 @@ async function withInspectorClient<T>({
 }: {
   context: {
     workspaceConfig: {
-      apps: { getCredential: (slug: string) => Promise<null | string> };
       appsDir: Parameters<typeof loadApp>[0];
     };
   };
@@ -355,10 +316,14 @@ async function withInspectorClient<T>({
   if (!isMcpManifest(manifest)) {
     throw errors.NOT_FOUND({ message: `${slug} is not an MCP app.` });
   }
-  const credential =
-    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-      ? null
-      : await context.workspaceConfig.apps.getCredential(slug);
+  let credential: null | string;
+  try {
+    credential = await requireAppCredential(slug, manifest);
+  } catch (error) {
+    throw errors.API_ERROR({
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
   const result = await withAppMcpClient({
     credential,
     manifest,
@@ -374,6 +339,39 @@ async function withInspectorClient<T>({
 }
 
 /**
+ * Refuse a key or a sign-in when the app's manifest no longer sends it where
+ * the card said it would. The manifest is the agent's to rewrite, and the
+ * place is half of what the user approved. Every list re-reads, so the card
+ * shows the new place for the user to confirm.
+ */
+async function requireShownOrigin({
+  appsDir,
+  errors,
+  origin,
+  slug,
+}: {
+  appsDir: Parameters<typeof loadApp>[0];
+  errors: {
+    API_ERROR: (options: { message: string }) => Error;
+    NOT_FOUND: (options: { message: string }) => Error;
+  };
+  origin: string;
+  slug: string;
+}): Promise<void> {
+  const loaded = await loadApp(appsDir, slug);
+  if (loaded.isErr()) {
+    throw errors.NOT_FOUND({ message: loaded.error.message });
+  }
+  const current = credentialOrigin(loaded.value.manifest);
+  if (current !== origin) {
+    workspacePublisher.publish("app.updated", null);
+    throw errors.API_ERROR({
+      message: `The app now points at ${current} instead of ${origin}. Check the new address before going on.`,
+    });
+  }
+}
+
+/**
  * Start a sign-in. Hands the authorization page's address back rather than
  * opening it: the window opens it in its own browser, where the callback
  * lands too.
@@ -383,6 +381,8 @@ const startOAuth = base
     z.object({
       /** Where the page opens, so the callback can land the right way. */
       opensIn: z.enum(["app", "external"]).default("app"),
+      /** The server origin the card showed the user. */
+      origin: z.string().min(1),
       slug: AppSlugSchema,
     }),
   )
@@ -393,6 +393,12 @@ const startOAuth = base
     ]),
   )
   .handler(async ({ context, errors, input }) => {
+    await requireShownOrigin({
+      appsDir: context.workspaceConfig.appsDir,
+      errors,
+      origin: input.origin,
+      slug: input.slug,
+    });
     // The callback server is what the provider sends the browser back to, so
     // it has to be up, on a port this redirect names, before the flow starts.
     await startAuthCallbackServer();
@@ -444,9 +450,24 @@ const cancelOAuth = base
  * connection. The agent hears the outcome, never the key.
  */
 const setCredential = base
-  .input(z.object({ slug: AppSlugSchema, value: z.string().min(1) }))
-  .handler(async ({ context, input, signal }) => {
-    setAppCredential(input.slug, input.value);
+  .input(
+    z.object({
+      /** Where the card told the user the key would go. */
+      origin: z.string().min(1),
+      slug: AppSlugSchema,
+      value: z.string().min(1),
+    }),
+  )
+  .handler(async ({ context, errors, input, signal }) => {
+    // The key is approved for the origin the card showed, and goes nowhere
+    // else: a manifest pointed elsewhere later asks again.
+    await requireShownOrigin({
+      appsDir: context.workspaceConfig.appsDir,
+      errors,
+      origin: input.origin,
+      slug: input.slug,
+    });
+    setAppCredential(input.slug, { origin: input.origin, value: input.value });
     const report = await runAppTest({
       appsDir: context.workspaceConfig.appsDir,
       signal: signal ?? AbortSignal.timeout(60_000),
@@ -569,7 +590,6 @@ export const apps = {
   catalog,
   disconnect,
   dismiss,
-  guide,
   inspect,
   list,
   live,
@@ -578,5 +598,4 @@ export const apps = {
   setCredential,
   startOAuth,
   test,
-  tools,
 };

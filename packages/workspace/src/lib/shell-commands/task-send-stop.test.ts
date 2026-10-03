@@ -21,7 +21,7 @@ import { runSend, runStop, type TaskCommandContext } from "./task";
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-29-conversation");
+let CHAT_ID = TaskIdSchema.parse("2026-09-29-conversation");
 let CHILD_ID = TaskIdSchema.parse("write-the-story");
 
 // Whether the child is working, read each time it is asked, so a test can
@@ -29,7 +29,7 @@ let CHILD_ID = TaskIdSchema.parse("write-the-story");
 const working = vi.hoisted(() => ({ value: (): boolean => true }));
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
-vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: () => working.value(),
 }));
@@ -58,10 +58,10 @@ let rootDir: string;
 
 beforeEach(async () => {
   counter += 1;
-  ORCHESTRATOR_ID = TaskIdSchema.parse(`2026-09-29-conversation-${counter}`);
+  CHAT_ID = TaskIdSchema.parse(`2026-09-29-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`write-the-story-${counter}`);
   context = {
-    orchestratorTaskId: ORCHESTRATOR_ID,
+    chatId: CHAT_ID,
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
   };
   working.value = () => true;
@@ -75,16 +75,16 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(StoreId.newSessionId(), ORCHESTRATOR_ID);
-  await setTaskState(taskDir(ORCHESTRATOR_ID), {
+  chatFor(StoreId.newSessionId(), CHAT_ID);
+  await setTaskState(taskDir(CHAT_ID), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
   });
   const created = await initializeTask(
     {
+      chatId: CHAT_ID,
       initialSettings: {
         name: "Write the story",
-        parentTaskId: ORCHESTRATOR_ID,
       },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),

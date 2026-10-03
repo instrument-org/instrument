@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
+- On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. What the window keeps about the chats (seen marks, the tab on screen) is `.instrument/window.json` at the workspace root.
 
 ## Local references
 
@@ -84,6 +84,8 @@ Multiple worktrees can run Studio at once: dev skips the single-instance lock, a
 
 ## Tests
 
+The tests are here for the agents working in this repo: they are how a change gets checked without booting the app, and people rarely read them. So they should be fast, reliable, and able to express whatever an agent needs to check. Grow them when that helps. A test that flakes, is brittle, or slows the work down is yours to fix, rewrite, or delete, as long as no real regression is hidden in the process. When the suite itself is getting in the way, say so.
+
 - Run one file, a directory, or a whole package **from the repo root**, with the package-relative path: `pnpm --filter @instrument-org/workspace exec vitest run [src/path/to/file.test.ts]` (`@instrument-org/studio` for `apps/studio`).
 - Do not reach for `cd packages/<name> && …`. An agent shell keeps its working directory between commands, so the second such command in a session resolves against `packages/workspace/packages/workspace` and dies on "no such file or directory", and with `&&` the rest of the chain is skipped silently. `--filter` is idempotent across calls and is the same shape whether you run one file or the package. Where a command genuinely has to run inside a package, `cd` to its absolute path.
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
@@ -110,7 +112,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
-- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task`, `/project`, `/skills`, `/mnt`, `/apps`, and `/tasks` mount layout and the virtual↔host path bridge.
+- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task`, `/skills`, `/mnt`, `/apps`, and `/tasks` mount layout and the virtual↔host path bridge.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
 - `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.
 - `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.

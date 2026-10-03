@@ -1,10 +1,10 @@
 import {
-  TASK_PANE_COLLAPSE_THRESHOLD,
-  TASK_PANE_DEFAULT_SHARE,
-  TASK_PANE_WIDTH_MIN,
-  taskPaneShare,
-  taskPaneWidth,
-} from "@/client/atoms/task-pane";
+  PANE_COLLAPSE_THRESHOLD,
+  PANE_DEFAULT_SHARE,
+  PANE_WIDTH_MIN,
+  shareOfWidth,
+  widthOfShare,
+} from "@/client/atoms/right-pane";
 import { paneShareAtom } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { ResizeHandle } from "@/client/components/resize-handle";
@@ -26,15 +26,15 @@ import {
 } from "react";
 
 /**
- * The conversation and the pane of tabs beside it, the way a task's page
- * keeps its pane: the conversation flexes and the pane is sized, so a drag
+ * The conversation and the pane of tabs beside it: the conversation flexes
+ * and the pane is sized, so a drag
  * at their edge is one number, and opening or closing the pane slides it in
  * or out at its width rather than squeezing what it holds. What the pane
  * holds stays mounted while it is closed, since the pages in it are guests
  * that would be lost with it; it is only clipped away.
  *
  * What is kept is a share of the row, re-measured whenever the row changes,
- * the window's zoom included; see the task pane's atom for why.
+ * the window's zoom included; see `atoms/right-pane.ts` for why.
  *
  * Told to fill, the pane is the row: the conversation is put away and the
  * pane takes the whole width with no edge to drag, which is how a place of
@@ -106,7 +106,7 @@ export function RightPane({
     const target = fills
       ? row.offsetWidth
       : isOpen
-        ? taskPaneWidth(shareRef.current, row.offsetWidth)
+        ? widthOfShare(shareRef.current, row.offsetWidth)
         : 0;
     const isNewKey = shownKeyRef.current !== paneKey;
     shownKeyRef.current = paneKey;
@@ -147,10 +147,10 @@ export function RightPane({
     }
     let keptConversation: number | undefined;
     const widthFor = (width: number) => {
-      keptConversation ??= width - taskPaneWidth(shareRef.current, width);
+      keptConversation ??= width - widthOfShare(shareRef.current, width);
       return Math.min(
-        Math.max(width - keptConversation, TASK_PANE_WIDTH_MIN),
-        taskPaneWidth(1, width),
+        Math.max(width - keptConversation, PANE_WIDTH_MIN),
+        widthOfShare(1, width),
       );
     };
     const measure = () => {
@@ -194,8 +194,8 @@ export function RightPane({
     paneWidth.set(width);
   };
   const commit = (width: number, row: HTMLDivElement) => {
-    const share = taskPaneShare(width, row.offsetWidth);
-    applyWidth(taskPaneWidth(share, row.offsetWidth));
+    const share = shareOfWidth(width, row.offsetWidth);
+    applyWidth(widthOfShare(share, row.offsetWidth));
     setStoredShare(share);
   };
 
@@ -229,7 +229,7 @@ export function RightPane({
             anchor={() => rowRef.current?.getBoundingClientRect().right}
             className="left-0 -translate-x-1/2"
             collapse={{
-              below: TASK_PANE_COLLAPSE_THRESHOLD,
+              below: PANE_COLLAPSE_THRESHOLD,
               // Dragged past the point of keeping it: the pane closes, and
               // the slide carries it the rest of the way.
               onCollapse: () => {
@@ -240,19 +240,16 @@ export function RightPane({
             getWidth={() => paneWidth.get()}
             grows="left"
             label="Resize pane"
-            max={taskPaneWidth(1, rowWidth)}
-            min={TASK_PANE_WIDTH_MIN}
+            max={widthOfShare(1, rowWidth)}
+            min={PANE_WIDTH_MIN}
             onReset={() => {
               const row = rowRef.current;
               if (!row) {
                 return;
               }
               stopAnimations();
-              setStoredShare(TASK_PANE_DEFAULT_SHARE);
-              const width = taskPaneWidth(
-                TASK_PANE_DEFAULT_SHARE,
-                row.offsetWidth,
-              );
+              setStoredShare(PANE_DEFAULT_SHARE);
+              const width = widthOfShare(PANE_DEFAULT_SHARE, row.offsetWidth);
               animationsRef.current = [
                 animate(reservedWidth, width, RAIL_SLIDE_TRANSITION),
                 animate(paneWidth, width, RAIL_SLIDE_TRANSITION),
@@ -262,8 +259,8 @@ export function RightPane({
               const row = rowRef.current;
               if (row) {
                 applyWidth(
-                  taskPaneWidth(
-                    taskPaneShare(width, row.offsetWidth),
+                  widthOfShare(
+                    shareOfWidth(width, row.offsetWidth),
                     row.offsetWidth,
                   ),
                 );
@@ -282,7 +279,7 @@ export function RightPane({
               stopAnimations();
               draggingRef.current = true;
             }}
-            value={taskPaneWidth(storedShare, rowWidth)}
+            value={widthOfShare(storedShare, rowWidth)}
             variant="grip"
           />
         )}

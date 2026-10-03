@@ -1,12 +1,31 @@
+import { windowTabsAtom } from "@/client/atoms/window";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 
-import { childTasksOptions } from "./child-tasks-query";
-import { useWindow } from "./context";
+import { appTabsAtom } from "./app-tabs";
+import { useTaskTitlesOf } from "./child-tasks-query";
+import { tasksOfHref } from "./tab-location";
 
-/** Each task's title by its id, for a tab standing on one, read from the same list the tasks screens keep fresh. */
+/**
+ * Each title of a task a tab stands on, by the task's id: a task's page
+ * among the screens, and a task's browsing among the pages. Read task by
+ * task, so only the tasks on the strips are read.
+ */
 export function useTaskTitles(): Map<TaskId, string> {
-  const appWindow = useWindow();
-  const children = useQuery(childTasksOptions(appWindow.taskId));
-  return new Map(children.data?.map((child) => [child.id, child.title]) ?? []);
+  const appTabs = useAtomValue(appTabsAtom);
+  const windowTabs = useAtomValue(windowTabsAtom);
+  const ids = new Set<TaskId>();
+  for (const tab of appTabs.tabs) {
+    const task = tasksOfHref(tab.pathname)?.task;
+    if (task) {
+      ids.add(task);
+    }
+  }
+  for (const tab of windowTabs.tabs) {
+    const task = tab.kind === "page" ? tab.taskId : tasksOfHref(tab.href)?.task;
+    if (task) {
+      ids.add(task);
+    }
+  }
+  return useTaskTitlesOf([...ids].toSorted());
 }

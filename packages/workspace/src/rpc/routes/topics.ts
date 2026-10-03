@@ -10,7 +10,7 @@ import {
   TopicNameError,
   TopicSchema,
   updateTopic,
-} from "../../lib/orchestrator/topics";
+} from "../../lib/chat/topics";
 import { base } from "../base";
 
 /** What the user picks about a topic: its mark, its tint. */

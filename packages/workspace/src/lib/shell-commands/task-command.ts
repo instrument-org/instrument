@@ -1,5 +1,5 @@
 /**
- * The name and one-line description of the orchestrator's `task` command, kept
+ * The name and one-line description of the chat's `task` command, kept
  * apart from the command itself so prompt text and model notes can name it
  * without importing the workspace machinery the command runs against.
  */

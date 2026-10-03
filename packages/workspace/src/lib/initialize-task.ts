@@ -23,10 +23,13 @@ import { updateTaskSettings } from "./task-settings";
 
 export async function initializeTask(
   {
+    chatId,
     initialSettings,
     taskId,
     workspaceConfig,
   }: {
+    /** The chat that starts the task, whose `tasks/` folder it goes in. */
+    chatId?: TaskId;
     initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
     workspaceConfig: WorkspaceConfig;
@@ -41,16 +44,18 @@ export async function initializeTask(
     // that chat, and any other task goes flat under `tasks/`. Either id is
     // reserved in the index before its folder exists, which is what refuses
     // a name another chat just took.
-    const { chatSessionId, parentTaskId } = initialSettings;
+    const { chatSessionId } = initialSettings;
     const isChat = chatSessionId !== undefined;
-    const inChat =
-      !isChat && parentTaskId !== undefined && isChatId(parentTaskId);
+    const inChat = !isChat && chatId !== undefined;
     const reserved = yield* Result.fromThrowable(
       () => {
+        if (inChat && !isChatId(chatId)) {
+          throw new Error(`No chat has the id ${chatId}.`);
+        }
         if (isChat) {
           placeChat(taskId, chatSessionId);
         } else if (inChat) {
-          placeChatTask(taskId, parentTaskId);
+          placeChatTask(taskId, chatId);
         }
         return isChat || inChat;
       },
@@ -62,7 +67,7 @@ export async function initializeTask(
     const parentDir = isChat
       ? chatsDir()
       : inChat
-        ? chatTasksDir(parentTaskId)
+        ? chatTasksDir(chatId)
         : workspaceConfig.tasksDir;
     release = () => {
       if (!reserved) {

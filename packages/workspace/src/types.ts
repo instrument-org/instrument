@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
+import { type StoredAppCredential } from "./lib/apps/origin-bound";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -142,7 +143,11 @@ export interface WorkspaceAppsConfig {
   connections: AppConnectionStore;
   /** Take an app's credential, tokens, and connection away, and tell the UI. */
   disconnect: (slug: string) => Promise<void>;
-  getCredential: (slug: string) => Promise<null | string>;
+  /**
+   * The app's stored key with the origin it was saved for. The workspace
+   * sends it only to that origin.
+   */
+  getCredential: (slug: string) => Promise<null | StoredAppCredential>;
   /** Called after a connection record changes, so every list of apps re-reads. */
   notifyChanged?: () => void;
   /**
@@ -197,7 +202,6 @@ export interface WorkspaceConfig {
   // per machine here instead. Outside the workspace deliberately: several
   // workspaces, or a workspace the user moves, all source from one prepared set.
   preparedSkillsDir: AbsolutePath;
-  projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
   systemSkillsDir: AbsolutePath;

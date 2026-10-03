@@ -8,10 +8,7 @@ import path from "node:path";
 import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
-import {
-  CDP_PAGE_PATH_PREFIX,
-  CDP_TASK_PATH_PREFIX,
-} from "../../logic/server/constants";
+import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
@@ -34,8 +31,7 @@ import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { windowTaskId } from "../orchestrator/ensure";
-import { chatSessionOfTask, liveHeldTabs } from "../orchestrator/window-tab";
+import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
@@ -47,7 +43,7 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
+import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
@@ -757,10 +753,12 @@ export function createAgentBrowserCommand({
       }
       drivesHeldTabs = resolved.kind === "task";
 
-      const cdpUrl =
+      const cdpUrl = cdpBridgeUrl(
+        serverPort,
         resolved.kind === "task"
-          ? `ws://127.0.0.1:${serverPort}${CDP_TASK_PATH_PREFIX}${id}`
-          : `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${resolved.targetId}`;
+          ? { id, kind: "task" }
+          : { id: resolved.targetId, kind: "page" },
+      );
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -1057,8 +1055,8 @@ async function recordHeldTabHosts({
 /**
  * The browser an invocation acts on.
  *
- * A chat drives the tab on the window's screen, which the window records on
- * its own record rather than on any chat's: one page. A task in a chat drives
+ * A chat drives the tab on the window's screen, which the window keeps in its
+ * own state rather than on any chat's: one page. A task in a chat drives
  * the tabs it holds, through a browser of their own: tabs the conversation
  * handed it, which are the user's and outlive the task, and tabs it opened
  * itself, each opened behind whatever the user has up, so every page a task
@@ -1083,19 +1081,14 @@ async function resolveBrowserTarget({
       "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
   };
   if (isChatId(id)) {
-    const windowState = await getTaskState(taskDir(await windowTaskId()));
-    const onScreen = windowState.browserTargetId;
+    const { browserTargetId: onScreen } = await getWindowState();
     // The conversation drives the tab on the user's screen and never a
     // browser of its own; with no tab up there is nothing to drive.
     return onScreen && browser.getTargetMeta(onScreen)
       ? { isOwnGuest: false, kind: "page", targetId: onScreen }
       : noTabUp;
   }
-  const settings = await getTaskSettings(taskDir(id));
-  if (settings?.kind === "orchestrator") {
-    return noTabUp;
-  }
-  const chatSession = await chatSessionOfTask(id);
+  const chatSession = chatSessionOfTask(id);
   if (!chatSession) {
     // Idempotent: createTarget returns the existing view for this (id,
     // sessionId) pair if one is already live, so sub-agents and repeat

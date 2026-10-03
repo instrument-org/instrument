@@ -1,4 +1,7 @@
+import { revokeSession } from "@/electron-main/auth/client";
+import { logger } from "@/electron-main/lib/electron-logger";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import { workspaceSettingsDirOf } from "@/electron-main/lib/settings-migration";
 import {
   createWorkspace,
   listWorkspaces,
@@ -16,6 +19,7 @@ import {
 } from "@/electron-main/lib/workspaces";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
 import { app, shell } from "electron";
 import { execFile } from "node:child_process";
 import path from "node:path";
@@ -185,10 +189,11 @@ const switchTo = devOnly
 const remove = devOnly
   .input(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
-    const listing = listWorkspaces({
+    const listings = listWorkspaces({
       resolved: getResolvedWorkspace(),
       userDataDir: userDataDir(),
-    }).find(
+    });
+    const listing = listings.find(
       (candidate) => path.resolve(candidate.path) === path.resolve(input.path),
     );
     if (!listing) {
@@ -197,6 +202,21 @@ const remove = devOnly
     const blocked = whyNotDeletable(listing, userDataDir());
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
+    }
+    // The sign-in goes with the workspace, so the platform session behind it
+    // ends too, unless another workspace holds the same one (a workspace made
+    // with the sign-in copied shares its session), which would be signed out
+    // with it.
+    const token = readBearerTokenIn(workspaceSettingsDirOf(listing.path));
+    const sharedWith = listings.some(
+      (other) =>
+        other !== listing &&
+        readBearerTokenIn(workspaceSettingsDirOf(other.path)) === token,
+    );
+    if (token !== null && !sharedWith) {
+      await revokeSession(token).catch((error: unknown) => {
+        logger.warn("Could not end the deleted workspace's session", error);
+      });
     }
     await shell.trashItem(listing.path);
     unregisterWorkspace({ dir: listing.path, userDataDir: userDataDir() });

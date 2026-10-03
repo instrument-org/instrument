@@ -80,7 +80,7 @@ function IdeaRoute() {
   // The conversation is told which kind of page is up, so "one of these
   // about X" typed there lands on the same template the form below names.
   useOnScreen({
-    screen: "ideas",
+    screen: "discover",
     ...(idea
       ? { idea: { name: idea.name, tagline: idea.tagline, title: idea.title } }
       : {}),

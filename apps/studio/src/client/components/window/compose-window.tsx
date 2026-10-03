@@ -43,6 +43,7 @@ import {
   encodeBrowserTargetId,
   type FileUpload,
   StoreId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -991,7 +992,7 @@ export function GroupItem({
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const appWindow = useWindow();
-  const { browser, taskId } = appWindow;
+  const { browser } = appWindow;
   // A file screen's own controls go into the row as well: the tree's toggle
   // at its head, the viewer's actions at its end.
   const [screenLead, setScreenLead] = useState<HTMLDivElement | null>(null);
@@ -1023,7 +1024,7 @@ export function GroupItem({
   const targetId =
     up.kind === "page"
       ? encodeBrowserTargetId(
-          up.taskId ?? taskId,
+          up.taskId ?? WINDOW_ID,
           StoreId.SessionSchema.parse(up.id),
         )
       : undefined;
@@ -1260,11 +1261,11 @@ export function GroupItem({
               },
             }}
           >
-            {tasks.task === undefined ? (
-              <ChatTasksScreen chat={tasks.chat} />
-            ) : (
+            {tasks.task !== undefined ? (
               <TaskScreen key={tasks.task} taskId={tasks.task} />
-            )}
+            ) : tasks.chat ? (
+              <ChatTasksScreen chat={tasks.chat} />
+            ) : null}
           </ScreenTabContext>
         </Frame>
       </WindowContext>

@@ -89,6 +89,7 @@ const WHEEL_STEP = 24;
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("debug-transcript"),
+  isChat: false,
   title: "Transcript",
   updatedAt: new Date(0),
 };

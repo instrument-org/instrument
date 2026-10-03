@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listChats } from "../../lib/orchestrator/chats";
+import { listChats } from "../../lib/chat/chats";
 import {
   forgetRecordFolders,
   isChatId,
@@ -25,13 +25,9 @@ import { type WorkspaceRPCContext } from "../base";
 import { storage } from "./storage";
 
 // The chat list asks the machine what is running; none runs in a test.
-vi.mock(import("../../lib/orchestrator/activity"), async (importOriginal) => ({
+vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  orchestratorActivity: () => Promise.resolve({ running: [] }),
-}));
-vi.mock(import("../../lib/orchestrator/ensure"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  windowTaskId: () => Promise.resolve(TaskIdSchema.parse("window")),
+  chatActivity: () => Promise.resolve({ running: [] }),
 }));
 vi.mock(import("../../lib/workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
@@ -52,7 +48,6 @@ beforeEach(() => {
   opened = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    projectsDir: WorkspaceDirSchema.parse(path.join(root, "projects")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {
@@ -175,7 +170,7 @@ describe("storage.invalidFolders", () => {
         },
         {
           "at": "chats/2026-10-01-fine/tasks/Bad Task",
-          "kind": "chat",
+          "kind": "chat-task",
           "name": "2026-10-01-fine/tasks/Bad Task",
           "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
         },

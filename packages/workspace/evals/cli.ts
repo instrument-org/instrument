@@ -48,7 +48,7 @@ const { positionals, values } = parseArgs({
     "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
     name: { type: "string" },
-    orchestrator: { default: false, type: "boolean" },
+    chat: { default: false, type: "boolean" },
     paid: { default: false, type: "boolean" },
     prompt: { type: "string" },
     repeat: { default: "1", type: "string" },
@@ -177,9 +177,9 @@ if (paidModels.length > 0 && !values.paid) {
  */
 const adHocEval = values.prompt
   ? defineEval({
-      // `--orchestrator` runs the prompt through the agent the user talks to
+      // `--chat` runs the prompt through the agent the user talks to
       // in the app window, which delegates to tasks of its own.
-      kind: values.orchestrator ? "orchestrator" : undefined,
+      kind: values.chat ? "chat" : undefined,
       name: values.name ?? "ad-hoc",
       prompt: values.prompt,
     })

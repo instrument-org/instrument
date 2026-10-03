@@ -10,7 +10,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { childTasksOptions } from "@/client/components/window/child-tasks-query";
+import { useChatTasks } from "@/client/components/window/child-tasks-query";
 import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
@@ -40,7 +40,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
@@ -106,8 +106,8 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "folder": {
       return "files";
     }
-    case "idea":
-    case "ideas": {
+    case "discover":
+    case "idea": {
       return "ideas";
     }
     case "skill":
@@ -205,7 +205,7 @@ export function Omnibar({
   resting?: ReactNode;
 }) {
   const mode = omnibarModeOf(location);
-  const { openPage, taskId } = useWindow();
+  const { openPage } = useWindow();
   const router = useRouter();
   const queryClient = useQueryClient();
   const routerLocation = useRouterState({
@@ -307,7 +307,7 @@ export function Omnibar({
     try {
       await queryClient.fetchQuery(
         rpcClient.workspace.computer.list.queryOptions({
-          input: { id: taskId, path: host },
+          input: { id: WINDOW_ID, path: host },
           retry: false,
         }),
       );
@@ -333,7 +333,6 @@ export function Omnibar({
     location,
     mode,
     open: { openFolder, openPath, openSite, visit },
-    taskId,
     typed,
   });
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
@@ -572,7 +571,6 @@ function useRows({
   location,
   mode,
   open,
-  taskId,
   typed,
 }: {
   canComplete: boolean;
@@ -584,7 +582,6 @@ function useRows({
     openSite: (url: string) => void;
     visit: (href: string) => void;
   };
-  taskId: TaskId;
   typed: string;
 }): { completion: string; empty?: string; rows: OmniRow[] } {
   const home = window.api.homeDir;
@@ -639,7 +636,7 @@ function useRows({
     rpcClient.workspace.computer.list.queryOptions({
       input:
         mode === "files" && words !== ""
-          ? { id: taskId, path: path.folder }
+          ? { id: WINDOW_ID, path: path.folder }
           : skipToken,
       retry: false,
       staleTime: ms("10 seconds"),
@@ -655,8 +652,11 @@ function useRows({
   const skills = useQuery(
     rpcClient.workspace.skill.list.queryOptions({ enabled: mode === "skills" }),
   );
-  const tasks = useQuery(
-    childTasksOptions(mode === "tasks" && shell ? shell.ids.taskId : skipToken),
+  // The tasks of the chat the tasks screen or the task's page is for.
+  const tasks = useChatTasks(
+    mode === "tasks" && (location.kind === "task" || location.kind === "tasks")
+      ? location.chat
+      : undefined,
   );
 
   // A switch asked for by its word is all the words mean.
@@ -877,18 +877,20 @@ function useRows({
       case "tasks": {
         // A task's page finds the tasks of the chat it was opened from, the
         // list its crumb goes back to.
-        const chat = location.kind === "task" ? location.chat : undefined;
-        const ofChat = (tasks.data ?? []).filter(
-          (task) => chat === undefined || task.chatSessionId === chat,
+        const chat =
+          location.kind === "task" || location.kind === "tasks"
+            ? location.chat
+            : undefined;
+        return matchNames(words, tasks.data ?? [], (task) => task.title).map(
+          (task) => ({
+            icon: <CheckSquareIcon className="size-4" />,
+            id: `task:${task.id}`,
+            name: task.title,
+            run: () => {
+              open.visit(taskHref(task.id, chat));
+            },
+          }),
         );
-        return matchNames(words, ofChat, (task) => task.title).map((task) => ({
-          icon: <CheckSquareIcon className="size-4" />,
-          id: `task:${task.id}`,
-          name: task.title,
-          run: () => {
-            open.visit(taskHref(task.id, chat));
-          },
-        }));
       }
     }
   })().slice(0, MATCHES_SHOWN);

@@ -236,12 +236,9 @@ function ChatScreenOfRecord({
                   }
                   composerLead={composerLead}
                   composerPlaceholder="Talk to Instrument"
-                  // A key of the chat's own: the task's stored draft is the
-                  // top-level field's, and a reply typed here is not that.
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ scope: "chat", sessionId }}
-                  promptDraft={state.data.promptDraft ?? ""}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}

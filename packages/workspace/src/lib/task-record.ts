@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import { sleep } from "radashi";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
-import { TaskPane } from "../schemas/task-pane";
 import {
   type TaskSettings,
   TaskSettingsSchema,
@@ -35,7 +34,7 @@ const RENAME_RETRY_STEP_MS = 20;
  *   pin, unread, project, timestamps. The task list reads it for every task in
  *   the workspace, and a future cross-task index projects exactly these and is
  *   rebuilt from them.
- * - `state` is where the user left off *inside* one task -- draft, open tabs,
+ * - `state` is where the user left off *inside* one task -- open tabs,
  *   chosen model, attached folders. Read when a task is open, never queried
  *   across tasks, and nothing will ever index it.
  *
@@ -47,7 +46,7 @@ const RENAME_RETRY_STEP_MS = 20;
  * `updateTaskSettings` publishes `task.updated` itself, waking the whole list;
  * the state writers leave `task.stateUpdated` to their callers. That looks
  * sloppy and is not, because it makes the dangerous direction unreachable: no
- * state write can wake the task list, so a draft or a tab cannot reorder the
+ * state write can wake the task list, so a model pick or a tab cannot reorder the
  * sidebar the way a file mtime once did. The opposite mistake, forgetting to
  * publish after a state write, costs a panel that does not refresh until
  * something else does.
@@ -71,8 +70,8 @@ export interface TaskRecord {
    * Reads answer empty for it, the same answer a task with no file gets, since
    * a caller asking for a title has nothing better to show. Writes must not:
    * that empty answer plus whatever the caller is changing *becomes* the file,
-   * so a draft keystroke would replace a title, a project, a pin and every open
-   * tab with one field.
+   * so a model pick would replace a title, a pin and every open tab with one
+   * field.
    */
   unreadable: boolean;
 }
@@ -92,8 +91,8 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
 /**
  * Reads both views, each tolerant of the other failing.
  *
- * They are parsed separately on purpose. A pane written by a newer build, or a
- * draft holding something the schema rejects, must not cost the task its title
+ * They are parsed separately on purpose. A state written by a newer build, or a
+ * field holding something the schema rejects, must not cost the task its title
  * and its place in the list -- and a title that cannot be read must not cost the
  * attached folders that decide what the agent can reach.
  */
@@ -123,27 +122,6 @@ export async function setTaskState(
 }
 
 /**
- * Apply a change to the pane, reading the current one inside the write queue.
- *
- * The tab actions are read-modify-write on top of a read-modify-write, and the
- * whole point of queuing is lost if the read happens before the queue: two
- * `show` calls in one command line would each append to the tabs they saw and
- * the second would drop the first's.
- */
-export async function updateTaskPane(
-  dir: TaskDir,
-  update: (pane: TaskPane.Type) => TaskPane.Type,
-): Promise<TaskPane.Type> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, {
-      pane: update(record.state.pane ?? TaskPane.EMPTY),
-    }),
-  );
-
-  return written.state.pane ?? TaskPane.EMPTY;
-}
-
-/**
  * Applies a change to the whole file, reading it inside the write queue.
  *
  * The callback receives what is currently on disk and returns what should
@@ -159,7 +137,7 @@ export async function updateTaskRecord(
     const current = await readTaskRecord(dir);
     if (current.unreadable) {
       // The write builds on what was read, and what was read is empty. Failing
-      // the caller costs a draft or a tab; going ahead costs everything the
+      // the caller costs a model pick or a tab; going ahead costs everything the
       // file holds, and leaves nothing to repair it from.
       throw new TypedError.FileSystem(
         `Refusing to overwrite an unreadable task record at ${recordPath(dir)}`,
@@ -170,25 +148,6 @@ export async function updateTaskRecord(
     await writeTaskRecord(dir, next);
     return recordFrom(next);
   });
-}
-
-/**
- * Applies a change to the state, reading the current one inside the write
- * queue.
- *
- * For the fields that are read-modify-write on one value with several writers
- * at once: the window records what has been seen in a chat while the agent
- * tags it and a task files itself from it. Reading before the queue means the
- * slower writer restores the value the faster one had just changed.
- */
-export async function updateTaskState(
-  dir: TaskDir,
-  update: (state: TaskState) => Partial<TaskState>,
-): Promise<TaskState> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, update(record.state)),
-  );
-  return written.state;
 }
 
 function emptyRecord(unreadable: boolean): TaskRecord {
@@ -276,12 +235,12 @@ function recordWithState(
  * Windows fails a rename with EPERM while another process holds either file
  * open, and something always does on a real machine: a virus scanner reads what
  * was just written, a search indexer walks the directory. This file is rewritten
- * as the user types and as the window records what it has seen, so it draws that
+ * as the user types and as a chat hands its tasks tabs, so it draws that
  * attention more than most. The handle is held for a moment, so retrying turns a
  * write that was lost outright into one that is late. POSIX has no such failure
  * and loses nothing by asking again.
  */
-async function renameWhenAllowed(
+export async function renameWhenAllowed(
   temporary: string,
   target: AbsolutePath,
 ): Promise<void> {
@@ -305,8 +264,8 @@ async function renameWhenAllowed(
 /**
  * Writes through a temporary file and renames it into place.
  *
- * One file now carries the title, the sort key and the draft, and the draft is
- * rewritten as the user types. Writing over the live file leaves a window where
+ * One file carries the title, the sort key and the state, and the state is
+ * rewritten as the user works. Writing over the live file leaves a window where
  * a crash truncates it, and a truncated file does not read as damaged: the
  * parse fails, the task answers as though it has no settings, and it loses its
  * name and its position in the list. Rename is atomic within a directory, so a

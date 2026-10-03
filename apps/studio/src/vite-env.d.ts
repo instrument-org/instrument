@@ -52,8 +52,6 @@ declare namespace NodeJS {
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
-      /** Dev only: gives the conversation a `task` tool beside the shell one. */
-      INSTRUMENT_TASK_TOOL: string | undefined;
       /**
        * Pins this process to one workspace, by registered id or absolute path,
        * without changing which one the app opens next. See lib/workspaces.ts.

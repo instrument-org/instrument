@@ -1,5 +1,5 @@
 /**
- * The name and one-line description of the orchestrator's `chat` command, kept
+ * The name and one-line description of the chat's `chat` command, kept
  * apart from the command itself so prompt text can name it without importing
  * the workspace machinery the command runs against.
  */

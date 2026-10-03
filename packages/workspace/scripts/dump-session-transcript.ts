@@ -1,18 +1,14 @@
 import "./lib/define-globals-apply";
 
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { ulid } from "ulid";
 
-import { TASKS_DIR_NAME } from "../src/constants";
-import { extractTaskZip } from "../src/lib/extract-task-zip";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getTaskSettings } from "../src/lib/task-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
+import { TaskDirSchema } from "../src/schemas/paths";
 import { TaskIdSchema } from "../src/schemas/task-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
@@ -26,37 +22,20 @@ const { positionals, values } = parseArgs({
 
 const inputPath = positionals[0];
 const outputPath = values.output;
-// An orchestrator task has a root session per chat, so this names which one.
+// A chat task has a root session per chat, so this names which one.
 const wantedSessionId = values.session;
 
 if (!inputPath) {
   throw new Error(
     [
-      "Usage: pnpm run script:dump-session-transcript <task-dir-or.zip>",
+      "Usage: pnpm run script:dump-session-transcript <task-dir>",
       "  [--output <file>] [--session <id>]",
     ].join("\n"),
   );
 }
 
-const absoluteInputPath = path.resolve(inputPath);
-const inputStats = await fs.stat(absoluteInputPath);
-const isZip = inputStats.isFile() && absoluteInputPath.endsWith(".zip");
-
-let cleanupDir: string | undefined;
-let dir = TaskDirSchema.parse(absoluteInputPath);
-let tasksDir = path.dirname(dir);
-
-if (isZip) {
-  const tempRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "instrument-transcript-"),
-  );
-  cleanupDir = tempRoot;
-  tasksDir = path.join(tempRoot, TASKS_DIR_NAME);
-  const folderName = `transcript-${ulid().toLowerCase()}`;
-  const extractDir = AbsolutePathSchema.parse(path.join(tasksDir, folderName));
-  const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
-  ({ dir } = await extractTaskZip({ outputDir: extractDir, zipBlob }));
-}
+const dir = TaskDirSchema.parse(path.resolve(inputPath));
+const tasksDir = path.dirname(dir);
 
 const settings = await getTaskSettings(dir);
 const folderName = path.basename(dir);
@@ -95,8 +74,8 @@ if (!rootSession) {
 
 const markdown = await getSessionMarkdown({
   frontMatter: {
-    source: isZip ? absoluteInputPath : dir,
-    sourceType: isZip ? "exported-task-zip" : "task-directory",
+    source: dir,
+    sourceType: "task-directory",
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
     taskName: settings?.name ?? folderName,
     transcriptGeneratedAt: new Date().toISOString(),
@@ -110,8 +89,4 @@ if (outputPath) {
   process.stdout.write(`Wrote transcript to ${path.resolve(outputPath)}\n`);
 } else {
   process.stdout.write(markdown);
-}
-
-if (cleanupDir) {
-  await fs.rm(cleanupDir, { force: true, recursive: true });
 }

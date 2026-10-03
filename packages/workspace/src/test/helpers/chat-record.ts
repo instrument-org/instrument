@@ -15,7 +15,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
  * The chat a session is, made under the current workspace root the first time
  * it is asked for: a folder under `chats/` whose settings name the session,
  * which is all the index needs to find it. For tests that need a chat to exist
- * without the grants, the window record and the rest that `ensureChat` brings.
+ * without the grants and the rest that `ensureChat` brings.
  */
 export function chatFor(
   sessionId: StoreId.Session = StoreId.newSessionId(),
@@ -46,7 +46,6 @@ export function chatFor(
     path.join(privateDir, "settings.json"),
     JSON.stringify({
       chatSessionId: sessionId,
-      kind: "orchestrator",
       name: "Instrument",
     }),
   );

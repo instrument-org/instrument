@@ -33,19 +33,15 @@ import {
 } from "./agent";
 import { type StopReason } from "./execute-tool-call";
 
-export type SessionMachineParentEvent =
-  | {
-      type: "session.done";
-      value: {
-        actorId: string;
-        error?: unknown;
-        // Undefined for the root session; set for subagents. The task's turn is
-        // done when the root session finishes, regardless of subagent refs.
-        parentSessionId?: StoreId.Session;
-        taskId: TaskId;
-        usedNonReadOnlyTools: boolean;
-      };
-    };
+export type SessionMachineParentEvent = {
+  type: "session.done";
+  value: {
+    actorId: string;
+    error?: unknown;
+    taskId: TaskId;
+    usedNonReadOnlyTools: boolean;
+  };
+};
 
 type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 
@@ -174,56 +170,45 @@ export const sessionMachine = setup({
     updateSession: fromPromise<
       void,
       {
-        parentSessionId?: StoreId.Session;
         sessionId: StoreId.Session;
-        sessionNamePrefix?: string;
         taskId: TaskId;
       }
-    >(
-      async ({
-        input: { parentSessionId, sessionId, sessionNamePrefix, taskId },
+    >(async ({ input: { sessionId, taskId }, signal }) => {
+      const existingSession = await Store.getSession(sessionId, taskId, {
         signal,
-      }) => {
-        const existingSession = await Store.getSession(sessionId, taskId, {
-          signal,
-        });
-        if (existingSession.isErr()) {
-          if (existingSession.error.type === "workspace-not-found-error") {
-            const result = await createSession({
-              parentSessionId,
-              sessionId,
-              sessionNamePrefix,
-              signal,
-              taskId,
-            });
-            if (result.isErr()) {
-              throw new Error(
-                `Failed to create session: ${result.error.message}`,
-              );
-            }
-            return;
-          } else {
-            throw new Error(
-              `Failed to get session: ${existingSession.error.message}`,
-            );
-          }
-        } else {
-          const result = await Store.saveSession(
-            {
-              ...existingSession.value,
-              updatedAt: new Date(),
-            },
+      });
+      if (existingSession.isErr()) {
+        if (existingSession.error.type === "workspace-not-found-error") {
+          const result = await createSession({
+            sessionId,
+            signal,
             taskId,
-            { signal },
-          );
+          });
           if (result.isErr()) {
             throw new Error(
-              `Failed to update session: ${result.error.message}`,
+              `Failed to create session: ${result.error.message}`,
             );
           }
+          return;
+        } else {
+          throw new Error(
+            `Failed to get session: ${existingSession.error.message}`,
+          );
         }
-      },
-    ),
+      } else {
+        const result = await Store.saveSession(
+          {
+            ...existingSession.value,
+            updatedAt: new Date(),
+          },
+          taskId,
+          { signal },
+        );
+        if (result.isErr()) {
+          throw new Error(`Failed to update session: ${result.error.message}`);
+        }
+      }
+    }),
   },
   guards: {
     isAgentRefActive: ({ context }) =>
@@ -239,13 +224,11 @@ export const sessionMachine = setup({
       maxStepCount: number;
       model: AIGatewayModel.Type;
       parentRef: ParentActorRef;
-      parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested: boolean;
       /** Queued messages the sender wrote to the store on arrival; see `addMessage`. */
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
-      sessionNamePrefix?: string;
       subscription?: { unsubscribe: () => void };
       taskId: TaskId;
       usedNonReadOnlyTools: boolean;
@@ -258,13 +241,11 @@ export const sessionMachine = setup({
       maxStepCount?: number;
       model: AIGatewayModel.Type;
       parentRef: ParentActorRef;
-      parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested?: boolean;
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
       savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      sessionNamePrefix?: string;
       taskId: TaskId;
     },
     tags: {} as SessionTag,
@@ -297,12 +278,10 @@ export const sessionMachine = setup({
       maxStepCount: input.maxStepCount ?? 200,
       model: input.model,
       parentRef: input.parentRef,
-      parentSessionId: input.parentSessionId,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
-      sessionNamePrefix: input.sessionNamePrefix,
       subscription,
       taskId: input.taskId,
       usedNonReadOnlyTools: false,
@@ -519,7 +498,6 @@ export const sessionMachine = setup({
 
         publisher.publish("session.done", {
           id: context.taskId,
-          parentSessionId: context.parentSessionId,
           sessionId: context.sessionId,
         });
 
@@ -528,7 +506,6 @@ export const sessionMachine = setup({
           value: {
             actorId: self.id,
             error: context.error,
-            parentSessionId: context.parentSessionId,
             taskId: context.taskId,
             usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
@@ -629,9 +606,7 @@ export const sessionMachine = setup({
     UpdatingSession: {
       invoke: {
         input: ({ context }) => ({
-          parentSessionId: context.parentSessionId,
           sessionId: context.sessionId,
-          sessionNamePrefix: context.sessionNamePrefix,
           taskId: context.taskId,
         }),
         onDone: {

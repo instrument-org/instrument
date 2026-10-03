@@ -416,10 +416,10 @@ function locationMark(location: TabLocation): ReactNode {
     case "folder": {
       return <FolderMark path={location.path} />;
     }
-    // The catalog, and one kind of page in it: an idea is under Ideas the
-    // way an app page is under Apps.
-    case "idea":
-    case "ideas": {
+    // The catalog, and one kind of page in it: an idea is under Discover
+    // the way an app page is under Apps.
+    case "discover":
+    case "idea": {
       return (
         <CompassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
@@ -479,8 +479,8 @@ function locationText(location: TabLocation) {
     case "idea": {
       return location.title;
     }
-    case "ideas": {
-      return "Ideas";
+    case "discover": {
+      return "Discover";
     }
     case "newTab": {
       return "";

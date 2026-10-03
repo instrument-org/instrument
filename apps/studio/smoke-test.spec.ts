@@ -448,25 +448,18 @@ describe("Studio Smoke Test", () => {
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
 
-    // Validate machine-state.json has lastMigratedVersion set (migration ran)
+    // Validate machine-state.json was written at boot: the first launch
+    // generates this computer's telemetry id there.
     const appStateContent = await fs.readFile(
       path.join(tempUserDataDir, "machine-state.json"),
       "utf8",
     );
     const appState = JSON.parse(appStateContent) as {
-      lastMigratedVersion?: string;
+      telemetryId?: string;
     };
     expect(
-      appState.lastMigratedVersion,
-      "machine-state.json: lastMigratedVersion is set (migrations ran on first launch)",
-    ).toBeDefined();
-    expect(
-      typeof appState.lastMigratedVersion,
-      "machine-state.json: lastMigratedVersion is a string",
-    ).toBe("string");
-    expect(
-      appState.lastMigratedVersion?.length,
-      "machine-state.json: lastMigratedVersion is non-empty",
-    ).toBeGreaterThan(0);
+      appState.telemetryId,
+      "machine-state.json: telemetryId is generated on first launch",
+    ).toMatch(/^anon-/);
   });
 });

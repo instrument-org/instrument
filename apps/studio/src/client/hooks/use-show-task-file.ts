@@ -1,79 +1,22 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { type OpenOptions } from "@/client/components/window/context";
-import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
-import { rpcClient } from "@/client/rpc/client";
-import { isFolderPath, type TaskId } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
 import { useContext } from "react";
-import { toast } from "sonner";
 
 /**
  * Show one of a task's files, wherever this surface shows files.
  *
- * The task page has a pane and puts it there. A window without one says where
- * a file goes instead, so every card, chip, and expand control that hands a
- * file over asks here rather than reaching for a pane that may not be on
- * screen. Inside the app: `useOpenTaskFile` is the other thing a file can be
- * asked to do, which is to leave for the app macOS opens it with.
+ * Every card, chip, and expand control that hands a file over asks here, and
+ * the surface it is drawn on says where the file goes, a folder included.
+ * Inside the app: `useOpenTaskFile` is the other thing a file can be asked to
+ * do, which is to leave for the app macOS opens it with.
  *
- * A path may name a folder, and the pane has no view of one: it holds file
- * tabs, and a folder in one would be a tab reporting that it could not read
- * the file. So a folder leaves for the Finder, which is the app macOS opens a
- * folder with and the only place this window can stand the user in it. A
- * surface with a folder view of its own says so through the context.
- *
- * `taskId` is optional for the same reason those surfaces render outside a
- * task route at all -- a previewed conversation, the debug scenarios -- where
- * a file reference is still worth drawing and opening it has nowhere to go.
+ * A surface drawn without an opener, such as a previewed conversation or a
+ * debug scenario, still draws the reference, and opening it does nothing.
  */
-export function useShowTaskFile(taskId: TaskId | undefined) {
-  const openElsewhere = useContext(FileOpenContext);
-  const { openFiles } = useTaskPaneActions(taskId);
+export function useShowTaskFile() {
+  const openFile = useContext(FileOpenContext);
 
   return (filePath: string, options?: OpenOptions) => {
-    if (openElsewhere) {
-      openElsewhere(filePath, options);
-      return;
-    }
-    if (isFolderPath(filePath)) {
-      if (taskId !== undefined) {
-        void openInFinder(filePath, taskId);
-      }
-      return;
-    }
-    openFiles([filePath]);
+    openFile?.(filePath, options);
   };
-}
-
-/**
- * Hands a folder to the Finder.
- *
- * Called rather than wired as a mutation because a fence draws without asking
- * the server anything, and a hook holding this would reach the client on every
- * render of every card in the transcript. The press is the first moment there
- * is anything to ask.
- */
-async function openInFinder(folderPath: string, taskId: TaskId) {
-  // Without the trailing slash: what is resolved is a path, and a folder is
-  // not a different one for wearing it.
-  const filePath = folderPath.slice(0, -1);
-  const [resolveError, hostPaths] = await safe(
-    rpcClient.workspace.task.files.hostPaths.call({
-      filePaths: [filePath],
-      taskId,
-    }),
-  );
-  const hostPath = hostPaths?.[filePath];
-  if (resolveError || !hostPath) {
-    toast.error("Failed to open folder", {
-      description: resolveError?.message ?? "Not a folder the task can reach.",
-    });
-    return;
-  }
-  const [error] = await safe(
-    rpcClient.utils.openPath.call({ filepath: hostPath }),
-  );
-  if (error) {
-    toast.error("Failed to open folder", { description: error.message });
-  }
 }

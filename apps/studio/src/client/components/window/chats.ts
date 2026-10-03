@@ -4,7 +4,7 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
 /** A chat as the chat lists it: the first message, the title, and where it stands. */
-export type Chat = RPCOutput["workspace"]["chats"]["list"][number];
+export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
 
 /** What narrows the list, all of it client-side: each group is any-of, and the groups are all-of. */
 export interface ChatFilters {
@@ -219,26 +219,6 @@ export function basename(path: string): string {
 /** The chats by when something last happened in each, newest first, which is the order the inbox keeps. */
 export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
   return [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-/**
- * The head a day's rows sit under: today and yesterday by name, the rest of
- * the week by weekday, and past that the date, since a weekday alone stops
- * saying which one it was.
- */
-export function dayLabel(date: Date, now: Date): string {
-  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-  const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
-  if (days < 0) {
-    return "Today";
-  }
-  if (days < 1) {
-    return "Yesterday";
-  }
-  if (days < 6) {
-    return format(date, "EEEE");
-  }
-  return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
 }
 
 /**

@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { useComposerDraft } from "@/client/components/composer-draft-context";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
@@ -414,11 +415,12 @@ const TaskFileLink = ({
   const { taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const showTaskFile = useShowTaskFile(taskId);
+  const showTaskFile = useShowTaskFile();
   // A window with tabs gives the file a tab of its own on a middle or
   // modified click, and offers one in the menu.
   const hasTabs = useContext(WindowContext) !== null;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  const composerDraft = useComposerDraft();
   // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
@@ -497,12 +499,13 @@ const TaskFileLink = ({
         <FileActionsMenuItems
           file={viewerFile}
           menuComponents={contextMenuComponents}
-          onAddToChat={() => {
-            appendToPrompt({
-              key: { scope: "task", taskId },
-              update: filePath,
-            });
-          }}
+          onAddToChat={
+            composerDraft
+              ? () => {
+                  appendToPrompt({ key: composerDraft, update: filePath });
+                }
+              : undefined
+          }
         />
       </ContextMenuContent>
     </ContextMenu>

@@ -18,7 +18,7 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
@@ -41,7 +41,6 @@ const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
   defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
-  projects: `${MOCK_WORKSPACE_DIR}/${PROJECTS_DIR_NAME}`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
@@ -134,7 +133,6 @@ export function createMockTaskConfig(
     preparedSkillsDir: AbsolutePathSchema.parse(
       `${MOCK_WORKSPACE_DIR}/prepared-skills`,
     ),
-    projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),

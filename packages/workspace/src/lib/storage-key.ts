@@ -20,13 +20,6 @@ export namespace StorageKey {
     return ["background-processes-reported", sessionId].join(SEPARATOR);
   }
 
-  // Per-session latch for whether reaching a page has already taken the pane
-  // during the turn now running. Lowered as each user message is composed, so a
-  // turn takes the pane at most once however many pages it visits.
-  export function browserRevealedThisTurn(sessionId: StoreId.Session) {
-    return ["browser-revealed-this-turn", sessionId].join(SEPARATOR);
-  }
-
   // Per-session marker and last-known page for managed browser use. Live
   // browser presence remains authoritative for whether a tab is currently open.
   export function browserState(sessionId: StoreId.Session) {
@@ -50,12 +43,9 @@ export namespace StorageKey {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
   }
 
-  // Per-session record of the pane tabs the agent was last told about, so a
-  // turn only carries the list when it has changed. Keyed by session because
-  // what a given conversation has been told is a fact about that conversation.
   // The revision of memory a session was last told, so a turn only carries the
-  // list when something changed since. Keyed by session for the same reason
-  // the pane report is.
+  // list when something changed since. Keyed by session because what a given
+  // conversation has been told is a fact about that conversation.
   export function memoryReported(sessionId: StoreId.Session) {
     return ["memory-reported", sessionId].join(SEPARATOR);
   }
@@ -69,10 +59,6 @@ export namespace StorageKey {
 
   export function messages(sessionId: StoreId.Session) {
     return [MESSAGES_KEY, sessionId].join(SEPARATOR);
-  }
-
-  export function paneTabsReported(sessionId: StoreId.Session) {
-    return ["pane-tabs-reported", sessionId].join(SEPARATOR);
   }
 
   export function part(

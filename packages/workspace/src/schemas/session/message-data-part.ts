@@ -5,7 +5,6 @@ import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
 import { TaskIdSchema } from "../task-id";
-import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
   /**
@@ -21,11 +20,11 @@ export namespace SessionMessageDataPart {
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `memory`, `paneTabs`, `chatTopics`, `viewContext`.
+   *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
-   *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
-   *   different means, and `toModelMessages` skips a topics or view note that
+   *   told. `createBrowserStatusPart` and `createMemoryPart` each do, and
+   *   `toModelMessages` skips a topics or view note that
    *   reads the same as the last one; a new state part that forgets is not a
    *   failure anyone sees, it just quietly spends context.
    *
@@ -53,7 +52,6 @@ export namespace SessionMessageDataPart {
     "messageGap",
     "modelChange",
     "outputFormat",
-    "paneTabs",
     "projectChanges",
     "projectContext",
     "reply",
@@ -227,25 +225,6 @@ export namespace SessionMessageDataPart {
   export type BrowserStatusDataPart = z.output<
     typeof BrowserStatusDataPartSchema
   >;
-
-  /**
-   * What the task's pane is showing, at the start of a turn: whether it is
-   * open, which tab is in front, and which file tabs it holds.
-   *
-   * Attached per turn rather than written into the session context, which is
-   * written once and never rewritten: what is on screen changes several times
-   * inside one turn, and a startup snapshot would have the agent reasoning
-   * about a pane the user closed long ago.
-   */
-  const PaneTabsDataPartSchema = z.object({
-    // A part written before the pane's visibility was recorded named tabs the
-    // note called open, so an absent value reads the way that note did.
-    open: z.boolean().default(true),
-    selected: z.string().optional(),
-    tabs: z.array(TaskPane.TabSchema),
-  });
-
-  export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
   /**
    * The point where assembly stopped sending the turns before it.
@@ -432,11 +411,11 @@ export namespace SessionMessageDataPart {
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
   /**
-   * Tasks an orchestrator created that finished a turn since it last heard.
+   * Tasks a chat created that finished a turn since it last heard.
    *
-   * The one way work comes back to the orchestrator: a child never speaks in
+   * The one way work comes back to the chat: a child never speaks in
    * this conversation, so its completion has to arrive as something the
-   * orchestrator reads on a turn of its own. Written on a user message with no
+   * chat reads on a turn of its own. Written on a user message with no
    * text, which starts that turn, so the model reads it as a note from the
    * harness rather than as something the user said.
    *
@@ -451,7 +430,7 @@ export namespace SessionMessageDataPart {
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
           /**
-           * Set when the orchestrator asked to be woken about this task after
+           * Set when the chat asked to be woken about this task after
            * a delay of its own, rather than the clock deciding. The delay it
            * asked for, so the note can say so.
            */
@@ -473,7 +452,7 @@ export namespace SessionMessageDataPart {
            * What the task's folder holds when the note is composed: each
            * top-level folder with the files under it, and the files at the
            * root, the scaffold left out. Counts rather than names, so the
-           * orchestrator sees the shape of the folder without a listing of it.
+           * chat sees the shape of the folder without a listing of it.
            */
           holds: z
             .array(
@@ -486,7 +465,7 @@ export namespace SessionMessageDataPart {
             .optional(),
           /**
            * The files the task named in the files fence of its last message,
-           * in the paths the orchestrator can open. What the task said it
+           * in the paths the chat can open. What the task said it
            * made, not a reading of what its tools did: the card draws them as
            * chips, and the note carries the message itself.
            */
@@ -524,7 +503,7 @@ export namespace SessionMessageDataPart {
           /**
            * Done and error end a turn, error being a model error rather than
            * a stop; overdue is a task still at work past the point the
-           * orchestrator should look, and says so once.
+           * chat should look, and says so once.
            */
           status: z.enum(["done", "error", "overdue"]),
           /**
@@ -549,7 +528,7 @@ export namespace SessionMessageDataPart {
   /**
    * An app the user acted on outside the conversation: a sign-in finished in
    * the browser, a key saved on a card, a decline, a disconnect from the
-   * app's page. Like a task event, it wakes the orchestrator on a text-less
+   * app's page. Like a task event, it wakes the chat on a text-less
    * user message, so the agent learns without anyone typing, and it draws as
    * a product-event line in the transcript.
    */
@@ -678,7 +657,7 @@ export namespace SessionMessageDataPart {
         selected: z.array(z.string()).default([]),
       })
       .optional(),
-    /** The kind of page open on the Ideas screen: a template of the page skill. */
+    /** The kind of page open on the Discover screen: a template of the page skill. */
     idea: z
       .object({
         /** The template's folder name under the page skill's `templates/`. */
@@ -706,13 +685,12 @@ export namespace SessionMessageDataPart {
       "apps",
       "browser",
       "computer",
+      "discover",
       "file",
       "home",
-      "ideas",
       "skills",
       "task",
       "tasks",
-      "chat",
     ]),
     /** The one skill open on the Skills screen. */
     skill: z
@@ -727,13 +705,6 @@ export namespace SessionMessageDataPart {
     task: ViewedTaskSchema.optional(),
     /** The tasks listed on the Tasks screen. */
     tasks: z.array(ViewedTaskSchema).optional(),
-    /** The chat open beside the chat, when the message was sent from its screen. */
-    chat: z
-      .object({
-        id: z.string(),
-        title: z.string(),
-      })
-      .optional(),
     /** The screen's address in the window, the way a browser has one. */
     url: z.string().optional(),
   });
@@ -982,7 +953,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
-    [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,

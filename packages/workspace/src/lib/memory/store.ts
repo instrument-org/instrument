@@ -246,8 +246,7 @@ async function readMemoryFile(
     typeof record.at === "string" && !Number.isNaN(Date.parse(record.at))
       ? Date.parse(record.at)
       : modifiedAt;
-  // A memory saved while chats were threads names its chat as `thread`.
-  const chat = record.chat ?? record.thread;
+  const chat = record.chat;
   const from =
     typeof record.from === "string" && record.from.trim()
       ? {

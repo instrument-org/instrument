@@ -61,10 +61,10 @@ const LEGACY_APP_STATE = {
   telemetryId: "anon-1",
 };
 
-function migrateBoth(workspace = defaultWorkspace()) {
+function migrateBoth(workspace = defaultWorkspace(), packaged = false) {
   return [
     ...migrateMachineSettings(userDataDir),
-    ...migrateWorkspaceSettings({ userDataDir, workspace }),
+    ...migrateWorkspaceSettings({ packaged, userDataDir, workspace }),
   ];
 }
 
@@ -80,6 +80,8 @@ function seedLegacy(flavor: "dev" | "packaged") {
   } else {
     write("session.json.enc", "ciphertext");
     write("providers.json.enc", "ciphertext");
+    write("app-oauth.json.enc", "ciphertext");
+    write("app-credentials.json.enc", "ciphertext");
   }
   write("page-thumbnails/a.jpg", "jpeg");
   write("Local Storage/leveldb/000003.log", "tabs");
@@ -90,7 +92,7 @@ describe("settings migration", () => {
     "splits and moves a %s install into machine and default workspace stores",
     (flavor) => {
       seedLegacy(flavor);
-      migrateBoth();
+      migrateBoth(defaultWorkspace(), flavor === "packaged");
 
       const settings = workspaceSettingsDirOf(
         defaultWorkspacePath(userDataDir),
@@ -101,7 +103,6 @@ describe("settings migration", () => {
       });
       expect(read(path.join(userDataDir, "machine-state.json"))).toEqual({
         lastLaunchedVersion: "2.0.0-beta.39",
-        lastMigratedVersion: "2.0.0-beta.39",
         lastUpdateCheck: 42,
         telemetryId: "anon-1",
       });
@@ -123,7 +124,12 @@ describe("settings migration", () => {
           "window-state.json",
           ...(flavor === "dev"
             ? ["providers.json", "session-dev.json"]
-            : ["providers.json.enc", "session.json.enc"]),
+            : [
+                "app-credentials.json.enc",
+                "app-oauth.json.enc",
+                "providers.json.enc",
+                "session.json.enc",
+              ]),
         ].toSorted(),
       );
       expect(
@@ -145,7 +151,8 @@ describe("settings migration", () => {
       ).toBe(true);
 
       // Kept for an older build sharing this userData, except page
-      // thumbnails (a cache) and the ChatGPT plan (a rotating token).
+      // thumbnails (a cache), the ChatGPT plan (a rotating token), and in a
+      // packaged build the files holding secrets.
       const root = fs.readdirSync(userDataDir).toSorted();
       expect(root).toEqual(
         [
@@ -158,9 +165,7 @@ describe("settings migration", () => {
           "preferences.json",
           "window-state.json",
           "workspace",
-          ...(flavor === "dev"
-            ? ["providers.json", "session-dev.json"]
-            : ["providers.json.enc", "session.json.enc"]),
+          ...(flavor === "dev" ? ["providers.json", "session-dev.json"] : []),
         ].toSorted(),
       );
       expect(readWorkspaceIdentity(defaultWorkspacePath(userDataDir))).toEqual({
@@ -231,6 +236,14 @@ describe("settings migration", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("keeps the root copies of secret files in a dev build", () => {
+    seedLegacy("packaged");
+    migrateBoth(defaultWorkspace(), false);
+    for (const name of ["session.json.enc", "app-credentials.json.enc"]) {
+      expect(fs.existsSync(path.join(userDataDir, name))).toBe(true);
+    }
   });
 
   it("moves the ChatGPT plan rather than copying it", () => {

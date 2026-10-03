@@ -69,7 +69,7 @@ beforeEach(async () => {
   useWorkspace(TASK_ID);
   const created = await initializeTask(
     {
-      initialSettings: { apps: [], kind: "task", name: "File the issue" },
+      initialSettings: { apps: [], name: "File the issue" },
       taskId: TASK_ID,
       workspaceConfig: getWorkspaceConfig(),
     },

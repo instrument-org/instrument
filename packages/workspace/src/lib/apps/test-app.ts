@@ -4,6 +4,10 @@ import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { recordConnection } from "./connection";
 import {
+  credentialMovedMessage,
+  lookupAppCredential,
+} from "./credential-origin";
+import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
   isMcpManifest,
@@ -11,6 +15,7 @@ import {
 import { listMcpTools } from "./mcp/client";
 import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
+import { credentialOrigin } from "./origin-bound";
 import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
 import { guidePlaceholdersLeft, loadApp, readAppGuide } from "./store";
@@ -142,13 +147,22 @@ export async function runAppTest({
   );
 
   const { apps } = getWorkspaceConfig();
-  const credential = await apps.getCredential(slug);
+  // A key goes only to the origin it was saved for; a manifest pointed
+  // elsewhere since gets none, and the user is asked again.
+  const lookup = await lookupAppCredential(slug, app.manifest);
+  const credential = lookup.kind === "ok" ? lookup.value : null;
   let missing: "approval" | "key" | "sign-in" | undefined;
   if (app.manifest.auth.kind === "none") {
     checks.push({
       detail: "No credential required (auth kind is none).",
       name: "credential",
       status: "skip",
+    });
+  } else if (lookup.kind === "moved" && app.manifest.auth.kind !== "oauth") {
+    missing = "key";
+    checks.push({
+      name: "credential",
+      ...failure(credentialMovedMessage({ noun: "key", ...lookup })),
     });
   } else if (app.manifest.type === "mcp-local" && credential === null) {
     missing = "key";
@@ -162,18 +176,32 @@ export async function runAppTest({
     // OAuth tokens live in the OAuth store, not the credential store. The
     // connect check cannot stand in for this: a server that answers a
     // stranger's tools/list passes it with no sign-in behind it.
+    const signIn = await apps.oauth?.store.getTokens(slug);
+    const origin = credentialOrigin(app.manifest);
     if (apps.oauth === undefined) {
       checks.push({
         detail: "OAuth app: no sign-in is possible in this context.",
         name: "credential",
         status: "skip",
       });
-    } else if ((await apps.oauth.store.getTokens(slug)) === undefined) {
+    } else if (signIn === undefined) {
       missing = "sign-in";
       checks.push({
         name: "credential",
         ...failure(
           "No sign-in is stored for this app. Ask the user to sign in with connect_app; the app connects on its own when they do.",
+        ),
+      });
+    } else if (signIn.origin !== origin) {
+      missing = "sign-in";
+      checks.push({
+        name: "credential",
+        ...failure(
+          credentialMovedMessage({
+            noun: "sign-in",
+            savedFor: signIn.origin,
+            sendsTo: origin,
+          }),
         ),
       });
     } else {

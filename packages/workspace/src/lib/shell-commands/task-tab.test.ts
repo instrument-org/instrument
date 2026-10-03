@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { encodeBrowserTargetId } from "../../types";
@@ -16,19 +17,16 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runTab, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
-const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("read-the-page");
 
 const context: TaskCommandContext = {
-  orchestratorTaskId: ORCHESTRATOR_ID,
+  chatId: CHAT_ID,
   remainingYieldMs: () => 0,
 };
-
-// The window's own record, whose tabs a chat hands to its tasks.
-const WINDOW_ID = TaskIdSchema.parse("instrument");
 
 let rootDir: string;
 let openTab: StoreId.Session;
@@ -62,7 +60,7 @@ function tabsAreOpen(...sessionIds: StoreId.Session[]) {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-tab-"));
-  for (const id of [WINDOW_ID, CHILD_ID]) {
+  for (const id of [CHILD_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
@@ -74,21 +72,11 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(ORCHESTRATOR_SESSION, ORCHESTRATOR_ID);
-  const window = await initializeTask(
-    {
-      initialSettings: { kind: "orchestrator", name: "Instrument" },
-      taskId: WINDOW_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (window.isErr()) {
-    throw window.error;
-  }
+  chatFor(CHAT_SESSION, CHAT_ID);
   const created = await initializeTask(
     {
-      initialSettings: { name: "Read the page", parentTaskId: ORCHESTRATOR_ID },
+      chatId: CHAT_ID,
+      initialSettings: { name: "Read the page" },
       taskId: CHILD_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -188,7 +176,7 @@ describe("task tab", () => {
     await expect(
       runTab([CHILD_ID, openTab], {
         ...context,
-        orchestratorTaskId: TaskIdSchema.parse("someone-else"),
+        chatId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"read-the-page" was started in another chat/);
   });

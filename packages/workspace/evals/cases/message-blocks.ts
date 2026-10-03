@@ -261,7 +261,7 @@ function revisedAsAMessage(atLeast: number): Assertion {
 export const MESSAGE_BLOCK_EVALS = [
   defineEval({
     assertions: [handedOverAMessage(["text"]), readyToSend],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-text-a-sister",
     prompt:
       "can you text my sister that my flight lands at 6 now instead of 5, and she doesn't need to rush",
@@ -270,7 +270,7 @@ export const MESSAGE_BLOCK_EVALS = [
   defineEval({
     assertions: [handedOverAMessage(), readyToSend, revisedAsAMessage(2)],
     followUps: ["make it a bit shorter and less formal"],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-landlord-with-a-revision",
     prompt:
       "help me write something to my landlord Marcy. the dishwasher has been broken for two weeks and I've already asked twice",
@@ -278,7 +278,7 @@ export const MESSAGE_BLOCK_EVALS = [
 
   defineEval({
     assertions: [handedOverAMessage(["email"]), readyToSend],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-decline-an-invite",
     prompt:
       "Priya invited me on her podcast but I'm swamped through March. I want to say no without burning the bridge, can you write the email?",
@@ -286,7 +286,7 @@ export const MESSAGE_BLOCK_EVALS = [
 
   defineEval({
     assertions: [handedOverAMessage(["post"]), readyToSend],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-linkedin-post",
     prompt:
       "write a linkedin post about us shipping Instrument 2.0 today, keep it humble",
@@ -301,7 +301,7 @@ export const MESSAGE_BLOCK_EVALS = [
       readyToSend,
       didNotRetypeATasksMessage,
     ],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-slack-update-from-an-app",
     prompt:
       "put together a quick slack update for the team on where the Beacon issues stand",
@@ -316,7 +316,7 @@ export const MESSAGE_BLOCK_EVALS = [
       didNotRetypeATasksMessage,
     ],
     folders: [{ access: "read-only", path: path.join(FIXTURES, "Quotes") }],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-after-a-task-compares",
     prompt:
       "Compare the three bathroom quotes in my Quotes folder in a one-page writeup in my Instrument folder, then draft the email to whichever one we should go with asking when they can start.",
@@ -324,14 +324,14 @@ export const MESSAGE_BLOCK_EVALS = [
 
   defineEval({
     assertions: [handedOverNoMessage],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-mirror-cc-and-bcc",
     prompt: "what's the actual difference between cc and bcc",
   }),
 
   defineEval({
     assertions: [handedOverNoMessage],
-    kind: "orchestrator",
+    kind: "chat",
     name: "message-mirror-a-document",
     prompt:
       "Write a one-page markdown explainer on what a CDN is, in my Instrument folder.",

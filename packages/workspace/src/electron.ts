@@ -20,6 +20,7 @@ export {
   AppSlugSchema,
   isMcpManifest,
 } from "./lib/apps/manifest";
+export { requireAppCredential } from "./lib/apps/credential-origin";
 export {
   callMcpTool,
   listMcpTools,
@@ -40,6 +41,11 @@ export {
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 export { withAppMcpClient } from "./lib/apps/mcp/run";
 export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
+export {
+  credentialOrigin,
+  type OriginBound,
+  type StoredAppCredential,
+} from "./lib/apps/origin-bound";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
@@ -60,11 +66,9 @@ export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
-export { attachOrchestrator } from "./lib/orchestrator/attach";
+export { attachChats } from "./lib/chat/attach";
 export { FILES_FENCE } from "./lib/parse-files-block";
-export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
-export { readTaskFile } from "./lib/read-task-file";
-export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
+
 export { taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
@@ -82,7 +86,6 @@ export {
   RelativePathSchema,
   WorkspaceFilePathSchema,
 } from "./schemas/paths";
-export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";

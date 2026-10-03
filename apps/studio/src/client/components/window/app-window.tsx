@@ -53,11 +53,11 @@ import {
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
-  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -94,7 +94,6 @@ import {
 } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { childTasksOptions } from "./child-tasks-query";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
@@ -108,6 +107,7 @@ import {
   ShellContext,
 } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { ideasQueryOptions } from "./use-ideas";
@@ -258,26 +258,13 @@ function WindowShell({
   });
   const ensure = useQuery(
     rpcClient.workspace.window.ensure.queryOptions({
-      // The orchestrator, once it exists, is the one this window shows for as
-      // long as it is open.
+      // What the window opens on is made once, and the folders it reaches
+      // stay put for as long as it is open.
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
-  const ids = ensure.data;
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-    }),
-  );
-  const children = useQuery(childTasksOptions(ids ? ids.taskId : skipToken));
-  const childTitles = new Map<TaskId, string>(
-    children.data?.map((child) => [child.id, child.title]) ?? [],
-  );
-  // The chat each task was filed from, which is the group its browsing
-  // lands in.
-  const childChats = new Map<TaskId, string | undefined>(
-    children.data?.map((child) => [child.id, child.chatSessionId]) ?? [],
-  );
+  const opened = ensure.data;
+  const childTitles = useTaskTitles();
   const chats = useQuery(chatListOptions());
   const chatTitles = new Map<StoreId.Session, string>(
     chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
@@ -496,10 +483,9 @@ function WindowShell({
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,
-    chatOfTask: (id) => childChats.get(id),
     chats: chats.data,
     chatTitles,
-    ids,
+    isOpen: opened !== undefined,
     revealPane,
     setPaneOpen,
     windowTabs,
@@ -511,7 +497,7 @@ function WindowShell({
   // section at a time as each answer lands.
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!ids) {
+    if (!opened) {
       return;
     }
     void queryClient.prefetchQuery(
@@ -521,7 +507,7 @@ function WindowShell({
       rpcClient.workspace.computer.places.queryOptions(),
     );
     void queryClient.prefetchQuery(ideasQueryOptions());
-  }, [ids, queryClient]);
+  }, [opened, queryClient]);
 
   // Closing a task's browser tab closes the browser, and the task loses its
   // page; while the task is in it, the user is asked first.
@@ -562,11 +548,6 @@ function WindowShell({
   useRecordRecents();
   usePageThumbnailHousekeeping();
 
-  // The default first, since it is what the draft's picker edits: every send
-  // stores its model on the orchestrator's own state, so once any chat has
-  // been started that field is always set. The stored model stands in for a
-  // window whose default was never saved.
-  const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
@@ -607,7 +588,7 @@ function WindowShell({
         : hrefOfAppTab(appTabs.model, id),
     paneOpenByGroup,
     screenView,
-    state: state.data,
+    state: opened,
     viewsById: compose.viewsById,
     windowTabs,
   });
@@ -623,10 +604,10 @@ function WindowShell({
     startingIds,
   } = useDrafts({
     activeHref,
-    attachedFolders: state.data?.attachedFolders ?? {},
+    attachedFolders: opened?.attachedFolders ?? {},
     compose,
     draftContext,
-    ids,
+    isOpen: opened !== undefined,
     isChat,
     openChat: (sessionId) => {
       appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
@@ -696,10 +677,10 @@ function WindowShell({
         }
       },
     },
-    { isReady: ids !== undefined },
+    { isReady: opened !== undefined },
   );
   const { moveTo: moveAsks } = useStagedAskActions();
-  const screens: null | Screens = ids
+  const screens: null | Screens = opened
     ? {
         // No session: a line a button hands over at the top level opens a
         // draft with the line in it rather than a chat, so the person reads
@@ -722,7 +703,6 @@ function WindowShell({
         openPage,
         openPath: openNamedPath,
         openScreen,
-        taskId: ids.taskId,
       }
     : null;
 
@@ -755,12 +735,12 @@ function WindowShell({
   /** A site's page reloaded in place, for the strip's Reload; undefined for a tab that is no site. */
   const reloadablePageOf = (id: TabId) => {
     const page = pageOfAppTab(id);
-    if (page === undefined || !ids) {
+    if (page === undefined) {
       return;
     }
     return () => {
       getWebviewElement(
-        encodeBrowserTargetId(ids.taskId, StoreId.SessionSchema.parse(page.id)),
+        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
       )?.reload();
     };
   };
@@ -775,7 +755,7 @@ function WindowShell({
     );
   }
 
-  if (!screens || !state.data || !ids) {
+  if (!screens) {
     return (
       <WindowFrame>
         <div className="flex h-full flex-1 items-center justify-center">
@@ -799,7 +779,6 @@ function WindowShell({
     drafts: drafts.filter(
       (draft) => hasWords(draft) && !startingIds.has(draft.id),
     ),
-    ids,
     newDraft: () => {
       newDraft();
     },
@@ -857,7 +836,7 @@ function WindowShell({
                 chats={chats.data ?? []}
                 compose={compose}
                 drafts={drafts}
-                modelURI={modelURI}
+                modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
                     current.map((entry) =>
@@ -957,7 +936,6 @@ function WindowShell({
             {createPortal(
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
-                  chatOfTask={childChats}
                   chromeInto={pageSlot?.chrome?.into ?? null}
                   compose={[...compose.hosts, ...slotHosts]}
                   ref={setBrowser}

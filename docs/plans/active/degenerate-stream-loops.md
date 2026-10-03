@@ -71,7 +71,7 @@ Not a retry, deliberately. Re-sampling the same request at the same settings is 
 
 ## The gap that makes the recovery work
 
-`data-taskEvent` already declares `status: z.enum(["done", "error", "overdue"])` (`schemas/session/message-data-part.ts`, line 369), and **nothing ever emits `"error"`**. `lib/orchestrator/wake.ts` sends `"overdue"` at line 143 and `"done"` at line 219, and the done path is unconditional: it wakes the orchestrator with `status: "done"` and a summary taken from the last assistant text. A task that degenerated would therefore report success with a summary that is either empty or a fragment of the repetition.
+`data-taskEvent` already declares `status: z.enum(["done", "error", "overdue"])` (`schemas/session/message-data-part.ts`, line 369), and **nothing ever emits `"error"`**. `lib/chat/wake.ts` sends `"overdue"` at line 143 and `"done"` at line 219, and the done path is unconditional: it wakes the orchestrator with `status: "done"` and a summary taken from the last assistant text. A task that degenerated would therefore report success with a summary that is either empty or a fragment of the repetition.
 
 So this is two changes, and the second is the one that makes the first useful:
 

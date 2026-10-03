@@ -1,7 +1,7 @@
 import { MOUNT } from "../../mount-points";
 
 /**
- * The name and description of the orchestrator's `tab` command, kept apart
+ * The name and description of the chat's `tab` command, kept apart
  * from the command itself so prompt text can name it without importing the
  * workspace machinery the command runs against.
  */

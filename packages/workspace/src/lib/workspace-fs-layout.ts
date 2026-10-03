@@ -93,8 +93,6 @@ export interface WorkspaceFsLayout {
    */
   apps?: WorkspaceFsMount & { readOnly: false };
   attached: WorkspaceFsMount[];
-  /** Absent for a task that does not belong to a project. */
-  project?: WorkspaceFsMount & { readOnly: false };
   /**
    * One per skill source, at `/skills/<source>/`. The source segment is what
    * carries provenance and writability, so the agent reads both off the path
@@ -121,12 +119,9 @@ export interface WorkspaceFsMount {
    * {@link taskMaskedEntries}). Empty for a mount that masks nothing.
    *
    * A property of the mount rather than a case each consumer writes against the
-   * task mount, because it is true of several mounts already and each of them
-   * holds the settings that decide what the agent can reach: the task's
-   * attached folders, the project's folder list and the access granted to
-   * each. A guard spelled per consumer is one the next mount does not inherit,
-   * and the mount whose settings widen access across every task in a project
-   * is the one that arrived without it.
+   * task mount, because each mount that masks anything holds settings that
+   * decide what the agent can reach, such as the task's attached folders. A
+   * guard spelled per consumer is one the next mount does not inherit.
    */
   maskedEntries: readonly MaskedEntry[];
   /** Absolute, normalized virtual path where the directory appears. */
@@ -213,22 +208,6 @@ export async function buildBashFs(
     );
   }
 
-  // The project folder, writable so the agent can edit the project's own
-  // AGENTS.md when the user asks it to, with the private dir masked the way the
-  // task mount's is: it holds the project's folder list and the access granted
-  // to each, so a writable one would let the agent widen its own reach. Skipped
-  // when the directory is gone (project deleted or renamed mid-turn), same as an
-  // attached folder that no longer exists.
-  if (layout.project && (await pathExists(layout.project.hostRoot))) {
-    fs.mount(
-      layout.project.mountPoint,
-      masked(
-        layout.project,
-        new ReadWriteFsWithRmdir({ maxFileReadSize, root: layout.project.hostRoot }),
-      ),
-    );
-  }
-
   for (const mount of layout.skills) {
     // The workspace's own directory is always meant to be there, so create it if
     // a fresh workspace has not yet: skipping it would leave the agent writing
@@ -285,7 +264,6 @@ export function buildWorkspaceFsLayout({
   apps = false,
   attachedFolders,
   extraMounts = [],
-  projectFolderName,
   taskHostRoot,
 }: {
   /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
@@ -293,17 +271,11 @@ export function buildWorkspaceFsLayout({
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
    * Mounts the caller adds beside the attached folders, already resolved: an
-   * orchestrator's read-only view of the tasks it created. They are attached
+   * chat's read-only view of the tasks it created. They are attached
    * mounts in every way that matters to the filesystem, so they take the same
    * masking and containment.
    */
   extraMounts?: WorkspaceFsMount[];
-  /**
-   * Folder under `projects/` holding the task's project, resolved to a host path
-   * against this machine's workspace. A name rather than a path because the task
-   * state it comes from travels between machines.
-   */
-  projectFolderName?: string;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
   const attached: WorkspaceFsMount[] = [
@@ -325,7 +297,7 @@ export function buildWorkspaceFsLayout({
       ? {
           apps: {
             hostRoot: getWorkspaceConfig().appsDir,
-            // Ours rather than a task's or a project's, and it holds no
+            // Ours rather than a task's, and it holds no
             // settings: an `.instrument` dir in it would be an ordinary one.
             maskedEntries: [],
             mountPoint: MOUNT.apps,
@@ -334,26 +306,6 @@ export function buildWorkspaceFsLayout({
         }
       : {}),
     attached,
-    // Writable, unlike an attached folder that overlaps the workspace (see
-    // effectiveFolderAccess): this is the one directory inside the workspace the
-    // user means the agent to edit, so it is granted deliberately and narrowly
-    // rather than falling out of where the folder happens to sit. What that
-    // guard is actually protecting -- the settings that name the project's
-    // folders and the access granted to each -- is what `maskedEntries` keeps
-    // out of reach.
-    ...(projectFolderName
-      ? {
-          project: {
-            hostRoot: absolutePathJoin(
-              getWorkspaceConfig().projectsDir,
-              projectFolderName,
-            ),
-            maskedEntries: [TASK_FOLDER_NAMES.private],
-            mountPoint: MOUNT.project,
-            readOnly: false as const,
-          },
-        }
-      : {}),
     skills: buildSkillMounts(),
     task: {
       hostRoot: taskHostRoot,
@@ -368,7 +320,7 @@ export function buildWorkspaceFsLayout({
  * The access a folder actually gets: what the user granted, unless the folder
  * overlaps the workspace's own directory in either direction.
  *
- * Every task's database and state, every project's settings, and the skills
+ * Every task's database and state, and the skills
  * the agent loads as instructions live under the workspace root. A folder that
  * contains it, or sits inside it, would turn one task's write grant into write
  * access to every other task and a way to persist instructions across all of
@@ -501,7 +453,6 @@ export function maskedEntryAt(
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
     ...layout.attached,
-    ...(layout.project ? [layout.project] : []),
     ...layout.skills,
     ...(layout.apps ? [layout.apps] : []),
   ];
@@ -738,7 +689,7 @@ function buildSkillMounts(): WorkspaceFsMount[] {
     const bundled = BUNDLED_SOURCE_IDS.has(id);
     mounts.set(mountPoint, {
       hostRoot: bundled ? config.preparedSkillsDir : dir,
-      // Every one of these belongs to a tool rather than to a task or a project,
+      // Every one of these belongs to a tool rather than to a task,
       // so an `.instrument` dir in one is an ordinary directory of theirs.
       maskedEntries: [],
       mountPoint,

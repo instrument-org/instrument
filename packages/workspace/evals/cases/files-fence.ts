@@ -390,16 +390,16 @@ export const FILES_FENCE_EVALS = [
       assertNoteEdited,
     ],
     folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],
-    kind: "orchestrator",
-    name: "files-fence-orchestrator-edited-note",
+    kind: "chat",
+    name: "files-fence-chat-edited-note",
     prompt: `Add these as checkboxes at the bottom of the first section of ${EDITED_NOTE} in my Journal folder: call the dentist, renew my passport, order a new water filter.`,
   }),
   defineEval({
     // The mirror: handing back a changed file must not become a fence on
     // every reply.
     assertions: [assertNoFence],
-    kind: "orchestrator",
-    name: "files-fence-orchestrator-no-files-involved",
+    kind: "chat",
+    name: "files-fence-chat-no-files-involved",
     prompt:
       "In two sentences, what is the difference between a semaphore and a mutex?",
   }),

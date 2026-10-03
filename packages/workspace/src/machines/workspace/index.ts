@@ -21,11 +21,7 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import {
-  APPS_DIR_NAME,
-  PROJECTS_DIR_NAME,
-  TASKS_DIR_NAME,
-} from "../../constants";
+import { APPS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -99,12 +95,10 @@ export type WorkspaceEvent =
         // Absent for a turn that runs over what the session already holds.
         message?: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
-        parentSessionId?: StoreId.Session;
         runRequested?: boolean;
         /** The message is already in the store; see `addMessage`. */
         saved?: boolean;
         sessionId: StoreId.Session;
-        sessionNamePrefix?: string;
         taskId: TaskId;
       };
     }
@@ -426,7 +420,6 @@ export const workspaceMachine = setup({
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
-      projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
@@ -526,11 +519,9 @@ export const workspaceMachine = setup({
             agentName,
             message,
             model,
-            parentSessionId,
             runRequested,
             saved,
             sessionId,
-            sessionNamePrefix,
             taskId,
           } = event.value;
 
@@ -541,12 +532,10 @@ export const workspaceMachine = setup({
               llmRequestChunkTimeoutMs: ms("5 minutes"),
               model,
               parentRef: self,
-              parentSessionId,
               queuedMessages: message ? [message] : [],
               runRequested,
               savedMessageIds: saved && message ? [message.id] : [],
               sessionId,
-              sessionNamePrefix,
               taskId,
             },
           });

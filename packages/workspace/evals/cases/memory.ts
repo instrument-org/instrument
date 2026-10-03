@@ -165,7 +165,7 @@ const didNotClaimWhatItDidNotSave: Assertion = {
 export const MEMORY_EVALS = [
   defineEval({
     assertions: [savedAMemory, withoutATask],
-    kind: "orchestrator",
+    kind: "chat",
     name: "memory-keeps-a-standing-fact",
     prompt:
       "Before we get into anything: I'm on Pacific time and I only take calls in the morning, so keep that in mind whenever you set something up for me.",
@@ -176,7 +176,7 @@ export const MEMORY_EVALS = [
     // ends at the hand-off, and the save has nowhere to go unless it is in the
     // same command.
     assertions: [savedAMemory, delegatedTheWork, didNotClaimWhatItDidNotSave],
-    kind: "orchestrator",
+    kind: "chat",
     name: "memory-saves-beside-a-hand-off",
     prompt:
       "Find me three electric kettles under $60 and put a short comparison in my Instrument folder. Also, for future reference, I only ever want decaf: any coffee or tea you suggest, now or later, has to be decaf.",

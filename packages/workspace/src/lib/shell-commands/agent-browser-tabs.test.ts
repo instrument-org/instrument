@@ -8,6 +8,7 @@ import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
@@ -26,7 +27,6 @@ const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const TASK_ID = TaskIdSchema.parse("read-the-page");
 // A task no chat owns, which still browses in a guest of its own.
 const LONE_TASK_ID = TaskIdSchema.parse("lone-task");
-const WINDOW_ID = TaskIdSchema.parse("instrument");
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
@@ -109,7 +109,7 @@ async function spawnedCdpUrl() {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
-  for (const id of [WINDOW_ID, TASK_ID, LONE_TASK_ID]) {
+  for (const id of [TASK_ID, LONE_TASK_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
@@ -120,13 +120,17 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(CHAT_SESSION, CHAT_ID);
-  for (const [taskId, initialSettings] of [
-    [WINDOW_ID, { kind: "orchestrator", name: "Instrument" }],
-    [TASK_ID, { name: "Read the page", parentTaskId: CHAT_ID }],
-    [LONE_TASK_ID, { name: "Lone task" }],
+  for (const [taskId, name, chatId] of [
+    [TASK_ID, "Read the page", CHAT_ID],
+    [LONE_TASK_ID, "Lone task", undefined],
   ] as const) {
     const made = await initializeTask(
-      { initialSettings, taskId, workspaceConfig: getWorkspaceConfig() },
+      {
+        ...(chatId ? { chatId } : {}),
+        initialSettings: { name },
+        taskId,
+        workspaceConfig: getWorkspaceConfig(),
+      },
       {},
     );
     if (made.isErr()) {

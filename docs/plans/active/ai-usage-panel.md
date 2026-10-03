@@ -45,7 +45,7 @@ One SQLite file per workspace, opened with `node:sqlite`, in WAL mode so two Stu
 | Package | Existing code touched | New code |
 |---|---|---|
 | `ai-gateway` | `routes/provider.ts`: remove the purpose header, wrap the response body before returning it. `types.ts`: one more Hono context variable | A recorder: a pass-through transform over the response body that reads usage as it flows, one reader per response shape, handing the finished row to a callback supplied through context (the way `captureException` is) |
-| call sites | Add the purpose header: `logic/llm-request.ts`, `lib/generate-title-from-user-message.ts`, `ai-gateway/src/lib/decision-model.ts` and its callers (emoji, topic, retitle), `lib/orchestrator/wake.ts`, `lib/web-search.ts`, `lib/generate-images.ts` / `stream-image.ts`. AI SDK calls take it as `headers`; the plain `fetch` callers set it directly | |
+| call sites | Add the purpose header: `logic/llm-request.ts`, `lib/generate-title-from-user-message.ts`, `ai-gateway/src/lib/decision-model.ts` and its callers (emoji, topic, retitle), `lib/chat/wake.ts`, `lib/web-search.ts`, `lib/generate-images.ts` / `stream-image.ts`. AI SDK calls take it as `headers`; the plain `fetch` callers set it directly | |
 | `workspace` | `logic/server/index.ts` supplies the callback | The store (schema, insert, filtered list, totals, export) and an RPC route over it |
 | `studio` | `atoms/settings-modal.ts` gains `"AI usage"` in `SettingsTab`; the modal's nav gains the entry | The section component |
 

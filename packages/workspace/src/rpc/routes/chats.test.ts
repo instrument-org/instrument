@@ -1,9 +1,10 @@
+import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
-import { forgetChat } from "../../lib/record-folders";
+import { forgetChat, placeChatTask } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -12,9 +13,11 @@ import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { type WorkspaceRPCContext } from "../base";
 import { publisher } from "../publisher";
-import { announceChatRemoved, chatChanges } from "./chats";
+import { announceChatRemoved, chatChanges, chats } from "./chats";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
 // folder under a workspace root of this file's own.
@@ -23,23 +26,14 @@ beforeAll(() => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-routes-")),
+      fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
+  fs.mkdirSync(placeChatTask(childTaskId, taskId), { recursive: true });
 });
-const otherTaskId = TaskIdSchema.parse("orchestrator-other");
-const childTaskId = TaskIdSchema.parse("orchestrator-child");
-
-vi.mock(import("../../lib/task-settings"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  getTaskSettings: (dir: string) =>
-    Promise.resolve(
-      dir.endsWith(childTaskId)
-        ? { kind: "task" as const, name: "Child", parentTaskId: taskId }
-        : undefined,
-    ),
-}));
+const otherTaskId = TaskIdSchema.parse("chat-other");
+const childTaskId = TaskIdSchema.parse("chat-child");
 
 /** A child's bash call as it lands, in the state a tool part reaches. */
 const toolPart = (
@@ -88,14 +82,7 @@ describe("chatChanges", () => {
 
   it.each([
     ["session.tagsChanged", { id: taskId, sessionId: StoreId.newSessionId() }],
-    [
-      "session.done",
-      {
-        id: taskId,
-        parentSessionId: undefined,
-        sessionId: StoreId.newSessionId(),
-      },
-    ],
+    ["session.done", { id: taskId, sessionId: StoreId.newSessionId() }],
   ] as const)(
     "fires on %s, since a chat's state is read off its agent's actor rather than the store",
     async (topic, payload) => {
@@ -168,5 +155,34 @@ describe("chatChanges", () => {
     expect(await fired(next)).toBe(expected);
     controller.abort();
     await changes.return();
+  });
+});
+
+describe("chats.tasks", () => {
+  const context: WorkspaceRPCContext = {
+    workspaceConfig: getWorkspaceConfig(),
+    // Listing never reaches the actor ref for a task it leaves out, so the
+    // cast spares the test booting a workspace machine it would not use.
+    workspaceRef: undefined as unknown as WorkspaceRPCContext["workspaceRef"],
+  };
+
+  it("refuses the window and a task, since nothing lists every chat's tasks", async () => {
+    for (const id of [WINDOW_ID, otherTaskId, childTaskId]) {
+      await expect(call(chats.tasks, { id }, { context })).rejects.toThrow(
+        "That chat is not there any more.",
+      );
+    }
+  });
+
+  it("leaves out a task with no settings, and makes nothing inside it", async () => {
+    expect(await call(chats.tasks, { id: taskId }, { context })).toEqual([]);
+    const childDir = path.join(
+      getWorkspaceConfig().rootDir,
+      "chats",
+      taskId,
+      "tasks",
+      childTaskId,
+    );
+    expect(fs.readdirSync(childDir)).toEqual([]);
   });
 });

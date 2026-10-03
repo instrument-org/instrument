@@ -1,13 +1,11 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { Hono } from "hono";
 import { WebSocket } from "ws";
 
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
 import {
   agentPathOfFileUrl,
-  agentSpellingOfFileUrls,
   isLocalAddress,
 } from "../../../lib/local-page-address";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
@@ -15,14 +13,8 @@ import {
   nonTaskMounts,
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
-import { TaskIdSchema } from "../../../schemas/task-id";
 import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
-import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
-import {
-  type WorkspaceServerEnv,
-  type WorkspaceServerParentRef,
-} from "../types";
-import { getWorkspaceServerPort } from "../url";
+import { type WorkspaceServerParentRef } from "../types";
 
 // CDP wire envelopes. Inbound is from agent-browser (untrusted JSON), outbound
 // either has `result` (typed by command) or `error`, plus async event frames.
@@ -42,47 +34,6 @@ export type CdpResponse =
   | { id?: number; result: unknown };
 type CdpEventName = keyof ProtocolMapping.Events;
 type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
-
-export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>().basePath(
-  CDP_BASE_PATH,
-);
-
-cdpBridgeRoute.get("/json/version", (c) => {
-  const port = getWorkspaceServerPort();
-  return c.json({
-    Browser: "Electron/Chromium",
-    "Protocol-Version": "1.3",
-    "User-Agent": "Electron",
-    "V8-Version": process.versions.v8,
-    "WebKit-Version": "",
-    webSocketDebuggerUrl: `ws://127.0.0.1:${port}${CDP_BASE_PATH}/devtools/browser`,
-  });
-});
-
-cdpBridgeRoute.get("/json", async (c) => {
-  const subdomainResult = TaskIdSchema.safeParse(c.req.query("id"));
-  if (!subdomainResult.success) {
-    return c.json({ error: "id query parameter required" }, 400);
-  }
-
-  const { browser } = c.get("workspaceConfig");
-  const port = getWorkspaceServerPort();
-  const targets = await browser.listTargets(subdomainResult.data);
-  // The listing is the agent's, so a local page is named by the agent's path.
-  const layout = await taskFsLayout(subdomainResult.data);
-
-  return c.json(
-    targets.map((t) => ({
-      description: "",
-      devtoolsFrontendUrl: "",
-      id: t.id,
-      title: t.title,
-      type: t.type,
-      url: agentSpellingOfFileUrls(t.url, layout),
-      webSocketDebuggerUrl: `ws://127.0.0.1:${port}${CDP_PAGE_PATH_PREFIX}${t.id}`,
-    })),
-  );
-});
 
 // Commands that operate on the browser-level target tree. We intercept these
 // and return synthetic responses scoped to just the single WebContentsView

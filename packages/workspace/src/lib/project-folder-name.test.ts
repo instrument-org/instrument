@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { validateProjectName } from "./project-folder-name";
+import { validateFolderName } from "./project-folder-name";
 
-describe("validateProjectName", () => {
+describe("validateFolderName", () => {
   it.each([
     ["Marketing Site", "Marketing Site"],
     ["  Trimmed  ", "Trimmed"],
     ["Q3 Report (v2)", "Q3 Report (v2)"],
     ["émojis 🚀 ok", "émojis 🚀 ok"],
   ])("accepts %j -> %j", (input, expected) => {
-    expect(validateProjectName(input)._unsafeUnwrap()).toBe(expected);
+    expect(validateFolderName(input, "Topic")._unsafeUnwrap()).toBe(expected);
   });
 
   it.each([
@@ -26,6 +26,6 @@ describe("validateProjectName", () => {
     [".", "dot"],
     ["..", "dotdot"],
   ])("rejects %j (%s)", (input) => {
-    expect(validateProjectName(input).isErr()).toBe(true);
+    expect(validateFolderName(input, "Topic").isErr()).toBe(true);
   });
 });

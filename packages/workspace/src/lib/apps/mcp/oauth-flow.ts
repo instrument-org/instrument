@@ -7,6 +7,7 @@ import { noop } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
 import { recordConnection } from "../connection";
+import { boundTo } from "../origin-bound";
 import { loadApp } from "../store";
 import { type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
@@ -96,10 +97,12 @@ export async function beginMcpOAuth({
   // the authorization it now waits on. A holder object so control-flow
   // analysis does not narrow the value to the literal it started as.
   const opened: { url?: string } = {};
+  const origin = new URL(manifest.url).origin;
   const provider = createMcpOAuthProvider({
     openAuthorization: (url) => {
       opened.url = url.toString();
     },
+    origin,
     redirectUrl,
     scope: manifest.auth.scope,
     slug,
@@ -115,8 +118,10 @@ export async function beginMcpOAuth({
   // a sign-in. Some servers answer initialize and tools/list to a stranger and
   // refuse the first call (Google's Workspace servers do), so a connection
   // with no token behind it is discovery, not a session, and the app is not
-  // connected on the strength of it.
-  const signedIn = (await store.getTokens(slug)) !== undefined;
+  // connected on the strength of it. A token counts only for the server it
+  // was obtained from: one saved for another origin is a sign-in the user
+  // gave somewhere else, so this server gets a sign-in of its own.
+  const signedIn = boundTo(await store.getTokens(slug), origin) !== undefined;
 
   let failure: unknown;
   try {
@@ -233,6 +238,18 @@ export async function completeMcpOAuth({
       return err({
         message: `Signed in, but app "${flow.slug}" no longer exists.`,
         reason: "connect",
+      });
+    }
+    // The tokens belong to the server the sign-in began against. A manifest
+    // pointed elsewhere since is not what the user signed in to.
+    const current = loaded.value.manifest;
+    if (
+      current.type !== "mcp" ||
+      new URL(current.url).origin !== new URL(flow.url).origin
+    ) {
+      return err({
+        message: `Signed in, but app "${flow.slug}" now points at another server. Ask the user to sign in again with connect_app.`,
+        reason: "unauthorized",
       });
     }
     // The connect and the list prove the app works, so it is connected now:

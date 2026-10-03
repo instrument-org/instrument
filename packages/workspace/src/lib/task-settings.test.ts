@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { ProjectIdSchema } from "../schemas/project-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
@@ -60,14 +59,14 @@ describe("updateTaskSettings", () => {
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
-    await setTaskState(taskDir(taskId), { promptDraft: "half typed" });
+    await setTaskState(taskDir(taskId), { selectedModelURI: "half typed" });
 
     await updateTaskSettings(taskId, { name: "Renamed" });
 
     const state = await getTaskState(taskDir(taskId));
     const settings = await getTaskSettings(taskDir(taskId));
 
-    expect(state.promptDraft).toBe("half typed");
+    expect(state.selectedModelURI).toBe("half typed");
     expect(settings?.name).toBe("Renamed");
   });
 
@@ -117,23 +116,5 @@ describe("updateTaskSettings", () => {
       name: "Keep this name",
       reasoningEffort: "loud",
     });
-  });
-
-  it("clears a project with null while a concurrent update keeps its own field", async () => {
-    await updateTaskSettings(taskId, {
-      name: "In a project",
-      projectId: ProjectIdSchema.parse("prj_N1FZH5VKD9779DKV5HZF1NB3XS"),
-    });
-
-    const results = await Promise.all([
-      updateTaskSettings(taskId, { projectId: null }),
-      updateTaskSettings(taskId, { reasoningEffort: "high" }),
-    ]);
-
-    const settings = await getTaskSettings(taskDir(taskId));
-
-    expect(results.every((result) => result.isOk())).toBe(true);
-    expect(settings?.projectId).toBeUndefined();
-    expect(settings?.reasoningEffort).toBe("high");
   });
 });

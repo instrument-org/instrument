@@ -24,6 +24,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
   StoreId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
@@ -100,8 +101,7 @@ export function FilesScreen({
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
 }) {
-  const { browser, openPage, openScreen, rowLead, rowTail, taskId } =
-    useWindow();
+  const { browser, openPage, openScreen, rowLead, rowTail } = useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepTab, stepVisitOf } =
     useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
@@ -128,8 +128,11 @@ export function FilesScreen({
       router.history.push(folderHref(folderOf(file)));
     }
   };
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
+  // The folders the window reaches, read from what opened it.
+  const reach = useQuery(
+    rpcClient.workspace.window.ensure.queryOptions({
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
   );
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   // A file opened from the Finder carries the folder the Finder stood in,
@@ -243,7 +246,10 @@ export function FilesScreen({
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
-      : encodeBrowserTargetId(taskId, StoreId.SessionSchema.parse(hostedTabId)),
+      : encodeBrowserTargetId(
+          WINDOW_ID,
+          StoreId.SessionSchema.parse(hostedTabId),
+        ),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
     (step) => {
       if (step.kind === "back") {
@@ -346,7 +352,7 @@ export function FilesScreen({
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
-    ? mountOfHostPath(activeFile.hostPath, state.data?.attachedFolders ?? {})
+    ? mountOfHostPath(activeFile.hostPath, reach.data?.attachedFolders ?? {})
     : undefined;
 
   useOnScreen(

@@ -203,11 +203,9 @@ const CONFIG_READ_FLAGS = new Set([
 
 export function createGitCommand({
   attachedFolders,
-  projectFolderName,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
-  projectFolderName?: string;
   taskId: TaskId;
 }) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
@@ -218,7 +216,6 @@ export function createGitCommand({
 
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
-      projectFolderName,
       taskHostRoot: taskDir(taskId),
     });
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);

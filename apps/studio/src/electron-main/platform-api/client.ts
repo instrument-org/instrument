@@ -1,3 +1,4 @@
+import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { DedupeRequestsPlugin } from "@orpc/client/plugins";
@@ -9,8 +10,21 @@ import { isEqual } from "radashi";
 import { type contract } from "./contract";
 import { getPlatformApiHeaders } from "./headers";
 import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
+import { forgetRefusedToken } from "./utils";
 
 const RPC_LINK = new RPCLink({
+  // A 401 means the session behind the token is gone, so the token goes too,
+  // the way a sign-out takes it.
+  fetch: async (request, init) => {
+    const response = await fetch(request, init);
+    if (
+      response.status === 401 &&
+      forgetRefusedToken(request.headers.get("authorization"))
+    ) {
+      void setDefaultModel({ onlyIfOurModel: true });
+    }
+    return response;
+  },
   headers: getPlatformApiHeaders,
   plugins: [
     new DedupeRequestsPlugin({

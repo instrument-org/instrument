@@ -3,10 +3,8 @@ import { createContext } from "react";
 import { type OpenOptions } from "./window/context";
 
 /**
- * Where a surface other than the task page sends a file the transcript
- * offers. The task page opens files in its pane; a window without one says
- * here what to do instead, and `useShowTaskFile` asks this before reaching for
- * a pane.
+ * Where a surface sends a file the transcript offers. A surface drawn without
+ * one, such as a previewed conversation, offers nothing to open a file with.
  *
  * A path ending in a slash names a folder rather than a file, and a surface
  * with somewhere to put one opens it there. One opener for both, because what

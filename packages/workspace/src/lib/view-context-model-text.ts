@@ -20,18 +20,6 @@ export function viewContextModelNote(data: ViewContext) {
   return `${screenNote(data)}${chosenNote(data)}${tabsNote(data)}`;
 }
 
-function chatNote(data: ViewContext) {
-  const { chat } = data;
-  if (!chat) {
-    return systemNote`
-      When the user sent this, one of their chats was open. "This chat" refers to it.
-    `;
-  }
-  return systemNote`
-    When the user sent this, the chat "${chat.title}" was open, its transcript on screen. "This chat", "this", "here" and "it" refer to that chat. When it is not the chat you are in, \`chat read ${chat.title}\` reads it.
-  `;
-}
-
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
 function chosenNote(data: ViewContext) {
   const chosen = data.chosen ?? [];
@@ -169,9 +157,6 @@ function screenNote(data: ViewContext) {
     case "browser": {
       return pageNote(data);
     }
-    case "chat": {
-      return chatNote(data);
-    }
     case "computer": {
       return systemNote`
         When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
@@ -185,14 +170,14 @@ function screenNote(data: ViewContext) {
         When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       `;
     }
-    case "ideas": {
+    case "discover": {
       if (data.idea) {
         return systemNote`
-          When the user sent this, the window showed the Ideas screen open on one kind of page, "${data.idea.title}": ${data.idea.tagline} It is the \`${data.idea.name}\` template of the \`${SKILL_NAMES.createPage}\` skill. "This", "one of these", "this kind of page" and "like this" refer to it: a page they ask for here is made with that skill and that template, and a brief for it names both.
+          When the user sent this, the window showed the Discover screen open on one kind of page, "${data.idea.title}": ${data.idea.tagline} It is the \`${data.idea.name}\` template of the \`${SKILL_NAMES.createPage}\` skill. "This", "one of these", "this kind of page" and "like this" refer to it: a page they ask for here is made with that skill and that template, and a brief for it names both.
         `;
       }
       return systemNote`
-        When the user sent this, the window showed the Ideas screen: the kinds of page Instrument can make, each a template of the \`${SKILL_NAMES.createPage}\` skill, with examples of each. Nothing in particular is in view unless they name one.
+        When the user sent this, the window showed the Discover screen: the kinds of page Instrument can make, each a template of the \`${SKILL_NAMES.createPage}\` skill, with examples of each. Nothing in particular is in view unless they name one.
       `;
     }
     case "skills": {

@@ -62,7 +62,7 @@ export function FilesGrid({
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const showTaskFile = useShowTaskFile(undefined);
+  const showTaskFile = useShowTaskFile();
 
   // A card here always came from a task's transcript, so the task's own path
   // is what the pane and the conversation address it by.

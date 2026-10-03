@@ -2,7 +2,6 @@ export type { AgentName } from "./agents/types";
 export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
@@ -21,8 +20,8 @@ export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
-export type { ComputerListing } from "./lib/orchestrator/computer";
-export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
+export type { ComputerListing } from "./lib/chat/computer";
+export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export {
   isMessageDocument,
@@ -33,7 +32,6 @@ export {
   parseMessage,
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
-export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
@@ -53,8 +51,7 @@ export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
-export type { Project, ProjectFolder } from "./schemas/project";
-export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
+export { ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { type SessionMessagePart } from "./schemas/session/message-part";
@@ -62,7 +59,7 @@ export { StoreId } from "./schemas/store-id";
 export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
-export { TaskPane } from "./schemas/task-pane";
+export { WINDOW_ID } from "./schemas/window-id";
 export type { WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {
@@ -71,3 +68,4 @@ export {
   decodeBrowserTargetId,
   encodeBrowserTargetId,
 } from "./types";
+export type { ChildTask } from "./rpc/routes/chats";

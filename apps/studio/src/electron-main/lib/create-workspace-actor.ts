@@ -15,9 +15,8 @@ import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
-  attachOrchestrator,
+  attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
-  clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -84,16 +83,6 @@ export function createWorkspaceActor({
     );
     if (migration.movedTaskCount > 0) {
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
-    }
-    if (migration.chats.leftOver > 0) {
-      logger.warn(
-        `Left ${migration.chats.leftOver} chat item(s) in the old layout to move on the next boot`,
-      );
-    }
-    if (migration.chats.chatCount > 0) {
-      logger.info(
-        `Gave ${migration.chats.chatCount} chat(s) folders of their own, moved ${migration.chats.movedTaskCount} task(s) into them, and wrote ${migration.chats.topicCount} topic(s) as files`,
-      );
     }
     if (migration.legacyTasks.adoptedCount > 0) {
       logger.info(
@@ -184,7 +173,7 @@ export function createWorkspaceActor({
       webSearch: searchWeb,
     },
   });
-  attachOrchestrator(actor);
+  attachChats(actor);
   actor.start();
 
   const snapshot = actor.getSnapshot();
@@ -198,25 +187,6 @@ export function createWorkspaceActor({
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
-
-  // Reconcile task -> project references against disk. A project folder can be
-  // deleted outside the app (or while it is closed), leaving tasks pointing at
-  // a project that no longer exists; in-app deletes already sweep, but disk
-  // deletes do not. Best-effort and async; must not block boot.
-  void clearOrphanedProjectRefs()
-    .then((clearedTaskIds) => {
-      if (clearedTaskIds.length > 0) {
-        logger.info(
-          `Cleared ${clearedTaskIds.length} task(s) referencing a deleted project`,
-        );
-      }
-    })
-    .catch((error: unknown) => {
-      captureServerException(
-        error instanceof Error ? error : new Error(String(error)),
-        { scopes: ["studio"] },
-      );
-    });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.

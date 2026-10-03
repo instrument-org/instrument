@@ -32,7 +32,7 @@ node $DRIVE state
 node $DRIVE snapshot --selector '[role=dialog]'
 node $DRIVE click --text "New skill"
 node $DRIVE shot out.png --selector '[role=dialog]' --pad 8
-node $DRIVE rpc workspace.task.list '{}'
+node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
 node $DRIVE stop
 ```
 
@@ -59,7 +59,7 @@ It also clears `ELECTRON_RUN_AS_NODE` from the app's environment, so there is no
 
 Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). A packaged build, and any checkout without that file, will not have it.
 
-`boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a task pane still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
+`boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a chat still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
 
 ```bash
 node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
@@ -114,7 +114,7 @@ export default async (app, args) => {
   );
 
   // branch on what you found, which a shell chain cannot do
-  const { tasks } = await app.rpc("workspace.task.list", {});
+  const tasks = await app.rpc("workspace.chats.tasks", { id: args.chat });
   if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}`);
 
   return { taskCount: tasks.length };
@@ -135,12 +135,14 @@ Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held c
 `rpc` calls any oRPC route on the renderer's real client, through `window.__studioDebug` (`client/lib/debug-rpc-bridge.ts`):
 
 ```bash
-node $DRIVE rpc workspace.task.list '{}'
+node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
 node $DRIVE rpc workspace.task.agentStatus.byIds '{"ids":["generated-pdf"]}'
 node $DRIVE rpc gateway.models.list
 ```
 
 The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
+
+Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/`, and no route lists every chat's tasks. `workspace.chats.of '{"sessionId":"ses_..."}'` turns a chat's session (the id in a `/chats/<session>` address) into it.
 
 Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
 

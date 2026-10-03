@@ -88,7 +88,7 @@ export function screenLocation(
     };
   }
   if (pathname === DISCOVER_HREF) {
-    return { kind: "ideas" };
+    return { kind: "discover" };
   }
   // A skill is addressed by its name, which is also what it is called: the
   // exact name a task loads it by is the one the reader has for it too.
@@ -110,7 +110,10 @@ export function screenLocation(
     };
   }
   if (tasks) {
-    return { kind: "tasks" };
+    return {
+      kind: "tasks",
+      ...(tasks.chat === undefined ? {} : { chat: tasks.chat }),
+    };
   }
   // A screen the window has no words for reads as the new tab: the place
   // with nothing in particular in it.
@@ -175,7 +178,7 @@ export function screenPresentation(
     };
   }
   if (pathname === DISCOVER_HREF) {
-    return { icon: <CompassIcon className="size-3.5" />, title: "Ideas" };
+    return { icon: <CompassIcon className="size-3.5" />, title: "Discover" };
   }
   if (pathname.startsWith(`${SKILLS_HREF}/`)) {
     return {

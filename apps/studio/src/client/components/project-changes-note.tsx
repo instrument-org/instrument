@@ -1,21 +1,11 @@
-import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { useQuery } from "@tanstack/react-query";
 
 export function ProjectChangesNote({
   data,
 }: {
   data: SessionMessageDataPart.ProjectChangesDataPart;
 }) {
-  // The project's name as it is now; a projectId can dangle after its
-  // project is deleted, and then the snapshot name stands in.
-  const { data: project } = useQuery(
-    rpcClient.workspace.project.byId.queryOptions({
-      input: { id: data.projectId },
-    }),
-  );
-
   const changes: string[] = [];
   if (data.instructionsChanged) {
     changes.push(
@@ -46,9 +36,7 @@ export function ProjectChangesNote({
         <span className="truncate">
           {summary.charAt(0).toUpperCase() + summary.slice(1)} from
         </span>
-        <span className="shrink-0 font-medium">
-          {project?.name ?? data.projectName}
-        </span>
+        <span className="shrink-0 font-medium">{data.projectName}</span>
       </div>
     </div>
   );

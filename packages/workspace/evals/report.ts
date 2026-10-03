@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { getTasks } from "../src/lib/get-tasks";
-import { listChildTasks } from "../src/lib/orchestrator/children";
+import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
@@ -326,7 +326,7 @@ export async function generateReport({
       // A conversation that delegates does most of what it is being scored on
       // inside its tasks, and those are separate tasks rather than sessions of
       // this one, so `sessions` alone cannot see the work. Read lazily: only an
-      // orchestrator case has children, and only some of its assertions ask.
+      // chat case has children, and only some of its assertions ask.
       const childSessions = async () => {
         const children = await listChildTasks(taskId);
         return Promise.all(

@@ -14,22 +14,20 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
-import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
-import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
-import { detectProjectChanges } from "./detect-project-changes";
+
 import { detectMessageGap } from "./message-gap";
-import { folderReach } from "./orchestrator/folder-reach";
-import { listTopics, type TopicFolder } from "./orchestrator/topics";
-import { tabHolders } from "./orchestrator/window-tab";
+import { folderReach } from "./chat/folder-reach";
+import { listTopics, type TopicFolder } from "./chat/topics";
+import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
-import { getTaskSettings } from "./task-settings";
+import { isChatId } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -42,7 +40,6 @@ export async function newMessage({
   model,
   modelURI,
   output,
-  projectContext,
   prompt,
   replyTo,
   sessionId,
@@ -63,7 +60,6 @@ export async function newMessage({
   modelURI: AIGatewayModelURI.Type;
   /** The kind of page the user asked for the response as; see the output-format part. */
   output?: SessionMessageDataPart.OutputFormatDataPart;
-  projectContext?: SessionMessageDataPart.ProjectContextDataPart;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
@@ -183,19 +179,6 @@ export async function newMessage({
     parts.push(await namedByReach(taskId, uploadResult.value.part));
   }
 
-  if (projectContext) {
-    parts.push({
-      data: projectContext,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-projectContext",
-    });
-  }
-
   if (chatContext) {
     parts.push({
       data: chatContext,
@@ -219,27 +202,19 @@ export async function newMessage({
     parts.push(backgroundProcessesPart);
   }
 
-  // A fresh request is a fresh claim on the user's attention, so the first page
-  // this turn reaches may take the pane again.
-  const allowed = await allowBrowserReveal({ sessionId, taskId });
-  if (allowed.isErr()) {
-    getWorkspaceConfig().captureException(allowed.error);
-  }
-
-  // An orchestrator has no browser of its own: it drives whichever of the
+  // A chat has no browser of its own: it drives whichever of the
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned.
-  const settings = await getTaskSettings(taskDir(taskId));
-  const browserStatusPart =
-    settings?.kind === "orchestrator"
-      ? undefined
-      : await createBrowserStatusPart({
-          createdAt,
-          messageId,
-          sessionId,
-          taskId,
-        });
+  const isChat = isChatId(taskId);
+  const browserStatusPart = isChat
+    ? undefined
+    : await createBrowserStatusPart({
+        createdAt,
+        messageId,
+        sessionId,
+        taskId,
+      });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
   }
@@ -259,10 +234,10 @@ export async function newMessage({
   // later.
   //
   // Only where a person is the one who went quiet. A task's messages come from
-  // the orchestrator by way of `task send`, so the same gap there measures how
+  // the chat by way of `task send`, so the same gap there measures how
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
-  if (settings?.kind === "orchestrator") {
+  if (isChat) {
     const messageGap = await detectMessageGap({
       messageId,
       sentAt: createdAt,
@@ -301,38 +276,6 @@ export async function newMessage({
     }
   }
 
-  // A message that says what its window has on screen has said it all; the
-  // pane is the task page's, and a window without one has nothing to report.
-  // An orchestrator's window is never that page: whatever a message of its
-  // own leaves unsaid about the screen, the pane cannot say either.
-  const paneTabsPart =
-    viewing || settings?.kind === "orchestrator"
-      ? undefined
-      : await createPaneTabsPart({
-          createdAt,
-          messageId,
-          sessionId,
-          taskId,
-        });
-  if (paneTabsPart) {
-    parts.push(paneTabsPart);
-  }
-
-  // Notify agent when the live project's instructions or folders drift from the
-  // task's frozen snapshot. Also writes folder additions/removals into task
-  // state so they become standing context.
-  const projectChanges = await detectProjectChanges({
-    messageId,
-    sessionId,
-    taskId,
-  });
-  if (projectChanges.isErr()) {
-    // Awareness of project drift is best-effort; never block sending.
-    getWorkspaceConfig().captureException(projectChanges.error);
-  } else if (projectChanges.value) {
-    parts.push(projectChanges.value);
-  }
-
   // The apps a task may reach are named in the session context, which is never
   // rewritten, so an app handed over after it started arrives here or nowhere.
   const appChanges = await detectTaskAppChanges({
@@ -348,23 +291,12 @@ export async function newMessage({
   }
 
   // Notify agent of folders added, removed, or renamed since last turn
-  // (per-session baseline diff). Runs after writeUploadedAttachments and
-  // detectProjectChanges above so a rename either of them triggers this message
-  // is read as part of "current" and reported now instead of lagging a turn
-  // behind -- and so the folders those two just introduced can be named here as
-  // already announced. A project folder arriving is the project's news, told
-  // once by the part above; told again here it would reach the model twice and
-  // the user as two separate notes about one change.
-  const projectFolders =
-    projectChanges.isOk() &&
-    projectChanges.value?.type === "data-projectChanges"
-      ? projectChanges.value.data.foldersAdded.map((folder) => folder.path)
-      : [];
+  // (per-session baseline diff). Runs after writeUploadedAttachments above so a
+  // rename it triggers is read as part of "current" and reported now instead of
+  // lagging a turn behind, and so the folders this message attaches can be
+  // named here as already announced.
   const folderChanges = await detectAttachedFolderChanges({
-    announced: [
-      ...(folders?.map((folder) => folder.path) ?? []),
-      ...projectFolders,
-    ],
+    announced: folders?.map((folder) => folder.path) ?? [],
     messageId,
     sessionId,
     taskId,

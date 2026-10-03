@@ -1105,7 +1105,7 @@ a.cursor-pointer {
   }
 }
 
-/* A pane tab growing into the row it was just opened in; see `pane-tabs.tsx`,
+/* A pane tab growing into the row it was just opened in; see `tab-strip.tsx`,
  * which puts the class there and only on a tab the task did not have a moment
  * ago. Drawn for the first time is not the same as new.
  *
@@ -1127,7 +1127,7 @@ a.cursor-pointer {
  * values outrank a stylesheet's. The margin is the strip's `gap-1`, which a tab
  * at zero width is otherwise still holding open. */
 .pane-tab-arriving {
-  /* Set on the strip in `pane-tabs.tsx`, which is where the length of both of
+  /* Set on the strip in `tab-strip.tsx`, which is where the length of both of
      these lives; see `TAB_MOTION_MS`. */
   animation: pane-tab-in var(--tab-motion) ease-out;
 }

@@ -2,9 +2,9 @@ import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 
 /**
- * The line that marks why the orchestrator woke: a task it created finished a
+ * The line that marks why the chat woke: a task it created finished a
  * turn. One line per task, in the muted voice of a note rather than a
- * message, since the orchestrator's own reply is what the reader is waiting
+ * message, since the chat's own reply is what the reader is waiting
  * for.
  */
 export function TaskEventNote({

@@ -1,7 +1,4 @@
-import {
-  type SessionMessagePart,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
 import { ToolCardEmpty } from "./tool-card";
@@ -11,13 +8,7 @@ type WriteFilePart = Extract<
   { type: "tool-write_file" }
 >;
 
-export function ToolWriteFile({
-  id,
-  part,
-}: {
-  id: TaskId;
-  part: WriteFilePart;
-}) {
+export function ToolWriteFile({ part }: { part: WriteFilePart }) {
   const filePath =
     part.state === "output-available"
       ? part.output.filePath
@@ -37,7 +28,6 @@ export function ToolWriteFile({
     <FileToolCard
       content={content}
       filePath={filePath}
-      id={id}
       modifiedAt={modifiedAt}
     />
   );

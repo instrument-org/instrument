@@ -24,8 +24,8 @@ const ReportedProcessesSchema = z.array(
  * back up either starts a second copy of a server that is already listening, or
  * tells the user to open a URL for a process that has since been killed.
  *
- * Attached only when the answer changed, the way the browser status and pane
- * tabs parts are: restating an unchanged list every turn spends context saying
+ * Attached only when the answer changed, the way the browser status part
+ * is: restating an unchanged list every turn spends context saying
  * something the agent was already told and has no reason to doubt.
  *
  * `ended` is the half that a restart needs. Nothing in the registry survives a

@@ -1,11 +1,11 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { childTaskMounts } from "./orchestrator/children";
-import { folderReach } from "./orchestrator/folder-reach";
+import { WINDOW_ID } from "../schemas/window-id";
+import { childTaskMounts, windowTaskMounts } from "./chat/children";
+import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
-import { resolveTaskProjectFolder } from "./task-project-folder";
-import { getTaskSettings } from "./task-settings";
+import { isChatId } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
@@ -13,9 +13,8 @@ import {
 
 /**
  * Host path for a file a task can reach: task-relative, the mount path of a
- * folder the user attached (`/mnt/<name>/...`), the folder of the task's
- * project (`/project/...`), or, for an orchestrator, a task it created
- * (`/tasks/<id>/...`). Null when the path resolves outside everything the task
+ * folder the user attached (`/mnt/<name>/...`), or, for a chat, a task it
+ * created (`/tasks/<id>/...`). Null when the path resolves outside everything the task
  * has -- including the task's own private dir and a symlink leading out of a
  * mount -- so a caller can fail closed.
  *
@@ -60,19 +59,18 @@ export async function resolveWorkspaceFilePaths({
 
 /**
  * The filesystem a task's agent sees, as it stands now: its own folder, the
- * folders attached to it, its project's folder and, for an orchestrator, the
- * tasks it created.
+ * folders attached to it and, for a chat, the tasks it created. The window's is a chat's without a chat's own folders,
+ * reaching every chat's tasks.
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   const taskHostRoot = taskDir(taskId);
-  const settings = await getTaskSettings(taskHostRoot);
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
-    extraMounts:
-      settings?.kind === "orchestrator"
-        ? await childTaskMounts(taskId)
+    extraMounts: isChatId(taskId)
+      ? await childTaskMounts(taskId)
+      : taskId === WINDOW_ID
+        ? windowTaskMounts()
         : undefined,
-    projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });
 }

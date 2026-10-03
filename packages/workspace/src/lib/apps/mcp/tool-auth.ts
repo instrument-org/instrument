@@ -2,6 +2,7 @@ import { type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.
 
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type McpAppManifest } from "../manifest";
+import { credentialOrigin } from "../origin-bound";
 import { createMcpOAuthProvider } from "./oauth-provider";
 
 /**
@@ -32,6 +33,7 @@ export function mcpAuthProviderForCommand(
         "This app needs the user to sign in again. Ask with connect_app.",
       );
     },
+    origin: credentialOrigin(manifest),
     redirectUrl: oauth.redirectUrl(),
     scope: manifest.auth.scope,
     slug,

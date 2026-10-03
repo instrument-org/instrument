@@ -9,12 +9,12 @@ import {
 } from "../../schemas/window-tab";
 import { encodeBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
-import { windowTaskId } from "../orchestrator/ensure";
+import { WINDOW_ID } from "../../schemas/window-id";
 import {
   askWindow,
   tabHolders,
   WINDOW_TAB_TIMEOUT_MS,
-} from "../orchestrator/window-tab";
+} from "../chat/window-tab";
 import { isUnder } from "../path-containment";
 import { TAB_COMMAND } from "./tab-command";
 
@@ -173,12 +173,10 @@ function noteOpenedPage(tabId: string | undefined) {
   if (!session.success) {
     return;
   }
-  void windowTaskId().then((windowId) => {
-    noteBrowserAgentActivity(
-      windowId,
-      encodeBrowserTargetId(windowId, session.data),
-    );
-  });
+  noteBrowserAgentActivity(
+    WINDOW_ID,
+    encodeBrowserTargetId(WINDOW_ID, session.data),
+  );
 }
 
 function report(lines: string[], failures: string[]) {

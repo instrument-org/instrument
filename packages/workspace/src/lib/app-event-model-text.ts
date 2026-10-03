@@ -3,7 +3,7 @@ import { APP_COMMAND } from "./shell-commands/app-command";
 import { systemNote } from "./system-note";
 
 /**
- * The note that wakes an orchestrator about an app: the user finished a
+ * The note that wakes a chat about an app: the user finished a
  * sign-in, saved a key, declined, or took an app away. What to do next is in
  * the note, since nobody typed anything and the agent has to know why it is
  * awake.

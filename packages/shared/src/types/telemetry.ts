@@ -73,11 +73,6 @@ export interface AnalyticsEvents {
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "project.created": never;
-  "project.invalid_folder_trashed": never;
-  "project.removed": never;
-  "project.task_added": never;
-  "project.task_removed": never;
   "provider.created": {
     provider_type: AIProviderType;
   };
@@ -92,7 +87,6 @@ export interface AnalyticsEvents {
     provider_type: AIProviderType;
   };
   "session.created": never;
-  "session.removed": never;
   "session.run": never;
   "session.stopped": never;
   "subscribe.billing_cycle_changed": {

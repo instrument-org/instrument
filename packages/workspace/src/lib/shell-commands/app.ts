@@ -24,8 +24,14 @@ import {
   AppSlugSchema,
   isMcpManifest,
 } from "../apps/manifest";
+import {
+  credentialMovedMessage,
+  lookupAppCredential,
+  requireAppCredential,
+} from "../apps/credential-origin";
 import { callMcpTool, listMcpTools } from "../apps/mcp/client";
 import { withAppMcpClient } from "../apps/mcp/run";
+import { credentialOrigin } from "../apps/origin-bound";
 import { performAppRequest, redactCredential } from "../apps/request";
 import {
   type AppInfo,
@@ -178,8 +184,8 @@ export function createAppCommand(context: AppCommandContext) {
 }
 
 /**
- * The apps a task may reach: the ones the orchestrator handed it, by slug, or
- * every app for a task nobody scoped (the orchestrator itself, a task a person
+ * The apps a task may reach: the ones the chat handed it, by slug, or
+ * every app for a task nobody scoped (the chat itself, a task a person
  * made). Undefined means every app.
  */
 async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
@@ -425,7 +431,8 @@ function quoted({
 async function redactorFor(app: AppInfo, credential: null | string) {
   const oauthTokens =
     app.manifest.type === "mcp" && app.manifest.auth.kind === "oauth"
-      ? await getWorkspaceConfig().apps.oauth?.store.getTokens(app.slug)
+      ? (await getWorkspaceConfig().apps.oauth?.store.getTokens(app.slug))
+          ?.value
       : undefined;
   return (text: string) => {
     let out = redactCredential(text, credential);
@@ -492,11 +499,7 @@ async function runCall(
     );
   }
   const params = jsonFrom(inline, stdin, "The tool's arguments");
-  const config = getWorkspaceConfig();
-  const credential =
-    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-      ? null
-      : await config.apps.getCredential(app.slug);
+  const credential = await requireAppCredential(app.slug, manifest);
   const redact = await redactorFor(app, credential);
   const result = await withAppMcpClient({
     credential,
@@ -738,19 +741,23 @@ async function runNew(args: string[], context: AppCommandContext) {
   // A key already in the store outlives the manifest that asked for it, so
   // rewriting one to try another auth placement costs the user nothing: the
   // test reuses what they already pasted. Asking again for a key we hold is
-  // how one wrong placement turns into four trips to the card.
+  // how one wrong placement turns into four trips to the card. The key is
+  // bound to the origin it was saved for, so only a manifest that still sends
+  // requests there reuses it; one pointed elsewhere asks the user again.
   const stored =
     manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-      ? null
-      : await getWorkspaceConfig().apps.getCredential(slug);
+      ? undefined
+      : await lookupAppCredential(slug, manifest);
   const next =
     manifest.auth.kind === "none"
       ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
       : manifest.auth.kind === "oauth"
         ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
-        : stored === null
-          ? `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`
-          : `A key for this app is already stored: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`;
+        : stored?.kind === "ok"
+          ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`
+          : stored?.kind === "moved"
+            ? credentialMovedMessage({ noun: "key", ...stored })
+            : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
   return ok(
     `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
@@ -810,8 +817,7 @@ async function runRequest(
   );
   const piped = subprocessStdin(stdin)?.toString("utf8").trim();
   const body = piped || inlineBody?.trim() || undefined;
-  const config = getWorkspaceConfig();
-  const credential = await config.apps.getCredential(app.slug);
+  const credential = await requireAppCredential(app.slug, app.manifest);
   const result = await performAppRequest({
     body,
     credential,
@@ -871,11 +877,7 @@ async function runTools(
       `"${app.slug}" is an API app and has no tools; read its guide with \`${APP_COMMAND.name} guide ${app.slug}\` and make requests.`,
     );
   }
-  const config = getWorkspaceConfig();
-  const credential =
-    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
-      ? null
-      : await config.apps.getCredential(app.slug);
+  const credential = await requireAppCredential(app.slug, manifest);
   const redact = await redactorFor(app, credential);
   const result = await withAppMcpClient({
     credential,

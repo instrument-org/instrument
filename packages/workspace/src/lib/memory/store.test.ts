@@ -106,16 +106,6 @@ describe("saveMemory", () => {
     const memory = await readMemory(dir, "zevia");
     expect(memory?.from).toEqual({ title });
   });
-
-  it("reads the chat of a memory saved while chats were threads", async () => {
-    await fs.writeFile(
-      path.join(dir, "roofer.md"),
-      '---\nfrom: "Roofer call"\nthread: "ses_1"\nat: 2026-09-01T00:00:00.000Z\n---\nThe roofer comes Tuesday.\n',
-    );
-
-    const memory = await readMemory(dir, "roofer");
-    expect(memory?.from).toEqual({ sessionId: "ses_1", title: "Roofer call" });
-  });
 });
 
 describe("listMemories", () => {

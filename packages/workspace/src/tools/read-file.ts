@@ -26,7 +26,7 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
-import { childTaskMounts } from "../lib/orchestrator/children";
+import { childTaskMounts } from "../lib/chat/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
@@ -46,7 +46,6 @@ import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
-import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
@@ -502,7 +501,6 @@ export const ReadFile = setupTool({
       attachedFolders: taskState.attachedFolders,
       extraMounts:
         agentName === "instrument" ? await childTaskMounts(taskId) : undefined,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveExistingFilePath({

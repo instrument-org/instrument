@@ -31,10 +31,6 @@ function getTaskActivity(workspaceRef: WorkspaceActorRef) {
   return activity;
 }
 
-export const taskActivity = base
-  .output(TaskAgentStatusSchema.array())
-  .handler(({ context }) => getTaskActivity(context.workspaceRef));
-
 export const liveTaskActivity = base
   .output(eventIterator(TaskAgentStatusSchema.array()))
   .handler(async function* ({ context, signal }) {

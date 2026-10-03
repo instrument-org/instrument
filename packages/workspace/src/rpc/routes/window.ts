@@ -1,35 +1,36 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
+import { folderReach } from "../../lib/chat/folder-reach";
 import {
   ensureOutputFolder,
   outputFolderPath,
-} from "../../lib/orchestrator/output-folder";
+} from "../../lib/chat/output-folder";
 import { isChatId } from "../../lib/record-folders";
-import { taskDir } from "../../lib/task-dir-utils";
-import { setTaskState } from "../../lib/task-record";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ensureWindowDir, updateWindowState } from "../../lib/window-state";
+import { FolderAttachment } from "../../schemas/folder-attachment";
+import { WINDOW_ID } from "../../schemas/window-id";
 import {
   WindowTabAnswerSchema,
   WindowTabRequestSchema,
 } from "../../schemas/window-tab";
 import { BrowserTargetIdSchema } from "../../types";
-import { base, toORPCError } from "../base";
+import { base } from "../base";
 import { publisher } from "../publisher";
 
 /**
- * The window's own record, created on first use, and the workspace folder
- * every chat reaches.
+ * Makes what the window opens on, its own folder and the workspace folder
+ * every chat reaches, and answers with the folders the window reaches, by the
+ * name each is mounted under.
  */
 const ensure = base
-  .output(z.object({ taskId: TaskIdSchema }))
-  .handler(async ({ context, errors }) => {
-    const result = await ensureOrchestrator();
-    if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
-      throw toORPCError(result.error, errors);
-    }
+  .output(
+    z.object({
+      attachedFolders: z.record(z.string(), FolderAttachment.Schema),
+    }),
+  )
+  .handler(async ({ context }) => {
+    await ensureWindowDir();
     await ensureOutputFolder();
     // Folder decoration must not prevent a conversation from opening.
     void context.workspaceConfig
@@ -39,21 +40,19 @@ const ensure = base
           error instanceof Error ? error : new Error(String(error)),
         );
       });
-    return result.value;
+    return { attachedFolders: await folderReach(WINDOW_ID) };
   });
 
 /**
  * The tab the window's browser has in front, which is the tab the
- * orchestrator's own `agent-browser` drives; null once no tab is open.
+ * chat's own `agent-browser` drives; null once no tab is open.
  */
 const setActiveTab = base
-  .input(
-    z.object({ id: TaskIdSchema, targetId: BrowserTargetIdSchema.nullable() }),
-  )
+  .input(z.object({ targetId: BrowserTargetIdSchema.nullable() }))
   .handler(async ({ input }) => {
-    await setTaskState(taskDir(input.id), {
+    await updateWindowState(() => ({
       browserTargetId: input.targetId ?? undefined,
-    });
+    }));
   });
 
 /**
@@ -61,19 +60,14 @@ const setActiveTab = base
  * each with the chat it belongs to when there is one.
  */
 const tab = base
-  .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(WindowTabRequestSchema))
-  .handler(async function* ({ input, signal }) {
+  .handler(async function* ({ signal }) {
     for await (const event of publisher.subscribe("window.tab", {
       signal,
     })) {
-      // A chat's own asks, the window record's, and those of any task asking
-      // among a chat's tabs all go to the window.
-      if (
-        event.id === input.id ||
-        isChatId(event.id) ||
-        event.sessionId !== undefined
-      ) {
+      // A chat's own asks, and those of any task asking among a chat's tabs,
+      // go to the window.
+      if (isChatId(event.id) || event.sessionId !== undefined) {
         const { id: _asker, ...request } = event;
         yield request;
       }
@@ -81,11 +75,9 @@ const tab = base
   });
 
 /** The window's answer to an ask of its tabs: the tab it acted on or made, or why it did nothing. */
-const tabDone = base
-  .input(WindowTabAnswerSchema.extend({ id: TaskIdSchema }))
-  .handler(({ input }) => {
-    publisher.publish("window.tabDone", input);
-  });
+const tabDone = base.input(WindowTabAnswerSchema).handler(({ input }) => {
+  publisher.publish("window.tabDone", { ...input, id: WINDOW_ID });
+});
 
 export const window = {
   ensure,

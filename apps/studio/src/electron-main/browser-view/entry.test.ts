@@ -11,10 +11,13 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  advanceEntry,
   type BrowserEntry,
   createEntry,
   destroyEntry,
   handleDetach,
+  hasGuest,
+  nextEntryPhase,
   subscribeEvents,
 } from "./entry";
 
@@ -161,5 +164,64 @@ describe("subscribeEvents", () => {
 
     expect(entry.eventListeners.has(onEvent)).toBe(false);
     expect(entry.detachListeners.has(onDetach)).toBe(false);
+  });
+});
+
+describe("entry phase", () => {
+  it.each([
+    ["pending", "willAttach", "accepted"],
+    ["pending", "didAttach", undefined],
+    ["pending", "attachTimedOut", "gone"],
+    ["accepted", "willAttach", "accepted"],
+    ["accepted", "didAttach", "bound"],
+    ["accepted", "attachTimedOut", "gone"],
+    ["bound", "willAttach", undefined],
+    ["bound", "didAttach", undefined],
+    ["bound", "loadSettled", "live"],
+    ["bound", "attachTimedOut", undefined],
+    ["live", "loadSettled", undefined],
+    ["live", "willAttach", undefined],
+    ["live", "removed", "gone"],
+    ["gone", "didAttach", undefined],
+    ["gone", "removed", undefined],
+  ] as const)("%s on %s -> %s", (phase, event, expected) => {
+    expect(nextEntryPhase(phase, event)).toBe(expected);
+  });
+
+  it("follows Electron's order from createTarget to a settled first load", () => {
+    const entry = makeEntry();
+    const steps = (
+      ["willAttach", "didAttach", "loadSettled", "loadSettled"] as const
+    ).map((event) => [advanceEntry(entry, event), entry.phase]);
+    expect(steps).toEqual([
+      [true, "accepted"],
+      [true, "bound"],
+      [true, "live"],
+      [false, "live"],
+    ]);
+  });
+
+  it("refuses a guest handed over after the entry was removed", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entries.set(TARGET_ID, entry);
+    advanceEntry(entry, "willAttach");
+    destroyEntry(entries, TARGET_ID);
+
+    expect(entry.phase).toBe("gone");
+    expect(advanceEntry(entry, "didAttach")).toBe(false);
+    // A target created again under the same id starts over rather than taking
+    // the guest mounted for the one before it.
+    expect(makeEntry().phase).toBe("pending");
+  });
+
+  it("binds the first of two guests mounted for one target and ignores the second", () => {
+    const entry = makeEntry();
+    advanceEntry(entry, "willAttach");
+    advanceEntry(entry, "willAttach");
+
+    expect(advanceEntry(entry, "didAttach")).toBe(true);
+    expect(advanceEntry(entry, "didAttach")).toBe(false);
+    expect(hasGuest(entry)).toBe(true);
   });
 });

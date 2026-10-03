@@ -15,6 +15,65 @@ import { log } from "./log";
 // target id) gets a distinct generation the renderer pool can diff against.
 let generationCounter = 0;
 
+/**
+ * Where an entry is in reaching a guest. `pending` from createTarget until the
+ * host accepts a `<webview>` for it in `will-attach-webview`; `accepted` until
+ * `did-attach-webview` hands over that guest; `bound` once the guest is set but
+ * its first load has not settled; `live` after; `gone` once removed for any
+ * reason.
+ */
+export type EntryPhase = "accepted" | "bound" | "gone" | "live" | "pending";
+
+/** What moves an entry between phases: the host's two attach callbacks, the guest's first load settling, the attach deadline, and removal. */
+export type EntryPhaseEvent =
+  | "attachTimedOut"
+  | "didAttach"
+  | "loadSettled"
+  | "removed"
+  | "willAttach";
+
+const PHASE_TRANSITIONS: Record<
+  EntryPhase,
+  Partial<Record<EntryPhaseEvent, EntryPhase>>
+> = {
+  // A second `<webview>` mounted before the first attached is accepted too;
+  // whichever `did-attach-webview` arrives first binds and the other is
+  // ignored.
+  accepted: {
+    attachTimedOut: "gone",
+    didAttach: "bound",
+    removed: "gone",
+    willAttach: "accepted",
+  },
+  bound: { loadSettled: "live", removed: "gone" },
+  gone: {},
+  live: { removed: "gone" },
+  pending: { attachTimedOut: "gone", removed: "gone", willAttach: "accepted" },
+};
+
+/** The phase an event moves an entry to, or undefined when the entry refuses it. */
+export function nextEntryPhase(
+  phase: EntryPhase,
+  event: EntryPhaseEvent,
+): EntryPhase | undefined {
+  return PHASE_TRANSITIONS[phase][event];
+}
+
+/** Moves the entry for an event it accepts; false, leaving it as it was, when it refuses. */
+export function advanceEntry(entry: BrowserEntry, event: EntryPhaseEvent) {
+  const next = nextEntryPhase(entry.phase, event);
+  if (next === undefined) {
+    return false;
+  }
+  entry.phase = next;
+  return true;
+}
+
+/** Whether the entry has a guest bound to it, settled or not. */
+export function hasGuest(entry: BrowserEntry) {
+  return entry.phase === "bound" || entry.phase === "live";
+}
+
 export interface BrowserEntry {
   // The folders on this computer the agent driving this guest can read, set
   // by the CDP bridge; null until an agent has driven it. See
@@ -47,6 +106,7 @@ export interface BrowserEntry {
   // commands that only read existing state, so an entry existing does not mean
   // anything asked for a browser to be shown.
   navigated: boolean;
+  phase: EntryPhase;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving
   // the path.
@@ -104,6 +164,7 @@ export function createEntry({
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
+    phase: "pending",
     screencastInterval: null,
     screencastSessionId: 0,
     sessionId,
@@ -227,6 +288,7 @@ function drainDisposers(entry: BrowserEntry) {
 // Fired after disposers so cleanup runs first; drained so each fires at most
 // once. Centralized here so it runs even for entries that never bound a guest.
 function fireDestruction(entry: BrowserEntry) {
+  advanceEntry(entry, "removed");
   // Fail any in-flight createTarget immediately instead of leaving it to time
   // out; a no-op once the guest has already attached.
   entry.attach.reject(

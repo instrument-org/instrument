@@ -38,10 +38,13 @@ import {
   captureDownloadWillBeginGuid,
 } from "./downloads";
 import {
+  advanceEntry,
   type BrowserEntry,
   createEntry,
   destroyEntry,
   handleDetach,
+  hasGuest,
+  nextEntryPhase,
   subscribeEvents,
 } from "./entry";
 import {
@@ -373,7 +376,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         // of the initial load would leave `attach` pending until the 15s timeout;
         // settle it so createTarget resolves against the bound guest (CDP still
         // works) instead of hanging. A no-op once did-finish-load has resolved.
-        if (errorCode !== -3 && !entry.attach.settled) {
+        if (errorCode !== -3 && advanceEntry(entry, "loadSettled")) {
           ensureDebuggerAttached(entry);
           entry.attach.resolve();
           notifyEntriesChanged();
@@ -411,6 +414,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     // element already loads about:blank, but driving it here gives us a
     // deterministic did-finish-load to resolve the handshake on.
     guest.once("did-finish-load", () => {
+      advanceEntry(entry, "loadSettled");
       ensureDebuggerAttached(entry);
       attachDevHooks(entry);
       entry.attach.resolve();
@@ -425,9 +429,12 @@ export function createBrowserViewManager(): BrowserViewManager {
 
   function bindHost(host: WebContents) {
     hostContents = host;
-    // A FIFO of target ids accepted in `will-attach-webview`, drained in
-    // `did-attach-webview` (Electron pairs the two events in order).
-    const pendingAttachQueue: BrowserTargetId[] = [];
+    // A FIFO of entries accepted in `will-attach-webview`, drained in
+    // `did-attach-webview`: Electron pairs the two events in order, and the
+    // guest it hands over carries nothing naming its target. The entry rather
+    // than its id, so a target removed and created again in between is not
+    // bound to the guest mounted for the one before it.
+    const pendingAttachQueue: BrowserEntry[] = [];
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
@@ -443,8 +450,8 @@ export function createBrowserViewManager(): BrowserViewManager {
         event.preventDefault();
         return;
       }
-      if (entry.webContents && !entry.webContents.isDestroyed()) {
-        // Already bound to a live guest: a second attach for the same id would
+      if (!advanceEntry(entry, "willAttach")) {
+        // Already bound to a guest: a second attach for the same id would
         // rebind and orphan the first guest's debugger. Reject it.
         log.warn(
           `rejected browser webview attach (already bound) targetId=${targetId}`,
@@ -476,22 +483,20 @@ export function createBrowserViewManager(): BrowserViewManager {
       // the editor to the guest's isolated world; see page-editor/sessions.ts.
       webPreferences.preload = pageEditorPreloadPath();
 
-      pendingAttachQueue.push(entry.targetId);
+      pendingAttachQueue.push(entry);
     });
 
     host.on("did-attach-webview", (_event, guest) => {
-      const targetId = pendingAttachQueue.shift();
-      if (!targetId) {
-        return;
-      }
-      const entry = entries.get(targetId);
+      const entry = pendingAttachQueue.shift();
       if (!entry) {
         return;
       }
-      if (entry.webContents && !entry.webContents.isDestroyed()) {
-        // Already bound (will-attach should have rejected this); don't rebind
-        // and stack a second set of disposers on the entry.
-        log.warn(`ignored duplicate did-attach-webview targetId=${targetId}`);
+      if (!advanceEntry(entry, "didAttach")) {
+        // Removed since, or bound by a `<webview>` mounted alongside this one;
+        // don't rebind and stack a second set of disposers on the entry.
+        log.warn(
+          `ignored did-attach-webview phase=${entry.phase} targetId=${entry.targetId}`,
+        );
         return;
       }
       bindGuest(entry, guest);
@@ -509,7 +514,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     if (existing) {
       // Idempotent: a single (id, sessionId) pair owns at most one guest.
       // Already bound -> reuse it; mount still in flight -> wait on it.
-      if (existing.webContents && !existing.webContents.isDestroyed()) {
+      if (hasGuest(existing)) {
         return Promise.resolve({ targetId });
       }
       return waitForAttach(existing).then(() => ({ targetId }));
@@ -541,7 +546,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
     const timeout = new Promise<never>((_resolve, reject) => {
       const timer = setTimeout(() => {
-        if (!entry.attach.settled && !entry.webContents) {
+        if (nextEntryPhase(entry.phase, "attachTimedOut")) {
           destroyEntry(entries, entry.targetId);
           notifyEntriesChanged();
         }
@@ -748,9 +753,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     getDebugEntries: () => entries,
     getTargets: () =>
       [...entries.values()].map((entry) => ({
-        attached: Boolean(
-          entry.webContents && !entry.webContents.isDestroyed(),
-        ),
+        attached: hasGuest(entry),
         generation: entry.generation,
         id: entry.targetId,
         navigated: entry.navigated,

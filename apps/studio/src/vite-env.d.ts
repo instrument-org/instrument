@@ -25,6 +25,8 @@ declare namespace NodeJS {
       ANALYZE_BUILD: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
+      /** scripts/billing-e2e.ts: the local API it drives Studio against. */
+      BILLING_BASE_URL: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
       CC: string | undefined;
       CI: string | undefined;
@@ -40,6 +42,8 @@ declare namespace NodeJS {
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      /** scripts/billing-e2e.ts: the internal repo's apps/api checkout. */
+      INSTRUMENT_API_DIR: string | undefined;
       /** `0` keeps the agent's bash interpreter on the main thread instead of its worker. */
       INSTRUMENT_BASH_WORKER: string | undefined;
       /** Dev only: shrinks every model's context window to this many tokens. */

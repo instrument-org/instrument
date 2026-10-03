@@ -21,7 +21,6 @@ import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
-import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
 
 interface ErrorAction {
   label: string;
@@ -37,7 +36,6 @@ interface MessageErrorProps {
   isDeveloperMode: boolean;
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
-  onContinue: () => void;
   /** Switches the chat to another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
@@ -66,7 +64,6 @@ export function MessageError({
   isDeveloperMode,
   isLastMessage,
   message,
-  onContinue,
   onModelChange,
   onRunAgain,
 }: MessageErrorProps) {
@@ -86,18 +83,18 @@ export function MessageError({
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, credits they have since topped up, or a throttle the
-  // machine waited out before the turn that followed succeeded.
+  // stopped themselves, a plan they have since chosen or a window that has
+  // since reset, or a throttle the machine waited out before the turn that
+  // followed succeeded.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    (platformError?.code === "insufficient-credits" && !isLastMessage) ||
+    ((platformError?.code === "subscription-required" ||
+      platformError?.code === "usage-limit-exceeded") &&
+      !isLastMessage) ||
     ((classification === "rate-limit" || classification === "transient") &&
       !isLastMessage);
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
-  }
-  if (!isHiddenFromReader && platformError?.code === "insufficient-credits") {
-    return <UpgradeSubscriptionAlert onContinue={onContinue} />;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;
@@ -110,10 +107,12 @@ export function MessageError({
   const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
-  const { detail, summary } = describeForProvider(describeMessageError(error), {
-    classification,
-    provider,
-  });
+  const { detail, summary } =
+    (platformError && describePlatformRefusal(platformError)) ??
+    describeForProvider(describeMessageError(error), {
+      classification,
+      provider,
+    });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
   const needsAutoRecovery =
     !!platformError && requiresAutoModelRecovery(message);
@@ -143,6 +142,7 @@ export function MessageError({
     onModelChange,
     onRunAgain,
     openLink,
+    platformCode: platformError?.code,
     provider,
   });
 
@@ -225,6 +225,64 @@ export function MessageError({
 }
 
 /**
+ * Our platform's refusals of a hosted request, said for the person rather
+ * than the integrator. The two that need the user (no plan, a spent window)
+ * name what to do; the two that clear on their own say so. Undefined for a
+ * code with no wording of its own here.
+ */
+function describePlatformRefusal(
+  platformError: NonNullable<ReturnType<typeof parsePlatformApiError>>,
+): undefined | { detail: string; summary: string } {
+  switch (platformError.code) {
+    case "concurrency-limit": {
+      return {
+        detail: `Too many of your tasks are using ${APP_NAME}'s models at once. Try again when one finishes.`,
+        summary: "Too many tasks at once",
+      };
+    }
+    case "meter-unavailable": {
+      return {
+        detail: `${APP_NAME} couldn't check your usage just now. Try again in a moment.`,
+        summary: "Usage check unavailable",
+      };
+    }
+    case "subscription-required": {
+      return {
+        detail:
+          platformError.message ?? "Choose a plan to keep using our models.",
+        summary:
+          platformError.reason === "trial-ended" ||
+          platformError.reason === "trial-used"
+            ? "Free trial ended"
+            : "Plan required",
+      };
+    }
+    case "usage-limit-exceeded": {
+      const resetsAt = platformError.resetsAt
+        ? new Date(platformError.resetsAt)
+        : undefined;
+      const resets =
+        resetsAt && !Number.isNaN(resetsAt.getTime())
+          ? ` It resets ${resetsAt.toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}.`
+          : "";
+      const allowance = platformError.window
+        ? `your plan's ${platformError.window} allowance`
+        : "your plan's allowance";
+      return {
+        detail: `You've used ${allowance}.${resets} Switch to another model, or bring your own key, to keep going now.`,
+        summary: "Usage limit reached",
+      };
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
  * Our sentence, naming the service when we know which one refused. Instrument
  * reaches several, so "the provider" leaves the reader to work out which
  * account hit its limit or signed them out.
@@ -291,6 +349,7 @@ function errorActions({
   onModelChange,
   onRunAgain,
   openLink,
+  platformCode,
   provider,
 }: {
   autoModelURI: AIGatewayModelURI.Type | undefined;
@@ -299,6 +358,7 @@ function errorActions({
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
   openLink: ReturnType<typeof useOpenExternalLink>;
+  platformCode: string | undefined;
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain
@@ -320,6 +380,24 @@ function errorActions({
           toast.success("Switched to Auto");
         },
       },
+    ];
+  }
+  // Where the account's plan and usage are shown, and a plan is chosen.
+  if (
+    platformCode === "subscription-required" ||
+    platformCode === "usage-limit-exceeded"
+  ) {
+    return [
+      {
+        label:
+          platformCode === "subscription-required"
+            ? "Choose a plan"
+            : "See usage",
+        onClick: () => {
+          openSettings({ tab: "General" });
+        },
+      },
+      ...tryAgain,
     ];
   }
   if (classification === "usage-limit") {

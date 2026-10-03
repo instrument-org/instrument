@@ -575,8 +575,10 @@ function redirectsOutput(script: string): boolean {
       }
       if (character === ">" && line[index + 1] !== "&") {
         // Throwing a stream away is not writing a file: `2>/dev/null` is
-        // how a command's noise is dropped, and refusing it costs a turn.
-        const target = /^>?\s*(\S+)/.exec(line.slice(index + 1))?.[1];
+        // how a command's noise is dropped, and refusing it costs a turn. The
+        // target ends where the shell ends a word, so `2>/dev/null;` and
+        // `2>/dev/null)` name the same file as the bare form.
+        const target = /^>?\s*([^\s;&|()<>]+)/.exec(line.slice(index + 1))?.[1];
         if (target !== "/dev/null") {
           return true;
         }

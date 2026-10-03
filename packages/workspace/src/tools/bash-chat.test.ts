@@ -141,6 +141,9 @@ describe("chatRefusal: writing a file", () => {
     ["ls /mnt/Instrument > listing.txt", "ls redirected"],
     ["task list >> /mnt/log.txt", "append"],
     ["find /mnt -name '*.md' &> out.txt", "both streams"],
+    ["ls /mnt 2>/dev/nullx; ls", "a file named past /dev/null"],
+    ["ls /mnt 2>/dev/null>out.txt", "a second target after /dev/null"],
+    ["ls /mnt 2>/dev/null; ls > out.txt", "a later redirect on the line"],
   ])("refuses %j (%s)", (script) => {
     expect(chatRefusal(script)).toMatch(/Redirecting output/);
   });
@@ -150,6 +153,12 @@ describe("chatRefusal: writing a file", () => {
     ["app tools notion 2>&1 | head -20", "stderr duplicated onto stdout"],
     ["find /mnt -name 'ses_*' 2>/dev/null | head", "stderr thrown away"],
     ["ls /mnt; ls /mnt/mytop 2> /dev/null", "stderr thrown away, spaced"],
+    [
+      "chat read ses_01M2 --tail 8 2>/dev/null; chat threads",
+      "stderr thrown away before a semicolon",
+    ],
+    ["ls /mnt/a 2>/dev/null&& du -sh /mnt/a", "before an and-list"],
+    ["ls /mnt/a 2>/dev/null|head", "before a pipe"],
     [
       "cat /mnt/Instrument/notes.md | rg '>' | head -3",
       "a quoted angle bracket",

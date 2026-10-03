@@ -7,6 +7,7 @@
  * name a skill, rather than inlining the string.
  */
 export const SKILL_NAMES = {
+  agentBrowser: "agent-browser",
   createPage: "create-page",
   documentToMarkdown: "document-to-markdown",
   docx: "docx",

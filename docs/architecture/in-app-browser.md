@@ -47,6 +47,8 @@ The `…` in each path is a secret drawn once per launch ([`cdp-bridge-path.ts`]
 
 The conversation arranges the tabs with its `tab` command (`open`, `replace`, `close`, `show`), which the window answers on the `window.tab` / `window.tabDone` pair; the same channel carries a task's request for a background tab.
 
+The agent never has to load the `agent-browser` skill before driving the browser: the bash tool attaches the app's copy of it to the result of the first `agent-browser` command in a session ([`browser-skill-delivery.ts`](../../packages/workspace/src/lib/browser-skill-delivery.ts)). Whether it is already there is read from the history the model is actually sent, so a context rollover that dropped the earlier delivery, or a new session, gets it again with the next command, and a `load_skill` of it counts as a delivery.
+
 The wrapper rejects upstream flags and subcommands that would select another connection or persistence model, and rewrites screenshot/download paths into the task's `tmp/` (see [agent-sandbox.md](agent-sandbox.md) for the argv policy). These quirks live in [`dispatch-command.ts`](../../apps/studio/src/electron-main/browser-view/dispatch-command.ts):
 
 - **Screenshots bypass the debugger.** A viewport `Page.captureScreenshot` is served from `webContents.capturePage`; an element clip still goes through the debugger.

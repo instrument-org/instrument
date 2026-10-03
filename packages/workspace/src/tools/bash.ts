@@ -11,6 +11,11 @@ import {
   startBackgroundRun,
 } from "../lib/background-processes";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
+import {
+  BrowserSkillSchema,
+  browserSkillToDeliver,
+  type BrowserSkill,
+} from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
 import { childTaskMounts } from "../lib/chat/children";
@@ -20,6 +25,7 @@ import {
   JOBS_COMMAND,
   KILL_COMMAND,
 } from "../lib/shell-commands/background-jobs";
+import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
@@ -32,6 +38,7 @@ import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+import { boundedSkillBody } from "./load-skill";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -296,6 +303,11 @@ export const BashTool = setupTool({
   }),
   name: "bash",
   outputSchema: z.object({
+    /**
+     * The `agent-browser` skill's instructions, set on the first result in the
+     * model's view of the session that ran the command.
+     */
+    browserSkill: BrowserSkillSchema.optional(),
     command: z.string(),
     commands: z.array(z.string()),
     durationMs: z.number().default(0),
@@ -431,7 +443,15 @@ export const BashTool = setupTool({
       });
     }
 
+    // The chat's shell refuses the command, so only a task can have run it.
+    const browserSkill =
+      agentName !== "instrument" &&
+      commands.includes(AGENT_BROWSER_COMMAND.name)
+        ? await browserSkillToDeliver({ sessionId, signal, taskId })
+        : undefined;
+
     return ok({
+      ...(browserSkill ? { browserSkill } : {}),
       command: input.command,
       commands,
       durationMs,
@@ -443,7 +463,7 @@ export const BashTool = setupTool({
   },
   readOnly: false,
   timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
-  toModelOutput: ({ output }) => {
+  toModelOutput: ({ output, toolCallId }) => {
     const { content, omittedLines, totalBytes, totalLines, truncated } =
       truncateMiddle(output.output);
 
@@ -502,6 +522,9 @@ export const BashTool = setupTool({
 
     const hasErrors = output.exitCode !== 0;
     const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
+    const browserSkillSection = output.browserSkill
+      ? ["", browserSkillText(output.browserSkill, toolCallId)]
+      : [];
 
     // Say that the command printed nothing rather than leaving a gap where the
     // output would be. Silence otherwise reads as a swallowed result, and the
@@ -515,6 +538,7 @@ export const BashTool = setupTool({
           "The command produced no output on stdout or stderr.",
           "",
           durationLine,
+          ...browserSkillSection,
         ].join("\n"),
       };
     }
@@ -534,10 +558,40 @@ export const BashTool = setupTool({
 
     return {
       type: hasErrors ? "error-text" : "text",
-      value: [exitLine, "", ...outputParts, "", durationLine].join("\n"),
+      value: [
+        exitLine,
+        "",
+        ...outputParts,
+        "",
+        durationLine,
+        ...browserSkillSection,
+      ].join("\n"),
     };
   },
 });
+
+/**
+ * The skill's instructions after the command that brought them, led by a note
+ * saying why they are here, so the model reads them as the skill it would
+ * otherwise have loaded rather than as something the command printed.
+ */
+function browserSkillText(skill: BrowserSkill, toolCallId: string) {
+  const truncation = skill.contentTruncated
+    ? `\n\nOnly the beginning of the skill fits here. Read \`${skill.directory}/SKILL.md\` for the rest before relying on it.`
+    : "";
+  return [
+    systemNote`
+      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so the skill of the same name comes with its output below. Follow it for the rest of your browser work; there is no need to load it. The files its instructions link to (\`references/...\`) are under \`${skill.directory}/\`.
+    `.trim(),
+    "",
+    boundedSkillBody({
+      content: skill.content,
+      name: skill.name,
+      origin: skill.origin,
+      toolCallId,
+    }) + truncation,
+  ].join("\n");
+}
 
 /**
  * Whether the script sends output to a file anywhere the shell would act on it.

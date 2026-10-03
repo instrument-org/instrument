@@ -99,7 +99,7 @@ export function agentBrowserCommandDescription() {
 
   return [
     `Control a browser to navigate the web, interact with pages, and extract content.`,
-    `Load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before running any agent-browser command; it documents the subcommands and the workflow this wrapper expects.`,
+    `The first agent-browser command in a session returns the \`${AGENT_BROWSER_SKILL_NAME}\` skill with its output, documenting the subcommands and the workflow this wrapper expects; read it before the next command rather than loading the skill first.`,
     `IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.`,
     ...external,
     `Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.`,
@@ -201,8 +201,8 @@ const PROXY_ENV_VARS = new Set([
 const WORKSPACE_HELP_MANAGED = dedent`
   agent-browser - Control the task's managed browser.
 
-  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is
-  the source of truth for workflow details and command examples.
+  The \`agent-browser\` skill is the source of truth for workflow details and
+  command examples; it comes with the first command of a session.
   The workspace manages the browser session, CDP connection,
   profile, state, screenshots, downloads, and lifecycle.
 

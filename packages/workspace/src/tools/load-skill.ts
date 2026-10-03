@@ -345,19 +345,15 @@ export const LoadSkill = setupTool({
     // landed, what was installed, what we refused to install -- is ours, and a
     // skill that could appear to have written any of it would be telling the
     // model its own dependencies had been vetted.
-    const { block, nonce } = boundContent({
-      attributes: { name: output.name, origin: output.origin },
-      content: output.content,
-      label: BOUNDARY_LABEL,
-      nonceSeed: toolCallId,
-    });
-
     return {
       type: "text",
       value:
-        boundaryGuidance({ nonce, origin: output.origin }) +
-        "\n\n" +
-        block +
+        boundedSkillBody({
+          content: output.content,
+          name: output.name,
+          origin: output.origin,
+          toolCallId,
+        }) +
         contentSection +
         originSection +
         reloadSection +
@@ -366,6 +362,31 @@ export const LoadSkill = setupTool({
     };
   },
 });
+
+/**
+ * A skill's body inside a boundary it cannot close, led by what the model is
+ * told about that boundary. Shared by every path that hands a skill's
+ * instructions to the model, so a skill reads the same however it arrived.
+ */
+export function boundedSkillBody({
+  content,
+  name,
+  origin,
+  toolCallId,
+}: {
+  content: string;
+  name: string;
+  origin: (typeof SKILL_ORIGINS)[number];
+  toolCallId: string;
+}) {
+  const { block, nonce } = boundContent({
+    attributes: { name, origin },
+    content,
+    label: BOUNDARY_LABEL,
+    nonceSeed: toolCallId,
+  });
+  return `${boundaryGuidance({ nonce, origin })}\n\n${block}`;
+}
 
 /**
  * What the model is told about the block before it reads it.

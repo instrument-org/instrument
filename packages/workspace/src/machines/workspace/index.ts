@@ -384,6 +384,7 @@ export const workspaceMachine = setup({
       pnpmBinPath: string;
       preparedSkillsDir: string;
       registryDir: string;
+      reportPlatformRefusal?: WorkspaceConfig["reportPlatformRefusal"];
       rootDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
@@ -421,6 +422,9 @@ export const workspaceMachine = setup({
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
+      ...(input.reportPlatformRefusal && {
+        reportPlatformRefusal: input.reportPlatformRefusal,
+      }),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),

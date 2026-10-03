@@ -42,6 +42,10 @@ export const workspaceServerLogic = fromCallback<
           input.workspaceConfig.getAIProviderConfigs,
         );
         c.set("captureException", input.workspaceConfig.captureException);
+        c.set(
+          "reportPlatformRefusal",
+          input.workspaceConfig.reportPlatformRefusal,
+        );
         c.set("clientInfo", {
           clientArch: process.arch,
           clientName: APP_CLIENT_NAME_STUDIO,

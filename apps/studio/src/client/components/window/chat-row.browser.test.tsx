@@ -592,8 +592,6 @@ describe("ChatRow", () => {
     // file left it, over the row just drawn. Move it off before reading rest.
     await userEvent.unhover(row);
     // Out of the flow at rest: it takes no room until the pointer arrives.
-    // The pointer is wherever the last test left it, which may be here.
-    await userEvent.unhover(row);
     expect(control.getClientRects().length).toBe(0);
     expect(getComputedStyle(pill).visibility).toBe("visible");
     const chipBefore = marksOf(row)[0]?.getBoundingClientRect();

@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -15,8 +16,8 @@ import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOut
 
 /**
  * The menu beside a task's name, for what someone looking over its shoulder can
- * do with the run itself rather than with anything in it: save its transcript,
- * or open the folder it worked in.
+ * do with the run itself rather than with anything in it: open the folder it
+ * worked in, or in developer mode save its transcript.
  */
 export function TaskMenu({
   sessionId,
@@ -27,6 +28,7 @@ export function TaskMenu({
   taskId: TaskId;
 }) {
   const transcript = useTranscriptActions({ id: taskId, sessionId });
+  const isDeveloperMode = useDeveloperMode();
 
   return (
     <DropdownMenu>
@@ -47,15 +49,18 @@ export function TaskMenu({
       <DropdownMenuContent align="start" side="bottom">
         {/* Saves without opening anything: the transcript is on its way
           somewhere else, and the path lands on the clipboard for it. */}
-        <DropdownMenuItem
-          disabled={!sessionId}
-          onSelect={() => {
-            transcript.save("markdown");
-          }}
-        >
-          <ArrowLineDownIcon className="size-4" />
-          Save transcript
-        </DropdownMenuItem>
+        {isDeveloperMode && (
+          <DropdownMenuItem
+            disabled={!sessionId}
+            onSelect={() => {
+              transcript.save("markdown");
+            }}
+            variant="developer"
+          >
+            <ArrowLineDownIcon className="size-4" />
+            Save transcript
+          </DropdownMenuItem>
+        )}
         {/* The task's own folder, which is where its deliverables land and the
           only way to see what it wrote that it never mentioned. */}
         <DropdownMenuItem

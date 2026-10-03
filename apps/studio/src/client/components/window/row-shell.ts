@@ -3,6 +3,8 @@ import { type ReactNode, type SyntheticEvent } from "react";
 
 /** One thing a row offers from its edge and its menu alike: what it is called, its mark, and what it does. */
 export interface RowAction {
+  /** Offered only in developer mode, and drawn in its color so it reads as such. */
+  developerMode?: boolean;
   icon: ReactNode;
   id: string;
   label: string;

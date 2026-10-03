@@ -1,4 +1,4 @@
-import { base, devOnly } from "@/electron-main/rpc/base";
+import { devOnly } from "@/electron-main/rpc/base";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   findAvailableName,
@@ -19,13 +19,10 @@ import path from "node:path";
 import { z } from "zod";
 
 /**
- * A session, rendered out of the app.
- *
- * Saving one is the product's, not the developer menu's: handing a transcript
- * to somebody, or to an agent, is an ordinary thing to want, and a person who
- * has to turn developer mode on to get their own conversation out of the app
- * cannot have it at all. Putting one on the clipboard stays behind developer
- * mode: it replaces whatever the user was holding with a whole conversation.
+ * A session, rendered out of the app for a developer to hand to an agent:
+ * saved to Downloads with its path on the clipboard, or copied whole. Both
+ * are behind developer mode, since neither is how somebody else's run should
+ * reach us.
  */
 
 async function buildSystemFrontMatter(taskId: TaskId) {
@@ -123,7 +120,7 @@ const copy = devOnly
     await clipboard.writeText(await renderTranscript({ context, input, signal }));
   });
 
-const save = base
+const save = devOnly
   .input(transcriptInput)
   .output(z.object({ filepath: z.string() }))
   .handler(async ({ context, input, signal }) => {

@@ -1,5 +1,6 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
@@ -51,7 +52,8 @@ export function useChatActions(chat: Chat): RowAction[] {
  * is unseen, or unread again once it has replies to be unread, with no
  * toast at all, since the row itself says which it is; starring it or
  * taking the star back, last, where a starred row wears its star; and, in
- * the menu alone, saving its transcript and showing its folder.
+ * the menu alone, showing its folder, and in developer mode saving its
+ * transcript.
  *
  * Answered for any chat by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
@@ -60,6 +62,7 @@ export function useChatActions(chat: Chat): RowAction[] {
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
+  const isDeveloperMode = useDeveloperMode();
   const queryClient = useQueryClient();
   const paint = (sessionId: string, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { sessionId }, change);
@@ -165,6 +168,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     // Saves without opening anything: the transcript lands in Downloads,
     // named for the chat, and its path on the clipboard.
     const save: RowAction = {
+      developerMode: true,
       icon: <ArrowLineDownIcon className="size-3.5" />,
       id: "transcript",
       label: "Save transcript",
@@ -186,7 +190,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         void showTaskFolder(chat.taskId);
       },
     };
-    return [put, ...mark, starred, save, show];
+    return [put, ...mark, starred, ...(isDeveloperMode ? [save] : []), show];
   };
 }
 

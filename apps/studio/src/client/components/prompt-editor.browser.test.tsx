@@ -270,6 +270,62 @@ describe("PromptEditor in a browser", () => {
     });
   });
 
+  it("moves through the slash menu with the arrows, wrapping, and runs the marked row on Enter", async () => {
+    const chosen: string[] = [];
+    const action = (id: string, label: string) => ({
+      icon: PaperclipIcon,
+      id,
+      label,
+      onSelect: () => {
+        chosen.push(id);
+      },
+    });
+    const { ref } = renderEditor(
+      "",
+      [],
+      [action("first", "First"), action("second", "Second")],
+    );
+    const marked = () =>
+      document.querySelector('[data-slot="popover-content"] [data-highlighted]')
+        ?.textContent;
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("/");
+    await vi.waitFor(() => {
+      expect(marked()).toBe("First");
+    });
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}");
+    expect(marked()).toBe("Second");
+
+    await userEvent.keyboard("{Enter}");
+    expect(chosen).toEqual(["second"]);
+    expect(ref.current?.getValue()).toBe("");
+  });
+
+  it("closes the slash menu on Escape until the next edit", async () => {
+    renderEditor(
+      "",
+      [],
+      [{ icon: PaperclipIcon, id: "add", label: "Add files", onSelect: noop }],
+    );
+    const menu = () => document.querySelector('[data-slot="popover-content"]');
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("/");
+    await vi.waitFor(() => {
+      expect(menu()).not.toBeNull();
+    });
+    await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => {
+      expect(menu()).toBeNull();
+    });
+    // The next edit reads the slash before the caret again.
+    await userEvent.keyboard("d");
+    await vi.waitFor(() => {
+      expect(menu()).not.toBeNull();
+    });
+  });
+
   it.each(["/ffmpeg is cool", "/instrument:ffmpeg is cool"])(
     "tokenizes a recognized pasted skill command: %s",
     async (text) => {

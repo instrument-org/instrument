@@ -27,7 +27,11 @@ import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
-import { EditorState, TextSelection } from "prosemirror-state";
+import {
+  EditorState,
+  TextSelection,
+  type Transaction,
+} from "prosemirror-state";
 // ProseMirror emits DOM hacks its own stylesheet neutralizes: a trailing <br>
 // after a text block ending in an inline leaf, and separator <img>s around
 // them. Without this the <br> is a real line break, so the caret after a skill
@@ -53,6 +57,14 @@ import {
   promptSchema,
   promptTextFromDoc,
 } from "./prompt-editor-model";
+import {
+  closeSlashMenu,
+  hoverSlashMenu,
+  moveSlashMenu,
+  slashMenuOf,
+  slashMenuPlugin,
+  type SlashMenuState,
+} from "./slash-menu";
 
 // `baseKeymap` deliberately leaves history out, so undo/redo only work once the
 // keys are bound alongside the history plugin.
@@ -64,6 +76,7 @@ const editorAttributes = (placeholder?: string) => ({
 });
 
 const editorPlugins = () => [
+  slashMenuPlugin(),
   history(),
   keymap({
     Backspace: deleteTokenBackward,
@@ -222,25 +235,16 @@ export function PromptEditor({
   const actionsRef = useRef(actions);
   const appsRef = useRef(apps);
   const skillsRef = useRef(skills);
-  const menuRef = useRef<null | { from: number; query: string; to: number }>(
-    null,
-  );
   const onChangeRef = useRef(onChange);
   const onPasteRef = useRef(onPaste);
   const onSubmitRef = useRef(onSubmit);
-  const [menu, setMenu] = useState<null | {
-    from: number;
-    query: string;
-    to: number;
-  }>(null);
+  // The slash menu as the editor's state last had it, for drawing. The state
+  // itself is the plugin's (`slash-menu.ts`); the view's handlers read it
+  // there.
+  const [{ index: selectedIndex, menu, scroll }, setSlashMenu] =
+    useState<SlashMenuState>({ index: 0, menu: null, scroll: false });
   const [chips, setChips] = useState<TokenChip[]>([]);
   const chipIdRef = useRef(0);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const selectedIndexRef = useRef(0);
-  // Only the keyboard drags the list to its selection. Doing it on hover too
-  // would scroll a partly visible row under a stationary cursor, which lands the
-  // cursor on the next row and scrolls again.
-  const scrollToSelectionRef = useRef(false);
   const [overflowing, setOverflowing] = useState(false);
   const initialPropsRef = useRef({ autoFocus, placeholder });
   // Kept current rather than captured, because the view below is not built only
@@ -262,8 +266,7 @@ export function PromptEditor({
     onChangeRef.current = onChange;
     onPasteRef.current = onPaste;
     onSubmitRef.current = onSubmit;
-    selectedIndexRef.current = selectedIndex;
-  }, [actions, apps, onChange, onPaste, onSubmit, selectedIndex, skills]);
+  }, [actions, apps, onChange, onPaste, onSubmit, skills]);
   const entries = menu ? menuEntries(actions, skills, apps, menu.query) : [];
   // Where the apps and the skills start, so the rule that names each is drawn
   // once and only when there is something above it to separate them from.
@@ -276,36 +279,17 @@ export function PromptEditor({
     open: menuOpen,
   });
 
-  const updateMenu = (view: EditorView) => {
-    const { empty, from } = view.state.selection;
-    if (!empty) {
-      menuRef.current = null;
-      setMenu(null);
-      return;
-    }
-    const before = view.state.doc.textBetween(0, from, "\n", "\uFFFC");
-    // The colon belongs to the name: a skill several sources ship is addressed
-    // as `claude:pdf`, and stopping the query at the colon would close the menu
-    // exactly when the user is disambiguating.
-    const match = /(?:^|\s)\/([\w:-]*)$/.exec(before);
-    const next = match
-      ? {
-          from: from - (match[1]?.length ?? 0) - 1,
-          query: match[1] ?? "",
-          to: from,
-        }
-      : null;
-    menuRef.current = next;
-    setMenu(next);
-    setSelectedIndex(0);
-    scrollToSelectionRef.current = true;
-  };
-
   const selectEntry = (entry: MenuEntry) => {
     const view = viewRef.current;
-    const activeMenu = menuRef.current;
+    const activeMenu = view && slashMenuOf(view.state).menu;
     if (view && activeMenu) {
       applyMenuEntry(view, activeMenu, entry);
+    }
+  };
+  const dispatchToMenu = (transaction: (state: EditorState) => Transaction) => {
+    const view = viewRef.current;
+    if (view) {
+      view.dispatch(transaction(view.state));
     }
   };
 
@@ -333,18 +317,17 @@ export function PromptEditor({
         if (transaction.docChanged) {
           onChangeRef.current(promptTextFromDoc(nextState.doc));
         }
-        updateMenu(view);
+        setSlashMenu(slashMenuOf(nextState));
       },
       handleDOMEvents: {
-        blur: () => {
-          menuRef.current = null;
-          setMenu(null);
+        blur: (blurred) => {
+          blurred.dispatch(closeSlashMenu(blurred.state));
           return false;
         },
         paste: (_view, event) => onPasteRef.current(event),
       },
       handleKeyDown: (_view, event) => {
-        const activeMenu = menuRef.current;
+        const { index, menu: activeMenu } = slashMenuOf(view.state);
         if (activeMenu) {
           const currentEntries = menuEntries(
             actionsRef.current,
@@ -357,25 +340,23 @@ export function PromptEditor({
             (event.key === "ArrowDown" || event.key === "ArrowUp")
           ) {
             event.preventDefault();
-            scrollToSelectionRef.current = true;
-            setSelectedIndex((current) => {
-              const direction = event.key === "ArrowDown" ? 1 : -1;
-              return (
-                (current + direction + currentEntries.length) %
-                currentEntries.length
-              );
-            });
+            view.dispatch(
+              moveSlashMenu(
+                view.state,
+                event.key === "ArrowDown" ? 1 : -1,
+                currentEntries.length,
+              ),
+            );
             return true;
           }
           if (event.key === "Escape") {
             event.preventDefault();
-            menuRef.current = null;
-            setMenu(null);
+            view.dispatch(closeSlashMenu(view.state));
             return true;
           }
           if (event.key === "Enter" && currentEntries.length > 0) {
             event.preventDefault();
-            const entry = currentEntries[selectedIndexRef.current];
+            const entry = currentEntries[index];
             if (entry) {
               applyMenuEntry(view, activeMenu, entry);
             }
@@ -640,7 +621,7 @@ export function PromptEditor({
       {/*
         The caret owns this menu, so the content must never take focus or claim
         the pointer: the editor keeps both, and closing is driven by where the
-        caret ends up (`updateMenu`) or by the editor losing focus. Radix is here
+        caret ends up (`slash-menu.ts`) or by the editor losing focus. Radix is here
         for the portal and the zoom correction, not for its dismissal behavior --
         and not for where it lands either, which the composer decides so that a
         typed slash and the plus button open the same menu in the same place.
@@ -662,8 +643,7 @@ export function PromptEditor({
         // Escape from the editor as its own.
         onEscapeKeyDown={(event) => {
           event.stopPropagation();
-          menuRef.current = null;
-          setMenu(null);
+          dispatchToMenu(closeSlashMenu);
         }}
         onFocusOutside={preventDefault}
         onInteractOutside={preventDefault}
@@ -690,14 +670,13 @@ export function PromptEditor({
             )}
             <MenuEntryButton
               onHover={() => {
-                scrollToSelectionRef.current = false;
-                setSelectedIndex(index);
+                dispatchToMenu((state) => hoverSlashMenu(state, index));
               }}
               onSelect={() => {
                 selectEntry(entry);
               }}
               ref={(element) => {
-                if (index === selectedIndex && scrollToSelectionRef.current) {
+                if (index === selectedIndex && scroll) {
                   element?.scrollIntoView({ block: "nearest" });
                 }
               }}

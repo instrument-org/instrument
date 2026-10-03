@@ -242,6 +242,15 @@ describe("task folder", () => {
     ).rejects.toThrow(/no folder "elsewhere" in this conversation/);
   });
 
+  it.each([
+    ["/skills/workspace:rw", /needs no --folder: every task writes skills to \/skills\/workspace\//],
+    ["/task/work", /is not one of this conversation's folders: --folder takes \/mnt\/<mount>/],
+  ])("names what %s is rather than an empty folder", async (spec, message) => {
+    await expect(
+      runFolder([CHILD_ID, "--add", spec], context),
+    ).rejects.toThrow(message);
+  });
+
   it("refuses a folder that is not on disk", async () => {
     await expect(
       runFolder([CHILD_ID, "--add", "/mnt/home/Nowhere"], context),

@@ -33,6 +33,7 @@ import {
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { getWebviewElement } from "@/client/lib/browser-pool";
@@ -150,11 +151,6 @@ export function TaskBrowserPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
-  const [location, setLocation] = useState<null | {
-    targetId: BrowserTargetId;
-    url: string;
-  }>(null);
-  const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
   // null = the panel's natural size ("Actual size"). Applied via CDP device
@@ -183,14 +179,21 @@ export function TaskBrowserPanel({
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
-  // A real page is not yet loaded (about:blank, or nothing stamped yet). A
-  // newly selected target has no location stamped for it until its guest
-  // syncs, and that brief handoff counts as blank too, so the guest's black
-  // default never flashes through before we learn its URL.
-  const blankPage =
-    location?.targetId !== targetId ||
-    !location.url ||
-    location.url === "about:blank";
+  // Mirror the guest's URL + nav availability into the controls (it navigates
+  // from agent CDP commands too, not just user input).
+  const nav = useGuestNavigation(active ? targetId : null, {
+    onNavigate: (rawUrl) => {
+      const url = withoutPageEditParam(rawUrl);
+      if (!editingUrlRef.current) {
+        setDraftUrl(url === "about:blank" ? "" : url);
+      }
+    },
+  });
+  // A real page is not yet loaded (about:blank, or nothing read yet). A newly
+  // selected target has no URL read for it until its guest syncs, and that
+  // brief handoff counts as blank too, so the guest's black default never
+  // flashes through before we learn its URL.
+  const blankPage = !nav.url || nav.url === "about:blank";
 
   // Read once and give both hooks the same answer: a panel that parks its guest
   // under an overlay must also stop being the Cmd+F target, or the overlay's
@@ -240,9 +243,7 @@ export function TaskBrowserPanel({
     openBrowser({ id: taskId, sessionId });
   }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
-  // Mirror the guest's URL + nav availability into the controls (it navigates
-  // from agent CDP commands too, not just user input), and track main-frame
-  // load failures so we can show a light error state.
+  // Track main-frame load failures so we can show a light error state.
   useEffect(() => {
     if (!active) {
       return;
@@ -251,34 +252,17 @@ export function TaskBrowserPanel({
     if (!webview) {
       return;
     }
-    const sync = () => {
-      // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
-      // the did-navigate events that also drive this only fire once it has.
-      try {
-        const url = withoutPageEditParam(webview.getURL());
-        if (!editingUrlRef.current) {
-          setDraftUrl(url === "about:blank" ? "" : url);
-        }
-        setLocation({ targetId, url });
-        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
-      } catch {
-        // Not attached yet; a did-navigate will re-run sync once it is.
-      }
-    };
     // Clear only a failure stamped with this listener's own guest. These
     // listeners outlive `targetId` changing in place by the frame between the
     // render and the effect teardown, and a bare clear arriving from the
     // previous guest in that window would drop the current guest's error
-    // notice and unpark it over the slot. The other state these handlers write
-    // needs no such guard: the re-run's own `sync()` follows the teardown.
+    // notice and unpark it over the slot. The draft URL these handlers write
+    // needs no such guard: the re-run's own read of the new guest follows the
+    // teardown.
     const clearFailure = () => {
       setFailure((current) =>
         current?.targetId === targetId ? null : current,
       );
-    };
-    const onNavigate = () => {
-      clearFailure();
-      sync();
     };
     const onFailLoad = (event: Event) => {
       const detail = event as DidFailLoadEvent;
@@ -295,31 +279,16 @@ export function TaskBrowserPanel({
       if (!editingUrlRef.current && detail.validatedURL) {
         setDraftUrl(detail.validatedURL);
       }
-      // A committed error page makes the prior page a back entry, but
-      // did-navigate doesn't reliably fire on error-page commit, so refresh the
-      // nav buttons here instead of leaving them stale (back stuck disabled).
-      try {
-        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
-      } catch {
-        // Guest not attached yet; a later did-navigate will sync.
-      }
     };
-    sync();
-    webview.addEventListener("did-navigate", onNavigate);
-    webview.addEventListener("did-navigate-in-page", onNavigate);
+    webview.addEventListener("did-navigate", clearFailure);
+    webview.addEventListener("did-navigate-in-page", clearFailure);
     webview.addEventListener("did-start-loading", clearFailure);
     webview.addEventListener("did-fail-load", onFailLoad);
     return () => {
-      webview.removeEventListener("did-navigate", onNavigate);
-      webview.removeEventListener("did-navigate-in-page", onNavigate);
+      webview.removeEventListener("did-navigate", clearFailure);
+      webview.removeEventListener("did-navigate-in-page", clearFailure);
       webview.removeEventListener("did-start-loading", clearFailure);
       webview.removeEventListener("did-fail-load", onFailLoad);
-      // The guest this described is being let go. Reopening the same target
-      // builds a fresh one at about:blank, and `sync()` cannot stamp that
-      // until its WebContents attaches, so a location left standing across the
-      // gap would read as a loaded page for those frames and let the guest's
-      // black default show through the slot.
-      setLocation(null);
     };
   }, [active, targetId]);
 
@@ -720,7 +689,7 @@ export function TaskBrowserPanel({
           <div className="flex items-center gap-1 border-b p-1.5">
             <ToolbarTooltip chord="back">
               <Button
-                disabled={!active || !nav.back}
+                disabled={!active || !nav.canGoBack}
                 onClick={() => webviewFor()?.goBack()}
                 size="icon-sm"
                 variant="ghost"
@@ -730,7 +699,7 @@ export function TaskBrowserPanel({
             </ToolbarTooltip>
             <ToolbarTooltip chord="forward">
               <Button
-                disabled={!active || !nav.forward}
+                disabled={!active || !nav.canGoForward}
                 onClick={() => webviewFor()?.goForward()}
                 size="icon-sm"
                 variant="ghost"

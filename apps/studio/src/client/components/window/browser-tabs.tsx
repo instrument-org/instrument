@@ -16,6 +16,7 @@ import { PageFavicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
@@ -39,7 +40,6 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
@@ -311,8 +311,12 @@ export function BrowserTabs({
   const activeTarget = active && !active.taskId ? targetOf(active) : null;
   // Whether the guest on screen has been anywhere, for the arrows in the row
   // above it. Read from the guest rather than counted here: it is the thing
-  // that has the history, and a redirect moves it without our being told.
-  const [canStep, setCanStep] = useState({ back: false, forward: false });
+  // that has the history, and a redirect moves it without our being told. A
+  // tab arriving on screen brings its own history with it, so the arrows are
+  // read off that tab's guest once it has attached.
+  const { canGoBack, canGoForward } = useGuestNavigation(
+    activeTarget && attached.has(activeTarget) ? activeTarget : null,
+  );
   const historySteps = useRef(new Set<string>());
   const stepGuest = (direction: "back" | "forward") => {
     const webview = activeTarget && getWebviewElement(activeTarget);
@@ -342,23 +346,6 @@ export function BrowserTabs({
       webview.goForward();
     }
   };
-  // A tab arriving on screen brings its own history with it, so what the
-  // arrows say has to be re-read rather than left as the last tab's answer.
-  useEffect(() => {
-    const webview = activeTarget && getWebviewElement(activeTarget);
-    if (!webview) {
-      setCanStep({ back: false, forward: false });
-      return;
-    }
-    try {
-      setCanStep({
-        back: webview.canGoBack(),
-        forward: webview.canGoForward(),
-      });
-    } catch {
-      // Not attached yet; the navigation events do this once it is.
-    }
-  }, [activeTarget]);
   useEffect(() => {
     void rpcClient.workspace.window.setActiveTab.call({
       targetId: activeTarget,
@@ -524,12 +511,6 @@ export function BrowserTabs({
       }
       const onNavigate = () => {
         try {
-          if (latest.current.active?.id === id) {
-            setCanStep({
-              back: webview.canGoBack(),
-              forward: webview.canGoForward(),
-            });
-          }
           const url = webview.getURL();
           // A page's file in Edit is loaded at the file's address with the
           // Edit parameter added; the tab is still at the file.
@@ -602,13 +583,6 @@ export function BrowserTabs({
         try {
           if (hostPathOfFileUrl(webview.getURL()) === undefined) {
             onNavigate();
-            return;
-          }
-          if (latest.current.active?.id === id) {
-            setCanStep({
-              back: webview.canGoBack(),
-              forward: webview.canGoForward(),
-            });
           }
         } catch {
           // Not attached yet; the events that follow attachment re-run this.
@@ -784,8 +758,8 @@ export function BrowserTabs({
   useImperativeHandle(
     ref,
     () => ({
-      canGoBack: canStep.back,
-      canGoForward: canStep.forward,
+      canGoBack,
+      canGoForward,
       goBack: () => {
         stepGuest("back");
       },
@@ -1003,7 +977,7 @@ export function BrowserTabs({
     // screen and what its history allows are read here, so the handle is
     // remade, and the row above told, whenever either changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTarget, canStep],
+    [activeTarget, canGoBack, canGoForward],
   );
 
   const taskIdsWithTabs = [

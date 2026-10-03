@@ -34,20 +34,53 @@ export interface MountAlternative {
   alternative?: string;
 }
 
-/** Guidance for a `/mnt/...` reference; subject names the source. */
+/**
+ * Guidance for a `/mnt/...` reference; subject names the source. Given the
+ * source's code, the copy command names the first file it quotes, so the fix
+ * is one the agent can run as written rather than a template to fill in.
+ */
 export function attachedMountLiteralError(
   subject: string,
   { alternative }: MountAlternative = {},
+  source?: string,
 ): string {
+  const file = source === undefined ? undefined : copyableMountFile(source);
+  const copy = file
+    ? `(cp '${file}' attachments/) and open the copy as attachments/${path.posix.basename(file)}.`
+    : `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
+      `reference the copy with a task-relative path (attachments/<file>).`;
   return (
     `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
     `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
     `and the sandboxed script runtimes, never to a real interpreter process. ` +
     (alternative ? `${alternative} Otherwise copy` : `Copy`) +
-    ` the file into the task first ` +
-    `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
-    `reference the copy with a task-relative path (attachments/<file>).`
+    ` the file into the task first ${copy}`
   );
+}
+
+/**
+ * The first quoted `/mnt/...` literal in source, when it reads as one whole
+ * file: a name with an extension, and nothing a language would interpolate
+ * into it or a single-quoted shell word could not hold. A folder, a pattern,
+ * or a path assembled at runtime is left to the generic guidance, since a
+ * copy command built from it would be wrong.
+ */
+function copyableMountFile(source: string): string | undefined {
+  const escaped = MOUNT.attachedFolders.replaceAll(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const literal = new RegExp(`(['"\`])(${escaped}/[^'"\`\\n]+)\\1`).exec(
+    source,
+  )?.[2];
+  if (
+    literal === undefined ||
+    /[{}$%*?\\[\]]/.test(literal) ||
+    !/\.\w+$/.test(path.posix.basename(literal))
+  ) {
+    return undefined;
+  }
+  return literal;
 }
 
 /**
@@ -91,7 +124,7 @@ export function bridgeInlineCodePaths(
 ): { code: string } | { error: string } {
   if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
     return {
-      error: attachedMountLiteralError("Inline script code", alternative),
+      error: attachedMountLiteralError("Inline script code", alternative, code),
     };
   }
 
@@ -342,7 +375,7 @@ export function scriptFileVirtualPathError(
   alternative: MountAlternative = {},
 ): string | undefined {
   if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file", alternative);
+    return attachedMountLiteralError("This script file", alternative, source);
   }
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");

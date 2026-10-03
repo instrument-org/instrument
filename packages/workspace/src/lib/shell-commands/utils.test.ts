@@ -228,6 +228,32 @@ describe("bridgeInlineCodePaths", () => {
     }
   });
 
+  it("names the quoted file in the copy command when it is one whole file", () => {
+    const result = bridgeInlineCodePaths(
+      "import pandas as pd\nprint(pd.read_csv('/mnt/Q3 Reports/sales.csv'))",
+      taskId,
+      dir,
+    );
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "error": "Inline script code references a /mnt/... path. Attached-folder mounts are visible to the sandbox shell, the file tools, and the sandboxed script runtimes, never to a real interpreter process. Copy the file into the task first (cp '/mnt/Q3 Reports/sales.csv' attachments/) and open the copy as attachments/sales.csv.",
+      }
+    `);
+  });
+
+  it.each([
+    { code: "os.listdir('/mnt/Reports')", label: "a folder" },
+    { code: "open(f'/mnt/Reports/{name}.csv')", label: "an f-string" },
+    { code: "glob.glob('/mnt/Reports/*.csv')", label: "a pattern" },
+    { code: 'open("/mnt/Bob\'s/x.csv")', label: "a single quote inside" },
+  ])("keeps the generic copy guidance for $label", ({ code }) => {
+    const result = bridgeInlineCodePaths(code, taskId, dir);
+    expect(result).toHaveProperty(
+      "error",
+      expect.stringContaining("(cp '/mnt/<folder>/<file>' attachments/)"),
+    );
+  });
+
   it("fails fast on quoted /task/.instrument paths instead of rewriting them", () => {
     const result = bridgeInlineCodePaths(
       'fs.readFileSync("/task/.instrument/state.json")',

@@ -102,7 +102,7 @@ minimumReleaseAgeExclude:
   - "@milkdown/utils@7.22.2"
 
 overrides:
-  "@electron/rebuild>node-abi": 4.31.0
+  "@electron/rebuild>node-abi": 4.35.0
   # Collapse jiti to a single version so vite (which has jiti as an optional
   # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
   # vite variants, making Plugin types "unrelated" and breaking tsgo on
@@ -114,7 +114,6 @@ overrides:
 
 patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
-  app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch
   just-bash@3.4.1: patches/just-bash@3.4.1.patch
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch

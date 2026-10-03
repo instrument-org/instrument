@@ -120,7 +120,7 @@ async function renderTranscript({
 const copy = devOnly
   .input(transcriptInput)
   .handler(async ({ context, input, signal }) => {
-    clipboard.writeText(await renderTranscript({ context, input, signal }));
+    await clipboard.writeText(await renderTranscript({ context, input, signal }));
   });
 
 const save = base
@@ -144,7 +144,7 @@ const save = base
     // The transcript is usually saved on its way to an agent, and what an agent
     // needs is the path, not the bytes. Leaving it on the clipboard turns the
     // next step into a paste instead of a hunt through Downloads.
-    clipboard.writeText(filepath);
+    await clipboard.writeText(filepath);
 
     return { filepath };
   });

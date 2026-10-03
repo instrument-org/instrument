@@ -101,7 +101,7 @@ function contextMenuTemplate(
     items.push(
       {
         click: () => {
-          clipboard.writeText(params.linkURL);
+          void clipboard.writeText(params.linkURL);
         },
         label: "Copy Link",
       },

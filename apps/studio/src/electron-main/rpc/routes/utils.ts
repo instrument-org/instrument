@@ -30,6 +30,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   dialog,
   Menu,
   nativeImage,
@@ -564,12 +565,16 @@ const copyFileToClipboard = base
     const isBinary = await isBinaryFile(buffer);
 
     if (input.isImage && isBinary) {
-      const image = nativeImage.createFromBuffer(buffer);
-      clipboard.writeImage(image);
+      const png = nativeImage.createFromBuffer(buffer).toPNG();
+      await clipboard.write([
+        new ClipboardItem({
+          "image/png": new Blob([new Uint8Array(png)], { type: "image/png" }),
+        }),
+      ]);
     } else if (isBinary) {
       throw errors.UNSUPPORTED_TYPE();
     } else {
-      clipboard.writeText(buffer.toString("utf8"));
+      await clipboard.writeText(buffer.toString("utf8"));
     }
   });
 

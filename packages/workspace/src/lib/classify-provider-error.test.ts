@@ -50,6 +50,48 @@ const cases: {
     expected: { evidence: "structured", kind: "usage-limit" },
     name: "a ChatGPT plan's usage limit inside a stream",
   },
+  // Our own platform's refusals, as its gateway sends them (apps/api in the
+  // internal repo, `TypedError`).
+  {
+    error: apiCallError({
+      message: "Payment Required",
+      responseBody:
+        '{"error":{"code":"subscription-required","message":"Your free trial has ended. Choose a plan to keep going.","retryable":false,"reason":"trial-ended"}}',
+      statusCode: 402,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" },
+    name: "our platform's 402 subscription-required",
+  },
+  {
+    error: apiCallError({
+      message: "Too Many Requests",
+      responseBody:
+        '{"error":{"code":"usage-limit-exceeded","message":"Usage limit reached. It resets at 2026-10-03T23:00:00.000Z.","retryable":false,"resetsAt":"2026-10-03T23:00:00.000Z","window":"5h","windows":[{"key":"5h","percentUsed":100,"resetsAt":"2026-10-03T23:00:00.000Z"}]}}',
+      statusCode: 429,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" },
+    name: "our platform's 429 usage-limit-exceeded",
+  },
+  {
+    error: apiCallError({
+      message: "Too Many Requests",
+      responseBody:
+        '{"error":{"code":"concurrency-limit","message":"Too many requests are running at once. Try again when one ends.","retryable":true}}',
+      statusCode: 429,
+    }),
+    expected: { evidence: "structured", kind: "rate-limit" },
+    name: "our platform's 429 concurrency-limit",
+  },
+  {
+    error: apiCallError({
+      message: "Service Unavailable",
+      responseBody:
+        '{"error":{"code":"meter-unavailable","message":"Usage could not be checked. Please try again shortly.","retryable":true}}',
+      statusCode: 503,
+    }),
+    expected: { evidence: "structured", kind: "transient" },
+    name: "our platform's 503 meter-unavailable",
+  },
   {
     error: apiCallError({ message: "Unauthorized", statusCode: 401 }),
     expected: { evidence: "status", kind: "auth" },

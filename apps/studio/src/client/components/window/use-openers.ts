@@ -17,8 +17,8 @@ import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
-import { DISCOVER_HREF } from "./ideas";
 import { openMenuLink } from "./menu-link";
+import { groupScreenOf } from "./group-screen";
 import { visitInTab } from "./tab-history";
 import { taskRecordOptions } from "./child-tasks-query";
 import {
@@ -263,12 +263,11 @@ export function useOpeners({
       return;
     }
     // An app is a place a tab stands, wherever it was asked for from, and so
-    // is Discover and each idea on it: the pane beside a chat draws neither.
-    const { pathname } = parseHref(href);
+    // is every screen no group's tab stands on (Discover, the release
+    // notes): those are the window's own, never a tab beside a chat.
     if (
-      pathname.startsWith(`${APPS_HREF}/`) ||
-      pathname === DISCOVER_HREF ||
-      pathname.startsWith(`${DISCOVER_HREF}/`)
+      parseHref(href).pathname.startsWith(`${APPS_HREF}/`) ||
+      groupScreenOf(href) === undefined
     ) {
       appTabs.navigate(href);
       return;

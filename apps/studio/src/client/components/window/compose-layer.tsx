@@ -40,7 +40,6 @@ export function ComposeLayer({
   onNewChatTopic,
   onNewTopic,
   onOpenChat,
-  onPressChatTab,
   onSetChatTopics,
   onStart,
   openOutside,
@@ -67,8 +66,6 @@ export function ComposeLayer({
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
   onOpenChat: (sessionId: StoreId.Session) => void;
-  /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
-  onPressChatTab: (sessionId: StoreId.Session, tabId: string) => void;
   onSetChatTopics: (sessionId: StoreId.Session, topics: string[]) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
@@ -173,9 +170,6 @@ export function ComposeLayer({
                   onCloseChat(sessionId);
                 }}
                 onCloseTab={onCloseTab}
-                onLandOnTab={(tabId) => {
-                  onPressChatTab(sessionId, tabId);
-                }}
                 onMinimize={() => {
                   compose.setPlacement(sessionId, "bar");
                 }}

@@ -9,6 +9,7 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewAtom,
+  windowTabsAtom,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -74,6 +75,7 @@ import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
 import { AppTabStrip } from "./app-tab-strip";
+import { withGroupScreensOnly } from "./group-screen";
 import {
   appTabsAtom,
   groupOfHref,
@@ -141,6 +143,12 @@ const RETIRED_GROUPS = [
  * along the foot, the window's browser, and its chords.
  */
 export function AppWindow() {
+  // Tabs kept from a launch that let a group hold a screen it cannot draw
+  // go, once, before anything is opened beside them.
+  const setWindowTabs = useSetAtom(windowTabsAtom);
+  useEffect(() => {
+    setWindowTabs(withGroupScreensOnly);
+  }, [setWindowTabs]);
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);
@@ -472,12 +480,6 @@ function WindowShell({
   const landChat = (sessionId: StoreId.Session) => {
     compose.remove(sessionId);
     appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
-  };
-  /** The same, with one of the chat's tabs put in front of its pane. */
-  const landOnTab = (sessionId: StoreId.Session, tabId: string) => {
-    landChat(sessionId);
-    windowTabs.selectIn(sessionId, tabId);
-    setPaneOpen(sessionId, true);
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -859,7 +861,6 @@ function WindowShell({
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
                 onOpenChat={landChat}
-                onPressChatTab={landOnTab}
                 onSetChatTopics={setChatTopics}
                 onStart={startChat}
                 openOutside={(href) => {

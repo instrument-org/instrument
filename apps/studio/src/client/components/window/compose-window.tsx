@@ -102,6 +102,7 @@ import { OutputPicker } from "./output-picker";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { ScreenTabContext } from "./screen-tab";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
+import { groupScreenOf } from "./group-screen";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { useTabSteps } from "./tab-steps";
@@ -627,14 +628,6 @@ export function ComposeWindow({
         onPageChrome={onPageChrome}
         onPageHost={setPageHost}
         onScreenView={setFilesView}
-        outside={{
-          label: "Open beside the chat",
-          note: "Opens beside the chat, not in a draft.",
-          onOpen: (tab) => {
-            openOutside(tab.href);
-            closeTab(tab.id);
-          },
-        }}
         up={up}
       />
     );
@@ -964,7 +957,6 @@ export function GroupItem({
   onPageChrome,
   onPageHost,
   onScreenView,
-  outside,
   up,
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
@@ -981,12 +973,6 @@ export function GroupItem({
   onPageHost: (element: HTMLDivElement | null) => void;
   /** What a screen it draws has up (the Finder, a chat's tasks), in the terms the conversation is told it. */
   onScreenView?: (view: null | ScreenView) => void;
-  /** A screen the window cannot draw: what to say, and the way to where it can be. */
-  outside: {
-    label: string;
-    note: string;
-    onOpen: (tab: Extract<WindowTab, { kind: "screen" }>) => void;
-  };
   up: WindowTab;
 }) {
   const windowTabs = useWindowTabs();
@@ -1172,88 +1158,37 @@ export function GroupItem({
     );
   }
   const screenRow = row(screenLocation(up.href, { appsBySlug, taskTitles }));
-  const computer = computerTabOf(up.href);
-  if (computer) {
-    const search = parseHref(up.href).search;
-    const tree = search.get("tree") ?? undefined;
-    // The folder says where it stands, as the pane beside a chat reads it.
-    const location = screenLocation(up.href, { appsBySlug });
-    const shown =
-      location.kind === "folder" && filesView?.folder
-        ? { ...location, path: filesView.folder.display }
-        : location;
-    return (
-      <Frame head={row(shown, { isFileScreen: true })}>
-        {/* The Finder and the file viewer the pane beside a chat draws,
-            moving this tab rather than following the window's router. */}
-        <ScreenTabContext
-          value={{
-            id: up.id,
-            // Leaving a file opened from the Finder steps the tab back to its
-            // folder; a tab that opened on the file has nowhere to go back to.
-            leave: () => {
-              if (windowTabs.stepTab(up.id, -1) === undefined) {
-                closeTab(up.id);
-              }
-            },
-            report: (view) => {
-              setFilesView(view);
-              onScreenView?.(view);
-            },
-            visit: (href) => {
-              windowTabs.visitHref(up.id, href);
-            },
-          }}
-        >
-          <WindowContext
-            value={{
-              ...appWindow,
-              rowLead: screenLead,
-              rowTail: screenTail,
-            }}
-          >
-            <FilesScreen
-              file={computer.file}
-              key={up.id}
-              path={computer.path}
-              root={computer.root}
-              select={search.get("select") ?? undefined}
-              source={search.get("source") === "true"}
-              tree={tree}
-            />
-          </WindowContext>
-        </ScreenTabContext>
-      </Frame>
-    );
+  const screen = groupScreenOf(up.href);
+  // The openers send every other address to the window's own tabs, and kept
+  // tabs at one are dropped on launch, so a group never stands on one.
+  if (screen === undefined) {
+    return null;
   }
-  const tasks = tasksOfHref(up.href);
-  if (tasks) {
-    return (
-      // A chat's tasks and each task's page, as the pane beside a chat draws
-      // them, moving this tab rather than following the window's router: a
-      // row pressed or the row's Tasks crumb walks the tab in place.
-      <WindowContext
-        value={{
-          ...appWindow,
-          openScreen: (href, options) => {
-            if (tasksOfHref(href) && !options?.newTab) {
-              windowTabs.visitHref(up.id, href);
-              return;
-            }
-            appWindow.openScreen(href, options);
-          },
-        }}
-      >
-        <Frame head={screenRow}>
+  switch (screen.kind) {
+    case "computer": {
+      const search = parseHref(up.href).search;
+      // The folder says where it stands, as the pane beside a chat reads it.
+      const location = screenLocation(up.href, { appsBySlug });
+      const shown =
+        location.kind === "folder" && filesView?.folder
+          ? { ...location, path: filesView.folder.display }
+          : location;
+      return (
+        <Frame head={row(shown, { isFileScreen: true })}>
+          {/* The Finder and the file viewer the pane beside a chat draws,
+            moving this tab rather than following the window's router. */}
           <ScreenTabContext
             value={{
               id: up.id,
+              // Leaving a file opened from the Finder steps the tab back to its
+              // folder; a tab that opened on the file has nowhere to go back to.
               leave: () => {
                 if (windowTabs.stepTab(up.id, -1) === undefined) {
                   closeTab(up.id);
                 }
               },
               report: (view) => {
+                setFilesView(view);
                 onScreenView?.(view);
               },
               visit: (href) => {
@@ -1261,76 +1196,114 @@ export function GroupItem({
               },
             }}
           >
-            {tasks.task !== undefined ? (
-              <TaskScreen key={tasks.task} taskId={tasks.task} />
-            ) : tasks.chat ? (
-              <ChatTasksScreen chat={tasks.chat} />
-            ) : null}
+            <WindowContext
+              value={{
+                ...appWindow,
+                rowLead: screenLead,
+                rowTail: screenTail,
+              }}
+            >
+              <FilesScreen
+                file={screen.file}
+                key={up.id}
+                path={screen.path}
+                root={screen.root}
+                select={search.get("select") ?? undefined}
+                source={search.get("source") === "true"}
+                tree={screen.tree}
+              />
+            </WindowContext>
           </ScreenTabContext>
         </Frame>
-      </WindowContext>
-    );
-  }
-  const { pathname } = parseHref(up.href);
-  if (pathname === BROWSER_HREF) {
-    return (
-      <Frame head={screenRow}>
-        <WebStart
-          onOpenPage={(url) => {
-            browser?.open(url, { group, replacing: up });
+      );
+    }
+    case "tasks": {
+      const tasks = screen;
+      return (
+        // A chat's tasks and each task's page, as the pane beside a chat draws
+        // them, moving this tab rather than following the window's router: a
+        // row pressed or the row's Tasks crumb walks the tab in place.
+        <WindowContext
+          value={{
+            ...appWindow,
+            openScreen: (href, options) => {
+              if (tasksOfHref(href) && !options?.newTab) {
+                windowTabs.visitHref(up.id, href);
+                return;
+              }
+              appWindow.openScreen(href, options);
+            },
           }}
-        />
-      </Frame>
-    );
-  }
-  if (pathname === APPS_HREF) {
-    return (
-      <Frame head={screenRow}>
-        <AppsHome
-          onOpenApp={(slug) => {
-            windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
-          }}
-          showsConnect={false}
-        />
-      </Frame>
-    );
-  }
-  if (pathname.startsWith(`${APPS_HREF}/`)) {
-    return (
-      <Frame head={screenRow}>
-        <AppFront
-          onToApps={() => {
-            if (windowTabs.stepTab(up.id, -1) === undefined) {
-              windowTabs.visitHref(up.id, APPS_HREF);
-            }
-          }}
-          reportsScreen={false}
-          slug={pathname.slice(APPS_HREF.length + 1)}
-        />
-      </Frame>
-    );
-  }
-  const { icon, title } = screenPresentation(up.href, { appsBySlug });
-  return (
-    <Frame>
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-        <span className="flex items-center gap-2 text-foreground">
-          <span className="[&_svg]:size-4">{icon}</span>
-          {title}
-        </span>
-        <p>{outside.note}</p>
-        <Button
-          onClick={() => {
-            outside.onOpen(up);
-          }}
-          size="sm"
-          variant="outline"
         >
-          {outside.label}
-        </Button>
-      </div>
-    </Frame>
-  );
+          <Frame head={screenRow}>
+            <ScreenTabContext
+              value={{
+                id: up.id,
+                leave: () => {
+                  if (windowTabs.stepTab(up.id, -1) === undefined) {
+                    closeTab(up.id);
+                  }
+                },
+                report: (view) => {
+                  onScreenView?.(view);
+                },
+                visit: (href) => {
+                  windowTabs.visitHref(up.id, href);
+                },
+              }}
+            >
+              {tasks.task !== undefined ? (
+                <TaskScreen key={tasks.task} taskId={tasks.task} />
+              ) : tasks.chat ? (
+                <ChatTasksScreen chat={tasks.chat} />
+              ) : null}
+            </ScreenTabContext>
+          </Frame>
+        </WindowContext>
+      );
+    }
+    // A draft draws its own new tab before this, so beside a chat one is the
+    // web's starting view, the new tab a chat's group opens.
+    case "browser":
+    case "newTab": {
+      return (
+        <Frame head={screenRow}>
+          <WebStart
+            onOpenPage={(url) => {
+              browser?.open(url, { group, replacing: up });
+            }}
+          />
+        </Frame>
+      );
+    }
+    case "apps": {
+      return (
+        <Frame head={screenRow}>
+          <AppsHome
+            onOpenApp={(slug) => {
+              windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
+            }}
+            showsConnect={false}
+          />
+        </Frame>
+      );
+    }
+    case "app": {
+      return (
+        <Frame head={screenRow}>
+          <AppFront
+            onToApps={() => {
+              if (windowTabs.stepTab(up.id, -1) === undefined) {
+                windowTabs.visitHref(up.id, APPS_HREF);
+              }
+            }}
+            reportsScreen={false}
+            slug={screen.slug}
+          />
+        </Frame>
+      );
+    }
+  }
 }
 
 /**

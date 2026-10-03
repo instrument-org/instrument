@@ -339,13 +339,6 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
                       onScreenView={reportView}
-                      outside={{
-                        label: "Open in a tab",
-                        note: "Opens in a tab of its own.",
-                        onOpen: (tab) => {
-                          appTabs.open(tab.href);
-                        },
-                      }}
                       up={up}
                     />
                   )}
@@ -580,13 +573,6 @@ function SiteView({ group }: { group: string }) {
         onPageChrome={setPageChrome}
         onPageHost={setPageHost}
         onScreenView={reportView}
-        outside={{
-          label: "Open in a tab",
-          note: "Opens in a tab of its own.",
-          onOpen: (tab) => {
-            shell.appTabs.open(tab.href);
-          },
-        }}
         up={up}
       />
     </div>

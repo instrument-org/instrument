@@ -131,7 +131,6 @@ export function ChatWindow({
   isRailCompact,
   onClose,
   onCloseTab,
-  onLandOnTab,
   onMinimize,
   onNewTopic,
   onOpenInChats,
@@ -155,8 +154,6 @@ export function ChatWindow({
   onClose: () => void;
   /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
   onCloseTab: (id: string) => void;
-  /** Lands in Chats with the chat open and this tab up, for a thing the window cannot draw. */
-  onLandOnTab: (tabId: string) => void;
   onMinimize: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
@@ -547,13 +544,6 @@ export function ChatWindow({
                 }}
                 onPageChrome={onPageChrome}
                 onPageHost={setPageHost}
-                outside={{
-                  label: "Open in Chats",
-                  note: "Opens in Chats, beside the chat.",
-                  onOpen: (tab) => {
-                    onLandOnTab(tab.id);
-                  },
-                }}
                 up={up}
               />
             </div>

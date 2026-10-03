@@ -100,7 +100,14 @@ const rename = base
     if (moved === input.path) {
       return { path: moved };
     }
-    if (await exists(moved)) {
+    // A name taken by something else is refused. One that differs only in
+    // letter case finds the item itself there on a disk that does not tell
+    // them apart, and is a rename like any other.
+    const [there, self] = await Promise.all([
+      fs.lstat(moved).catch(() => null),
+      fs.lstat(input.path).catch(() => null),
+    ]);
+    if (there && !(self && there.dev === self.dev && there.ino === self.ino)) {
       throw errors.NAME_IN_USE();
     }
     await fs.rename(input.path, moved);

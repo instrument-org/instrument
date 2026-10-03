@@ -33,7 +33,7 @@ catalog:
   "@types/react-dom": ^19.2.3
   "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^6.0.5
-  ai: ^7.0.107
+  ai: ^7.0.116
   better-auth: ^1.6.25
   hono: ^4.13.9
   react: ^19.2.1

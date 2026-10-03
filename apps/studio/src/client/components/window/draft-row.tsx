@@ -59,7 +59,7 @@ export function DraftRow({
     </span>
   );
   const time = (
-    <span className="shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+    <span className="shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">
       {activityLabel(new Date(draft.updatedAt), now)}
     </span>
   );

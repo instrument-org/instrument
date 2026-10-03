@@ -520,24 +520,23 @@ describe("ChatRow", () => {
     expect(working.querySelector(".brand-shiny-text")?.textContent).toBe(
       "Reading the automation",
     );
+    expect(peekOf(working)?.textContent).toBe("Reading the automation");
     const peek = peekOf(waiting);
     expect(peek?.textContent).toBe("Reuse the old CSR, or generate a new one?");
     expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
   });
 
-  it("says what it is answering beside Instrument is working until a task starts, on one line", async () => {
+  it("shows only Instrument is working until a task starts", async () => {
     const working = chat({
       lastAsk: "Check the Nest schedule",
       latest: undefined,
       state: "working",
     });
     const { row } = await renderRow(working);
-    expect(peekOf(row)?.textContent).toBe(
-      "Instrument is workingYou: Check the Nest schedule",
-    );
+    expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
-  it("says Instrument is working after a task's title until its first step lands", async () => {
+  it("shows only Instrument is working until the task's first step lands", async () => {
     const { row } = await renderRow(
       chat({
         latest: undefined,
@@ -547,7 +546,7 @@ describe("ChatRow", () => {
         state: "working",
       }),
     );
-    expect(peekOf(row)?.textContent).toBe("Nest guardInstrument is working");
+    expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
   it("has no latest line for an idle chat with nothing to say", async () => {

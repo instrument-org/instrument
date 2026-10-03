@@ -185,8 +185,8 @@ export function ChatRow({
       className={cn(
         // `ml-auto` holds it to the corner when the holds' line draws no
         // marks, as when a chat's only site has no icon yet.
-        "ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums",
-        isUnseen && "font-semibold text-foreground",
+        "ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+        isUnseen && "font-semibold",
       )}
     >
       {activityLabel(new Date(chat.updatedAt), now)}
@@ -557,42 +557,17 @@ function TagControl({
 }
 
 /**
- * What a working chat is doing, on one line so the row keeps its height as
- * the step changes with every call: the task at work by its title and then
- * the step it is on, which says Instrument is working until the task's first
- * call lands. With no task at work, the chat's own agent is, and the user's
- * message it is answering follows.
+ * The current step alone, or Instrument is working until a step lands.
+ * One line keeps the row's height stable as the status changes.
  */
 function WorkingPeek({ chat }: { chat: Chat }) {
   const working = chat.runningTasks.filter((task) => !task.waiting);
-  const lead = working.find((task) => task.step) ?? working[0];
+  const step = working.find((task) => task.step)?.step;
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
   // shrink, so it carries its own.
-  if (!lead) {
-    return (
-      <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="brand-shiny-text shrink-0">Instrument is working</span>
-        {/* What it is answering beside it, so the line says what the wait
-            is for rather than standing alone until a task starts. */}
-        {chat.lastAsk && (
-          <span className="min-w-0 truncate text-muted-foreground">
-            You: {chat.lastAsk}
-          </span>
-        )}
-      </span>
-    );
-  }
   return (
-    <span className="flex min-w-0 items-baseline gap-1.5">
-      <span className="max-w-1/2 shrink-0 truncate text-foreground/80">
-        {lead.title}
-        {working.length > 1 && (
-          <span className="text-muted-foreground"> +{working.length - 1}</span>
-        )}
-      </span>
-      <span className="brand-shiny-text min-w-0 truncate">
-        {lead.step ?? "Instrument is working"}
-      </span>
+    <span className="brand-shiny-text min-w-0 truncate">
+      {step ?? "Instrument is working"}
     </span>
   );
 }

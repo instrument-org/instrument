@@ -105,7 +105,7 @@ export function ViewerSurface({
   );
 }
 
-function reportViewerError(error: Error, errorInfo: ErrorInfo) {
+function reportViewerError(error: unknown, errorInfo: ErrorInfo) {
   const properties = viewerErrorReport(error);
   if (properties) {
     captureException(error, {

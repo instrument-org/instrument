@@ -9,54 +9,58 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
-import { Route as DebugRouteRouteImport } from './routes/debug/route'
-import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
-import { Route as DebugIndexRouteImport } from './routes/debug/index'
-import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
-import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
-import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
-import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
-import { Route as DebugComponentsRouteImport } from './routes/debug/components'
-import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
-import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
-import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppRouteRouteImport } from './routes/_app/route'
+import { Route as DebugRouteRouteImport } from './routes/debug/route'
+import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
-import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
-import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
-import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
-import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
-import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
+import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
+import { Route as DebugIndexRouteImport } from './routes/debug/index'
+import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
+import { Route as DebugComponentsRouteImport } from './routes/debug/components'
+import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
+import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
+import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
+import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
+import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
-import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
-import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
-import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
-import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
-import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
-import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/components/onboarding'
-import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
-import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
-import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
-import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
-import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
-import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
-import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
-import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
-import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
-import { Route as AppDiscoverIdRouteImport } from './routes/_app/discover/$id'
-import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
+import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
+import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
+import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
+import { Route as AppDiscoverIdRouteImport } from './routes/_app/discover/$id'
+import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
+import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
+import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
+import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
+import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
+import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
+import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
+import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
+import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
+import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
+import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
+import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
+import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/components/onboarding'
+import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
+import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
+import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
+import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
+import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
 import { Route as DebugComponentsOnboardingIndexRouteImport } from './routes/debug/components/onboarding/index'
-import { Route as DebugComponentsOnboardingThemeRouteImport } from './routes/debug/components/onboarding/theme'
-import { Route as DebugComponentsOnboardingProvidersRouteImport } from './routes/debug/components/onboarding/providers'
-import { Route as DebugComponentsOnboardingLoginRouteImport } from './routes/debug/components/onboarding/login'
 import { Route as DebugComponentsOnboardingCompleteRouteImport } from './routes/debug/components/onboarding/complete'
+import { Route as DebugComponentsOnboardingLoginRouteImport } from './routes/debug/components/onboarding/login'
+import { Route as DebugComponentsOnboardingProvidersRouteImport } from './routes/debug/components/onboarding/providers'
+import { Route as DebugComponentsOnboardingThemeRouteImport } from './routes/debug/components/onboarding/theme'
 
-const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRouteRoute = AppRouteRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DebugRouteRoute = DebugRouteRouteImport.update({
@@ -64,58 +68,14 @@ const DebugRouteRoute = DebugRouteRouteImport.update({
   path: '/debug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRouteRoute = AppRouteRouteImport.update({
-  id: '/_app',
+const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const DebugIndexRoute = DebugIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
-  id: '/theme',
-  path: '/theme',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugErrorsRoute = DebugErrorsRouteImport.update({
-  id: '/errors',
-  path: '/errors',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugComponentsRoute = DebugComponentsRouteImport.update({
-  id: '/components',
-  path: '/components',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
-  id: '/browser-views',
-  path: '/browser-views',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
-  id: '/release-notes',
-  path: '/release-notes',
+const AppBrowserRoute = AppBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppFilesRoute = AppFilesRouteImport.update({
@@ -123,29 +83,59 @@ const AppFilesRoute = AppFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppBrowserRoute = AppBrowserRouteImport.update({
-  id: '/browser',
-  path: '/browser',
+const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
+  id: '/release-notes',
+  path: '/release-notes',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const DebugComponentsIndexRoute = DebugComponentsIndexRouteImport.update({
+const DebugIndexRoute = DebugIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DebugComponentsRoute,
+  getParentRoute: () => DebugRouteRoute,
 } as any)
-const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
+const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
+  id: '/browser-views',
+  path: '/browser-views',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugComponentsRoute = DebugComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugErrorsRoute = DebugErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OnboardingRouteRoute,
+} as any)
+const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => OnboardingRouteRoute,
+} as any)
+const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
+  id: '/theme',
+  path: '/theme',
+  getParentRoute: () => OnboardingRouteRoute,
+} as any)
+const AppAppsIndexRoute = AppAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
-  id: '/skills/',
-  path: '/skills/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppDiscoverIndexRoute = AppDiscoverIndexRouteImport.update({
-  id: '/discover/',
-  path: '/discover/',
+const AppAppsSlugRoute = AppAppsSlugRouteImport.update({
+  id: '/apps/$slug',
+  path: '/apps/$slug',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppChatsIndexRoute = AppChatsIndexRouteImport.update({
@@ -153,49 +143,71 @@ const AppChatsIndexRoute = AppChatsIndexRouteImport.update({
   path: '/chats/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppAppsIndexRoute = AppAppsIndexRouteImport.update({
-  id: '/apps/',
-  path: '/apps/',
+const AppChatsIdRoute = AppChatsIdRouteImport.update({
+  id: '/chats/$id',
+  path: '/chats/$id',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const DebugComponentsTypographyRoute =
-  DebugComponentsTypographyRouteImport.update({
-    id: '/typography',
-    path: '/typography',
-    getParentRoute: () => DebugComponentsRoute,
+const AppDiscoverIndexRoute = AppDiscoverIndexRouteImport.update({
+  id: '/discover/',
+  path: '/discover/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppDiscoverIdRoute = AppDiscoverIdRouteImport.update({
+  id: '/discover/$id',
+  path: '/discover/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSitesIdRoute = AppSitesIdRouteImport.update({
+  id: '/sites/$id',
+  path: '/sites/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
+  id: '/skills/',
+  path: '/skills/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
+  id: '/skills/$name',
+  path: '/skills/$name',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppTasksIdRoute = AppTasksIdRouteImport.update({
+  id: '/tasks/$id',
+  path: '/tasks/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const DebugBrowserViewTargetIdRoute =
+  DebugBrowserViewTargetIdRouteImport.update({
+    id: '/browser-view/$targetId',
+    path: '/browser-view/$targetId',
+    getParentRoute: () => DebugRouteRoute,
   } as any)
-const DebugComponentsTranscriptRoute =
-  DebugComponentsTranscriptRouteImport.update({
-    id: '/transcript',
-    path: '/transcript',
-    getParentRoute: () => DebugComponentsRoute,
-  } as any)
-const DebugComponentsSpinnerRoute = DebugComponentsSpinnerRouteImport.update({
-  id: '/spinner',
-  path: '/spinner',
+const DebugComponentsIndexRoute = DebugComponentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
-const DebugComponentsQuestionRoute = DebugComponentsQuestionRouteImport.update({
-  id: '/question',
-  path: '/question',
+const DebugComponentsAlertsRoute = DebugComponentsAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
-const DebugComponentsProviderIconsRoute =
-  DebugComponentsProviderIconsRouteImport.update({
-    id: '/provider-icons',
-    path: '/provider-icons',
-    getParentRoute: () => DebugComponentsRoute,
-  } as any)
-const DebugComponentsOnboardingRoute =
-  DebugComponentsOnboardingRouteImport.update({
-    id: '/onboarding',
-    path: '/onboarding',
-    getParentRoute: () => DebugComponentsRoute,
-  } as any)
-const DebugComponentsFormElementsRoute =
-  DebugComponentsFormElementsRouteImport.update({
-    id: '/form-elements',
-    path: '/form-elements',
+const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
+  id: '/colors',
+  path: '/colors',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugComponentsErrorCardRoute =
+  DebugComponentsErrorCardRouteImport.update({
+    id: '/error-card',
+    path: '/error-card',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
 const DebugComponentsFileIconsRoute =
@@ -204,74 +216,56 @@ const DebugComponentsFileIconsRoute =
     path: '/file-icons',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
-const DebugComponentsErrorCardRoute =
-  DebugComponentsErrorCardRouteImport.update({
-    id: '/error-card',
-    path: '/error-card',
+const DebugComponentsFormElementsRoute =
+  DebugComponentsFormElementsRouteImport.update({
+    id: '/form-elements',
+    path: '/form-elements',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
-const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
-  id: '/colors',
-  path: '/colors',
-  getParentRoute: () => DebugComponentsRoute,
-} as any)
-const DebugComponentsAlertsRoute = DebugComponentsAlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
-  getParentRoute: () => DebugComponentsRoute,
-} as any)
-const DebugBrowserViewTargetIdRoute =
-  DebugBrowserViewTargetIdRouteImport.update({
-    id: '/browser-view/$targetId',
-    path: '/browser-view/$targetId',
-    getParentRoute: () => DebugRouteRoute,
+const DebugComponentsOnboardingRoute =
+  DebugComponentsOnboardingRouteImport.update({
+    id: '/onboarding',
+    path: '/onboarding',
+    getParentRoute: () => DebugComponentsRoute,
   } as any)
-const AppTasksIdRoute = AppTasksIdRouteImport.update({
-  id: '/tasks/$id',
-  path: '/tasks/$id',
-  getParentRoute: () => AppRouteRoute,
+const DebugComponentsProviderIconsRoute =
+  DebugComponentsProviderIconsRouteImport.update({
+    id: '/provider-icons',
+    path: '/provider-icons',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
+const DebugComponentsQuestionRoute = DebugComponentsQuestionRouteImport.update({
+  id: '/question',
+  path: '/question',
+  getParentRoute: () => DebugComponentsRoute,
 } as any)
-const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
-  id: '/skills/$name',
-  path: '/skills/$name',
-  getParentRoute: () => AppRouteRoute,
+const DebugComponentsSpinnerRoute = DebugComponentsSpinnerRouteImport.update({
+  id: '/spinner',
+  path: '/spinner',
+  getParentRoute: () => DebugComponentsRoute,
 } as any)
-const AppSitesIdRoute = AppSitesIdRouteImport.update({
-  id: '/sites/$id',
-  path: '/sites/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppDiscoverIdRoute = AppDiscoverIdRouteImport.update({
-  id: '/discover/$id',
-  path: '/discover/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppChatsIdRoute = AppChatsIdRouteImport.update({
-  id: '/chats/$id',
-  path: '/chats/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppAppsSlugRoute = AppAppsSlugRouteImport.update({
-  id: '/apps/$slug',
-  path: '/apps/$slug',
-  getParentRoute: () => AppRouteRoute,
-} as any)
+const DebugComponentsTranscriptRoute =
+  DebugComponentsTranscriptRouteImport.update({
+    id: '/transcript',
+    path: '/transcript',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
+const DebugComponentsTypographyRoute =
+  DebugComponentsTypographyRouteImport.update({
+    id: '/typography',
+    path: '/typography',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
 const DebugComponentsOnboardingIndexRoute =
   DebugComponentsOnboardingIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const DebugComponentsOnboardingThemeRoute =
-  DebugComponentsOnboardingThemeRouteImport.update({
-    id: '/theme',
-    path: '/theme',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
-const DebugComponentsOnboardingProvidersRoute =
-  DebugComponentsOnboardingProvidersRouteImport.update({
-    id: '/providers',
-    path: '/providers',
+const DebugComponentsOnboardingCompleteRoute =
+  DebugComponentsOnboardingCompleteRouteImport.update({
+    id: '/complete',
+    path: '/complete',
     getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
 const DebugComponentsOnboardingLoginRoute =
@@ -280,10 +274,16 @@ const DebugComponentsOnboardingLoginRoute =
     path: '/login',
     getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
-const DebugComponentsOnboardingCompleteRoute =
-  DebugComponentsOnboardingCompleteRouteImport.update({
-    id: '/complete',
-    path: '/complete',
+const DebugComponentsOnboardingProvidersRoute =
+  DebugComponentsOnboardingProvidersRouteImport.update({
+    id: '/providers',
+    path: '/providers',
+    getParentRoute: () => DebugComponentsOnboardingRoute,
+  } as any)
+const DebugComponentsOnboardingThemeRoute =
+  DebugComponentsOnboardingThemeRouteImport.update({
+    id: '/theme',
+    path: '/theme',
     getParentRoute: () => DebugComponentsOnboardingRoute,
   } as any)
 
@@ -564,18 +564,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/debug': {
-      id: '/debug'
-      path: '/debug'
-      fullPath: '/debug'
-      preLoaderRoute: typeof DebugRouteRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -585,74 +578,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/debug': {
+      id: '/debug'
+      path: '/debug'
+      fullPath: '/debug'
+      preLoaderRoute: typeof DebugRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/onboarding/': {
-      id: '/onboarding/'
-      path: '/'
-      fullPath: '/onboarding/'
-      preLoaderRoute: typeof OnboardingIndexRouteImport
-      parentRoute: typeof OnboardingRouteRoute
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/debug/': {
-      id: '/debug/'
-      path: '/'
-      fullPath: '/debug/'
-      preLoaderRoute: typeof DebugIndexRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/onboarding/theme': {
-      id: '/onboarding/theme'
-      path: '/theme'
-      fullPath: '/onboarding/theme'
-      preLoaderRoute: typeof OnboardingThemeRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/onboarding/providers': {
-      id: '/onboarding/providers'
-      path: '/providers'
-      fullPath: '/onboarding/providers'
-      preLoaderRoute: typeof OnboardingProvidersRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/debug/notifications': {
-      id: '/debug/notifications'
-      path: '/notifications'
-      fullPath: '/debug/notifications'
-      preLoaderRoute: typeof DebugNotificationsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/errors': {
-      id: '/debug/errors'
-      path: '/errors'
-      fullPath: '/debug/errors'
-      preLoaderRoute: typeof DebugErrorsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/components': {
-      id: '/debug/components'
-      path: '/components'
-      fullPath: '/debug/components'
-      preLoaderRoute: typeof DebugComponentsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/browser-views': {
-      id: '/debug/browser-views'
-      path: '/browser-views'
-      fullPath: '/debug/browser-views'
-      preLoaderRoute: typeof DebugBrowserViewsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/_app/release-notes': {
-      id: '/_app/release-notes'
-      path: '/release-notes'
-      fullPath: '/release-notes'
-      preLoaderRoute: typeof AppReleaseNotesRouteImport
+    '/_app/browser': {
+      id: '/_app/browser'
+      path: '/browser'
+      fullPath: '/browser'
+      preLoaderRoute: typeof AppBrowserRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/files': {
@@ -662,172 +606,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/browser': {
-      id: '/_app/browser'
-      path: '/browser'
-      fullPath: '/browser'
-      preLoaderRoute: typeof AppBrowserRouteImport
+    '/_app/release-notes': {
+      id: '/_app/release-notes'
+      path: '/release-notes'
+      fullPath: '/release-notes'
+      preLoaderRoute: typeof AppReleaseNotesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/debug/components/': {
-      id: '/debug/components/'
+    '/debug/': {
+      id: '/debug/'
       path: '/'
-      fullPath: '/debug/components/'
-      preLoaderRoute: typeof DebugComponentsIndexRouteImport
-      parentRoute: typeof DebugComponentsRoute
+      fullPath: '/debug/'
+      preLoaderRoute: typeof DebugIndexRouteImport
+      parentRoute: typeof DebugRouteRoute
     }
-    '/_app/tasks/': {
-      id: '/_app/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks/'
-      preLoaderRoute: typeof AppTasksIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/browser-views': {
+      id: '/debug/browser-views'
+      path: '/browser-views'
+      fullPath: '/debug/browser-views'
+      preLoaderRoute: typeof DebugBrowserViewsRouteImport
+      parentRoute: typeof DebugRouteRoute
     }
-    '/_app/skills/': {
-      id: '/_app/skills/'
-      path: '/skills'
-      fullPath: '/skills/'
-      preLoaderRoute: typeof AppSkillsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/components': {
+      id: '/debug/components'
+      path: '/components'
+      fullPath: '/debug/components'
+      preLoaderRoute: typeof DebugComponentsRouteImport
+      parentRoute: typeof DebugRouteRoute
     }
-    '/_app/discover/': {
-      id: '/_app/discover/'
-      path: '/discover'
-      fullPath: '/discover/'
-      preLoaderRoute: typeof AppDiscoverIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/errors': {
+      id: '/debug/errors'
+      path: '/errors'
+      fullPath: '/debug/errors'
+      preLoaderRoute: typeof DebugErrorsRouteImport
+      parentRoute: typeof DebugRouteRoute
     }
-    '/_app/chats/': {
-      id: '/_app/chats/'
-      path: '/chats'
-      fullPath: '/chats/'
-      preLoaderRoute: typeof AppChatsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/debug/notifications': {
+      id: '/debug/notifications'
+      path: '/notifications'
+      fullPath: '/debug/notifications'
+      preLoaderRoute: typeof DebugNotificationsRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/onboarding/': {
+      id: '/onboarding/'
+      path: '/'
+      fullPath: '/onboarding/'
+      preLoaderRoute: typeof OnboardingIndexRouteImport
+      parentRoute: typeof OnboardingRouteRoute
+    }
+    '/onboarding/providers': {
+      id: '/onboarding/providers'
+      path: '/providers'
+      fullPath: '/onboarding/providers'
+      preLoaderRoute: typeof OnboardingProvidersRouteImport
+      parentRoute: typeof OnboardingRouteRoute
+    }
+    '/onboarding/theme': {
+      id: '/onboarding/theme'
+      path: '/theme'
+      fullPath: '/onboarding/theme'
+      preLoaderRoute: typeof OnboardingThemeRouteImport
+      parentRoute: typeof OnboardingRouteRoute
     }
     '/_app/apps/': {
       id: '/_app/apps/'
       path: '/apps'
       fullPath: '/apps/'
       preLoaderRoute: typeof AppAppsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/debug/components/typography': {
-      id: '/debug/components/typography'
-      path: '/typography'
-      fullPath: '/debug/components/typography'
-      preLoaderRoute: typeof DebugComponentsTypographyRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/transcript': {
-      id: '/debug/components/transcript'
-      path: '/transcript'
-      fullPath: '/debug/components/transcript'
-      preLoaderRoute: typeof DebugComponentsTranscriptRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/spinner': {
-      id: '/debug/components/spinner'
-      path: '/spinner'
-      fullPath: '/debug/components/spinner'
-      preLoaderRoute: typeof DebugComponentsSpinnerRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/question': {
-      id: '/debug/components/question'
-      path: '/question'
-      fullPath: '/debug/components/question'
-      preLoaderRoute: typeof DebugComponentsQuestionRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/provider-icons': {
-      id: '/debug/components/provider-icons'
-      path: '/provider-icons'
-      fullPath: '/debug/components/provider-icons'
-      preLoaderRoute: typeof DebugComponentsProviderIconsRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/onboarding': {
-      id: '/debug/components/onboarding'
-      path: '/onboarding'
-      fullPath: '/debug/components/onboarding'
-      preLoaderRoute: typeof DebugComponentsOnboardingRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/form-elements': {
-      id: '/debug/components/form-elements'
-      path: '/form-elements'
-      fullPath: '/debug/components/form-elements'
-      preLoaderRoute: typeof DebugComponentsFormElementsRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/file-icons': {
-      id: '/debug/components/file-icons'
-      path: '/file-icons'
-      fullPath: '/debug/components/file-icons'
-      preLoaderRoute: typeof DebugComponentsFileIconsRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/error-card': {
-      id: '/debug/components/error-card'
-      path: '/error-card'
-      fullPath: '/debug/components/error-card'
-      preLoaderRoute: typeof DebugComponentsErrorCardRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/colors': {
-      id: '/debug/components/colors'
-      path: '/colors'
-      fullPath: '/debug/components/colors'
-      preLoaderRoute: typeof DebugComponentsColorsRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/components/alerts': {
-      id: '/debug/components/alerts'
-      path: '/alerts'
-      fullPath: '/debug/components/alerts'
-      preLoaderRoute: typeof DebugComponentsAlertsRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
-    '/debug/browser-view/$targetId': {
-      id: '/debug/browser-view/$targetId'
-      path: '/browser-view/$targetId'
-      fullPath: '/debug/browser-view/$targetId'
-      preLoaderRoute: typeof DebugBrowserViewTargetIdRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/_app/tasks/$id': {
-      id: '/_app/tasks/$id'
-      path: '/tasks/$id'
-      fullPath: '/tasks/$id'
-      preLoaderRoute: typeof AppTasksIdRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/skills/$name': {
-      id: '/_app/skills/$name'
-      path: '/skills/$name'
-      fullPath: '/skills/$name'
-      preLoaderRoute: typeof AppSkillsNameRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/sites/$id': {
-      id: '/_app/sites/$id'
-      path: '/sites/$id'
-      fullPath: '/sites/$id'
-      preLoaderRoute: typeof AppSitesIdRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/discover/$id': {
-      id: '/_app/discover/$id'
-      path: '/discover/$id'
-      fullPath: '/discover/$id'
-      preLoaderRoute: typeof AppDiscoverIdRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/chats/$id': {
-      id: '/_app/chats/$id'
-      path: '/chats/$id'
-      fullPath: '/chats/$id'
-      preLoaderRoute: typeof AppChatsIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/apps/$slug': {
@@ -837,6 +683,160 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAppsSlugRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/chats/': {
+      id: '/_app/chats/'
+      path: '/chats'
+      fullPath: '/chats/'
+      preLoaderRoute: typeof AppChatsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/chats/$id': {
+      id: '/_app/chats/$id'
+      path: '/chats/$id'
+      fullPath: '/chats/$id'
+      preLoaderRoute: typeof AppChatsIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/discover/': {
+      id: '/_app/discover/'
+      path: '/discover'
+      fullPath: '/discover/'
+      preLoaderRoute: typeof AppDiscoverIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/discover/$id': {
+      id: '/_app/discover/$id'
+      path: '/discover/$id'
+      fullPath: '/discover/$id'
+      preLoaderRoute: typeof AppDiscoverIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/sites/$id': {
+      id: '/_app/sites/$id'
+      path: '/sites/$id'
+      fullPath: '/sites/$id'
+      preLoaderRoute: typeof AppSitesIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/skills/': {
+      id: '/_app/skills/'
+      path: '/skills'
+      fullPath: '/skills/'
+      preLoaderRoute: typeof AppSkillsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/skills/$name': {
+      id: '/_app/skills/$name'
+      path: '/skills/$name'
+      fullPath: '/skills/$name'
+      preLoaderRoute: typeof AppSkillsNameRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/tasks/': {
+      id: '/_app/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof AppTasksIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/tasks/$id': {
+      id: '/_app/tasks/$id'
+      path: '/tasks/$id'
+      fullPath: '/tasks/$id'
+      preLoaderRoute: typeof AppTasksIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/debug/browser-view/$targetId': {
+      id: '/debug/browser-view/$targetId'
+      path: '/browser-view/$targetId'
+      fullPath: '/debug/browser-view/$targetId'
+      preLoaderRoute: typeof DebugBrowserViewTargetIdRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/components/': {
+      id: '/debug/components/'
+      path: '/'
+      fullPath: '/debug/components/'
+      preLoaderRoute: typeof DebugComponentsIndexRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/alerts': {
+      id: '/debug/components/alerts'
+      path: '/alerts'
+      fullPath: '/debug/components/alerts'
+      preLoaderRoute: typeof DebugComponentsAlertsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/colors': {
+      id: '/debug/components/colors'
+      path: '/colors'
+      fullPath: '/debug/components/colors'
+      preLoaderRoute: typeof DebugComponentsColorsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/error-card': {
+      id: '/debug/components/error-card'
+      path: '/error-card'
+      fullPath: '/debug/components/error-card'
+      preLoaderRoute: typeof DebugComponentsErrorCardRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/file-icons': {
+      id: '/debug/components/file-icons'
+      path: '/file-icons'
+      fullPath: '/debug/components/file-icons'
+      preLoaderRoute: typeof DebugComponentsFileIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/form-elements': {
+      id: '/debug/components/form-elements'
+      path: '/form-elements'
+      fullPath: '/debug/components/form-elements'
+      preLoaderRoute: typeof DebugComponentsFormElementsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/onboarding': {
+      id: '/debug/components/onboarding'
+      path: '/onboarding'
+      fullPath: '/debug/components/onboarding'
+      preLoaderRoute: typeof DebugComponentsOnboardingRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/provider-icons': {
+      id: '/debug/components/provider-icons'
+      path: '/provider-icons'
+      fullPath: '/debug/components/provider-icons'
+      preLoaderRoute: typeof DebugComponentsProviderIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/question': {
+      id: '/debug/components/question'
+      path: '/question'
+      fullPath: '/debug/components/question'
+      preLoaderRoute: typeof DebugComponentsQuestionRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/spinner': {
+      id: '/debug/components/spinner'
+      path: '/spinner'
+      fullPath: '/debug/components/spinner'
+      preLoaderRoute: typeof DebugComponentsSpinnerRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/transcript': {
+      id: '/debug/components/transcript'
+      path: '/transcript'
+      fullPath: '/debug/components/transcript'
+      preLoaderRoute: typeof DebugComponentsTranscriptRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/typography': {
+      id: '/debug/components/typography'
+      path: '/typography'
+      fullPath: '/debug/components/typography'
+      preLoaderRoute: typeof DebugComponentsTypographyRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/onboarding/': {
       id: '/debug/components/onboarding/'
       path: '/'
@@ -844,18 +844,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsOnboardingIndexRouteImport
       parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/debug/components/onboarding/theme': {
-      id: '/debug/components/onboarding/theme'
-      path: '/theme'
-      fullPath: '/debug/components/onboarding/theme'
-      preLoaderRoute: typeof DebugComponentsOnboardingThemeRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
-    '/debug/components/onboarding/providers': {
-      id: '/debug/components/onboarding/providers'
-      path: '/providers'
-      fullPath: '/debug/components/onboarding/providers'
-      preLoaderRoute: typeof DebugComponentsOnboardingProvidersRouteImport
+    '/debug/components/onboarding/complete': {
+      id: '/debug/components/onboarding/complete'
+      path: '/complete'
+      fullPath: '/debug/components/onboarding/complete'
+      preLoaderRoute: typeof DebugComponentsOnboardingCompleteRouteImport
       parentRoute: typeof DebugComponentsOnboardingRoute
     }
     '/debug/components/onboarding/login': {
@@ -865,11 +858,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsOnboardingLoginRouteImport
       parentRoute: typeof DebugComponentsOnboardingRoute
     }
-    '/debug/components/onboarding/complete': {
-      id: '/debug/components/onboarding/complete'
-      path: '/complete'
-      fullPath: '/debug/components/onboarding/complete'
-      preLoaderRoute: typeof DebugComponentsOnboardingCompleteRouteImport
+    '/debug/components/onboarding/providers': {
+      id: '/debug/components/onboarding/providers'
+      path: '/providers'
+      fullPath: '/debug/components/onboarding/providers'
+      preLoaderRoute: typeof DebugComponentsOnboardingProvidersRouteImport
+      parentRoute: typeof DebugComponentsOnboardingRoute
+    }
+    '/debug/components/onboarding/theme': {
+      id: '/debug/components/onboarding/theme'
+      path: '/theme'
+      fullPath: '/debug/components/onboarding/theme'
+      preLoaderRoute: typeof DebugComponentsOnboardingThemeRouteImport
       parentRoute: typeof DebugComponentsOnboardingRoute
     }
   }

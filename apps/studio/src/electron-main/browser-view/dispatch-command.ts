@@ -108,6 +108,23 @@ export async function sendCommand({
     return await handlePrintToPDF(entry, params);
   }
 
+  // A guest's debugger answers Page.reload by reloading the app window that
+  // embeds it, which takes every tab and the guest itself with it. The guest's
+  // own reload is what the panel's reload button calls, and stays in the tab.
+  if (method === "Page.reload") {
+    const guest = entry.webContents;
+    if (!guest || guest.isDestroyed()) {
+      throw new Error("webContents unavailable");
+    }
+    const p = (params ?? {}) as Protocol.Page.ReloadRequest;
+    if (p.ignoreCache) {
+      guest.reloadIgnoringCache();
+    } else {
+      guest.reload();
+    }
+    return {};
+  }
+
   // Electron's debugger does not expose Page.startScreencast / stopScreencast.
   // Emulate them by polling webContents.capturePage() and emitting synthetic
   // Page.screencastFrame events into the event listener set.

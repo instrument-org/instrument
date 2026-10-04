@@ -346,17 +346,17 @@ export function groupFlags(flags) {
   const byKind = new Map();
   for (const f of flags) byKind.set(f.kind, [...(byKind.get(f.kind) ?? []), f]);
   const out = [];
-  for (const [kind, fs] of byKind) {
-    if (fs.length > 3)
+  for (const [kind, ofKind] of byKind) {
+    if (ofKind.length > 3)
       out.push({
         kind,
-        sev: fs[0].sev,
-        count: fs.length,
-        lines: fs.map((f) => f.line),
-        first: fs[0].msg,
+        sev: ofKind[0].sev,
+        count: ofKind.length,
+        lines: ofKind.map((f) => f.line),
+        first: ofKind[0].msg,
       });
     else
-      for (const f of fs)
+      for (const f of ofKind)
         out.push({ kind, sev: f.sev, count: 1, lines: [f.line], first: f.msg });
   }
   const rank = { bad: 0, warn: 1, info: 2 };

@@ -37,6 +37,20 @@
       }
     },
     {
+      // Agent skill scripts are plain JavaScript run by node with no types, so
+      // every value is `any` and the type-aware rules flag every line of them.
+      "files": [".agents/**/*.mjs"],
+      "rules": {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/restrict-plus-operands": "off",
+        "typescript/restrict-template-expressions": "off"
+      }
+    },
+    {
       // Every module here is reachable from the renderer, where `node:`
       // builtins do not exist, so the rule holds for the whole package rather
       // than for a set of files someone has to keep listing. Elsewhere the

@@ -38,6 +38,7 @@ import {
   removeLocalServer,
   requireAppCredential,
   runAppTest,
+  searchAppCatalogByMeaning,
   withAppMcpClient,
   workspacePublisher,
   findAppIcon,
@@ -202,15 +203,30 @@ const live = {
  * The directory: what the product knows how to reach before anyone connects
  * it, each service with the icon the build ships for it, if any.
  */
-const catalog = base.handler(() =>
-  Promise.all(
-    getAppCatalog().map(async (entry) => ({
-      ...entry,
-      icon:
-        (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry)),
-    })),
-  ),
-);
+const catalog = base.handler(() => Promise.all(getAppCatalog().map(withIcon)));
+
+/**
+ * The directory's services a search means without naming them, most likely
+ * first, each with its icon as `catalog` gives it. Empty when no provider
+ * reaches the decision model.
+ */
+const catalogByMeaning = base
+  .input(z.object({ query: z.string() }))
+  .handler(async ({ context, input, signal }) => {
+    const meant = await searchAppCatalogByMeaning(input.query, {
+      configs: context.workspaceConfig.getAIProviderConfigs(),
+      signal,
+    });
+    return Promise.all(meant.map(withIcon));
+  });
+
+/** A directory entry with the icon the build ships for it, or its Mac app's. */
+async function withIcon(entry: ReturnType<typeof getAppCatalog>[number]) {
+  return {
+    ...entry,
+    icon: (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry)),
+  };
+}
 
 /**
  * Whether a tool may be pressed from the inspector: the server says it only
@@ -662,6 +678,7 @@ export const apps = {
   allow,
   cancelOAuth,
   catalog,
+  catalogByMeaning,
   disconnect,
   dismiss,
   inspect,

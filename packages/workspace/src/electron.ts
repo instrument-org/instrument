@@ -9,6 +9,7 @@ export {
   catalogEntrySupportsApiKey,
   findCatalogEntry,
   getAppCatalog,
+  searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
 export {
   type AppConnection,

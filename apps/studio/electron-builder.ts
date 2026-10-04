@@ -78,6 +78,13 @@ const config: Configuration = {
   // ship. electron-builder skips the cleanup entirely rather than leave a
   // locales directory empty, so a name that matches nothing cannot produce an
   // app that fails to boot.
+  // Refuses `--inspect` and SIGUSR1 on the packaged binary, so no other
+  // process can start Instrument with a debugger on main and read what
+  // safeStorage decrypts. RunAsNode and NODE_OPTIONS stay on: the agent's
+  // `node` is this binary in Node mode, and projects lean on NODE_OPTIONS.
+  electronFuses: {
+    enableNodeCliInspectArguments: false,
+  },
   electronLanguages: ["en-US"],
   extraMetadata: {
     name: APP_NAME,

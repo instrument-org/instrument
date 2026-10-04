@@ -38,7 +38,7 @@ import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { windowStatePath } from "./window-paths";
 import { NOTHING_SEEN } from "./window-state";
-import { writeJsonFileSync } from "./write-json-file-sync";
+import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 
 // Where what the move leaves behind is kept, so a migration that went wrong
 // can be undone by hand: the projects, once their topics are written, and the
@@ -343,24 +343,29 @@ function adoptTask({
     fs.mkdirSync(path.join(stagingDir, TASK_FOLDER_NAMES.attachments), {
       recursive: true,
     });
-    writeJsonFileSync(path.join(privateDir, TASK_SETTINGS_FILE_NAME), {
-      chatSessionId: sessionId,
-      createdAt: createdAt.toISOString(),
-      ...(typeof settings.createdWithAppVersion === "string"
-        ? { createdWithAppVersion: settings.createdWithAppVersion }
-        : {}),
-      lastActivityAt: lastActivityAt.toISOString(),
-      name: title,
-      state: {
-        attachedFolders: chatFoldersOf(
-          isRecord(settings.state) ? settings.state.attachedFolders : undefined,
-        ),
-        ...(isRecord(settings.state) &&
-        typeof settings.state.selectedModelURI === "string"
-          ? { selectedModelURI: settings.state.selectedModelURI }
+    updateJsonRecordSync(
+      path.join(privateDir, TASK_SETTINGS_FILE_NAME),
+      () => ({
+        chatSessionId: sessionId,
+        createdAt: createdAt.toISOString(),
+        ...(typeof settings.createdWithAppVersion === "string"
+          ? { createdWithAppVersion: settings.createdWithAppVersion }
           : {}),
-      },
-    });
+        lastActivityAt: lastActivityAt.toISOString(),
+        name: title,
+        state: {
+          attachedFolders: chatFoldersOf(
+            isRecord(settings.state)
+              ? settings.state.attachedFolders
+              : undefined,
+          ),
+          ...(isRecord(settings.state) &&
+          typeof settings.state.selectedModelURI === "string"
+            ? { selectedModelURI: settings.state.selectedModelURI }
+            : {}),
+        },
+      }),
+    );
     copyAttachments(taskDir, stagingDir, conversation.attachments);
     writeChatRows({
       dbPath: path.join(privateDir, TASK_DB_FILE_NAME),
@@ -427,9 +432,11 @@ function finishStagedChat(stagingDir: string) {
     TASK_PRIVATE_FOLDER_NAME,
     TASK_SETTINGS_FILE_NAME,
   );
-  const { projectId: _projectId, ...taskSettings } =
-    readJson(taskSettingsPath) ?? {};
-  writeJsonFileSync(taskSettingsPath, taskSettings);
+  // Settings that cannot be read are left for Settings > Storage to show
+  // rather than replaced.
+  if (readJsonRecordSync(taskSettingsPath).kind !== "unreadable") {
+    updateJsonRecordSync(taskSettingsPath, () => ({ projectId: undefined }));
+  }
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
 
@@ -534,18 +541,19 @@ function markSeen(
     return;
   }
   const statePath = windowStatePath(AbsolutePathSchema.parse(rootDir));
-  const state = readJson(statePath) ?? {};
-  const marks = new Map<string, unknown>(
-    Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
+  updateJsonRecordSync(
+    statePath,
+    (state) => {
+      const marks = new Map<string, unknown>(
+        Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
+      );
+      for (const [sessionId, messageId] of seen) {
+        marks.set(sessionId, messageId ?? NOTHING_SEEN);
+      }
+      return { chatSeen: Object.fromEntries(marks) };
+    },
+    { unreadable: "set-aside" },
   );
-  for (const [sessionId, messageId] of seen) {
-    marks.set(sessionId, messageId ?? NOTHING_SEEN);
-  }
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  writeJsonFileSync(statePath, {
-    ...state,
-    chatSeen: Object.fromEntries(marks),
-  });
 }
 
 /** Moves a folder into the backup, beside any earlier one of the same name. */

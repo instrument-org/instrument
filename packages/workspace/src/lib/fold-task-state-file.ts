@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { TASK_STATE_FILE_NAME } from "../constants";
-import { writeJsonFileSync } from "./write-json-file-sync";
+import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 
 /**
  * Folds a task's separate `state.json` into its settings file and removes it.
@@ -42,30 +42,22 @@ export function foldTaskStateFile(taskFolder: string): boolean {
     return false;
   }
 
-  let settings: unknown = {};
-  if (fs.existsSync(settingsPath)) {
-    try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-    } catch {
-      // Settings that cannot be read would be replaced by this write, taking
-      // the task's title with them. Leave both files for a person to look at.
-      return false;
-    }
-  }
-
-  if (!isRecord(settings)) {
+  // Settings that cannot be read would be replaced by this write, taking the
+  // task's title with them. Leave both files for a person to look at.
+  if (readJsonRecordSync(settingsPath).kind === "unreadable") {
     return false;
   }
 
   // An already-folded settings file wins: it is the newer of the two, and a
   // stale `state.json` left behind by a half-finished fold must not overwrite
   // what has been written since.
-  const folded = { ...settings, state: settings.state ?? state };
-
+  //
   // A crash between the write and the delete is survivable: the state file is
-  // still there, and the settings file has won by then, which is what the check
-  // above is for.
-  writeJsonFileSync(settingsPath, folded);
+  // still there, and the settings file has won by then, which is what the
+  // check above is for.
+  updateJsonRecordSync(settingsPath, (settings) => ({
+    state: settings.state ?? state,
+  }));
   fs.rmSync(statePath, { force: true });
 
   return true;

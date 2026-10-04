@@ -1,6 +1,4 @@
 import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
-import fs from "node:fs/promises";
-import { sleep } from "radashi";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import {
@@ -13,16 +11,8 @@ import {
   type TaskState,
 } from "../schemas/task-state";
 import { absolutePathJoin } from "./absolute-path-join";
-import { createWriteQueue } from "./create-write-queue";
-import { TypedError } from "./errors";
+import { readJsonRecord, updateJsonRecord } from "./json-record-file";
 import { getTaskPrivateDir } from "./task-dir-utils";
-
-const enqueue = createWriteQueue();
-
-/** How long a rename another program is holding the file against is retried. */
-const RENAME_RETRY_MS = 1000;
-/** The first wait, and the step each further attempt adds to it. */
-const RENAME_RETRY_STEP_MS = 20;
 
 /**
  * The one file a task keeps beside its conversation, and the only writer of it.
@@ -97,21 +87,12 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
  * attached folders that decide what the agent can reach.
  */
 export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
-  let contents: string;
-
-  try {
-    contents = await fs.readFile(recordPath(dir), "utf8");
-  } catch (error) {
-    // A task nobody has written a record for yet is the one case a write may
-    // create from nothing; anything else is a file we have but cannot read.
-    return emptyRecord(!isNotFound(error));
-  }
-
-  try {
-    return recordFrom(JSON.parse(contents));
-  } catch {
-    return emptyRecord(true);
-  }
+  const read = await readJsonRecord(recordPath(dir));
+  // A task nobody has written a record for yet is the one case a write may
+  // create from nothing; anything else is a file we have but cannot read.
+  return read.kind === "read"
+    ? recordFrom(read.record)
+    : emptyRecord(read.kind === "unreadable");
 }
 
 export async function setTaskState(
@@ -124,30 +105,22 @@ export async function setTaskState(
 /**
  * Applies a change to the whole file, reading it inside the write queue.
  *
- * The callback receives what is currently on disk and returns what should
- * replace it, so a read-modify-write cannot interleave with another: two tab
- * opens, or a generated title landing on a message send, would otherwise each
- * build on the record the other had not written yet.
+ * The callback receives what is currently on disk and returns the fields to
+ * write over it (`undefined` drops one; one left out is kept), so a
+ * read-modify-write cannot interleave with another: two tab opens, or a
+ * generated title landing on a message send, would otherwise each build on
+ * the record the other had not written yet.
  */
 export async function updateTaskRecord(
   dir: TaskDir,
   update: (record: TaskRecord) => Record<string, unknown>,
 ): Promise<TaskRecord> {
-  return enqueue(dir, async () => {
-    const current = await readTaskRecord(dir);
-    if (current.unreadable) {
-      // The write builds on what was read, and what was read is empty. Failing
-      // the caller costs a model pick or a tab; going ahead costs everything the
-      // file holds, and leaves nothing to repair it from.
-      throw new TypedError.FileSystem(
-        `Refusing to overwrite an unreadable task record at ${recordPath(dir)}`,
-      );
-    }
-
-    const next = update(current);
-    await writeTaskRecord(dir, next);
-    return recordFrom(next);
-  });
+  // An unreadable record is refused rather than built on: the write would
+  // build on an empty reading of it, and going ahead costs everything the
+  // file holds where failing the caller costs a model pick or a tab.
+  return recordFrom(
+    await updateJsonRecord(recordPath(dir), (raw) => update(recordFrom(raw))),
+  );
 }
 
 function emptyRecord(unreadable: boolean): TaskRecord {
@@ -157,20 +130,6 @@ function emptyRecord(unreadable: boolean): TaskRecord {
     state: StoredTaskStateSchema.parse({}),
     unreadable,
   };
-}
-
-function isBusy(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "EPERM" ||
-      error.code === "EACCES" ||
-      error.code === "EBUSY")
-  );
-}
-
-function isNotFound(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -227,68 +186,4 @@ function recordWithState(
       ...changes,
     },
   };
-}
-
-/**
- * Renames the temporary file into place, waiting out a refusal.
- *
- * Windows fails a rename with EPERM while another process holds either file
- * open, and something always does on a real machine: a virus scanner reads what
- * was just written, a search indexer walks the directory. This file is rewritten
- * as the user types and as a chat hands its tasks tabs, so it draws that
- * attention more than most. The handle is held for a moment, so retrying turns a
- * write that was lost outright into one that is late. POSIX has no such failure
- * and loses nothing by asking again.
- */
-export async function renameWhenAllowed(
-  temporary: string,
-  target: AbsolutePath,
-): Promise<void> {
-  const deadline = Date.now() + RENAME_RETRY_MS;
-
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await fs.rename(temporary, target);
-      return;
-    } catch (error) {
-      if (!isBusy(error) || Date.now() >= deadline) {
-        throw error;
-      }
-    }
-    // Backing off rather than spinning: the handle is another program's and
-    // nothing here can shorten how long it keeps it.
-    await sleep(RENAME_RETRY_STEP_MS * attempt);
-  }
-}
-
-/**
- * Writes through a temporary file and renames it into place.
- *
- * One file carries the title, the sort key and the state, and the state is
- * rewritten as the user works. Writing over the live file leaves a window where
- * a crash truncates it, and a truncated file does not read as damaged: the
- * parse fails, the task answers as though it has no settings, and it loses its
- * name and its position in the list. Rename is atomic within a directory, so a
- * reader sees the old file or the new one.
- */
-async function writeTaskRecord(
-  dir: TaskDir,
-  record: Record<string, unknown>,
-): Promise<void> {
-  const target = recordPath(dir);
-  // Named per process so two app instances sharing a workspace cannot write
-  // each other's temporary file. That is all it buys: the writes are still
-  // unordered across instances and the last rename wins. Within one process the
-  // queue orders them.
-  const temporary = `${target}.${process.pid}.tmp`;
-
-  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
-
-  try {
-    await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
-    await renameWhenAllowed(temporary, target);
-  } catch (error) {
-    await fs.rm(temporary, { force: true });
-    throw error;
-  }
 }

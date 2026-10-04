@@ -18,7 +18,7 @@ import {
   type LegacyTasksMigration,
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
-import { writeJsonFileSync } from "./write-json-file-sync";
+import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -392,20 +392,13 @@ function stampTaskTimestamps(taskFolder: string) {
     TASK_SETTINGS_FILE_NAME,
   );
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-  } catch {
+  const read = readJsonRecordSync(settingsPath);
+  if (read.kind !== "read") {
     // No settings, or none this can read. Nothing to preserve, and the task
     // folder still answers for it when the list asks.
     return;
   }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return;
-  }
-
-  const settings: Record<string, unknown> = { ...parsed };
+  const settings = read.record;
 
   // A project folder that ended up under tasks/ carries its own createdAt and
   // has no activity to record.
@@ -425,10 +418,10 @@ function stampTaskTimestamps(taskFolder: string) {
     return;
   }
 
-  settings.createdAt ??= observed.createdAt;
-  settings.lastActivityAt ??= observed.lastActivityAt;
-
-  writeJsonFileSync(settingsPath, settings);
+  updateJsonRecordSync(settingsPath, (current) => ({
+    createdAt: current.createdAt ?? observed.createdAt,
+    lastActivityAt: current.lastActivityAt ?? observed.lastActivityAt,
+  }));
 }
 
 // A missing or unreadable marker reads as stale, which just costs one sweep.

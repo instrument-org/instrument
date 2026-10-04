@@ -156,7 +156,7 @@ describe("updateTaskRecord", () => {
 
     await expect(
       setTaskState(taskDir(taskId), { selectedModelURI: "new draft" }),
-    ).rejects.toThrow(/unreadable task record/);
+    ).rejects.toThrow(/unreadable/);
 
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
       '{ "name": "Test task", "state',

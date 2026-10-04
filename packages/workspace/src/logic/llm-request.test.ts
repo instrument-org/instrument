@@ -200,6 +200,7 @@ describe("llmRequestLogic", () => {
                 onFinish: () => Promise.resolve(),
                 onStart: () => Promise.resolve(),
                 shouldContinue: () => Promise.resolve(true),
+                systemPrompt: () => "You are a helpful assistant.",
               },
               captureEvent: () => {
                 // no-op
@@ -272,6 +273,16 @@ describe("llmRequestLogic", () => {
           metadata,
         };
       }
+      // The current shape reads as such, so bumping it leaves these alone.
+      if (
+        "contextVersion" in message.metadata &&
+        message.metadata.contextVersion === SESSION_CONTEXT_VERSION
+      ) {
+        return {
+          ...message,
+          metadata: { ...message.metadata, contextVersion: "current" },
+        };
+      }
       return message;
     });
   }
@@ -296,7 +307,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -379,7 +390,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -464,7 +475,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -551,7 +562,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -642,7 +653,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -736,7 +747,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -814,7 +825,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -904,7 +915,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -983,7 +994,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1067,7 +1078,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1146,7 +1157,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1243,7 +1254,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1331,7 +1342,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 40,
+              "contextVersion": "current",
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1407,7 +1418,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 40,
+              "contextVersion": "current",
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1474,7 +1485,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 40,
+              "contextVersion": "current",
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -2266,7 +2277,7 @@ describe("llmRequestLogic", () => {
             agentName: "main",
             contextVersion: SESSION_CONTEXT_VERSION,
             createdAt: staleDate,
-            realRole: "system",
+            realRole: "user",
             sessionId,
           },
           parts: [
@@ -2351,9 +2362,9 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZV8888888888888889",
             "metadata": {
               "agentName": "main",
-              "contextVersion": 40,
+              "contextVersion": "current",
               "createdAt": 2013-08-31T10:00:00.000Z,
-              "realRole": "system",
+              "realRole": "user",
               "sessionId": "ses_00000000018888888888888888",
             },
             "parts": [
@@ -2457,7 +2468,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
-            "contextVersion": 40,
+            "contextVersion": "current",
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",

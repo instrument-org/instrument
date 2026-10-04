@@ -197,11 +197,9 @@ export const mainAgent = setupAgent({
     "WriteFile",
   ]),
   name: "main",
-}).create(({ agentTools, name }) => ({
-  getMessages: async ({ sessionId, taskId }) => {
-    const now = getCurrentDate();
-
-    let text = dedent`
+}).create(({ agentTools, name }) => {
+  const systemPrompt = () => {
+    const text = dedent`
     You are a general-purpose AI assistant that helps users accomplish any task that can be done with conversation, code, files, and internet access. This includes research, writing, data analysis, building apps, generating images, working with uploaded files, and more.
 
     # Your Role: Automation on the User's Behalf
@@ -312,152 +310,161 @@ export const mainAgent = setupAgent({
     `.trim();
 
     if (process.env.NODE_ENV === "development") {
-      text =
+      return (
         "NOTE: Running in development mode. You may test unusual edge cases and operate more freely on behalf of the developer for testing purposes.\n\n" +
-        text;
+        text
+      );
     }
+    return text;
+  };
 
-    const systemMessage = createSystemMessage({
-      agentName: name,
-      now,
-      sessionId,
-      text,
-    });
+  return {
+    getMessages: async ({ sessionId, taskId }) => {
+      const now = getCurrentDate();
 
-    const taskLayout = await getTaskLayoutContext(taskDir(taskId));
-
-    // Project context is snapshotted onto the first message at creation; read it
-    // from there (not the live project) so it stays fixed if the project is
-    // later edited or deleted.
-    const projectContext = await getProjectContextSnapshot({
-      sessionId,
-      taskId,
-    });
-    const projectName = projectContext?.projectName;
-    // Capped here as well as where the snapshot was written, because a task
-    // created before the cap existed carries an uncapped snapshot.
-    const projectInstructions = normalizeProjectInstructions(
-      projectContext?.instructions ?? "",
-    );
-
-    // Project folders are stored in task state alongside user-attached folders.
-    // Split them by their source so each set is framed accordingly: project
-    // folders as standing project context, the rest as folders the user attached.
-    const taskState = await getTaskState(taskDir(taskId));
-    const attachedFolders = assignAttachedMounts(
-      taskState.attachedFolders ?? {},
-    );
-    const projectFolders = attachedFolders.filter(
-      ({ folder }) => folder.source === "project",
-    );
-    const userAttachedFolders = attachedFolders.filter(
-      ({ folder }) => folder.source !== "project",
-    );
-
-    const userMessage = createContextMessage({
-      agentName: name,
-      now,
-      sessionId,
-      textParts: [
-        getSystemInfoText(),
-        await getUserText(),
-        projectName
-          ? buildProjectContextText({
-              instructions: projectInstructions,
-              name: projectName,
-            })
-          : null,
-        await buildAttachedFolderContext({
-          folders: projectFolders,
-          intro: projectName ? projectFoldersIntro(projectName) : "",
-        }),
-        await buildAttachedFolderContext({
-          folders: userAttachedFolders,
-          intro:
-            "The user has attached these folders to this task, mounted for direct access:",
-        }),
-        await buildAvailableSkillsContext(),
-        await buildTaskAppsText(taskId),
-        taskLayout,
-      ],
-    });
-
-    return [systemMessage, userMessage];
-  },
-  getTools: () => Promise.resolve(Object.values(agentTools)),
-  onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
-
-    // Skills live outside the task tree, in the shared writable
-    // `/skills/workspace` mount, so a turn that only authored a skill leaves nothing in the task.
-    const skillChangesPart =
-      skillChanges.created.length > 0 || skillChanges.updated.length > 0
-        ? { created: skillChanges.created, updated: skillChanges.updated }
-        : undefined;
-
-    const result = await safeTry(async function* () {
-      if (!skillChangesPart) {
-        return ok(undefined);
-      }
-
-      const messageIds = yield* Store.getMessageIdsAfter(
+      const systemMessage = createSystemMessage({
+        agentName: name,
+        now,
         sessionId,
-        parentMessageId,
+        text: systemPrompt(),
+      });
+
+      const taskLayout = await getTaskLayoutContext(taskDir(taskId));
+
+      // Project context is snapshotted onto the first message at creation; read it
+      // from there (not the live project) so it stays fixed if the project is
+      // later edited or deleted.
+      const projectContext = await getProjectContextSnapshot({
+        sessionId,
         taskId,
-        { signal },
+      });
+      const projectName = projectContext?.projectName;
+      // Capped here as well as where the snapshot was written, because a task
+      // created before the cap existed carries an uncapped snapshot.
+      const projectInstructions = normalizeProjectInstructions(
+        projectContext?.instructions ?? "",
       );
 
-      const messages = yield* Store.getMessagesWithParts(
-        {
-          messageIds: [parentMessageId, ...messageIds],
+      // Project folders are stored in task state alongside user-attached folders.
+      // Split them by their source so each set is framed accordingly: project
+      // folders as standing project context, the rest as folders the user attached.
+      const taskState = await getTaskState(taskDir(taskId));
+      const attachedFolders = assignAttachedMounts(
+        taskState.attachedFolders ?? {},
+      );
+      const projectFolders = attachedFolders.filter(
+        ({ folder }) => folder.source === "project",
+      );
+      const userAttachedFolders = attachedFolders.filter(
+        ({ folder }) => folder.source !== "project",
+      );
+
+      const userMessage = createContextMessage({
+        agentName: name,
+        now,
+        sessionId,
+        textParts: [
+          getSystemInfoText(),
+          await getUserText(),
+          projectName
+            ? buildProjectContextText({
+                instructions: projectInstructions,
+                name: projectName,
+              })
+            : null,
+          await buildAttachedFolderContext({
+            folders: projectFolders,
+            intro: projectName ? projectFoldersIntro(projectName) : "",
+          }),
+          await buildAttachedFolderContext({
+            folders: userAttachedFolders,
+            intro:
+              "The user has attached these folders to this task, mounted for direct access:",
+          }),
+          await buildAvailableSkillsContext(),
+          await buildTaskAppsText(taskId),
+          taskLayout,
+        ],
+      });
+
+      return [systemMessage, userMessage];
+    },
+    getTools: () => Promise.resolve(Object.values(agentTools)),
+    onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
+      const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
+
+      // Skills live outside the task tree, in the shared writable
+      // `/skills/workspace` mount, so a turn that only authored a skill leaves nothing in the task.
+      const skillChangesPart =
+        skillChanges.created.length > 0 || skillChanges.updated.length > 0
+          ? { created: skillChanges.created, updated: skillChanges.updated }
+          : undefined;
+
+      const result = await safeTry(async function* () {
+        if (!skillChangesPart) {
+          return ok(undefined);
+        }
+
+        const messageIds = yield* Store.getMessageIdsAfter(
           sessionId,
+          parentMessageId,
           taskId,
-        },
-        { signal },
-      );
+          { signal },
+        );
 
-      const usedNonReadOnlyTools = messages.some((message) =>
-        message.parts.some(
-          (part) => isToolPart(part) && !getToolByType(part.type).readOnly,
-        ),
-      );
-
-      if (!usedNonReadOnlyTools) {
-        return ok(undefined);
-      }
-
-      const assistantMessages = messages.filter(
-        (message) => message.role === "assistant",
-      );
-      const lastAssistantMessage = assistantMessages.at(-1);
-
-      if (!lastAssistantMessage) {
-        return err(new TypedError.NotFound("No assistant message found"));
-      }
-
-      yield* Store.savePart(
-        {
-          data: skillChangesPart,
-          metadata: {
-            createdAt: new Date(),
-            id: StoreId.newPartId(),
-            messageId: lastAssistantMessage.id,
+        const messages = yield* Store.getMessagesWithParts(
+          {
+            messageIds: [parentMessageId, ...messageIds],
             sessionId,
+            taskId,
           },
-          type: "data-skillChanges",
-        },
-        taskId,
-        { signal },
-      );
+          { signal },
+        );
 
-      return ok(undefined);
-    });
-    if (result.isErr()) {
-      getWorkspaceConfig().captureException(result.error);
-    }
-  },
-  onStart: async ({ sessionId, taskId }) => {
-    await beginSkillChangeTracking({ id: taskId, sessionId });
-  },
-  shouldContinue: shouldContinueWithToolCalls,
-}));
+        const usedNonReadOnlyTools = messages.some((message) =>
+          message.parts.some(
+            (part) => isToolPart(part) && !getToolByType(part.type).readOnly,
+          ),
+        );
+
+        if (!usedNonReadOnlyTools) {
+          return ok(undefined);
+        }
+
+        const assistantMessages = messages.filter(
+          (message) => message.role === "assistant",
+        );
+        const lastAssistantMessage = assistantMessages.at(-1);
+
+        if (!lastAssistantMessage) {
+          return err(new TypedError.NotFound("No assistant message found"));
+        }
+
+        yield* Store.savePart(
+          {
+            data: skillChangesPart,
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-skillChanges",
+          },
+          taskId,
+          { signal },
+        );
+
+        return ok(undefined);
+      });
+      if (result.isErr()) {
+        getWorkspaceConfig().captureException(result.error);
+      }
+    },
+    onStart: async ({ sessionId, taskId }) => {
+      await beginSkillChangeTracking({ id: taskId, sessionId });
+    },
+    shouldContinue: shouldContinueWithToolCalls,
+    systemPrompt,
+  };
+});

@@ -1083,6 +1083,7 @@ describe("sessionMachine", () => {
         },
         onStart: mainAgent.onStart,
         shouldContinue: mainAgent.shouldContinue,
+        systemPrompt: mainAgent.systemPrompt,
       })),
       chunkSets: [finishChunks],
     });
@@ -1117,6 +1118,7 @@ describe("sessionMachine", () => {
         onFinish: mainAgent.onFinish,
         onStart: mainAgent.onStart,
         shouldContinue: mainAgent.shouldContinue,
+        systemPrompt: mainAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks, finishChunks],
     });
@@ -1193,6 +1195,7 @@ describe("sessionMachine", () => {
         onFinish: mainAgent.onFinish,
         onStart: mainAgent.onStart,
         shouldContinue: mainAgent.shouldContinue,
+        systemPrompt: mainAgent.systemPrompt,
       })),
       chunkDelayMs: 100,
       chunkSets: [chooseChunks, finishChunks],
@@ -1248,6 +1251,7 @@ describe("sessionMachine", () => {
         onFinish: mainAgent.onFinish,
         onStart: mainAgent.onStart,
         shouldContinue: mainAgent.shouldContinue,
+        systemPrompt: mainAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks],
     });

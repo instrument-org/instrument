@@ -36,11 +36,12 @@ import { getWorkspaceConfig } from "./workspace-config";
 /**
  * The shape of the session baseline this build writes.
  *
- * Bump it whenever `agent.getMessages` starts producing something a session
- * that already has a baseline stored would otherwise never see. Without a bump
- * such a session keeps the baseline it was opened with for the rest of its
- * life, and the capability the release added is simply missing from every task
- * that predates it.
+ * A change to an agent's system prompt needs no bump: a stored system message
+ * that differs from `agent.systemPrompt()` is rebuilt on its own. Bump this
+ * when the rest of what `agent.getMessages` writes, the context message,
+ * starts carrying something a session that already has a baseline stored
+ * would otherwise never see. Without a bump such a session keeps the context
+ * message it was opened with for the rest of its life.
  */
 export const SESSION_CONTEXT_VERSION = 40;
 
@@ -257,15 +258,23 @@ export async function prepareModelMessages({
   // something the stored one cannot: the marker each message carries says which
   // shape it was written under, and a baseline older than this build's is
   // replaced on the first turn after the upgrade and then reused like any
-  // other. So the prefix moves once per shape change, and never on a clock. A
-  // marker from ahead of this build is left alone, since an older release
-  // running against a newer baseline has nothing better to put there.
+  // other. A baseline of this build's shape whose system message is not the
+  // prompt this build writes is replaced the same way. So the prefix moves once
+  // per prompt or shape change, and never on a clock. A marker from ahead of
+  // this build is left alone, since an older release running against a newer
+  // baseline has nothing better to put there.
   let contextMessages = existingSessionContextMessages;
 
-  const hasOutdatedBaseline = contextMessages.some(
-    (message) =>
-      (message.metadata.contextVersion ?? 0) < SESSION_CONTEXT_VERSION,
-  );
+  const systemPrompt = agent.systemPrompt();
+  const hasOutdatedBaseline = contextMessages.some((message) => {
+    const version = message.metadata.contextVersion ?? 0;
+    return (
+      version < SESSION_CONTEXT_VERSION ||
+      (version === SESSION_CONTEXT_VERSION &&
+        message.metadata.realRole === "system" &&
+        textOf(message) !== systemPrompt)
+    );
+  });
 
   if (contextMessages.length === 0 || hasOutdatedBaseline) {
     // Replaced rather than added to: two baselines in the store are two
@@ -410,4 +419,10 @@ export async function prepareModelMessages({
   }
 
   return ok(preparedMessages);
+}
+
+function textOf(message: SessionMessage.ContextWithParts) {
+  return message.parts
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("");
 }

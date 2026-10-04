@@ -35,6 +35,12 @@ export interface Agent<T extends AgentTools> {
   shouldContinue: (options: {
     messages: SessionMessage.WithParts[];
   }) => Promise<boolean>;
+  /**
+   * The system prompt `getMessages` puts in the baseline. Built from code and
+   * settings alone, never from the task, so a stored baseline whose system
+   * message differs was written by an earlier build and is rebuilt.
+   */
+  systemPrompt: () => string;
 }
 
 const AGENT_NAMES = ["main", "instrument"] as const;

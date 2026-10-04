@@ -268,6 +268,13 @@ describe("prepareModelMessages", () => {
       onFinish: () => Promise.resolve(),
       onStart: () => Promise.resolve(),
       shouldContinue: () => Promise.resolve(true),
+      // The prompt of whatever baseline this build would write now.
+      systemPrompt: () =>
+        contextMessages
+          .filter((message) => message.metadata.realRole === "system")
+          .flatMap((message) => message.parts)
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join(""),
     };
     await Store.saveSession(
       { createdAt: new Date(), id: sessionId, title: "Test session" },
@@ -481,14 +488,14 @@ describe("prepareModelMessages", () => {
 
   describe("session context", () => {
     it("reuses a stored context message instead of rebuilding it", async () => {
-      const stored = contextMessage(new Date(), "The standing instructions.");
+      const stored = contextMessage(new Date(), "You are a helpful agent.");
       await save(stored);
 
       const messages = await prepare();
 
       expect(getMessages).not.toHaveBeenCalled();
       expect(messages[0]).toEqual({
-        content: "The standing instructions.",
+        content: "You are a helpful agent.",
         providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral" } },
           bedrock: { cachePoint: { type: "ephemeral" } },
@@ -503,10 +510,12 @@ describe("prepareModelMessages", () => {
       const stored = contextMessage(
         subMinutes(new Date(), 61),
         "The standing instructions.",
+        "user",
       );
       await save(stored);
       contextMessages = [
-        contextMessage(new Date(), "The rebuilt instructions."),
+        ...contextMessages,
+        contextMessage(new Date(), "The rebuilt instructions.", "user"),
       ];
 
       const messages = await prepare();
@@ -532,9 +541,11 @@ describe("prepareModelMessages", () => {
       let build = 0;
       getMessages.mockImplementation(() =>
         Promise.resolve([
+          ...contextMessages,
           contextMessage(
             new Date(),
-            `The standing instructions, build ${++build}.`,
+            `The standing context, build ${++build}.`,
+            "user",
           ),
         ]),
       );
@@ -623,6 +634,45 @@ describe("prepareModelMessages", () => {
       );
       expect(JSON.stringify(messages)).not.toContain(
         "The instructions the old release wrote.",
+      );
+    });
+
+    it("rebuilds a baseline whose system prompt this build no longer writes, once", async () => {
+      await save(
+        contextMessage(new Date(), "The prompt the previous build wrote."),
+      );
+      contextMessages = [
+        contextMessage(new Date(), "The prompt this build writes."),
+      ];
+
+      const first = await prepare();
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(JSON.stringify(first)).toContain("The prompt this build writes.");
+      expect(JSON.stringify(first)).not.toContain(
+        "The prompt the previous build wrote.",
+      );
+
+      const second = await prepare();
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(second).toEqual(first);
+    });
+
+    it("keeps a baseline whose context message differs but whose prompt is current", async () => {
+      // The context message carries the task's own facts (date, folders), which
+      // differ from a fresh build's by design; only the prompt says which build
+      // wrote the baseline.
+      await save(contextMessage(new Date(), "You are a helpful agent."));
+      await save(
+        contextMessage(new Date(), "The folders when it started.", "user"),
+      );
+
+      const messages = await prepare();
+
+      expect(getMessages).not.toHaveBeenCalled();
+      expect(JSON.stringify(messages)).toContain(
+        "The folders when it started.",
       );
     });
 

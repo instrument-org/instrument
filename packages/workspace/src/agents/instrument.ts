@@ -55,11 +55,9 @@ export const instrumentAgent = setupAgent({
     "RequestFolder",
   ]),
   name: "instrument",
-}).create(({ agentTools, name }) => ({
-  getMessages: async ({ sessionId, taskId }) => {
-    const now = getCurrentDate();
-
-    const text = dedent`
+}).create(({ agentTools, name }) => {
+  const systemPrompt = () =>
+    dedent`
       You are ${APP_NAME}: the one agent the user talks to in this app. Small things you do yourself, on the spot; everything else you hand to tasks, each run by a capable agent with its own tools, folder, browser, and model, and you keep this conversation answering while they run. The user never sees a task; they see you.
 
       # How you work
@@ -174,54 +172,60 @@ export const instrumentAgent = setupAgent({
       - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row, not a message to the user: a short phrase starting with a verb ending in -ing ('Starting the hotel search'), never first person, never something you are about to do, never a full sentence with a period.
     `.trim();
 
-    const systemMessage = createSystemMessage({
-      agentName: name,
-      now,
-      sessionId,
-      text,
-    });
+  return {
+    getMessages: async ({ sessionId, taskId }) => {
+      const now = getCurrentDate();
 
-    const attached = assignAttachedMounts(await folderReach(taskId));
-    const foldersText =
-      attached.length > 0
-        ? buildAttachedFoldersText({
-            folders: attached.map(({ folder, mountPoint }) => {
-              const access = effectiveFolderAccess(folder);
-              return {
-                access,
-                mountPoint,
-                path: folder.path,
-                writableInside:
-                  access === "read-only" &&
-                  folder.access === "read-write" &&
-                  folderHoldsWorkspace(folder.path),
-              };
-            }),
-            intro:
-              "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder, which it can write in unless you add :ro:",
-            writes: "through-tasks",
-          })
-        : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
+      const systemMessage = createSystemMessage({
+        agentName: name,
+        now,
+        sessionId,
+        text: systemPrompt(),
+      });
 
-    const appsText = await buildAppsContextText();
-    const userMessage = createContextMessage({
-      agentName: name,
-      now,
-      sessionId,
-      textParts: [
-        getSystemInfoText(),
-        await getUserText(),
-        foldersText,
-        appsText,
-      ],
-    });
+      const attached = assignAttachedMounts(await folderReach(taskId));
+      const foldersText =
+        attached.length > 0
+          ? buildAttachedFoldersText({
+              folders: attached.map(({ folder, mountPoint }) => {
+                const access = effectiveFolderAccess(folder);
+                return {
+                  access,
+                  mountPoint,
+                  path: folder.path,
+                  writableInside:
+                    access === "read-only" &&
+                    folder.access === "read-write" &&
+                    folderHoldsWorkspace(folder.path),
+                };
+              }),
+              intro:
+                "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder, which it can write in unless you add :ro:",
+              writes: "through-tasks",
+            })
+          : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 
-    return [systemMessage, userMessage];
-  },
-  onFinish: () => Promise.resolve(),
-  onStart: () => Promise.resolve(),
-  shouldContinue: shouldContinueAfterHandingOff,
-}));
+      const appsText = await buildAppsContextText();
+      const userMessage = createContextMessage({
+        agentName: name,
+        now,
+        sessionId,
+        textParts: [
+          getSystemInfoText(),
+          await getUserText(),
+          foldersText,
+          appsText,
+        ],
+      });
+
+      return [systemMessage, userMessage];
+    },
+    onFinish: () => Promise.resolve(),
+    onStart: () => Promise.resolve(),
+    shouldContinue: shouldContinueAfterHandingOff,
+    systemPrompt,
+  };
+});
 
 /**
  * A line that says a task is about to be made or sent, rather than one that

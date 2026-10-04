@@ -723,6 +723,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
             onFinish: () => Promise.resolve(),
             onStart: () => Promise.resolve(),
             shouldContinue: () => Promise.resolve(true),
+            systemPrompt: () => "You are a careful agent.",
           },
           model,
           self: { send: vi.fn() } as unknown as AnyActorRef,

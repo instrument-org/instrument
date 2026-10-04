@@ -1,8 +1,11 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { APP_COMMAND } from "../shell-commands/app-command";
+import { TASK_COMMAND } from "../shell-commands/task-command";
 import { getWorkspaceConfig } from "../workspace-config";
-import { recordConnection } from "./connection";
+import { isConnected, readConnection, recordConnection } from "./connection";
 import {
   credentialMovedMessage,
   lookupAppCredential,
@@ -11,6 +14,7 @@ import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
   isMcpManifest,
+  type WebAppManifest,
 } from "./manifest";
 import { listMcpTools } from "./mcp/client";
 import { withAppMcpClient } from "./mcp/run";
@@ -18,7 +22,12 @@ import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
 import { credentialOrigin } from "./origin-bound";
 import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
-import { guidePlaceholdersLeft, loadApp, readAppGuide } from "./store";
+import {
+  type AppInfo,
+  guidePlaceholdersLeft,
+  loadApp,
+  readAppGuide,
+} from "./store";
 
 export interface AppTestReport {
   checks: AppTestCheck[];
@@ -59,8 +68,9 @@ export function formatAppTestReport(report: AppTestReport): string {
  * records the connection, pinned to this manifest; a failure records why, so
  * the card and the page can say.
  *
- * The only way an app becomes connected apart from finishing a sign-in, and
- * it runs outside every mount, so the agent iterates on the folder and this
+ * The only way an app becomes connected apart from finishing a sign-in (for
+ * a web app, the user saying on the card that they are signed in), and it
+ * runs outside every mount, so the agent iterates on the folder and this
  * decides.
  */
 export async function runAppTest({
@@ -104,6 +114,12 @@ export async function runAppTest({
     name: "manifest",
     status: "pass",
   });
+
+  if (app.manifest.type === "web") {
+    return finishWeb(
+      await testWebApp({ app: { ...app, manifest: app.manifest }, checks }),
+    );
+  }
 
   const guide = await readAppGuide(app.dir);
   // A guide still carrying the skeleton's prompts is worse than none: it
@@ -334,6 +350,23 @@ export async function runAppTest({
   }
   return finish(report());
 
+  // A web app's record is the user's word that they are signed in, which only
+  // the card writes: a pass leaves it as it stands, and a failure says what
+  // is missing.
+  async function finishWeb(result: AppTestReport) {
+    if (!result.passed) {
+      const firstFailure = result.checks.find(
+        (check) => check.status === "fail",
+      );
+      await recordConnection(slug, {
+        error: firstFailure?.detail.split("\n")[0]?.slice(0, 300),
+        status:
+          firstFailure?.name === "credential" ? "needs-sign-in" : "failed",
+      });
+    }
+    return result;
+  }
+
   async function finish(result: AppTestReport, toolCount?: number) {
     if (result.passed) {
       await recordConnection(slug, {
@@ -359,6 +392,76 @@ export async function runAppTest({
     });
     return result;
   }
+}
+
+/**
+ * A web app's checks: there is no credential to find and no service to call,
+ * so what passes is the user's own word, recorded by the card, that they are
+ * signed in to the site in the window's browser, on the manifest as it
+ * stands. Whether that session still holds shows only when a page loads.
+ */
+async function testWebApp({
+  app,
+  checks,
+}: {
+  app: AppInfo & { manifest: WebAppManifest };
+  checks: AppTestCheck[];
+}): Promise<AppTestReport> {
+  const { manifest, manifestHash, slug } = app;
+  const guide = await readAppGuide(app.dir);
+  checks.push({
+    detail:
+      guide === null
+        ? "No guide; a web app is worked on its own pages."
+        : `${APP_GUIDE_FILE_NAME} is present.`,
+    name: "guide",
+    status: "pass",
+  });
+  const connection = await readConnection(slug);
+  const recorded = isConnected(connection, manifestHash);
+  checks.push(
+    recorded
+      ? {
+          detail: `The user said they are signed in to ${manifest.name} in ${APP_NAME}'s browser.`,
+          name: "credential",
+          status: "pass",
+        }
+      : {
+          name: "credential",
+          ...failure(
+            connection?.status === "connected"
+              ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with connect_app.`
+              : `The user has not said they are signed in to ${manifest.name}. Ask them with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`,
+          ),
+        },
+  );
+  const findings = await scanAppFolder({ credential: null, dir: app.dir });
+  checks.push(
+    findings.length > 0
+      ? {
+          name: "secret-scan",
+          ...failure(
+            findings
+              .map((finding) => `${finding.file}: ${finding.detail}`)
+              .join(" "),
+          ),
+        }
+      : {
+          detail: "No secret-shaped strings in the app's files.",
+          name: "secret-scan",
+          status: "pass",
+        },
+  );
+  checks.push({
+    detail: `This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: brief a task with ${manifest.url} (it opens the site in a tab of its own, where the sign-in holds), or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`. \`${APP_COMMAND.name} call\` and \`${APP_COMMAND.name} request\` do not reach a web app.`,
+    name: "canary",
+    status: "skip",
+  });
+  return {
+    checks,
+    passed: checks.every((check) => check.status !== "fail"),
+    slug,
+  };
 }
 
 function failure(detail: string) {

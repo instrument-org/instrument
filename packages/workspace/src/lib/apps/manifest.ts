@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
 
 export const APP_MANIFEST_FILE_NAME = "app.json";
@@ -203,6 +204,31 @@ const LocalMcpAppManifestSchema = z
 
 export type LocalMcpAppManifest = z.output<typeof LocalMcpAppManifestSchema>;
 
+// A "web" app: a service worked on its own website, in the window's browser,
+// where the user signs in themselves. For a service whose every agent-usable
+// way in waits on a sign-in client of the vendor's approving (Google Drive,
+// Zoom) or that has none at all. No credential and no tools: connected means
+// the user said they are signed in, and a task works the site in a tab.
+const WebAppManifestSchema = z.strictObject({
+  name: z.string().min(1),
+  // The page the sign-in opens, when it is not where the work happens.
+  signIn: z
+    .string()
+    .refine(isAllowedBaseUrl, {
+      message:
+        "signIn must be a valid https:// URL (http:// is allowed only for loopback hosts) with no embedded credentials",
+    })
+    .optional(),
+  type: z.literal("web"),
+  // Where the work happens: the signed-in web app, e.g. https://drive.google.com.
+  url: z.string().refine(isAllowedBaseUrl, {
+    message:
+      "url must be a valid https:// URL (http:// is allowed only for loopback hosts) with no embedded credentials",
+  }),
+});
+
+export type WebAppManifest = z.output<typeof WebAppManifestSchema>;
+
 /**
  * What an app folder's manifest describes: how to call a service, and nothing
  * about whether it may be called. Whether it may is the connection record,
@@ -212,9 +238,13 @@ export const AppManifestSchema = z.discriminatedUnion("type", [
   ApiAppManifestSchema,
   LocalMcpAppManifestSchema,
   McpAppManifestSchema,
+  WebAppManifestSchema,
 ]);
 
 export type AppManifest = z.output<typeof AppManifestSchema>;
+
+/** An app reached by a request or a tool call, with an auth binding: every kind but a web app. */
+export type CalledAppManifest = Exclude<AppManifest, WebAppManifest>;
 
 /**
  * Whether the app speaks MCP, wherever its server runs. Both kinds discover
@@ -258,4 +288,11 @@ API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with
   "auth": { "kind": "bearer" },
   "headers": { "Notion-Version": "2022-06-28" },
   "test": { "path": "/users/me" }
+}
+
+Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"):
+{
+  "name": "Google Drive",
+  "type": "web",
+  "url": "https://drive.google.com"
 }`;

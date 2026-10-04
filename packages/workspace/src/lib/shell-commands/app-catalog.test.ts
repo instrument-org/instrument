@@ -62,12 +62,22 @@ describe("app catalog", () => {
     );
   });
 
-  it("says plainly when every way in needs a client the card cannot make", async () => {
-    const text = await catalog("google-drive");
-    expect(text).toContain("set up: not as an app from here");
-    expect(text).toContain("Browser screen");
-    expect(text).not.toContain("<base-url>");
-  });
+  // Every way in to these waits on a sign-in client the vendor has to
+  // approve, so the line sets the service up on its own site instead.
+  it.each([
+    [
+      "google-drive",
+      "app new google-drive --name 'Google Drive' --web https://drive.google.com",
+    ],
+    ["zoom", "app new zoom --name 'Zoom' --web https://zoom.us"],
+  ])(
+    "sets %s up as a web app when every way in needs a client the card cannot make",
+    async (slug, line) => {
+      const text = await catalog(slug);
+      expect(text).toContain(`set up: ${line} `);
+      expect(text).not.toContain("<base-url>");
+    },
+  );
 
   // The listing reaches the model through a command's output, which is kept as
   // a head and a tail with the middle dropped. Every entry in full ran to 43KB

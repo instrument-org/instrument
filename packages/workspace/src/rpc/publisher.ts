@@ -21,6 +21,8 @@ export const publisher = new EventPublisher<{
     event: "connected" | "declined" | "disconnected" | "failed" | "removed";
     name: string;
     slug: string;
+    /** For a web app, the site the work happens on. */
+    web?: string;
   };
   /**
    * An app's folder or connection record changed. Carries no payload because

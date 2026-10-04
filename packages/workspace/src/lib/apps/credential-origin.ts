@@ -45,14 +45,18 @@ export async function lookupAppCredential(
 
 /**
  * The key a request or a tool call sends, for an app whose auth takes one;
- * null when it takes none. Throws the words that send the agent back to
+ * null when it takes none, as a web app never does. Throws the words that send the agent back to
  * connect_app when the key is missing or approved for another origin.
  */
 export async function requireAppCredential(
   slug: string,
   manifest: AppManifest,
 ): Promise<null | string> {
-  if (manifest.auth.kind === "none" || manifest.auth.kind === "oauth") {
+  if (
+    manifest.type === "web" ||
+    manifest.auth.kind === "none" ||
+    manifest.auth.kind === "oauth"
+  ) {
     return null;
   }
   const found = await lookupAppCredential(slug, manifest);

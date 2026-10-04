@@ -14,7 +14,7 @@ import { createMemoryAppsConfig } from "./memory-config";
 import { beginMcpOAuth } from "./mcp/oauth-flow";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { type OriginBound } from "./origin-bound";
-import { writeAppFolder } from "./store";
+import { loadApp, writeAppFolder } from "./store";
 import { runAppTest } from "./test-app";
 
 // Every server here is on loopback, which the request guard answers without a
@@ -286,5 +286,82 @@ describe("an MCP app's sign-in", () => {
     expect(
       await getWorkspaceConfig().apps.connections.get(slug),
     ).not.toMatchObject({ status: "connected" });
+  });
+});
+
+describe("a web app", () => {
+  const slug = "drive-web";
+  const manifest: AppManifest = {
+    name: "Google Drive",
+    type: "web",
+    url: "https://drive.google.com",
+  };
+
+  beforeEach(() => {
+    useApps(createMemoryAppsConfig());
+  });
+
+  it("fails until the user says they are signed in, and says how to ask", async () => {
+    await writeApp(slug, manifest);
+
+    const report = await testApp(slug);
+
+    expect(report.passed).toBe(false);
+    expect(report.checks.find((check) => check.name === "credential")).toEqual({
+      detail:
+        "The user has not said they are signed in to Google Drive. Ask them with connect_app: the card opens https://drive.google.com in Instrument's browser, and the app connects when they say they are signed in.",
+      name: "credential",
+      status: "fail",
+    });
+    expect(await getWorkspaceConfig().apps.connections.get(slug)).toMatchObject(
+      { status: "needs-sign-in" },
+    );
+  });
+
+  it("passes once the sign-in is recorded, saying it cannot check the session and how to work the site", async () => {
+    const { apps } = getWorkspaceConfig();
+    await writeApp(slug, manifest);
+    const { manifestHash } = (
+      await loadApp(getWorkspaceConfig().appsDir, slug)
+    )._unsafeUnwrap();
+    await apps.connections.set(slug, {
+      connectedAt: 1,
+      manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    const report = await testApp(slug);
+
+    expect(report.passed).toBe(true);
+    expect(report.checks.find((check) => check.name === "canary"))
+      .toMatchInlineSnapshot(`
+        {
+          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: brief a task with https://drive.google.com (it opens the site in a tab of its own, where the sign-in holds), or hand it a tab already open there with \`task new --tab <id>\`. \`app call\` and \`app request\` do not reach a web app.",
+          "name": "canary",
+          "status": "skip",
+        }
+      `);
+    expect(await apps.connections.get(slug)).toMatchObject({
+      manifestHash,
+      status: "connected",
+    });
+  });
+
+  it("asks again once the manifest moves to another site", async () => {
+    const { apps } = getWorkspaceConfig();
+    await writeApp(slug, manifest);
+    await apps.connections.set(slug, {
+      manifestHash: "an-older-manifest",
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    const report = await testApp(slug);
+
+    expect(report.passed).toBe(false);
+    expect(
+      report.checks.find((check) => check.name === "credential")?.detail,
+    ).toContain("The manifest changed since the user said they were signed in");
   });
 });

@@ -18,7 +18,7 @@ export type StoredAppCredential = OriginBound<string>;
  * Where an app's credential goes under this manifest: the origin of its base
  * URL or server URL, or for a server that runs here, the package that would be
  * handed the key in its environment (its version left off, so an upgrade of
- * the same package keeps it).
+ * the same package keeps it), or for a web app, where its sign-in happens.
  */
 export function credentialOrigin(manifest: AppManifest): string {
   switch (manifest.type) {
@@ -30,6 +30,11 @@ export function credentialOrigin(manifest: AppManifest): string {
     }
     case "mcp-local": {
       return `${manifest.runtime}-package:${packageName(manifest.runtime, manifest.package)}`;
+    }
+    case "web": {
+      // No credential is ever stored for one; the origin is where the user
+      // signs in, which the card shows.
+      return new URL(manifest.signIn ?? manifest.url).origin;
     }
   }
 }

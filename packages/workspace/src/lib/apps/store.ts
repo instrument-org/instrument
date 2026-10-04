@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, type Result } from "neverthrow";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -189,7 +190,9 @@ export function guideSkeleton(
     const reach =
       manifest.type === "mcp-local"
         ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: ${tools}`
-        : `Reached through its MCP server at ${manifest.url}: ${tools}`;
+        : manifest.type === "web"
+          ? `Worked on the web at ${manifest.url}, where the user signs in in ${APP_NAME}'s browser: a task opens the site in a tab and works there. No \`${APP_COMMAND.name}\` call or request reaches it.`
+          : `Reached through its MCP server at ${manifest.url}: ${tools}`;
     return `# ${manifest.name}\n\n${entry ? `${entry.description}\n\n` : ""}${reach}\n`;
   }
   const guide = entry?.apiGuide;

@@ -547,6 +547,8 @@ export namespace SessionMessageDataPart {
           ]),
           name: z.string(),
           slug: z.string(),
+          /** For a web app, the site the work happens on. */
+          web: z.string().optional(),
         }),
       )
       .min(1),

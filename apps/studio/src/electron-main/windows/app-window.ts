@@ -15,6 +15,7 @@ import {
   getAppZoom,
   getWindowState,
 } from "@/electron-main/stores/workspace/window-state";
+import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -288,9 +289,13 @@ function askAppWindow(ask: AppWindowAsk) {
   pendingAsks.push(ask);
   // An ask that launched the app arrives before it is ready to make a window;
   // boot opens this one itself, and the ask waits for it. So does one made
-  // before onboarding is finished: finishing it opens this window, which
-  // then takes it.
-  if (app.isReady() && getWorkspaceState().get("hasCompletedProviderSetup")) {
+  // before onboarding is finished, including its steps after the provider is
+  // set up: finishing it opens this window, which then takes it.
+  if (
+    app.isReady() &&
+    getWorkspaceState().get("hasCompletedProviderSetup") &&
+    !getOnboardingWindow()
+  ) {
     openAppWindow();
   }
 }

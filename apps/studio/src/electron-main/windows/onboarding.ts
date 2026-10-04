@@ -6,7 +6,6 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppWindow } from "@/electron-main/windows/app-window";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
@@ -65,7 +64,7 @@ export function openOnboardingWindow(): BrowserWindow {
     onboardingWindow = null;
     publisher.publish("window.focus-changed", null);
     // Onboarding dismissed without completing leaves no window, and quits.
-    if (!getAppWindow()) {
+    if (BrowserWindow.getAllWindows().every((each) => each.isDestroyed())) {
       app.quit();
     }
   });

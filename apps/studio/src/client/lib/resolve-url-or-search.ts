@@ -25,7 +25,12 @@ export function resolveUrlOrSearch(input: string): string | undefined {
     const scheme = isLoopbackHost(authority) ? "http" : "https";
     return `${scheme}://${trimmed}`;
   }
-  return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+  return webSearchUrl(trimmed);
+}
+
+/** The results page for words typed into the address field. */
+export function webSearchUrl(words: string): string {
+  return `https://duckduckgo.com/?q=${encodeURIComponent(words)}`;
 }
 
 function isLoopbackHost(authority: string): boolean {

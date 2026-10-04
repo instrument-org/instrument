@@ -217,11 +217,10 @@ const searchSuggestions = base
   .input(z.object({ query: z.string().min(1).max(200) }))
   .output(z.array(z.string()))
   .handler(async ({ input, signal }) => {
-    const url = new URL("https://suggestqueries.google.com/complete/search");
-    url.searchParams.set("client", "firefox");
-    url.searchParams.set("hl", app.getLocale());
-    url.searchParams.set("oe", "utf-8");
+    const url = new URL("https://duckduckgo.com/ac/");
+    url.searchParams.set("kl", duckDuckGoRegion(app.getLocale()));
     url.searchParams.set("q", input.query);
+    url.searchParams.set("type", "list");
     const timeout = AbortSignal.timeout(3000);
     try {
       const response = await fetch(url, {
@@ -236,6 +235,15 @@ const searchSuggestions = base
       return [];
     }
   });
+
+/**
+ * The engine's region code for a locale, `en-US` as `us-en`; `wt-wt` (no
+ * region) when the locale names no country.
+ */
+function duckDuckGoRegion(locale: string) {
+  const [language, country] = locale.toLowerCase().split(/[-_]/);
+  return language && country ? `${country}-${language}` : "wt-wt";
+}
 
 export const browser = {
   events,

@@ -37,24 +37,24 @@ describe("resolveUrlOrSearch", () => {
 
     // Anything that isn't host-shaped falls back to a web search.
     {
-      expected: "https://www.google.com/search?q=cats",
+      expected: "https://duckduckgo.com/?q=cats",
       input: "cats",
     },
     {
-      expected: "https://www.google.com/search?q=how%20to%20make%20bread",
+      expected: "https://duckduckgo.com/?q=how%20to%20make%20bread",
       input: "how to make bread",
     },
     // A period isn't enough: whitespace and unknown TLDs both route to search.
     {
-      expected: "https://www.google.com/search?q=node.js%20tutorial",
+      expected: "https://duckduckgo.com/?q=node.js%20tutorial",
       input: "node.js tutorial",
     },
     {
-      expected: "https://www.google.com/search?q=foo.zzzzz",
+      expected: "https://duckduckgo.com/?q=foo.zzzzz",
       input: "foo.zzzzz",
     },
     {
-      expected: "https://www.google.com/search?q=stackoverflow.com%20questions",
+      expected: "https://duckduckgo.com/?q=stackoverflow.com%20questions",
       input: "stackoverflow.com questions",
     },
     // Leading/trailing whitespace is trimmed before routing.

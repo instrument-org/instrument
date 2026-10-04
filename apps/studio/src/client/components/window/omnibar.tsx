@@ -37,6 +37,7 @@ import {
 import { ideasQueryOptions } from "@/client/components/window/use-ideas";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -77,8 +78,6 @@ const PAGES_SHOWN = 4;
 const SUGGESTIONS_SHOWN = 5;
 const ENTRIES_SHOWN = 8;
 const MATCHES_SHOWN = 8;
-
-const SEARCH_URL = "https://www.google.com/search?q=";
 
 /**
  * What a tab's field reaches, decided by what the tab holds: the web from a
@@ -669,13 +668,13 @@ function useRows({
             },
           }
         : {
-            detail: "Search Google",
+            detail: "Search DuckDuckGo",
             fill: whole,
             icon: <MagnifyingGlassIcon className="size-4" />,
             id: "search",
             name: whole,
             run: () => {
-              open.openSite(searchUrl(whole));
+              open.openSite(webSearchUrl(whole));
             },
           };
     const pageRows = matchPages(words, pages)
@@ -711,7 +710,7 @@ function useRows({
               id: `suggestion:${suggestion}`,
               name: suggestion,
               run: () => {
-                open.openSite(suggestedSite?.url ?? searchUrl(suggestion));
+                open.openSite(suggestedSite?.url ?? webSearchUrl(suggestion));
               },
             };
           })
@@ -951,10 +950,6 @@ function hereOf(location: TabLocation, home: string) {
     return cut > 0 ? host.slice(0, cut) : host.slice(0, cut + 1) || home;
   }
   return home;
-}
-
-function searchUrl(words: string) {
-  return `${SEARCH_URL}${encodeURIComponent(words)}`;
 }
 
 /**

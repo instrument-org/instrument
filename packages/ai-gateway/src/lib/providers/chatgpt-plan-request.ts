@@ -90,8 +90,9 @@ export function rewriteChatGPTPlanResponsesBody(
   next.store = false;
   next.stream = true;
   // Nothing is stored, so the cache is what saves a long session from being
-  // read in full every step. Without a key the route caches nothing across
-  // requests; one per session keeps a session's steps on one prefix.
+  // read in full every step. The route picks its cache by the `session-id`
+  // header the proxy sets and ignores this key; it stays as the Responses
+  // API's documented hint.
   if (sessionId && next.prompt_cache_key === undefined) {
     next.prompt_cache_key = sessionId;
   }

@@ -70,6 +70,11 @@ providerApp.all("/:providerConfigId/*", async (context) => {
       { sessionId },
     );
     headers.delete("content-length");
+    // The plan keeps a session's steps on one cache only by this header; it
+    // ignores `prompt_cache_key`.
+    if (sessionId) {
+      headers.set("session-id", sessionId);
+    }
     const upstream = await proxy(targetUrl.toString(), {
       body: JSON.stringify(body),
       headers,

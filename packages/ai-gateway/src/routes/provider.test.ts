@@ -5,7 +5,7 @@ import {
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PROVIDERS_PATH } from "../constants";
+import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { type AIGatewayEnv } from "../types";
 import { providerApp } from "./provider";
@@ -28,19 +28,29 @@ function gatewayWith(config: AIGatewayProviderConfig.Type) {
 }
 
 /** The headers the proxied request left with. */
-async function forwardedHeaders(config: AIGatewayProviderConfig.Type) {
+async function forwardedHeaders(
+  config: AIGatewayProviderConfig.Type,
+  request: {
+    body?: string;
+    headers?: Record<string, string>;
+    path?: string;
+  } = {},
+) {
   const upstream = vi.fn<typeof fetch>(() =>
     Promise.resolve(new Response("{}")),
   );
   vi.stubGlobal("fetch", upstream);
   await gatewayWith(config).request(
-    `${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/${config.id}/models`,
+    `${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/${config.id}${request.path ?? "/models"}`,
     {
+      body: request.body,
       headers: {
         authorization: "Bearer internal-gateway-key",
         "x-api-key": "internal-gateway-key",
         "x-goog-api-key": "internal-gateway-key",
+        ...request.headers,
       },
+      method: request.body === undefined ? "GET" : "POST",
     },
   );
   const [input, init] = upstream.mock.calls[0] ?? [];
@@ -78,5 +88,25 @@ describe("provider proxy auth headers", () => {
     expect(headers.get("authorization")).toBe("Bearer provider-key");
     expect(headers.get("x-api-key")).toBeNull();
     expect(headers.get("x-goog-api-key")).toBeNull();
+  });
+});
+
+describe("ChatGPT plan responses", () => {
+  it("sends the session as the session-id header the plan caches by", async () => {
+    const headers = await forwardedHeaders(
+      {
+        apiKey: "plan-token",
+        cacheIdentifier: "chatgpt",
+        id: AIProviderConfigId("chatgpt"),
+        type: "chatgpt",
+      },
+      {
+        body: JSON.stringify({ input: [], model: "gpt-5.6-sol", stream: true }),
+        headers: { [CLIENT_SESSION_ID_HEADER]: "ses_1" },
+        path: "/responses",
+      },
+    );
+    expect(headers.get("session-id")).toBe("ses_1");
+    expect(headers.get(CLIENT_SESSION_ID_HEADER)).toBeNull();
   });
 });

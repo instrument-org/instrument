@@ -10,6 +10,7 @@ import { noop, sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
+import { captureFrame, FrameNotDrawnError } from "./capture-frame";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
   DEFAULT_VIEWPORT_WIDTH,
@@ -405,9 +406,9 @@ export async function sendCommand({
 // of the debugger. capturePage reads the paint-host guest's surface directly.
 // Neither path forces a frame on its own when the Studio window is covered or
 // minimized: a page navigated to in that state has never drawn, so both wait
-// on a frame that never comes. whileEmbedderComposites is what makes one come.
-// Throws fast on timeout/empty so the recorder skips a frame rather than the
-// caller hanging.
+// on a frame that never comes, which the forced draw is for. Throws fast on an
+// empty frame and at the deadline, so the recorder skips a frame rather than
+// the caller hanging.
 async function captureViewportScreenshot(
   entry: BrowserEntry,
   p: Protocol.Page.CaptureScreenshotRequest,
@@ -416,44 +417,20 @@ async function captureViewportScreenshot(
   if (!wc || wc.isDestroyed()) {
     throw new Error("webContents unavailable");
   }
-  const CAPTURE_TIMEOUT_MS = 5000;
-  const CAPTURE_RETRY_MS = 50;
-  const deadline = Date.now() + CAPTURE_TIMEOUT_MS;
-  // A guest with no frame yet can fail at once (UnknownVizError) rather than
-  // wait, so keep asking while the embedder draws until the budget runs out.
-  const captureUntilFramed = async (): Promise<NativeImage> => {
-    for (;;) {
-      try {
-        return await wc.capturePage();
-      } catch (error) {
-        if (Date.now() + CAPTURE_RETRY_MS >= deadline) {
-          throw new Error(
-            `capturePage failed: ${String(error)}. ${SCREENSHOT_NOT_DRAWN}`,
-            { cause: error },
-          );
-        }
-        await sleep(CAPTURE_RETRY_MS);
-      }
+  let image: NativeImage;
+  try {
+    image = await captureFrame(wc, {
+      deadlineMs: 5000,
+      forceDraw: true,
+      rejectEmpty: true,
+    });
+  } catch (error) {
+    if (error instanceof FrameNotDrawnError) {
+      throw new Error(`${error.message}. ${SCREENSHOT_NOT_DRAWN}`, {
+        cause: error,
+      });
     }
-  };
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const image = await whileEmbedderComposites(
-    wc,
-    Promise.race([
-      captureUntilFramed(),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(new Error(`capturePage timed out. ${SCREENSHOT_NOT_DRAWN}`));
-        }, CAPTURE_TIMEOUT_MS);
-      }),
-    ]),
-  ).finally(() => {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  });
-  if (image.isEmpty()) {
-    throw new Error("capturePage returned an empty frame");
+    throw error;
   }
   const data =
     p.format === "jpeg"

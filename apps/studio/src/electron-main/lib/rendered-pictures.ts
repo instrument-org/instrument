@@ -16,6 +16,7 @@ import { sleep } from "radashi";
 import { type BundledLanguage, bundledLanguages } from "shiki";
 import { parse } from "yaml";
 
+import { captureFrame } from "../browser-view/capture-frame";
 import { guests } from "../browser-view/guest-registry";
 import { confineLocalPagesToTheirFolder } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
@@ -156,22 +157,14 @@ export async function renderPicture(
           await sleep(SETTLE_MS);
         }
       }
-      const shot = await Promise.race([
-        OFFSCREEN
-          ? offscreenFrame(window)
-          : contents.capturePage({
-              height: viewport.height,
-              width: viewport.width,
-              x: 0,
-              y: 0,
-            }),
-        sleep(CAPTURE_TIMEOUT_MS).then(() => {
-          throw new Error("The file was not photographed in time");
-        }),
-      ]);
-      if (shot.isEmpty()) {
-        throw new Error("The file drew nothing");
+      if (OFFSCREEN) {
+        await sleep(OFFSCREEN_SETTLE_MS);
       }
+      const shot = await captureFrame(contents, {
+        deadlineMs: CAPTURE_TIMEOUT_MS,
+        rect: { height: viewport.height, width: viewport.width, x: 0, y: 0 },
+        rejectEmpty: true,
+      });
       // Laid out in points and photographed in pixels, so on a dense display
       // the shot is twice the layout; the picture is sized to what it is for.
       const image = shot.resize({
@@ -456,12 +449,6 @@ function closeAll() {
   }
 }
 
-/** Who is waiting on each offscreen window's next frame. */
-const frameWaiters = new WeakMap<
-  BrowserWindow,
-  ((image: NativeImage) => void)[]
->();
-
 /** The window's pages told the reader prefers `theme`, for the file drawn next. */
 async function emulateTheme(window: BrowserWindow, theme: "dark" | "light") {
   const { debugger: link } = window.webContents;
@@ -505,14 +492,6 @@ function makeWindow() {
   });
   const contents = window.webContents;
   contents.setAudioMuted(true);
-  if (OFFSCREEN) {
-    contents.on("paint", (_event, _dirty, image) => {
-      for (const resolve of frameWaiters.get(window) ?? []) {
-        resolve(image);
-      }
-      frameWaiters.delete(window);
-    });
-  }
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
   // The file is put where it is by the load and goes nowhere of its own: a
   // redirecting page has nothing to show, and a page sending itself to
@@ -533,27 +512,6 @@ function makeWindow() {
     }
   });
   return window;
-}
-
-/**
- * A frame an offscreen window paints from now on, with the page as it stands:
- * the view is marked for a repaint so one comes even when nothing on it moves.
- */
-function nextFrame(window: BrowserWindow): Promise<NativeImage> {
-  return new Promise((resolve) => {
-    frameWaiters.set(window, [...(frameWaiters.get(window) ?? []), resolve]);
-    window.webContents.invalidate();
-  });
-}
-
-/** The page as the offscreen window paints it once its frames have caught up, skipping any empty one. */
-async function offscreenFrame(window: BrowserWindow): Promise<NativeImage> {
-  await sleep(OFFSCREEN_SETTLE_MS);
-  let frame = await nextFrame(window);
-  for (let tries = 0; frame.isEmpty() && tries < 3; tries++) {
-    frame = await nextFrame(window);
-  }
-  return frame;
 }
 
 /** One of the drawing windows, made as they are needed, for as long as `work` takes. */

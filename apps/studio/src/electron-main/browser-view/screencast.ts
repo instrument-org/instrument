@@ -2,10 +2,12 @@ import type { Protocol } from "devtools-protocol";
 
 import type { BrowserEntry } from "./entry";
 
-import { whileEmbedderComposites } from "./embedder-draw";
+import { captureFrame } from "./capture-frame";
 import { log } from "./log";
 
 const SCREENCAST_INTERVAL_MS = 100;
+/** The longest one frame is waited for; the ticks behind it skip until it settles. */
+const FRAME_DEADLINE_MS = 5000;
 
 export function startScreencast({
   entry,
@@ -42,10 +44,11 @@ export function startScreencast({
     // A covered or minimized Studio window draws no frames for the guest, so
     // a recording made while the user is in another app would otherwise stall
     // on the first navigation.
-    whileEmbedderComposites(
-      wc,
-      wc.capturePage({ height: maxHeight, width: maxWidth, x: 0, y: 0 }),
-    )
+    captureFrame(wc, {
+      deadlineMs: FRAME_DEADLINE_MS,
+      forceDraw: true,
+      rect: { height: maxHeight, width: maxWidth, x: 0, y: 0 },
+    })
       .then((image) => {
         // Stale: a new screencast session started, or the WebContents was
         // destroyed while the capture was pending.

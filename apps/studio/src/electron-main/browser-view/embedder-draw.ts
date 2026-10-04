@@ -16,7 +16,7 @@ import { noop } from "radashi";
 // It is repeated until `work` settles, because one can finish before the
 // guest's frame arrives and input wants a frame per event.
 export async function whileEmbedderComposites<T>(
-  wc: WebContents,
+  wc: Pick<WebContents, "hostWebContents">,
   work: Promise<T>,
 ): Promise<T> {
   const embedder = wc.hostWebContents;

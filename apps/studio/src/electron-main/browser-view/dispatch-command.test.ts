@@ -41,6 +41,7 @@ interface FakeWebContents {
     isDestroyed: () => boolean;
   };
   isDestroyed: () => boolean;
+  isOffscreen: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
 }
 
@@ -88,6 +89,7 @@ function makeEntry({
           isDestroyed: () => false,
         },
         isDestroyed: () => destroyed,
+        isOffscreen: () => false,
         printToPDF,
       }
     : null;

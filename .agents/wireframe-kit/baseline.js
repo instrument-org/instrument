@@ -104,7 +104,7 @@ const states = [
             extras: modelProblem("No models available"),
           }),
         }),
-      over: plusMenu({ left: 456, top: 452 }),
+      over: plusMenu({ left: 456, top: 486 }),
     }),
   },
   {

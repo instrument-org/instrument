@@ -14,6 +14,7 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createBashEnv } from "../create-bash-env";
 import { taskDir } from "../task-dir-utils";
+import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { virtualizeOutput } from "./rg";
 
@@ -71,6 +72,26 @@ afterEach(async () => {
 });
 
 describe("rg command", () => {
+  it("searches the chat's /apps mount, which the chat's shell has", async () => {
+    const appDir = path.join(getWorkspaceConfig().appsDir, "rg-weather");
+    await fs.mkdir(appDir, { recursive: true });
+    await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
+    try {
+      const bash = await createBashEnv({
+        chat: { childMounts: [] },
+        sessionId,
+        taskId,
+      });
+      const result = await bash.exec("rg -l NEEDLE /apps/rg-weather", {
+        signal: AbortSignal.timeout(30_000),
+      });
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("/apps/rg-weather/app.ts\n");
+    } finally {
+      await fs.rm(appDir, { force: true, recursive: true });
+    }
+  });
+
   it("shadows the built-in and searches the task", async () => {
     const result = await run("rg NEEDLE");
     expect(result.exitCode).toBe(0);

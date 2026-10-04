@@ -10,7 +10,11 @@ import {
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../lib/background-processes";
-import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
+import {
+  createBashDescription,
+  createBashEnv,
+  shellLayout,
+} from "../lib/create-bash-env";
 import {
   BrowserSkillSchema,
   browserSkillToDeliver,
@@ -45,7 +49,6 @@ import {
   TRUNCATE_TAIL_BYTES,
   truncateMiddle,
 } from "../lib/truncate-buffer";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -359,9 +362,10 @@ export const BashTool = setupTool({
     const startedAt = performance.now();
     const childMounts =
       agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
+    const chat = childMounts ? { childMounts } : undefined;
     const bash = await createBashEnv({
       attachedFolders,
-      chat: childMounts ? { childMounts } : undefined,
+      chat,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
@@ -372,11 +376,7 @@ export const BashTool = setupTool({
     // The mounts the native shims map their own output through, so the live
     // copy a promoted command streams names them the way the foreground copy
     // does.
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders,
-      extraMounts: childMounts,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = shellLayout({ attachedFolders, chat, taskId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];

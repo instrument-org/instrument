@@ -2,17 +2,12 @@ import { defineCommand } from "just-bash";
 import fs from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 
-import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { type TaskId } from "../../schemas/task-id";
 import { relativeWithin } from "../path-containment";
-import { taskDir } from "../task-dir-utils";
 import {
-  buildWorkspaceFsLayout,
   nonTaskMounts,
   resolveHostPath,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
-  type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 
 const DU_COMMAND = {
@@ -73,16 +68,10 @@ interface DuRoot {
  * every mount -- goes to just-bash's `du` unchanged.
  */
 export function createDuCommand({
-  apps,
-  attachedFolders,
-  extraMounts,
-  taskId,
+  layout,
 }: {
-  /** Whether the shell mounts the apps directory at `/apps`, as the chat's does. */
-  apps?: boolean;
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  extraMounts?: WorkspaceFsMount[];
-  taskId: TaskId;
+  /** The shell's own layout, so du measures exactly the mounts the shell has. */
+  layout: WorkspaceFsLayout;
 }) {
   return defineCommand(DU_COMMAND.name, async (args, ctx) => {
     const fallback = async () => {
@@ -100,13 +89,6 @@ export function createDuCommand({
     if (parsed === null) {
       return await fallback();
     }
-
-    const layout = buildWorkspaceFsLayout({
-      apps,
-      attachedFolders,
-      extraMounts,
-      taskHostRoot: taskDir(taskId),
-    });
 
     const operands: DuOperand[] = [];
     for (const operand of parsed.operands.length > 0

@@ -580,6 +580,29 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * What a shell built with these options mounts. The single source of truth
+ * for what the agent can see in it: the writable task directory mounted at
+ * /task (the working directory), any user-attached folders under /mnt, each
+ * read-only or writable, and for the chat its tasks and apps. The bash
+ * native-binary path bridge, rg, du, and the output a promoted command
+ * streams all take it from here so they agree on virtual<->real mapping.
+ */
+export function shellLayout({
+  attachedFolders,
+  chat,
+  taskId,
+}: Pick<BashEnvOptions, "attachedFolders" | "chat" | "taskId">) {
+  return buildWorkspaceFsLayout({
+    // The chat authors apps, so it gets their folders; a task reaches
+    // the apps it was handed through the command alone.
+    apps: chat !== undefined,
+    attachedFolders,
+    extraMounts: chat?.childMounts,
+    taskHostRoot: taskDir(taskId),
+  });
+}
+
+/**
  * The agent's shell: in the bash worker when the host set one up (see
  * `bashWorkerEnabled`), otherwise on this thread.
  */
@@ -604,19 +627,7 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory), plus any
-  // user-attached folders under /mnt, each read-only or writable. The bash
-  // native-binary path bridge, and the dedicated file tools all route through
-  // it so they agree on virtual<->real mapping.
-  const layout = buildWorkspaceFsLayout({
-    // The chat authors apps, so it gets their folders; a task reaches
-    // the apps it was handed through the command alone.
-    apps: chat !== undefined,
-    attachedFolders,
-    extraMounts: chat?.childMounts,
-    taskHostRoot: taskDir(taskId),
-  });
+  const layout = shellLayout({ attachedFolders, chat, taskId });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
 
   const allowedCommands = [
@@ -668,17 +679,8 @@ export async function createLocalBashEnv({
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({
-        attachedFolders,
-        extraMounts: chat?.childMounts,
-        taskId,
-      }),
-      createDuCommand({
-        apps: chat !== undefined,
-        attachedFolders,
-        extraMounts: chat?.childMounts,
-        taskId,
-      }),
+      createRgCommand({ layout, taskId }),
+      createDuCommand({ layout }),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and
       // `wait`, which act on host pids this sandbox deliberately cannot name.

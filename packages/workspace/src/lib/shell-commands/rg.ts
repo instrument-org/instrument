@@ -4,19 +4,16 @@ import nodePath from "node:path";
 
 import { TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput, pathVariants } from "../filter-shell-output";
 import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { RG_DISK_PATH } from "../ripgrep";
 import { taskDir } from "../task-dir-utils";
 import {
-  buildWorkspaceFsLayout,
   nonTaskMounts,
   privateMountPoint,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
-  type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -86,12 +83,11 @@ const VALUE_SHORT_FLAGS = new Set("ABCEMTdefgjmrt");
 const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
 export function createRgCommand({
-  attachedFolders,
-  extraMounts,
+  layout,
   taskId,
 }: {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  extraMounts?: WorkspaceFsMount[];
+  /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
+  layout: WorkspaceFsLayout;
   taskId: TaskId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
@@ -103,12 +99,6 @@ export function createRgCommand({
         stdout: "",
       };
     }
-
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders,
-      extraMounts,
-      taskHostRoot: taskDir(taskId),
-    });
 
     const bridged = bridgePathArgs(args, layout, (arg) =>
       ctx.fs.resolvePath(ctx.cwd, arg),

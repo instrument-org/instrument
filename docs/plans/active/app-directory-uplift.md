@@ -58,7 +58,7 @@ What to list, how to group it, and where it comes from, after surveying how Clau
 **Sources.**
 - The checked-in seed is the source of truth, and each row records where it came from.
 - Drop integrations.sh as the upstream: most of its consumer MCP entries are copies of Anthropic's and OpenAI's own directories, which carry no license to reuse.
-- Sync the official MCP Registry (CC0) weekly, keeping only servers hosted on their namespace's own domain, and open a reviewed diff; never auto-merge.
+- Read the official MCP Registry (CC0) weekly as a feed of endpoint changes and candidates, never as the catalog: `script:sync-directory-registry` writes a report and changes nothing. Crawled in full on 2026-10-04, it held 40,196 servers, 9,374 vendor-run by their namespace, and only 272 of those with any sign of demand; it lists 55 of the directory's entries and none of Gmail, Calendar, Drive, Slack, Asana, HubSpot, Dropbox or Outlook. Each matched entry records its `registryName`, which the sync joins on.
 - Read public usage ranks (Zapier's app popularity, Claude's directory order) for demand, internally.
 - The probe is the quality gate before each release; a failing row drops to browser-first.
 - Never connect through an aggregator (Smithery, Composio, Pipedream): the user's tokens would pass through a third party.

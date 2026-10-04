@@ -30,7 +30,7 @@
     {
       "slug": "airtable",
       "name": "Airtable",
-      "tagline": "Bases, tables, and records, with the schema an agent reads first.",
+      "tagline": "Bases, tables, and records.",
       "examples": [
         "How many orders came in this week?",
         "Add Jordan Lee to my contacts base",
@@ -161,7 +161,7 @@
     {
       "slug": "apify",
       "name": "Apify",
-      "tagline": "Scrapers and automation actors, run from the agent.",
+      "tagline": "Scrapers and automation actors.",
       "description": "Apify is a cloud platform and marketplace for running web scraping, automation, and data extraction tools called Actors. It also provides hosted storage, scheduling, and related tooling for building and operating those workflows.",
       "domain": "apify.com",
       "authMethods": [
@@ -412,7 +412,7 @@
     {
       "slug": "attio",
       "name": "Attio",
-      "tagline": "A CRM of records and lists an agent can query and update.",
+      "tagline": "A CRM of records and lists.",
       "description": "Look up contacts and companies, find decision makers, and discover email addresses. Log notes from calls and meetings, track engagement history, and create follow-up tasks with deadlines.",
       "domain": "attio.com",
       "authMethods": [
@@ -932,7 +932,7 @@
     {
       "slug": "context7",
       "name": "Context7",
-      "tagline": "Current documentation for any library, in the agent's context.",
+      "tagline": "Current documentation for any library.",
       "description": "Context7 fetches up-to-date code examples and documentation right into your LLM's context. No tab-switching, no hallucinated APIs that don't exist, no outdated code generation.",
       "domain": "context7.com",
       "authMethods": [],
@@ -1145,7 +1145,7 @@
     {
       "slug": "exa",
       "name": "Exa",
-      "tagline": "Web search built for agents.",
+      "tagline": "Web search.",
       "description": "Exa gives agents web search and page contents through its Search API, structured collection building through Websets, and live search tools through a hosted MCP server.",
       "domain": "exa.ai",
       "authMethods": [],
@@ -1263,7 +1263,7 @@
     {
       "slug": "figma",
       "name": "Figma",
-      "tagline": "Design files, components, and variables, read by an agent.",
+      "tagline": "Design files, components, and variables.",
       "examples": [
         "What changed in our design file this week?",
         "List the components in our design system",
@@ -1301,7 +1301,7 @@
     {
       "slug": "firecrawl",
       "name": "Firecrawl",
-      "tagline": "Turn any site into clean text an agent can read.",
+      "tagline": "Any site as clean text.",
       "description": "Firecrawl's hosted MCP server gives agents tools to search the web, scrape pages, and parse supported files. Its keyless session exposes a limited tool set, with API-key access available for higher limits and more tools.",
       "domain": "firecrawl.dev",
       "authMethods": [
@@ -1412,7 +1412,7 @@
     {
       "slug": "github",
       "name": "GitHub",
-      "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",
+      "tagline": "Repos, issues, pull requests, and Actions.",
       "examples": [
         "What pull requests are waiting on my review?",
         "Open an issue for the broken sign-up link",
@@ -1660,7 +1660,7 @@
     {
       "slug": "granola",
       "name": "Granola",
-      "tagline": "Meeting notes, searchable by an agent.",
+      "tagline": "Meeting notes, searchable.",
       "description": "Ask questions about your work and use your conversation context to get things done.",
       "domain": "granola.ai",
       "authMethods": [
@@ -2084,7 +2084,7 @@
     {
       "slug": "linear",
       "name": "Linear",
-      "tagline": "Issues, projects, and cycles — agent-native from day one.",
+      "tagline": "Issues, projects, and cycles.",
       "examples": [
         "What issues are assigned to me?",
         "File a bug: the login page won’t load in Safari",
@@ -2209,7 +2209,7 @@
     {
       "slug": "mem",
       "name": "Mem",
-      "tagline": "Notes that organize themselves, searched by an agent.",
+      "tagline": "Notes that organize themselves.",
       "description": "Notes that organize themselves, searched by an agent.",
       "domain": "mem.ai",
       "authMethods": [
@@ -2493,7 +2493,7 @@
     {
       "slug": "notion",
       "name": "Notion",
-      "tagline": "Pages, databases, and comments as agent-editable workspace memory.",
+      "tagline": "Pages, databases, and comments.",
       "examples": [
         "Find my notes from Monday’s team meeting",
         "Add this article to my reading list page",
@@ -2881,7 +2881,7 @@
     {
       "slug": "posthog",
       "name": "PostHog",
-      "tagline": "Product analytics an agent can query in natural language.",
+      "tagline": "Product analytics, asked in plain words.",
       "description": "PostHog's MCP server exposes 50+ tools: run HogQL, build insights and dashboards, manage feature flags. Agents can answer 'what changed in signups last week?' against real product data.",
       "domain": "posthog.com",
       "authMethods": [
@@ -3150,7 +3150,7 @@
     {
       "slug": "resend",
       "name": "Resend",
-      "tagline": "Send email from any agent with one API key.",
+      "tagline": "Email sent through one API key.",
       "description": "Resend is an email API built for developers. The official MCP server exposes sending, contacts, audiences, broadcasts, and domain management; the REST API is small enough for an agent to learn in one read.",
       "domain": "resend.com",
       "authMethods": [
@@ -3259,7 +3259,7 @@
     {
       "slug": "sentry",
       "name": "Sentry",
-      "tagline": "Errors, traces, and root-cause analysis for debugging agents.",
+      "tagline": "Errors, traces, and what caused them.",
       "description": "Sentry's hosted MCP server gives agents direct access to issues, events, releases, and Seer root-cause runs — the context a coding agent needs to fix what's actually broken in production.",
       "domain": "sentry.io",
       "authMethods": [
@@ -3509,7 +3509,7 @@
     {
       "slug": "spotify",
       "name": "Spotify",
-      "tagline": "Playlists, search, and playback for music-aware agents.",
+      "tagline": "Playlists, search, and playback.",
       "description": "Spotify's Web API covers search, playlists, libraries, and playback control. OAuth is mandatory for anything user-specific, with the client-credentials flow available for catalog-only access.",
       "domain": "spotify.com",
       "authMethods": [
@@ -3581,7 +3581,7 @@
     {
       "slug": "stack-overflow",
       "name": "Stack Overflow",
-      "tagline": "Questions and answers, searched from the agent.",
+      "tagline": "Questions and answers.",
       "description": "Questions and answers, searched from the agent.",
       "domain": "stackoverflow.com",
       "authMethods": [
@@ -3633,7 +3633,7 @@
     {
       "slug": "stripe",
       "name": "Stripe",
-      "tagline": "Payments infrastructure with first-class agent tooling.",
+      "tagline": "Payments, customers, and invoices.",
       "description": "Stripe ships an official MCP server with documentation search and account tools, a meticulously specified REST API, and the Stripe CLI. Restricted API keys make it one of the safest services to hand to an autonomous agent.",
       "domain": "stripe.com",
       "authMethods": [
@@ -3775,7 +3775,7 @@
     {
       "slug": "tavily",
       "name": "Tavily",
-      "tagline": "Web search and page extraction built for agents.",
+      "tagline": "Web search and page extraction.",
       "description": "One API for search, extraction, and research. Built for the accuracy, speed, and security production agents require.",
       "domain": "tavily.com",
       "authMethods": [
@@ -3854,7 +3854,7 @@
     {
       "slug": "todoist",
       "name": "Todoist",
-      "tagline": "Tasks, projects, and reminders your agent can manage.",
+      "tagline": "Tasks, projects, and reminders.",
       "examples": [
         "What’s due today?",
         "Add renew my passport for next Monday",
@@ -4030,7 +4030,7 @@
     {
       "slug": "vercel",
       "name": "Vercel",
-      "tagline": "Deployments, projects, and logs your agent can ship with.",
+      "tagline": "Deployments, projects, and logs.",
       "description": "Vercel's official MCP server covers documentation search, project management, and deployment analysis. The REST API and CLI give agents full control of the deploy loop — push, inspect, roll back.",
       "domain": "vercel.com",
       "authMethods": [

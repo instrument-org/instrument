@@ -11,6 +11,12 @@
     "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
     "license": "CC0-1.0"
   },
+  "akiflow": {
+    "source": "app-store",
+    "id": 1621279084,
+    "license": "trademark",
+    "override": "thesvg draws the mark inside a ring the Akiflow app icon does not use"
+  },
   "alltrails": {
     "source": "thesvg",
     "path": "icons/alltrails/default.svg",
@@ -71,6 +77,12 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "bitly": {
+    "source": "thesvg",
+    "path": "icons/bitly/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
   "box": {
     "source": "logos",
     "path": "box.svg",
@@ -126,6 +138,12 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "close": {
+    "source": "logos",
+    "path": "close.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
   "cloudflare": {
     "source": "svgl",
     "path": "cloudflare.svg",
@@ -149,6 +167,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "craft": {
+    "source": "app-store",
+    "id": 1487937127,
+    "license": "trademark"
+  },
   "crossbeam": {
     "source": "site",
     "url": "https://cdn.prod.website-files.com/66955639e4d4a6eebd7168b9/669c18d1da1ae90bdf183976_crossbeam_icon256.png",
@@ -160,11 +183,24 @@
     "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
     "license": "CC0-1.0"
   },
+  "drawio": {
+    "source": "dashboard-icons",
+    "path": "svg/draw-io.svg",
+    "version": "adca944175c9a3eb0471f78a4da87f237476d585",
+    "license": "Apache-2.0",
+    "override": "thesvg carries a one-color glyph rather than the app icon"
+  },
   "dropbox": {
     "source": "svgl",
     "path": "dropbox.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
+  },
+  "elevenlabs": {
+    "source": "app-store",
+    "id": 6743162587,
+    "license": "trademark",
+    "override": "logos and thesvg draw the bare black mark, which vanishes on a dark plate"
   },
   "exa": {
     "source": "logos",
@@ -302,6 +338,12 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "ifttt": {
+    "source": "app-store",
+    "id": 660944635,
+    "license": "trademark",
+    "override": "logos and thesvg carry only the bare wordmark"
+  },
   "incident-io": {
     "source": "logos",
     "path": "incident-icon.svg",
@@ -314,6 +356,11 @@
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
   },
+  "interactive-brokers": {
+    "source": "app-store",
+    "id": 454558592,
+    "license": "trademark"
+  },
   "intercom": {
     "source": "logos",
     "path": "intercom-icon.svg",
@@ -323,6 +370,16 @@
   "jam": {
     "source": "site",
     "url": "https://framerusercontent.com/images/PJzGWvCk8HH9Ho4kUWVsQtYI.png",
+    "license": "trademark"
+  },
+  "jotform": {
+    "source": "app-store",
+    "id": 1391524277,
+    "license": "trademark"
+  },
+  "kajabi": {
+    "source": "app-store",
+    "id": 1485646310,
     "license": "trademark"
   },
   "kiwi": {
@@ -436,6 +493,16 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "openweather": {
+    "source": "app-store",
+    "id": 1535923697,
+    "license": "trademark"
+  },
+  "opusclip": {
+    "source": "app-store",
+    "id": 6743615403,
+    "license": "trademark"
+  },
   "otter": {
     "source": "app-store",
     "id": 1276437113,
@@ -458,11 +525,22 @@
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
   },
+  "padlet": {
+    "source": "app-store",
+    "id": 834618886,
+    "license": "trademark",
+    "override": "thesvg carries the single-color crane Padlet replaced"
+  },
   "pagerduty": {
     "source": "logos",
     "path": "pagerduty-icon.svg",
     "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
     "license": "CC0-1.0"
+  },
+  "pandadoc": {
+    "source": "app-store",
+    "id": 1210645479,
+    "license": "trademark"
   },
   "paper": {
     "source": "svgl",
@@ -571,6 +649,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "shippo": {
+    "source": "site",
+    "url": "https://cdn.prod.website-files.com/6462967bbf70fa5b5b227351/662680002605ee5735982802_img-shipp-favicon-256x256.png",
+    "license": "trademark"
+  },
   "shopify": {
     "source": "svgl",
     "path": "shopify.svg",
@@ -593,6 +676,11 @@
     "path": "icons/similarweb/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "skiplagged": {
+    "source": "app-store",
+    "id": 823443083,
+    "license": "trademark"
   },
   "slack": {
     "source": "svgl",
@@ -693,6 +781,17 @@
     "path": "icons/trivago/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "typeform": {
+    "source": "site",
+    "url": "https://cdn.prod.website-files.com/66ffe2174aa8e8d5661c2708/68b6f00951eb33cd19b77288_Frame%201867174.png",
+    "license": "trademark",
+    "override": "logos carries the mark Typeform retired, thesvg only the wordmark"
+  },
+  "typefully": {
+    "source": "site",
+    "url": "https://typefully.com/icon/apple-icon.png",
+    "license": "trademark"
   },
   "vanta": {
     "source": "site",

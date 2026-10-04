@@ -12,6 +12,7 @@
  * alone, and copied as-is into the internal repository's release workflows.
  */
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 /** Bullets shown per section before the rest collapse into a count. */
 const BULLETS_PER_SECTION = 2;
@@ -193,7 +194,11 @@ function readArg(args: string[], flag: string) {
   return file ? readFileSync(file, "utf8") : "";
 }
 
-if (import.meta.main) {
+// Run as a script, not imported by its tests.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const args = process.argv.slice(2);
   if (args[0] !== "slack") {
     console.error(

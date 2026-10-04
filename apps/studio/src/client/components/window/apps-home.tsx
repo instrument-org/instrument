@@ -30,8 +30,8 @@ type CatalogEntry = RPCOutput["apps"]["catalog"][number];
  */
 const RECENT_SHOWN = 9;
 
-/** How many of the directory's services are offered before the rest are behind the head's button. */
-const MORE_SHOWN = 12;
+/** How many tiles hold the directory's place while it is on its way. */
+const SKELETONS_SHOWN = 12;
 
 /**
  * The Apps place's new tab: the apps this workspace reaches as marks, the
@@ -59,7 +59,6 @@ export function AppsHome({
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const visited = useAtomValue(visitedPagesAtom);
   const [query, setQuery] = useState("");
-  const [showsAll, setShowsAll] = useState(false);
 
   const apps = list.data?.apps ?? [];
   // Connected first, since theirs are the fronts worth opening; the ones
@@ -87,8 +86,10 @@ export function AppsHome({
   ]).slice(0, RECENT_SHOWN);
   const typed = query.trim();
   const matches = typed === "" ? more : searchDirectory(unconnected, typed);
-  const shown =
-    typed === "" ? (showsAll ? more : more.slice(0, MORE_SHOWN)) : matches;
+  // Unsearched, the featured services lead as Popular and every other one
+  // follows under its category, so the whole directory is a scroll away.
+  const popular = more.filter((entry) => entry.tier === "featured");
+  const rest = more.filter((entry) => entry.tier !== "featured");
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
@@ -169,17 +170,15 @@ export function AppsHome({
           </p>
         ) : null}
 
-        {/* The services still to connect, searchable: a dozen most people
-            know until something is typed, then whatever matches, and for a
-            name the directory does not have, the way to ask for it anyway.
-            Every Connect is a message to the conversation, since Instrument
-            does the connecting. */}
+        {/* The services still to connect, searchable: the popular ones and
+            then all the rest by category until something is typed, then
+            whatever matches, and for a name the directory does not have,
+            the way to ask for it anyway. Every Connect is a message to the
+            conversation, since Instrument does the connecting. */}
         {showsConnect && (
-          <PageSection
-            title={own.length > 0 ? "Connect more apps" : "Connect an app"}
-          >
+          <div className="space-y-10">
             <form
-              className="group/search relative mb-4"
+              className="group/search relative"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (typed !== "" && matches.length === 0) {
@@ -202,32 +201,32 @@ export function AppsHome({
             </form>
             {catalog.data === undefined ? (
               <TileSkeletons />
-            ) : typed === "" && showsAll ? (
-              <CategoryGroups entries={more} renderTile={tileFor} />
-            ) : shown.length > 0 || typed !== "" ? (
+            ) : typed === "" ? (
+              <>
+                {popular.length > 0 ? (
+                  <PageSection title="Popular">
+                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                      {popular.map(tileFor)}
+                    </div>
+                  </PageSection>
+                ) : null}
+                {rest.length > 0 ? (
+                  <PageSection title="By category">
+                    <CategoryGroups entries={rest} renderTile={tileFor} />
+                  </PageSection>
+                ) : null}
+              </>
+            ) : (
               <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                {shown.map(tileFor)}
-                {typed === "" ? null : (
-                  <UnlistedTile
-                    isOnlyOne={matches.length === 0}
-                    name={typed}
-                    onConnect={connectTyped}
-                  />
-                )}
+                {matches.map(tileFor)}
+                <UnlistedTile
+                  isOnlyOne={matches.length === 0}
+                  name={typed}
+                  onConnect={connectTyped}
+                />
               </div>
-            ) : null}
-            {typed === "" && more.length > MORE_SHOWN ? (
-              <button
-                className="mt-4 text-[13px] font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setShowsAll(!showsAll);
-                }}
-                type="button"
-              >
-                {showsAll ? "Show fewer" : `Show all ${more.length}`}
-              </button>
-            ) : null}
-          </PageSection>
+            )}
+          </div>
         )}
 
         {showsConnect && list.data && list.data.invalid.length > 0 ? (
@@ -380,7 +379,7 @@ function MarkSkeletons() {
 function TileSkeletons() {
   return (
     <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-      {Array.from({ length: MORE_SHOWN }, (_, index) => (
+      {Array.from({ length: SKELETONS_SHOWN }, (_, index) => (
         <div
           className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
           key={index}
@@ -492,7 +491,7 @@ function CategoryGroups({
         const collapsed = id === "developer" && !showsDeveloper;
         return (
           <div key={id}>
-            <h3 className="mb-3 text-[13px] font-medium text-foreground">
+            <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
               {label}
             </h3>
             {collapsed ? (

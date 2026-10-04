@@ -1,9 +1,8 @@
-import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
+import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import { useSyncZoom } from "@/client/hooks/use-sync-zoom";
 import { rpcClient } from "@/client/rpc/client";
-import { steppedZoom } from "@/shared/zoom";
 import { useSetAtom } from "jotai";
 import { sleep } from "radashi";
 import { type ReactNode, useEffect } from "react";
@@ -38,34 +37,7 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
             { signal },
           );
           for await (const command of commands) {
-            switch (command.type) {
-              case "zoomIn": {
-                setZoom((z) =>
-                  steppedZoom({
-                    direction: "in",
-                    factor: z,
-                    max: ZOOM_MAX,
-                    min: ZOOM_MIN,
-                  }),
-                );
-                break;
-              }
-              case "zoomOut": {
-                setZoom((z) =>
-                  steppedZoom({
-                    direction: "out",
-                    factor: z,
-                    max: ZOOM_MAX,
-                    min: ZOOM_MIN,
-                  }),
-                );
-                break;
-              }
-              case "zoomReset": {
-                setZoom(1);
-                break;
-              }
-            }
+            setZoom((z) => appZoomAfter(command.type, z));
           }
         } catch {
           // Stream dropped (transport reset, hot reload); reconnect below unless

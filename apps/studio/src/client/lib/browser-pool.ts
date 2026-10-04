@@ -419,24 +419,20 @@ export function initBrowserPool(): () => void {
 }
 
 /**
- * A step back or forward for the page that holds the keyboard, the way a
- * thumb press over it steps: a history chord pressed in a page reaches the
- * window rather than the page, and is answered here first. False when no page
- * holds the keyboard, and the window's own history is what steps.
+ * The page on screen that holds the keyboard, if one does: a parked guest
+ * hands the keyboard back as it goes, and one that kept it is no page the
+ * person is looking at.
  */
-export function stepFocusedPage(direction: "back" | "forward"): boolean {
+export function pageHoldingKeyboard(): BrowserTargetId | null {
   for (const [targetId, pooled] of pool) {
-    // Only a page on screen: a parked guest hands the keyboard back as it
-    // goes, and one that kept it is no page the person is looking at.
     if (
       document.activeElement === pooled.webview &&
       paintOwners.has(targetId)
     ) {
-      stepPage(targetId, direction);
-      return true;
+      return targetId;
     }
   }
-  return false;
+  return null;
 }
 
 /**
@@ -444,7 +440,10 @@ export function stepFocusedPage(direction: "back" | "forward"): boolean {
  * into the tab's own history at either end; with none, the page steps its
  * own history, as a browser would.
  */
-function stepPage(targetId: BrowserTargetId, direction: "back" | "forward") {
+export function stepPage(
+  targetId: BrowserTargetId,
+  direction: "back" | "forward",
+) {
   const handler = thumbHandlers.get(targetId);
   if (handler) {
     handler(direction);

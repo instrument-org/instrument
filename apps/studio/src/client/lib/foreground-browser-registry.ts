@@ -1,11 +1,10 @@
-import { getGuest } from "@/client/lib/browser-pool";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 
 // The browser panel the user is looking at, mirroring tab-router-registry: the
 // foreground task's panel registers itself while its guest is live and nothing
-// covers it, so app-owned chords can reach that guest. A focused `<webview>`
-// takes keyboard focus, so these chords only ever arrive as native menu
-// accelerators, never as a renderer keydown -- hence this indirection.
+// covers it, so a page chord (page-chords.ts) can mean that guest. A focused
+// `<webview>` takes keyboard focus, so these chords only ever arrive as native
+// menu accelerators, never as a renderer keydown -- hence this indirection.
 let foreground: null | {
   openFind: () => void;
   targetId: BrowserTargetId;
@@ -26,28 +25,10 @@ export function registerForegroundBrowser(panel: {
   };
 }
 
-// Called from the app-command bus when Cmd+F fires. No-ops (returns false) when
-// no browser panel is currently the foreground artifact.
-export function requestBrowserFind(): boolean {
-  if (!foreground) {
-    return false;
-  }
-  foreground.openFind();
-  return true;
-}
-
-// Called from the window's command stream when Cmd+R fires and no guest holds
-// focus. Someone looking at a page means that page by "reload", so the guest
-// reloads; returning false means there is no page on screen, and the chord
-// does nothing.
-export function requestBrowserReload(): boolean {
-  if (!foreground) {
-    return false;
-  }
-  const guest = getGuest(foreground.targetId);
-  if (!guest) {
-    return false;
-  }
-  guest.reload();
-  return true;
+/** The browser panel the user is looking at, if one has registered. */
+export function foregroundBrowser(): null | {
+  openFind: () => void;
+  targetId: BrowserTargetId;
+} {
+  return foreground;
 }

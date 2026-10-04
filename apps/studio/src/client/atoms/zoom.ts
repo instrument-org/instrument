@@ -1,3 +1,5 @@
+import { type AppCommand } from "@/shared/app-command";
+import { steppedZoom } from "@/shared/zoom";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 export const ZOOM_MAX = 2;
@@ -38,3 +40,19 @@ export const zoomAtom = atomWithStorage<number>(
     getOnInit: true,
   },
 );
+
+/** The app's zoom after a zoom chord, from `factor`. */
+export function appZoomAfter(
+  command: AppCommand["type"],
+  factor: number,
+): number {
+  if (command === "zoomReset") {
+    return 1;
+  }
+  return steppedZoom({
+    direction: command === "zoomIn" ? "in" : "out",
+    factor,
+    max: ZOOM_MAX,
+    min: ZOOM_MIN,
+  });
+}

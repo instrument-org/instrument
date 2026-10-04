@@ -80,6 +80,8 @@ interface PublisherEvents {
   // chord, or a link from outside the app, all of which reach the main process
   // rather than the page: history either way, the close of the tab on screen,
   // the caret in the window's field, a screen to put up, or a file to open.
+  // The chords that can mean a page (history, reload, find, zoom) come as they
+  // were pressed, and the window decides which page, if any, they mean.
   "window.command":
     | "back"
     | "closeTab"
@@ -98,6 +100,9 @@ interface PublisherEvents {
     | "reopenTab"
     | "search"
     | "toggleInbox"
+    | "zoomIn"
+    | "zoomOut"
+    | "zoomReset"
     | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };

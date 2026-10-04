@@ -1,11 +1,8 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  BROWSER_ZOOM_MAX,
-  BROWSER_ZOOM_MIN,
   type BrowserGuestTarget,
   targetIdFromPartition,
 } from "@/shared/browser";
-import { steppedZoom } from "@/shared/zoom";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -76,9 +73,6 @@ export interface BrowserViewManager {
   // Every recorded target and whether its guest has attached yet. The renderer
   // pool mounts a guest for every id; the UI treats only attached ones as live.
   getTargets: () => BrowserGuestTarget[];
-  // If a browser guest has focus, reload its own web content and return true.
-  // Lets Cmd+R reload the focused guest rather than the window.
-  reloadFocusedGuest: () => boolean;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
   // this is safe here (the caller always computes scale from live bounds and
@@ -88,18 +82,15 @@ export interface BrowserViewManager {
     targetId: BrowserTargetId,
     device: DeviceEmulation | null,
   ) => void;
-  // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
-  // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
-  // stuck `true` after focus moves to a plain host-page element), so
-  // zoomFocusedGuest trusts this instead.
+  // Record renderer-reported DOM focus/blur on a guest's `<webview>` element,
+  // which is what tells a person taking the guest from focus the agent's own
+  // command caused. `webContents.isFocused()` is unreliable for `<webview>`
+  // guests (it can get stuck `true` after focus moves to a plain host-page
+  // element).
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
   teardown: () => void;
-  // If a browser guest has focus, zoom its own web content and return true.
-  // Lets keyboard Cmd+/-/0 target the focused guest instead of the window
-  // (app zoom is CSS-only and never reaches the guest's webContents).
-  zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
 let managerInstance: BrowserViewManager | undefined;
@@ -122,8 +113,6 @@ const describeTabScript = (guestId: number) => `(() => {
 
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  // The guest the renderer last reported real DOM focus on (see setGuestFocus).
-  let focusedTargetId: BrowserTargetId | null = null;
   // The app window's renderer, which mounts every guest.
   let hostContents: null | WebContents = null;
   const hostOf = (targetId: BrowserTargetId) =>
@@ -164,9 +153,6 @@ export function createBrowserViewManager(): BrowserViewManager {
       !BrowserWindow.fromWebContents(host)?.isFocused()
     ) {
       return;
-    }
-    if (focusedTargetId === targetId) {
-      focusedTargetId = null;
     }
     publisher.publish("browser.restore-host-focus", null);
   }
@@ -664,12 +650,6 @@ export function createBrowserViewManager(): BrowserViewManager {
       }),
   };
 
-  function focusedGuestWebContents(): null | WebContents {
-    const entry = focusedTargetId && entries.get(focusedTargetId);
-    const wc = entry?.webContents;
-    return wc && !wc.isDestroyed() ? wc : null;
-  }
-
   // The panel calls this to reconcile a guest's device emulation to the
   // currently-desired state every time it shows the guest (and whenever the
   // selected device changes): `device: null` clears any override, which also
@@ -686,45 +666,21 @@ export function createBrowserViewManager(): BrowserViewManager {
     setDeviceEmulation({ device, ensureDebuggerAttached, entry });
   }
 
-  function reloadFocusedGuest(): boolean {
-    const wc = focusedGuestWebContents();
-    if (!wc) {
-      return false;
-    }
-    wc.reload();
-    return true;
-  }
-
   function setGuestFocus(targetId: BrowserTargetId, focused: boolean) {
-    if (focused && focusGuard.bounceGuestFocus(targetId)) {
+    if (!focused || focusGuard.bounceGuestFocus(targetId)) {
       return;
     }
-    if (focused) {
-      focusedTargetId = targetId;
-      // Only a user taking the guest hands the claim over. Focus that the
-      // agent's own command caused (a CDP click, which the guest needs before
-      // it can be typed into at all) is recorded for chord routing but leaves
-      // the host owning the caret, so it returns once the agent goes quiet.
-      if (!focusGuard.isGuarded(targetId)) {
-        focusGuard.releaseHost();
-      }
-    } else if (focusedTargetId === targetId) {
-      focusedTargetId = null;
+    // Only a user taking the guest hands the claim over. Focus that the
+    // agent's own command caused (a CDP click, which the guest needs before
+    // it can be typed into at all) leaves the host owning the caret, so it
+    // returns once the agent goes quiet.
+    if (!focusGuard.isGuarded(targetId)) {
+      focusGuard.releaseHost();
     }
   }
 
   function setHostFocus() {
-    focusedTargetId = null;
     focusGuard.claimHost();
-  }
-
-  function zoomFocusedGuest(direction: "in" | "out" | "reset"): boolean {
-    const wc = focusedGuestWebContents();
-    if (!wc) {
-      return false;
-    }
-    zoomGuest(wc, direction);
-    return true;
   }
 
   managerInstance = {
@@ -738,7 +694,6 @@ export function createBrowserViewManager(): BrowserViewManager {
         id: entry.targetId,
         navigated: entry.navigated,
       })),
-    reloadFocusedGuest,
     setEmulatedDevice,
     setGuestFocus,
     setHostFocus,
@@ -748,7 +703,6 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       notifyEntriesChanged();
     },
-    zoomFocusedGuest,
   };
   return managerInstance;
 }
@@ -790,22 +744,4 @@ function markNavigated(entry: BrowserEntry, url: string) {
 function notifyEntriesChanged() {
   notifyDebugChange();
   publisher.publish("browser.targets-changed", null);
-}
-
-function zoomGuest(wc: WebContents, direction: "in" | "out" | "reset") {
-  if (wc.isDestroyed()) {
-    return;
-  }
-  if (direction === "reset") {
-    wc.setZoomFactor(1);
-  } else {
-    wc.setZoomFactor(
-      steppedZoom({
-        direction,
-        factor: wc.getZoomFactor(),
-        max: BROWSER_ZOOM_MAX,
-        min: BROWSER_ZOOM_MIN,
-      }),
-    );
-  }
 }

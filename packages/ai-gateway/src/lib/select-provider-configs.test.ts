@@ -243,4 +243,24 @@ describe("selectProviderConfigs", () => {
 
     expect(result).toHaveLength(1);
   });
+
+  it("never falls back from one ChatGPT account to another", () => {
+    const configs = [
+      createConfig({ id: "chatgpt-personal", type: "chatgpt" }),
+      createConfig({ id: "chatgpt-work", type: "chatgpt" }),
+      createConfig({ id: "openai-1", type: "openai" }),
+    ];
+
+    const result = selectProviderConfigs({
+      configs,
+      maxConfigs: 3,
+      preferredProviderConfig: createConfig({
+        id: "chatgpt-work",
+        type: "chatgpt",
+      }),
+      providerTypePriority: ["chatgpt", "openai"],
+    });
+
+    expect(result.map((c) => c.id)).toEqual(["chatgpt-work", "openai-1"]);
+  });
 });

@@ -39,10 +39,18 @@ export function selectProviderConfigs<
     }
   }
 
-  // 3. Add fallback(s) from ordered provider list to reach maxConfigs
+  // 3. Add fallback(s) from ordered provider list to reach maxConfigs. Never a
+  // second ChatGPT account: falling over from one plan to another is the
+  // account rotation OpenAI's Sign in with ChatGPT Terms forbid.
   for (const providerType of providerTypePriority) {
     if (result.length >= maxConfigs) {
       break;
+    }
+    if (
+      providerType === "chatgpt" &&
+      result.some((c) => c.type === "chatgpt")
+    ) {
+      continue;
     }
 
     const config = configs.find(

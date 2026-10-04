@@ -76,6 +76,7 @@ interface UpdaterLogger {
 export function createAppUpdater({
   confirmQuit,
   getCurrentVersion,
+  withdrawQuit,
   installNotice,
   log,
   publish,
@@ -93,6 +94,9 @@ export function createAppUpdater({
   publish: (status: AppUpdaterStatus) => void;
   recordCheck: () => void;
   updater: UpdaterPort;
+  // Takes back what `confirmQuit` approved when the install it approved does
+  // not happen after all, so a later close asks about running agents again.
+  withdrawQuit?: () => void;
 }): AppUpdaterHandle {
   const phase = createUpdatePhase();
   let status: AppUpdaterStatus | null = null;
@@ -243,6 +247,7 @@ export function createAppUpdater({
       phase.pendingNewer = null;
       if (phase.installing) {
         installFailure = error.message;
+        withdrawQuit?.();
         // The request that started this install is holding the latch on an
         // outcome of `installing`, which only stays true if the app is on its
         // way out. It is not: this is the failure saying so, and on macOS it
@@ -384,6 +389,7 @@ export function createAppUpdater({
 
   const reportInstallFailure = (message: string): InstallOutcome => {
     log.error("Error quitting and installing:", message);
+    withdrawQuit?.();
     // Published before the latch clears, then cleared so the retry and the
     // before-quit warning are both live again.
     setStatus({ message, notifyUser: true, type: "error" });
@@ -458,6 +464,7 @@ export function createAppUpdater({
     // block, rather than install something that is no longer on disk.
     const confirmed = reportNonInstall(decideFromPhase(undefined));
     if (confirmed) {
+      withdrawQuit?.();
       return confirmed;
     }
 

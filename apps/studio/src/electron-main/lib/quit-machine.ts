@@ -43,7 +43,10 @@ export const quitMachine = setup({
   },
   types: {
     context: {} as { quitAfterApproval: boolean },
-    events: {} as { type: "approvalRequested" } | { type: "quitRequested" },
+    events: {} as
+      | { type: "approvalRequested" }
+      | { type: "approvalWithdrawn" }
+      | { type: "quitRequested" },
   },
 }).createMachine({
   context: { quitAfterApproval: false },
@@ -90,7 +93,12 @@ export const quitMachine = setup({
         guard: ({ context }) => context.quitAfterApproval,
         target: "tearingDown",
       },
-      on: { quitRequested: "tearingDown" },
+      on: {
+        // What was approved did not end in a quit (an install that failed),
+        // so the next close asks again rather than skipping the prompt.
+        approvalWithdrawn: "idle",
+        quitRequested: "tearingDown",
+      },
       tags: ["approved"],
     },
     tearingDown: {

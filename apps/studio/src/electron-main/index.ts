@@ -48,7 +48,7 @@ import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
-import { requestQuitApproval } from "./lib/quit";
+import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
@@ -215,8 +215,10 @@ async function bootstrapPrimaryInstance() {
 
   const updater = createStudioAppUpdater({
     // Approving the install approves the quit it ends in, so before-quit and
-    // the window close go ahead without asking again.
+    // the window close go ahead without asking again. An install that then
+    // fails takes the approval back.
     confirmQuit: requestQuitApproval,
+    withdrawQuit: withdrawQuitApproval,
   });
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();

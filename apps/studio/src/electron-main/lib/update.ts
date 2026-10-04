@@ -38,7 +38,8 @@ let stagedInstallerPath: string | undefined;
 
 export function createStudioAppUpdater({
   confirmQuit,
-}: { confirmQuit?: ConfirmQuit } = {}) {
+  withdrawQuit,
+}: { confirmQuit?: ConfirmQuit; withdrawQuit?: () => void } = {}) {
   autoUpdater.logger = createAutoUpdaterLogger();
   autoUpdater.autoDownload = true;
   autoUpdater.disableWebInstaller = true;
@@ -99,6 +100,7 @@ export function createStudioAppUpdater({
 
   const updater = createAppUpdater({
     confirmQuit,
+    withdrawQuit,
     getCurrentVersion: () => app.getVersion(),
     installNotice: getInstallNotice(),
     log: scopedLogger,

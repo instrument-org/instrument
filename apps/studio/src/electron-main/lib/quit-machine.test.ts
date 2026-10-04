@@ -51,7 +51,9 @@ function createHarness({
     actor,
     approve: approveSpy,
     calls,
-    send: (type: "approvalRequested" | "quitRequested") => {
+    send: (
+      type: "approvalRequested" | "approvalWithdrawn" | "quitRequested",
+    ) => {
       actor.send({ type });
     },
     stopServices: stopServicesSpy,
@@ -115,6 +117,21 @@ describe("quit machine", () => {
 
     expect(h.value()).toBe("idle");
     expect(h.calls).toEqual(["reveal"]);
+
+    h.send("quitRequested");
+    await vi.runAllTimersAsync();
+    expect(h.approve).toHaveBeenCalledTimes(2);
+    expect(h.calls).toContain("exit");
+  });
+
+  it("asks again once an approval is withdrawn", async () => {
+    const h = createHarness();
+    h.send("approvalRequested");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.value()).toBe("approved");
+
+    h.send("approvalWithdrawn");
+    expect(h.value()).toBe("idle");
 
     h.send("quitRequested");
     await vi.runAllTimersAsync();

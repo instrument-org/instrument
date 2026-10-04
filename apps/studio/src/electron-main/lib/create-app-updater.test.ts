@@ -28,9 +28,11 @@ const NEWEST = "1.7.0";
 function createHarness({
   confirmQuit,
   currentVersion = CURRENT,
+  withdrawQuit,
 }: {
   confirmQuit?: () => Promise<boolean>;
   currentVersion?: string;
+  withdrawQuit?: () => void;
 } = {}) {
   let handlers: undefined | UpdaterEvents;
   let nextCheck: () => Promise<null | UpdateCheckResult> = () =>
@@ -67,6 +69,7 @@ function createHarness({
     publish: (status) => published.push(status),
     recordCheck,
     updater: port,
+    withdrawQuit,
   });
 
   function events() {
@@ -393,6 +396,55 @@ describe("quitAndInstall", () => {
     await h.updater.quitAndInstall();
 
     expect(h.installs).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [
+      "throws",
+      () => {
+        throw new Error("installer missing");
+      },
+    ],
+    ["reports an error later", "later"],
+  ] as const)(
+    "takes back the approved quit when the install %s",
+    async (_, failure) => {
+      const withdrawQuit = vi.fn();
+      const h = createHarness({
+        confirmQuit: () => Promise.resolve(true),
+        withdrawQuit,
+      });
+      h.stage(STAGED);
+      h.respondWith(STAGED);
+      h.installs.mockImplementationOnce(
+        failure === "later"
+          ? () => {
+              setTimeout(() => {
+                h.events().failed(new Error("Could not launch the installer"));
+              }, 0);
+            }
+          : failure,
+      );
+
+      await h.updater.quitAndInstall();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(withdrawQuit).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the approved quit when the install goes ahead", async () => {
+    const withdrawQuit = vi.fn();
+    const h = createHarness({
+      confirmQuit: () => Promise.resolve(true),
+      withdrawQuit,
+    });
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await h.updater.quitAndInstall();
+
+    expect(withdrawQuit).not.toHaveBeenCalled();
   });
 
   it("surfaces an install failure and re-arms the retry", async () => {

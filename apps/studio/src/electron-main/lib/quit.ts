@@ -30,6 +30,15 @@ export async function requestQuitApproval(): Promise<boolean> {
 }
 
 /**
+ * Takes back an approval whose quit is not going to happen, such as an
+ * install that failed after the prompt approved the quit it would end in.
+ * Does nothing once teardown has started.
+ */
+export function withdrawQuitApproval() {
+  quit?.send({ type: "approvalWithdrawn" });
+}
+
+/**
  * What `before-quit` reports: approval if it is still needed, then the
  * teardown that ends in `app.exit`. Repeats while either runs are ignored.
  */

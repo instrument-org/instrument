@@ -135,5 +135,11 @@ export const publisher = new EventPublisher<{
   "window.tabDone": WindowTabAnswer & { id: TaskId };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({
-  maxBufferedEvents: 1, // Holds only last event in memory
+  // Per subscription, starting empty when it subscribes: what a subscriber
+  // that is still busy with one event holds of the ones after it. Many of
+  // these carry something that cannot be read back later (a tab ask, a
+  // tool call starting), so they queue rather than leave only the newest. A
+  // live route re-reading state on them collapses a burst into one read
+  // (`liveRead`), so queuing costs it nothing.
+  maxBufferedEvents: 100,
 });

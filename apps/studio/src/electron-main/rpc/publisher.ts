@@ -112,8 +112,14 @@ interface PublisherEvents {
   "window.state-changed": null;
 }
 
+// Per subscription, starting empty when it subscribes: what a subscriber that
+// is still busy with one event holds of the ones after it. Several of these
+// are commands to the renderer (a guest's surface, a tab to open, a finished
+// download), which must each arrive, so they queue rather than leave only the
+// newest. A live route re-reading state on them collapses a burst into one
+// read (`liveRead`), so queuing costs it nothing.
 export const publisher = new EventPublisher<PublisherEvents>({
-  maxBufferedEvents: 1, // Keep no history as we only need to know the latest state
+  maxBufferedEvents: 100,
 });
 
 interface CommandEvents {

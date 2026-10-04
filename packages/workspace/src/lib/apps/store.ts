@@ -2,6 +2,7 @@ import { err, ok, type Result } from "neverthrow";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { omit } from "radashi";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -225,11 +226,14 @@ export async function writeAppFolder({
  * A digest of the manifest as parsed, so a connection record can say which
  * manifest passed the test and a call can refuse one edited since. Over the
  * parsed value rather than the file's bytes, so reformatting the JSON is not
- * a change.
+ * a change. A local app's `macApp` is left out: it only says which icon the
+ * app is drawn with, and naming one changes nothing that runs or is sent.
  */
 function manifestHash(manifest: AppManifest): string {
+  const reached =
+    manifest.type === "mcp-local" ? omit(manifest, ["macApp"]) : manifest;
   return createHash("sha256")
-    .update(JSON.stringify(sortKeys(manifest)))
+    .update(JSON.stringify(sortKeys(reached)))
     .digest("hex")
     .slice(0, 32);
 }

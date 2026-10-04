@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   connectionsOf,
-  makerName,
   type PickerRow,
   rowsForConnection,
   rowsForSearch,
@@ -147,13 +146,48 @@ const longCatalog = [
 ];
 
 const describeRows = (rows: PickerRow[]) =>
-  rows.map((row) =>
-    row.type === "header"
-      ? `# ${row.label}`
-      : row.type === "auto"
-        ? "[Auto card]"
-        : `${row.showMaker ? `(${row.model.author}) ` : ""}${row.model.name}${row.sub ? ` — ${row.sub}` : ""}`,
-  );
+  rows.map((row) => {
+    switch (row.type) {
+      case "auto": {
+        return "[Auto]";
+      }
+      case "header": {
+        return `# ${row.label}`;
+      }
+      case "model": {
+        return `(${row.model.author}) ${row.model.name}${row.sub ? ` — ${row.sub}` : ""}`;
+      }
+      case "show-all": {
+        return "[Show all models]";
+      }
+      case "show-fewer": {
+        return "[Show fewer]";
+      }
+    }
+  });
+
+/** A short catalog mixing makers, some recommended, as Workers AI lists. */
+const workersAI = connection("workers-ai", "openrouter", "Workers AI", "z-ai");
+const shortMixed = [
+  workersAI({
+    canonicalId: "glm-5.3-flash",
+    name: "GLM 5.3 Flash",
+    tags: ["recommended"],
+  }),
+  workersAI({
+    author: "deepseek",
+    canonicalId: "deepseek-v4-flash",
+    name: "DeepSeek V4 Flash",
+    tags: ["recommended"],
+  }),
+  workersAI({ canonicalId: "glm-5.2", name: "GLM 5.2", replacedBy: "glm-5.3" }),
+  workersAI({ canonicalId: "glm-5.3", name: "GLM 5.3", tags: ["recommended"] }),
+  workersAI({
+    author: "meta",
+    canonicalId: "llama-4-scout",
+    name: "Llama 4 Scout",
+  }),
+];
 
 describe("connectionsOf", () => {
   it("lists each connection once, Instrument first, two plans apart", () => {
@@ -177,7 +211,7 @@ describe("connectionsOf", () => {
 
 describe("rowsForConnection", () => {
   it("lays out each kind of list", () => {
-    const cases: [string, AIGatewayModel.Type[], string][] = [
+    const cases: [string, AIGatewayModel.Type[], string, boolean?][] = [
       ["Instrument at launch: Auto alone", autoOnly, "instrument"],
       [
         "Instrument letting models through: Auto leads, mixed makers marked",
@@ -206,44 +240,57 @@ describe("rowsForConnection", () => {
         longCatalog,
         "openrouter-key",
       ],
+      ["a short mixed list folds too", shortMixed, "workers-ai"],
+      ["the same list shown whole", shortMixed, "workers-ai", true],
     ];
     expect(
       Object.fromEntries(
-        cases.map(([name, models, connectionId]) => [
+        cases.map(([name, models, connectionId, showAll = false]) => [
           name,
-          describeRows(
-            rowsForConnection({ connectionId, models, showAll: false }),
-          ),
+          describeRows(rowsForConnection({ connectionId, models, showAll })),
         ]),
       ),
     ).toMatchInlineSnapshot(`
       {
         "Instrument at launch: Auto alone": [
-          "[Auto card]",
+          "[Auto]",
         ],
         "Instrument letting models through: Auto leads, mixed makers marked": [
-          "[Auto card]",
-          "# Or pick one yourself",
+          "[Auto]",
           "(anthropic) Claude Sonnet 5.5",
           "(google) Gemini 3.7 Flash",
         ],
         "a long catalog opens on its recommendations, by maker": [
-          "# Anthropic",
           "(anthropic) Claude Sonnet 5.5",
-          "# Google",
           "(google) Gemini 3.7 Flash",
-          "# Moonshot",
           "(moonshotai) Kimi K3",
+          "[Show all models]",
+        ],
+        "a short mixed list folds too": [
+          "(deepseek) DeepSeek V4 Flash",
+          "(z-ai) GLM 5.3",
+          "(z-ai) GLM 5.3 Flash",
+          "[Show all models]",
         ],
         "one maker: latest, older, then what needs a plan": [
           "# Latest",
-          "Claude Haiku 4.5",
-          "Claude Sonnet 5.5",
+          "(anthropic) Claude Haiku 4.5",
+          "(anthropic) Claude Sonnet 5.5",
           "# Older versions",
-          "Claude 3 Opus",
-          "Claude Sonnet 5 — Replaced by Claude Sonnet 5.5",
+          "(anthropic) Claude 3 Opus",
+          "(anthropic) Claude Sonnet 5 — Replaced by Claude Sonnet 5.5",
           "# Requires a paid plan",
-          "Claude Opus 5.5 — Needs a paid plan.",
+          "(anthropic) Claude Opus 5.5 — Needs a paid plan.",
+        ],
+        "the same list shown whole": [
+          "# Latest",
+          "(deepseek) DeepSeek V4 Flash",
+          "(z-ai) GLM 5.3",
+          "(z-ai) GLM 5.3 Flash",
+          "(meta) Llama 4 Scout",
+          "# Older versions",
+          "(z-ai) GLM 5.2 — Replaced by GLM 5.3",
+          "[Show fewer]",
         ],
       }
     `);
@@ -273,20 +320,11 @@ describe("rowsForSearch", () => {
     ).toMatchInlineSnapshot(`
       [
         "# Anthropic",
-        "Claude Sonnet 5 — Replaced by Claude Sonnet 5.5",
-        "Claude Sonnet 5.5",
+        "(anthropic) Claude Sonnet 5 — Replaced by Claude Sonnet 5.5",
+        "(anthropic) Claude Sonnet 5.5",
         "# OpenRouter",
         "(anthropic) Claude Sonnet 5.5",
       ]
     `);
-  });
-});
-
-describe("makerName", () => {
-  it.each([
-    ["moonshotai", "Moonshot"],
-    ["some-new-lab", "Some New Lab"],
-  ])("%s reads as %s", (author, name) => {
-    expect(makerName(author)).toBe(name);
   });
 });

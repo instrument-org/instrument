@@ -157,9 +157,9 @@ describe("ModelPicker in a browser", () => {
           - text: Anthropic models
         - button "Add a provider"
       - listbox "Suggestions":
-        - option "Auto Recommended Picks the right model for each message, and moves to newer ones as they ship. (chosen)" [selected]:
+        - option "Auto Recommended Picks the right model for each message (chosen)" [selected]:
           - img
-          - text: Auto Recommended Picks the right model for each message, and moves to newer ones as they ship. (chosen)"
+          - text: Auto Recommended Picks the right model for each message (chosen)"
     `);
   });
 
@@ -298,7 +298,7 @@ describe("ModelPicker in a browser", () => {
   // A long catalog opens on what we recommend, and a chosen model outside that
   // used to open the picker on a list without it: nothing chosen in sight, as
   // though the choice had been lost.
-  it("opens a long catalog whole when the chosen model is not a recommendation", async () => {
+  it("opens a list whole when the chosen model is not a recommendation", async () => {
     const catalog = [
       autoModel,
       ...Array.from({ length: 30 }, (_, index) =>
@@ -327,8 +327,8 @@ describe("ModelPicker in a browser", () => {
       .element(page.getByRole("option", { name: `${chosen.name} (chosen)` }))
       .toBeInViewport();
     await expect
-      .element(page.getByRole("button", { name: "All" }))
-      .toHaveAttribute("aria-pressed", "true");
+      .element(page.getByRole("option", { name: "Show fewer" }))
+      .toBeInTheDocument();
   });
 
   it("opens scrolled to a chosen model far down a long list", async () => {

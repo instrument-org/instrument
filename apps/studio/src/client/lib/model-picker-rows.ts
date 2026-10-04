@@ -26,15 +26,14 @@ export type PickerRow =
       /** Under a search, where the name came from, for the highlight. */
       nameRanges?: null | number[];
       model: AIGatewayModel.Type;
-      /** Whose model it is, drawn only where a list mixes makers. */
-      showMaker: boolean;
       /** One plain line under the name: what replaced it, or why it cannot be used. */
       sub?: string;
       type: "model";
-    };
-
-/** A catalog this long opens on what we recommend, with the rest one press away. */
-const LONG_CATALOG = 25;
+    }
+  /** The foot of a list opened on its recommendations: the rest, one press away. */
+  | { type: "show-all" }
+  /** The foot of a list showing everything, when it can be folded back. */
+  | { type: "show-fewer" };
 
 const isOurs = (model: AIGatewayModel.Type) =>
   model.params.provider === OUR_MODELS.providerType;
@@ -61,25 +60,55 @@ export function connectionsOf(models: AIGatewayModel.Type[]): Connection[] {
   );
 }
 
-/** Whether a connection's list is long enough to open on its recommendations. */
-export function isLongCatalog(
-  models: AIGatewayModel.Type[],
-  connectionId: string,
-): boolean {
+/** A connection's models other than Auto, sorted into the groups its list shows. */
+function groupsOf(models: AIGatewayModel.Type[], connectionId: string) {
   const own = models.filter(
     (model) => model.params.providerConfigId === connectionId,
   );
-  return (
-    own.length >= LONG_CATALOG &&
-    own.some((model) => model.tags.includes("recommended"))
+  const rest = sortByName(own.filter((model) => !isAuto(model)));
+  const restricted = rest.filter((model) => model.restricted);
+  const older = rest.filter(
+    (model) =>
+      !model.restricted &&
+      (model.replacedBy !== undefined || model.tags.includes("legacy")),
   );
+  const latest = rest.filter(
+    (model) => !restricted.includes(model) && !older.includes(model),
+  );
+  const recommended = latest.filter((model) =>
+    model.tags.includes("recommended"),
+  );
+  return {
+    auto: own.find(isAuto),
+    latest,
+    older,
+    own,
+    recommended,
+    restricted,
+    // Folding only helps where it hides something and leaves something.
+    folds: recommended.length > 0 && recommended.length < rest.length,
+  };
 }
 
 /**
- * One connection's list. Instrument leads with Auto. Models that something
- * newer replaced go under Older versions, each saying what replaced it, and
- * ones this user cannot run go last, saying why. A long catalog shows only
- * its recommendations unless `showAll`, grouped by maker.
+ * Whether a connection's list, opened folded, would leave `model` out: a
+ * chosen model the recommendations skip opens the whole list instead.
+ */
+export function isFoldedAway(
+  models: AIGatewayModel.Type[],
+  model: AIGatewayModel.Type,
+): boolean {
+  const groups = groupsOf(models, model.params.providerConfigId);
+  return groups.folds && !isAuto(model) && !groups.recommended.includes(model);
+}
+
+/**
+ * One connection's list. Instrument leads with Auto. A list with
+ * recommendations opens on them, by maker, with the rest behind Show all;
+ * shown whole, models that something newer replaced go under Older versions,
+ * each saying what replaced it, and ones this user cannot run go last, saying
+ * why. Every row carries its maker's mark, so the list needs no maker
+ * headings.
  */
 export function rowsForConnection({
   connectionId,
@@ -90,33 +119,15 @@ export function rowsForConnection({
   models: AIGatewayModel.Type[];
   showAll: boolean;
 }): PickerRow[] {
-  const own = models.filter(
-    (model) => model.params.providerConfigId === connectionId,
+  const { auto, folds, latest, older, own, recommended, restricted } = groupsOf(
+    models,
+    connectionId,
   );
-  const auto = own.find(isAuto);
-  const rest = sortByName(own.filter((model) => !isAuto(model)));
-  const showMaker = new Set(rest.map((model) => model.author)).size > 1;
-  const row = (model: AIGatewayModel.Type) => modelRow(model, own, showMaker);
-
-  const restricted = rest.filter((model) => model.restricted);
-  const older = rest.filter(
-    (model) =>
-      !model.restricted &&
-      (model.replacedBy !== undefined || model.tags.includes("legacy")),
-  );
-  const latest = rest.filter(
-    (model) => !restricted.includes(model) && !older.includes(model),
-  );
-
+  const row = (model: AIGatewayModel.Type) => modelRow(model, own);
   const rows: PickerRow[] = auto ? [{ model: auto, type: "auto" }] : [];
 
-  if (isLongCatalog(models, connectionId) && !showAll) {
-    const recommended = latest.filter((model) =>
-      model.tags.includes("recommended"),
-    );
-    for (const [maker, group] of groupByMaker(recommended)) {
-      rows.push({ label: maker, type: "header" }, ...group.map(row));
-    }
+  if (folds && !showAll) {
+    rows.push(...byMaker(recommended).map(row), { type: "show-all" });
     return rows;
   }
 
@@ -125,11 +136,18 @@ export function rowsForConnection({
       rows.push({ label, type: "header" }, ...group.map(row));
     }
   };
-  // Instrument's own models are a choice beside Auto, which leads; a bare
-  // "Latest" over them would read as though Auto were not.
-  section(auto ? "Or pick one yourself" : "Latest", latest);
+  // A list with nothing older and nothing out of reach needs no heading over
+  // its one group.
+  if (older.length > 0 || restricted.length > 0) {
+    section("Latest", latest);
+  } else {
+    rows.push(...latest.map(row));
+  }
   section("Older versions", older);
   section("Requires a paid plan", restricted);
+  if (folds) {
+    rows.push({ type: "show-fewer" });
+  }
   return rows;
 }
 
@@ -160,7 +178,6 @@ export function rowsForSearch({
     }
     const info = fuzzy.info(indexes, haystack, query);
     const order = fuzzy.sort(info, haystack, query);
-    const showMaker = new Set(own.map((model) => model.author)).size > 1;
     rows.push({ label: connection.name, type: "header" });
     for (const at of order) {
       const index = info.idx[at] ?? -1;
@@ -175,7 +192,7 @@ export function rowsForSearch({
       const [nameRanges] =
         joined[index]?.splitRanges(info.ranges[at] ?? null) ?? [];
       rows.push({
-        ...modelRow(model, own, showMaker),
+        ...modelRow(model, own),
         nameRanges: nameRanges ?? null,
       });
     }
@@ -183,11 +200,10 @@ export function rowsForSearch({
   return rows;
 }
 
-/** A model's row: its maker shown or not, and what replaced it or why it cannot be used. */
+/** A model's row, with what replaced it or why it cannot be used. */
 function modelRow(
   model: AIGatewayModel.Type,
   sameConnection: AIGatewayModel.Type[],
-  showMaker: boolean,
 ): Extract<PickerRow, { type: "model" }> {
   const replacedBy =
     model.replacedBy &&
@@ -197,42 +213,12 @@ function modelRow(
   const sub =
     model.restricted?.message ??
     (replacedBy ? `Replaced by ${replacedBy}` : undefined);
-  return { model, showMaker, type: "model", ...(sub && { sub }) };
+  return { model, type: "model", ...(sub && { sub }) };
 }
 
-const MAKERS: Record<string, string> = {
-  anthropic: "Anthropic",
-  deepseek: "DeepSeek",
-  google: "Google",
-  "meta-llama": "Meta",
-  minimax: "MiniMax",
-  mistralai: "Mistral",
-  moonshotai: "Moonshot",
-  openai: "OpenAI",
-  qwen: "Qwen",
-  "x-ai": "xAI",
-  "z-ai": "Z.ai",
-};
-
-/** A maker's name for a heading: the known ones spelled as they spell themselves, the rest capitalized. */
-export function makerName(author: string): string {
-  return (
-    MAKERS[author] ??
-    author.replace(
-      /(^|-)(\w)/g,
-      (_, dash: string, letter: string) =>
-        `${dash ? " " : ""}${letter.toUpperCase()}`,
-    )
-  );
-}
-
-function groupByMaker(models: AIGatewayModel.Type[]) {
-  const groups = new Map<string, AIGatewayModel.Type[]>();
-  for (const model of models) {
-    const maker = makerName(model.author);
-    groups.set(maker, [...(groups.get(maker) ?? []), model]);
-  }
-  return [...groups].toSorted(([a], [b]) => a.localeCompare(b));
+/** Grouped by who made them, so a maker's marks run together down the list. */
+function byMaker(models: AIGatewayModel.Type[]) {
+  return models.toSorted((a, b) => a.author.localeCompare(b.author));
 }
 
 /** By name, numbers read as numbers, except our own, which keep the order the catalog gives. */

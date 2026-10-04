@@ -16,7 +16,7 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import {
   type Connection,
   connectionsOf,
-  isLongCatalog,
+  isFoldedAway,
   type PickerRow,
   rowsForConnection,
   rowsForSearch,
@@ -32,6 +32,7 @@ import {
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -299,13 +300,13 @@ function PickerPanel({
       rail.find((entry) => entry.id === chosenConnection)?.id ?? rail[0]?.id,
   );
   const [query, setQuery] = useState("");
-  // A chosen model the recommendations leave out opens the whole catalog,
+  // A chosen model the recommendations leave out opens the whole list,
   // since the picker's first answer is what is chosen.
   const [showAll, setShowAll] = useState(
     () =>
       selectedModel !== undefined &&
-      !selectedModel.tags.includes("recommended") &&
-      selectedModel.params.providerConfigId === openId,
+      selectedModel.params.providerConfigId === openId &&
+      isFoldedAway(models, selectedModel),
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -317,8 +318,6 @@ function PickerPanel({
       ? rowsForConnection({ connectionId: opened.id, models, showAll })
       : [];
   const autoRow = !searching && rows[0]?.type === "auto" ? rows[0] : undefined;
-  const long =
-    !searching && opened !== undefined && isLongCatalog(models, opened.id);
 
   return (
     <Command
@@ -440,21 +439,21 @@ function PickerPanel({
               </EmptyMessage>
             ) : (
               <>
-                {/* Auto leads its connection's list, over the catalog
-                    toggle, so it is not drawn as one of the rows the toggle
-                    filters. */}
+                {/* Auto leads its connection's list, set apart from the
+                    models under it rather than being the first of them. */}
                 {autoRow && (
-                  <AutoCard
+                  <AutoRow
                     chosen={selectedModel?.uri === autoRow.model.uri}
                     model={autoRow.model}
                     onPick={onPick}
                   />
                 )}
-                {long && (
-                  <CatalogToggle onChange={setShowAll} showAll={showAll} />
+                {autoRow && rows.length > 1 && (
+                  <div className="mx-2.5 my-2 h-px bg-border" />
                 )}
                 <VirtualRows
                   onPick={onPick}
+                  onShowAll={setShowAll}
                   rows={autoRow ? rows.slice(1) : rows}
                   scrollRef={scrollRef}
                   selectedModel={selectedModel}
@@ -470,13 +469,15 @@ function PickerPanel({
 
 function VirtualRows({
   onPick,
+  onShowAll,
   rows,
   scrollRef,
   selectedModel,
 }: {
   onPick: (model: AIGatewayModel.Type) => void;
+  onShowAll: (showAll: boolean) => void;
   rows: PickerRow[];
-  /** The list's scroll, which also holds the notice and the catalog toggle above the rows. */
+  /** The list's scroll, which also holds the notice and Auto above the rows. */
   scrollRef: RefObject<HTMLDivElement | null>;
   selectedModel?: AIGatewayModel.Type;
 }) {
@@ -484,7 +485,7 @@ function VirtualRows({
   const [scrollMargin, setScrollMargin] = useState(0);
 
   // Where the rows start within the scroll, read after every render: what
-  // moves them is the notice or the toggle above them coming and going, and
+  // moves them is the notice or Auto above them coming and going, and
   // each of those is already a render of this component. The equality guard
   // keeps a position that has not moved from writing anything.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -503,11 +504,9 @@ function VirtualRows({
       const row = rows[index];
       return row?.type === "header"
         ? 28
-        : row?.type === "auto"
-          ? 76
-          : row?.sub
-            ? 48
-            : 36;
+        : row?.type === "auto" || (row?.type === "model" && row.sub)
+          ? 48
+          : 36;
     },
     getScrollElement: () => scrollRef.current,
     // `offsetHeight`, not `getBoundingClientRect()`: the picker sits inside CSS
@@ -539,7 +538,9 @@ function VirtualRows({
   // starts on it is no use below the fold. Once per opening, so it never
   // fights a scroll the user started.
   const chosenIndex = rows.findIndex(
-    (row) => row.type !== "header" && row.model.uri === selectedModel?.uri,
+    (row) =>
+      (row.type === "auto" || row.type === "model") &&
+      row.model.uri === selectedModel?.uri,
   );
   const scrolledToChosen = useRef(false);
   // Every render until it lands: the panel measures itself after its first
@@ -586,11 +587,26 @@ function VirtualRows({
                 {row.label}
               </div>
             ) : row.type === "auto" ? (
-              <AutoCard
+              <AutoRow
                 chosen={selectedModel?.uri === row.model.uri}
                 model={row.model}
                 onPick={onPick}
               />
+            ) : row.type === "show-all" || row.type === "show-fewer" ? (
+              <CommandItem
+                className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground"
+                onSelect={() => {
+                  onShowAll(row.type === "show-all");
+                }}
+                value={row.type}
+              >
+                {row.type === "show-all" ? (
+                  <CaretDownIcon className="size-4 shrink-0" />
+                ) : (
+                  <CaretUpIcon className="size-4 shrink-0" />
+                )}
+                {row.type === "show-all" ? "Show all models" : "Show fewer"}
+              </CommandItem>
             ) : (
               <ModelRow
                 chosen={selectedModel?.uri === row.model.uri}
@@ -606,11 +622,11 @@ function VirtualRows({
 }
 
 /**
- * Auto, the way Instrument is meant to be used: a card at the head of
- * Instrument's list rather than one row among models, marked as the
- * recommendation and saying what it does.
+ * Auto, the way Instrument is meant to be used: an option like the models
+ * under it, a line taller, marked as the recommendation and saying what it
+ * does, and set apart from them by a rule rather than drawn as a box.
  */
-function AutoCard({
+function AutoRow({
   chosen,
   model,
   onPick,
@@ -622,11 +638,11 @@ function AutoCard({
   return (
     <CommandItem
       className={cn(
-        "flex items-start gap-3 rounded-lg p-3 ring-1 ring-border ring-inset",
+        "flex items-start gap-2.5 rounded-md px-2.5 py-2",
         chosen &&
           cn(
             CHOSEN,
-            "ring-brand-500/30 data-[selected=true]:bg-brand-100 dark:data-[selected=true]:bg-brand-500/20",
+            "data-[selected=true]:bg-brand-100 dark:data-[selected=true]:bg-brand-500/20",
           ),
       )}
       onSelect={() => {
@@ -635,24 +651,23 @@ function AutoCard({
       value={model.uri}
     >
       <AIProviderIcon
-        className="mt-0.5 size-5 shrink-0"
+        className="mt-0.5 size-4 shrink-0"
         type={OUR_MODELS.providerType}
       />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-2 text-sm font-medium">
           Auto
-          <span className="rounded-full bg-brand-600 px-1.5 py-px text-[10px] leading-4 font-medium text-white dark:bg-brand-500">
+          <span className="rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 font-medium text-white dark:bg-brand-500">
             Recommended
           </span>
         </span>
         <span
           className={cn(
-            "text-xs",
+            "truncate text-xs",
             chosen ? "opacity-80" : "text-muted-foreground",
           )}
         >
-          Picks the right model for each message, and moves to newer ones as
-          they ship.
+          Picks the right model for each message
         </span>
       </span>
       {chosen && (
@@ -692,7 +707,7 @@ function ModelRow({
       }}
       value={model.uri}
     >
-      {row.showMaker && <ModelMakerIcon author={model.author} />}
+      <ModelMakerIcon author={model.author} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={cn("truncate text-sm", chosen && "font-medium")}>
           <FuzzyHighlight
@@ -785,43 +800,5 @@ function AddProviderButton({ onClick }: { onClick: () => void }) {
       <PlusIcon className="mr-2 size-4" />
       Add a provider
     </Button>
-  );
-}
-
-/**
- * Recommended or All, for a catalog too long to open whole: a heading row of
- * its own, so the control reads as a filter on the models under it rather
- * than as something beside Auto.
- */
-function CatalogToggle({
-  onChange,
-  showAll,
-}: {
-  onChange: (showAll: boolean) => void;
-  showAll: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between px-2.5 pt-4 pb-1">
-      <span className="text-xs font-medium text-muted-foreground">Models</span>
-      <div className="flex rounded-md bg-black/[0.04] p-0.5 dark:bg-white/[0.06]">
-        {[false, true].map((all) => (
-          <button
-            aria-pressed={showAll === all}
-            className={cn(
-              "h-5 rounded-[5px] px-2 text-xs text-muted-foreground",
-              showAll === all &&
-                "bg-white text-foreground shadow-xs dark:bg-gray-600",
-            )}
-            key={String(all)}
-            onClick={() => {
-              onChange(all);
-            }}
-            type="button"
-          >
-            {all ? "All" : "Recommended"}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }

@@ -1,29 +1,29 @@
 import { cn } from "@/client/lib/utils";
-import arcee from "@lobehub/icons-static-svg/icons/arcee-color.svg";
-import aws from "@lobehub/icons-static-svg/icons/aws-color.svg";
-import bytedance from "@lobehub/icons-static-svg/icons/bytedance-color.svg";
-import claude from "@lobehub/icons-static-svg/icons/claude-color.svg";
-import cohere from "@lobehub/icons-static-svg/icons/cohere-color.svg";
-import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg";
-import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg";
-import hunyuan from "@lobehub/icons-static-svg/icons/hunyuan-color.svg";
-import ibm from "@lobehub/icons-static-svg/icons/ibm.svg";
-import kimi from "@lobehub/icons-static-svg/icons/kimi-color.svg";
-import kwaipilot from "@lobehub/icons-static-svg/icons/kwaipilot-color.svg";
-import meta from "@lobehub/icons-static-svg/icons/meta-color.svg";
-import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg";
-import mistral from "@lobehub/icons-static-svg/icons/mistral-color.svg";
-import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg";
-import openai from "@lobehub/icons-static-svg/icons/openai.svg";
-import perplexity from "@lobehub/icons-static-svg/icons/perplexity-color.svg";
-import poolside from "@lobehub/icons-static-svg/icons/poolside-color.svg";
-import qwen from "@lobehub/icons-static-svg/icons/qwen-color.svg";
-import sakana from "@lobehub/icons-static-svg/icons/sakana-color.svg";
-import stepfun from "@lobehub/icons-static-svg/icons/stepfun-color.svg";
-import upstage from "@lobehub/icons-static-svg/icons/upstage-color.svg";
-import xai from "@lobehub/icons-static-svg/icons/xai.svg";
-import xiaomi from "@lobehub/icons-static-svg/icons/xiaomimimo.svg";
-import zhipu from "@lobehub/icons-static-svg/icons/zhipu-color.svg";
+import arcee from "@lobehub/icons-static-svg/icons/arcee-color.svg?raw";
+import aws from "@lobehub/icons-static-svg/icons/aws-color.svg?raw";
+import bytedance from "@lobehub/icons-static-svg/icons/bytedance-color.svg?raw";
+import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?raw";
+import cohere from "@lobehub/icons-static-svg/icons/cohere-color.svg?raw";
+import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg?raw";
+import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
+import hunyuan from "@lobehub/icons-static-svg/icons/hunyuan-color.svg?raw";
+import ibm from "@lobehub/icons-static-svg/icons/ibm.svg?raw";
+import kimi from "@lobehub/icons-static-svg/icons/kimi-color.svg?raw";
+import kwaipilot from "@lobehub/icons-static-svg/icons/kwaipilot-color.svg?raw";
+import meta from "@lobehub/icons-static-svg/icons/meta-color.svg?raw";
+import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg?raw";
+import mistral from "@lobehub/icons-static-svg/icons/mistral-color.svg?raw";
+import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg?raw";
+import openai from "@lobehub/icons-static-svg/icons/openai.svg?raw";
+import perplexity from "@lobehub/icons-static-svg/icons/perplexity-color.svg?raw";
+import poolside from "@lobehub/icons-static-svg/icons/poolside-color.svg?raw";
+import qwen from "@lobehub/icons-static-svg/icons/qwen-color.svg?raw";
+import sakana from "@lobehub/icons-static-svg/icons/sakana-color.svg?raw";
+import stepfun from "@lobehub/icons-static-svg/icons/stepfun-color.svg?raw";
+import upstage from "@lobehub/icons-static-svg/icons/upstage-color.svg?raw";
+import xai from "@lobehub/icons-static-svg/icons/xai.svg?raw";
+import xiaomi from "@lobehub/icons-static-svg/icons/xiaomimimo.svg?raw";
+import zhipu from "@lobehub/icons-static-svg/icons/zhipu-color.svg?raw";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 
@@ -31,10 +31,9 @@ import { AIProviderIcon } from "./ai-provider-icon";
  * Each maker's mark in its own colors, keyed by the author slug catalogs use,
  * so a list that mixes makers can be read by color before the names are. The
  * mark is the model line's where the maker ships one name for its models
- * (Claude, Gemini, Kimi), since that is what the row says. `mono` marks come
- * in one color only and are inverted on dark grounds.
+ * (Claude, Gemini, Kimi), since that is what the row says.
  */
-const MAKERS: Record<string, { mono?: true; src: string }> = {
+const MAKERS: Record<string, { src: string }> = {
   amazon: { src: aws },
   anthropic: { src: claude },
   "arcee-ai": { src: arcee },
@@ -43,7 +42,7 @@ const MAKERS: Record<string, { mono?: true; src: string }> = {
   deepseek: { src: deepseek },
   "deepseek-ai": { src: deepseek },
   google: { src: gemini },
-  "ibm-granite": { mono: true, src: ibm },
+  "ibm-granite": { src: ibm },
   kwaipilot: { src: kwaipilot },
   meta: { src: meta },
   "meta-llama": { src: meta },
@@ -51,7 +50,7 @@ const MAKERS: Record<string, { mono?: true; src: string }> = {
   mistralai: { src: mistral },
   moonshotai: { src: kimi },
   nvidia: { src: nvidia },
-  openai: { mono: true, src: openai },
+  openai: { src: openai },
   perplexity: { src: perplexity },
   poolside: { src: poolside },
   qwen: { src: qwen },
@@ -59,11 +58,32 @@ const MAKERS: Record<string, { mono?: true; src: string }> = {
   stepfun: { src: stepfun },
   tencent: { src: hunyuan },
   upstage: { src: upstage },
-  "x-ai": { mono: true, src: xai },
-  xiaomi: { mono: true, src: xiaomi },
+  "x-ai": { src: xai },
+  xiaomi: { src: xiaomi },
   "z-ai": { src: zhipu },
   "zai-org": { src: zhipu },
 };
+
+/**
+ * A mark's ink, the parts drawn in the page's text color rather than a brand
+ * color: `currentColor`, and the white some colored marks hard-code for a
+ * dark tile they assume (Kimi's K). Both follow the theme once inlined, which
+ * an `<img>` cannot do, since it neither inherits a color nor knows the ground.
+ */
+const INK = /fill="(?:currentColor|#fff|#FFF|#ffffff|#FFFFFF)"/g;
+
+const inked = new Map<string, string>();
+function inkedMarkup(svg: string): string {
+  let markup = inked.get(svg);
+  if (markup === undefined) {
+    markup = svg
+      .replace(INK, 'fill="currentColor"')
+      .replace(/ (?:width|height)="1em"/g, "")
+      .replace(/ style="[^"]*"/, "");
+    inked.set(svg, markup);
+  }
+  return markup;
+}
 
 /** Whose model it is, in color where the maker has a mark, else a neutral glyph. */
 export function ModelMakerIcon({
@@ -83,11 +103,15 @@ export function ModelMakerIcon({
     );
   }
   return (
-    <img
-      alt=""
-      className={cn("shrink-0", maker.mono && "dark:invert", className)}
-      draggable={false}
-      src={maker.src}
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex shrink-0 text-foreground [&>svg]:size-full",
+        className,
+      )}
+      // Markup from a pinned package's own SVG files, not from anything a
+      // user or a provider supplies.
+      dangerouslySetInnerHTML={{ __html: inkedMarkup(maker.src) }}
     />
   );
 }

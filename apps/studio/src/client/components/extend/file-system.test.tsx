@@ -309,10 +309,14 @@ describe("renaming in place", () => {
       screen.queryByRole<HTMLInputElement>("textbox", {
         name: "Name",
       });
+    /** The name field, failing the test when no rename has it open. */
+    const openField = () =>
+      screen.getByRole<HTMLInputElement>("textbox", { name: "Name" });
     const row = (name: string) => screen.getByRole("option", { name });
     return {
       field,
       handle,
+      openField,
       onFileOpen,
       onRenameCommit,
       rerenderWith: (items: FileSystemItem[]) => {
@@ -323,18 +327,18 @@ describe("renaming in place", () => {
   }
 
   it("renames on Return and saves the new name once", async () => {
-    const { field, onRenameCommit, row } = renderRenamable();
+    const { openField, field, onRenameCommit, row } = renderRenamable();
 
     fireEvent.click(row("b.txt"));
     fireEvent.keyDown(row("b.txt"), { key: "Enter" });
-    const input = field();
+    const input = openField();
     expect(input?.value).toBe("b.txt");
     // The base name is selected, so typing keeps the extension.
     expect([input?.selectionStart, input?.selectionEnd]).toEqual([0, 1]);
 
-    fireEvent.change(input!, { target: { value: "plans.txt" } });
-    fireEvent.keyDown(input!, { key: "Enter" });
-    fireEvent.blur(input!);
+    fireEvent.change(input, { target: { value: "plans.txt" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
     fireEvent.pointerDown(row("a.txt"));
 
     expect(onRenameCommit).toHaveBeenCalledTimes(1);
@@ -343,38 +347,38 @@ describe("renaming in place", () => {
   });
 
   it("saves nothing on Escape", () => {
-    const { field, onRenameCommit, row } = renderRenamable();
+    const { openField, field, onRenameCommit, row } = renderRenamable();
 
     fireEvent.click(row("b.txt"));
     fireEvent.keyDown(row("b.txt"), { key: "Enter" });
-    fireEvent.change(field()!, { target: { value: "plans.txt" } });
-    fireEvent.keyDown(field()!, { key: "Escape" });
+    fireEvent.change(openField(), { target: { value: "plans.txt" } });
+    fireEvent.keyDown(openField(), { key: "Escape" });
 
     expect(field()).toBeNull();
     expect(onRenameCommit).not.toHaveBeenCalled();
   });
 
   it("accepts what was typed when something else is pressed", () => {
-    const { field, onRenameCommit, row } = renderRenamable();
+    const { onRenameCommit, openField, row } = renderRenamable();
 
     fireEvent.click(row("b.txt"));
     fireEvent.keyDown(row("b.txt"), { key: "Enter" });
-    fireEvent.change(field()!, { target: { value: "plans.txt" } });
+    fireEvent.change(openField(), { target: { value: "plans.txt" } });
     fireEvent.pointerDown(row("d.txt"));
 
     expect(onRenameCommit.mock.lastCall?.[1]).toBe("plans.txt");
   });
 
   it("opens the field again with what was typed when the save fails", async () => {
-    const { field, onRenameCommit, row } = renderRenamable({
+    const { field, onRenameCommit, openField, row } = renderRenamable({
       save: () =>
         Promise.reject(new Error("Something with that name is already there")),
     });
 
     fireEvent.click(row("b.txt"));
     fireEvent.keyDown(row("b.txt"), { key: "Enter" });
-    fireEvent.change(field()!, { target: { value: "c.txt" } });
-    fireEvent.keyDown(field()!, { key: "Enter" });
+    fireEvent.change(openField(), { target: { value: "c.txt" } });
+    fireEvent.keyDown(openField(), { key: "Enter" });
 
     await waitFor(() => expect(field()?.readOnly).toBe(false));
     expect(field()?.value).toBe("c.txt");
@@ -436,7 +440,8 @@ describe("renaming in place", () => {
     try {
       const { field, row } = renderRenamable();
       const name = (file: string) =>
-        row(file).querySelector("[data-file-system-name]")!;
+        row(file).querySelector("[data-file-system-name]") ??
+        expect.unreachable(`no name in the row for ${file}`);
       const clickName = (file: string, detail = 1) => {
         fireEvent.pointerDown(name(file), { button: 0, pointerType: "mouse" });
         fireEvent.click(name(file), { detail });
@@ -465,9 +470,9 @@ describe("renaming in place", () => {
 describe("the keyboard", () => {
   it("walks the rows from the browser itself when no row has it", () => {
     const { reported } = renderList();
-    const browser = document.querySelector<HTMLElement>(
-      '[data-slot="file-system"]',
-    )!;
+    const browser =
+      document.querySelector<HTMLElement>('[data-slot="file-system"]') ??
+      expect.unreachable("no file system on screen");
 
     fireEvent.keyDown(browser, { key: "ArrowDown" });
     expect(reported()).toEqual(["a.txt"]);

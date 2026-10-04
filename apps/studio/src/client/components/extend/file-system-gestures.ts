@@ -33,10 +33,10 @@ export type GestureState =
       phase: "pressed";
       /** Whether the click is what selects, for a press that is not a mouse's. */
       selectsOnClick: boolean;
-      then: "narrow" | "rename" | null;
+      after: "narrow" | "rename" | null;
     }
   /** A click waiting out the double-click or slow-click time before it acts. */
-  | { path: string; phase: "waiting"; then: "narrow" | "rename" };
+  | { path: string; phase: "waiting"; after: "narrow" | "rename" };
 
 export const GESTURE_IDLE: GestureState = { phase: "idle" };
 
@@ -108,7 +108,7 @@ export function step(
       // A narrowing still waiting for another row is over: it lands first.
       const narrowedElsewhere =
         state.phase === "waiting" &&
-        state.then === "narrow" &&
+        state.after === "narrow" &&
         state.path !== event.path;
       if (narrowedElsewhere) {
         effects.push({ path: state.path, type: "narrow" });
@@ -135,7 +135,7 @@ export function step(
             path: event.path,
             phase: "pressed",
             selectsOnClick: true,
-            then: rename,
+            after: rename,
           },
         };
       }
@@ -153,7 +153,7 @@ export function step(
           path: event.path,
           phase: "pressed",
           selectsOnClick: false,
-          then: narrow ? "narrow" : rename,
+          after: narrow ? "narrow" : rename,
         },
       };
     }
@@ -176,12 +176,12 @@ export function step(
           : [];
       // The second click of a double-click waits for nothing: the
       // double-click is what answers it.
-      if (pressed.then === null || event.detail >= 2) {
+      if (pressed.after === null || event.detail >= 2) {
         return { effects, state: GESTURE_IDLE };
       }
       return {
         effects,
-        state: { path: event.path, phase: "waiting", then: pressed.then },
+        state: { path: event.path, phase: "waiting", after: pressed.after },
       };
     }
     case "double-click":
@@ -193,7 +193,7 @@ export function step(
           // called off by them. A double-click calls off both.
           event.type === "interrupt" &&
           state.phase === "waiting" &&
-          state.then === "narrow"
+          state.after === "narrow"
             ? state
             : GESTURE_IDLE,
       };
@@ -205,14 +205,14 @@ export function step(
         effects: [],
         state:
           state.phase !== "idle" &&
-          (state.then === "narrow" ||
-            (state.then === "rename" && state.path !== event.lead))
+          (state.after === "narrow" ||
+            (state.after === "rename" && state.path !== event.lead))
             ? GESTURE_IDLE
             : state,
       };
     case "timeout": {
       if (state.phase !== "waiting") return { effects: [], state };
-      if (state.then === "narrow") {
+      if (state.after === "narrow") {
         return {
           effects: [{ path: state.path, type: "narrow" }],
           state: GESTURE_IDLE,
@@ -233,5 +233,5 @@ export function step(
 /** How long the state waits before `timeout`, or null for a state that waits for nothing. */
 export function waitFor(state: GestureState) {
   if (state.phase !== "waiting") return null;
-  return state.then === "narrow" ? NARROW_AFTER_MS : RENAME_AFTER_MS;
+  return state.after === "narrow" ? NARROW_AFTER_MS : RENAME_AFTER_MS;
 }

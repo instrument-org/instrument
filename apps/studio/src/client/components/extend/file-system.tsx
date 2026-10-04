@@ -1157,7 +1157,7 @@ function FileGenericPreview({ file }: { file: FileEntry }) {
   const extension = fileExtension(file.name);
   return (
     <div
-      className="flex size-full flex-col items-center justify-center gap-1.5 bg-white text-neutral-400 dark:bg-neutral-100"
+      className="flex size-full flex-col items-center justify-center gap-1.5 bg-white"
       data-file-system-on-light=""
     >
       <FileTypeIcon className="size-1/3 min-h-4 min-w-4" fileName={file.name} />
@@ -1346,10 +1346,7 @@ function FileVisual({
       // Previews are drawn on white, as a page is. The white is the image's
       // own backing so it arrives with the image; on the box it would sit
       // under the loading placeholder and show through as the image fades in.
-      previewClassName={cn(
-        "[&>img]:bg-white dark:[&>img]:bg-neutral-100",
-        previewClassName,
-      )}
+      previewClassName={cn("[&>img]:bg-white", previewClassName)}
       previewContent={
         previewUrl || isLazyPagePending
           ? undefined
@@ -1369,7 +1366,7 @@ function FileVisual({
       <div className="absolute inset-x-0 bottom-1.5 flex items-center justify-center gap-1 opacity-0 transition-opacity group-focus-within/pager:opacity-100 group-hover/pager:opacity-100">
         <button
           aria-label="Previous page"
-          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
           disabled={clampedPageIndex === 0}
           onClick={(event) => {
             event.stopPropagation();
@@ -1386,7 +1383,7 @@ function FileVisual({
         </span>
         <button
           aria-label="Next page"
-          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
           disabled={clampedPageIndex >= totalPages - 1}
           onClick={(event) => {
             event.stopPropagation();
@@ -2395,8 +2392,6 @@ export function FileSystem({
           // (and the gallery inherits the live viewer after it closes).
           poolStagePath(file.path);
           setOpenedFile({ file, kind, url });
-        } else if (url && typeof window !== "undefined") {
-          window.open(url, "_blank", "noopener,noreferrer");
         }
       })();
     },
@@ -2563,7 +2558,7 @@ export function FileSystem({
   }, [renameState]);
   const renamingPath = renamingPathOf(renameState);
   const renderNameField = React.useCallback(
-    (entry: FileSystemEntry, className?: string) => {
+    (entry: FileSystemEntry, fieldClassName?: string) => {
       if (
         (renameState.phase !== "editing" && renameState.phase !== "saving") ||
         renameState.path !== entry.path
@@ -2572,7 +2567,7 @@ export function FileSystem({
       }
       return (
         <FileSystemNameField
-          className={className}
+          className={fieldClassName}
           draft={renameState.draft}
           inputRef={nameInputRef}
           key={renameState.attempt}
@@ -2622,7 +2617,7 @@ export function FileSystem({
         }
         // A key or a scroll calls off a rename the pointer is waiting on,
         // wherever in the window it lands.
-        const listens = state.phase !== "idle" && state.then === "rename";
+        const listens = state.phase !== "idle" && state.after === "rename";
         const interrupt = gestureInterruptRef.current;
         if (!listens && interrupt) {
           window.removeEventListener("keydown", interrupt, true);
@@ -3060,7 +3055,7 @@ export function FileSystem({
             );
           })}
           <button
-            className="rounded-md px-1.5 py-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md px-1.5 py-0.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setFilters([])}
             type="button"
           >
@@ -3434,7 +3429,7 @@ function FileSystemSearchField({
       {value ? (
         <button
           aria-label="Clear search"
-          className="absolute right-1 flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute right-1 flex size-5 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => {
             onValueChange("");
             inputRef.current?.focus();
@@ -3544,7 +3539,7 @@ const FILTER_PILL_SEGMENT_CLASSNAME =
   "flex h-5 items-center gap-1 border border-l-0 bg-background px-1.5 whitespace-nowrap text-foreground";
 const FILTER_PILL_BUTTON_CLASSNAME = cn(
   FILTER_PILL_SEGMENT_CLASSNAME,
-  "transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+  "outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
 );
 // One applied filter, rendered as a segmented pill in the status bar:
 // type · operator · value · remove, each segment interactive like Extend's
@@ -4092,7 +4087,7 @@ function FileSystemRangeCalendar({
     <div className="relative">
       <button
         aria-label="Previous month"
-        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() =>
           setViewMonth(
             (previous) =>
@@ -4105,7 +4100,7 @@ function FileSystemRangeCalendar({
       </button>
       <button
         aria-label="Next month"
-        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() =>
           setViewMonth(
             (previous) =>
@@ -4164,7 +4159,7 @@ function FileSystemRangeCalendar({
                   return (
                     <button
                       className={cn(
-                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
                         isWithinRange && "rounded-none bg-accent",
                         (isFrom || isTo) &&
                           "bg-primary text-primary-foreground hover:bg-primary",
@@ -4305,7 +4300,7 @@ function FileSystemNameField({
       // the box bleeding a hair past the name (each caller's margin gives
       // the hair back) so not a letter moves.
       className={cn(
-        "field-sizing-content min-w-4 max-w-full shrink rounded-[3px] bg-background px-0.5 py-0 [font:inherit] text-foreground ring-1 ring-ring outline-none",
+        "field-sizing-content max-w-full min-w-4 shrink rounded-[3px] bg-background px-0.5 py-0 text-foreground ring-1 ring-ring outline-none [font:inherit]",
         className,
       )}
       defaultValue={draft}
@@ -4549,7 +4544,7 @@ function FileSystemIconsView({
             const glyph = (
               <span
                 className={cn(
-                  "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
+                  "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
                   isSelected && "bg-accent",
                   entry.path === menuTargetPath && "ring-2 ring-brand-500",
                 )}
@@ -4746,7 +4741,7 @@ function FileSystemListColumnHeader({
   return (
     <button
       className={cn(
-        "flex h-full min-w-0 items-center gap-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        "flex h-full min-w-0 items-center gap-0.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         align === "end" && "flex-row-reverse",
         isActive && "text-foreground",
         className,

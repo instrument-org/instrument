@@ -1,6 +1,10 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
-import { FiltersEngine, Request } from "@ghostery/adblocker";
+import {
+  fetchResources,
+  FiltersEngine,
+  Request,
+} from "@ghostery/adblocker";
 import type { IBackgroundCallback } from "@ghostery/adblocker-electron-preload";
 import {
   app,
@@ -19,8 +23,8 @@ import { parse } from "tldts";
 
 /**
  * Ad and tracker blocking for the task browser, the way Brave does it out of
- * the box: EasyList, EasyPrivacy, and the lists Ghostery publishes beside them,
- * through Ghostery's engine.
+ * the box: EasyList, EasyPrivacy, and uBlock Origin's lists, through
+ * Ghostery's engine.
  *
  * The engine's own Electron wrapper is not used, because it takes the session's
  * `onBeforeRequest` and `onHeadersReceived` for itself and Electron keeps one
@@ -38,6 +42,29 @@ import { parse } from "tldts";
 
 /** How long a built engine serves before the lists are fetched again. */
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+const UBLOCK_ORIGIN =
+  "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/";
+
+/**
+ * Ghostery's ads-and-tracking set, fetched from where each list is published
+ * rather than from the engine's mirror of them, which updates only when that
+ * repository's bot lands a commit and drops uBlock Origin's newer yearly
+ * lists. uBlock Origin's main list pulls those in with `!#include`, which
+ * `fetchList` follows.
+ */
+const FILTER_LISTS = [
+  "https://easylist.to/easylist/easylist.txt",
+  "https://easylist.to/easylist/easyprivacy.txt",
+  "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=0&mimetype=plaintext",
+  ...[
+    "filters.txt",
+    "badware.txt",
+    "privacy.txt",
+    "quick-fixes.txt",
+    "unbreak.txt",
+  ].map((name) => `${UBLOCK_ORIGIN}${name}`),
+];
 
 const INJECT_CHANNEL = "@ghostery/adblocker/inject-cosmetic-filters";
 const MUTATION_OBSERVER_CHANNEL =
@@ -230,10 +257,38 @@ async function loadEngine() {
     return;
   }
   try {
-    const fresh = await FiltersEngine.fromPrebuiltAdsAndTracking(fetch);
+    const [lists, resources] = await Promise.all([
+      Promise.all(FILTER_LISTS.map((url) => fetchList(url, new Set()))),
+      fetchResources(fetch),
+    ]);
+    const fresh = FiltersEngine.parse(lists.join("\n"));
+    fresh.updateResources(resources, `${resources.length}`);
     engine = fresh;
     await fs.writeFile(cachePath, fresh.serialize());
   } catch (error) {
     log.warn("could not refresh the block lists", error);
   }
+}
+
+/**
+ * A list's text with each `!#include` replaced by the list it names, which
+ * sits beside it. `seen` keeps a list that includes itself from looping.
+ */
+async function fetchList(url: string, seen: Set<string>): Promise<string> {
+  if (seen.has(url)) {
+    return "";
+  }
+  seen.add(url);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${response.status} fetching ${url}`);
+  }
+  const lines = (await response.text()).split("\n");
+  const expanded = await Promise.all(
+    lines.map((line) => {
+      const included = /^!#include (\S+)/.exec(line)?.[1];
+      return included ? fetchList(new URL(included, url).href, seen) : line;
+    }),
+  );
+  return expanded.join("\n");
 }

@@ -89,12 +89,12 @@ A page in Edit keeps that address too. The page editor ([`page-editor/sessions.t
 
 ## Ads and trackers are blocked by default
 
-The guest blocks ads and trackers the way Brave does out of the box, through Ghostery's filter engine (`@ghostery/adblocker`) over EasyList, EasyPrivacy, and Ghostery's own lists. [`content-blocking.ts`](../../apps/studio/src/electron-main/browser-view/content-blocking.ts) owns it; "Block ads" in a page's menu turns it off for the workspace, and the page reloads under the new choice.
+The guest blocks ads and trackers the way Brave does out of the box, through Ghostery's filter engine (`@ghostery/adblocker`) over EasyList, EasyPrivacy, Peter Lowe's list, and uBlock Origin's lists. [`content-blocking.ts`](../../apps/studio/src/electron-main/browser-view/content-blocking.ts) owns it; "Block ads" in a page's menu turns it off for the workspace, and the page reloads under the new choice.
 
 - **One request listener, shared.** Electron keeps a single `onBeforeRequest` listener per session, and the library's own Electron wrapper registers its own, which would silently replace the local-file policy above. So the wrapper is not used: the file policy's listener hears every request and hands each non-`file:` one to `blockedRequestResponse`.
 - **Requests and elements both.** Network rules cancel what a page loads; the engine's preload, registered on the guest session, asks for each page's hiding styles and scriptlets over IPC. Ads a search engine serves from its own origin, which no request rule can tell from results, are hidden by the second half.
 - **A document is never blocked**, only what it loads, so every navigation the person or the agent makes lands.
-- **The lists come from Ghostery's published copies**, fetched at launch when the engine on disk (`content-blocking-engine.bin` under userData) is missing or a week old. A failed fetch keeps the engine already loaded; with none on disk, pages load unblocked until a later launch fetches one.
+- **The lists come from where each is published**, fetched at launch when the engine on disk (`content-blocking-engine.bin` under userData) is missing or a week old, with uBlock Origin's `!#include` lines followed. Not from the engine's own mirror of them in Ghostery's repository, which moves only when that repository's bot lands a commit and leaves out uBlock Origin's newer yearly lists. The scriptlet resources do still come from that repository, since they are built from uBlock Origin's source rather than published as a list. A failed fetch keeps the engine already loaded; with none on disk, pages load unblocked until a later launch fetches one.
 
 ## Focus
 

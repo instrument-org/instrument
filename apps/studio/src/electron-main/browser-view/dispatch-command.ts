@@ -5,6 +5,8 @@ import type { NativeImage, WebContents } from "electron";
 import {
   type BrowserTargetId,
   CdpCommandTimeoutError,
+  type CdpMethod,
+  isKnownCdpMethod,
 } from "@instrument-org/workspace/electron";
 import { noop, sleep } from "radashi";
 
@@ -104,55 +106,93 @@ export async function sendCommand({
   }
 
   ensureDebuggerAttached(entry);
+  noteUnknownMethod(method);
 
-  if (method === "Page.printToPDF") {
-    return await handlePrintToPDF(entry, params);
-  }
-
-  // A guest's debugger answers Page.reload by reloading the app window that
-  // embeds it, which takes every tab and the guest itself with it. The guest's
-  // own reload is what the panel's reload button calls, and stays in the tab.
-  if (method === "Page.reload") {
-    const guest = entry.webContents;
-    if (!guest || guest.isDestroyed()) {
-      throw new Error("webContents unavailable");
-    }
-    const p = (params ?? {}) as Protocol.Page.ReloadRequest;
-    if (p.ignoreCache) {
-      guest.reloadIgnoringCache();
-    } else {
-      guest.reload();
-    }
-    return {};
-  }
-
-  // Electron's debugger does not expose Page.startScreencast / stopScreencast.
-  // Emulate them by polling webContents.capturePage() and emitting synthetic
-  // Page.screencastFrame events into the event listener set.
-  if (method === "Page.startScreencast") {
-    const p = (params ?? {}) as Protocol.Page.StartScreencastRequest;
-    startScreencast({
+  const forward = () =>
+    forwardToDebugger({
+      describeHost,
       entry,
-      format: p.format ?? "jpeg",
-      maxHeight: p.maxHeight ?? 720,
-      maxWidth: p.maxWidth ?? 1280,
-      quality: p.quality ?? 80,
+      method,
+      params,
+      requestGuestFocus,
+      targetId,
     });
-    return {};
-  }
+  const override = isKnownCdpMethod(method)
+    ? MAIN_OVERRIDES[method]
+    : undefined;
+  return override
+    ? await override({ entry, forward, params, targetId })
+    : await forward();
+}
 
-  if (method === "Page.stopScreencast") {
-    stopScreencast(entry);
-    return {};
-  }
+/** What an override is handed: the tab, the command's params, and the way on to the debugger. */
+interface OverrideCall {
+  entry: BrowserEntry;
+  /** Sends the command on to the guest's debugger after all, for a shape the override leaves alone. */
+  forward: () => Promise<unknown>;
+  params: unknown;
+  targetId: BrowserTargetId;
+}
 
-  // screencastFrameAck is a flow-control signal back to the browser; since
-  // we drive the capture loop ourselves we can silently acknowledge it.
-  if (method === "Page.screencastFrameAck") {
-    return {};
-  }
+/**
+ * The commands main answers without the guest's debugger, each the way the
+ * table of CDP methods (`cdp-methods.ts`) says; a test holds the two to the
+ * same list.
+ */
+export const MAIN_OVERRIDES: {
+  [M in CdpMethod]?: (call: OverrideCall) => unknown;
+} = {
+  // agent-browser probes this to discover its window's dimensions, and
+  // Electron's debugger has no Browser domain to answer it.
+  "Browser.getWindowForTarget": ({ targetId }) =>
+    getWindowForTargetStub(targetId),
 
-  if (method === "Page.captureScreenshot") {
+  // Browser.setContentsSize is an experimental CDP command that resizes the
+  // host window's content area to match the emulated viewport. Electron has no
+  // implementation of this command, and we must not resize the Studio window.
+  // agent-browser calls it as best-effort after Emulation.setDeviceMetricsOverride
+  // (which does work); the screencast path it is intended to align doesn't apply
+  // to our capturePage-based emulated screencast. Stub it out silently.
+  "Browser.setContentsSize": () => ({}),
+
+  // Electron does not support CDP browser context management. Track the
+  // authorized path per-target; the will-download handler in downloads.ts
+  // applies it via item.setSavePath. session.setDownloadPath is avoided
+  // because it is session-wide and would collide across concurrent targets.
+  "Browser.setDownloadBehavior": ({ entry, params }) =>
+    applyDownloadBehavior(entry, params),
+
+  // Not forwarded to the debugger: the guest was resized rather than emulated,
+  // so there is no override to clear, and the panel clears its own preview when
+  // it parks.
+  "Emulation.clearDeviceMetricsOverride": ({ targetId }) => {
+    clearGuestSurface(targetId);
+    return {};
+  },
+
+  // A viewport request resizes the guest element itself rather than overriding
+  // device metrics. The guest's layout viewport follows its element size
+  // exactly, so there is never a second, larger layout for the compositor to
+  // fall short of -- which is what corrupted both earlier attempts at honoring
+  // this command as a real override (see in-app-browser-device-emulation).
+  // The size applies while the guest is parked; a panel showing the guest sizes
+  // it to the panel, and the request takes over again once it parks. Sizes past
+  // what this window can rasterize are refused rather than clamped, because a
+  // clamped guest still reports the size it was asked for.
+  "Emulation.setDeviceMetricsOverride": ({ params, targetId }) => {
+    const p = (params ??
+      {}) as Protocol.Emulation.SetDeviceMetricsOverrideRequest;
+    const requested = requestGuestSurface({
+      size: { height: p.height, width: p.width },
+      targetId,
+    });
+    if (!requested.ok) {
+      throw new Error(requested.error);
+    }
+    return {};
+  },
+
+  "Page.captureScreenshot": async ({ entry, forward, params, targetId }) => {
     const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
     // Full-page capture (captureBeyondViewport) isn't supported on the `<webview>`
     // guest: its compositor surface is pinned to the viewport, so Chromium fills an
@@ -165,74 +205,104 @@ export async function sendCommand({
         "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
       );
     }
+    // Element clips (a clip without beyond-viewport) still use real CDP.
+    if (p.clip) {
+      return await forward();
+    }
     // Plain viewport capture (no clip) -- the shape the recorder polls at 10fps and
     // `screenshot` uses. capturePage reads the paint-host guest's live surface,
     // which the debugger's fromSurface screenshot can't when the window is
-    // occluded. Element clips (a clip without beyond-viewport) still use real CDP.
-    if (!p.clip) {
-      try {
-        return await captureViewportScreenshot(entry, p);
-      } catch (error) {
-        log.error(
-          `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
-        );
-        throw error;
-      }
+    // occluded.
+    try {
+      return await captureViewportScreenshot(entry, p);
+    } catch (error) {
+      log.error(
+        `sendCommand error targetId=${targetId} method=Page.captureScreenshot error=${String(error)}`,
+      );
+      throw error;
     }
-  }
+  },
 
-  if (method === "Browser.getWindowForTarget") {
-    return getWindowForTargetStub(targetId);
-  }
+  "Page.printToPDF": ({ entry, params }) => handlePrintToPDF(entry, params),
 
-  // Browser.setContentsSize is an experimental CDP command that resizes the
-  // host window's content area to match the emulated viewport. Electron has no
-  // implementation of this command, and we must not resize the Studio window.
-  // agent-browser calls it as best-effort after Emulation.setDeviceMetricsOverride
-  // (which does work); the screencast path it is intended to align doesn't apply
-  // to our capturePage-based emulated screencast. Stub it out silently.
-  if (method === "Browser.setContentsSize") {
+  // A guest's debugger answers Page.reload by reloading the app window that
+  // embeds it, which takes every tab and the guest itself with it. The guest's
+  // own reload is what the panel's reload button calls, and stays in the tab.
+  "Page.reload": ({ entry, params }) => {
+    const guest = entry.webContents;
+    if (!guest || guest.isDestroyed()) {
+      throw new Error("webContents unavailable");
+    }
+    const p = (params ?? {}) as Protocol.Page.ReloadRequest;
+    if (p.ignoreCache) {
+      guest.reloadIgnoringCache();
+    } else {
+      guest.reload();
+    }
     return {};
-  }
+  },
 
-  // Electron does not support CDP browser context management. Track the
-  // authorized path per-target; the will-download handler in downloads.ts
-  // applies it via item.setSavePath. session.setDownloadPath is avoided
-  // because it is session-wide and would collide across concurrent targets.
-  if (method === "Browser.setDownloadBehavior") {
-    return applyDownloadBehavior(entry, params);
-  }
+  // screencastFrameAck is a flow-control signal back to the browser; since
+  // we drive the capture loop ourselves we can silently acknowledge it.
+  "Page.screencastFrameAck": () => ({}),
 
-  // A viewport request resizes the guest element itself rather than overriding
-  // device metrics. The guest's layout viewport follows its element size
-  // exactly, so there is never a second, larger layout for the compositor to
-  // fall short of -- which is what corrupted both earlier attempts at honoring
-  // this command as a real override (see in-app-browser-device-emulation).
-  // The size applies while the guest is parked; a panel showing the guest sizes
-  // it to the panel, and the request takes over again once it parks. Sizes past
-  // what this window can rasterize are refused rather than clamped, because a
-  // clamped guest still reports the size it was asked for.
-  if (method === "Emulation.setDeviceMetricsOverride") {
-    const p = (params ??
-      {}) as Protocol.Emulation.SetDeviceMetricsOverrideRequest;
-    const requested = requestGuestSurface({
-      size: { height: p.height, width: p.width },
-      targetId,
+  // Electron's debugger does not expose Page.startScreencast / stopScreencast.
+  // Emulate them by polling webContents.capturePage() and emitting synthetic
+  // Page.screencastFrame events into the event listener set.
+  "Page.startScreencast": ({ entry, params }) => {
+    const p = (params ?? {}) as Protocol.Page.StartScreencastRequest;
+    startScreencast({
+      entry,
+      format: p.format ?? "jpeg",
+      maxHeight: p.maxHeight ?? 720,
+      maxWidth: p.maxWidth ?? 1280,
+      quality: p.quality ?? 80,
     });
-    if (!requested.ok) {
-      throw new Error(requested.error);
-    }
     return {};
-  }
+  },
 
-  // Not forwarded to the debugger: the guest was resized rather than emulated,
-  // so there is no override to clear, and the panel clears its own preview when
-  // it parks.
-  if (method === "Emulation.clearDeviceMetricsOverride") {
-    clearGuestSurface(targetId);
+  "Page.stopScreencast": ({ entry }) => {
+    stopScreencast(entry);
     return {};
-  }
+  },
+};
 
+/** Commands already reported as missing from the table, so each is logged once. */
+const reportedUnknown = new Set<string>();
+
+/**
+ * Logs, once per command, one that reached a tab and is not in the table of
+ * CDP methods: a newer agent-browser, or a caller nobody listed, that nobody
+ * has decided how to handle. It still goes on to the debugger.
+ */
+function noteUnknownMethod(method: string) {
+  if (isKnownCdpMethod(method) || reportedUnknown.has(method)) {
+    return;
+  }
+  reportedUnknown.add(method);
+  log.warn(`a CDP command the table of CDP methods does not know: ${method}`);
+}
+
+/**
+ * The command sent to the guest's own debugger, behind the checks every
+ * command gets there: input only to a page that renders, keys only to one
+ * that holds focus, and a budget on the answer.
+ */
+async function forwardToDebugger({
+  describeHost,
+  entry,
+  method,
+  params,
+  requestGuestFocus,
+  targetId,
+}: {
+  describeHost?: (targetId: BrowserTargetId) => Promise<string>;
+  entry: BrowserEntry;
+  method: string;
+  params: unknown;
+  requestGuestFocus?: (targetId: BrowserTargetId) => void;
+  targetId: BrowserTargetId;
+}): Promise<unknown> {
   // A guest that is not rendering never acknowledges a press, so the command
   // would hang until the timeout below and read as a slow page. When the
   // Studio window is covered or minimized, making it draw gets the guest

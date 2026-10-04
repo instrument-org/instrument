@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
+import {
+  CDP_METHODS,
+  cdpHandlingOf,
+  isKnownCdpMethod,
+} from "../../../lib/cdp-methods";
 import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
 import { TaskDirSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
@@ -282,6 +287,22 @@ describe("handleCdpClient on a local page", () => {
       setAgentFileRoots,
     };
   }
+
+  it.each(Object.keys(CDP_METHODS).filter(isKnownCdpMethod))(
+    "handles %s as the table of CDP methods says",
+    async (method) => {
+      const { command, sendCommand } = connect();
+      const reply = await command(method);
+      const forwarded = sendCommand.mock.calls.some(
+        ([, sent]) => sent === method,
+      );
+      const handling = cdpHandlingOf(method, "page");
+      expect({ error: reply.error !== undefined, forwarded }).toEqual({
+        error: handling === "refuse",
+        forwarded: handling === "passthrough" || handling === "wrapped",
+      });
+    },
+  );
 
   it("tells the main process which folders the agent can read", async () => {
     const { command, setAgentFileRoots } = connect();

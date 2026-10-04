@@ -1,4 +1,14 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -76,6 +86,11 @@ export function ChatGPTPlanCard() {
     }),
   );
   const signOut = useMutation(rpcClient.chatgptPlan.signOut.mutationOptions());
+  // Sign out forgets the account, and its button sits where a pass through
+  // Settings can catch it, so it asks first.
+  const [confirmingSignOut, setConfirmingSignOut] = useState<Account | null>(
+    null,
+  );
 
   const continueWithChatGPT = (accountId?: string) => {
     clearTimeout(openingTimer.current);
@@ -139,7 +154,7 @@ export function ChatGPTPlanCard() {
                 continueWithChatGPT(account.id);
               }}
               onSignOut={() => {
-                signOut.mutate({ accountId: account.id });
+                setConfirmingSignOut(account);
               }}
               opening={opening === account.id}
             />
@@ -164,6 +179,38 @@ export function ChatGPTPlanCard() {
           </div>
         </div>
       )}
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingSignOut(null);
+          }
+        }}
+        open={confirmingSignOut !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Sign out of {confirmingSignOut?.label}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Chats on this account’s models will need another model. Signing in
+              again brings it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmingSignOut) {
+                  signOut.mutate({ accountId: confirmingSignOut.id });
+                }
+              }}
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

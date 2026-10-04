@@ -97,7 +97,6 @@ export default async (app, args = {}) => {
     "/discover",
     "/apps",
     slug && `/apps/${slug}`,
-    "/skills",
     chat && `/tasks?chat=${chat.sessionId}`,
     taskId && `/tasks/${taskId}?chat=${chat.sessionId}`,
     "/release-notes",

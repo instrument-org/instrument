@@ -528,10 +528,10 @@ export function resolveHostPath(
  * Map a virtual absolute path to the host path a NATIVE binary may receive.
  *
  * Native binaries (ffmpeg, python, node, ...) run against the real filesystem,
- * so this is the sandbox's outer boundary and it bridges the task mount and the
- * skills mounts, and nothing else. Every other virtual path quarantines to a
- * path inside the task dir that does not exist, so the binary fails with a
- * not-found error instead of touching the host.
+ * so this is the sandbox's outer boundary and it bridges the task mount and
+ * nothing else. Every other virtual path quarantines to a path inside the task
+ * dir that does not exist, so the binary fails with a not-found error instead
+ * of touching the host.
  *
  * That holds for /mnt mounts the user granted write access to, not just the
  * read-only ones. A real host path is read AND write to the operating system,
@@ -540,17 +540,12 @@ export function resolveHostPath(
  * to tell what a build step touched. The agent copies a file into the task and
  * works on the copy instead. Writes back into the folder go through the virtual
  * filesystem, where the symlink check and the mount's access level still apply.
- *
- * The skills mounts are the deliberate exception, because running a skill's own
- * scripts is what mounting them is for, and an interpreter cannot be handed a
- * flag that lets it read a file without also being able to write beside it.
- * What that widening costs, and why it is answered in CI rather than with
- * filesystem permissions, is recorded in the skills-mount plan.
+ * A skill's scripts are no exception: they run from the copy loading the skill
+ * puts under the task's `work/skills/`.
  */
 export function resolveNativeHostPath(
   taskHostRoot: TaskDir,
   virtualAbsPath: string,
-  skillMounts: WorkspaceFsMount[] = [],
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
   const relative = relativeWithin(MOUNT.task, normalized);
@@ -562,15 +557,6 @@ export function resolveNativeHostPath(
       taskHostRoot,
       relative === "/" ? "." : `.${relative}`,
     );
-  }
-  for (const mount of skillMounts) {
-    const withinSkill = relativeWithin(mount.mountPoint, normalized);
-    if (withinSkill !== null) {
-      return absolutePathJoin(
-        mount.hostRoot,
-        withinSkill === "/" ? "." : `.${withinSkill}`,
-      );
-    }
   }
   // Masked paths (and any non-/task virtual path) quarantine to a
   // non-existent path inside the task dir -- same defense as the read-only /mnt

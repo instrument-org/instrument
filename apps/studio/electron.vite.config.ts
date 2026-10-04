@@ -74,6 +74,15 @@ const resolve = {
   },
 };
 
+// A preview build's name, inlined everywhere the shared constants are bundled:
+// the renderer has no `process` to read it from, and the packaged app has no
+// build environment.
+const previewDefine = {
+  "process.env.INSTRUMENT_PREVIEW_NAME": JSON.stringify(
+    process.env.INSTRUMENT_PREVIEW_NAME ?? "",
+  ),
+};
+
 let stagingCounter = 0;
 
 /**
@@ -373,6 +382,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         watch: freezeNative ? null : {}, // Rebuild and relaunch on a source change
       },
       define: {
+        ...previewDefine,
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
         __FFMPEG_FFPROBE_STATIC_PATH__: JSON.stringify(
           ffmpegFfprobeStaticValue,
@@ -403,9 +413,11 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("preload"),
       ],
+      define: previewDefine,
       resolve,
     },
     renderer: {
+      define: previewDefine,
       build: {
         rollupOptions: {
           input: {

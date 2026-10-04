@@ -3,6 +3,8 @@ import {
   APP_DOMAIN,
   APP_EXECUTABLE,
   APP_NAME,
+  APP_PREVIEW_NAME,
+  APP_PRODUCT_NAME,
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
 } from "@instrument-org/shared";
@@ -31,6 +33,27 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   region: "auto",
   updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
 };
+
+// Merged into Info.plist ahead of `fileAssociations`, which can name
+// extensions only. Text and code have too many extensions to list, and one
+// content type covers them, since a source file's type conforms to plain text.
+// Not `.ts`, which macOS types as an MPEG transport stream. Folders are what
+// the Dock icon accepts a dropped folder by; public.folder rather than
+// public.directory, which app bundles and other packages conform to.
+const macDocumentTypes = [
+  {
+    CFBundleTypeName: "Text",
+    CFBundleTypeRole: "Viewer",
+    LSHandlerRank: "Alternate",
+    LSItemContentTypes: ["public.plain-text", "public.json"],
+  },
+  {
+    CFBundleTypeName: "Folder",
+    CFBundleTypeRole: "Viewer",
+    LSHandlerRank: "Alternate",
+    LSItemContentTypes: ["public.folder"],
+  },
+];
 
 /**
  * @see https://www.electron.build/#documentation
@@ -93,6 +116,9 @@ const config: Configuration = {
   electronLanguages: ["en-US"],
   extraMetadata: {
     name: APP_NAME,
+    // Electron names the userData folder and the keychain's Safe Storage item
+    // after this, which is what keeps a preview's state apart from the app's.
+    productName: APP_PRODUCT_NAME,
   },
   extraResources: [
     {
@@ -202,29 +228,14 @@ const config: Configuration = {
     // pointing here by default, which put an app-scoped entitlement on all
     // four helpers and produced a build that signed, notarized, and could not
     // launch -- docs/findings/an-entitlement-that-notarizes-and-will-not-launch.md.
-    entitlements: "build/entitlements.mac.plist",
+    entitlements: APP_PREVIEW_NAME
+      ? "build/entitlements.mac.preview.plist"
+      : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
-      // Merged ahead of `fileAssociations`, which can name extensions only.
-      // Text and code have too many extensions to list, and one content type
-      // covers them, since a source file's type conforms to plain text. Not
-      // `.ts`, which macOS types as an MPEG transport stream. Folders are
-      // what the Dock icon accepts a dropped folder by; public.folder rather
-      // than public.directory, which app bundles and other packages conform to.
-      CFBundleDocumentTypes: [
-        {
-          CFBundleTypeName: "Text",
-          CFBundleTypeRole: "Viewer",
-          LSHandlerRank: "Alternate",
-          LSItemContentTypes: ["public.plain-text", "public.json"],
-        },
-        {
-          CFBundleTypeName: "Folder",
-          CFBundleTypeRole: "Viewer",
-          LSHandlerRank: "Alternate",
-          LSItemContentTypes: ["public.folder"],
-        },
-      ],
+      // A preview claims no document types: installing one must not change
+      // what opens a file on the machine it is tried on.
+      ...(APP_PREVIEW_NAME ? {} : { CFBundleDocumentTypes: macDocumentTypes }),
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
       // Why the system's own ask names a reason: without these macOS asks for
@@ -242,7 +253,7 @@ const config: Configuration = {
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
-    fileAssociations: macFileAssociations,
+    fileAssociations: APP_PREVIEW_NAME ? [] : macFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
@@ -250,7 +261,10 @@ const config: Configuration = {
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     // Grants the team-scoped entitlements in entitlements.mac.plist. Without
     // it the system refuses them and the app is killed on exec.
-    provisioningProfile: "build/Instrument_Developer_ID.provisionprofile",
+    // A preview goes without: the profile is bound to the shipping bundle id.
+    provisioningProfile: APP_PREVIEW_NAME
+      ? undefined
+      : "build/Instrument_Developer_ID.provisionprofile",
     publish: {
       ...publishConfig,
       channel: process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
@@ -268,7 +282,7 @@ const config: Configuration = {
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },
-  productName: APP_NAME,
+  productName: APP_PRODUCT_NAME,
   protocols: [
     {
       // Required for Linux deep linking

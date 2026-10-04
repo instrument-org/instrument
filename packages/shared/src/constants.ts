@@ -2,15 +2,35 @@ export const AI_GATEWAY_API_PATH = "/ai-gateway";
 export const APP_NAME = "Instrument";
 export const APP_NAME_SLUG = "instrument";
 export const APP_UPDATER_CACHE_DIR_NAME = `${APP_NAME_SLUG}-desktop-updater`;
-export const APP_PROTOCOL =
-  process.env.NODE_ENV === "development"
+// Set by the Preview build workflow, and inlined into every bundle at build
+// time. A preview is a separately installed copy of the app with an identity of
+// its own: bundle id, product name, protocol, and so userData folder, keychain
+// item, and macOS privacy grants. Its first launch is a real first launch, on a
+// machine that already runs Instrument. Copy keeps saying APP_NAME, so what the
+// user reads matches what ships.
+export const APP_PREVIEW_NAME =
+  (process.env.INSTRUMENT_PREVIEW_NAME ?? "")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 40) || undefined;
+// What the OS calls the app: the bundle on disk, the userData folder, the
+// keychain's Safe Storage item, and the name on its privacy prompts.
+export const APP_PRODUCT_NAME = APP_PREVIEW_NAME
+  ? `${APP_NAME} Preview (${APP_PREVIEW_NAME})`
+  : APP_NAME;
+export const APP_PROTOCOL = APP_PREVIEW_NAME
+  ? `${APP_NAME_SLUG}-preview-${APP_PREVIEW_NAME}`
+  : process.env.NODE_ENV === "development"
     ? `${APP_NAME_SLUG}-local`
     : APP_NAME_SLUG;
 export const APP_EXECUTABLE = "instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
 // macOS/Windows application bundle identifier; the source of truth for
 // electron-builder `appId` and any OS deep links that target the app.
-export const APP_BUNDLE_ID = "com.finalpoint.instrument";
+export const APP_BUNDLE_ID = APP_PREVIEW_NAME
+  ? `com.finalpoint.instrument.preview.${APP_PREVIEW_NAME}`
+  : "com.finalpoint.instrument";
 
 export const APP_REPO_NAME = "instrument";
 export const GITHUB_ORG = "instrument-org";

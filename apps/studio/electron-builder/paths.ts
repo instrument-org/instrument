@@ -1,4 +1,4 @@
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_PRODUCT_NAME } from "@instrument-org/shared";
 import { Arch } from "electron-builder";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -105,7 +105,7 @@ export function resolveUnpackedDir(
   return platformName === "darwin"
     ? path.join(
         appOutDir,
-        `${APP_NAME}.app`,
+        `${APP_PRODUCT_NAME}.app`,
         "Contents",
         "Resources",
         "app.asar.unpacked",

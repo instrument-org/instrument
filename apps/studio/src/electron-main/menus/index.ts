@@ -7,6 +7,7 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 
+import { previewMenu } from "../lib/preview-reset";
 import { createAppWindowMenu } from "./app-window";
 import { createOtherWindowMenu } from "./other-window";
 
@@ -35,10 +36,12 @@ export function createApplicationMenu(): void {
  */
 function updateApplicationMenu(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
-  const template: MenuItemConstructorOptions[] =
-    focusedWindow && focusedWindow !== getAppWindow()
+  const template: MenuItemConstructorOptions[] = [
+    ...(focusedWindow && focusedWindow !== getAppWindow()
       ? createOtherWindowMenu()
-      : createAppWindowMenu();
+      : createAppWindowMenu()),
+    ...previewMenu(),
+  ];
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);

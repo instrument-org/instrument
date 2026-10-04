@@ -52,6 +52,8 @@ declare namespace NodeJS {
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
+      /** Build time only: names a preview build, inlined by electron.vite.config.ts. */
+      INSTRUMENT_PREVIEW_NAME: string | undefined;
       /**
        * Pins this process to one workspace, by registered id or absolute path,
        * without changing which one the app opens next. See lib/workspaces.ts.

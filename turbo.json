@@ -35,6 +35,7 @@
         "HOME",
         "INSTRUMENT_DEV_SUPERVISOR",
         "INSTRUMENT_OZONE_PLATFORM",
+        "INSTRUMENT_PREVIEW_NAME",
         "INSTRUMENT_WORKSPACE",
         "NODE_ENV",
         "PATH",
@@ -60,6 +61,7 @@
     "build:vite": {
       "env": [
         "CI",
+        "INSTRUMENT_PREVIEW_NAME",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_GOOGLE_CLIENT_ID",
         "MAIN_VITE_GOOGLE_CLIENT_SECRET",

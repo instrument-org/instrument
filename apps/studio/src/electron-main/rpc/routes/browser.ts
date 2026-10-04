@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import {
   getDesiredGuestSurfaces,
   recordEffectiveGuestSurface,
@@ -86,13 +87,10 @@ const live = {
   // Re-subscribing always yields the current set, so nothing is stranded by a
   // change that happened before the listener existed.
   targets: base.handler(async function* ({ signal }) {
-    yield currentTargets();
-
-    for await (const _ of publisher.subscribe("browser.targets-changed", {
-      signal,
-    })) {
-      yield currentTargets();
-    }
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.targets-changed", { signal })],
+      read: currentTargets,
+    });
   }),
 };
 

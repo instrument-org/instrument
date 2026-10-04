@@ -87,6 +87,7 @@ export {
 } from "./machines/workspace";
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
+export { liveRead, where } from "./rpc/live-read";
 export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,

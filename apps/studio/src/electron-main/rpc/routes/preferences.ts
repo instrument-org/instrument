@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -159,22 +160,16 @@ const live = {
   defaultModelURI: base
     .output(eventIterator(AIGatewayModelURI.Schema.optional()))
     .handler(async function* ({ signal }) {
-      yield getDefaultModelURI();
-
-      for await (const _payload of publisher.subscribe("preferences.updated", {
-        signal,
-      })) {
-        yield getDefaultModelURI();
-      }
+      yield* liveRead({
+        changes: [publisher.subscribe("preferences.updated", { signal })],
+        read: getDefaultModelURI,
+      });
     }),
   get: base.handler(async function* ({ context, signal }) {
-    yield call(get, {}, { context, signal });
-
-    for await (const _payload of publisher.subscribe("preferences.updated", {
-      signal,
-    })) {
-      yield call(get, {}, { context, signal });
-    }
+    yield* liveRead({
+      changes: [publisher.subscribe("preferences.updated", { signal })],
+      read: () => call(get, {}, { context, signal }),
+    });
   }),
 };
 

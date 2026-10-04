@@ -1,4 +1,4 @@
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { liveRead } from "../../live-read";
 import { eventIterator } from "@orpc/server";
 import { isEqual } from "radashi";
 
@@ -34,18 +34,19 @@ function getTaskActivity(workspaceRef: WorkspaceActorRef) {
 export const liveTaskActivity = base
   .output(eventIterator(TaskAgentStatusSchema.array()))
   .handler(async function* ({ context, signal }) {
-    let previousState = getTaskActivity(context.workspaceRef);
-    yield previousState;
-
-    const subscriptions = [
-      publisher.subscribe("session.added", { signal }),
-      publisher.subscribe("session.done", { signal }),
-      publisher.subscribe("session.tagsChanged", { signal }),
-    ] as const;
-
-    for await (const _payload of mergeGenerators(subscriptions)) {
-      const currentState = getTaskActivity(context.workspaceRef);
-      if (!isEqual(currentState, previousState)) {
+    let previousState: TaskAgentStatus[] | undefined;
+    for await (const currentState of liveRead({
+      changes: [
+        publisher.subscribe("session.added", { signal }),
+        publisher.subscribe("session.done", { signal }),
+        publisher.subscribe("session.tagsChanged", { signal }),
+      ],
+      read: () => getTaskActivity(context.workspaceRef),
+    })) {
+      if (
+        previousState === undefined ||
+        !isEqual(currentState, previousState)
+      ) {
         previousState = currentState;
         yield currentState;
       }

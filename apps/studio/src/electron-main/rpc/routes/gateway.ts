@@ -1,10 +1,10 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,
   AIGatewayProviderConfig,
   fetchModelResultsForProviders,
 } from "@instrument-org/ai-gateway";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -61,6 +61,13 @@ const live = {
     context,
     signal,
   }) {
+    // Subscribed before anything is read, so a change that lands while the
+    // cached or fresh list is on its way is read again rather than lost.
+    const changes = [
+      publisher.subscribe("provider-config.updated", { signal }),
+      publisher.subscribe("session.apiBearerToken.updated", { signal }),
+    ];
+
     // Serve stale cached models immediately while the fresh fetch runs.
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const cachedModels = providers.flatMap(
@@ -72,25 +79,10 @@ const live = {
     }
 
     // Fetch fresh data. fetchModelsForProvider writes to cache on success.
-    yield call(list, {}, { context, signal });
-
-    const providerConfigUpdates = publisher.subscribe(
-      "provider-config.updated",
-      {
-        signal,
-      },
-    );
-    const apiBearerTokenUpdated = publisher.subscribe(
-      "session.apiBearerToken.updated",
-      { signal },
-    );
-
-    for await (const _ of mergeGenerators([
-      providerConfigUpdates,
-      apiBearerTokenUpdated,
-    ])) {
-      yield call(list, {}, { context, signal });
-    }
+    yield* liveRead({
+      changes,
+      read: () => call(list, {}, { context, signal }),
+    });
   }),
 };
 

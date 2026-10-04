@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -209,13 +210,10 @@ const live = {
   list: base
     .output(eventIterator(z.array(ClientAIProviderConfigSchema)))
     .handler(async function* ({ context, signal }) {
-      yield call(list, {}, { context, signal });
-
-      for await (const _ of publisher.subscribe("provider-config.updated", {
-        signal,
-      })) {
-        yield call(list, {}, { context, signal });
-      }
+      yield* liveRead({
+        changes: [publisher.subscribe("provider-config.updated", { signal })],
+        read: () => call(list, {}, { context, signal }),
+      });
     }),
 };
 

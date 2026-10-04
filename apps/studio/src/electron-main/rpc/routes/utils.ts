@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
 import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
@@ -498,13 +499,10 @@ const live = {
       ),
     )
     .handler(async function* ({ signal }) {
-      yield getServerExceptions();
-
-      for await (const _ of publisher.subscribe("server-exceptions.updated", {
-        signal,
-      })) {
-        yield getServerExceptions();
-      }
+      yield* liveRead({
+        changes: [publisher.subscribe("server-exceptions.updated", { signal })],
+        read: getServerExceptions,
+      });
     }),
   // What the renderer needs to draw window chrome for itself: the custom controls
   // pick the maximize/restore glyph, and the Linux window border hides when an
@@ -518,13 +516,10 @@ const live = {
       ),
     )
     .handler(async function* ({ context, signal }) {
-      yield readWindowState(context.webContentsId);
-
-      for await (const _ of publisher.subscribe("window.state-changed", {
-        signal,
-      })) {
-        yield readWindowState(context.webContentsId);
-      }
+      yield* liveRead({
+        changes: [publisher.subscribe("window.state-changed", { signal })],
+        read: () => readWindowState(context.webContentsId),
+      });
     }),
 };
 

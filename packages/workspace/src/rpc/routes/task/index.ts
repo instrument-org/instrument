@@ -31,6 +31,7 @@ import { TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
+import { liveRead, where } from "../../live-read";
 import { liveTaskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
@@ -249,15 +250,15 @@ const live = {
     .input(z.object({ id: TaskIdSchema }))
     .output(eventIterator(TaskSchema))
     .handler(async function* ({ context, input, signal }) {
-      yield call(byId, input, { context, signal });
-
-      const taskUpdates = publisher.subscribe("task.updated", { signal });
-
-      for await (const payload of taskUpdates) {
-        if (payload.id === input.id) {
-          yield call(byId, input, { context, signal });
-        }
-      }
+      yield* liveRead({
+        changes: [
+          where(
+            publisher.subscribe("task.updated", { signal }),
+            (payload) => payload.id === input.id,
+          ),
+        ],
+        read: () => call(byId, input, { context, signal }),
+      });
     }),
 };
 

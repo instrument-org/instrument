@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import {
   cancelSignInSocial,
   signInSocial as signInSocialFn,
@@ -18,16 +19,12 @@ const hasToken = base.handler(() => {
 
 const live = {
   hasToken: base.handler(async function* ({ signal }) {
-    yield hasTokenUtil();
-
-    for await (const _ of publisher.subscribe(
-      "session.apiBearerToken.updated",
-      {
-        signal,
-      },
-    )) {
-      yield hasTokenUtil();
-    }
+    yield* liveRead({
+      changes: [
+        publisher.subscribe("session.apiBearerToken.updated", { signal }),
+      ],
+      read: hasTokenUtil,
+    });
   }),
 };
 

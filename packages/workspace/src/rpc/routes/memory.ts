@@ -14,6 +14,7 @@ import {
 } from "../../lib/memory/store";
 import { startWatchingMemory } from "../../lib/memory/watch";
 import { base } from "../base";
+import { liveRead } from "../live-read";
 import { publisher } from "../publisher";
 
 const MemoryFolderSchema = z.object({
@@ -38,10 +39,7 @@ const liveListMemoryRoute = base
     // reaches the screen listing it.
     const stopWatching = await startWatchingMemory();
     try {
-      yield await readMemoryFolder();
-      for await (const _change of changes) {
-        yield await readMemoryFolder();
-      }
+      yield* liveRead({ changes: [changes], read: readMemoryFolder });
     } finally {
       stopWatching();
     }

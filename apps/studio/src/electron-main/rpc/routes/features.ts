@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
 import { call, eventIterator } from "@orpc/server";
@@ -67,13 +68,10 @@ const live = {
     context,
     signal,
   }) {
-    yield call(getAll, {}, { context, signal });
-
-    for await (const _ of publisher.subscribe("features.updated", {
-      signal,
-    })) {
-      yield call(getAll, {}, { context, signal });
-    }
+    yield* liveRead({
+      changes: [publisher.subscribe("features.updated", { signal })],
+      read: () => call(getAll, {}, { context, signal }),
+    });
   }),
 };
 

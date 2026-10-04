@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
   cancelChatGPTSignIn,
@@ -15,13 +16,9 @@ import { publisher } from "../publisher";
 
 const live = {
   status: base.handler(async function* ({ signal }) {
-    yield chatGPTPlanStatus();
+    const changes = publisher.subscribe("chatgpt-plan.updated", { signal });
     void verifyAccounts();
-    for await (const _ of publisher.subscribe("chatgpt-plan.updated", {
-      signal,
-    })) {
-      yield chatGPTPlanStatus();
-    }
+    yield* liveRead({ changes: [changes], read: chatGPTPlanStatus });
   }),
 };
 

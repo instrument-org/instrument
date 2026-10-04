@@ -1,3 +1,4 @@
+import { liveRead } from "@instrument-org/workspace/electron";
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
   storeFileOpenIcon,
@@ -174,12 +175,10 @@ const live = {
     context,
     signal,
   }) {
-    yield call(list, {}, { context, signal });
-    for await (const _ of workspacePublisher.subscribe("app.updated", {
-      signal,
-    })) {
-      yield call(list, {}, { context, signal });
-    }
+    yield* liveRead({
+      changes: [workspacePublisher.subscribe("app.updated", { signal })],
+      read: () => call(list, {}, { context, signal }),
+    });
   }),
 };
 

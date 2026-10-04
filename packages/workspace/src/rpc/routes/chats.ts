@@ -35,6 +35,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
+import { collapsed, everyOne, liveRead } from "../live-read";
 import { publisher } from "../publisher";
 
 /** Where one task the chat created stands this moment, for a card that follows it. */
@@ -169,15 +170,10 @@ const liveChildTasksRoute = base
     if (!isChatId(input.id)) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
-    const changes = childTaskChanges(signal);
-    try {
-      yield await childTasks(input.id);
-      for await (const _change of changes) {
-        yield await childTasks(input.id);
-      }
-    } finally {
-      await changes.return();
-    }
+    yield* liveRead({
+      changes: [childTaskChanges(signal)],
+      read: () => childTasks(input.id),
+    });
   });
 
 /** One chat as the list shows it, or none for a session that is not a chat. */
@@ -263,81 +259,11 @@ export function chatChanges(signal: AbortSignal | undefined) {
   return collapsed(merged());
 }
 
-/**
- * One firing for however many events landed since the consumer last came
- * back: a reader that re-reads everything on each firing does it once per
- * read, not once per event that arrived during the read.
- */
-async function* collapsed(source: AsyncGenerator) {
-  const state: {
-    /** What ended the source, handed to the consumer as the source would have. */
-    failure?: { error: unknown };
-    finished: boolean;
-    pending: boolean;
-    wake?: () => void;
-  } = { finished: false, pending: false };
-  // Read through a call each time: the pump changes these between awaits.
-  const isPending = () => state.pending;
-  const isFinished = () => state.finished;
-  void (async () => {
-    try {
-      for await (const _event of source) {
-        state.pending = true;
-        state.wake?.();
-      }
-    } catch (error) {
-      state.failure = { error };
-    } finally {
-      state.finished = true;
-      state.wake?.();
-    }
-  })();
-  try {
-    while (true) {
-      if (!isPending() && !isFinished()) {
-        await new Promise((resolve) => {
-          state.wake = () => {
-            resolve(undefined);
-          };
-        });
-        state.wake = undefined;
-      }
-      if (!isPending()) {
-        if (state.failure) {
-          throw state.failure.error;
-        }
-        return;
-      }
-      state.pending = false;
-      yield null;
-    }
-  } finally {
-    // Not awaited: the source may be waiting on an event that ends only when
-    // the request's signal does.
-    void source.return(undefined);
-  }
-}
-
-/** One firing per event, whatever it carries. */
-async function* everyOne(generator: AsyncIterable<unknown>) {
-  for await (const _payload of generator) {
-    yield null;
-  }
-}
-
 /** The chats, oldest first, re-read on every change in any chat, bursts collapsed. */
 const liveListChatsRoute = base
   .output(eventIterator(ChatSchema.array()))
   .handler(async function* ({ signal }) {
-    const changes = chatChanges(signal);
-    try {
-      yield await listChats();
-      for await (const _change of changes) {
-        yield await listChats();
-      }
-    } finally {
-      await changes.return();
-    }
+    yield* liveRead({ changes: [chatChanges(signal)], read: listChats });
   });
 
 /** What the user has seen in a chat, so its count can clear. */

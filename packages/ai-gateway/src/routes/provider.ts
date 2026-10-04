@@ -7,6 +7,7 @@ import { proxy } from "hono/proxy";
 
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { isWorkersAiProviderConfig } from "../lib/fetch-models/parse-workers-ai-base-url";
+import { isOpenCodeProviderConfig } from "../lib/opencode";
 import { apiURL } from "../lib/providers/api-url";
 import {
   collapseResponsesStream,
@@ -64,6 +65,11 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   // affinity id to one instance, so a session's steps reuse its prefix.
   if (sessionId && isWorkersAiProviderConfig(config)) {
     headers.set("x-session-affinity", sessionId);
+  }
+  // OpenCode keeps a session on one upstream provider by this header, which
+  // is what keeps that provider's prompt cache warm across its steps.
+  if (sessionId && isOpenCodeProviderConfig(config)) {
+    headers.set("x-opencode-session", sessionId);
   }
 
   if (

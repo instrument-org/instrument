@@ -15,6 +15,7 @@ import { LocalAI } from "@/client/components/icons/localai";
 import { Minimax } from "@/client/components/icons/minimax";
 import { Mistral } from "@/client/components/icons/mistral";
 import { Novita } from "@/client/components/icons/novita";
+import { OpenCode } from "@/client/components/icons/opencode";
 import { Perplexity } from "@/client/components/icons/perplexity";
 import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
@@ -59,6 +60,8 @@ const PROVIDER_ICON_MAP: Record<
   ollama: SiOllama,
   openai: SiOpenai,
   "openai-compatible": GrNodes,
+  "opencode-go": OpenCode,
+  "opencode-zen": OpenCode,
   openrouter: OpenRouter,
   [OUR_MODELS.providerType]: BrandIconGlyph,
   perplexity: Perplexity,

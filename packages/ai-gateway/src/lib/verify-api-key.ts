@@ -8,6 +8,7 @@ import { fetchOpenAIModels } from "./fetch-models/openai";
 import { fetchOpenAICompatibleModels } from "./fetch-models/openai-compatible";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { verifyWorkersAiApiKey } from "./fetch-models/workers-ai";
+import { verifyOpenCodeApiKey } from "./opencode";
 import { baseURLWithDefault } from "./providers/base-url-with-default";
 import { fetchCredits } from "./providers/fetch-credits";
 import { getProviderMetadata } from "./providers/metadata";
@@ -59,6 +60,11 @@ export function verifyAPIKey(
         config,
         errorMessage: `${metadata.name} doesn't appear to be running`,
       });
+    }
+
+    case "opencode-go":
+    case "opencode-zen": {
+      return verifyOpenCodeApiKey({ ...config, type: config.type }, baseURL);
     }
 
     case "openrouter": {

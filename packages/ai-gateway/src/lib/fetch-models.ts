@@ -16,6 +16,7 @@ import { fetchAndParseChatGPTPlanModels } from "./fetch-models/chatgpt";
 import { fetchAndParseGoogleModels } from "./fetch-models/google";
 import { fetchAndParseOpenAIModels } from "./fetch-models/openai";
 import { fetchAndParseOpenAICompatibleModels } from "./fetch-models/openai-compatible";
+import { fetchAndParseOpenCodeModels } from "./fetch-models/opencode";
 import { fetchModelsForOpenRouter } from "./fetch-models/openrouter";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { fetchModelsForVercel } from "./fetch-models/vercel";
@@ -53,6 +54,10 @@ export function fetchModelsForProvider(
             return fetchAndParseWorkersAiModels(config);
           }
           return fetchAndParseOpenAICompatibleModels(config);
+        }
+        case "opencode-go":
+        case "opencode-zen": {
+          return fetchAndParseOpenCodeModels(config);
         }
         case "openrouter":
         case OUR_PROVIDER_CONFIG.type: {

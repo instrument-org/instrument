@@ -143,6 +143,8 @@ const PROVIDER_MAP: {
   { envKey: "APP_ZAI_API_KEY", type: "z-ai" },
   { envKey: "APP_CEREBRAS_API_KEY", type: "cerebras" },
   { envKey: "APP_GROQ_API_KEY", type: "groq" },
+  { envKey: "APP_OPENCODE_GO_API_KEY", type: "opencode-go" },
+  { envKey: "APP_OPENCODE_ZEN_API_KEY", type: "opencode-zen" },
 ];
 
 /**

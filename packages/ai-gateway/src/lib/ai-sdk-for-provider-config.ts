@@ -12,6 +12,10 @@ import { getPackageForProviderType } from "./bundled-providers";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import {
+  createOpenCodeLanguageModel,
+  isOpenCodeProviderConfig,
+} from "./opencode";
 import { createOpenRouterLanguageModel } from "./openrouter-language-model";
 import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
@@ -22,6 +26,10 @@ export async function aiSDKForProviderConfig(
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const packageName = getPackageForProviderType(config.type);
+
+  if (isOpenCodeProviderConfig(config)) {
+    return createOpenCodeLanguageModel(config, workspaceServerURL);
+  }
 
   switch (packageName) {
     case "@ai-sdk/anthropic": {

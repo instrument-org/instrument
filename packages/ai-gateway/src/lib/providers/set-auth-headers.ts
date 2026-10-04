@@ -32,6 +32,16 @@ export function setProviderAuthHeaders(
       headers.set("x-goog-api-key", config.apiKey);
       break;
     }
+    case "opencode-go":
+    case "opencode-zen": {
+      // OpenCode reads the key from the header of the API shape it is asked
+      // in: a bearer token on the OpenAI endpoints, Anthropic's and Google's
+      // own headers on theirs.
+      headers.set("Authorization", `Bearer ${config.apiKey}`);
+      headers.set("x-api-key", config.apiKey);
+      headers.set("x-goog-api-key", config.apiKey);
+      break;
+    }
     default: {
       headers.set("Authorization", `Bearer ${config.apiKey}`);
       break;

@@ -21,6 +21,8 @@ export function apiURL({
     }
     case "chatgpt":
     case "openai":
+    case "opencode-go":
+    case "opencode-zen":
     case "openrouter":
     case OUR_PROVIDER_CONFIG.type: {
       return `${baseURL}/v1${path}`;

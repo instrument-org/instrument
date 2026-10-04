@@ -238,6 +238,28 @@ const PROVIDER_METADATA = {
     type: "openai-compatible",
     url: "",
   },
+  "opencode-go": {
+    api: {
+      defaultBaseURL: "https://opencode.ai/zen/go",
+      keyURL: addRef("https://opencode.ai/auth"),
+    },
+    description:
+      "Open coding models like GLM, Kimi, and Qwen on a subscription",
+    name: "OpenCode Go",
+    type: "opencode-go",
+    url: addRef("https://opencode.ai/go"),
+  },
+  "opencode-zen": {
+    api: {
+      defaultBaseURL: "https://opencode.ai/zen",
+      keyURL: addRef("https://opencode.ai/auth"),
+    },
+    description:
+      "Pay-as-you-go coding models from OpenCode, Claude and GPT included",
+    name: "OpenCode Zen",
+    type: "opencode-zen",
+    url: addRef("https://opencode.ai/zen"),
+  },
   openrouter: {
     api: {
       defaultBaseURL: "https://openrouter.ai/api",

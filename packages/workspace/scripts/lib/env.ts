@@ -19,6 +19,8 @@ export const env = createEnv({
     APP_GOOGLE_API_KEY: z.string().optional(),
     APP_GROQ_API_KEY: z.string().optional(),
     APP_OPENAI_API_KEY: z.string().optional(),
+    APP_OPENCODE_GO_API_KEY: z.string().optional(),
+    APP_OPENCODE_ZEN_API_KEY: z.string().optional(),
     APP_OPENROUTER_API_KEY: z.string().optional(),
     APP_REGISTRY_DIR_PATH: z.string().optional(),
     APP_ZAI_API_KEY: z.string().optional(),

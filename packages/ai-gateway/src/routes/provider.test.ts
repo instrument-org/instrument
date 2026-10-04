@@ -138,3 +138,53 @@ describe("Workers AI session affinity", () => {
     expect(headers.get("x-session-affinity")).toBe(expected);
   });
 });
+
+describe("OpenCode", () => {
+  it.each([
+    {
+      expected: "https://opencode.ai/zen/go/v1/messages",
+      path: "/messages",
+      type: "opencode-go",
+    },
+    {
+      expected: "https://opencode.ai/zen/v1/responses",
+      path: "/responses",
+      type: "opencode-zen",
+    },
+    {
+      expected:
+        "https://opencode.ai/zen/v1/models/gemini-3.7-flash:streamGenerateContent",
+      path: "/models/gemini-3.7-flash:streamGenerateContent",
+      type: "opencode-zen",
+    },
+  ] as const)(
+    "sends $path for $type to $expected with every key header and the session",
+    async ({ expected, path, type }) => {
+      const upstream = vi.fn<typeof fetch>(() =>
+        Promise.resolve(new Response("{}")),
+      );
+      vi.stubGlobal("fetch", upstream);
+      await gatewayWith({
+        apiKey: "opencode-key",
+        cacheIdentifier: type,
+        id: AIProviderConfigId(type),
+        type,
+      }).request(`${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/${type}${path}`, {
+        headers: {
+          authorization: "Bearer internal-gateway-key",
+          [CLIENT_SESSION_ID_HEADER]: "ses_1",
+        },
+      });
+      const [input, init] = upstream.mock.calls[0] ?? [];
+      if (input === undefined) {
+        throw new Error("the gateway never reached the provider");
+      }
+      const request = new Request(input, init);
+      expect(request.url).toBe(expected);
+      expect(request.headers.get("authorization")).toBe("Bearer opencode-key");
+      expect(request.headers.get("x-api-key")).toBe("opencode-key");
+      expect(request.headers.get("x-goog-api-key")).toBe("opencode-key");
+      expect(request.headers.get("x-opencode-session")).toBe("ses_1");
+    },
+  );
+});

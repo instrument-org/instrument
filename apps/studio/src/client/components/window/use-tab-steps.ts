@@ -66,7 +66,7 @@ export function useTabSteps(
           outer?.back();
           break;
         }
-        case "trail": {
+        case "screen": {
           if (up) {
             stepTab(up.id, sign);
           }

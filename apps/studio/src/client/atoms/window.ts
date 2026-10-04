@@ -5,7 +5,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
 import { type ChatFilters, NO_FILTERS } from "@/client/components/window/chats";
-import { type TabId } from "@/shared/tabs";
+import { type TabHistory as ScreenHistory, type TabId } from "@/shared/tabs";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -274,7 +274,13 @@ export interface FileTab {
  */
 export type TabVisit =
   | (BrowserTab & { kind: "page" })
-  | { at?: number; href: string; id: string; kind: "screen"; trail?: string[] };
+  | {
+      /** Where the screen's own router has been, and where along it the tab stands; one address until it has moved. */
+      history?: ScreenHistory;
+      href: string;
+      id: string;
+      kind: "screen";
+    };
 
 export type WindowTab = TabHistory & TabVisit;
 
@@ -283,12 +289,10 @@ export type WindowTab = TabHistory & TabVisit;
  *
  * History belongs to a tab rather than to the window: back never moves you to
  * a different tab, which is the thing that makes a strip of them readable. A
- * page keeps its guest's native history; past and future retain visits across
- * the boundary between screens and pages.
+ * page keeps its guest's native history and a screen its router's; past and
+ * future retain visits across the boundary between screens and pages.
  */
 interface TabHistory {
-  /** Where in `trail` the tab is standing; the end of it, until back is used. */
-  at?: number;
   future?: TabVisit[];
   /**
    * The chat this tab belongs to, by its session id, or the draft's key:
@@ -309,8 +313,6 @@ interface TabHistory {
    * that became a page, a page that went back to being a new tab.
    */
   stripKey?: string;
-  /** The screen addresses this tab has been at, oldest first. */
-  trail?: string[];
 }
 
 export function originOf(url: string | undefined): string | undefined {

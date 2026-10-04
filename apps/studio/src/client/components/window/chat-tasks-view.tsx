@@ -4,7 +4,6 @@ import {
   type TaskListItem,
 } from "@/client/components/window/chat-task-list";
 import { useOnScreen } from "@/client/components/window/on-screen";
-import { useScreenTab } from "@/client/components/window/screen-tab";
 import { taskHref } from "@/client/components/window/tab-location";
 import { useWindow } from "@/client/components/window/context";
 import { TaskPage } from "@/client/components/window/task-page";
@@ -24,11 +23,10 @@ type Child = ChildTask;
 /**
  * A chat's tasks as a screen in its tab group: the tasks filed from that
  * chat. A row pressed moves the same tab to the task's page, so back
- * returns to the list along the tab's trail.
+ * returns to the list.
  */
 export function ChatTasksScreen({ chat }: { chat: StoreId.Session }) {
   const children = useChatTasks(chat);
-  const screenTab = useScreenTab();
   const router = useRouter();
   const { openScreen } = useWindow();
   const own = children.data ?? [];
@@ -36,12 +34,7 @@ export function ChatTasksScreen({ chat }: { chat: StoreId.Session }) {
     children.data ? { screen: "tasks", tasks: own.map(describe) } : null,
   );
   const open = (id: TaskId) => {
-    const href = taskHref(id, chat);
-    if (screenTab) {
-      screenTab.visit(href);
-    } else {
-      router.history.push(href);
-    }
+    router.history.push(taskHref(id, chat));
   };
   if (!children.data) {
     return (

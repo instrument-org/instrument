@@ -34,6 +34,7 @@ import {
   TabIdProvider,
 } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
@@ -302,6 +303,8 @@ function WindowShell({
   // What the window's arrows and chords walk: the tab up's history, through
   // a site's page first.
   const windowSteps = useWindowSteps();
+  // Every screen a group's tab stands on is walked by a router of its own.
+  useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   const place = placeOfHref(activeHref);
   const isChat = isChatHref(activeHref);
 

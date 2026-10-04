@@ -2,6 +2,8 @@ import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+
 import { appTabsAtom, groupOfHref } from "./app-tabs";
 import {
   addPages,
@@ -21,6 +23,7 @@ import {
   reorderGroup,
   replaceTab,
   restoreGroup,
+  screenMoved,
   selectTab,
   type StoredWindowTabs,
   stepTrail,
@@ -30,6 +33,7 @@ import {
   visitScreen,
   type WindowTabs,
 } from "./tab-model";
+import { sameHref } from "./window-href";
 
 const json = createJSONStorage<StoredWindowTabs>(() => localStorage);
 
@@ -288,11 +292,22 @@ export function useWindowTabs() {
      * A step along a screen tab's own trail: the address it steps to, which
      * the tab now stands on, or nothing when it has none left.
      */
-    stepTab: (id: string, direction: -1 | 1): string | undefined =>
-      answer<string | undefined>((current) => {
-        const stepped = stepTrail(current, id, direction);
-        return { state: stepped.state, value: stepped.href };
-      }, undefined),
+    stepTab: (id: string, direction: -1 | 1): string | undefined => {
+      const router = getGroupTabRouter(id);
+      if (!router) {
+        return answer<string | undefined>((current) => {
+          const stepped = stepTrail(current, id, direction);
+          return { state: stepped.state, value: stepped.href };
+        }, undefined);
+      }
+      // The router walks, and the tab follows it as it lands.
+      const index = router.history.location.state.__TSR_index + direction;
+      if (index < 0 || index >= router.history.length) {
+        return undefined;
+      }
+      router.history.go(direction);
+      return router.history.location.href;
+    },
     /**
      * A step between what a tab has shown (a page, a screen) rather than
      * inside one, for the tab named, whether or not it is on screen.
@@ -306,9 +321,18 @@ export function useWindowTabs() {
     tabUpIn: (group: string | undefined) => upIn(state, group),
     /** The tabs of the group on screen, in strip order. */
     tabs: tabsIn(state, groupOnScreen),
-    /** Where a screen tab is now, by the tab: the screen inside it moved. */
+    /** Sends a screen tab to another address, a step on in its history. */
     visitHref: (id: string, href: string) => {
-      apply((current) => visitScreen(current, id, href));
+      const router = getGroupTabRouter(id);
+      if (!router) {
+        apply((current) => visitScreen(current, id, href));
+      } else if (!sameHref(router.history.location.href, href)) {
+        router.history.push(href);
+      }
+    },
+    /** A screen tab's router moved; the tab follows it. */
+    screenMoved: (id: string, moved: Parameters<typeof screenMoved>[2]) => {
+      apply((current) => screenMoved(current, id, moved));
     },
   };
 }

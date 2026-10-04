@@ -4,11 +4,10 @@ import { describe, expect, it } from "vitest";
 import { type StepDirection, stepOf, stepStackOf } from "./tab-steps";
 
 const SCREEN: WindowTab = {
-  at: 1,
+  history: { entries: ["/files", "/apps", "/browser"], index: 1 },
   href: "/apps",
   id: "s",
   kind: "screen",
-  trail: ["/files", "/apps", "/browser"],
 };
 const PAGE: WindowTab = {
   id: "p",
@@ -59,17 +58,27 @@ describe("which history a step walks", () => {
       "forward",
       "visits",
     ],
-    ["a screen's trail back", SCREEN, { guest: undefined }, "back", "trail"],
     [
-      "a screen's trail forward",
+      "a screen's own history back",
+      SCREEN,
+      { guest: undefined },
+      "back",
+      "screen",
+    ],
+    [
+      "a screen's own history forward",
       SCREEN,
       { guest: undefined },
       "forward",
-      "trail",
+      "screen",
     ],
     [
-      "the tab's visits at the end of a screen's trail",
-      { ...SCREEN, at: 2, future: [PAGE] },
+      "the tab's visits at the end of a screen's own history",
+      {
+        ...SCREEN,
+        history: { entries: ["/files", "/apps", "/browser"], index: 2 },
+        future: [PAGE],
+      },
       { guest: undefined },
       "forward",
       "visits",

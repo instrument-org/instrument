@@ -35,6 +35,7 @@ import { ChatScreen } from "@/client/components/window/chat-screen";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
@@ -567,12 +568,17 @@ function SiteView({ group }: { group: string }) {
  * One of the window's tabs, as its address has it: the chat, a site opened
  * at the window's level, or a screen that is its own route under the row
  * that says where it stands. The window around the tabs is drawn once, by
- * the window, whatever tab is up.
+ * the window, whatever tab is up. A tab of a chat's or a draft's group is
+ * the screen alone, under the row its group's view draws.
  */
 function TabContent() {
   const href = useRouterState({
     select: (routerState) => routerState.location.href,
   });
+  const groupTab = useGroupTab();
+  if (groupTab) {
+    return <Outlet />;
+  }
   if (isChatHref(href)) {
     return <ChatView chat={chatOfHref(href)} />;
   }

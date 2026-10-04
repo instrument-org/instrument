@@ -216,7 +216,6 @@ export interface FolderOnScreen {
  */
 export function ComputerPage({
   onFolderChange,
-  onLocationChange,
   onOpenFile,
   onQuickLook,
   onQuickLookFollow,
@@ -228,12 +227,6 @@ export function ComputerPage({
 }: {
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
-  /**
-   * Where the browser has moved to. Left out, it writes the tab's own address,
-   * which is what the screen filling a tab wants; given, the page holding the
-   * browser keeps the folder in its own state and the tab stays where it is.
-   */
-  onLocationChange?: (location: { path: string; root: string }) => void;
   /** A file the user opened, when a granted folder covers it. */
   onOpenFile: (file: FileTab) => void;
   /** The selected file, on Space. Left out, Space is not watched for at all. */
@@ -828,10 +821,6 @@ export function ComputerPage({
       written.current = `${root}#${onScreen}`;
       const replace = arrived.current;
       arrived.current = false;
-      if (onLocationChange) {
-        onLocationChange({ path: onScreen, root });
-        return;
-      }
       // Each folder walked to is a step of the tab's history, so back and
       // forward (the bar's arrows, the thumb buttons, the chords) walk the
       // folders the way the Finder's own do.
@@ -849,7 +838,7 @@ export function ComputerPage({
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onLocationChange, onScreen, path, root, settled]);
+  }, [navigate, onScreen, path, root, settled]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1097,10 +1086,6 @@ export function ComputerPage({
   );
   const rootTo = (folder: string, prefix = "") => {
     setPlacesOpen(false);
-    if (onLocationChange) {
-      onLocationChange({ path: prefix, root: folder });
-      return;
-    }
     void navigate({
       search: { path: prefix, root: folder },
       to: "/files",

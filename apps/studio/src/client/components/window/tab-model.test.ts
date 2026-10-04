@@ -17,11 +17,13 @@ import {
   openOrFocusScreen,
   openPage,
   type PageTab,
+  type ScreenTab,
   pageNavigated,
   pageTakesOver,
   patchPage,
   reorderGroup,
   replaceTab,
+  screenMoved,
   selectTab,
   stepTrail,
   stepVisit,
@@ -34,8 +36,8 @@ const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
 const OTHER = StoreId.SessionSchema.parse("ses_01JBBBBBBBBBBBBBBBBBBBBBBB");
 const DRAFT = draftGroupOf("d1");
 
-function screenTab(id: string, href: string, group: string): WindowTab {
-  return { at: 0, group, href, id, kind: "screen", trail: [href] };
+function screenTab(id: string, href: string, group: string): ScreenTab {
+  return { group, href, id, kind: "screen" };
 }
 
 function pageTab(id: string, url: string, group: string): PageTab {
@@ -85,6 +87,30 @@ describe("normalizeWindowTabs", () => {
       activeByGroup: { [CHAT]: "b", [OTHER]: "x" },
       tabs: THREE.tabs,
     });
+  });
+
+  it("reads a screen's trail, and where it stood on it, as its history", () => {
+    const read = normalizeWindowTabs({
+      tabs: [
+        {
+          at: 0,
+          group: CHAT,
+          href: "/files",
+          id: "s",
+          kind: "screen",
+          trail: ["/files", "/apps"],
+        },
+      ],
+    });
+    expect(read.tabs).toEqual([
+      {
+        group: CHAT,
+        history: { entries: ["/files", "/apps"], index: 0 },
+        href: "/files",
+        id: "s",
+        kind: "screen",
+      },
+    ]);
   });
 
   it("reads nothing kept as no tabs", () => {
@@ -184,7 +210,12 @@ describe("openOrFocusScreen", () => {
   });
 
   it("tells a group waiting behind with its new tab up where to go, in that tab", () => {
-    const state = windowOf([screenTab("home", NEW_TAB_HREF, DRAFT)]);
+    const state = windowOf([
+      {
+        ...screenTab("home", NEW_TAB_HREF, DRAFT),
+        history: { entries: ["/browser", NEW_TAB_HREF], index: 1 },
+      },
+    ]);
     const opened = openOrFocusScreen(state, {
       group: DRAFT,
       href: "/apps",
@@ -195,20 +226,18 @@ describe("openOrFocusScreen", () => {
     expect(opened.id).toBe("home");
     expect(opened.state.tabs).toEqual([
       {
-        at: 0,
         future: [],
         group: DRAFT,
         href: "/apps",
         id: "home",
         isOpened: false,
         kind: "screen",
-        trail: ["/apps"],
       },
     ]);
   });
 });
 
-describe("a screen tab's trail", () => {
+describe("a screen tab's own history", () => {
   const folder = "/files?path=notes%2F&root=~";
   const file = fileHref("/Users/me/notes/plan.md");
 
@@ -219,17 +248,36 @@ describe("a screen tab's trail", () => {
       file,
     );
     expect(walked.tabs[0]).toMatchObject({
-      at: 1,
       href: file,
-      trail: [folder, file],
+      history: { entries: [folder, file], index: 1 },
     });
     const back = stepTrail(walked, "t", -1);
     expect(back.href).toBe(folder);
-    expect(back.state.tabs[0]).toMatchObject({ at: 0, href: folder });
+    expect(back.state.tabs[0]).toMatchObject({
+      history: { entries: [folder, file], index: 0 },
+      href: folder,
+    });
     expect(stepTrail(back.state, "t", -1).href).toBeUndefined();
     // Somewhere new from a step back drops what was ahead.
     const elsewhere = visitScreen(back.state, "t", "/apps");
-    expect(elsewhere.tabs[0]).toMatchObject({ trail: [folder, "/apps"] });
+    expect(elsewhere.tabs[0]).toMatchObject({
+      history: { entries: [folder, "/apps"], index: 1 },
+    });
+  });
+
+  it("follows its router, and changes nothing when the router is where the tab is", () => {
+    const state = windowOf([screenTab("t", folder, CHAT)]);
+    const moved = screenMoved(state, "t", {
+      history: { entries: [folder, file], index: 1 },
+      href: file,
+    });
+    expect(moved.tabs[0]).toMatchObject({ href: file });
+    expect(
+      screenMoved(moved, "t", {
+        history: { entries: [folder, file], index: 1 },
+        href: file,
+      }),
+    ).toBe(moved);
   });
 
   it("stays put at the address it already stands on, however it is spelled", () => {
@@ -410,12 +458,11 @@ describe("pageTakesOver", () => {
       windowOf(
         [
           {
-            at: 1,
             group: CHAT,
             href: fileScreen,
             id: "finder",
             kind: "screen",
-            trail: [folderScreen, fileScreen],
+            history: { entries: [folderScreen, fileScreen], index: 1 },
           },
           pageTab("page", `file://${FILE}`, "page:finder"),
         ],
@@ -432,6 +479,9 @@ describe("pageTakesOver", () => {
       stripKey: "finder",
       url: "https://example.com/",
     });
-    expect(tab?.past?.at(-1)).toMatchObject({ at: 1, href: fileScreen });
+    expect(tab?.past?.at(-1)).toMatchObject({
+      history: { entries: [folderScreen, fileScreen], index: 1 },
+      href: fileScreen,
+    });
   });
 });

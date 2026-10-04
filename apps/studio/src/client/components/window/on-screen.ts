@@ -3,7 +3,7 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
-import { useScreenTab } from "./screen-tab";
+import { useGroupTab } from "./group-tab";
 
 /**
  * Says what this screen has on it, for as long as it is up. Every screen of
@@ -18,14 +18,14 @@ export function useOnScreen(view: null | ScreenView) {
   const setView = useSetAtom(screenViewAtom);
   // A screen drawn in a tab of a draft or a popped-out chat says so to that
   // tab rather than to the window, whose screen it is not.
-  const screenTab = useScreenTab();
+  const groupTab = useGroupTab();
   // Held by reference, so a host that makes its tab afresh each render does
   // not report again on every one: only the tab's id says it changed.
-  const screenTabRef = useRef(screenTab);
+  const groupTabRef = useRef(groupTab);
   useEffect(() => {
-    screenTabRef.current = screenTab;
+    groupTabRef.current = groupTab;
   });
-  const screenTabId = screenTab?.id;
+  const groupTabId = groupTab?.id;
   // A screen in a tab of the window's behind the one up is not on screen.
   const isActiveTab = useIsActiveTab();
   // By value: the screens build a fresh object each render.
@@ -34,7 +34,7 @@ export function useOnScreen(view: null | ScreenView) {
     if (view === null || !isActiveTab) {
       return;
     }
-    const tab = screenTabRef.current;
+    const tab = groupTabRef.current;
     if (tab) {
       tab.report(view);
       return () => {
@@ -48,5 +48,5 @@ export function useOnScreen(view: null | ScreenView) {
       setView((current) => (current === view ? null : current));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, setView, screenTabId, isActiveTab]);
+  }, [key, setView, groupTabId, isActiveTab]);
 }

@@ -11,11 +11,10 @@ import { describe, expect, it } from "vitest";
 import { stepTabVisit, visitInTab } from "./tab-history";
 
 const task: WindowTab = {
-  at: 1,
   href: "/tasks/example",
   id: "task-screen",
   kind: "screen",
-  trail: ["/tasks", "/tasks/example"],
+  history: { entries: ["/tasks", "/tasks/example"], index: 1 },
 };
 const page: WindowTab = {
   id: "browser-session",
@@ -41,7 +40,7 @@ function stepped(tab: WindowTab, direction: -1 | 1): WindowTab {
 }
 
 describe("tab visits", () => {
-  it("returns from a linked website to the task's existing trail and forward to the same guest", () => {
+  it("returns from a linked website to the task's existing history and forward to the same guest", () => {
     const website = visitInTab(task, page);
     const back = stepped(website, -1);
     expect(back).toMatchObject({ ...task, stripKey: task.id });
@@ -67,13 +66,11 @@ describe("tab visits", () => {
   it("discards a forward file visit when opening a website from the task", () => {
     const transcript: WindowTab = {
       ...task,
-      at: 0,
-      trail: [task.href, "/files?file=report.pdf"],
+      history: { entries: [task.href, "/files?file=report.pdf"], index: 0 },
     };
     const website = visitInTab(transcript, page);
     expect(stepTabVisit(website, -1)).toMatchObject({
-      at: 0,
-      trail: [task.href],
+      history: { entries: [task.href], index: 0 },
     });
   });
 
@@ -127,19 +124,17 @@ describe("a file screen handing its page to the browser", () => {
   it("is skipped by back, which lands where the file was opened from", () => {
     const fileScreen: WindowTab = {
       ...folder,
-      at: 1,
       href: fileHref(hostPath),
-      trail: [folder.href, fileHref(hostPath)],
+      history: { entries: [folder.href, fileHref(hostPath)], index: 1 },
     };
     const shown = visitInTab(fileScreen, filePage);
     const back = stepped(shown, -1);
     // The screen shown again would hand the file to a new page at once, a
     // loop back could not leave.
     expect(back).toMatchObject({
-      at: 0,
       href: folder.href,
       id: folder.id,
-      trail: [folder.href],
+      history: { entries: [folder.href], index: 0 },
     });
     // Forward restores the page the file was shown in, guest and all.
     expect(stepTabVisit(back, 1)).toEqual(shown);
@@ -147,12 +142,11 @@ describe("a file screen handing its page to the browser", () => {
 
   it("is skipped when it began the tab, so back lands on the visit before it", () => {
     const fileScreen: WindowTab = {
-      at: 0,
       href: fileHref(hostPath),
       id: "file-screen",
       kind: "screen",
       past: [page],
-      trail: [fileHref(hostPath)],
+      history: { entries: [fileHref(hostPath)], index: 0 },
     };
     const shown = visitInTab(fileScreen, filePage);
     expect(shown.past).toEqual([page]);
@@ -161,11 +155,10 @@ describe("a file screen handing its page to the browser", () => {
 
   it("leaves a page opened as its own tab with the web's starting view behind it", () => {
     const fileScreen: WindowTab = {
-      at: 0,
       href: fileHref(hostPath),
       id: "file-screen",
       kind: "screen",
-      trail: [fileHref(hostPath)],
+      history: { entries: [fileHref(hostPath)], index: 0 },
     };
     const shown = visitInTab(fileScreen, filePage);
     expect(shown.past).toEqual([]);
@@ -183,9 +176,8 @@ describe("a file screen handing its page to the browser", () => {
     const sourceHref = fileHref(hostPath, { source: true });
     const sourceScreen: WindowTab = {
       ...folder,
-      at: 1,
       href: sourceHref,
-      trail: [folder.href, sourceHref],
+      history: { entries: [folder.href, sourceHref], index: 1 },
     };
     expect(visitInTab(sourceScreen, filePage).past).toEqual([sourceScreen]);
   });

@@ -18,7 +18,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
-import { groupScreenOf } from "./group-screen";
+import { isGroupScreenHref } from "./group-screen";
 import { visitInTab } from "./tab-history";
 import { taskRecordOptions } from "./child-tasks-query";
 import {
@@ -265,7 +265,7 @@ export function useOpeners({
     // notes): those are the window's own, never a tab beside a chat.
     if (
       parseHref(href).pathname.startsWith(`${APPS_HREF}/`) ||
-      groupScreenOf(href) === undefined
+      !isGroupScreenHref(href)
     ) {
       appTabs.navigate(href);
       return;
@@ -443,11 +443,9 @@ export function useOpeners({
           };
         }
         const next = visitInTab(tab, {
-          at: 0,
           href,
           id: newScreenId(),
           kind: "screen",
-          trail: [href],
         });
         windowTabs.replace(tab.id, next);
         return { tabId: next.id };

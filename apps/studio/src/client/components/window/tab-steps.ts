@@ -1,17 +1,17 @@
 import { type WindowTab } from "@/client/atoms/window";
 
-import { atOf, trailOf } from "./tab-model";
+import { historyOf } from "./tab-history";
 
 /** Which way a step goes. */
 export type StepDirection = "back" | "forward";
 
 /**
  * The histories a tab can step through, innermost first: the page's own (its
- * guest's), the screen's trail, the visits across the boundary between pages
+ * guest's), the screen's own router, the visits across the boundary between pages
  * and screens, and, for a site standing at the window's own level, the
  * window tab's history before the site.
  */
-export const STEP_LAYERS = ["guest", "trail", "visits", "outer"] as const;
+export const STEP_LAYERS = ["guest", "screen", "visits", "outer"] as const;
 
 export type StepLayer = (typeof STEP_LAYERS)[number];
 
@@ -22,7 +22,7 @@ const NOWHERE = { back: false, forward: false };
 
 /**
  * The history a step walks: the innermost one with somewhere to go that way,
- * so back leaves a page's own history only at its start, a screen's trail
+ * so back leaves a page's own history only at its start, a screen's history
  * only at its start, and the tab's visits only at their start. Nothing when
  * no history has anywhere to go.
  */
@@ -35,7 +35,7 @@ export function stepOf(
 
 /**
  * What a tab can step through: its page's history as the guest reports it,
- * its screen's trail, its visits, and the window tab's history behind a site.
+ * its screen's history, its visits, and the window tab's history behind a site.
  * A site of the window's own has nothing of its own before its page (the new
  * tab a page opens with is no stop there), so its visits never step back.
  */
@@ -55,21 +55,23 @@ export function stepStackOf(
     return {
       guest: NOWHERE,
       outer: { back: outer?.canGoBack ?? false, forward: false },
-      trail: NOWHERE,
+      screen: NOWHERE,
       visits: NOWHERE,
     };
   }
-  const at = atOf(tab);
+  const history = tab.kind === "screen" ? historyOf(tab) : undefined;
   return {
     guest:
       tab.kind === "page" && guest
         ? { back: guest.canGoBack, forward: guest.canGoForward }
         : NOWHERE,
     outer: { back: outer?.canGoBack ?? false, forward: false },
-    trail:
-      tab.kind === "screen"
-        ? { back: at > 0, forward: at < trailOf(tab).length - 1 }
-        : NOWHERE,
+    screen: history
+      ? {
+          back: history.index > 0,
+          forward: history.index < history.entries.length - 1,
+        }
+      : NOWHERE,
     visits: {
       back: outer === undefined && Boolean(tab.past?.length),
       forward: Boolean(tab.future?.length),

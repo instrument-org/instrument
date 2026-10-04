@@ -6,6 +6,17 @@ import {
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 
 /**
+ * Where a screen tab's router has been, oldest first, and where along it the
+ * tab stands: only the address it is at, until it has moved.
+ */
+export function historyOf(tab: Extract<WindowTab, { kind: "screen" }>): {
+  entries: string[];
+  index: number;
+} {
+  return tab.history ?? { entries: [tab.href], index: 0 };
+}
+
+/**
  * Restore a visit while retaining its browser session or screen trail. A page
  * with nothing behind it has a new tab behind it: back from its start is the
  * page going back to being a new tab.
@@ -82,21 +93,20 @@ function leftBehind(
   if (current.kind === "page") {
     return current;
   }
-  if (!current.trail) {
-    return current;
+  const { entries, index } = historyOf(current);
+  if (!handsOff(entries[index] ?? current.href, visit)) {
+    return {
+      ...current,
+      history: { entries: entries.slice(0, index + 1), index },
+    };
   }
-  const at = current.at ?? current.trail.length - 1;
-  if (!handsOff(current.trail[at] ?? current.href, visit)) {
-    return { ...current, trail: current.trail.slice(0, at + 1) };
-  }
-  if (at <= 0) {
+  if (index <= 0) {
     return undefined;
   }
   return {
     ...current,
-    at: at - 1,
-    href: current.trail[at - 1] ?? current.href,
-    trail: current.trail.slice(0, at),
+    history: { entries: entries.slice(0, index), index: index - 1 },
+    href: entries[index - 1] ?? current.href,
   };
 }
 

@@ -8,7 +8,7 @@ import {
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 
 import { groupScreenTabsOnly } from "./group-screen";
-import { stepTabVisit, visitInTab } from "./tab-history";
+import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
 import { parseHref, sameHref } from "./window-href";
 
 /**
@@ -25,27 +25,57 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What an earlier build kept beside the tabs: the group on screen and the tab it had up. */
-export type StoredWindowTabs = Partial<WindowTabs> & {
+/**
+ * What an earlier build kept: the group on screen and the tab it had up
+ * beside the rest, and a screen's steps as a trail with a mark on it.
+ */
+export type StoredWindowTabs = Partial<Omit<WindowTabs, "tabs">> & {
   activeId?: null | string;
   group?: string;
   previousGroup?: string;
+  tabs?: (WindowTab & { at?: number; trail?: string[] })[];
 };
 
 /** A page tab of the window: a browser session of its own, in a group. */
 export type PageTab = Extract<WindowTab, { kind: "page" }>;
 
+/** A screen tab of the window: a route of its own, walked by a router of its own. */
+export type ScreenTab = Extract<WindowTab, { kind: "screen" }>;
+
+/** Where a screen tab's router has been, and where along it the tab stands. */
+type ScreenHistory = NonNullable<ScreenTab["history"]>;
+
 /**
  * The tabs as kept, read as this build keeps them: the tab the group on
- * screen had up becomes that group's, and a screen no group's tab may stand
- * on is dropped with its trail.
+ * screen had up becomes that group's, a screen's trail becomes its history,
+ * and a screen no group's tab may stand on is dropped with its history.
  */
 export function normalizeWindowTabs(stored: StoredWindowTabs): WindowTabs {
   const activeByGroup = { ...stored.activeByGroup };
   if (stored.group !== undefined && stored.activeId) {
     activeByGroup[stored.group] = stored.activeId;
   }
-  return { activeByGroup, tabs: groupScreenTabsOnly(stored.tabs ?? []) };
+  const tabs = (stored.tabs ?? []).map((tab): WindowTab => {
+    if (
+      tab.kind !== "screen" ||
+      (tab.trail === undefined && tab.at === undefined)
+    ) {
+      return tab;
+    }
+    const { at, trail, ...rest } = tab;
+    const entries = trail ?? [tab.href];
+    return {
+      ...rest,
+      history: {
+        entries,
+        index: Math.min(
+          Math.max(at ?? entries.length - 1, 0),
+          entries.length - 1,
+        ),
+      },
+    };
+  });
+  return { activeByGroup, tabs: groupScreenTabsOnly(tabs) };
 }
 
 /** A group's tabs, in strip order. */
@@ -65,16 +95,6 @@ export function upIn(
   }
   const own = tabsIn(state, group);
   return own.find((tab) => tab.id === state.activeByGroup[group]) ?? own[0];
-}
-
-/** Where along its trail a screen tab stands; the end of it, until back is used. */
-export function atOf(tab: undefined | WindowTab) {
-  return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
-}
-
-/** The screen addresses a screen tab has been at, oldest first. */
-export function trailOf(tab: undefined | WindowTab) {
-  return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }
 
 /**
@@ -121,15 +141,7 @@ export function addScreen(
     select: boolean;
   },
 ): WindowTabs {
-  const tab: WindowTab = {
-    at: 0,
-    group,
-    href,
-    id,
-    isOpened,
-    kind: "screen",
-    trail: [href],
-  };
+  const tab: WindowTab = { group, href, id, isOpened, kind: "screen" };
   const added = { ...state, tabs: [...state.tabs, tab] };
   return select ? pointAt(added, group, id) : added;
 }
@@ -178,24 +190,23 @@ export function openOrFocusScreen(
   }
   const up = isWaiting ? upIn(state, group) : undefined;
   if (up && isHomeTab(up)) {
-    const told = mapTab(state, up.id, (tab) => ({
-      ...tab,
-      at: 0,
-      future: [],
-      href,
-      isOpened,
-      trail: [href],
-    }));
+    const told = mapTab(state, up.id, (tab) => {
+      if (tab.kind !== "screen") {
+        return tab;
+      }
+      const { history: _left, ...rest } = tab;
+      return { ...rest, future: [], href, isOpened };
+    });
     return { id: up.id, state: select ? selectTab(told, up.id) : told };
   }
   return { id, state: addScreen(state, { group, href, id, isOpened, select }) };
 }
 
 /**
- * Where a screen tab is now: the screen inside it moved. The address joins
- * the tab's trail and drops what was ahead of it, the way a browser drops
- * the forward stack when you go somewhere new. The address it already stands
- * on moves nothing.
+ * Where a screen tab is now, by the tab: the screen inside it moved. The
+ * address joins its history and drops what was ahead of it, the way a
+ * browser drops the forward stack when you go somewhere new. The address it
+ * already stands on moves nothing.
  */
 export function visitScreen(
   state: WindowTabs,
@@ -206,14 +217,39 @@ export function visitScreen(
   if (tab?.kind !== "screen" || sameHref(tab.href, href)) {
     return state;
   }
-  const at = atOf(tab);
-  return mapTab(state, id, (entry) => ({
-    ...entry,
-    at: at + 1,
-    future: [],
+  const { entries, index } = historyOf(tab);
+  return screenMoved(state, id, {
+    history: {
+      entries: [...entries.slice(0, index + 1), href],
+      index: index + 1,
+    },
     href,
-    trail: [...trailOf(tab).slice(0, at + 1), href],
-  }));
+  });
+}
+
+/**
+ * A screen tab's router moved, and the tab follows: where it stands and the
+ * history behind and ahead of it. Nothing changes when nothing differs.
+ */
+export function screenMoved(
+  state: WindowTabs,
+  id: string,
+  { history, href }: { history: ScreenHistory; href: string },
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind !== "screen") {
+    return state;
+  }
+  const was = historyOf(tab);
+  if (
+    tab.href === href &&
+    was.index === history.index &&
+    was.entries.length === history.entries.length &&
+    was.entries.every((entry, at) => entry === history.entries[at])
+  ) {
+    return state;
+  }
+  return mapTab(state, id, (entry) => ({ ...entry, history, href }));
 }
 
 /**
@@ -229,7 +265,7 @@ export function navigateScreen(
     return replaceTab(
       state,
       up.id,
-      visitInTab(up, { at: 0, href, id, kind: "screen", trail: [href] }),
+      visitInTab(up, { href, id, kind: "screen" }),
     );
   }
   return up ? visitScreen(state, up.id, href) : state;
@@ -269,7 +305,7 @@ export function stepVisit(
     : { next: undefined, state };
 }
 
-/** A step along a screen tab's own trail: the address it now stands on, or nothing when it has none left. */
+/** A step along a screen tab's own history: the address it now stands on, or nothing when it has none left that way. */
 export function stepTrail(
   state: WindowTabs,
   id: string,
@@ -279,14 +315,15 @@ export function stepTrail(
   if (tab?.kind !== "screen") {
     return { href: undefined, state };
   }
-  const at = atOf(tab) + direction;
-  const href = trailOf(tab)[at];
+  const { entries } = historyOf(tab);
+  const index = historyOf(tab).index + direction;
+  const href = entries[index];
   if (href === undefined) {
     return { href: undefined, state };
   }
   return {
     href,
-    state: mapTab(state, id, (entry) => ({ ...entry, at, href })),
+    state: screenMoved(state, id, { history: { entries, index }, href }),
   };
 }
 
@@ -317,14 +354,7 @@ export function closeTab(
     !remaining.some((tab) => tab.group === group)
   ) {
     const href = newTabHrefOf(group);
-    const home: WindowTab = {
-      at: 0,
-      group,
-      href,
-      id: homeId,
-      kind: "screen",
-      trail: [href],
-    };
+    const home: WindowTab = { group, href, id: homeId, kind: "screen" };
     const tabs = [
       ...remaining.slice(0, index),
       home,

@@ -1,0 +1,723 @@
+{
+  "ahrefs": {
+    "source": "svgl",
+    "path": "ahrefs.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "airtable": {
+    "source": "logos",
+    "path": "airtable.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "alltrails": {
+    "source": "thesvg",
+    "path": "icons/alltrails/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "amplitude": {
+    "source": "logos",
+    "path": "amplitude-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "apify": {
+    "source": "site",
+    "url": "https://apify.com/apple-icon.png?apple-icon.1qabm0kj8blk6.png?dpl=9832c6f2e4",
+    "license": "trademark"
+  },
+  "apollo": {
+    "source": "site",
+    "url": "https://www.apollo.io/apple-icon.png",
+    "license": "trademark",
+    "override": "svgl and thesvg carry the mark Apollo retired"
+  },
+  "asana": {
+    "source": "svgl",
+    "path": "asana-logo.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "astro-docs": {
+    "source": "svgl",
+    "path": "astro-icon-light.svg",
+    "dark": "astro-icon-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "atlassian": {
+    "source": "svgl",
+    "path": "atlassian.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "attio": {
+    "source": "app-store",
+    "id": 1511545395,
+    "license": "trademark"
+  },
+  "audible": {
+    "source": "thesvg",
+    "path": "icons/audible/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "axiom": {
+    "source": "svgl",
+    "path": "axiom-light.svg",
+    "dark": "axiom-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "box": {
+    "source": "logos",
+    "path": "box.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "brex": {
+    "source": "thesvg",
+    "path": "icons/brex/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "browserbase": {
+    "source": "site",
+    "url": "https://browserbase.com/favicon.svg",
+    "license": "trademark"
+  },
+  "buildkite": {
+    "source": "logos",
+    "path": "buildkite-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "calendly": {
+    "source": "svgl",
+    "path": "calendly.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "canva": {
+    "source": "svgl",
+    "path": "canva.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT",
+    "override": "the sets match Canvas LMS by name; Canva is the service listed"
+  },
+  "clay": {
+    "source": "site",
+    "url": "https://cdn.prod.website-files.com/61477f2c24a826836f969afe/6a3a92ab3c92c9caa6245619_dot-com_favicon_2026_512.png",
+    "license": "trademark"
+  },
+  "clerk": {
+    "source": "thesvg",
+    "path": "icons/clerk/light.svg",
+    "dark": "icons/clerk/dark.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0",
+    "override": "svgl and logos carry the mark Clerk retired"
+  },
+  "clickup": {
+    "source": "svgl",
+    "path": "clickup.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "cloudflare": {
+    "source": "svgl",
+    "path": "cloudflare.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "cloudinary": {
+    "source": "svgl",
+    "path": "cloudinary.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "consensus": {
+    "source": "site",
+    "url": "https://consensus.app/images/icon-384.png",
+    "license": "trademark"
+  },
+  "convex": {
+    "source": "svgl",
+    "path": "convex.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "crossbeam": {
+    "source": "site",
+    "url": "https://cdn.prod.website-files.com/66955639e4d4a6eebd7168b9/669c18d1da1ae90bdf183976_crossbeam_icon256.png",
+    "license": "trademark"
+  },
+  "dovetail": {
+    "source": "logos",
+    "path": "dovetail-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "dropbox": {
+    "source": "svgl",
+    "path": "dropbox.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "exa": {
+    "source": "logos",
+    "path": "exa-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "excalidraw": {
+    "source": "thesvg",
+    "path": "icons/excalidraw/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "expo": {
+    "source": "svgl",
+    "path": "expo.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "fal": {
+    "source": "thesvg",
+    "path": "icons/fal/color.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "MIT"
+  },
+  "fathom": {
+    "source": "app-store",
+    "id": 6751613402,
+    "license": "trademark"
+  },
+  "figma": {
+    "source": "svgl",
+    "path": "figma.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "firecrawl": {
+    "source": "svgl",
+    "path": "firecrawl.svg",
+    "dark": "firecrawl-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "fireflies": {
+    "source": "app-store",
+    "id": 6463164203,
+    "license": "trademark"
+  },
+  "front": {
+    "source": "app-store",
+    "id": 983808769,
+    "license": "trademark",
+    "override": "every set carries the mark Front retired"
+  },
+  "gamma": {
+    "source": "app-store",
+    "id": 6768404578,
+    "license": "trademark"
+  },
+  "github": {
+    "source": "svgl",
+    "path": "github_light.svg",
+    "dark": "github_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "gitlab": {
+    "source": "svgl",
+    "path": "gitlab.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "globalping": {
+    "source": "site",
+    "url": "https://globalping.io/icons/apple-touch-icon.png",
+    "license": "trademark"
+  },
+  "google-workspace": {
+    "source": "svgl",
+    "path": "google.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT",
+    "override": "no set has a square Workspace mark, so the Google G stands in"
+  },
+  "grafana": {
+    "source": "svgl",
+    "path": "grafana.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "granola": {
+    "source": "svgl",
+    "path": "granola-light.svg",
+    "dark": "granola-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "greenhouse": {
+    "source": "thesvg",
+    "path": "icons/greenhouse/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "heroku": {
+    "source": "svgl",
+    "path": "heroku.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "hex": {
+    "source": "site",
+    "url": "https://hex.tech/favicon.svg",
+    "license": "trademark"
+  },
+  "hubspot": {
+    "source": "thesvg",
+    "path": "icons/hubspot/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "hugging-face": {
+    "source": "svgl",
+    "path": "hugging_face.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "incident-io": {
+    "source": "logos",
+    "path": "incident-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "instacart": {
+    "source": "thesvg",
+    "path": "icons/instacart/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "intercom": {
+    "source": "logos",
+    "path": "intercom-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "jam": {
+    "source": "site",
+    "url": "https://framerusercontent.com/images/PJzGWvCk8HH9Ho4kUWVsQtYI.png",
+    "license": "trademark"
+  },
+  "kiwi": {
+    "source": "app-store",
+    "id": 657843853,
+    "license": "trademark"
+  },
+  "klaviyo": {
+    "source": "site",
+    "url": "https://www.klaviyo.com/icons/icon-512x512.png",
+    "license": "trademark"
+  },
+  "linear": {
+    "source": "svgl",
+    "path": "linear.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "lucid": {
+    "source": "thesvg",
+    "path": "icons/lucid/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "make": {
+    "source": "thesvg",
+    "path": "icons/make/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "mem": {
+    "source": "app-store",
+    "id": 1578757028,
+    "license": "trademark"
+  },
+  "mercury": {
+    "source": "app-store",
+    "id": 1491984028,
+    "license": "trademark"
+  },
+  "mermaid-chart": {
+    "source": "svgl",
+    "path": "mermaid-logo-light.svg",
+    "dark": "mermaid-logo-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "microsoft-learn": {
+    "source": "svgl",
+    "path": "microsoft.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "miro": {
+    "source": "logos",
+    "path": "miro-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "mixpanel": {
+    "source": "thesvg",
+    "path": "icons/mixpanel/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "monday": {
+    "source": "logos",
+    "path": "monday-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "mongodb": {
+    "source": "svgl",
+    "path": "mongodb-icon-light.svg",
+    "dark": "mongodb-icon-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "motherduck": {
+    "source": "site",
+    "url": "https://motherduck.com/apple-touch-icon.png",
+    "license": "trademark"
+  },
+  "neon": {
+    "source": "svgl",
+    "path": "neon.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "netlify": {
+    "source": "svgl",
+    "path": "netlify.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "notion": {
+    "source": "svgl",
+    "path": "notion.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "otter": {
+    "source": "app-store",
+    "id": 1276437113,
+    "license": "trademark"
+  },
+  "oxylabs": {
+    "source": "site",
+    "url": "https://oxylabs.io/apple-touch-icon.png",
+    "license": "trademark"
+  },
+  "paddle": {
+    "source": "thesvg",
+    "path": "icons/paddle/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "pagerduty": {
+    "source": "logos",
+    "path": "pagerduty-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "paper": {
+    "source": "svgl",
+    "path": "paper.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "paypal": {
+    "source": "svgl",
+    "path": "paypal.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "peloton": {
+    "source": "thesvg",
+    "path": "icons/peloton/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "posthog": {
+    "source": "svgl",
+    "path": "posthog.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "postman": {
+    "source": "svgl",
+    "path": "postman.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "prisma": {
+    "source": "svgl",
+    "path": "prisma.svg",
+    "dark": "prisma_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "productboard": {
+    "source": "logos",
+    "path": "productboard-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "quickbooks": {
+    "source": "thesvg",
+    "path": "icons/quickbooks/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "railway": {
+    "source": "svgl",
+    "path": "railway.svg",
+    "dark": "railway_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "ramp": {
+    "source": "dashboard-icons",
+    "path": "svg/ramp.svg",
+    "version": "adca944175c9a3eb0471f78a4da87f237476d585",
+    "license": "Apache-2.0"
+  },
+  "razorpay": {
+    "source": "thesvg",
+    "path": "icons/razorpay/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "render": {
+    "source": "svgl",
+    "path": "render_black.svg",
+    "dark": "render_white.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "replicate": {
+    "source": "svgl",
+    "path": "replicate_light.svg",
+    "dark": "replicate_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "resend": {
+    "source": "svgl",
+    "path": "resend-icon-black.svg",
+    "dark": "resend-icon-white.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "sanity": {
+    "source": "thesvg",
+    "path": "icons/sanity/light.svg",
+    "dark": "icons/sanity/dark.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "MIT"
+  },
+  "semgrep": {
+    "source": "site",
+    "url": "https://semgrep.dev/build/assets/favicon-CIx-xpG_.svg",
+    "license": "trademark"
+  },
+  "sentry": {
+    "source": "svgl",
+    "path": "sentry.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "shopify": {
+    "source": "svgl",
+    "path": "shopify.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "shortcut": {
+    "source": "logos",
+    "path": "shortcut-icon.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "signnow": {
+    "source": "app-store",
+    "id": 489262811,
+    "license": "trademark"
+  },
+  "similarweb": {
+    "source": "thesvg",
+    "path": "icons/similarweb/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "slack": {
+    "source": "svgl",
+    "path": "slack.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "spotify": {
+    "source": "svgl",
+    "path": "spotify.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "square": {
+    "source": "logos",
+    "path": "square.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "squarespace": {
+    "source": "logos",
+    "path": "squarespace.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "stack-overflow": {
+    "source": "svgl",
+    "path": "stackoverflow.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "strava": {
+    "source": "thesvg",
+    "path": "icons/strava/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "stripe": {
+    "source": "svgl",
+    "path": "stripe.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "supabase": {
+    "source": "svgl",
+    "path": "supabase.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "superhuman": {
+    "source": "app-store",
+    "id": 1120837655,
+    "license": "trademark"
+  },
+  "supermetrics": {
+    "source": "site",
+    "url": "https://supermetrics.com/apple-touch-icon.png",
+    "license": "trademark"
+  },
+  "svelte": {
+    "source": "svgl",
+    "path": "svelte.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "tavily": {
+    "source": "thesvg",
+    "path": "icons/tavily/color.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "MIT"
+  },
+  "thumbtack": {
+    "source": "thesvg",
+    "path": "icons/thumbtack/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "todoist": {
+    "source": "svgl",
+    "path": "todoist.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "trivago": {
+    "source": "thesvg",
+    "path": "icons/trivago/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "vanta": {
+    "source": "site",
+    "url": "https://cdn.prod.website-files.com/64009032676f24f376f002fc/6a8611e0bb23845c59b54179_ilma-favicon.png",
+    "license": "trademark"
+  },
+  "vercel": {
+    "source": "svgl",
+    "path": "vercel.svg",
+    "dark": "vercel_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "wakatime": {
+    "source": "svgl",
+    "path": "wakatime-dark.svg",
+    "dark": "wakatime-light.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "webflow": {
+    "source": "svgl",
+    "path": "webflow.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "wix": {
+    "source": "logos",
+    "path": "wix.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "wolfram": {
+    "source": "thesvg",
+    "path": "icons/wolfram/default.svg",
+    "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
+    "license": "CC0-1.0"
+  },
+  "workos": {
+    "source": "svgl",
+    "path": "workos.svg",
+    "dark": "workos-light.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "xero": {
+    "source": "logos",
+    "path": "xero.svg",
+    "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
+    "license": "CC0-1.0"
+  },
+  "zapier": {
+    "source": "iconify-logos",
+    "path": "zapier-icon",
+    "version": "1.2.15",
+    "license": "CC0-1.0"
+  },
+  "zoom": {
+    "source": "svgl",
+    "path": "zoom.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "zoominfo": {
+    "source": "app-store",
+    "id": 1493170277,
+    "license": "trademark"
+  }
+}

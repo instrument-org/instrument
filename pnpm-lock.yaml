@@ -9130,9 +9130,6 @@ packages:
   tldts-core@7.4.16:
     resolution: {integrity: sha512-MDolfaSJtlSK5Y0A1xl3277ekubZwobpBjugknDizI9O5Rm60a1m8k4ICK+MRsCDzPygT81mp3BBf5RKDlFRfA==}
 
-  tldts-core@7.4.6:
-    resolution: {integrity: sha512-TkQNGJIhlEphpHCjKodMTSe23egUZr/g+flI2qkLgiJ/maAzSgXypSLRTNH3nCmqgayEmtcJBiLcfODSAr1xoA==}
-
   tldts-experimental@7.4.16:
     resolution: {integrity: sha512-H1gI3Toi/7PoMRmBIX9K2cyWIEdxjW0F4ygsVRtsCM1thOZwa3zFc8SowUttgd0UhVUR2ahRbgUHEKrxj7WZ3w==}
 
@@ -18459,15 +18456,13 @@ snapshots:
 
   tldts-core@7.4.16: {}
 
-  tldts-core@7.4.6: {}
-
   tldts-experimental@7.4.16:
     dependencies:
       tldts-core: 7.4.16
 
   tldts@7.4.6:
     dependencies:
-      tldts-core: 7.4.6
+      tldts-core: 7.4.16
 
   tmp-promise@3.0.3:
     dependencies:

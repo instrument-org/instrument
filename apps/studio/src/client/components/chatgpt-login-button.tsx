@@ -26,6 +26,7 @@ export function ChatGPTLoginButton({
 }) {
   const [opening, setOpening] = useState(false);
   const openingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [declinedAccountId, setDeclinedAccountId] = useState<string>();
   useEffect(
     () => () => {
       clearTimeout(openingTimer.current);
@@ -39,17 +40,18 @@ export function ChatGPTLoginButton({
           description: isDefinedError(error) ? error.message : undefined,
         });
       },
-      onSuccess: async (result) => {
-        if (result.state === "signed-in") {
+      onSuccess: async (account) => {
+        if (account?.state === "signed-in") {
           // The app opens on a chat next, so it waits for the plan's model
           // to be the default rather than open on the one before it.
           await rpcClient.chatgptPlan.chooseDefaultModel
-            .call({})
+            .call({ accountId: account.id })
             .catch(() => {});
           onSuccess();
-        } else if (result.state === "plan-disabled") {
+        } else if (account?.state === "plan-disabled") {
           // Signed in, but the plan was not shared with the app, so there is
-          // nothing to run on yet.
+          // nothing to run on yet. The next press asks that account again.
+          setDeclinedAccountId(account.id);
           toast.error(`${APP_NAME} isn't allowed to use your plan yet`, {
             description: "Continue with ChatGPT again and allow plan use.",
           });
@@ -68,7 +70,7 @@ export function ChatGPTLoginButton({
         openingTimer.current = setTimeout(() => {
           setOpening(false);
         }, OPENING_MS);
-        signIn.mutate({});
+        signIn.mutate({ accountId: declinedAccountId });
       }}
       type="button"
       variant="outline"

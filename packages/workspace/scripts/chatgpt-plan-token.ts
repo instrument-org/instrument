@@ -1,8 +1,11 @@
 /**
- * Print the ChatGPT plan access token Studio holds for its signed-in account,
+ * Print the ChatGPT plan access token Studio holds for a signed-in account,
  * so a script or an eval can run against the plan the way the app does:
  *
  *   APP_CHATGPT_PLAN_TOKEN=$(pnpm --silent script:chatgpt-plan-token) pnpm eval run ...
+ *
+ * With several accounts signed in, `--email <address>` picks one; without it,
+ * the first one signed in answers.
  *
  * A packaged build keeps the store encrypted with Electron's safeStorage, which
  * on macOS is Chromium's OSCrypt: an AES-128-CBC key derived from the app's
@@ -24,18 +27,22 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 
 const { values } = parseArgs({
-  options: { dev: { default: false, type: "boolean" } },
+  options: {
+    dev: { default: false, type: "boolean" },
+    email: { type: "string" },
+  },
 });
 
 const StoreSchema = z.object({
-  accounts: z.record(
+  registrations: z.record(
     z.string(),
     z.object({
       accessToken: z.string().optional(),
+      addedAt: z.number(),
+      email: z.string().optional(),
       expiresAt: z.number().optional(),
     }),
   ),
-  activeSubject: z.string().optional(),
 });
 
 const userData = path.join(
@@ -69,12 +76,16 @@ const store = StoreSchema.parse(
   ),
 );
 
-const account = store.activeSubject
-  ? store.accounts[store.activeSubject]
-  : undefined;
+const account = Object.values(store.registrations)
+  .toSorted((a, b) => a.addedAt - b.addedAt)
+  .find(
+    (candidate) =>
+      candidate.accessToken &&
+      (values.email === undefined || candidate.email === values.email),
+  );
 if (!account?.accessToken) {
   throw new Error(
-    `No ChatGPT account is signed in to ${path.basename(userData)}`,
+    `No ChatGPT account${values.email ? ` ${values.email}` : ""} is signed in to ${path.basename(userData)}`,
   );
 }
 
@@ -88,7 +99,7 @@ if (minutesLeft <= 0) {
 }
 
 process.stderr.write(
-  `ChatGPT plan token valid for ${minutesLeft} more minutes\n`,
+  `ChatGPT plan token for ${account.email ?? "the account"} valid for ${minutesLeft} more minutes\n`,
 );
 process.stdout.write(account.accessToken);
 

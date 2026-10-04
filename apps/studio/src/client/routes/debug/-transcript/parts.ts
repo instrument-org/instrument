@@ -2,7 +2,10 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
-import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import {
   AbsolutePathSchema,
   FolderAttachment,
@@ -46,7 +49,10 @@ export const CHATGPT_PLAN_MODEL: AIGatewayModel.Type = {
   canonicalId: "gpt-5.6-sol" as AIGatewayModel.CanonicalId,
   features: ["inputText", "outputText", "tools"],
   name: "GPT-5.6 Sol",
-  params: { provider: "chatgpt", providerConfigId: "chatgpt-plan" },
+  params: {
+    provider: "chatgpt",
+    providerConfigId: AIProviderConfigIdSchema.parse("chatgpt-plan"),
+  },
   providerId: "gpt-5.6-sol" as AIGatewayModel.ProviderId,
   providerName: "ChatGPT plan",
   tags: [],

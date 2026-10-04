@@ -339,12 +339,15 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
     });
   }
 
-  // The plan Studio signs in to with ChatGPT, under the config id the app
-  // uses, so a model URI copied from a real transcript runs here unchanged.
+  // A plan Studio signs in to with ChatGPT, under the fixed id
+  // `chatgpt-plan`. The app gives each account an id of its own, so a model
+  // URI copied from a real transcript needs its `providerConfigId` swapped.
   if (env.APP_CHATGPT_PLAN_TOKEN) {
     configs.push({
       ...CHATGPT_PLAN_PROVIDER_CONFIG,
       apiKey: env.APP_CHATGPT_PLAN_TOKEN,
+      cacheIdentifier: "chatgpt-plan",
+      id: AIProviderConfigIdSchema.parse("chatgpt-plan"),
     });
   }
 

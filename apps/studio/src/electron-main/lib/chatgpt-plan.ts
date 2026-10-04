@@ -3,7 +3,11 @@ import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
-import { APP_NAME, CHATGPT_PLAN_PROVIDER_CONFIG } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  APP_NAME,
+  CHATGPT_PLAN_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { safeStorage, shell } from "electron";
 import Store from "electron-store";
 import {
@@ -14,14 +18,23 @@ import {
   randomUUID,
   verify,
 } from "node:crypto";
+import { ulid } from "ulid";
 import { z } from "zod";
 
 /**
- * Sign in with ChatGPT for the user's own plan: an OAuth public client that
- * registers this installation as an agent host on first sign-in, then sends
- * the account's access token as the bearer on Responses API requests. Tokens
- * never leave the main process; the gateway reads the current one through the
- * synthesized provider config.
+ * Sign in with ChatGPT for the user's own plans: an OAuth public client that
+ * registers this installation as an agent host once per ChatGPT account, then
+ * sends that account's access token as the bearer on Responses API requests.
+ *
+ * Each sign-in is a registration: one ChatGPT user in one workspace, with the
+ * client id OpenAI issued for it and its own tokens. A person can hold several
+ * (a personal plan and a work one, on the same email or not), and each is its
+ * own provider config, so a chat runs on the account its model names. Nothing
+ * here moves a request from one account to another: OpenAI's Sign in with
+ * ChatGPT Terms forbid rotating accounts to get past usage limits.
+ *
+ * Tokens never leave the main process; the gateway reads the current ones
+ * through the synthesized provider configs.
  */
 
 const log = logger.scope("chatgpt-plan");
@@ -53,28 +66,34 @@ const TokenResponseSchema = z.object({
   scope: z.string().optional(),
 });
 
-const AccountSchema = z.object({
+const RegistrationSchema = z.object({
   accessToken: z.string().optional(),
+  /** Unix milliseconds of the first sign-in, which orders the accounts. */
+  addedAt: z.number(),
+  /** Issued by OpenAI for this user and workspace on this host. */
   clientId: z.string(),
   // Unix milliseconds before which a refresh is refused.
   earliestRefreshAt: z.number().optional(),
   email: z.string().optional(),
   expiresAt: z.number().optional(),
+  /** Ours, and the provider config id its models' URIs carry. */
+  id: AIProviderConfigIdSchema,
   name: z.string().optional(),
   refreshToken: z.string().optional(),
   scopes: z.array(z.string()).default([]),
+  /** The validated ID-token subject, which two workspaces of one user share. */
   subject: z.string(),
 });
-type Account = z.output<typeof AccountSchema>;
+type Registration = z.output<typeof RegistrationSchema>;
 
 const StoreSchema = z.object({
-  // Accounts are keyed by the validated ID-token subject. A signed-out
-  // account keeps its issued client id so signing in again reuses it.
-  accounts: z.record(z.string(), AccountSchema).default({}),
-  activeSubject: z.string().optional(),
   // One per installation, chosen before the first sign-in and never derived
-  // from the account.
+  // from an account.
   hostId: z.string().optional(),
+  // Keyed by `id`. A registration whose session ended elsewhere stays, without
+  // tokens, so signing in to it again reuses its client id; signing out
+  // removes it.
+  registrations: z.record(z.string(), RegistrationSchema).default({}),
 });
 type StoreShape = z.output<typeof StoreSchema>;
 
@@ -82,86 +101,131 @@ let STORE: null | Store<StoreShape> = null;
 
 interface PendingSignIn {
   deliver: (params: URLSearchParams) => void;
-  promise: Promise<ChatGPTPlanStatus>;
+  promise: Promise<ChatGPTSignInResult>;
   supersede: () => void;
 }
 
 let pendingSignIn: null | PendingSignIn = null;
 
 const VERIFY_EVERY_MS = 30 * 1000;
-let lastVerifiedAt = 0;
+const lastVerifiedAt = new Map<string, number>();
 
-export type ChatGPTPlanStatus =
-  | { email?: string; state: "plan-disabled" }
-  | { email?: string; state: "signed-in" }
-  | { state: "signed-out" }
-  | { state: "signing-in" };
+export type ChatGPTAccountState = "plan-disabled" | "signed-in" | "signed-out";
+
+export interface ChatGPTAccountStatus {
+  email?: string;
+  id: string;
+  /** What the account is called wherever accounts sit side by side. */
+  label: string;
+  state: ChatGPTAccountState;
+}
+
+export interface ChatGPTPlanStatus {
+  /** In the order they were first signed in to. */
+  accounts: ChatGPTAccountStatus[];
+  signingIn: boolean;
+}
+
+/** The account a sign-in landed on, or undefined when it was canceled or replaced. */
+export type ChatGPTSignInResult = ChatGPTAccountStatus | undefined;
 
 /**
- * The provider config for the active account, when it may use its plan. The
- * token in it is whatever is current; one close to expiring starts a refresh
- * so the next request carries the replacement.
+ * A provider config for each account that may use its plan. The token in each
+ * is whatever is current; one close to expiring starts a refresh so the next
+ * request carries the replacement.
  */
-export function chatGPTPlanProviderConfig():
-  | AIGatewayProviderConfig.Type
-  | undefined {
-  const account = activeAccount();
-  if (!account?.accessToken || !account.scopes.includes(PLAN_SCOPE)) {
-    return undefined;
-  }
-  if ((account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-    void refreshActiveAccount();
-  }
-  return { ...CHATGPT_PLAN_PROVIDER_CONFIG, apiKey: account.accessToken };
+export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
+  const all = registrations();
+  return all.flatMap((registration) => {
+    if (
+      !registration.accessToken ||
+      !registration.scopes.includes(PLAN_SCOPE)
+    ) {
+      return [];
+    }
+    if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
+      void refreshRegistration(registration.id);
+    }
+    return [
+      {
+        ...CHATGPT_PLAN_PROVIDER_CONFIG,
+        apiKey: registration.accessToken,
+        cacheIdentifier: `chatgpt-plan-${registration.id}`,
+        displayName:
+          all.length === 1
+            ? CHATGPT_PLAN_PROVIDER_CONFIG.displayName
+            : labelFor(registration, all),
+        id: registration.id,
+      },
+    ];
+  });
 }
 
 /**
- * Who the signed-in ChatGPT account belongs to, as its ID token named them:
- * the email, and the name when the token carried one. Undefined while signed
- * out.
+ * Who the first signed-in ChatGPT account belongs to, as its ID token named
+ * them: the email, and the name when the token carried one. Undefined while
+ * no account is signed in.
  */
 export function chatGPTPlanUser():
   | undefined
   | { email: string; name?: string } {
-  const account = activeAccount();
-  return account?.refreshToken && account.email
-    ? { email: account.email, name: account.name }
+  const registration = registrations().find(
+    (candidate) => candidate.refreshToken && candidate.email,
+  );
+  return registration?.email
+    ? { email: registration.email, name: registration.name }
     : undefined;
 }
 
 export function chatGPTPlanStatus(): ChatGPTPlanStatus {
-  return pendingSignIn ? { state: "signing-in" } : accountStatus();
+  const all = registrations();
+  return {
+    accounts: all.map((registration) => accountStatus(registration, all)),
+    signingIn: pendingSignIn !== null,
+  };
 }
 
 /**
- * Whether the active account's session still stands, asked of the API. A
+ * Whether each account's session still stands, asked of the API. A
  * disconnect in ChatGPT's settings reaches us only as a refused request, so
  * the settings card asks when it opens rather than showing a session that
  * ended elsewhere as signed in.
  */
-export async function verifyActiveAccount(): Promise<void> {
-  let account = activeAccount();
-  if (!account?.accessToken || Date.now() - lastVerifiedAt < VERIFY_EVERY_MS) {
+export async function verifyAccounts(): Promise<void> {
+  await Promise.all(
+    registrations().map((registration) => verifyAccount(registration.id)),
+  );
+}
+
+async function verifyAccount(id: string): Promise<void> {
+  let registration = registrationById(id);
+  if (
+    !registration?.accessToken ||
+    Date.now() - (lastVerifiedAt.get(id) ?? 0) < VERIFY_EVERY_MS
+  ) {
     return;
   }
-  lastVerifiedAt = Date.now();
+  lastVerifiedAt.set(id, Date.now());
   // A refused expired token says nothing about the session, which the
   // refresh token still holds, so an old one is replaced before asking. A
   // refresh that could not finish leaves the question for the next time.
-  if ((account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-    await refreshActiveAccount();
-    account = activeAccount();
-    if (!account?.accessToken || (account.expiresAt ?? 0) <= Date.now()) {
+  if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
+    await refreshRegistration(id);
+    registration = registrationById(id);
+    if (
+      !registration?.accessToken ||
+      (registration.expiresAt ?? 0) <= Date.now()
+    ) {
       return;
     }
   }
   try {
     const response = await fetch(`${RESOURCE}/models`, {
-      headers: { Authorization: `Bearer ${account.accessToken}` },
+      headers: { Authorization: `Bearer ${registration.accessToken}` },
     });
     if (response.status === 401) {
-      log.warn("ChatGPT refused the session; signing in again is required");
-      saveUnlessReplaced(account, withoutTokens(account));
+      log.warn("ChatGPT refused a session; signing in again is required");
+      saveUnlessReplaced(registration, withoutTokens(registration));
     }
   } catch (error) {
     // Offline says nothing about the session.
@@ -169,27 +233,54 @@ export async function verifyActiveAccount(): Promise<void> {
   }
 }
 
-// The account's own state, apart from a sign-in in flight: what a sign-in
-// that just finished reports, while it is still the one pending.
-function accountStatus(): ChatGPTPlanStatus {
-  const account = activeAccount();
-  if (!account?.refreshToken) {
-    return { state: "signed-out" };
-  }
-  return account.scopes.includes(PLAN_SCOPE)
-    ? { email: account.email, state: "signed-in" }
-    : { email: account.email, state: "plan-disabled" };
+function accountStatus(
+  registration: Registration,
+  all: Registration[],
+): ChatGPTAccountStatus {
+  return {
+    email: registration.email,
+    id: registration.id,
+    label: labelFor(registration, all),
+    state: !registration.refreshToken
+      ? "signed-out"
+      : registration.scopes.includes(PLAN_SCOPE)
+        ? "signed-in"
+        : "plan-disabled",
+  };
 }
 
-function activeAccount(): Account | undefined {
-  const store = getStore();
-  const subject = store.get("activeSubject");
-  return subject ? store.get("accounts")[subject] : undefined;
+/**
+ * The account's email, numbered from the second registration on that email:
+ * one ChatGPT user registers once per workspace, and nothing OpenAI returns
+ * names the workspace.
+ */
+export function labelFor(
+  registration: Pick<Registration, "email" | "id">,
+  all: Pick<Registration, "email" | "id">[],
+): string {
+  const email = registration.email ?? "ChatGPT account";
+  const sameEmail = all.filter(
+    (candidate) => candidate.email === registration.email,
+  );
+  const position = sameEmail.findIndex(
+    (candidate) => candidate.id === registration.id,
+  );
+  return position > 0 ? `${email} (${String(position + 1)})` : email;
+}
+
+function registrations(): Registration[] {
+  return Object.values(getStore().get("registrations")).toSorted(
+    (a, b) => a.addedAt - b.addedAt,
+  );
+}
+
+function registrationById(id: string): Registration | undefined {
+  return getStore().get("registrations")[id];
 }
 
 function getStore(): Store<StoreShape> {
   if (!STORE) {
-    const defaults: StoreShape = { accounts: {} };
+    const defaults: StoreShape = { registrations: {} };
     STORE = new Store<StoreShape>({
       cwd: workspaceSettingsDir(),
       defaults,
@@ -244,34 +335,38 @@ function hostId(): string {
 
 /**
  * Writes what a request spending `spent`'s grant came back with, unless that
- * grant was replaced while the request was out: a sign-out stripped it, or a
+ * grant was replaced while the request was out: a sign-out removed it, or a
  * sign-in brought a new one. The answer describes a grant that is gone, and
  * writing it would bring back tokens the user signed out of or overwrite the
  * ones they just signed in with.
  */
-function saveUnlessReplaced(spent: Account, next: Account) {
-  const stored = getStore().get("accounts")[spent.subject];
+function saveUnlessReplaced(spent: Registration, next: Registration) {
+  const stored = registrationById(spent.id);
   if (
-    stored?.refreshToken !== spent.refreshToken ||
-    stored?.accessToken !== spent.accessToken
+    !stored ||
+    stored.refreshToken !== spent.refreshToken ||
+    stored.accessToken !== spent.accessToken
   ) {
     log.info(
       "ChatGPT grant changed while a request was out; dropping its answer",
     );
     return;
   }
-  saveAccount(next, { activate: false });
+  saveRegistration(next);
 }
 
-function saveAccount(account: Account, { activate }: { activate: boolean }) {
+function saveRegistration(registration: Registration) {
   const store = getStore();
-  store.set("accounts", {
-    ...store.get("accounts"),
-    [account.subject]: account,
+  store.set("registrations", {
+    ...store.get("registrations"),
+    [registration.id]: registration,
   });
-  if (activate) {
-    store.set("activeSubject", account.subject);
-  }
+}
+
+function removeRegistration(id: string) {
+  const store = getStore();
+  const { [id]: _removed, ...rest } = store.get("registrations");
+  store.set("registrations", rest);
 }
 
 /**
@@ -310,7 +405,7 @@ class TokenError extends Error {
  */
 export function receiveChatGPTCallback(
   params: URLSearchParams,
-): Promise<ChatGPTPlanStatus> | undefined {
+): Promise<ChatGPTSignInResult> | undefined {
   if (!pendingSignIn) {
     return undefined;
   }
@@ -319,15 +414,19 @@ export function receiveChatGPTCallback(
 }
 
 /**
- * Start a sign-in in the user's browser. Asking again while one is waiting
- * replaces it, so a tab that was closed or never opened is got past by
- * continuing again rather than by canceling first.
+ * Start a sign-in in the user's browser: to the account `accountId` names,
+ * which reuses its registration, or else to whichever account the browser
+ * signs in to, which registers it unless this host already has. Asking again
+ * while one is waiting replaces it, so a tab that was closed or never opened
+ * is got past by continuing again rather than by canceling first.
  */
 export function signInWithChatGPT({
+  accountId,
   callbackPort,
 }: {
+  accountId?: string;
   callbackPort: number;
-}): Promise<ChatGPTPlanStatus> {
+}): Promise<ChatGPTSignInResult> {
   pendingSignIn?.supersede();
   const controls: {
     deliver: (params: URLSearchParams) => void;
@@ -352,6 +451,7 @@ export function signInWithChatGPT({
     promise: runSignIn({
       received,
       redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
+      target: accountId ? registrationById(accountId) : undefined,
     }).finally(() => {
       if (pendingSignIn === entry) {
         pendingSignIn = null;
@@ -364,19 +464,16 @@ export function signInWithChatGPT({
   return entry.promise;
 }
 
-function accountFromTokens(
+function registrationFromTokens(
   tokens: z.output<typeof TokenResponseSchema>,
-  identity: {
-    clientId: string;
-    email?: string;
-    name?: string;
-    subject: string;
-  },
-  previous?: Account,
-): Account {
+  identity: Pick<Registration, "addedAt" | "clientId" | "id" | "subject"> &
+    Pick<Partial<Registration>, "email" | "name">,
+  previous?: Registration,
+): Registration {
   const now = Date.now();
   return {
     accessToken: tokens.access_token,
+    addedAt: identity.addedAt,
     clientId: identity.clientId,
     earliestRefreshAt:
       tokens.earliest_refresh_at === undefined
@@ -384,17 +481,12 @@ function accountFromTokens(
         : tokens.earliest_refresh_at * 1000,
     email: identity.email ?? previous?.email,
     expiresAt: now + tokens.expires_in * 1000,
+    id: identity.id,
     name: identity.name ?? previous?.name,
     refreshToken: tokens.refresh_token ?? previous?.refreshToken,
     scopes: tokens.scope ? tokens.scope.split(" ") : (previous?.scopes ?? []),
     subject: identity.subject,
   };
-}
-
-// The account to sign back in to: the active one, or else the one most
-// recently signed out of on this host.
-function lastAccount(): Account | undefined {
-  return activeAccount() ?? Object.values(getStore().get("accounts"))[0];
 }
 
 function noop() {
@@ -417,12 +509,13 @@ async function postToken(form: Record<string, string>) {
 async function runSignIn({
   received,
   redirectURI,
+  target,
 }: {
   received: Promise<null | URLSearchParams>;
   redirectURI: string;
-}): Promise<ChatGPTPlanStatus> {
-  const returning = lastAccount();
-  const clientId = returning?.clientId ?? DYNAMIC_CLIENT_ID;
+  target: Registration | undefined;
+}): Promise<ChatGPTSignInResult> {
+  const clientId = target?.clientId ?? DYNAMIC_CLIENT_ID;
   const state = base64url(randomBytes(32));
   const nonce = base64url(randomBytes(32));
   const verifier = base64url(randomBytes(32));
@@ -442,10 +535,10 @@ async function runSignIn({
   });
   if (clientId === DYNAMIC_CLIENT_ID) {
     params.set("agent_name_hint", APP_NAME);
-  } else if (returning?.email) {
-    params.set("login_hint", returning.email);
+  } else if (target?.email) {
+    params.set("login_hint", target.email);
   }
-  if (returning?.scopes.length && !returning.scopes.includes(PLAN_SCOPE)) {
+  if (target?.scopes.length && !target.scopes.includes(PLAN_SCOPE)) {
     // Asked again after the plan was declined: show the consent screen.
     params.set("prompt", "consent");
   }
@@ -454,7 +547,7 @@ async function runSignIn({
 
   const callback = await received;
   if (!callback) {
-    return accountStatus();
+    return undefined;
   }
   if (callback.get("state") !== state) {
     throw new Error("The sign-in response did not match this attempt");
@@ -462,7 +555,7 @@ async function runSignIn({
   const error = callback.get("error");
   if (error) {
     if (error === "access_denied") {
-      return accountStatus();
+      return undefined;
     }
     throw new Error(
       `ChatGPT sign-in failed: ${callback.get("error_description") ?? error}`,
@@ -498,25 +591,32 @@ async function runSignIn({
     clientId: issuedClientId,
     nonce,
   });
-  if (
-    returning &&
-    clientId !== DYNAMIC_CLIENT_ID &&
-    claims.sub !== returning.subject
-  ) {
-    throw new Error("Signed in to a different ChatGPT account");
+  if (target && claims.sub !== target.subject) {
+    throw new Error(
+      `Signed in to a different ChatGPT account than ${target.email ?? "this one"}. Add it as another account instead.`,
+    );
   }
 
-  saveAccount(
-    accountFromTokens(tokens, {
+  // A registration OpenAI handed back again, for an account this host already
+  // knows, updates that account rather than listing it twice.
+  const existing =
+    target ??
+    registrations().find((candidate) => candidate.clientId === issuedClientId);
+  const registration = registrationFromTokens(
+    tokens,
+    {
+      addedAt: existing?.addedAt ?? Date.now(),
       clientId: issuedClientId,
       email: claims.email,
+      id: existing?.id ?? AIProviderConfigIdSchema.parse(ulid()),
       name: claims.name,
       subject: claims.sub,
-    }),
-    { activate: true },
+    },
+    existing,
   );
-  scheduleRefresh();
-  return accountStatus();
+  saveRegistration(registration);
+  scheduleRegistrationRefresh(registration.id);
+  return accountStatus(registration, registrations());
 }
 
 const UNUSABLE_REFRESH_CODES = new Set([
@@ -528,25 +628,38 @@ const UNUSABLE_REFRESH_CODES = new Set([
   "token_expired",
 ]);
 
-let refreshing: null | Promise<void> = null;
-let refreshTimer: NodeJS.Timeout | undefined;
+// Per registration: each has its own rotating refresh token and its own clock.
+const refreshing = new Map<string, Promise<void>>();
+const refreshTimers = new Map<string, NodeJS.Timeout>();
 /** Refreshes that failed in a row, for how long to wait before the next. */
-let failedRefreshes = 0;
+const failedRefreshes = new Map<string, number>();
 /** The longest wait between refreshes that keep failing. */
 const MAX_REFRESH_BACKOFF_MS = 5 * 60 * 1000;
 
-/** Keep the active account's token fresh; call once at startup. */
+/** Keep every account's token fresh; call once at startup. */
 export function scheduleRefresh(): void {
-  clearTimeout(refreshTimer);
-  const account = activeAccount();
-  if (!account?.refreshToken) {
+  for (const registration of registrations()) {
+    scheduleRegistrationRefresh(registration.id);
+  }
+}
+
+function scheduleRegistrationRefresh(id: string): void {
+  clearTimeout(refreshTimers.get(id));
+  refreshTimers.delete(id);
+  const registration = registrationById(id);
+  if (!registration?.refreshToken) {
     return;
   }
-  refreshTimer = setTimeout(
-    () => void refreshActiveAccount(),
-    refreshDelayMs({ account, failures: failedRefreshes, now: Date.now() }),
+  const timer = setTimeout(
+    () => void refreshRegistration(id),
+    refreshDelayMs({
+      account: registration,
+      failures: failedRefreshes.get(id) ?? 0,
+      now: Date.now(),
+    }),
   );
-  refreshTimer.unref();
+  timer.unref();
+  refreshTimers.set(id, timer);
 }
 
 /**
@@ -559,7 +672,7 @@ export function refreshDelayMs({
   failures,
   now,
 }: {
-  account: Pick<Account, "earliestRefreshAt" | "expiresAt">;
+  account: Pick<Registration, "earliestRefreshAt" | "expiresAt">;
   /** Refreshes that failed in a row. */
   failures: number;
   now: number;
@@ -577,45 +690,53 @@ export function refreshDelayMs({
 }
 
 /**
- * Catch the token up after the machine wakes. The refresh timer counts on a
- * clock that stops while the machine sleeps, so after a sleep longer than the
- * token's hour it is still waiting for a token that has already expired, and
+ * Catch the tokens up after the machine wakes. The refresh timers count on a
+ * clock that stops while the machine sleeps, so after a sleep longer than a
+ * token's hour one is still waiting for a token that has already expired, and
  * the first request after waking would carry it. A token still good is left
  * to a timer counted again from now.
  */
 export function refreshAfterWake(): void {
-  const account = activeAccount();
-  if (!account?.refreshToken) {
-    return;
-  }
-  if ((account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-    void refreshActiveAccount();
-  } else {
-    scheduleRefresh();
+  for (const registration of registrations()) {
+    if (!registration.refreshToken) {
+      continue;
+    }
+    if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
+      void refreshRegistration(registration.id);
+    } else {
+      scheduleRegistrationRefresh(registration.id);
+    }
   }
 }
 
-export async function signOutOfChatGPT(): Promise<{ revoked: boolean }> {
+/** Sign out of one account and forget it. */
+export async function signOutOfChatGPT({
+  accountId,
+}: {
+  accountId: string;
+}): Promise<{ revoked: boolean }> {
   // A refresh in flight spends the refresh token and brings back its
   // replacement. Waited out, so the token revoked below is the current one.
-  await refreshing;
-  const account = activeAccount();
-  if (!account) {
+  await refreshing.get(accountId);
+  const registration = registrationById(accountId);
+  if (!registration) {
     return { revoked: true };
   }
-  clearTimeout(refreshTimer);
+  clearTimeout(refreshTimers.get(accountId));
+  refreshTimers.delete(accountId);
+  failedRefreshes.delete(accountId);
+  lastVerifiedAt.delete(accountId);
   // Gone from the store before the revocation is asked, so nothing that starts
   // meanwhile can spend the token or keep it.
-  saveAccount(withoutTokens(account), { activate: false });
-  getStore().delete("activeSubject");
-  let revoked = !account.refreshToken;
-  if (account.refreshToken) {
+  removeRegistration(accountId);
+  let revoked = !registration.refreshToken;
+  if (registration.refreshToken) {
     try {
       const discovery = await openIdConfiguration();
       const response = await fetch(discovery.revocation_endpoint, {
         body: new URLSearchParams({
-          client_id: account.clientId,
-          token: account.refreshToken,
+          client_id: registration.clientId,
+          token: registration.refreshToken,
           token_type_hint: "refresh_token",
         }),
         headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -629,55 +750,68 @@ export async function signOutOfChatGPT(): Promise<{ revoked: boolean }> {
   return { revoked };
 }
 
-async function doRefresh(): Promise<void> {
-  const account = activeAccount();
-  if (!account?.refreshToken) {
+async function doRefresh(id: string): Promise<void> {
+  const registration = registrationById(id);
+  if (!registration?.refreshToken) {
     return;
   }
-  if (account.earliestRefreshAt && Date.now() < account.earliestRefreshAt) {
+  if (
+    registration.earliestRefreshAt &&
+    Date.now() < registration.earliestRefreshAt
+  ) {
     return;
   }
   try {
     const tokens = await postToken({
-      client_id: account.clientId,
+      client_id: registration.clientId,
       grant_type: "refresh_token",
-      refresh_token: account.refreshToken,
+      refresh_token: registration.refreshToken,
       resource: RESOURCE,
     });
-    saveUnlessReplaced(account, accountFromTokens(tokens, account, account));
-    failedRefreshes = 0;
+    saveUnlessReplaced(
+      registration,
+      registrationFromTokens(tokens, registration, registration),
+    );
+    failedRefreshes.delete(id);
   } catch (error) {
     if (
       error instanceof TokenError &&
       UNUSABLE_REFRESH_CODES.has(error.code ?? "")
     ) {
       log.warn("ChatGPT session ended; signing in again is required");
-      saveUnlessReplaced(account, withoutTokens(account));
+      saveUnlessReplaced(registration, withoutTokens(registration));
       return;
     }
     // A network or server failure keeps the credentials for the next try.
-    failedRefreshes += 1;
+    failedRefreshes.set(id, (failedRefreshes.get(id) ?? 0) + 1);
     log.warn("ChatGPT token refresh failed", error);
   }
 }
 
-// One refresh at a time: the refresh token rotates, so two racing requests
-// would spend it twice and lose the session.
-function refreshActiveAccount(): Promise<void> {
-  refreshing ??= doRefresh().finally(() => {
-    refreshing = null;
-    scheduleRefresh();
-  });
-  return refreshing;
+// One refresh at a time per account: the refresh token rotates, so two racing
+// requests would spend it twice and lose the session.
+function refreshRegistration(id: string): Promise<void> {
+  let inFlight = refreshing.get(id);
+  if (!inFlight) {
+    inFlight = doRefresh(id).finally(() => {
+      refreshing.delete(id);
+      scheduleRegistrationRefresh(id);
+    });
+    refreshing.set(id, inFlight);
+  }
+  return inFlight;
 }
 
-function withoutTokens(account: Account): Account {
+function withoutTokens(registration: Registration): Registration {
   return {
-    clientId: account.clientId,
-    email: account.email,
+    addedAt: registration.addedAt,
+    clientId: registration.clientId,
+    email: registration.email,
+    id: registration.id,
+    name: registration.name,
     // Kept so a later sign-in knows whether the plan was declined last time.
-    scopes: account.scopes,
-    subject: account.subject,
+    scopes: registration.scopes,
+    subject: registration.subject,
   };
 }
 

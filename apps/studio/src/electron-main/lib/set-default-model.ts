@@ -16,16 +16,20 @@ import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 /**
  * Signing in with ChatGPT is asked for to use the plan, so it makes the plan's
- * everyday model the default; `chatGPTPlanDefaultModel` says which. Answers
+ * everyday model the default; `chatGPTPlanDefaultModel` says which. Only for
+ * the first account: adding another leaves the default where it was. Answers
  * with the model's name, so the sign-in can say what changed.
  */
-export async function setChatGPTPlanDefaultModel(): Promise<
-  string | undefined
-> {
-  const config = getAIProviderConfigs().find(
+export async function setChatGPTPlanDefaultModel({
+  accountId,
+}: {
+  accountId: string;
+}): Promise<string | undefined> {
+  const chatGPTConfigs = getAIProviderConfigs().filter(
     (candidate) => candidate.type === "chatgpt",
   );
-  if (!config) {
+  const [config] = chatGPTConfigs;
+  if (chatGPTConfigs.length !== 1 || config?.id !== accountId) {
     return undefined;
   }
   const [result] = await fetchModelResultsForProviders([config], {

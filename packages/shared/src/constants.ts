@@ -83,13 +83,12 @@ export const OUR_PROVIDER_CONFIG = {
 } as const;
 
 /**
- * The one config a signed-in ChatGPT account stands behind. Like our own, it
- * is synthesized in the main process rather than stored, and its key is the
+ * What every signed-in ChatGPT account's config shares. Like our own, each is
+ * synthesized in the main process rather than stored: its id and cache
+ * identifier come from the account's registration, and its key is the
  * account's current OAuth access token.
  */
 export const CHATGPT_PLAN_PROVIDER_CONFIG = {
-  cacheIdentifier: "chatgpt-plan",
   displayName: "ChatGPT plan",
-  id: "chatgpt-plan",
   type: "chatgpt",
 } as const;

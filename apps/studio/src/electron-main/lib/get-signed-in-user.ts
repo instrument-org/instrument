@@ -10,7 +10,7 @@ import { hasToken } from "@/electron-main/platform-api/utils";
  * agents whose work it is, or undefined while nobody is signed in. The
  * Instrument account answers first, read through the same cached query the
  * Settings screen reads, so it costs a request only when that has gone stale;
- * without one, the ChatGPT account signed in for the plan answers from what
+ * without one, the first ChatGPT account signed in for a plan answers from what
  * its ID token said. A request that fails falls through the same way rather
  * than erroring, since a session's context must be built whatever the
  * network is doing.

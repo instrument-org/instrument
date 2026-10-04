@@ -60,28 +60,34 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
-/** An active account whose access token is close enough to expiring that reading it starts a refresh. */
-function seedAccount(overrides: Record<string, unknown> = {}) {
-  stored = {
-    accounts: {
-      [SUBJECT]: {
-        accessToken: "access-1",
-        clientId: "client-1",
-        email: "user@example.com",
-        expiresAt: Date.now() + 1000,
-        refreshToken: "refresh-1",
-        scopes: ["openid", "chatgpt.tokens.use.direct"],
-        subject: SUBJECT,
-        ...overrides,
-      },
-    },
-    activeSubject: SUBJECT,
+const ACCOUNT_ID = "account-1";
+
+function registration(overrides: Record<string, unknown> = {}) {
+  return {
+    accessToken: "access-1",
+    addedAt: 1,
+    clientId: "client-1",
+    email: "user@example.com",
+    expiresAt: Date.now() + 1000,
+    id: ACCOUNT_ID,
+    refreshToken: "refresh-1",
+    scopes: ["openid", "chatgpt.tokens.use.direct"],
+    subject: SUBJECT,
+    ...overrides,
   };
 }
 
-function storedAccount() {
-  const accounts = stored.accounts as Record<string, Record<string, unknown>>;
-  return accounts[SUBJECT];
+/** An account whose access token is close enough to expiring that reading it starts a refresh. */
+function seedAccount(overrides: Record<string, unknown> = {}) {
+  stored = { registrations: { [ACCOUNT_ID]: registration(overrides) } };
+}
+
+function storedAccount(id = ACCOUNT_ID) {
+  const registrations = stored.registrations as Record<
+    string,
+    Record<string, unknown>
+  >;
+  return registrations[id];
 }
 
 let plan: typeof ChatGPTPlanModule;
@@ -123,7 +129,7 @@ afterEach(() => {
 
 /** Starts the refresh that reading a nearly expired token sets off. */
 function startRefresh() {
-  plan.chatGPTPlanProviderConfig();
+  plan.chatGPTPlanProviderConfigs();
 }
 
 describe("ChatGPT plan refresh", () => {
@@ -145,7 +151,7 @@ describe("ChatGPT plan refresh", () => {
   it("revokes the token a refresh in flight brings back when signing out, and keeps none", async () => {
     seedAccount();
     startRefresh();
-    const signedOut = plan.signOutOfChatGPT();
+    const signedOut = plan.signOutOfChatGPT({ accountId: ACCOUNT_ID });
     tokenResponse.resolve(
       json({
         access_token: "access-2",
@@ -156,9 +162,7 @@ describe("ChatGPT plan refresh", () => {
 
     await expect(signedOut).resolves.toEqual({ revoked: true });
     expect(revoked).toEqual(["refresh-2"]);
-    expect(storedAccount()).not.toHaveProperty("refreshToken");
-    expect(storedAccount()).not.toHaveProperty("accessToken");
-    expect(stored.activeSubject).toBeUndefined();
+    expect(storedAccount()).toBeUndefined();
   });
 
   it("does not overwrite a sign-in that landed while a refresh was out", async () => {
@@ -200,6 +204,157 @@ describe("ChatGPT plan refresh", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(storedAccount()?.refreshToken).toBe("refresh-fresh");
+  });
+});
+
+describe("several ChatGPT accounts", () => {
+  const fresh = { expiresAt: Date.now() + 3_600_000 };
+  const personal = registration({ ...fresh, email: "me@example.com" });
+  const work = registration({
+    ...fresh,
+    accessToken: "access-work",
+    addedAt: 2,
+    clientId: "client-2",
+    email: "me@example.com",
+    id: "account-2",
+    refreshToken: "refresh-work",
+  });
+  const other = registration({
+    ...fresh,
+    accessToken: "access-other",
+    addedAt: 3,
+    clientId: "client-3",
+    email: "other@example.com",
+    id: "account-3",
+    subject: "user-2",
+  });
+
+  it("gives each account a config of its own, named by its email", () => {
+    stored = {
+      registrations: {
+        [other.id]: other,
+        [personal.id]: personal,
+        [work.id]: work,
+      },
+    };
+
+    expect(
+      plan
+        .chatGPTPlanProviderConfigs()
+        .map(({ apiKey, cacheIdentifier, displayName, id }) => ({
+          apiKey,
+          cacheIdentifier,
+          displayName,
+          id,
+        })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "apiKey": "access-1",
+          "cacheIdentifier": "chatgpt-plan-account-1",
+          "displayName": "me@example.com",
+          "id": "account-1",
+        },
+        {
+          "apiKey": "access-work",
+          "cacheIdentifier": "chatgpt-plan-account-2",
+          "displayName": "me@example.com (2)",
+          "id": "account-2",
+        },
+        {
+          "apiKey": "access-other",
+          "cacheIdentifier": "chatgpt-plan-account-3",
+          "displayName": "other@example.com",
+          "id": "account-3",
+        },
+      ]
+    `);
+  });
+
+  it("names a lone account the plan, so its email stays out of the model picker", () => {
+    stored = { registrations: { [personal.id]: personal } };
+
+    expect(plan.chatGPTPlanProviderConfigs()[0]?.displayName).toBe(
+      "ChatGPT plan",
+    );
+  });
+
+  it("lists every account, in the order they were added, with its state", () => {
+    stored = {
+      registrations: {
+        [other.id]: registration({ ...other, scopes: ["openid"] }),
+        [personal.id]: personal,
+        [work.id]: registration({
+          ...work,
+          accessToken: undefined,
+          refreshToken: undefined,
+        }),
+      },
+    };
+
+    expect(plan.chatGPTPlanStatus()).toMatchInlineSnapshot(`
+      {
+        "accounts": [
+          {
+            "email": "me@example.com",
+            "id": "account-1",
+            "label": "me@example.com",
+            "state": "signed-in",
+          },
+          {
+            "email": "me@example.com",
+            "id": "account-2",
+            "label": "me@example.com (2)",
+            "state": "signed-out",
+          },
+          {
+            "email": "other@example.com",
+            "id": "account-3",
+            "label": "other@example.com",
+            "state": "plan-disabled",
+          },
+        ],
+        "signingIn": false,
+      }
+    `);
+  });
+
+  it("signs out of one account and leaves the others signed in", async () => {
+    stored = { registrations: { [personal.id]: personal, [work.id]: work } };
+
+    await plan.signOutOfChatGPT({ accountId: work.id });
+
+    expect(revoked).toEqual(["refresh-work"]);
+    expect(storedAccount(work.id)).toBeUndefined();
+    expect(storedAccount(personal.id)).toMatchObject({
+      accessToken: "access-1",
+      refreshToken: "refresh-1",
+    });
+  });
+
+  it("refreshes one account without touching another's tokens", async () => {
+    stored = {
+      registrations: {
+        [personal.id]: registration({ expiresAt: Date.now() + 1000 }),
+        [work.id]: work,
+      },
+    };
+    startRefresh();
+    tokenResponse.resolve(
+      json({
+        access_token: "access-2",
+        expires_in: 3600,
+        refresh_token: "refresh-2",
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(storedAccount(personal.id)?.refreshToken).toBe("refresh-2");
+    });
+    expect(storedAccount(work.id)).toMatchObject({
+      accessToken: "access-work",
+      refreshToken: "refresh-work",
+    });
   });
 });
 

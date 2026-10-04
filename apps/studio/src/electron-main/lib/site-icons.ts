@@ -30,6 +30,12 @@ import { z } from "zod";
 const FOUND_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const NONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8000;
+/**
+ * The size asked of the proxy: large enough for an app's biggest plate on a
+ * 2x screen. The proxy answers with the largest it has up to this, so a site
+ * with only a small icon still gets that one rather than an upscale.
+ */
+const PROXY_ICON_SIZE = 256;
 
 /** A hostname as the renderer sends it: lowercase labels, no port, nothing to climb out of the folder with. */
 const HOST_PATTERN =
@@ -37,7 +43,14 @@ const HOST_PATTERN =
 
 const StoredSchema = z.discriminatedUnion("found", [
   z.object({ at: z.number(), found: z.literal(false) }),
-  z.object({ at: z.number(), found: z.literal(true), type: z.string() }),
+  // The size the proxy was asked for when this was kept. An icon kept while
+  // it was asked for another reads as never kept, so it is fetched again.
+  z.object({
+    at: z.number(),
+    found: z.literal(true),
+    size: z.literal(PROXY_ICON_SIZE),
+    type: z.string(),
+  }),
 ]);
 export interface Deps {
   dir: string;
@@ -202,7 +215,7 @@ async function keep(host: string, icon: SiteIcon, deps: Deps) {
   await fs.rename(temporary, target);
   await writeStored(
     host,
-    { at: deps.now(), found: true, type: icon.type },
+    { at: deps.now(), found: true, size: PROXY_ICON_SIZE, type: icon.type },
     deps.dir,
   );
   return icon;
@@ -214,7 +227,7 @@ function metaPath(host: string, dir: string) {
 
 function proxyUrl(host: string) {
   const origin = encodeURIComponent(`https://${host}`);
-  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=64`;
+  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=${PROXY_ICON_SIZE}`;
 }
 
 async function readBytes(

@@ -341,6 +341,12 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "lovable": {
+    "source": "svgl",
+    "path": "lovable.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "lucid": {
     "source": "thesvg",
     "path": "icons/lucid/default.svg",

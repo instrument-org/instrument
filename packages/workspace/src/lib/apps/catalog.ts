@@ -68,6 +68,11 @@ const AppCatalogEntrySchema = z.object({
    * lower is used more. Orders browsing and breaks ties in search.
    */
   rank: z.number().optional(),
+  /**
+   * The server's name in the official MCP Registry, when the vendor publishes
+   * one there: what the registry sync joins on to report a changed endpoint.
+   */
+  registryName: z.string().optional(),
   slug: z.string(),
   tagline: z.string(),
   /** Featured leads the Apps page; hidden is found only by its name. */

@@ -50,7 +50,35 @@
       ],
       "category": "data",
       "tier": "featured",
-      "rank": 16
+      "rank": 16,
+      "registryName": "com.airtable/mcp"
+    },
+    {
+      "slug": "akiflow",
+      "name": "Akiflow",
+      "tagline": "Tasks and time blocks in one inbox.",
+      "description": "Tasks and time blocks in one inbox.",
+      "domain": "akiflow.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Akiflow MCP server",
+          "endpoint": "https://mcp.akiflow.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "tasks",
+      "tier": "listed",
+      "registryName": "com.akiflow/akiflow",
+      "home": "https://web.akiflow.com",
+      "rank": 390
     },
     {
       "slug": "algolia",
@@ -75,7 +103,8 @@
       ],
       "home": "https://dashboard.algolia.com",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "io.github.algolia/algolia-productivity"
     },
     {
       "slug": "alltrails",
@@ -121,7 +150,8 @@
       "home": "https://app.amplitude.com",
       "category": "data",
       "tier": "listed",
-      "rank": 69
+      "rank": 69,
+      "registryName": "com.amplitude/mcp-server"
     },
     {
       "slug": "apify",
@@ -147,7 +177,8 @@
       "home": "https://console.apify.com",
       "category": "research",
       "tier": "listed",
-      "rank": 246
+      "rank": 246,
+      "registryName": "com.apify/apify-mcp-server"
     },
     {
       "slug": "apollo",
@@ -173,7 +204,8 @@
       "home": "https://app.apollo.io",
       "category": "sales",
       "tier": "listed",
-      "rank": 34
+      "rank": 34,
+      "registryName": "io.github.apolloio/apollo-mcp"
     },
     {
       "slug": "apple-calendar",
@@ -345,7 +377,7 @@
         {
           "format": "mcp",
           "name": "Atlassian MCP server",
-          "endpoint": "https://mcp.atlassian.com/v1/mcp",
+          "endpoint": "https://mcp.atlassian.com/v2/mcp",
           "auth": "oauth"
         }
       ],
@@ -354,7 +386,8 @@
       "aliases": ["jira", "confluence", "compass", "loom"],
       "family": "atlassian",
       "tier": "listed",
-      "rank": 41
+      "rank": 41,
+      "registryName": "com.atlassian/atlassian-mcp-server"
     },
     {
       "slug": "attio",
@@ -444,7 +477,35 @@
       ],
       "home": "https://app.axiom.co",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "co.axiom/mcp"
+    },
+    {
+      "slug": "bitly",
+      "name": "Bitly",
+      "tagline": "Short links, QR codes, and click counts.",
+      "description": "Short links, QR codes, and click counts.",
+      "domain": "bitly.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Bitly MCP server",
+          "endpoint": "https://api-ssl.bitly.com/v4/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "registryName": "com.bitly/mcp",
+      "home": "https://app.bitly.com",
+      "rank": 215
     },
     {
       "slug": "box",
@@ -633,7 +694,8 @@
       "home": "https://www.canva.com",
       "category": "design",
       "tier": "featured",
-      "rank": 4
+      "rank": 4,
+      "registryName": "com.canva.mcp/mcp"
     },
     {
       "slug": "clay",
@@ -679,7 +741,8 @@
       "home": "https://dashboard.clerk.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 418
+      "rank": 418,
+      "registryName": "io.github.clerk/mcp-server"
     },
     {
       "slug": "clickup",
@@ -706,6 +769,33 @@
       "category": "tasks",
       "tier": "listed",
       "rank": 30
+    },
+    {
+      "slug": "close",
+      "name": "Close",
+      "tagline": "Leads, calls, and email for small sales teams.",
+      "description": "Leads, calls, and email for small sales teams.",
+      "domain": "close.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Close MCP server",
+          "endpoint": "https://mcp.close.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "sales",
+      "tier": "listed",
+      "registryName": "com.close/close-mcp",
+      "home": "https://app.close.com",
+      "rank": 80
     },
     {
       "slug": "cloudflare",
@@ -754,7 +844,8 @@
       "docsUrl": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
       "home": "https://dash.cloudflare.com",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "com.cloudflare.mcp/mcp"
     },
     {
       "slug": "cloudinary",
@@ -773,14 +864,15 @@
         {
           "format": "mcp",
           "name": "Cloudinary MCP server",
-          "endpoint": "https://asset-management.mcp.cloudinary.com/sse",
+          "endpoint": "https://asset-management.mcp.cloudinary.com/mcp",
           "auth": "oauth"
         }
       ],
       "home": "https://console.cloudinary.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 247
+      "rank": 247,
+      "registryName": "io.github.cloudinary/asset-management-mcp"
     },
     {
       "slug": "consensus",
@@ -824,7 +916,8 @@
       ],
       "category": "developer",
       "tier": "hidden",
-      "rank": 57
+      "rank": 57,
+      "registryName": "io.github.upstash/context7"
     },
     {
       "slug": "convex",
@@ -844,6 +937,33 @@
       "home": "https://dashboard.convex.dev",
       "category": "developer",
       "tier": "listed"
+    },
+    {
+      "slug": "craft",
+      "name": "Craft",
+      "tagline": "Docs, notes, and daily pages.",
+      "description": "Docs, notes, and daily pages.",
+      "domain": "craft.do",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Craft MCP server",
+          "endpoint": "https://mcp.craft.do/my/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "do.craft.mcp/server",
+      "home": "https://docs.craft.do",
+      "rank": 222
     },
     {
       "slug": "crossbeam",
@@ -915,6 +1035,26 @@
       "rank": 207
     },
     {
+      "slug": "drawio",
+      "name": "draw.io",
+      "tagline": "Diagrams drawn from a description.",
+      "description": "Diagrams drawn from a description.",
+      "domain": "draw.io",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "draw.io MCP server",
+          "endpoint": "https://mcp.draw.io/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.draw/mcp",
+      "home": "https://app.diagrams.net"
+    },
+    {
       "slug": "dropbox",
       "name": "Dropbox",
       "tagline": "Files and folders, searched and read.",
@@ -941,6 +1081,33 @@
       "rank": 52
     },
     {
+      "slug": "elevenlabs",
+      "name": "ElevenLabs",
+      "tagline": "Voices, speech, and sound effects.",
+      "description": "Voices, speech, and sound effects.",
+      "domain": "elevenlabs.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server reads the client's published metadata, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "ElevenLabs MCP server",
+          "endpoint": "https://api.us.elevenlabs.io/v1/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.elevenlabs/mcp",
+      "home": "https://elevenlabs.io/app",
+      "rank": 108
+    },
+    {
       "slug": "exa",
       "name": "Exa",
       "tagline": "Web search built for agents.",
@@ -958,7 +1125,8 @@
       "home": "https://dashboard.exa.ai",
       "category": "research",
       "tier": "hidden",
-      "rank": 96
+      "rank": 96,
+      "registryName": "ai.exa/exa"
     },
     {
       "slug": "excalidraw",
@@ -1054,7 +1222,8 @@
       "home": "https://fathom.video",
       "category": "calendar",
       "tier": "listed",
-      "rank": 55
+      "rank": 55,
+      "registryName": "ai.fathom.api/mcp"
     },
     {
       "slug": "figma",
@@ -1086,7 +1255,8 @@
       "home": "https://www.figma.com/files",
       "category": "design",
       "tier": "featured",
-      "rank": 7
+      "rank": 7,
+      "registryName": "com.figma.mcp/mcp"
     },
     {
       "slug": "firecrawl",
@@ -1105,14 +1275,15 @@
         {
           "format": "mcp",
           "name": "Firecrawl MCP server",
-          "endpoint": "https://mcp.firecrawl.dev/mcp",
+          "endpoint": "https://mcp.firecrawl.dev/v2/mcp",
           "auth": "api_key"
         }
       ],
       "home": "https://www.firecrawl.dev/app",
       "category": "research",
       "tier": "listed",
-      "rank": 80
+      "rank": 80,
+      "registryName": "io.github.firecrawl/firecrawl-mcp-server"
     },
     {
       "slug": "fireflies",
@@ -1138,7 +1309,8 @@
       "home": "https://app.fireflies.ai",
       "category": "calendar",
       "tier": "listed",
-      "rank": 67
+      "rank": 67,
+      "registryName": "ai.fireflies/fireflies"
     },
     {
       "slug": "front",
@@ -1244,7 +1416,8 @@
       "category": "developer",
       "aliases": ["gh"],
       "tier": "listed",
-      "rank": 104
+      "rank": 104,
+      "registryName": "io.github.github/github-mcp-server"
     },
     {
       "slug": "gitlab",
@@ -1269,7 +1442,8 @@
       ],
       "category": "developer",
       "tier": "listed",
-      "rank": 465
+      "rank": 465,
+      "registryName": "com.gitlab/mcp"
     },
     {
       "slug": "globalping",
@@ -1293,7 +1467,8 @@
         }
       ],
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "io.globalping/mcp"
     },
     {
       "slug": "gmail",
@@ -1419,7 +1594,8 @@
       ],
       "home": "https://grafana.com/orgs",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "io.github.grafana/mcp-grafana"
     },
     {
       "slug": "granola",
@@ -1579,7 +1755,35 @@
       "category": "developer",
       "aliases": ["huggingface"],
       "tier": "listed",
-      "rank": 71
+      "rank": 71,
+      "registryName": "co.huggingface/hf-mcp-server"
+    },
+    {
+      "slug": "ifttt",
+      "name": "IFTTT",
+      "tagline": "Applets that connect apps and devices.",
+      "description": "Applets that connect apps and devices.",
+      "domain": "ifttt.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "IFTTT MCP server",
+          "endpoint": "https://ifttt.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "automation",
+      "tier": "listed",
+      "registryName": "com.ifttt/mcp",
+      "home": "https://ifttt.com/my_applets",
+      "rank": 262
     },
     {
       "slug": "incident-io",
@@ -1635,6 +1839,32 @@
       "rank": 216
     },
     {
+      "slug": "interactive-brokers",
+      "name": "Interactive Brokers",
+      "tagline": "Portfolio, positions, and market data.",
+      "description": "Portfolio, positions, and market data.",
+      "domain": "ibkr.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Interactive Brokers MCP server",
+          "endpoint": "https://api.ibkr.com/v1/api/mcp-public",
+          "auth": "oauth"
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "registryName": "com.ibkr/interactive-brokers-ibkr",
+      "rank": 75
+    },
+    {
       "slug": "intercom",
       "name": "Intercom",
       "tagline": "Conversations, contacts, and help center articles.",
@@ -1684,6 +1914,60 @@
       "category": "developer",
       "tier": "listed",
       "rank": 263
+    },
+    {
+      "slug": "jotform",
+      "name": "Jotform",
+      "tagline": "Forms, submissions, and approvals.",
+      "description": "Forms, submissions, and approvals.",
+      "domain": "jotform.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Jotform MCP server",
+          "endpoint": "https://mcp.jotform.com/",
+          "auth": "oauth"
+        }
+      ],
+      "category": "data",
+      "tier": "listed",
+      "registryName": "com.jotform/mcp",
+      "home": "https://www.jotform.com/myforms",
+      "rank": 20
+    },
+    {
+      "slug": "kajabi",
+      "name": "Kajabi",
+      "tagline": "Courses, memberships, and a storefront.",
+      "description": "Courses, memberships, and a storefront.",
+      "domain": "kajabi.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Kajabi MCP server",
+          "endpoint": "https://mcp.kajabi.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "registryName": "com.kajabi/kajabi",
+      "home": "https://app.kajabi.com",
+      "rank": 50
     },
     {
       "slug": "kiwi",
@@ -1768,7 +2052,35 @@
       "home": "https://linear.app",
       "category": "tasks",
       "tier": "listed",
-      "rank": 11
+      "rank": 11,
+      "registryName": "app.linear/linear"
+    },
+    {
+      "slug": "lovable",
+      "name": "Lovable",
+      "tagline": "Apps and websites built from a description.",
+      "description": "Apps and websites built from a description.",
+      "domain": "lovable.dev",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Lovable MCP server",
+          "endpoint": "https://mcp.lovable.dev",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "dev.lovable/mcp",
+      "home": "https://lovable.dev",
+      "rank": 42
     },
     {
       "slug": "lucid",
@@ -1793,7 +2105,8 @@
       ],
       "category": "design",
       "tier": "listed",
-      "rank": 31
+      "rank": 31,
+      "registryName": "app.lucid.mcp/lucid"
     },
     {
       "slug": "make",
@@ -1820,7 +2133,8 @@
       "category": "automation",
       "aliases": ["integromat"],
       "tier": "listed",
-      "rank": 73
+      "rank": 73,
+      "registryName": "com.make/mcp-server"
     },
     {
       "slug": "mem",
@@ -1845,7 +2159,8 @@
       ],
       "category": "notes",
       "tier": "listed",
-      "rank": 293
+      "rank": 293,
+      "registryName": "io.github.mem-labs/mem"
     },
     {
       "slug": "mercury",
@@ -1892,7 +2207,8 @@
       "category": "design",
       "aliases": ["mermaid"],
       "tier": "listed",
-      "rank": 83
+      "rank": 83,
+      "registryName": "com.mermaidchart/mermaid-mcp"
     },
     {
       "slug": "microsoft-learn",
@@ -1911,7 +2227,8 @@
       ],
       "category": "developer",
       "tier": "hidden",
-      "rank": 25
+      "rank": 25,
+      "registryName": "com.microsoft/microsoft-learn-mcp"
     },
     {
       "slug": "miro",
@@ -1937,7 +2254,8 @@
       "home": "https://miro.com/app",
       "category": "design",
       "tier": "listed",
-      "rank": 16
+      "rank": 16,
+      "registryName": "io.github.miroapp/mcp-server"
     },
     {
       "slug": "mixpanel",
@@ -1988,7 +2306,8 @@
       "category": "tasks",
       "aliases": ["monday.com"],
       "tier": "featured",
-      "rank": 12
+      "rank": 12,
+      "registryName": "com.monday/monday.com"
     },
     {
       "slug": "mongodb",
@@ -2067,7 +2386,8 @@
       "home": "https://console.neon.tech",
       "category": "developer",
       "tier": "listed",
-      "rank": 297
+      "rank": 297,
+      "registryName": "com.neon/mcp"
     },
     {
       "slug": "netlify",
@@ -2131,7 +2451,8 @@
       "home": "https://app.notion.com",
       "category": "notes",
       "tier": "featured",
-      "rank": 6
+      "rank": 6,
+      "registryName": "com.notion/mcp"
     },
     {
       "slug": "onedrive",
@@ -2160,6 +2481,52 @@
       "family": "microsoft",
       "tier": "featured",
       "rank": 38
+    },
+    {
+      "slug": "openweather",
+      "name": "OpenWeather",
+      "tagline": "Current weather and forecasts.",
+      "description": "Current weather and forecasts.",
+      "domain": "openweathermap.org",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "OpenWeather MCP server",
+          "endpoint": "https://mcp.openweathermap.org/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "registryName": "org.openweathermap/agents"
+    },
+    {
+      "slug": "opusclip",
+      "name": "OpusClip",
+      "tagline": "Short clips cut from long videos.",
+      "description": "Short clips cut from long videos.",
+      "domain": "opus.pro",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "OpusClip MCP server",
+          "endpoint": "https://mcp.opus.pro/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.github.opus-pro/opusclip",
+      "home": "https://clip.opus.pro",
+      "rank": 225
     },
     {
       "slug": "otter",
@@ -2247,7 +2614,8 @@
       ],
       "home": "https://dashboard.oxylabs.io",
       "category": "research",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "io.oxylabs/oxylabs-mcp"
     },
     {
       "slug": "paddle",
@@ -2275,6 +2643,33 @@
       "tier": "listed"
     },
     {
+      "slug": "padlet",
+      "name": "Padlet",
+      "tagline": "Boards for classes and teams.",
+      "description": "Boards for classes and teams.",
+      "domain": "padlet.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Padlet MCP server",
+          "endpoint": "https://mcp.padlet.com/",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "com.padlet/padlet",
+      "home": "https://padlet.com",
+      "rank": 618
+    },
+    {
       "slug": "pagerduty",
       "name": "PagerDuty",
       "tagline": "Incidents, services, and on-call schedules.",
@@ -2299,6 +2694,33 @@
       "category": "developer",
       "tier": "listed",
       "rank": 174
+    },
+    {
+      "slug": "pandadoc",
+      "name": "PandaDoc",
+      "tagline": "Proposals, quotes, and e-signatures.",
+      "description": "Proposals, quotes, and e-signatures.",
+      "domain": "pandadoc.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "PandaDoc MCP server",
+          "endpoint": "https://mcp.pandadoc.com/v1/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "com.pandadoc.mcp/mcp",
+      "home": "https://app.pandadoc.com",
+      "rank": 79
     },
     {
       "slug": "paper",
@@ -2344,7 +2766,8 @@
       "home": "https://www.paypal.com",
       "category": "money",
       "tier": "listed",
-      "rank": 122
+      "rank": 122,
+      "registryName": "com.paypal.mcp/mcp"
     },
     {
       "slug": "peloton",
@@ -2396,7 +2819,8 @@
       "home": "https://app.posthog.com",
       "category": "data",
       "tier": "listed",
-      "rank": 85
+      "rank": 85,
+      "registryName": "io.github.PostHog/mcp"
     },
     {
       "slug": "postman",
@@ -2422,7 +2846,8 @@
       "home": "https://web.postman.co",
       "category": "developer",
       "tier": "listed",
-      "rank": 53
+      "rank": 53,
+      "registryName": "com.postman/postman-mcp-server"
     },
     {
       "slug": "prisma",
@@ -2447,7 +2872,8 @@
       ],
       "home": "https://console.prisma.io",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "io.prisma/mcp"
     },
     {
       "slug": "productboard",
@@ -2519,14 +2945,15 @@
         {
           "format": "mcp",
           "name": "Railway MCP server",
-          "endpoint": "https://mcp.railway.com/mcp",
+          "endpoint": "https://mcp.railway.com/",
           "auth": "oauth"
         }
       ],
       "home": "https://railway.com/dashboard",
       "category": "developer",
       "tier": "listed",
-      "rank": 188
+      "rank": 188,
+      "registryName": "com.railway/mcp"
     },
     {
       "slug": "ramp",
@@ -2679,14 +3106,15 @@
         {
           "format": "mcp",
           "name": "Sanity MCP server",
-          "endpoint": "https://mcp.sanity.io/mcp",
+          "endpoint": "https://mcp.sanity.io",
           "auth": "oauth"
         }
       ],
       "home": "https://www.sanity.io/manage",
       "category": "stores",
       "tier": "listed",
-      "rank": 198
+      "rank": 198,
+      "registryName": "io.sanity.www/mcp"
     },
     {
       "slug": "scite",
@@ -2711,7 +3139,8 @@
       ],
       "category": "research",
       "tier": "listed",
-      "rank": 126
+      "rank": 126,
+      "registryName": "ai.scite/mcp"
     },
     {
       "slug": "semgrep",
@@ -2778,7 +3207,35 @@
       "home": "https://sentry.io",
       "category": "developer",
       "tier": "listed",
-      "rank": 37
+      "rank": 37,
+      "registryName": "io.github.getsentry/sentry-mcp"
+    },
+    {
+      "slug": "shippo",
+      "name": "Shippo",
+      "tagline": "Shipping labels, rates, and tracking.",
+      "description": "Shipping labels, rates, and tracking.",
+      "domain": "shippo.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Shippo MCP server",
+          "endpoint": "https://mcp.shippo.com",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "registryName": "com.shippo/shippo-mcp",
+      "home": "https://apps.goshippo.com",
+      "rank": 380
     },
     {
       "slug": "shopify",
@@ -2895,6 +3352,26 @@
       "category": "marketing",
       "tier": "listed",
       "rank": 124
+    },
+    {
+      "slug": "skiplagged",
+      "name": "Skiplagged",
+      "tagline": "Cheap flights and hotels.",
+      "description": "Cheap flights and hotels.",
+      "domain": "skiplagged.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Skiplagged MCP server",
+          "endpoint": "https://mcp.skiplagged.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "registryName": "com.skiplagged/mcp",
+      "home": "https://skiplagged.com"
     },
     {
       "slug": "slack",
@@ -3029,7 +3506,8 @@
       ],
       "category": "developer",
       "tier": "hidden",
-      "rank": 453
+      "rank": 453,
+      "registryName": "com.stackoverflow.mcp/mcp"
     },
     {
       "slug": "strava",
@@ -3098,7 +3576,8 @@
       "home": "https://dashboard.stripe.com",
       "category": "money",
       "tier": "listed",
-      "rank": 11
+      "rank": 11,
+      "registryName": "com.stripe/mcp"
     },
     {
       "slug": "supabase",
@@ -3124,7 +3603,8 @@
       "home": "https://supabase.com/dashboard",
       "category": "developer",
       "tier": "listed",
-      "rank": 18
+      "rank": 18,
+      "registryName": "com.supabase/mcp"
     },
     {
       "slug": "superhuman",
@@ -3174,7 +3654,8 @@
       ],
       "home": "https://team.supermetrics.com",
       "category": "marketing",
-      "tier": "listed"
+      "tier": "listed",
+      "registryName": "com.supermetrics/supermetrics"
     },
     {
       "slug": "svelte",
@@ -3193,7 +3674,8 @@
       ],
       "home": "https://svelte.dev/docs",
       "category": "developer",
-      "tier": "hidden"
+      "tier": "hidden",
+      "registryName": "dev.svelte/mcp"
     },
     {
       "slug": "tavily",
@@ -3310,7 +3792,8 @@
       "home": "https://app.todoist.com",
       "category": "tasks",
       "tier": "featured",
-      "rank": 45
+      "rank": 45,
+      "registryName": "net.todoist/mcp"
     },
     {
       "slug": "trello",
@@ -3358,6 +3841,60 @@
       "category": "life",
       "tier": "listed",
       "rank": 141
+    },
+    {
+      "slug": "typeform",
+      "name": "Typeform",
+      "tagline": "Forms, responses, and insights.",
+      "description": "Forms, responses, and insights.",
+      "domain": "typeform.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Typeform MCP server",
+          "endpoint": "https://api.typeform.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "data",
+      "tier": "listed",
+      "registryName": "com.typeform/typeform",
+      "home": "https://admin.typeform.com",
+      "rank": 15
+    },
+    {
+      "slug": "typefully",
+      "name": "Typefully",
+      "tagline": "Social posts, drafted and scheduled.",
+      "description": "Social posts, drafted and scheduled.",
+      "domain": "typefully.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Typefully MCP server",
+          "endpoint": "https://mcp.typefully.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "registryName": "com.typefully/mcp",
+      "home": "https://typefully.com",
+      "rank": 371
     },
     {
       "slug": "vanta",
@@ -3426,7 +3963,8 @@
       "home": "https://vercel.com/dashboard",
       "category": "developer",
       "tier": "listed",
-      "rank": 22
+      "rank": 22,
+      "registryName": "com.vercel/vercel-mcp"
     },
     {
       "slug": "wakatime",
@@ -3488,7 +4026,35 @@
       "home": "https://webflow.com/dashboard",
       "category": "stores",
       "tier": "listed",
-      "rank": 24
+      "rank": 24,
+      "registryName": "com.webflow/mcp"
+    },
+    {
+      "slug": "whimsical",
+      "name": "Whimsical",
+      "tagline": "Flowcharts, mind maps, and wireframes.",
+      "description": "Flowcharts, mind maps, and wireframes.",
+      "domain": "whimsical.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Whimsical MCP server",
+          "endpoint": "https://mcp.whimsical.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "com.whimsical/mcp",
+      "home": "https://whimsical.com",
+      "rank": 183
     },
     {
       "slug": "wix",
@@ -3514,7 +4080,8 @@
       "home": "https://manage.wix.com",
       "category": "stores",
       "tier": "listed",
-      "rank": 52
+      "rank": 52,
+      "registryName": "com.wix/mcp"
     },
     {
       "slug": "wolfram",
@@ -3534,7 +4101,8 @@
       "home": "https://www.wolframalpha.com",
       "category": "research",
       "tier": "listed",
-      "rank": 268
+      "rank": 268,
+      "registryName": "com.wolfram/mcp"
     },
     {
       "slug": "workos",
@@ -3560,7 +4128,8 @@
       "home": "https://dashboard.workos.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 415
+      "rank": 415,
+      "registryName": "com.workos/mcp"
     },
     {
       "slug": "xero",
@@ -3613,7 +4182,8 @@
       "home": "https://zapier.com/app",
       "category": "automation",
       "tier": "listed",
-      "rank": 27
+      "rank": 27,
+      "registryName": "com.zapier/mcp"
     },
     {
       "slug": "zoom",
@@ -3638,7 +4208,8 @@
       ],
       "category": "calendar",
       "tier": "featured",
-      "rank": 31
+      "rank": 31,
+      "registryName": "io.github.zoom/zoom-workspace"
     },
     {
       "slug": "zoominfo",
@@ -3664,7 +4235,8 @@
       "home": "https://app.zoominfo.com",
       "category": "sales",
       "tier": "listed",
-      "rank": 47
+      "rank": 47,
+      "registryName": "io.github.Zoominfo/zoominfo-mcp"
     }
   ]
 }

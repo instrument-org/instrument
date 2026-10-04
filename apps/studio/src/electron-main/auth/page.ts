@@ -15,16 +15,8 @@ interface AuthService {
 export type AuthOutcome =
   /** Signed in to Instrument itself. */
   | { email?: string; kind: "signed-in"; service: AuthService }
-  /**
-   * A provider or an app is connected. `inFront` says the window already came
-   * forward, so the tab has nothing left to do.
-   */
-  | {
-      email?: string;
-      inFront: boolean;
-      kind: "connected";
-      service: AuthService;
-    }
+  /** A provider or an app is connected. */
+  | { email?: string; kind: "connected"; service: AuthService }
   /**
    * The user said no on the service's own page: to connecting it, or with
    * `signIn`, to signing in with it. `headline` when what was declined was
@@ -143,7 +135,7 @@ const pairedMarks = (service: AuthService) =>
 
 const accountChip = (email: string, service: AuthService) =>
   html`<div
-    class="flex items-center gap-2.5 rounded-full bg-white/70 py-1.5 pr-4 pl-1.5 text-sm text-stone-800 ring-1 ring-black/5 dark:bg-white/10 dark:text-white/85 dark:ring-white/10"
+    class="flex items-center gap-2.5 rounded-full border border-stone-900/10 py-1.5 pr-4 pl-1.5 text-sm text-stone-800 dark:border-white/15 dark:text-white/85"
   >
     ${
       service.mark
@@ -157,10 +149,12 @@ const accountChip = (email: string, service: AuthService) =>
     <span>${email}</span>
   </div>`;
 
-const closeTab = subline("You can close this tab.");
-
 const group = (...children: unknown[]) =>
-  html`<div class="flex flex-col items-center gap-3">${children}</div>`;
+  html`<div class="flex flex-col items-center gap-5">${children}</div>`;
+
+// A success page's button sits further down than the others, past the
+// account it names.
+const openAppSpaced = html`<div class="pt-6">${openApp}</div>`;
 
 // A failure's reference rides along in small print, for support to match
 // against the logged error; nobody is asked to do anything with it.
@@ -193,19 +187,19 @@ function renderOutcome(outcome: AuthOutcome) {
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
         )}
-        ${closeTab} ${openApp}`,
+        ${openAppSpaced}`,
         title: "Signed in",
       };
     }
     case "connected": {
-      const { email, inFront, service } = outcome;
+      const { email, service } = outcome;
       return {
         body: html`${pairedMarks(service)}
         ${group(
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
         )}
-        ${inFront ? closeTab : ""} ${openApp}`,
+        ${openAppSpaced}`,
         title: `${service.name} connected`,
       };
     }
@@ -229,16 +223,19 @@ function renderOutcome(outcome: AuthOutcome) {
       return {
         body: html`${glyph(
           CLOCK_COUNTDOWN,
-          "size-14 text-stone-400 dark:text-white/40",
+          "size-12 text-stone-400 dark:text-white/40",
         )}
-        ${heading("This sign-in link has expired")} ${openApp}`,
+        ${heading("This sign-in link expired")} ${openApp}`,
         title: "Link expired",
       };
     }
     case "failed": {
       const { connecting, reference } = outcome;
       return {
-        body: html`${glyph(WARNING_CIRCLE, "size-14 text-amber-600")}
+        body: html`${glyph(
+          WARNING_CIRCLE,
+          "size-12 text-stone-400 dark:text-white/40",
+        )}
         ${heading(
           connecting
             ? `There was a problem connecting to ${connecting}`
@@ -271,7 +268,6 @@ export const previewOutcomes = (
     label: "ChatGPT connected",
     outcome: {
       email: "alex@example.com",
-      inFront: true,
       kind: "connected",
       service: { mark: OPENAI_MARK, name: "ChatGPT" },
     },
@@ -279,7 +275,6 @@ export const previewOutcomes = (
   {
     label: "App connected",
     outcome: {
-      inFront: false,
       kind: "connected",
       service: { mark: sampleMark, name: "Linear" },
     },

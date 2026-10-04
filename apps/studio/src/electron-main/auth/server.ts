@@ -370,7 +370,6 @@ async function start() {
     }
     return c.html(
       renderAuthPage({
-        inFront: false,
         kind: "connected",
         service: {
           mark: appsDir ? await appMark(appsDir, result.value.slug) : undefined,
@@ -432,7 +431,6 @@ async function start() {
     return c.html(
       renderAuthPage({
         email: account.email,
-        inFront: true,
         kind: "connected",
         service: chatGPT,
       }),

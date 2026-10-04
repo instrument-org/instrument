@@ -77,21 +77,20 @@ describe("tab visits", () => {
     });
   });
 
-  it("retains native back steps while crossing a screen boundary", () => {
+  it("keeps a page's own session while crossing a screen boundary", () => {
     const website: WindowTab = {
       ...visitInTab(task, page),
       ...page,
       future: [folder],
-      pageBackSteps: 2,
     };
     const back = stepped(website, -1);
     expect(stepTabVisit(back, 1)).toMatchObject({
       future: [folder],
       id: page.id,
-      pageBackSteps: 2,
     });
     expect(visitInTab(website, folder).past?.at(-1)).toMatchObject({
-      pageBackSteps: 0,
+      id: page.id,
+      kind: "page",
     });
   });
 

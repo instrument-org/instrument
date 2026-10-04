@@ -115,13 +115,9 @@ import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
-import {
-  atOf,
-  isHomeTab,
-  parseHref,
-  trailOf,
-  useWindowTabs,
-} from "./window-tabs";
+import { atOf, isHomeTab, trailOf } from "./tab-model";
+import { parseHref } from "./window-href";
+import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
@@ -325,7 +321,10 @@ export function ComposeWindow({
           activeHref,
           appTabId: appTabs.selectedId,
           groupTab: windowTabs.active,
-          isGroupTabShown: isGroupShown(windowTabs.group, paneOpenByGroup),
+          isGroupTabShown: isGroupShown(
+            windowTabs.groupOnScreen,
+            paneOpenByGroup,
+          ),
         });
   const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
     id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
@@ -468,7 +467,7 @@ export function ComposeWindow({
   const openPage = (url: string) => {
     const id = browser?.openOrFocus(url, { group });
     if (id !== undefined) {
-      windowTabs.selectIn(group, id);
+      windowTabs.select(id);
     }
     inputRef.current?.focus();
   };
@@ -478,9 +477,9 @@ export function ComposeWindow({
   // tab beside it.
   const openScreenIn = (href: string) => {
     windowTabs.openOrFocusScreen(href, {
-      activate: true,
       group,
       isOpened: true,
+      select: true,
     });
     inputRef.current?.focus();
   };
@@ -495,9 +494,9 @@ export function ComposeWindow({
       openPage(fileUrlOf(hostPath));
     } else {
       windowTabs.openOrFocusScreen(fileHref(hostPath), {
-        activate: true,
         group,
         isOpened: true,
+        select: true,
       });
       inputRef.current?.focus();
     }
@@ -518,15 +517,8 @@ export function ComposeWindow({
     }
     openOutside(href);
   };
-  // Closing a tab in the band moves to the one before it, the way the strip
-  // on screen does; the tab model only does that for the group on screen.
   const closeTab = (id: string) => {
-    const index = tabs.findIndex((tab) => tab.id === id);
-    const neighbor = tabs[index - 1] ?? tabs[index + 1];
     windowTabs.close(id);
-    if (neighbor && up?.id === id) {
-      windowTabs.selectIn(group, neighbor.id);
-    }
   };
 
   // What the band has up, for the chat the draft starts: a folder or file
@@ -604,9 +596,9 @@ export function ComposeWindow({
               document.activeElement.blur();
             }
             windowTabs.openOrFocusScreen(BROWSER_HREF, {
-              activate: true,
               group,
               isOpened: true,
+              select: true,
             });
           }}
           onOpenFolder={openFolder}
@@ -906,15 +898,15 @@ export function ComposeWindow({
                       onClose={closeTab}
                       onNew={() => {
                         windowTabs.openScreen(NEW_TAB_HREF, {
-                          activate: true,
                           group,
+                          select: true,
                         });
                       }}
                       onReorder={(keys) => {
                         windowTabs.reorder(keys, group);
                       }}
                       onSelect={(id) => {
-                        windowTabs.selectIn(group, id);
+                        windowTabs.select(id);
                       }}
                       selectedId={up?.id}
                       tabs={tabs}

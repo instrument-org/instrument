@@ -28,13 +28,9 @@ import {
   tasksHref,
   tasksOfHref,
 } from "./tab-location";
-import {
-  chatOfHref,
-  chatOfHrefPrefix,
-  isFreshTab,
-  parseHref,
-  type useWindowTabs,
-} from "./window-tabs";
+import { isFreshTab } from "./tab-model";
+import { chatOfHref, chatOfHrefPrefix, parseHref } from "./window-href";
+import { newScreenId, type useWindowTabs } from "./window-tabs";
 
 /**
  * What the conversation asks to open, as it asks: a page as a tab, a path
@@ -110,7 +106,7 @@ export function useOpeners({
       appTabs.open(pageHrefOf(group), { select: !behind });
       return id;
     }
-    if (into !== undefined && into !== windowTabs.group) {
+    if (into !== undefined && into !== windowTabs.groupOnScreen) {
       if (show) {
         goToChatOf(into);
       }
@@ -118,11 +114,11 @@ export function useOpeners({
       if (show) {
         setPaneOpen(into, true);
       } else if (activate && id !== undefined) {
-        windowTabs.selectIn(into, id);
+        windowTabs.select(id);
       }
       return id;
     }
-    if (windowTabs.group === undefined) {
+    if (windowTabs.groupOnScreen === undefined) {
       // A screen that is its tab's own route: the site is the tab's page,
       // and back from it returns here, unless the screen was only handing
       // its file over, in which case the page takes its place.
@@ -224,7 +220,9 @@ export function useOpeners({
       return;
     }
     const tasksChat = tasks
-      ? StoreId.SessionSchema.safeParse(tasks.chat ?? into ?? windowTabs.group)
+      ? StoreId.SessionSchema.safeParse(
+          tasks.chat ?? into ?? windowTabs.groupOnScreen,
+        )
       : undefined;
     if (tasks && tasksChat?.success) {
       const owner = tasksChat.data;
@@ -236,7 +234,7 @@ export function useOpeners({
       const walksInPlace =
         !newTab &&
         !ownTab &&
-        owner === windowTabs.group &&
+        owner === windowTabs.groupOnScreen &&
         up?.kind === "screen" &&
         tasksOfHref(up.href) !== undefined;
       if (walksInPlace) {
@@ -245,13 +243,13 @@ export function useOpeners({
         return;
       }
       // In a tab of the window's own, the chat comes up there at its tasks.
-      if (newTab || owner !== windowTabs.group) {
+      if (newTab || owner !== windowTabs.groupOnScreen) {
         appTabs.go(`${CHATS_HREF}/${owner}`, { behind, newTab });
       }
       windowTabs.openOrFocusScreen(at, {
         group: owner,
         isOpened: true,
-        show: true,
+        select: true,
       });
       setPaneOpen(owner, true);
       return;
@@ -272,15 +270,14 @@ export function useOpeners({
       appTabs.navigate(href);
       return;
     }
-    if (into !== undefined && into !== windowTabs.group) {
+    if (into !== undefined && into !== windowTabs.groupOnScreen) {
       if (show) {
         goToChatOf(into);
       }
       windowTabs.openOrFocusScreen(href, {
-        activate,
         group: into,
         isOpened: true,
-        show,
+        select: activate || show,
       });
       if (show) {
         setPaneOpen(into, true);
@@ -289,7 +286,7 @@ export function useOpeners({
     }
     // Outside a chat, a screen is the tab's own: the tab up goes there, or a
     // tab of its own does.
-    if (!StoreId.SessionSchema.safeParse(windowTabs.group).success) {
+    if (!StoreId.SessionSchema.safeParse(windowTabs.groupOnScreen).success) {
       appTabs.navigate(href);
       return;
     }
@@ -323,7 +320,9 @@ export function useOpeners({
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
-    const session = StoreId.SessionSchema.safeParse(group ?? windowTabs.group);
+    const session = StoreId.SessionSchema.safeParse(
+      group ?? windowTabs.groupOnScreen,
+    );
     const record = session.success
       ? await queryClient
           .fetchQuery(
@@ -401,11 +400,11 @@ export function useOpeners({
       if (href === undefined) {
         return { error: `nothing this window can show is at ${target.mount}.` };
       }
-      const into = group ?? windowTabs.group;
+      const into = group ?? windowTabs.groupOnScreen;
       const tabId = windowTabs.openOrFocusScreen(href, {
         ...(into ? { group: into } : {}),
         isOpened: true,
-        show: true,
+        select: true,
       });
       if (into) {
         setPaneOpen(into, true);
@@ -446,7 +445,7 @@ export function useOpeners({
         const next = visitInTab(tab, {
           at: 0,
           href,
-          id: `screen-${crypto.randomUUID()}`,
+          id: newScreenId(),
           kind: "screen",
           trail: [href],
         });
@@ -462,7 +461,7 @@ export function useOpeners({
         // In front in its chat, with the chat's pane open; the window's own
         // tabs are the person's, so the tab up stays where it is.
         if (tab.group !== undefined) {
-          windowTabs.selectIn(tab.group, tab.id);
+          windowTabs.select(tab.id);
           setPaneOpen(tab.group, true);
         }
         return { tabId: tab.id };

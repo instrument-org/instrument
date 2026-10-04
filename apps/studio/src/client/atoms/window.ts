@@ -12,7 +12,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
-import { atomWithStorage, createJSONStorage } from "jotai/utils";
+import { atomWithStorage } from "jotai/utils";
 
 /**
  * What the chat column is narrowed to.
@@ -273,7 +273,7 @@ export interface FileTab {
  * route it is at, so navigating inside it changes the tab and not the row.
  */
 export type TabVisit =
-  | (BrowserTab & { kind: "page"; pageBackSteps?: number })
+  | (BrowserTab & { kind: "page" })
   | { at?: number; href: string; id: string; kind: "screen"; trail?: string[] };
 
 export type WindowTab = TabHistory & TabVisit;
@@ -344,34 +344,6 @@ export function newTabHrefOf(group: string | undefined): string {
 
 /** The route a chat's screen is at, followed by the chat's session id. */
 export const CHATS_HREF = "/chats";
-
-/**
- * What the window has open: every group's tabs in strip order, which group
- * is on screen, and which tab each group last had up.
- */
-export interface WindowTabs {
-  /** The tab each group last had up, by its key, so coming back lands there. */
-  activeByGroup?: Record<string, string>;
-  activeId: null | string;
-  /** The group on screen: a chat's session id or a draft's key; absent while nothing is on screen. */
-  group?: string;
-  /** The group the one on screen took over from, so a draft put away can hand the screen back. */
-  previousGroup?: string;
-  tabs: WindowTab[];
-}
-
-/**
- * The window's tabs, one list across every group, kept across launches on
- * this computer. Every screen reads and writes this one; a chat's tabs are
- * the ones in its group, and a draft's the ones under its key. The chat
- * itself is not a tab: it stands over its tabs, and a group may have none.
- */
-export const windowTabsAtom = atomWithStorage<WindowTabs>(
-  "studio.window-tabs.v8",
-  { activeId: null, tabs: [] },
-  createJSONStorage<WindowTabs>(() => localStorage),
-  { getOnInit: true },
-);
 
 export const SIDEBAR_WIDTH_MIN = 320;
 /** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
@@ -530,16 +502,4 @@ export const bookmarksAtom = atomWithStorage<Bookmark[]>(
   [],
   undefined,
   { getOnInit: true },
-);
-
-/** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
-export const everyTabIdAtom = atom(
-  (get) =>
-    new Set(
-      get(windowTabsAtom).tabs.flatMap((tab) => [
-        tab.id,
-        ...(tab.past ?? []).map((visit) => visit.id),
-        ...(tab.future ?? []).map((visit) => visit.id),
-      ]),
-    ),
 );

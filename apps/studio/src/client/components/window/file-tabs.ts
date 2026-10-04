@@ -2,7 +2,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { MOUNT } from "@instrument-org/workspace/client";
 
 import { isInside, segmentsOf } from "./host-path";
-import { parseHref } from "./window-tabs";
+import { parseHref } from "./window-href";
 
 /**
  * The folder or file a computer tab's address names, the way the computer

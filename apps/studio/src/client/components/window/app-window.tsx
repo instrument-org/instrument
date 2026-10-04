@@ -9,7 +9,6 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewAtom,
-  windowTabsAtom,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -75,7 +74,6 @@ import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
 import { AppTabStrip } from "./app-tab-strip";
-import { withGroupScreensOnly } from "./group-screen";
 import {
   appTabsAtom,
   groupOfHref,
@@ -122,7 +120,8 @@ import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { chatOfHref, useWindowTabs } from "./window-tabs";
+import { chatOfHref } from "./window-href";
+import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -143,12 +142,6 @@ const RETIRED_GROUPS = [
  * along the foot, the window's browser, and its chords.
  */
 export function AppWindow() {
-  // Tabs kept from a launch that let a group hold a screen it cannot draw
-  // go, once, before anything is opened beside them.
-  const setWindowTabs = useSetAtom(windowTabsAtom);
-  useEffect(() => {
-    setWindowTabs(withGroupScreensOnly);
-  }, [setWindowTabs]);
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);
@@ -309,21 +302,6 @@ function WindowShell({
   const place = placeOfHref(activeHref);
   const isChat = isChatHref(activeHref);
 
-  // The group on screen is the tab up's: its chat's tabs, a site's page, or
-  // nothing for a screen that is its route. The window's browser, the
-  // openers and what goes with a message all read it from there.
-  const groupOnScreen = groupOfHref(activeHref);
-  useEffect(() => {
-    if (windowTabs.group === groupOnScreen) {
-      return;
-    }
-    if (groupOnScreen === undefined) {
-      windowTabs.leaveGroup();
-    } else {
-      windowTabs.showGroup(groupOnScreen);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupOnScreen, windowTabs.group]);
   // The chat a tab last had open is where Chat in the rail takes a tab.
   useEffect(() => {
     if (!isChat) {
@@ -431,8 +409,8 @@ function WindowShell({
   };
   /** Brings the pane up for the group on screen, for something opened into it. */
   const revealPane = () => {
-    if (windowTabs.group !== undefined) {
-      setPaneOpen(windowTabs.group, true);
+    if (windowTabs.groupOnScreen !== undefined) {
+      setPaneOpen(windowTabs.groupOnScreen, true);
     }
   };
   // The pages screens draw into slots of their own (a page's file beside a

@@ -1,9 +1,10 @@
-import { everyTabIdAtom } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
+
+import { everyTabIdAtom } from "./window-tabs";
 
 /** Where a tab's page picture is kept in the query cache. */
 export const thumbnailKey = (key: string) => ["page-thumbnail", key] as const;

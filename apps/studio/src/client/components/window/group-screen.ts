@@ -2,13 +2,13 @@ import {
   APPS_HREF,
   BROWSER_HREF,
   NEW_TAB_HREF,
-  type WindowTabs,
+  type WindowTab,
 } from "@/client/atoms/window";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
 import { tasksOfHref } from "./tab-location";
-import { parseHref } from "./window-tabs";
+import { parseHref } from "./window-href";
 
 /**
  * A screen a tab in a chat's or a draft's group can stand on, which is
@@ -63,13 +63,12 @@ export function groupScreenOf(href: string): GroupScreen | undefined {
  * build that let one in. A screen tab's trail goes with it: a step back
  * onto such a screen would be one again.
  */
-export function withGroupScreensOnly(current: WindowTabs): WindowTabs {
-  const tabs = current.tabs.filter(
+export function groupScreenTabsOnly(tabs: WindowTab[]): WindowTab[] {
+  return tabs.filter(
     (tab) =>
       tab.kind !== "screen" ||
       (tab.trail ?? [tab.href]).every(
         (href) => groupScreenOf(href) !== undefined,
       ),
   );
-  return tabs.length === current.tabs.length ? current : { ...current, tabs };
 }

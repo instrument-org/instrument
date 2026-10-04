@@ -12,7 +12,6 @@ import {
   screenViewAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
-  windowTabsAtom,
 } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -44,10 +43,8 @@ import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
-import {
-  chatOfHref,
-  useWindowTabs,
-} from "@/client/components/window/window-tabs";
+import { chatOfHref } from "@/client/components/window/window-href";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -253,7 +250,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.
-                          windowTabs.forgetGroup(chat);
+                          windowTabs.dropGroup(chat);
                           appTabs.navigate(INBOX_HREF, { replace: true });
                           setInboxOpen(true);
                         }}
@@ -289,7 +286,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                             onGone={() => {
                               // As for a deleted chat: its tabs go, and the
                               // inbox takes the tab back.
-                              windowTabs.forgetGroup(chat);
+                              windowTabs.dropGroup(chat);
                               appTabs.navigate(INBOX_HREF, { replace: true });
                               setInboxOpen(true);
                             }}
@@ -355,15 +352,15 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                 isViewOpen={showsPane}
                 onAddComputer={() => {
                   windowTabs.openScreen(instrumentFolderHref(), {
-                    activate: true,
                     group: chat,
+                    select: true,
                   });
                   setPaneOpen(chat, true);
                 }}
                 onAddWeb={() => {
                   windowTabs.openScreen(BROWSER_HREF, {
-                    activate: true,
                     group: chat,
+                    select: true,
                   });
                   setPaneOpen(chat, true);
                 }}
@@ -372,7 +369,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                   windowTabs.reorder(keys, chat);
                 }}
                 onSelect={(id) => {
-                  windowTabs.selectIn(chat, id);
+                  windowTabs.select(id);
                   setPaneOpen(chat, true);
                 }}
                 tabs={tabs}
@@ -510,7 +507,6 @@ function SiteView({ group }: { group: string }) {
   // A tab reopened after its page was put away brings the page back, at
   // the address it had.
   const [putAway, setPutAway] = useAtom(putAwaySitesAtom);
-  const setWindowTabs = useSetAtom(windowTabsAtom);
   const stashed = up === undefined ? putAway[group] : undefined;
   useEffect(() => {
     if (!stashed) {
@@ -519,20 +515,8 @@ function SiteView({ group }: { group: string }) {
     // Its guest went with it, and is opened again at the page it held the
     // way a launch opens a restored tab's: from blank, so with none of the
     // page's own history behind it.
-    const pages = stashed.map((tab) =>
-      tab.kind === "page" ? { ...tab, pageBackSteps: 0 } : tab,
-    );
-    setWindowTabs((current) => ({
-      ...current,
-      // Up at once when its group is the one on screen, which it is, being
-      // this tab's.
-      activeId:
-        current.group === group
-          ? (pages[0]?.id ?? current.activeId)
-          : current.activeId,
-      tabs: [...current.tabs.filter((tab) => tab.group !== group), ...pages],
-    }));
-    for (const tab of pages) {
+    windowTabs.restoreGroup(group, stashed);
+    for (const tab of stashed) {
       if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
         void rpcClient.workspace.browser.open.call({
           id: tab.taskId ?? WINDOW_ID,
@@ -547,7 +531,7 @@ function SiteView({ group }: { group: string }) {
     });
     // Once per group put back; the task it opens under does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group, setPutAway, setWindowTabs, stashed]);
+  }, [group, setPutAway, stashed]);
   // Back from the page's start is the window tab's own back, to where the
   // site was opened from.
   const router = useRouter();

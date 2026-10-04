@@ -1,4 +1,3 @@
-import { windowTabsAtom } from "@/client/atoms/window";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
@@ -36,6 +35,7 @@ import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { TabStrip } from "./tab-strip";
+import { windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
@@ -90,7 +90,7 @@ export function AppTabStrip({
       const open = groupTabs.filter((tab) => tab.group === group);
       const own = open.length > 0 ? open : (putAway[group ?? ""] ?? []);
       const up =
-        own.find((tab) => tab.id === activeByGroup?.[group ?? ""]) ?? own[0];
+        own.find((tab) => tab.id === activeByGroup[group ?? ""]) ?? own[0];
       if (up?.kind === "page") {
         return {
           icon: <TabIcon favicon={up.favicon} url={up.url} />,

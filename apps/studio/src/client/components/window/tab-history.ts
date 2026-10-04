@@ -80,7 +80,7 @@ function leftBehind(
   visit: TabVisit,
 ): undefined | WindowTab {
   if (current.kind === "page") {
-    return { ...current, pageBackSteps: 0 };
+    return current;
   }
   if (!current.trail) {
     return current;

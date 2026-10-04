@@ -53,7 +53,7 @@ function tabsOf(
   return {
     active: tabs[0],
     allTabs,
-    group,
+    groupOnScreen: group,
     tabUpIn: (key) => allTabs.find((tab) => tab.group === key),
   };
 }

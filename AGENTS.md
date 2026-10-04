@@ -125,4 +125,4 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/releasing.md`: Where a build comes from and where it goes: cutting a tag, what it starts, where the artifacts land, the draft release, and the notes.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
-- `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.
+- `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, Result + Zod tool conventions.

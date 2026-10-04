@@ -6,7 +6,8 @@ Core AI agents, workflow logic, RPC, and tools.
 
 - **RPC**: Router in `src/rpc/index.ts`. Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
-- **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
+- **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Fallible logic returns a `Result`; map it to tool output, or throw for oRPC.
+- **Result library**: the repo's standard is `typescript-result` (the `typescript-result` skill), as in `packages/ai-gateway`. Code here that composes with functions still returning neverthrow's `Result` (`Store`, the shell commands, tools) stays on neverthrow rather than converting at every call; a module with no such neighbors uses `typescript-result`.
 - **Agents**: `src/agents/` (`all.ts`), wired by `create-agent.ts`, each picking its tools from `TOOLS`. `main` runs a task's session. `instrument` runs a chat's: it does one-step work itself and hands the rest to tasks it creates through the `task` shell command (`src/lib/shell-commands/task.ts`), which wake it when they finish (`src/lib/chat/wake.ts`). `agent-name-for-task.ts` says which answers in a task.
 - **Workspace server**: loopback Hono app in `src/logic/server/index.ts`: the CDP bridge `agent-browser` drives a guest through, and the AI gateway mounted at `AI_GATEWAY_API_PATH` when provided. It serves no files: a page on this computer opens at its `file://` address for the person and the agent alike, and the person's viewers read files through Studio's own `instrument://computer-<token>` channel.
 - **Schemas**: `src/schemas/`. Use for RPC/tool I/O where applicable.
@@ -25,6 +26,8 @@ Core AI agents, workflow logic, RPC, and tools.
 ## Evals
 
 `pnpm eval` runs the real agent loop against real models (`evals/`, cases in `evals/cases/`). `--model` is required, start on Workers AI, and name the models you ran. The `workspace-evals` skill has the rest; the `validate-changes` skill says whether an eval is the right check at all.
+
+A commit that adds, drops, or reverses a rule for how an agent behaves (its prompt in `src/agents/`, or text a command prints for the model to act on) names the eval case covering that rule in a `Tested:` trailer, with the models it ran on, and adds a case under `evals/cases/` when none covers it. Rewording that keeps the rule is exempt, and so is a change no run could tell apart; say which in the commit. A rule tuned to one transcript and reversed for the next is how prompt churn happens, and a case pinning the behavior is what shows the next reversal what it would undo. Prefer a command refusal to a prompt rule wherever a command can enforce it: refusals hold where prose drifts.
 
 ## Seeded workspaces
 

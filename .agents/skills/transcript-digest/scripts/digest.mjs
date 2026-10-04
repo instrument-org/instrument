@@ -128,8 +128,11 @@ function render({ p, a }) {
   const served = [
     ...new Set(a.steps.map((s) => s.meta.served).filter(Boolean)),
   ].join(", ");
+  const providers = [
+    ...new Set(a.steps.map((s) => s.meta.provider).filter(Boolean)),
+  ].join(", ");
   log(
-    `# ${m.taskName}  (${p.lineCount} lines, ${(m.modelsUsed ?? []).map((x) => x.modelId).join(", ")}${served ? `, served ${served}` : ""}, app ${m.currentAppVersion ?? "?"})`,
+    `# ${m.taskName}  (${p.lineCount} lines, ${(m.modelsUsed ?? []).map((x) => x.modelId).join(", ")}${providers ? ` via ${providers}` : ""}${served ? `, served ${served}` : ""}, app ${m.currentAppVersion ?? "?"})`,
   );
   log(
     `${a.steps.length} model steps, ${m.toolCallCount} tool calls, ${m.userMessageCount} user messages. Active ${fmt(m.activeDurationMs)}, model ${fmt(m.aiGenerationDurationMs)}. ${m.usage?.inputTokens ?? "?"} input tokens (${Math.round((100 * (m.usage?.cacheReadTokens ?? 0)) / (m.usage?.inputTokens || 1))}% cache read), ${m.usage?.outputTokens ?? "?"} output.`,

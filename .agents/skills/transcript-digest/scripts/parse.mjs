@@ -204,6 +204,21 @@ export function analyze(p) {
         e,
         `Model took ${fmt(e.ttfc)} to start answering (step ${e.turn}.${e.step}, ${e.meta.inputTokens} input tokens)`,
       );
+    // A step right after another resends that step's prompt plus a little,
+    // so a provider that keeps a session on one cache reads most of it back.
+    // Nothing read means the request lost its cache affinity.
+    const input = Number(e.meta.inputTokens);
+    if (
+      timeline[k - 1]?.kind === "step" &&
+      e.meta.cacheReadTokens === "0" &&
+      input > 2048
+    )
+      flag(
+        "cache-miss",
+        "warn",
+        e,
+        `Step ${e.turn}.${e.step} read nothing from cache (${input} input tokens, ${e.meta.provider ?? "?"}${e.meta.modelUri?.includes("providerConfigId=") ? ` ${e.meta.modelUri.split("providerConfigId=")[1].split("&")[0]}` : ""})`,
+      );
     const fr = e.meta.finishReason;
     if (fr && !["tool-calls", "stop"].includes(fr))
       flag(

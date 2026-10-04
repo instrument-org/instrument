@@ -1,4 +1,5 @@
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { getMacAppIconUrl } from "@/electron-main/lib/file-open-target";
 import { base } from "@/electron-main/rpc/base";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
@@ -66,6 +67,8 @@ const AppListItemSchema = z.object({
   hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
+  /** The installed Mac app's own icon, for a local server that drives one; drawn in place of the site's. */
+  icon: z.string().optional(),
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
   runs: z.string().optional(),
@@ -109,6 +112,14 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
+          ...(app.manifest.type === "mcp-local" && app.manifest.macApp
+            ? {
+                icon:
+                  (await getMacAppIconUrl(app.manifest.macApp).catch(
+                    () => null,
+                  )) ?? undefined,
+              }
+            : {}),
           name: app.manifest.name,
           ...(app.manifest.type === "mcp-local"
             ? { runs: describeLocalLaunch(app.manifest) }

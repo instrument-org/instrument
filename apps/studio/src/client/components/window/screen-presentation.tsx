@@ -33,7 +33,10 @@ import { parseHref } from "./window-tabs";
  * it stands for, kept by the window and read off the address's id.
  */
 interface ScreenNames {
-  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  appsBySlug: Map<
+    string,
+    { icon?: string | undefined; name: string; site: string | undefined }
+  >;
   /** Each chat's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<StoreId.Session, string>;
   /**
@@ -151,7 +154,7 @@ export function screenPresentation(
     const app = appsBySlug.get(slug);
     return {
       icon: app ? (
-        <AppIcon name={app.name} site={app.site} size="sm" />
+        <AppIcon name={app.name} icon={app.icon} site={app.site} size="sm" />
       ) : (
         <AppWindowIcon className="size-3.5" />
       ),
@@ -239,4 +242,3 @@ function folderTitle(
   );
   return crumbs.at(-1)?.label ?? computerName();
 }
-

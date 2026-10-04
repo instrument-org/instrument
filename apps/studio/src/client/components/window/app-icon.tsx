@@ -12,15 +12,21 @@ import { cn } from "@/client/lib/utils";
  * alone, softened at the corners, the way a site's icon does on a row or in
  * a chip. A site with no icon anywhere has the initial every surface draws
  * for it; with no site to ask, the app's own initial on the same quiet tile
- * fills the box, so a missing mark reads as missing everywhere.
+ * fills the box, so a missing mark reads as missing everywhere. An app whose
+ * server drives an app installed here has that app's own icon, which stands
+ * in for the site's: a desktop app's icon carries its own shape and is drawn
+ * whole, with no plate behind it.
  */
 export function AppIcon({
   className,
+  icon,
   name,
   site,
   size = "md",
 }: {
   className?: string;
+  /** The installed app's own icon, drawn in place of the site's. */
+  icon?: string | undefined;
   /** What the app is called, which its initial comes from when it has no site. */
   name?: string | undefined;
   site?: string | undefined;
@@ -59,6 +65,25 @@ export function AppIcon({
       {initialOf(name)}
     </span>
   ) : null;
+  if (icon) {
+    return (
+      <img
+        alt={name ?? ""}
+        className={cn(
+          "shrink-0 object-contain",
+          {
+            lg: "size-12",
+            md: "size-9",
+            sm: "size-4",
+            xl: "size-16",
+          }[size],
+          className,
+        )}
+        draggable={false}
+        src={icon}
+      />
+    );
+  }
   return (
     <span
       className={cn(

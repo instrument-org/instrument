@@ -1312,7 +1312,10 @@ export function IncludedChip({
   said = SENT_WITH_MESSAGE,
   tab,
 }: {
-  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  appsBySlug: Map<
+    string,
+    { icon?: string | undefined; name: string; site: string | undefined }
+  >;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
@@ -1487,7 +1490,10 @@ function HeldMark({
   appsBySlug,
   tab,
 }: {
-  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  appsBySlug: Map<
+    string,
+    { icon?: string | undefined; name: string; site: string | undefined }
+  >;
   tab: WindowTab;
 }) {
   if (tab.kind === "page") {

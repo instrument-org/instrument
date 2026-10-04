@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 /** What a screen needs to draw an app it only has the slug of. */
 export type AppsBySlug = Map<
   string,
-  { name: string; site: string | undefined }
+  { icon?: string | undefined; name: string; site: string | undefined }
 >;
 
 /**
@@ -20,11 +20,16 @@ export function useAppsBySlug(): AppsBySlug {
       (entry) =>
         [
           entry.slug,
-          { name: entry.name, site: `https://${entry.domain}` },
+          {
+            icon: undefined,
+            name: entry.name,
+            site: `https://${entry.domain}`,
+          },
         ] as const,
     ),
     ...(apps.data?.apps ?? []).map(
-      (app) => [app.slug, { name: app.name, site: app.site }] as const,
+      (app) =>
+        [app.slug, { icon: app.icon, name: app.name, site: app.site }] as const,
     ),
   ]);
 }

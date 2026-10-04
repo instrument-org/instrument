@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storeFileOpenIcon } from "../app-protocol";
 import {
   CANDIDATE_SCAN_LIMIT,
+  DARWIN_BUNDLE_ICON_SCRIPT,
   DARWIN_CANDIDATES_SCRIPT,
   DARWIN_ICONS_SCRIPT,
   DARWIN_RESOLVE_SCRIPT,
@@ -41,6 +42,24 @@ export async function enumerateDarwinCandidates(fullPath: string) {
     maxBuffer: 4 * 1024 * 1024,
   });
   return DarwinCandidatesSchema.parse(JSON.parse(stdout)).apps;
+}
+
+// The icon of an installed app by its bundle identifier, as raw base64,
+// rendered at the screen's scale; empty when no such app is installed.
+export async function renderDarwinBundleIcon(bundleId: string, size: number) {
+  const stdout = await runThrottledHelper({
+    args: [
+      "-l",
+      "JavaScript",
+      "-e",
+      DARWIN_BUNDLE_ICON_SCRIPT,
+      String(size),
+      bundleId,
+    ],
+    file: "osascript",
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  return stdout.trim();
 }
 
 // Renders one icon per app path in a single interpreter, returning raw base64.

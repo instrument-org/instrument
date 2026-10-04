@@ -10,6 +10,8 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 
 /** What a menu needs of an app to offer it, and what its chip draws it with. */
 export interface ComposerApp extends AppMentionRef {
+  /** The installed app's own icon, for a local server that drives one. */
+  icon?: string | undefined;
   /** The service's origin, for its icon. */
   site?: string | undefined;
 }
@@ -41,6 +43,7 @@ export function AppMention({
         <AppIcon
           className="size-3! rounded-xs"
           name={known.name}
+          icon={known.icon}
           site={known.site}
           size="sm"
         />
@@ -69,6 +72,7 @@ export function AppMenuRow({
       <AppIcon
         className="size-4! rounded-[3px]"
         name={app.name}
+        icon={app.icon}
         site={app.site}
         size="sm"
       />

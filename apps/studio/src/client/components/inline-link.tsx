@@ -158,6 +158,7 @@ function AppChipIcon({ slug }: { slug: string }) {
     <AppIcon
       className="size-3! rounded-xs"
       name={app.name}
+      icon={app.icon}
       site={app.site}
       size="sm"
     />

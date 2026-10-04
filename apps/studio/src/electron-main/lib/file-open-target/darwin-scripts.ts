@@ -167,3 +167,21 @@ function run(argv) {
   return JSON.stringify(out);
 }
 `;
+
+// Renders the icon of the app with the bundle identifier in argv[1], wherever
+// Launch Services finds it installed; empty when it is not.
+export const DARWIN_BUNDLE_ICON_SCRIPT = `
+ObjC.import("AppKit");
+${DARWIN_RENDER_ICON_FN}
+function run(argv) {
+  const ws = $.NSWorkspace.sharedWorkspace;
+  const size = parseInt(argv[0], 10) || 128;
+  try {
+    const url = ws.URLForApplicationWithBundleIdentifier(argv[1]);
+    const appPath = url.path.js;
+    return appPath ? renderIcon(ws.iconForFile(appPath), size) : "";
+  } catch {
+    return "";
+  }
+}
+`;

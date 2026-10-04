@@ -8,6 +8,7 @@ import * as cacheStore from "./file-open-target/cache-store";
 import { curateCandidates } from "./file-open-target/candidate-policy";
 import {
   enumerateDarwinCandidates,
+  renderDarwinBundleIcon,
   renderDarwinIcons,
   resolveDarwinTarget,
 } from "./file-open-target/resolve-darwin";
@@ -85,6 +86,36 @@ export async function getBrowserOpenTarget(): Promise<FileOpenTarget> {
   return getCachedTarget(BROWSER_TARGET_KEY, resolveBrowserTarget, () =>
     Promise.resolve(UNRESOLVED_BROWSER),
   );
+}
+
+// Large enough for the biggest plate an app is drawn on.
+const MAC_APP_ICON_SIZE = 128;
+const macAppIcons = new Map<string, Promise<null | string>>();
+
+/**
+ * The icon of an installed Mac app by its bundle identifier, for an app
+ * whose server drives it. Null off macOS, when the app is not installed, or
+ * when it could not be rendered. Rendered once per session; a failure is
+ * dropped so the next ask tries again.
+ */
+export function getMacAppIconUrl(bundleId: string): Promise<null | string> {
+  if (process.platform !== "darwin") {
+    return Promise.resolve(null);
+  }
+  const cached = macAppIcons.get(bundleId);
+  if (cached) {
+    return cached;
+  }
+  const pending = renderDarwinBundleIcon(bundleId, MAC_APP_ICON_SIZE).then(
+    (base64) => storeFileOpenIcon(base64, MAC_APP_ICON_SIZE),
+  );
+  macAppIcons.set(bundleId, pending);
+  void pending.catch(() => {
+    if (macAppIcons.get(bundleId) === pending) {
+      macAppIcons.delete(bundleId);
+    }
+  });
+  return pending;
 }
 
 // The Finder, with its own icon rendered the way every candidate app's is, for

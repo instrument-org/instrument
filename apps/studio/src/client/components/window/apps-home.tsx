@@ -299,6 +299,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
           waiting && "opacity-60",
         )}
         name={app.name}
+        icon={app.icon}
         site={app.site}
         size="xl"
       />

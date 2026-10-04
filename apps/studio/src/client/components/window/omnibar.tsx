@@ -804,7 +804,14 @@ function useRows({
       case "apps": {
         return matchNames(words, [...appsBySlug], ([, app]) => app.name).map(
           ([slug, app]) => ({
-            icon: <AppIcon name={app.name} site={app.site} size="sm" />,
+            icon: (
+              <AppIcon
+                name={app.name}
+                icon={app.icon}
+                site={app.site}
+                size="sm"
+              />
+            ),
             id: `app:${slug}`,
             name: app.name,
             run: () => {

@@ -87,7 +87,14 @@ export function HoldMarks({
     ...holds.apps.map((slug) => {
       const app = appsBySlug.get(slug);
       return {
-        icon: <AppIcon name={app?.name ?? slug} site={app?.site} size="sm" />,
+        icon: (
+          <AppIcon
+            name={app?.name ?? slug}
+            icon={app?.icon}
+            site={app?.site}
+            size="sm"
+          />
+        ),
         key: `app:${slug}`,
         name: app?.name ?? slug,
         target: { href: `/apps/${slug}`, kind: "screen" as const },

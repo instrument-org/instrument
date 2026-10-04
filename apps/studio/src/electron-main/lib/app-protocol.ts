@@ -75,7 +75,7 @@ export function siteIconDeps(): SiteIconDeps {
   };
 }
 
-export async function storeFileOpenIcon(base64: string) {
+export async function storeFileOpenIcon(base64: string, size = ICON_SIZE) {
   if (!base64) {
     return null;
   }
@@ -83,9 +83,7 @@ export async function storeFileOpenIcon(base64: string) {
   if (image.isEmpty()) {
     return null;
   }
-  return storePng(
-    image.resize({ height: ICON_SIZE, width: ICON_SIZE }).toPNG(),
-  );
+  return storePng(image.resize({ height: size, width: size }).toPNG());
 }
 
 export async function storeFileOpenNativeImage(image: NativeImage) {

@@ -238,7 +238,12 @@ export function ComposerAddMenu({
                     places.onNameApp(app);
                   }}
                 >
-                  <AppIcon name={app.name} site={app.site} size="sm" />
+                  <AppIcon
+                    name={app.name}
+                    icon={app.icon}
+                    site={app.site}
+                    size="sm"
+                  />
                   {app.name}
                 </DropdownMenuItem>
               ))}

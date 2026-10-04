@@ -186,7 +186,7 @@ export function AppFront({
       >
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">
-          <AppIcon name={name} site={site} size="lg" />
+          <AppIcon icon={app?.icon} name={name} site={site} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1">
               <h1 className="text-lg leading-6 font-semibold">{name}</h1>
@@ -270,7 +270,7 @@ export function AppFront({
                 onClick={openHome}
                 type="button"
               >
-                <AppIcon name={name} site={site} size="sm" />
+                <AppIcon icon={app?.icon} name={name} site={site} size="sm" />
                 <span className="truncate">Open {name}</span>
               </button>
             ) : null}

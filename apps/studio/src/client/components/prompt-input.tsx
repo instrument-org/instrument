@@ -288,6 +288,7 @@ export const PromptInput = ({
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
   const composerApps: ComposerApp[] = (appList?.apps ?? []).map((app) => ({
+    icon: app.icon,
     name: app.name,
     site: app.site,
     slug: app.slug,

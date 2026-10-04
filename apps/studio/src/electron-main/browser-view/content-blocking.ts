@@ -1,10 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
-import {
-  fetchResources,
-  FiltersEngine,
-  Request,
-} from "@ghostery/adblocker";
+import { fetchResources, FiltersEngine, Request } from "@ghostery/adblocker";
 import type { IBackgroundCallback } from "@ghostery/adblocker-electron-preload";
 import {
   app,
@@ -299,7 +295,7 @@ async function fetchList(url: string, seen: Set<string>): Promise<string> {
   }
   const lines = (await response.text()).split("\n");
   const expanded = await Promise.all(
-    lines.map((line) => {
+    lines.map(async (line) => {
       const included = /^!#include (\S+)/.exec(line)?.[1];
       return included ? fetchList(new URL(included, url).href, seen) : line;
     }),

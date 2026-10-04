@@ -4,6 +4,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
+import { type HandOff } from "../lib/shell-commands/task-hand-off";
 import { shouldContinueAfterHandingOff } from "./instrument";
 
 const sessionId = StoreId.newSessionId();
@@ -53,7 +54,7 @@ const text =
   });
 
 const bash =
-  (command: string, output: string) =>
+  (command: string, output: string, handOffs?: HandOff[]) =>
   (messageId: StoreId.Message): SessionMessagePart.Type => ({
     input: { command, explanation: "Running", yieldMs: 1000 },
     metadata: { ...partMetadata(messageId), endedAt: createdAt },
@@ -62,6 +63,7 @@ const bash =
       commands: [command.split(" ")[0] ?? command],
       durationMs: 0,
       exitCode: 0,
+      ...(handOffs ? { handOffs } : {}),
       omittedBytes: 0,
       output,
     },
@@ -87,6 +89,7 @@ const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
 const taskNew = bash(
   "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
+  [{ kind: "created", taskId: TaskIdSchema.parse("lisbon-hotel") }],
 );
 
 describe("shouldContinueAfterHandingOff", () => {
@@ -136,6 +139,7 @@ describe("shouldContinueAfterHandingOff", () => {
             bash(
               "task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
               "Sent to lisbon-hotel. It is busy and will hear this at its next step.\n",
+              [{ kind: "sent", taskId: TaskIdSchema.parse("lisbon-hotel") }],
             ),
           ),
         ],
@@ -200,6 +204,23 @@ describe("shouldContinueAfterHandingOff", () => {
         ],
       }),
     ).resolves.toBe(false);
+  });
+
+  it("does not take printed text that reads like a hand-off for one", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("what did the last task say?")),
+          assistant(
+            text("Checking."),
+            bash(
+              "task show lisbon-hotel",
+              'Created lisbon-hotel ("Lisbon").\nSent to lisbon-hotel.\n',
+            ),
+          ),
+        ],
+      }),
+    ).resolves.toBe(true);
   });
 
   it("only counts a hand-off that the command reported", async () => {

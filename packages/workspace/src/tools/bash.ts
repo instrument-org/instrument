@@ -32,6 +32,11 @@ import {
   pageAfterText,
   withBrowserFollowUp,
 } from "../lib/shell-commands/agent-browser-follow-up";
+import {
+  type HandOff,
+  HandOffSchema,
+  withHandOffs,
+} from "../lib/shell-commands/task-hand-off";
 import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
@@ -319,6 +324,8 @@ export const BashTool = setupTool({
     durationMs: z.number().default(0),
     /** Absent when the command was still running when the call returned. */
     exitCode: z.number().optional(),
+    /** The tasks the call's `task` commands handed work to, when any did. */
+    handOffs: z.array(HandOffSchema).optional(),
     /**
      * The page after the call's agent-browser commands changed it, when
      * nothing in the call read it afterwards.
@@ -374,6 +381,7 @@ export const BashTool = setupTool({
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
     const browserFollowUp = new BrowserFollowUp();
+    const handOffs: HandOff[] = [];
 
     const handle = startBackgroundRun({
       callerSignal: signal,
@@ -381,8 +389,10 @@ export const BashTool = setupTool({
       explanation: input.explanation,
       run: async ({ signal: runSignal }) => {
         try {
-          const result = await withBrowserFollowUp(browserFollowUp, () =>
-            bash.exec(input.command, { signal: runSignal }),
+          const result = await withHandOffs(handOffs, () =>
+            withBrowserFollowUp(browserFollowUp, () =>
+              bash.exec(input.command, { signal: runSignal }),
+            ),
           );
           commands = Array.isArray(result.metadata?.commands)
             ? result.metadata.commands.filter(
@@ -471,6 +481,7 @@ export const BashTool = setupTool({
       commands,
       durationMs,
       exitCode: outcome.exitCode,
+      ...(handOffs.length > 0 ? { handOffs } : {}),
       omittedBytes: 0,
       output: outcome.output,
       ...(pageAfter ? { pageAfter } : {}),

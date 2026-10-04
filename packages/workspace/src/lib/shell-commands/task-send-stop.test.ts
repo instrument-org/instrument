@@ -17,6 +17,7 @@ import { holdTask, taskHold } from "../task-hold";
 import { setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runSend, runStop, type TaskCommandContext } from "./task";
+import { type HandOff, withHandOffs } from "./task-hand-off";
 
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
@@ -143,6 +144,12 @@ describe("task send", () => {
     expect(sentAddMessage()).toEqual([{ interrupt: true }]);
   });
 
+  it("reports the send as a hand-off to the bash call", async () => {
+    const handOffs: HandOff[] = [];
+    await withHandOffs(handOffs, () => send([]));
+    expect(handOffs).toEqual([{ kind: "sent", taskId: CHILD_ID }]);
+  });
+
   it("starts an idle task either way", async () => {
     working.value = () => false;
     const result = await send(["--now"]);
@@ -243,6 +250,14 @@ describe("a task held from starting", () => {
           : event,
       ),
     ).toEqual(["createSession", "addMessage"]);
+  });
+
+  it("does not report a message queued behind it as a hand-off", async () => {
+    const release = holdChild();
+    const handOffs: HandOff[] = [];
+    await withHandOffs(handOffs, () => send([]));
+    expect(handOffs).toEqual([]);
+    await release();
   });
 
   it("cancels its start on stop, so it never runs", async () => {

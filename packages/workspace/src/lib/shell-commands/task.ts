@@ -71,6 +71,7 @@ import {
 } from "../chat/mount-paths";
 import { outputFolderPath } from "../chat/output-folder";
 import { renderSteps, sessionSteps } from "../chat/steps";
+import { recordHandOff } from "./task-hand-off";
 import { askWake, cancelAskedWake, expectStop } from "../chat/wake";
 import { tabHolders } from "../chat/window-tab";
 import { isChatId, sessionOfChat } from "../record-folders";
@@ -696,6 +697,9 @@ async function runNew(
   }
   await recordTaskActivity(taskId);
 
+  if (unanswered.length === 0) {
+    recordHandOff({ kind: "created", taskId });
+  }
   const asking =
     unanswered.length === 0
       ? `It is running now.`
@@ -750,6 +754,9 @@ export async function runSend(
     ),
     task,
   });
+  if (!held) {
+    recordHandOff({ kind: "sent", taskId: task.id });
+  }
   const sent = held
     ? `Queued for ${task.id}, which has not started: ${describeHold(held)}. It hears this right after its brief once it starts; you will be told when it finishes.`
     : running
@@ -950,6 +957,7 @@ async function tellOfGrant({
   if (held) {
     return `${task.id} has not started (${describeHold(held)}); it is told this right after its brief once it starts.\n`;
   }
+  recordHandOff({ kind: "sent", taskId: task.id });
   return running
     ? `Sent to ${task.id}, which is busy and hears this at its next step; you will be told when its turn finishes.\n`
     : `Sent to ${task.id}, which carries on with it now; you will be told when it finishes.\n`;

@@ -234,9 +234,6 @@ export const instrumentAgent = setupAgent({
 const PROMISES_A_TASK =
   /\b(?:hand|send|start|creat|kick|spin|delegat|goes to|go to|off to)\w*\s+(?:\w+[,']?\s+){0,4}(?:a|an|the|one|new|another)\s+(?:\w+\s+)?task\b/i;
 
-/** How `task new` says a task it made waits on the user before it starts. */
-const HELD_ON_USER = "the task starts once they answer";
-
 /**
  * The turn ends once a task has been created or steered, or the user has been
  * asked to connect an app, and the user has heard a line: the next word about
@@ -273,15 +270,12 @@ export async function shouldContinueAfterHandingOff({
   }
   const handedOff = last.parts.some(
     (part) =>
+      // A task started or sent work. One held until the user answers
+      // something (the system's folder ask) is not a hand-off: it waits on
+      // them, and the turn stays open to say so.
       (part.type === "tool-bash" &&
         part.state === "output-available" &&
-        /(?:^|[\n;&|])\s*task (?:new|send|folder|app)\b/.test(
-          part.input.command,
-        ) &&
-        /^(?:Created|Sent to) /m.test(part.output.output) &&
-        // A task held until the user answers something (the system's folder
-        // ask) is waiting on them, and the turn stays open to say so.
-        !part.output.output.includes(HELD_ON_USER)) ||
+        (part.output.handOffs?.length ?? 0) > 0) ||
       // A card asking the user to connect an app: the answer comes as a wake.
       (part.type === "tool-connect_app" &&
         part.state === "output-available" &&

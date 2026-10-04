@@ -1,3 +1,4 @@
+import { DIRECTORY_ICON_HOST } from "@/shared/directory-icon";
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
@@ -14,6 +15,7 @@ import {
   handleComputerFileRequest,
   isComputerFileHost,
 } from "./computer-files";
+import { handleDirectoryIconRequest } from "./directory-icons";
 import { getResourcePath } from "./resource-path";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 
@@ -46,6 +48,9 @@ export function registerAppProtocol(ses: Session) {
   ses.protocol.handle(APP_PROTOCOL, async (request) => {
     const url = new URL(request.url);
     switch (url.hostname) {
+      case DIRECTORY_ICON_HOST: {
+        return handleDirectoryIconRequest({ request, url });
+      }
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
       }

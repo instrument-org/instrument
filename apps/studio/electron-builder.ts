@@ -116,6 +116,13 @@ const config: Configuration = {
       from: "../../packages/workspace/system-skills",
       to: "system-skills",
     },
+    // The directory's icons; the manifest beside them is for the refresh
+    // script and stays behind.
+    {
+      filter: ["*.png", "*.svg"],
+      from: "../../packages/workspace/directory-icons",
+      to: "directory-icons",
+    },
   ],
   files: [
     "out/**/*",

@@ -349,6 +349,7 @@ function CatalogTile({
         {/* No plate of its own: the tile is the box it sits in. */}
         <AppIcon
           className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
+          icon={entry.icon}
           name={entry.name}
           site={`https://${entry.domain}`}
         />

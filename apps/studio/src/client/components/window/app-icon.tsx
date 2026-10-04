@@ -1,5 +1,6 @@
 import { Favicon, FaviconFallback } from "@/client/components/favicon";
 import { cn } from "@/client/lib/utils";
+import { isDirectoryIconUrl } from "@/shared/directory-icon";
 
 /**
  * An app's icon: the site's own favicon through the proxy, set into a plate
@@ -12,7 +13,9 @@ import { cn } from "@/client/lib/utils";
  * alone, softened at the corners, the way a site's icon does on a row or in
  * a chip. A site with no icon anywhere has the initial every surface draws
  * for it; with no site to ask, the app's own initial on the same quiet tile
- * fills the box, so a missing mark reads as missing everywhere. An app whose
+ * fills the box, so a missing mark reads as missing everywhere. A service
+ * the directory ships a mark for is drawn with that mark, on the same plate,
+ * in place of its site's favicon. An app whose
  * server drives an app installed here has that app's own icon, which stands
  * in for the site's: a desktop app's icon carries its own shape and is drawn
  * whole, with no plate behind it.
@@ -25,7 +28,10 @@ export function AppIcon({
   size = "md",
 }: {
   className?: string;
-  /** The installed app's own icon, drawn in place of the site's. */
+  /**
+   * The app's own icon or its installed Mac app's, drawn whole in place of the
+   * site's; or the directory's mark for the service, drawn on the plate.
+   */
   icon?: string | undefined;
   /** What the app is called, which its initial comes from when it has no site. */
   name?: string | undefined;
@@ -65,7 +71,11 @@ export function AppIcon({
       {initialOf(name)}
     </span>
   ) : null;
-  if (icon) {
+  // A service's mark from the directory sits on the plate as a favicon does;
+  // any other icon is an app's own and is drawn whole.
+  const mark =
+    icon !== undefined && isDirectoryIconUrl(icon) ? icon : undefined;
+  if (icon && !mark) {
     return (
       <img
         alt={name ?? ""}
@@ -89,12 +99,22 @@ export function AppIcon({
       className={cn(
         "grid shrink-0 place-items-center overflow-hidden bg-card",
         // The initial is the plate's own art and fills it edge to edge.
-        !site && "p-0",
+        !site && !mark && "p-0",
         box,
         className,
       )}
     >
-      {site ? (
+      {mark ? (
+        <img
+          alt={name ?? ""}
+          className={cn(
+            "size-full object-contain",
+            size === "sm" ? "rounded-sm" : "rounded-[22%]",
+          )}
+          draggable={false}
+          src={mark}
+        />
+      ) : site ? (
         <Favicon
           // A mark that brought a square background of its own is softened
           // at the corners, so it sits in the plate rather than on it.

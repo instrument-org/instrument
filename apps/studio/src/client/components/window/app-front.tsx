@@ -66,6 +66,7 @@ export function AppFront({
   const entry = catalog.data?.find((candidate) => candidate.slug === slug);
   const name = app?.name ?? entry?.name ?? slug;
   const site = app?.site ?? (entry ? `https://${entry.domain}` : undefined);
+  const icon = app?.icon ?? entry?.icon;
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
   // The inspector reads the app's server, which for a local app starts it on
@@ -186,7 +187,7 @@ export function AppFront({
       >
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">
-          <AppIcon icon={app?.icon} name={name} site={site} size="lg" />
+          <AppIcon icon={icon} name={name} site={site} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1">
               <h1 className="text-lg leading-6 font-semibold">{name}</h1>
@@ -270,7 +271,7 @@ export function AppFront({
                 onClick={openHome}
                 type="button"
               >
-                <AppIcon icon={app?.icon} name={name} site={site} size="sm" />
+                <AppIcon icon={icon} name={name} site={site} size="sm" />
                 <span className="truncate">Open {name}</span>
               </button>
             ) : null}

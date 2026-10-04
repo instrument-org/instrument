@@ -7,6 +7,7 @@ import {
   APP_ICON_SIZE,
   getMacAppIconUrl,
 } from "@/electron-main/lib/file-open-target";
+import { directoryIconFor } from "@/electron-main/lib/directory-icons";
 import { base } from "@/electron-main/rpc/base";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
@@ -23,6 +24,7 @@ import {
   beginMcpOAuth,
   cancelMcpOAuth,
   describeLocalLaunch,
+  findCatalogEntry,
   getAppCatalog,
   isConnected,
   isMcpManifest,
@@ -76,7 +78,7 @@ const AppListItemSchema = z.object({
   hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
-  /** The app's own icon from its folder, else its Mac app's for a local server that drives one; drawn in place of the site's. */
+  /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
   icon: z.string().optional(),
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
@@ -88,10 +90,14 @@ const AppListItemSchema = z.object({
   type: z.enum(["api", "mcp", "mcp-local"]),
 });
 
-/** The app's own icon, else its Mac app's; neither leaves the site's to draw. */
+/**
+ * The app's own icon, else its Mac app's, else the directory's for the service
+ * it reaches; none leaves the site's to draw.
+ */
 async function iconFor(app: {
   dir: Parameters<typeof findAppIcon>[0];
   manifest: AppManifest;
+  slug: string;
 }): Promise<{ icon?: string }> {
   const own = await findAppIcon(app.dir).catch(() => undefined);
   const url = own
@@ -103,7 +109,15 @@ async function iconFor(app: {
     : app.manifest.type === "mcp-local" && app.manifest.macApp
       ? await getMacAppIconUrl(app.manifest.macApp).catch(() => null)
       : null;
-  return url ? { icon: url } : {};
+  if (url) {
+    return { icon: url };
+  }
+  const entry = findCatalogEntry(
+    app.slug,
+    app.manifest.type === "mcp" ? app.manifest.url : undefined,
+  );
+  const directory = entry ? await directoryIconFor(entry.slug) : undefined;
+  return directory ? { icon: directory } : {};
 }
 
 const AppListSchema = z.object({
@@ -169,8 +183,18 @@ const live = {
   }),
 };
 
-/** The directory: what the product knows how to reach before anyone connects it. */
-const catalog = base.handler(() => getAppCatalog());
+/**
+ * The directory: what the product knows how to reach before anyone connects
+ * it, each service with the icon the build ships for it, if any.
+ */
+const catalog = base.handler(() =>
+  Promise.all(
+    getAppCatalog().map(async (entry) => ({
+      ...entry,
+      icon: await directoryIconFor(entry.slug),
+    })),
+  ),
+);
 
 /**
  * Whether a tool may be pressed from the inspector: the server says it only

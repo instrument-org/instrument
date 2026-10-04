@@ -6,6 +6,7 @@ export {
   type AppCatalogEntry,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
+  findCatalogEntry,
   getAppCatalog,
 } from "./lib/apps/catalog";
 export {
@@ -47,6 +48,11 @@ export {
   type StoredAppCredential,
 } from "./lib/apps/origin-bound";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";
+export {
+  DIRECTORY_ICON_FILE_PATTERN,
+  DIRECTORY_ICONS_DIR_NAME,
+  readDirectoryIcons,
+} from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";

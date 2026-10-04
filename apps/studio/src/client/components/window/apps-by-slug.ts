@@ -21,7 +21,7 @@ export function useAppsBySlug(): AppsBySlug {
         [
           entry.slug,
           {
-            icon: undefined,
+            icon: entry.icon,
             name: entry.name,
             site: `https://${entry.domain}`,
           },

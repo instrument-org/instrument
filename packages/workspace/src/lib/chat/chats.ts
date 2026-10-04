@@ -37,6 +37,7 @@ import { latestSessionId } from "./latest-session";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
+import { type ChatId } from "../../schemas/chat-id";
 
 /** How much of the agent's last reply a chat's row shows. */
 const LATEST_MAX = 160;
@@ -567,7 +568,7 @@ function behind(given: string[], made: string[]): string[] {
 
 async function chatFor(
   digest: ChatDigest,
-  taskId: TaskId,
+  taskId: ChatId,
   shared: Shared,
 ): Promise<Chat> {
   const { root, session } = digest;

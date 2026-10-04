@@ -30,7 +30,9 @@ afterEach(async () => {
 
 async function systemPromptFor(): Promise<string> {
   const taskId = TaskIdSchema.parse(`who-reads-you-${++taskCount}`);
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
@@ -89,7 +91,9 @@ async function contextFor(user: {
 }): Promise<string> {
   const taskId = TaskIdSchema.parse(`whose-work-${++taskCount}`);
   // The mock config replaces the whole config, so the account goes on after it.
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(

@@ -9,12 +9,13 @@ import {
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
-import { chatIdOfTask, isChatId, sessionOfChat } from "../record-folders";
+import { chatOf, sessionOfChat } from "../record-folders";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
+import { type ChatId } from "../../schemas/chat-id";
 
 /**
  * How long an ask waits for the window's answer. The window answers in
@@ -77,7 +78,7 @@ export async function askWindow({
  * owns.
  */
 export function chatSessionOfTask(taskId: TaskId): StoreId.Session | undefined {
-  const chatId = isChatId(taskId) ? taskId : chatIdOfTask(taskId);
+  const chatId = chatOf(taskId);
   return chatId === undefined ? undefined : sessionOfChat(chatId);
 }
 
@@ -160,7 +161,7 @@ export async function requestWindowTab({
  * it. A task that has finished holds nothing here.
  */
 export async function tabHolders(
-  chatId: TaskId,
+  chatId: ChatId,
 ): Promise<Map<string, { id: TaskId; title: string }>> {
   const holders = new Map<string, { id: TaskId; title: string }>();
   for (const task of await listChildTasks(chatId)) {

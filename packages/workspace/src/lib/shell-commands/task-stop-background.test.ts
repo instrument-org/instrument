@@ -18,6 +18,7 @@ import { initializeTask } from "../initialize-task";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runLog, runStop, type TaskCommandContext } from "./task";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 // Whether the child's turn is running; idle unless a test says otherwise.
 const working = vi.hoisted(() => ({ value: false }));
@@ -44,7 +45,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // kept per record id, and each test's workspace is a folder of its own.
 let counter = 0;
 let CHAT_SESSION = StoreId.newSessionId();
-let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -57,10 +58,12 @@ beforeEach(async () => {
   working.value = false;
   sent.events = [];
   CHAT_SESSION = StoreId.newSessionId();
-  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-stop-background-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
@@ -252,7 +255,7 @@ describe("task stop, for what a task left running", () => {
     await expect(
       runStop([CHILD_ID, "--all"], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"find-the-vault" was started in another chat/);
   });

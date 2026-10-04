@@ -4,13 +4,14 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { TaskIdSchema } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { initializeTask } from "../initialize-task";
 import { forgetRecordFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { listChildTasks } from "./children";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 let rootDir: string;
 
@@ -33,7 +34,7 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId?: TaskId) {
+async function make(id: string, chatId?: ChatId) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
@@ -56,7 +57,7 @@ describe("listChildTasks", () => {
     const second = await make("2026-09-26-second", two);
 
     const ids = async (id: string) => {
-      const tasks = await listChildTasks(TaskIdSchema.parse(id));
+      const tasks = await listChildTasks(ChatIdSchema.parse(id));
       return tasks.map((task) => task.id).sort();
     };
 

@@ -18,7 +18,7 @@ import {
   type BashRunner,
   createLocalBashEnv,
 } from "../create-bash-env";
-import { placeChatTask } from "../record-folders";
+import { placeTask } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
@@ -29,6 +29,7 @@ import {
 } from "../workspace-skill-index";
 import { createRemoteBash, setBashWorkerFactory } from "./client";
 import { fromWireError, type FromWorker, toWireError } from "./protocol";
+import { type ChatId } from "../../schemas/chat-id";
 
 // The worker compiles from source under tsx, which takes seconds the first
 // time; the shared worker is warm for every test after the first.
@@ -145,7 +146,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   it("finds a task made inside a chat after the worker started", async () => {
     const chatId = chatFor();
     const chatTaskId = TaskIdSchema.parse(`01k${"chattask".padEnd(23, "0")}`);
-    const dir = placeChatTask(chatTaskId, chatId);
+    const dir = placeTask(chatTaskId, chatId);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
@@ -161,7 +162,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   // dirs masked, and must not get around that through /task/tasks/<id>.
   describe("a chat's tasks", () => {
     const childId = TaskIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
-    let chatId: TaskId;
+    let chatId: ChatId;
     let childDir: string;
     let chatDir: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
@@ -171,7 +172,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
     beforeAll(async () => {
       chatId = chatFor();
-      childDir = placeChatTask(childId, chatId);
+      childDir = placeTask(childId, chatId);
       chatDir = path.dirname(path.dirname(childDir));
       await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
       await fs.writeFile(
@@ -197,6 +198,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
               readOnly: true,
             },
           ],
+          id: chatId,
         },
         sessionId: StoreId.newSessionId(),
         taskId: chatId,

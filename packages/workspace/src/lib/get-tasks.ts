@@ -17,11 +17,11 @@ import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
 import {
-  chatDirs,
-  chatIdOfTask,
+  chatDir,
+  chatIds,
   chatTaskDirs,
-  isChatId,
-  recordDir,
+  dirOf,
+  resolveRecord,
 } from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
@@ -38,9 +38,11 @@ export async function getTask(
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  const dir = recordDir(id);
-
-  // Check if the directory exists
+  const ref = resolveRecord(id);
+  if (ref.isErr()) {
+    return err(ref.error);
+  }
+  const dir = dirOf(ref.value);
   try {
     await fs.access(dir);
   } catch (error) {
@@ -56,7 +58,7 @@ export async function getTasks(
 ): Promise<{ tasks: Task[]; total: number }> {
   // Chats and the tasks inside them, then every task no chat owns.
   const taskDirs = [
-    ...chatDirs(),
+    ...chatIds().map((chatId) => chatDir(chatId)),
     ...chatTaskDirs(),
     ...(await taskDirsInRootDir(workspaceConfig.tasksDir)),
   ];
@@ -115,6 +117,7 @@ async function readTask({
   }
 
   const id = taskIdResult.data;
+  const ref = resolveRecord(id);
   const settings = await getTaskSettings(dir);
   if (requireSettings && !settings) {
     return err(new TypedError.NotFound("No readable settings"));
@@ -124,8 +127,10 @@ async function readTask({
     ...(await taskTimestamps(dir, settings)),
     apps: settings?.apps,
     id,
-    isChat: isChatId(id),
-    parentTaskId: chatIdOfTask(id),
+    ...(ref.isOk() && ref.value.kind === "task" && ref.value.chatId
+      ? { chatId: ref.value.chatId }
+      : {}),
+    isChat: ref.isOk() && ref.value.kind === "chat",
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };

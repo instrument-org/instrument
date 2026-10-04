@@ -15,11 +15,12 @@ import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { isChatId } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking, settleChatTitle } from "./chats";
 import { lastAssistantTextIn } from "./latest-session";
+import { type ChatId } from "../../schemas/chat-id";
 
 /** How much of the latest reply the title call reads. */
 const REPLY_MAX = 600;
@@ -47,13 +48,10 @@ export async function retitleChat({
   keep = false,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   keep?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  if (!isChatId(id)) {
-    return undefined;
-  }
   const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
   if (messages.isErr()) {
     return undefined;
@@ -221,17 +219,18 @@ async function retitleOnSettle({
   id: TaskId;
   sessionId: StoreId.Session;
 }): Promise<void> {
-  if (!isChatId(id)) {
+  const chatId = resolveChat(id);
+  if (!chatId) {
     return;
   }
-  const session = await Store.getSession(sessionId, id);
+  const session = await Store.getSession(sessionId, chatId);
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
   if (await chatIsWorking(sessionId)) {
     return;
   }
-  const title = await retitleChat({ id, keep: true, sessionId });
+  const title = await retitleChat({ id: chatId, keep: true, sessionId });
   if (title !== undefined) {
     await settleChatTitle(sessionId);
   }

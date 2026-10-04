@@ -27,6 +27,7 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
+import { resolveChat } from "../src/lib/record-folders";
 
 interface RollupSummary {
   assertions: {
@@ -328,7 +329,8 @@ export async function generateReport({
       // this one, so `sessions` alone cannot see the work. Read lazily: only an
       // chat case has children, and only some of its assertions ask.
       const childSessions = async () => {
-        const children = await listChildTasks(taskId);
+        const chatId = resolveChat(taskId);
+        const children = chatId ? await listChildTasks(chatId) : [];
         return Promise.all(
           children.map(async (child) => ({
             sessions: await sessionsFor(child.id),

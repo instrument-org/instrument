@@ -13,7 +13,7 @@ import { newMessage } from "../../lib/new-message";
 import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
 
-import { isChatId, sessionOfChat } from "../../lib/record-folders";
+import { resolveChat, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -121,8 +121,9 @@ const create = base
         const model = modelResult.value;
 
         // A chat's record holds one session, the one its settings name.
-        const chatSession = sessionOfChat(taskId);
-        const isChat = isChatId(taskId);
+        const chatId = resolveChat(taskId);
+        const chatSession = chatId ? sessionOfChat(chatId) : undefined;
+        const isChat = chatId !== undefined;
 
         let finalSessionId: StoreId.Session;
         // The other chats as they stand when a new one opens, read before

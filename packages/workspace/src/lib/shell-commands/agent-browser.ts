@@ -34,7 +34,7 @@ import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { isChatId } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getBrowserSessionDir,
@@ -1169,7 +1169,7 @@ async function resolveBrowserTarget({
     error:
       "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
   };
-  if (isChatId(id)) {
+  if (resolveChat(id)) {
     const { browserTargetId: onScreen } = await getWindowState();
     // The conversation drives the tab on the user's screen and never a
     // browser of its own; with no tab up there is nothing to drive.

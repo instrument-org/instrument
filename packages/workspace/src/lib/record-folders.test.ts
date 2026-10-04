@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./generate-task-folder-name";
@@ -12,13 +13,16 @@ import { getTasks } from "./get-tasks";
 import { initializeTask } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
 import {
-  chatIdOfTask,
+  chatOf,
   chatOfSession,
-  forgetChatTask,
+  forgetRecord,
   forgetRecordFolders,
-  isChatId,
-  placeChatTask,
+  owningChat,
+  placeTask,
+  recordDir,
   recordIdTaken,
+  resolveChat,
+  resolveRecord,
   sessionOfChat,
 } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
@@ -51,7 +55,7 @@ async function make(id: string, chatId?: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      ...(chatId ? { chatId: TaskIdSchema.parse(chatId) } : {}),
+      ...(chatId ? { chatId: ChatIdSchema.parse(chatId) } : {}),
       initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
@@ -63,7 +67,7 @@ async function make(id: string, chatId?: string) {
 }
 
 async function makeChat(name: string, sessionId = SESSION) {
-  const taskId = TaskIdSchema.parse(name);
+  const taskId = ChatIdSchema.parse(name);
   const made = await initializeTask(
     {
       initialSettings: {
@@ -122,16 +126,12 @@ describe("record folders", () => {
       `);
     expect(chatOfSession(SESSION)).toBe(chat);
     expect(sessionOfChat(chat)).toBe(SESSION);
-    expect([isChatId(chat), isChatId(child), isChatId(loose)]).toEqual([
-      true,
-      false,
-      false,
-    ]);
+    expect([resolveChat(chat), resolveChat(child), resolveChat(loose)]).toEqual(
+      [chat, undefined, undefined],
+    );
     const { tasks } = await getTasks(getWorkspaceConfig());
     expect(
-      tasks
-        .map((task) => [task.id, task.isChat, task.parentTaskId ?? null])
-        .sort(),
+      tasks.map((task) => [task.id, task.isChat, task.chatId ?? null]).sort(),
     ).toMatchInlineSnapshot(`
       [
         [
@@ -151,7 +151,16 @@ describe("record folders", () => {
         ],
       ]
     `);
-    expect(chatIdOfTask(child)).toBe(chat);
+    expect([owningChat(child), owningChat(chat), owningChat(loose)]).toEqual([
+      chat,
+      undefined,
+      undefined,
+    ]);
+    expect([chatOf(child), chatOf(chat), chatOf(loose)]).toEqual([
+      chat,
+      chat,
+      undefined,
+    ]);
     expect(relative(taskDir(WINDOW_ID))).toBe(".instrument/window");
     expect(recordIdTaken(WINDOW_ID)).toBe(true);
   });
@@ -180,7 +189,7 @@ describe("record folders", () => {
       }),
     ).not.toBe("taken");
 
-    forgetChatTask(TaskIdSchema.parse("taken"));
+    forgetRecord(TaskIdSchema.parse("taken"));
     expect(recordIdTaken("taken")).toBe(false);
   });
 
@@ -188,9 +197,9 @@ describe("record folders", () => {
     const one = await makeChat("2026-09-24-one");
     const two = await makeChat("2026-09-24-two", StoreId.newSessionId());
     const id = TaskIdSchema.parse("2026-09-24-same-name");
-    placeChatTask(id, one);
+    placeTask(id, one);
 
-    expect(() => placeChatTask(id, two)).toThrow("already has the id");
+    expect(() => placeTask(id, two)).toThrow("already has the id");
     expect(relative(taskDir(id))).toBe(
       "chats/2026-09-24-one/tasks/2026-09-24-same-name",
     );
@@ -204,5 +213,82 @@ describe("record folders", () => {
     const chatFiles = await fs.readdir(taskDir(chat));
     expect(chatFiles).not.toContain("package.json");
     expect(await fs.readdir(taskDir(task))).toContain("package.json");
+  });
+});
+
+describe("resolveRecord", () => {
+  it("says what each record is, and which chat holds a task", async () => {
+    const chat = await makeChat("2026-09-24-transcribe-a-note");
+    const child = await make("2026-09-24-transcribe-the-recording", chat);
+    const loose = await make("2026-08-07-dinner-near-broadway");
+
+    expect(
+      [chat, child, loose].map((id) => resolveRecord(id)._unsafeUnwrap()),
+    ).toEqual([
+      { id: chat, kind: "chat" },
+      { chatId: chat, id: child, kind: "task" },
+      { id: loose, kind: "task" },
+    ]);
+  });
+
+  it.each([
+    ["an id no record has", "2026-09-24-never-made"],
+    ["the window, which is no record", WINDOW_ID],
+    ["a string that is no id", "Not An Id"],
+  ])("answers NotFound for %s", (_label, id) => {
+    const resolved = resolveRecord(id);
+    expect(resolved.isErr() && resolved.error.constructor.name).toBe(
+      "NotFound",
+    );
+  });
+
+  it("refuses a folder for an id no record has rather than guessing tasks/", () => {
+    expect(() =>
+      recordDir(TaskIdSchema.parse("2026-09-24-never-made")),
+    ).toThrow("No record has the id 2026-09-24-never-made.");
+  });
+
+  it("finds a record made on disk behind the index", async () => {
+    await makeChat("2026-09-24-a-chat");
+    // The index has been read; these folders appear after it.
+    await fs.mkdir(path.join(rootDir, "tasks", "made-elsewhere"), {
+      recursive: true,
+    });
+    await fs.mkdir(
+      path.join(rootDir, "chats", "2026-09-25-other", ".instrument"),
+      {
+        recursive: true,
+      },
+    );
+    await fs.writeFile(
+      path.join(
+        rootDir,
+        "chats",
+        "2026-09-25-other",
+        ".instrument",
+        "settings.json",
+      ),
+      JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
+    );
+
+    expect(resolveRecord("made-elsewhere")._unsafeUnwrap()).toEqual({
+      id: "made-elsewhere",
+      kind: "task",
+    });
+    expect(resolveRecord("2026-09-25-other")._unsafeUnwrap()).toEqual({
+      id: "2026-09-25-other",
+      kind: "chat",
+    });
+  });
+
+  it("forgets a chat with the tasks inside it", async () => {
+    const chat = await makeChat("2026-09-24-transcribe-a-note");
+    const child = await make("2026-09-24-transcribe-the-recording", chat);
+    await fs.rm(taskDir(chat), { force: true, recursive: true });
+    forgetRecord(chat);
+
+    expect(resolveRecord(chat).isErr()).toBe(true);
+    expect(resolveRecord(child).isErr()).toBe(true);
+    expect(chatOfSession(SESSION)).toBeUndefined();
   });
 });

@@ -30,10 +30,13 @@ const mockCtx = createCommandContext({
 });
 
 describe("createGitCommand arg policy", () => {
-  const taskId = createMockTaskConfigForDir(
-    `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`,
-  );
+  const taskDir = `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`;
+  const taskId = createMockTaskConfigForDir(taskDir);
   const command = createGitCommand({ taskId });
+  // The later blocks point the workspace elsewhere as they are collected.
+  beforeAll(() => {
+    createMockTaskConfigForDir(taskDir);
+  });
 
   it.each([
     { args: ["--exec-path=/tmp/evil", "status"], flag: "--exec-path" },
@@ -146,6 +149,9 @@ describe("createGitCommand", () => {
   mkdirSync(dir, { recursive: true });
   const command = createGitCommand({
     taskId: createMockTaskConfigForDir(dir),
+  });
+  beforeAll(() => {
+    createMockTaskConfigForDir(dir);
   });
 
   it("commits as the agent, ignoring the user's git identity", async () => {

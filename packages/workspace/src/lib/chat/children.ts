@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
+import { type ChatId } from "../../schemas/chat-id";
 import { type TaskDir } from "../../schemas/paths";
 import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
@@ -18,7 +19,7 @@ import { type WorkspaceFsMount } from "../workspace-fs-layout";
  * `task log`, which renders it from the store rather than opening the file.
  */
 export async function childTaskMounts(
-  chatId: TaskId,
+  chatId: ChatId,
 ): Promise<WorkspaceFsMount[]> {
   return taskMounts(chatTaskIds(chatId).map((id) => taskDir(id)));
 }
@@ -29,7 +30,7 @@ export async function childTaskMounts(
  * for every chat's tasks.
  */
 export async function listChildTasks(
-  chatId: TaskId,
+  chatId: ChatId,
   which: (id: TaskId) => boolean = () => true,
 ): Promise<Task[]> {
   return getTasksIn(

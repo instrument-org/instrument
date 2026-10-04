@@ -74,7 +74,7 @@ import { renderSteps, sessionSteps } from "../chat/steps";
 import { recordHandOff } from "./task-hand-off";
 import { askWake, cancelAskedWake, expectStop } from "../chat/wake";
 import { tabHolders } from "../chat/window-tab";
-import { isChatId, sessionOfChat } from "../record-folders";
+import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { systemNote } from "../system-note";
 import { taskDir } from "../task-dir-utils";
@@ -127,13 +127,14 @@ import {
   type TaskSearchRow,
 } from "./task-list-output";
 import { subprocessStdin } from "./utils";
+import { type ChatId } from "../../schemas/chat-id";
 
 export { TASK_COMMAND } from "./task-command";
 
 /** What `task` needs from the `bash` call it runs inside. */
 export interface TaskCommandContext {
   /** The chat whose tasks these are. Every subcommand is scoped to it. */
-  chatId: TaskId;
+  chatId: ChatId;
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
   /**
@@ -1341,8 +1342,7 @@ async function requireChild(
   // Every chat's tasks can be read from any chat; steering one is its own
   // chat's alone (requireOwnChild).
   const task = await getTask(parsed.data);
-  const parent = task.isOk() ? task.value.parentTaskId : undefined;
-  if (task.isErr() || parent === undefined || !isChatId(parent)) {
+  if (task.isErr() || task.value.chatId === undefined) {
     // An id is most often mistyped from the title it was given rather than
     // copied from what `new` printed, so the nearest of the chat's own
     // tasks is offered in the same reply, where `task list` costs a turn.
@@ -1415,17 +1415,15 @@ async function requireOwnChild(
 ): Promise<Task> {
   const task = await requireChild(rawId, context);
   const filedIn =
-    task.parentTaskId === undefined
-      ? undefined
-      : sessionOfChat(task.parentTaskId);
+    task.chatId === undefined ? undefined : sessionOfChat(task.chatId);
   if (
-    task.parentTaskId === context.chatId ||
-    task.parentTaskId === undefined ||
+    task.chatId === context.chatId ||
+    task.chatId === undefined ||
     filedIn === undefined
   ) {
     return task;
   }
-  const chat = await Store.getSession(filedIn, task.parentTaskId);
+  const chat = await Store.getSession(filedIn, task.chatId);
   const named = chat.isOk() ? ` ("${chat.value.title}")` : "";
   throw new Error(
     `"${task.id}" was started in another chat${named}, and is that chat's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which chat it is in, or start a task of your own here.`,
@@ -1651,7 +1649,7 @@ function tabIdOf(targetId: BrowserTargetId): string {
  */
 async function tabsHeldElsewhere(
   tabs: BrowserTargetId[],
-  chatId: TaskId,
+  chatId: ChatId,
   except?: TaskId,
 ): Promise<string> {
   if (tabs.length === 0) {

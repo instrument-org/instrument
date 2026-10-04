@@ -17,6 +17,7 @@ import { listMemories, memoryDir } from "../memory/store";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createMemoryCommand } from "./memory";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 vi.mock(import("../session-store-storage"));
 
@@ -49,7 +50,10 @@ afterEach(async () => {
 });
 
 function run(args: string[], stdin = "") {
-  return createMemoryCommand({ chatId: taskId, sessionId }).execute(
+  return createMemoryCommand({
+    chatId: ChatIdSchema.parse(taskId),
+    sessionId,
+  }).execute(
     args,
     createCommandContext({
       cwd: "/task",

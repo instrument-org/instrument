@@ -24,6 +24,7 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { runApp as run, type TaskCommandContext } from "./task";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
@@ -32,7 +33,7 @@ const CHAT_SESSION = StoreId.SessionSchema.parse(
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 let CHILD_ID = TaskIdSchema.parse("file-the-issue");
 
 let context: TaskCommandContext;
@@ -149,7 +150,9 @@ async function heldBy(taskId: TaskId) {
  * of it has to follow with this.
  */
 function useWorkspace(taskId: string) {
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
@@ -166,7 +169,7 @@ function useWorkspace(taskId: string) {
 
 beforeEach(async () => {
   counter += 1;
-  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`file-the-issue-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   working.value = false;
@@ -326,7 +329,7 @@ describe("task app", () => {
     await expect(
       runApp([CHILD_ID, "--add", "linear"], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(`"${CHILD_ID}" was started in another chat`);
   });

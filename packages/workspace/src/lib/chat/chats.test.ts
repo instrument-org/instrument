@@ -10,7 +10,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { placeChatTask, sessionOfChat } from "../record-folders";
+import { placeTask, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -27,6 +27,7 @@ import {
   unarchiveChat,
 } from "./chats";
 import { createTopic } from "./topics";
+import { type ChatId } from "../../schemas/chat-id";
 
 vi.mock(import("../session-store-storage"));
 
@@ -46,7 +47,7 @@ vi.mock(import("./wake"), () => ({
 // have a live agent. Neither exists in a test, so both are dials.
 vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  chatActivity: (chatId: TaskId) =>
+  chatActivity: (chatId: ChatId) =>
     Promise.resolve({
       running: running.value.filter(
         (task) => task.chat === sessionOfChat(chatId),
@@ -97,7 +98,7 @@ const freshTask = async () => {
 
 /** A task started in a chat: a folder inside that chat's record. */
 function fileTask(sessionId: StoreId.Session, child: TaskId) {
-  const dir = placeChatTask(child, chatFor(sessionId));
+  const dir = placeTask(child, chatFor(sessionId));
   fs.mkdirSync(dir, { recursive: true });
 }
 

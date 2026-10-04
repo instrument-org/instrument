@@ -92,6 +92,7 @@ import {
   buildWorkspaceFsLayout,
   type WorkspaceFsMount,
 } from "./workspace-fs-layout";
+import { type ChatId } from "../schemas/chat-id";
 
 /** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
@@ -482,7 +483,7 @@ export interface BashEnvOptions {
    * its command set shrinks to reading and `task`. See
    * `createChatBashDescription`.
    */
-  chat?: { childMounts: WorkspaceFsMount[] };
+  chat?: { childMounts: WorkspaceFsMount[]; id: ChatId };
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -644,14 +645,14 @@ export async function createLocalBashEnv({
   const specializedCommands = chat
     ? [
         createTaskCommand({
-          chatId: taskId,
+          chatId: chat.id,
           remainingYieldMs,
           sessionId,
         }),
         createChatCommand(),
-        createMemoryCommand({ chatId: taskId, sessionId }),
+        createMemoryCommand({ chatId: chat.id, sessionId }),
         createAppCommand({ taskId }),
-        createTabCommand({ sessionId, taskId }),
+        createTabCommand({ chatId: chat.id, sessionId }),
       ]
     : [
         createAppCommand({ taskId }),

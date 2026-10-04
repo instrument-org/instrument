@@ -17,6 +17,7 @@ import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { virtualizeOutput } from "./rg";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -78,7 +79,7 @@ describe("rg command", () => {
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { childMounts: [] },
+        chat: { childMounts: [], id: ChatIdSchema.parse(taskId) },
         sessionId,
         taskId,
       });
@@ -372,6 +373,7 @@ describe("rg command in a chat", () => {
             readOnly: true,
           },
         ],
+        id: chatId,
       },
       sessionId: StoreId.newSessionId(),
       taskId: chatId,

@@ -6,8 +6,9 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { createTabCommand } from "./tab";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
-const taskId = TaskIdSchema.parse("tab-command-chat");
+const chatId = ChatIdSchema.parse("tab-command-chat");
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -55,7 +56,7 @@ function run(
 ) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
-  return createTabCommand({ taskId, ...options }).execute(
+  return createTabCommand({ chatId, ...options }).execute(
     args,
     createCommandContext({
       cwd: "/task",

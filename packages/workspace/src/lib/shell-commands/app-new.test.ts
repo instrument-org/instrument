@@ -6,16 +6,21 @@ import {
 } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
+import { knowTask } from "../../test/helpers/mock-task-config";
 
 const taskId = TaskIdSchema.parse("app-new-task");
 const apps = getWorkspaceConfig().apps;
+
+beforeEach(() => {
+  knowTask(taskId);
+});
 
 afterEach(() => {
   setWorkspaceConfig({ ...getWorkspaceConfig(), apps });

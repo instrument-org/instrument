@@ -23,10 +23,10 @@ import { listChildTasks } from "../../lib/chat/children";
 import { retitleChat } from "../../lib/chat/retitle";
 import { taskStanding } from "../../lib/chat/standing";
 import {
-  chatIdOfTask,
   chatOfSession,
   chatTaskIds,
-  isChatId,
+  owningChat,
+  resolveChat,
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
@@ -37,6 +37,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { collapsed, everyOne, liveRead } from "../live-read";
 import { publisher } from "../publisher";
+import { type ChatId } from "../../schemas/chat-id";
 
 /** Where one task the chat created stands this moment, for a card that follows it. */
 const childStatus = base
@@ -84,7 +85,7 @@ const ChildTaskSchema = TaskSchema.extend({
 export type ChildTask = z.output<typeof ChildTaskSchema>;
 
 /** The tasks a chat created, newest activity first. */
-async function childTasks(id: TaskId) {
+async function childTasks(id: ChatId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
@@ -156,10 +157,11 @@ const childTasksRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(ChildTaskSchema.array())
   .handler(async ({ errors, input }) => {
-    if (!isChatId(input.id)) {
+    const chatId = resolveChat(input.id);
+    if (!chatId) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
-    return await childTasks(input.id);
+    return await childTasks(chatId);
   });
 
 /** A chat's tasks, re-read whenever one of them may have changed. */
@@ -167,12 +169,13 @@ const liveChildTasksRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
   .handler(async function* ({ errors, input, signal }) {
-    if (!isChatId(input.id)) {
+    const chatId = resolveChat(input.id);
+    if (!chatId) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
     yield* liveRead({
       changes: [childTaskChanges(signal)],
-      read: () => childTasks(input.id),
+      read: () => childTasks(chatId),
     });
   });
 
@@ -202,7 +205,10 @@ const chatByIdRoute = base
  * is only taken once the consumer has come back for it.
  */
 export function chatChanges(signal: AbortSignal | undefined) {
-  const batches = changedMessageBatches({ id: isChatId }, signal);
+  const batches = changedMessageBatches(
+    { id: (id) => resolveChat(id) !== undefined },
+    signal,
+  );
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
   const chatRemoved = publisher.subscribe("chat.removed", { signal });
@@ -223,7 +229,7 @@ export function chatChanges(signal: AbortSignal | undefined) {
       | typeof sessionUpdates,
   ) {
     for await (const payload of generator) {
-      if (isChatId(payload.id)) {
+      if (resolveChat(payload.id)) {
         yield null;
       }
     }
@@ -234,7 +240,7 @@ export function chatChanges(signal: AbortSignal | undefined) {
         part.type.startsWith("tool-") &&
         "state" in part &&
         part.state === "input-available" &&
-        chatIdOfTask(childId) !== undefined
+        owningChat(childId) !== undefined
       ) {
         yield null;
       }

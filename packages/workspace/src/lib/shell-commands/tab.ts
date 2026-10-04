@@ -2,7 +2,6 @@ import { type CommandContext, defineCommand } from "just-bash";
 
 import { MOUNT } from "../../mount-points";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import {
   type WindowTabAction,
   type WindowTabTarget,
@@ -17,6 +16,7 @@ import {
 } from "../chat/window-tab";
 import { isUnder } from "../path-containment";
 import { TAB_COMMAND } from "./tab-command";
+import { type ChatId } from "../../schemas/chat-id";
 
 const TAB_NAME = TAB_COMMAND.name;
 
@@ -34,20 +34,20 @@ const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <i
  * opened goes beside that chat and an id is looked up among that chat's tabs.
  */
 export function createTabCommand({
+  chatId,
   sessionId,
-  taskId,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   sessionId?: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
   timeoutMs?: number;
 }) {
   const ask = (action: WindowTabAction) =>
-    askWindow({ action, askedBy: taskId, group: sessionId, timeoutMs });
+    askWindow({ action, askedBy: chatId, group: sessionId, timeoutMs });
 
   /** Which task is at work in a tab, as a clause for the line that reports what happened to it. */
   const holderClause = async (tabId: string) => {
-    const holders = await tabHolders(taskId);
+    const holders = await tabHolders(chatId);
     const holder = holders.get(tabId);
     return holder
       ? ` Task ${holder.id} ("${holder.title}") was working in it; its next browser command tells it so.`

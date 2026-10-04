@@ -67,7 +67,7 @@ for (const task of tasks) {
   const last = texts.at(-1) ?? "";
   rows.push({
     files: fileWrites,
-    kind: task.parentTaskId ? "task" : "conversation",
+    kind: task.chatId ? "task" : "conversation",
     lastReply: last.length,
     name: task.title,
     outputTokens: usage.outputTokens,

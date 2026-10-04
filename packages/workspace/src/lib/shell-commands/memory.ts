@@ -1,7 +1,6 @@
 import { type ByteString, defineCommand } from "just-bash";
 
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { recordMemoryReported } from "../create-memory-part";
 import {
   forgetMemory,
@@ -16,6 +15,7 @@ import {
 import { Store } from "../store";
 import { MEMORY_COMMAND } from "./memory-command";
 import { subprocessStdin } from "./utils";
+import { type ChatId } from "../../schemas/chat-id";
 
 export { MEMORY_COMMAND } from "./memory-command";
 
@@ -43,7 +43,7 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 
 /** What `memory` needs from the `bash` call it runs inside. */
 export interface MemoryCommandContext {
-  chatId: TaskId;
+  chatId: ChatId;
   /** The chat the call runs in: named on what it saves, and spared the note about its own change. */
   sessionId: StoreId.Session;
 }

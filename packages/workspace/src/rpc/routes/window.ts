@@ -6,7 +6,7 @@ import {
   ensureOutputFolder,
   outputFolderPath,
 } from "../../lib/chat/output-folder";
-import { isChatId } from "../../lib/record-folders";
+import { resolveChat } from "../../lib/record-folders";
 import { ensureWindowDir, updateWindowState } from "../../lib/window-state";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { WINDOW_ID } from "../../schemas/window-id";
@@ -67,7 +67,7 @@ const tab = base
     })) {
       // A chat's own asks, and those of any task asking among a chat's tabs,
       // go to the window.
-      if (isChatId(event.id) || event.sessionId !== undefined) {
+      if (resolveChat(event.id) || event.sessionId !== undefined) {
         const { id: _asker, ...request } = event;
         yield request;
       }

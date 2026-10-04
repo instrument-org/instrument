@@ -41,7 +41,7 @@ export function useChildTask(id: TaskId, enabled = true) {
     enabled,
   });
   const tasks = useQuery({
-    ...childTasksOptions(record.data?.parentTaskId ?? skipToken),
+    ...childTasksOptions(record.data?.chatId ?? skipToken),
     enabled,
   });
   return tasks.data?.find((task) => task.id === id);
@@ -78,7 +78,7 @@ export function useTaskChats(
       known.set(id, undefined);
       return;
     }
-    const parent = record?.data?.parentTaskId;
+    const parent = record?.data?.chatId;
     if (!record?.data || (parent !== undefined && !chats.data)) {
       return;
     }

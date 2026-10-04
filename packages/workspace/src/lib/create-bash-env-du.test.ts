@@ -10,6 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createBashEnv } from "./create-bash-env";
+import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -43,7 +44,9 @@ async function run(command: string, { chat = false } = {}) {
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat ? { childMounts: [] } : undefined,
+    chat: chat
+      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
+      : undefined,
     sessionId,
     taskId,
   });

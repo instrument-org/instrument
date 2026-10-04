@@ -16,7 +16,6 @@ import {
   saveMemory,
 } from "./memory/store";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const id = TaskIdSchema.parse("memory-part-test");
@@ -27,12 +26,13 @@ let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-part-test-"));
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  const dir = path.join(root, TASKS_DIR_NAME, id);
+  await fs.mkdir(dir, { recursive: true });
+  taskId = createMockTaskConfigForDir(dir);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
   });
-  await fs.mkdir(taskDir(taskId), { recursive: true });
 });
 
 afterEach(async () => {

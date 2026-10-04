@@ -211,7 +211,7 @@ export function useOpeners({
         .fetchQuery(taskRecordOptions(task))
         .then(
           (record) =>
-            chats?.find((known) => known.taskId === record.parentTaskId)?.id,
+            chats?.find((known) => known.taskId === record.chatId)?.id,
           () => undefined,
         )
         .then((filedIn) => {

@@ -9,6 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createBashEnv } from "./create-bash-env";
+import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * Guards the `ls` part of the local just-bash patch, carried until upstream
@@ -46,7 +47,9 @@ async function run(command: string, { chat = false } = {}) {
         source: "user",
       },
     },
-    chat: chat ? { childMounts: [] } : undefined,
+    chat: chat
+      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
+      : undefined,
     sessionId,
     taskId,
   });

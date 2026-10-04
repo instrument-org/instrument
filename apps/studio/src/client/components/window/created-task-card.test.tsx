@@ -33,7 +33,7 @@ vi.mock("@/client/rpc/client", () => ({
             queryFn: () =>
               Promise.resolve({
                 id: "lisbon-hotel",
-                parentTaskId: "instrument",
+                chatId: "instrument",
               }),
             queryKey: ["task", "lisbon-hotel"],
           }),

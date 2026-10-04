@@ -23,6 +23,10 @@ export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 export const TaskDirSchema = AbsolutePathSchema.brand("TaskDir");
 export type TaskDir = z.output<typeof TaskDirSchema>;
 
+/** A chat's folder, `chats/<id>/`: a record's folder like a task's, never a task's. */
+export const ChatDirSchema = TaskDirSchema.brand("ChatDir");
+export type ChatDir = z.output<typeof ChatDirSchema>;
+
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
   return !isAbsolutePath(val);
 }, "Path is not relative");

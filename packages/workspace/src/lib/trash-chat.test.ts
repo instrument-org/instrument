@@ -11,6 +11,7 @@ import { forgetRecordFolders, recordIdTaken } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { trashChat } from "./trash-task";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { ChatIdSchema } from "../schemas/chat-id";
 
 let rootDir: string;
 let trashed: string[];
@@ -50,7 +51,7 @@ async function make(id: string, chatId?: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      ...(chatId ? { chatId: TaskIdSchema.parse(chatId) } : {}),
+      ...(chatId ? { chatId: ChatIdSchema.parse(chatId) } : {}),
       initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),

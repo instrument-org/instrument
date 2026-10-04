@@ -28,7 +28,9 @@ afterEach(async () => {
 describe("initializeTask", () => {
   it("creates a task from the bundled default template", async () => {
     const taskId = TaskIdSchema.parse("test-task");
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+      unplaced: true,
+    });
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(

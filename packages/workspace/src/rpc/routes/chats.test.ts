@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { forgetChat, placeChatTask } from "../../lib/record-folders";
+import { forgetRecord, placeTask } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -18,10 +18,11 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { type WorkspaceRPCContext } from "../base";
 import { publisher } from "../publisher";
 import { announceChatRemoved, chatChanges, chats } from "./chats";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
 // folder under a workspace root of this file's own.
-let taskId = TaskIdSchema.parse("2026-09-26-conversation");
+let taskId = ChatIdSchema.parse("2026-09-26-conversation");
 beforeAll(() => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -30,7 +31,7 @@ beforeAll(() => {
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
-  fs.mkdirSync(placeChatTask(childTaskId, taskId), { recursive: true });
+  fs.mkdirSync(placeTask(childTaskId, taskId), { recursive: true });
 });
 const otherTaskId = TaskIdSchema.parse("chat-other");
 const childTaskId = TaskIdSchema.parse("chat-child");
@@ -102,7 +103,7 @@ describe("chatChanges", () => {
     const controller = new AbortController();
     const changes = chatChanges(controller.signal);
     const next = changes.next();
-    forgetChat(deleted);
+    forgetRecord(deleted);
     announceChatRemoved({ chatTasks: [], id: deleted, sessionId });
     expect(await fired(next)).toBe(true);
     controller.abort();

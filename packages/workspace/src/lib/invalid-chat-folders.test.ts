@@ -11,11 +11,7 @@ import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
 } from "./invalid-chat-folders";
-import {
-  chatTaskIds,
-  forgetRecordFolders,
-  placeChatTask,
-} from "./record-folders";
+import { chatTaskIds, forgetRecordFolders, placeTask } from "./record-folders";
 import { Store } from "./store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -63,7 +59,7 @@ function chatTask(
   name: string,
   settings?: string,
 ) {
-  const dir = placeChatTask(TaskIdSchema.parse(name), chatId);
+  const dir = placeTask(TaskIdSchema.parse(name), chatId);
   fs.mkdirSync(path.join(dir, ".instrument"), { recursive: true });
   if (settings !== undefined) {
     fs.writeFileSync(path.join(dir, ".instrument", "settings.json"), settings);

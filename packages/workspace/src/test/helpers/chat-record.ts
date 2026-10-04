@@ -8,8 +8,8 @@ import {
   recordIdTaken,
 } from "../../lib/record-folders";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 
 /**
  * The chat a session is, made under the current workspace root the first time
@@ -20,15 +20,15 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 export function chatFor(
   sessionId: StoreId.Session = StoreId.newSessionId(),
   /** The chat's folder name, where a test wants one of its own. */
-  named?: TaskId,
-): TaskId {
+  named?: ChatId,
+): ChatId {
   const existing = chatOfSession(sessionId);
   if (existing) {
     return existing;
   }
   const id =
     named ??
-    TaskIdSchema.parse(
+    ChatIdSchema.parse(
       chatFolderName({
         date: new Date(2026, 8, 26),
         isTaken: recordIdTaken,

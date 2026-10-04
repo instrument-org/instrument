@@ -20,6 +20,7 @@ import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import { linkedFiles } from "./linked-files";
 import { outputFolderPath } from "./output-folder";
+import { resolveChat } from "../record-folders";
 
 /**
  * How many entries one listing carries. A folder past this shows the first in
@@ -464,10 +465,11 @@ async function chatView(
   { withChildren = true }: { withChildren?: boolean } = {},
 ) {
   const taskHostRoot = taskDir(taskId);
+  const chatId = resolveChat(taskId);
   const attachedFolders = await folderReach(taskId);
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
-    extraMounts: withChildren ? await childTaskMounts(taskId) : [],
+    extraMounts: withChildren && chatId ? await childTaskMounts(chatId) : [],
     taskHostRoot,
   });
   return { layout, roots: reachableRoots(layout, attachedFolders) };

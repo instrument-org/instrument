@@ -4,13 +4,14 @@ import fs from "node:fs/promises";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
+import { type ChatId } from "../schemas/chat-id";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
-import { chatTaskIds, forgetChat, forgetChatTask } from "./record-folders";
+import { chatTaskIds, forgetRecord } from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -43,7 +44,7 @@ export async function trashChat({
   id,
   workspaceConfig,
   workspaceRef,
-}: RemoveTaskOptions) {
+}: Omit<RemoveTaskOptions, "id" | "keepFolder"> & { id: ChatId }) {
   workspaceRef.send({ type: "prepareToTrashTask", value: { id } });
   for (const child of chatTaskIds(id)) {
     const stopped = await trashTask({
@@ -57,11 +58,7 @@ export async function trashChat({
       return err(stopped.error);
     }
   }
-  const trashed = await trashTask({ id, workspaceConfig, workspaceRef });
-  if (trashed.isOk()) {
-    forgetChat(id);
-  }
-  return trashed;
+  return await trashTask({ id, workspaceConfig, workspaceRef });
 }
 
 export async function trashTask({
@@ -124,7 +121,7 @@ export async function trashTask({
 
         if (!keepFolder) {
           await workspaceConfig.trashItem(taskDir(taskId));
-          forgetChatTask(taskId);
+          forgetRecord(taskId);
         }
 
         // In the off chance that a future task with the same id is

@@ -54,7 +54,9 @@ beforeEach(async () => {
   downloads = path.join(rootDir, "Downloads");
   await fs.mkdir(downloads, { recursive: true });
   TASK_ID = TaskIdSchema.parse(`find-the-vault-${++taskCount}`);
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", TASK_ID));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(

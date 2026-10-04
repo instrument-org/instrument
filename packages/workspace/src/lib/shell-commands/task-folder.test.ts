@@ -16,6 +16,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runFolder as run, type TaskCommandContext } from "./task";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
@@ -24,7 +25,7 @@ const CHAT_SESSION = StoreId.SessionSchema.parse(
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 let CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -114,7 +115,7 @@ async function heldBy(taskId: TaskId) {
 
 beforeEach(async () => {
   counter += 1;
-  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`find-the-vault-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   working.value = false;
@@ -124,7 +125,9 @@ beforeEach(async () => {
   await fs.mkdir(path.join(home, "Downloads"), { recursive: true });
   await fs.mkdir(path.join(home, "Desktop"), { recursive: true });
   for (const id of [CHILD_ID]) {
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", id), {
+      unplaced: true,
+    });
   }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -243,12 +246,18 @@ describe("task folder", () => {
   });
 
   it.each([
-    ["/skills/workspace:rw", /needs no --folder: every task writes skills to \/skills\/workspace\//],
-    ["/task/work", /is not one of this conversation's folders: --folder takes \/mnt\/<mount>/],
+    [
+      "/skills/workspace:rw",
+      /needs no --folder: every task writes skills to \/skills\/workspace\//,
+    ],
+    [
+      "/task/work",
+      /is not one of this conversation's folders: --folder takes \/mnt\/<mount>/,
+    ],
   ])("names what %s is rather than an empty folder", async (spec, message) => {
-    await expect(
-      runFolder([CHILD_ID, "--add", spec], context),
-    ).rejects.toThrow(message);
+    await expect(runFolder([CHILD_ID, "--add", spec], context)).rejects.toThrow(
+      message,
+    );
   });
 
   it("refuses a folder that is not on disk", async () => {
@@ -293,7 +302,7 @@ describe("task folder", () => {
     await expect(
       runFolder([CHILD_ID, "--add", "/mnt/home/Downloads:rw"], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(`"${CHILD_ID}" was started in another chat`);
   });

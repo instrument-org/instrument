@@ -2,12 +2,16 @@ import {
   TASK_PRIVATE_FOLDER_NAME,
   TASK_SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
+import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs";
 import path from "node:path";
 
 import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../constants";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
+  type ChatDir,
+  ChatDirSchema,
   type TaskDir,
   TaskDirSchema,
 } from "../schemas/paths";
@@ -15,57 +19,87 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { TypedError } from "./errors";
 import { windowDir } from "./window-paths";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * Where every record is, which is also what each one is: a folder under
- * `chats/` is a chat, one under a chat's `tasks/` is a task that chat
- * started, and one under `tasks/` at the root is a task no chat owns.
- * Nothing on a record says which; its place does.
- *
- * The index covers the chats and the tasks inside them, for the workspace it
- * was read from. A chat's folder has a readable name of its own, so which session
- * it holds is read from its settings; a task no chat owns sits flat under
- * `tasks/` and needs no looking up. The index is read from disk the first time
- * a workspace asks, and kept current by whatever makes or trashes a chat or a
- * task inside one. Something that moves folders behind its back (the layout
- * migration) calls `forgetRecordFolders` when it is done.
+ * What a record is, which is where its folder is: a folder under `chats/` is
+ * a chat, one under a chat's `tasks/` is a task that chat started, and one
+ * under `tasks/` at the root is a task no chat owns. Nothing on a record says
+ * which; its place does.
  */
-let index:
-  | undefined
-  | {
-      /** Each chat's one session, by the chat's id. */
-      chats: Map<TaskId, StoreId.Session>;
-      root: string;
-      /** Each chat's id, by its session. */
-      sessions: Map<StoreId.Session, TaskId>;
-      /** Where each task inside a chat is. */
-      tasks: Map<TaskId, TaskDir>;
-    };
+export type RecordRef =
+  | { chatId?: ChatId; id: TaskId; kind: "task" }
+  | { id: ChatId; kind: "chat" };
 
-/** Every chat's folder. */
-export function chatDirs(): TaskDir[] {
-  return [...read().chats.keys()].map((id) => chatDir(id));
+/**
+ * Where every record is, for the workspace it was read from. A chat's folder
+ * has a readable name of its own, so which session it holds is read from its
+ * settings. The index is read from disk the first time a workspace asks, and
+ * kept current by whatever makes or trashes a record. An id it does not know
+ * is looked for on disk where a chat or a task no chat owns would be before
+ * it is called not found, so a folder made behind its back is found; one
+ * moved behind its back (the layout migration) calls `forgetRecordFolders`.
+ */
+interface Index {
+  /**
+   * Each chat's one session and the tasks inside its folder, by any record
+   * id, so an id not yet known to be a chat's can be looked up.
+   */
+  chats: Map<
+    TaskId,
+    { id: ChatId; sessionId: StoreId.Session; tasks: Set<TaskId> }
+  >;
+  root: string;
+  /** Each chat's id, by its session. */
+  sessions: Map<StoreId.Session, ChatId>;
+  /** Every task, with the chat whose folder holds it, or none for one flat under `tasks/`. */
+  tasks: Map<TaskId, ChatId | undefined>;
+  tasksDir: string;
+}
+
+let index: Index | undefined;
+
+/** A chat's own folder. */
+export function chatDir(id: ChatId): ChatDir {
+  return ChatDirSchema.parse(path.join(chatsDir(), id));
+}
+
+/** Every chat's id. */
+export function chatIds(): ChatId[] {
+  return [...read().chats.values()].map((chat) => chat.id);
 }
 
 /**
- * The chat whose `tasks/` folder holds a task, or none for a chat, or for a
- * task no chat owns.
+ * The chat a record belongs to: a chat's own id, the chat whose folder holds
+ * a task, or none for a task no chat owns and an id no record has.
  */
-export function chatIdOfTask(id: TaskId): TaskId | undefined {
-  const dir = read().tasks.get(id);
-  if (!dir) {
+export function chatOf(id: TaskId): ChatId | undefined {
+  const ref = resolveRecord(id);
+  if (ref.isErr()) {
     return undefined;
   }
-  const chatId = TaskIdSchema.safeParse(
-    path.basename(path.dirname(path.dirname(dir))),
-  );
-  return chatId.success ? chatId.data : undefined;
+  return ref.value.kind === "chat" ? ref.value.id : ref.value.chatId;
+}
+
+/**
+ * The chat whose folder holds a task, or none for a chat itself, a task no
+ * chat owns, and an id no record has.
+ */
+export function owningChat(id: TaskId): ChatId | undefined {
+  const ref = resolveRecord(id);
+  return ref.isOk() && ref.value.kind === "task" ? ref.value.chatId : undefined;
+}
+
+/** A record's id as a chat's, or none for a task's and an id no record has. */
+export function resolveChat(id: TaskId): ChatId | undefined {
+  const ref = resolveRecord(id);
+  return ref.isOk() && ref.value.kind === "chat" ? ref.value.id : undefined;
 }
 
 /** The chat a session is, or none for a session that is not a chat's. */
-export function chatOfSession(sessionId: StoreId.Session): TaskId | undefined {
+export function chatOfSession(sessionId: StoreId.Session): ChatId | undefined {
   return read().sessions.get(sessionId);
 }
 
@@ -76,41 +110,51 @@ export function chatsDir(): AbsolutePath {
 
 /** Every task folder inside a chat. */
 export function chatTaskDirs(): TaskDir[] {
-  return [...read().tasks.values()];
-}
-
-/** The ids of the tasks inside one chat. */
-export function chatTaskIds(chatId: TaskId): TaskId[] {
-  const inside = chatDir(chatId) + path.sep;
-  return [...read().tasks].flatMap(([id, dir]) =>
-    dir.startsWith(inside) ? [id] : [],
+  return [...read().chats.values()].flatMap((chat) =>
+    [...chat.tasks].map((id) => taskInChatDir(id, chat.id)),
   );
 }
 
+/** The ids of the tasks inside one chat. */
+export function chatTaskIds(chatId: ChatId): TaskId[] {
+  return [...(read().chats.get(chatId)?.tasks ?? [])];
+}
+
 /** The folder a chat's tasks are in. */
-export function chatTasksDir(chatId: TaskId): AbsolutePath {
+export function chatTasksDir(chatId: ChatId): AbsolutePath {
   return absolutePathJoin(chatDir(chatId), TASKS_DIR_NAME);
 }
 
-/** Drops a chat and every task in it from the index, once its folder is gone. */
-export function forgetChat(chatId: TaskId): void {
-  const known = read();
-  const inside = chatDir(chatId) + path.sep;
-  for (const [id, dir] of known.tasks) {
-    if (dir.startsWith(inside)) {
-      known.tasks.delete(id);
-    }
+/** The folder a resolved record lives in. */
+export function dirOf(ref: RecordRef): TaskDir {
+  if (ref.kind === "chat") {
+    return chatDir(ref.id);
   }
-  const sessionId = known.chats.get(chatId);
-  known.chats.delete(chatId);
-  if (sessionId) {
-    known.sessions.delete(sessionId);
-  }
+  return ref.chatId === undefined
+    ? TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, ref.id))
+    : taskInChatDir(ref.id, ref.chatId);
 }
 
-/** Drops a chat's task from the index, once its folder is gone. */
-export function forgetChatTask(id: TaskId): void {
-  index?.tasks.delete(id);
+/**
+ * Drops a record from the index once its folder is gone: a chat with every
+ * task inside it, or one task.
+ */
+export function forgetRecord(id: TaskId): void {
+  const known = read();
+  const chat = known.chats.get(id);
+  if (chat) {
+    for (const taskId of chat.tasks) {
+      known.tasks.delete(taskId);
+    }
+    known.chats.delete(id);
+    known.sessions.delete(chat.sessionId);
+    return;
+  }
+  const owner = known.tasks.get(id);
+  if (owner !== undefined) {
+    known.chats.get(owner)?.tasks.delete(id);
+  }
+  known.tasks.delete(id);
 }
 
 /** Reads the index from disk again on its next use. */
@@ -118,56 +162,55 @@ export function forgetRecordFolders(): void {
   index = undefined;
 }
 
-/** Whether an id is a chat's record rather than a task's. */
-export function isChatId(id: string): boolean {
-  const parsed = TaskIdSchema.safeParse(id);
-  return parsed.success && read().chats.has(parsed.data);
-}
-
 /** Records a chat as it is made, and returns the folder it goes in. */
-export function placeChat(id: TaskId, sessionId: StoreId.Session): TaskDir {
+export function placeChat(id: ChatId, sessionId: StoreId.Session): ChatDir {
   const known = read();
   if (known.chats.has(id) || known.tasks.has(id)) {
     throw new Error(`A record already has the id ${id}.`);
   }
-  known.chats.set(id, sessionId);
+  known.chats.set(id, { id, sessionId, tasks: new Set() });
   known.sessions.set(sessionId, id);
   return chatDir(id);
 }
 
 /**
- * Records a task made inside a chat, and returns the folder it goes in. The
- * id is reserved at once: two chats picking the same dated name at the same
- * moment would each make a folder in their own `tasks/`, where no single
- * folder stands guard, so the second is refused here instead.
+ * Records a task as it is made, inside the chat that started it or flat under
+ * `tasks/`, and returns the folder it goes in. The id is reserved at once:
+ * two chats picking the same dated name at the same moment would each make a
+ * folder in their own `tasks/`, where no single folder stands guard, so the
+ * second is refused here instead.
  */
-export function placeChatTask(id: TaskId, chatId: TaskId): TaskDir {
+export function placeTask(id: TaskId, chatId?: ChatId): TaskDir {
   const known = read();
   if (known.tasks.has(id) || known.chats.has(id)) {
     throw new Error(`A record already has the id ${id}.`);
   }
-  const dir = TaskDirSchema.parse(path.join(chatTasksDir(chatId), id));
-  known.tasks.set(id, dir);
-  return dir;
+  if (chatId !== undefined) {
+    const chat = known.chats.get(chatId);
+    if (!chat) {
+      throw new Error(`No chat has the id ${chatId}.`);
+    }
+    chat.tasks.add(id);
+  }
+  known.tasks.set(id, chatId);
+  return dirOf({ chatId, id, kind: "task" });
 }
 
 /**
- * The folder a record lives in: a chat's own, a chat's task inside that chat,
- * and any other task flat under `tasks/`. The window, which is no record,
- * has a folder of its own in the workspace's `.instrument/`.
+ * The folder a record lives in. The window, which is no record, has a folder
+ * of its own in the workspace's `.instrument/`. An id no record has throws
+ * `TypedError.NotFound` rather than naming a folder that is not there; ask
+ * `resolveRecord` where an unknown id is an answer rather than a mistake.
  */
 export function recordDir(id: TaskId): TaskDir {
   if (id === WINDOW_ID) {
     return TaskDirSchema.parse(windowDir());
   }
-  const known = read();
-  if (known.chats.has(id)) {
-    return chatDir(id);
+  const ref = resolveRecord(id);
+  if (ref.isErr()) {
+    throw ref.error;
   }
-  return (
-    known.tasks.get(id) ??
-    TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id))
-  );
+  return dirOf(ref.value);
 }
 
 /**
@@ -191,69 +234,28 @@ export function recordIdTaken(id: string): boolean {
   );
 }
 
-/** The session a chat's record holds, or none for an id that is not a chat's. */
-export function sessionOfChat(id: string): StoreId.Session | undefined {
+/**
+ * What a record is: a chat, a task inside the chat that started it, or a task
+ * no chat owns. An id that names no record, the window's among them, is
+ * `NotFound`.
+ */
+export function resolveRecord(
+  id: string,
+): Result<RecordRef, TypedError.NotFound> {
   const parsed = TaskIdSchema.safeParse(id);
-  return parsed.success ? read().chats.get(parsed.data) : undefined;
+  if (!parsed.success || parsed.data === WINDOW_ID) {
+    return err(new TypedError.NotFound(`No record has the id ${id}.`));
+  }
+  const known = read();
+  const ref = refIn(known, parsed.data) ?? discover(known, parsed.data);
+  return ref
+    ? ok(ref)
+    : err(new TypedError.NotFound(`No record has the id ${id}.`));
 }
 
-/** A chat's own folder. */
-function chatDir(id: TaskId): TaskDir {
-  return TaskDirSchema.parse(path.join(chatsDir(), id));
-}
-
-function listDirs(dir: string): string[] {
-  try {
-    return fs
-      .readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-}
-
-function read() {
-  const root = getWorkspaceConfig().rootDir;
-  if (index?.root === root) {
-    return index;
-  }
-  const chats = new Map<TaskId, StoreId.Session>();
-  const sessions = new Map<StoreId.Session, TaskId>();
-  const tasks = new Map<TaskId, TaskDir>();
-  const dir = absolutePathJoin(root, CHATS_DIR_NAME);
-  let skipped = 0;
-  for (const name of listDirs(dir)) {
-    const id = TaskIdSchema.safeParse(name);
-    const stored = id.success
-      ? storedChatSession(path.join(dir, name))
-      : undefined;
-    const sessionId =
-      stored && "sessionId" in stored ? stored.sessionId : undefined;
-    if (!id.success || !sessionId) {
-      // Unreachable as a chat until its settings name a session again, and
-      // listed in Settings > Storage meanwhile.
-      skipped += 1;
-      continue;
-    }
-    chats.set(id.data, sessionId);
-    sessions.set(sessionId, id.data);
-    const inside = path.join(dir, name, TASKS_DIR_NAME);
-    for (const taskName of listDirs(inside)) {
-      const taskId = TaskIdSchema.safeParse(taskName);
-      if (taskId.success) {
-        tasks.set(
-          taskId.data,
-          TaskDirSchema.parse(path.join(inside, taskName)),
-        );
-      }
-    }
-  }
-  if (skipped > 0) {
-    console.warn(`Skipping ${skipped} chat folder(s) with no session`);
-  }
-  index = { chats, root, sessions, tasks };
-  return index;
+/** The session a chat's record holds. */
+export function sessionOfChat(id: ChatId): StoreId.Session | undefined {
+  return read().chats.get(id)?.sessionId;
 }
 
 /**
@@ -289,4 +291,118 @@ export function storedChatSession(
   return session.success
     ? { sessionId: session.data }
     : { problem: "no-session" };
+}
+
+/**
+ * Adds a chat found in its folder to the index, with the tasks inside it, or
+ * nothing when its settings name no session: such a folder is unreachable as
+ * a chat until they do, and listed in Settings > Storage meanwhile.
+ */
+function addChatFrom(known: Index, folder: string): ChatId | undefined {
+  const id = ChatIdSchema.safeParse(path.basename(folder));
+  const stored = id.success ? storedChatSession(folder) : undefined;
+  if (!id.success || !stored || !("sessionId" in stored)) {
+    return undefined;
+  }
+  const tasks = new Set<TaskId>();
+  for (const name of listDirs(path.join(folder, TASKS_DIR_NAME))) {
+    const taskId = TaskIdSchema.safeParse(name);
+    if (taskId.success) {
+      tasks.add(taskId.data);
+      known.tasks.set(taskId.data, id.data);
+    }
+  }
+  known.chats.set(id.data, {
+    id: id.data,
+    sessionId: stored.sessionId,
+    tasks,
+  });
+  known.sessions.set(stored.sessionId, id.data);
+  return id.data;
+}
+
+/**
+ * A record the index has not heard of, looked for where one made behind its
+ * back would be: a task flat under `tasks/`, or a chat under `chats/`.
+ */
+function discover(known: Index, id: TaskId): RecordRef | undefined {
+  if (isDir(path.join(known.tasksDir, id))) {
+    known.tasks.set(id, undefined);
+    return { id, kind: "task" };
+  }
+  const chatFolder = path.join(known.root, CHATS_DIR_NAME, id);
+  if (!isDir(chatFolder)) {
+    return undefined;
+  }
+  const chatId = addChatFrom(known, chatFolder);
+  return chatId === undefined ? undefined : { id: chatId, kind: "chat" };
+}
+
+function isDir(folder: string): boolean {
+  try {
+    return fs.statSync(folder).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function listDirs(dir: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+function read(): Index {
+  const { rootDir, tasksDir } = getWorkspaceConfig();
+  if (index?.root === rootDir && index.tasksDir === tasksDir) {
+    return index;
+  }
+  const known: Index = {
+    chats: new Map(),
+    root: rootDir,
+    sessions: new Map(),
+    tasks: new Map(),
+    tasksDir,
+  };
+  const dir = absolutePathJoin(rootDir, CHATS_DIR_NAME);
+  let skipped = 0;
+  for (const name of listDirs(dir)) {
+    if (addChatFrom(known, path.join(dir, name)) === undefined) {
+      skipped += 1;
+    }
+  }
+  if (skipped > 0) {
+    console.warn(`Skipping ${skipped} chat folder(s) with no session`);
+  }
+  for (const name of listDirs(tasksDir)) {
+    const taskId = TaskIdSchema.safeParse(name);
+    if (taskId.success && !known.tasks.has(taskId.data)) {
+      known.tasks.set(taskId.data, undefined);
+    }
+  }
+  index = known;
+  return known;
+}
+
+function refIn(known: Index, id: TaskId): RecordRef | undefined {
+  const chat = known.chats.get(id);
+  if (chat) {
+    return { id: chat.id, kind: "chat" };
+  }
+  if (!known.tasks.has(id)) {
+    return undefined;
+  }
+  const owner = known.tasks.get(id);
+  return owner === undefined
+    ? { id, kind: "task" }
+    : { chatId: owner, id, kind: "task" };
+}
+
+function taskInChatDir(id: TaskId, chatId: ChatId): TaskDir {
+  return TaskDirSchema.parse(path.join(chatTasksDir(chatId), id));
 }

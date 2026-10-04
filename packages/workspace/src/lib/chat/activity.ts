@@ -13,6 +13,7 @@ import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
 import { type LeftRunning } from "./left-running";
+import { type ChatId } from "../../schemas/chat-id";
 
 const RunningTaskSchema = z.object({
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
@@ -165,7 +166,7 @@ export function leftRunning(taskId: TaskId, now = Date.now()): LeftRunning[] {
  * work off does not read as the end of it. A task held from starting is here
  * too, waiting on what holds it, since it is the user's move either way.
  */
-export async function chatActivity(chatId: TaskId): Promise<ChatActivity> {
+export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
   const children = await listChildTasks(
     chatId,
     (id) => isWorking(id) || taskHold(id) !== undefined,
@@ -173,9 +174,7 @@ export async function chatActivity(chatId: TaskId): Promise<ChatActivity> {
   const running = await Promise.all(
     children.map(async (child) => {
       const chat =
-        child.parentTaskId === undefined
-          ? undefined
-          : sessionOfChat(child.parentTaskId);
+        child.chatId === undefined ? undefined : sessionOfChat(child.chatId);
       const held = taskHold(child.id);
       return {
         ...(held ? { waiting: held.userReason } : await runningLines(child.id)),

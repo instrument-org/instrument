@@ -9,7 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { chatIdOfTask, chatOfSession, sessionOfChat } from "../record-folders";
+import { chatOfSession, owningChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -215,8 +215,8 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     }
   }
   for (const task of working) {
-    const parentTaskId = task.parentTaskId;
-    if (parentTaskId === undefined) {
+    const { chatId } = task;
+    if (chatId === undefined) {
       continue;
     }
     // The conversation said when it wants to look; the clock stays quiet.
@@ -231,7 +231,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     }
     overdueReportedAt.set(task.id, now);
     const event = await stillWorkingEvent({
-      chatId: parentTaskId,
+      chatId,
       taskId: task.id,
       title: task.title,
       turnStart,
@@ -241,7 +241,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     if (!isWorking(task.id)) {
       continue;
     }
-    schedule(parentTaskId, event, workspaceRef);
+    schedule(chatId, event, workspaceRef);
   }
 }
 
@@ -331,7 +331,7 @@ async function onSessionDone(
   workspaceRef: WorkspaceActorRef,
 ) {
   // Only a chat is woken, by a task inside it.
-  const chatId = chatIdOfTask(id);
+  const chatId = owningChat(id);
   if (!chatId) {
     return;
   }

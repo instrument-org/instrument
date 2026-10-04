@@ -41,6 +41,12 @@ const AppCatalogEntrySchema = z.object({
   description: z.string(),
   docsUrl: z.string().optional(),
   domain: z.string(),
+  /**
+   * Everyday requests a person might make of the agent once the service is
+   * connected, phrased the way they would type them. The app's page offers
+   * them as one-press asks.
+   */
+  examples: z.array(z.string()).optional(),
   /** The vendor whose products sign in together, when it has several. */
   family: z.literal(APP_FAMILY_IDS).optional(),
   /** The signed-in web app, when it is not the domain's front page. */

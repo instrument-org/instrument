@@ -31,6 +31,11 @@
       "slug": "airtable",
       "name": "Airtable",
       "tagline": "Bases, tables, and records, with the schema an agent reads first.",
+      "examples": [
+        "How many orders came in this week?",
+        "Add Jordan Lee to my contacts base",
+        "Which records are marked overdue?"
+      ],
       "description": "You can ask questions, create and update records, and analyze your data—all through conversation.",
       "domain": "airtable.com",
       "authMethods": [
@@ -270,6 +275,11 @@
       "slug": "apple-notes",
       "name": "Apple Notes",
       "tagline": "Notes and folders on this Mac and iCloud.",
+      "examples": [
+        "Find my note with the Wi-Fi password",
+        "Add milk and eggs to my grocery list",
+        "What did I write down yesterday?"
+      ],
       "description": "The Mac's own Notes app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the notes synced to this Mac, iCloud's included.",
       "domain": "apple.com",
       "authMethods": [],
@@ -289,6 +299,11 @@
       "slug": "apple-reminders",
       "name": "Apple Reminders",
       "tagline": "Reminders and lists on this Mac and iCloud.",
+      "examples": [
+        "Remind me to call the dentist tomorrow at 9",
+        "What’s on my reminders for today?",
+        "Add buying a birthday card to my Errands list"
+      ],
       "description": "The Mac's own Reminders app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the lists synced to this Mac.",
       "domain": "apple.com",
       "authMethods": [],
@@ -308,6 +323,11 @@
       "slug": "asana",
       "name": "Asana",
       "tagline": "Tasks, projects, and goals across the workspace.",
+      "examples": [
+        "What tasks are due this week?",
+        "Ask Maria to review the launch plan by Friday",
+        "How is the website redesign project going?"
+      ],
       "description": "Coordinate work across teams while connecting AI insights to real deliverables.",
       "domain": "asana.com",
       "authMethods": [
@@ -648,6 +668,11 @@
       "slug": "calendly",
       "name": "Calendly",
       "tagline": "Event types, scheduled events, and availability.",
+      "examples": [
+        "Who booked time with me this week?",
+        "Send me my link for 30-minute meetings",
+        "Did anyone cancel a meeting today?"
+      ],
       "description": "Event types, scheduled events, and availability.",
       "domain": "calendly.com",
       "authMethods": [
@@ -674,6 +699,11 @@
       "slug": "canva",
       "name": "Canva",
       "tagline": "Designs, brand kits, and exports.",
+      "examples": [
+        "Find the poster I made last month",
+        "Make an Instagram post announcing our sale",
+        "Export my latest presentation as a PDF"
+      ],
       "description": "Make Canva a native part of your AI workflow—an AI-powered design agent that helps you create polished visuals faster, with less friction.",
       "domain": "canva.com",
       "authMethods": [
@@ -1058,6 +1088,11 @@
       "slug": "dropbox",
       "name": "Dropbox",
       "tagline": "Files and folders, searched and read.",
+      "examples": [
+        "Find the contract I saved last week",
+        "What’s in my Taxes folder?",
+        "Summarize the latest file Alex shared with me"
+      ],
       "description": "Dropbox's MCP server searches a Dropbox, reads what it finds, and follows the sharing a file already carries.",
       "domain": "dropbox.com",
       "authMethods": [
@@ -1229,6 +1264,11 @@
       "slug": "figma",
       "name": "Figma",
       "tagline": "Design files, components, and variables, read by an agent.",
+      "examples": [
+        "What changed in our design file this week?",
+        "List the components in our design system",
+        "Describe the checkout screen in our app design"
+      ],
       "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in on the Browser screen and a task works there.",
       "domain": "figma.com",
       "authMethods": [
@@ -1373,6 +1413,11 @@
       "slug": "github",
       "name": "GitHub",
       "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",
+      "examples": [
+        "What pull requests are waiting on my review?",
+        "Open an issue for the broken sign-up link",
+        "What changed in our main repo this week?"
+      ],
       "description": "GitHub exposes more agent-callable surface area than almost any service: a fully-specified REST API, a GraphQL API, the `gh` CLI, and a remote MCP server. The MCP server is not reachable from here: it only accepts OAuth clients GitHub has issued in advance and refuses one registered on the spot, so the way in is the REST API with a fine-grained personal access token.",
       "domain": "github.com",
       "authMethods": [
@@ -1474,6 +1519,11 @@
       "slug": "gmail",
       "name": "Gmail",
       "tagline": "Mail, threads, labels, and drafts.",
+      "examples": [
+        "What emails need a reply from me today?",
+        "Draft a reply to the last email from Dana",
+        "Find the receipt from my last Amazon order"
+      ],
       "description": "Google's email. Reached through Google's Gmail MCP server once Instrument's Google client clears review; until then through Mail on this Mac when the account is added there, or the web app.",
       "domain": "gmail.com",
       "home": "https://mail.google.com",
@@ -1507,6 +1557,11 @@
       "slug": "google-calendar",
       "name": "Google Calendar",
       "tagline": "Events, invites, and availability.",
+      "examples": [
+        "What’s on my calendar tomorrow?",
+        "Find a free hour with Sam next week",
+        "Move my 3pm meeting to Friday"
+      ],
       "description": "Google's calendar. Reached through Google's Calendar MCP server once Instrument's Google client clears review; until then through Calendar on this Mac when the account is added there, or the web app.",
       "domain": "calendar.google.com",
       "home": "https://calendar.google.com",
@@ -1540,6 +1595,11 @@
       "slug": "google-drive",
       "name": "Google Drive",
       "tagline": "Files, Docs, Sheets, and Slides.",
+      "examples": [
+        "Find the budget spreadsheet I worked on last week",
+        "Summarize the newest doc shared with me",
+        "What’s in my Q3 planning folder?"
+      ],
       "description": "Google's file storage and the Docs, Sheets, and Slides editors. Reached through Google's Drive MCP server once Instrument's Google client clears review; until then the web app.",
       "domain": "drive.google.com",
       "home": "https://drive.google.com",
@@ -1703,6 +1763,11 @@
       "slug": "hubspot",
       "name": "HubSpot",
       "tagline": "Contacts, companies, deals, and tickets.",
+      "examples": [
+        "Which deals are closing this month?",
+        "Add Jordan Lee from Acme as a contact",
+        "When did we last talk to Acme?"
+      ],
       "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts.",
       "domain": "hubspot.com",
       "authMethods": [
@@ -2020,6 +2085,11 @@
       "slug": "linear",
       "name": "Linear",
       "tagline": "Issues, projects, and cycles — agent-native from day one.",
+      "examples": [
+        "What issues are assigned to me?",
+        "File a bug: the login page won’t load in Safari",
+        "What’s left in the current cycle?"
+      ],
       "description": "Linear's entire product runs on its public GraphQL API, and its hosted MCP server gives agents the same tools the official integrations use: create and update issues, manage projects, and coordinate cycles.",
       "domain": "linear.app",
       "authMethods": [
@@ -2286,6 +2356,11 @@
       "slug": "monday",
       "name": "monday.com",
       "tagline": "Boards, items, and updates.",
+      "examples": [
+        "What items are assigned to me?",
+        "Add the client kickoff to our Projects board",
+        "What’s stuck on the Marketing board?"
+      ],
       "description": "monday.com's GraphQL API lets agents query and update workspaces, boards, items, columns, and users. Its hosted MCP server wraps the platform API with agent-oriented tools.",
       "domain": "monday.com",
       "authMethods": [
@@ -2419,6 +2494,11 @@
       "slug": "notion",
       "name": "Notion",
       "tagline": "Pages, databases, and comments as agent-editable workspace memory.",
+      "examples": [
+        "Find my notes from Monday’s team meeting",
+        "Add this article to my reading list page",
+        "What’s on our roadmap this quarter?"
+      ],
       "description": "Notion's hosted MCP server lets agents search, create, and reorganize workspace content. The REST API underneath uses internal integrations with explicit page-level sharing — a natural permission boundary for agents.",
       "domain": "notion.com",
       "authMethods": [
@@ -2458,6 +2538,11 @@
       "slug": "onedrive",
       "name": "OneDrive",
       "tagline": "Files, plus Word, Excel, and PowerPoint documents.",
+      "examples": [
+        "Find the slide deck I edited yesterday",
+        "Summarize my Project Plan document",
+        "What’s in my Documents folder?"
+      ],
       "description": "Microsoft's file storage, SharePoint, and Office documents. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then the web app.",
       "domain": "onedrive.live.com",
       "home": "https://onedrive.live.com",
@@ -2557,6 +2642,11 @@
       "slug": "outlook",
       "name": "Outlook",
       "tagline": "Mail and calendar on Microsoft 365.",
+      "examples": [
+        "What came in from my manager today?",
+        "Draft a reply to the last email from Dana",
+        "What meetings do I have this afternoon?"
+      ],
       "description": "Microsoft's mail and calendar, for work and personal accounts. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then through the Outlook or Mail app on this Mac, or the web app.",
       "domain": "outlook.com",
       "home": "https://outlook.office.com",
@@ -3377,6 +3467,11 @@
       "slug": "slack",
       "name": "Slack",
       "tagline": "Read, search, and send messages where your team already works.",
+      "examples": [
+        "What did I miss in #general today?",
+        "Summarize the threads where I was mentioned",
+        "Tell Priya I’m running five minutes late"
+      ],
       "description": "Slack's hosted MCP server covers messaging, search, and canvases. The underlying Web API is one of the most battle-tested REST surfaces anywhere — token-based, method-oriented, and fully documented.",
       "domain": "slack.com",
       "authMethods": [
@@ -3760,6 +3855,11 @@
       "slug": "todoist",
       "name": "Todoist",
       "tagline": "Tasks, projects, and reminders your agent can manage.",
+      "examples": [
+        "What’s due today?",
+        "Add renew my passport for next Monday",
+        "What did I finish this week?"
+      ],
       "description": "Todoist is a task manager with a mature developer platform. Agents can create and complete tasks, organize projects, and query filters through the unified v1 REST API or the official hosted MCP server.",
       "domain": "todoist.com",
       "authMethods": [
@@ -3799,6 +3899,11 @@
       "slug": "trello",
       "name": "Trello",
       "tagline": "Boards, lists, and cards.",
+      "examples": [
+        "What cards are assigned to me?",
+        "Add a Book the venue card to the Planning board",
+        "Move the website copy card to Done"
+      ],
       "description": "Atlassian's boards for tracking work. Its MCP server signs in with an Atlassian account and registers a client on the spot.",
       "domain": "trello.com",
       "home": "https://trello.com",
@@ -4189,6 +4294,11 @@
       "slug": "zoom",
       "name": "Zoom",
       "tagline": "Meetings, recordings, and summaries.",
+      "examples": [
+        "Summarize my last meeting",
+        "What Zoom calls do I have tomorrow?",
+        "Find the recording of Tuesday’s all-hands"
+      ],
       "description": "Meetings, recordings, and summaries.",
       "domain": "zoom.us",
       "authMethods": [

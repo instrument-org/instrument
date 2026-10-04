@@ -1,10 +1,12 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useMatchRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/onboarding")({
   beforeLoad: async () => {
@@ -27,6 +29,7 @@ const DevPanel = lazy(() =>
 );
 
 function OnboardingRoute() {
+  useWaitingToast();
   const isDeveloperMode = useDeveloperMode();
   const matchRoute = useMatchRoute();
   const isWelcomePage = Boolean(matchRoute({ to: "/onboarding" }));
@@ -52,4 +55,52 @@ function OnboardingRoute() {
       )}
     </OnboardingLayout>
   );
+}
+
+type WaitingAsk = RPCOutput["window"]["takePending"][number];
+
+/**
+ * Says what was opened with the app before it was set up, a file dropped on
+ * its icon or a link, so it does not look ignored: it opens once onboarding
+ * is done. One toast, kept up and updated as more arrives.
+ */
+function useWaitingToast() {
+  const { data: waiting } = useQuery(
+    rpcClient.window.live.waiting.experimental_liveOptions(),
+  );
+  useEffect(() => {
+    if (waiting && waiting.length > 0) {
+      toast(waitingMessage(waiting), {
+        duration: Infinity,
+        id: "waiting-opens",
+      });
+    }
+  }, [waiting]);
+}
+
+function waitingMessage(waiting: WaitingAsk[]) {
+  if (waiting.length > 1) {
+    const noun = waiting.every((ask) => ask.type === "openFile")
+      ? "files"
+      : "items";
+    return `${waiting.length} ${noun} open when you finish setup.`;
+  }
+  const name = waiting[0] && nameOf(waiting[0]);
+  return name === undefined
+    ? "The link opens when you finish setup."
+    : `${name} opens when you finish setup.`;
+}
+
+/** The file's or folder's name, or nothing for a link to a screen. */
+function nameOf(ask: WaitingAsk) {
+  if (ask.type === "openFile") {
+    return baseName(ask.hostPath);
+  }
+  const url = new URL(ask.href, "studio:/");
+  const root = url.searchParams.get("root");
+  return url.pathname === "/files" && root ? baseName(root) : undefined;
+}
+
+function baseName(hostPath: string) {
+  return hostPath.split(/[\\/]/).findLast(Boolean) ?? hostPath;
 }

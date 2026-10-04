@@ -101,6 +101,9 @@ interface PublisherEvents {
     | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };
+  // Something from outside was asked of the app window before it could take
+  // it, and waits for it.
+  "window.asks-waiting": null;
   "window.focus-changed": null;
   // A link under the pointer in text being edited, which the window's native
   // menu offers to open: the page that drew it opens it, in place or in a tab

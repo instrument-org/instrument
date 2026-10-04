@@ -261,6 +261,14 @@ export function openAppWindow(): BrowserWindow {
   return appWindow;
 }
 
+/**
+ * What waits for the window without taking it: what onboarding names, so
+ * the person knows it opens once they are through.
+ */
+export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
+  return pendingAsks;
+}
+
 /** What was asked of the window while it was opening, once, then nothing. */
 export function takePendingAppWindowAsks(): AppWindowAsk[] {
   const asks = pendingAsks;
@@ -287,6 +295,7 @@ function askAppWindow(ask: AppWindowAsk) {
     return;
   }
   pendingAsks.push(ask);
+  publisher.publish("window.asks-waiting", null);
   // An ask that launched the app arrives before it is ready to make a window;
   // boot opens this one itself, and the ask waits for it. So does one made
   // before onboarding is finished, including its steps after the provider is

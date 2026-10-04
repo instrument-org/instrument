@@ -1,7 +1,16 @@
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { takePendingAppWindowAsks } from "@/electron-main/windows/app-window";
+import {
+  takePendingAppWindowAsks,
+  waitingAppWindowAsks,
+} from "@/electron-main/windows/app-window";
+import { eventIterator } from "@orpc/server";
 import { z } from "zod";
+
+const AskSchema = z.discriminatedUnion("type", [
+  z.object({ hostPath: z.string(), type: z.literal("openFile") }),
+  z.object({ href: z.string(), type: z.literal("openScreen") }),
+]);
 
 const events = {
   /** What a swipe, a thumb button, a menu chord, or a link from outside asked of the window. */
@@ -28,17 +37,28 @@ const events = {
  * as the window comes up.
  */
 const takePending = base
-  .output(
-    z.array(
-      z.discriminatedUnion("type", [
-        z.object({ hostPath: z.string(), type: z.literal("openFile") }),
-        z.object({ href: z.string(), type: z.literal("openScreen") }),
-      ]),
-    ),
-  )
+  .output(z.array(AskSchema))
   .handler(() => takePendingAppWindowAsks());
+
+const live = {
+  /**
+   * What from outside waits for the window, as of now and each time more
+   * arrives: what onboarding tells the person opens once they are through.
+   */
+  waiting: base
+    .output(eventIterator(z.array(AskSchema)))
+    .handler(async function* ({ signal }) {
+      yield [...waitingAppWindowAsks()];
+      for await (const _ of publisher.subscribe("window.asks-waiting", {
+        signal,
+      })) {
+        yield [...waitingAppWindowAsks()];
+      }
+    }),
+};
 
 export const window = {
   events,
+  live,
   takePending,
 };

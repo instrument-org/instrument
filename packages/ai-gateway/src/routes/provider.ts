@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
+import { isWorkersAiProviderConfig } from "../lib/fetch-models/parse-workers-ai-base-url";
 import { apiURL } from "../lib/providers/api-url";
 import {
   collapseResponsesStream,
@@ -58,6 +59,11 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   setProviderAuthHeaders(headers, config);
   if (config.type === OUR_PROVIDER_CONFIG.type) {
     setClientHeaders(headers, context.var.clientInfo, sessionId);
+  }
+  // Workers AI keeps a prefix cache per model instance and routes one
+  // affinity id to one instance, so a session's steps reuse its prefix.
+  if (sessionId && isWorkersAiProviderConfig(config)) {
+    headers.set("x-session-affinity", sessionId);
   }
 
   if (

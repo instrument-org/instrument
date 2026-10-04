@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import { workersAiTestOpenAiCompatBaseUrl } from "../test/workers-ai-fixtures";
 import { type AIGatewayEnv } from "../types";
 import { providerApp } from "./provider";
 
@@ -108,5 +109,32 @@ describe("ChatGPT plan responses", () => {
     );
     expect(headers.get("session-id")).toBe("ses_1");
     expect(headers.get(CLIENT_SESSION_ID_HEADER)).toBeNull();
+  });
+});
+
+describe("Workers AI session affinity", () => {
+  it.each([
+    {
+      baseURL: workersAiTestOpenAiCompatBaseUrl,
+      expected: "ses_1",
+      name: "a Workers AI config",
+    },
+    {
+      baseURL: "https://example.com/v1",
+      expected: null,
+      name: "another OpenAI-compatible config",
+    },
+  ])("sends x-session-affinity to $name", async ({ baseURL, expected }) => {
+    const headers = await forwardedHeaders(
+      {
+        apiKey: "key",
+        baseURL,
+        cacheIdentifier: "compat",
+        id: AIProviderConfigId("compat"),
+        type: "openai-compatible",
+      },
+      { headers: { [CLIENT_SESSION_ID_HEADER]: "ses_1" } },
+    );
+    expect(headers.get("x-session-affinity")).toBe(expected);
   });
 });

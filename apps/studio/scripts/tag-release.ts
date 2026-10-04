@@ -1,4 +1,5 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { readPackage } from "read-pkg";
 import semver from "semver";
@@ -108,6 +109,8 @@ async function main() {
       );
     }
 
+    const notesPath = releaseNotesPath();
+
     checkRegistrySubmodule();
     syncReleaseTags();
 
@@ -144,7 +147,16 @@ async function main() {
     const commitMessage = `release: ${tagName}`;
     execSync(`git commit -m "${commitMessage}"`, { stdio: "inherit" });
 
-    execSync(`git tag -m "" "${tagName}"`, { stdio: "inherit" });
+    // The tag's message is the release notes: the release workflow posts their
+    // summary to Slack and publishes them as the release body. With none, it
+    // falls back to the commits grouped by scope.
+    execFileSync(
+      "git",
+      notesPath
+        ? ["tag", "--cleanup=verbatim", "-F", notesPath, tagName]
+        : ["tag", "-m", "", tagName],
+      { stdio: "inherit" },
+    );
 
     console.log(`Successfully released version ${newVersion}`);
     console.log(`Commit: ${commitMessage}`);
@@ -153,6 +165,27 @@ async function main() {
     console.error("Error during release:", error);
     process.exit(1);
   }
+}
+
+/**
+ * The release notes file named by `--notes`. A release cut without one still
+ * tags, and says what it gives up.
+ */
+function releaseNotesPath(): string | undefined {
+  const index = process.argv.indexOf("--notes");
+  const file = index === -1 ? undefined : process.argv[index + 1];
+  if (!file) {
+    console.warn(
+      "⚠️  No --notes: Slack and the release page will list commits grouped by scope instead of release notes.",
+    );
+    return undefined;
+  }
+  // pnpm runs this from apps/studio, so a relative path resolves from there.
+  const resolved = path.resolve(file);
+  if (!readFileSync(resolved, "utf8").trim()) {
+    throw new Error(`Release notes file is empty: ${resolved}`);
+  }
+  return resolved;
 }
 
 function syncReleaseTags() {

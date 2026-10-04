@@ -48,14 +48,27 @@ cd <scratch>/verify && pnpm check-and-test:ci --force
 
 Booting the packaged app is CI's job, not yours. Boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
 
+## Write the notes
+
+The notes go in before the tag, not after the build: the tag's message is the release notes. The workflow posts their summary line and the lead sentence of each section's first bullets to Slack, links the rest, and publishes them as the release body. Slack cannot be edited afterwards, so what the tag carries is what the channel reads.
+
+1. Read `.agents/skills/release-notes/SKILL.md` for the range and the voice. It is user-invocable only, so read the file rather than invoking the skill.
+2. Write the notes to a file outside the repo, and preview what Slack will show:
+
+```bash
+node apps/studio/scripts/release-summary.ts slack --notes <path>
+```
+
+The range runs from the last **published** release, not the last tag. A tag whose build failed never published, so its changes belong in the next tag's notes: carry them over rather than writing only what is new since the failed tag.
+
 ## Tag and push
 
 ```bash
-cd apps/studio && pnpm tag:release:patch:beta
+cd apps/studio && pnpm tag:release:patch:beta --notes <absolute path>
 cd ../.. && git push origin <branch> && git push origin v<version>
 ```
 
-The script bumps `apps/studio/package.json`, commits `release: vX.Y.Z`, and creates the tag. Push the branch before the tag, or the branch ref is left behind the commit the tag names. The tag is what triggers the workflow.
+The script bumps `apps/studio/package.json`, commits `release: vX.Y.Z`, and creates the tag with the notes as its message. Without `--notes` it still tags, and Slack and the release page fall back to the commits grouped by scope. Push the branch before the tag, or the branch ref is left behind the commit the tag names. The tag is what triggers the workflow.
 
 A pushed tag cannot be moved. A mistake costs the next version number.
 
@@ -75,16 +88,11 @@ Five platform legs and three smoke tests, about fifteen minutes. **Publishing is
 - **Transient** — signing or notarization timeouts, runner networking, an artifact upload. `gh run rerun <id> --failed`.
 - **Real** — a compile error, a failing test, a package the build cannot find. Fix it on the branch and cut a new tag. There is no way to reuse the number.
 
-## Notes and publish
+## Publish
 
 A beta or alpha tag publishes immediately as a prerelease. **A stable tag lands as a draft** and stays invisible until someone publishes it.
 
-The workflow writes an auto-generated commit list as the release body. Replace it wholesale:
-
-1. Read `.agents/skills/release-notes/SKILL.md` for the range and the voice. It is user-invocable only, so read the file rather than invoking the skill.
-2. `gh release edit v<version> --notes-file <path>`
-
-Replacing the body drops the auto-generated **Full Changelog** and **Skills Changelog** compare links. Every release so far has accepted that; append them if you want them kept.
+The release body is the tag's notes followed by the **Full Changelog** and **Skills Changelog** compare links. Open it and check it rendered. A correction goes in with `gh release edit v<version> --notes-file <path>`, which reaches the release page and the app's changelog, but not the Slack post already made.
 
 ## Verify the feed
 

@@ -20,6 +20,8 @@ Turn the commits since a version into plain, human-readable release notes for en
 3. Keep only user-facing changes (see filtering below). Inspect larger or ambiguous commits before deciding what they mean to a user.
 4. Group the survivors by product area, not by commit type.
 5. Write a one-line summary of the release, then the grouped bullets. Omit the app name and version: GitHub provides that context around the release body.
+   - Lead each bullet with one short sentence, a dozen words or fewer, and put any detail in a second sentence. Slack shows the summary line and only the lead sentence of the first two bullets in each section (`apps/studio/scripts/release-summary.ts`), so the lead has to stand alone.
+   - Order each section's bullets by what a reader most needs to know, since the first two are the ones Slack shows.
 6. Return the result in a markdown code block.
 
 ## Filtering

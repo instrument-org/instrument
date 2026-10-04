@@ -280,6 +280,12 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      # Runs apps/studio/scripts/release-summary.ts, which needs Node's own
+      # TypeScript support and nothing installed.
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
@@ -296,7 +302,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
 
-      - name: Build Slack commit summary
+      - name: Build Slack summary and release body
         id: slack_summary
         env:
           GH_TOKEN: ${{ github.token }}
@@ -376,38 +382,45 @@ jobs:
                 --no-merges
             )
           fi
-          # shellcheck disable=SC2001  # per-line regex strip; ${//} can't do this
-          SUMMARY=$(
-            {
-              echo "$APP_COMMITS" | sed 's/^[^ ]* /• /'
-              echo "$REGISTRY_COMMITS" | sed 's/^[^ ]* /• [skills] /'
-            } | sed '/^$/d'
-          )
-          COUNT=$(printf '%s\n' "$SUMMARY" | sed '/^$/d' | wc -l | tr -d ' ')
-          if [ "$COUNT" -eq 0 ]; then
-            SLACK="_No user-facing changes in this release._"
+          # The release notes ride in the tag's message (tag-release.ts
+          # --notes). Checkout rewrites the pushed tag as a lightweight one,
+          # so fetch the tag object itself before reading it, and drop a
+          # signature block if the tag carries one.
+          git fetch --force origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
+          if [ "$(git cat-file -t "${{ github.ref_name }}")" = "tag" ]; then
+            git cat-file tag "${{ github.ref_name }}" \
+              | sed '1,/^$/d' \
+              | sed '/^-----BEGIN PGP SIGNATURE-----/,$d' > /tmp/release-notes.md
           else
-            SLACK=$(echo "$SUMMARY" | head -n10)
+            : > /tmp/release-notes.md
           fi
-          if [ "$COUNT" -gt 10 ]; then
-            SLACK="$SLACK
-          _…and $((COUNT - 10)) more commits_"
-          fi
-          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$APP_COMMITS" > /tmp/app-commits.txt
+          printf '%s\n' "$REGISTRY_COMMITS" > /tmp/skills-commits.txt
+          SLACK=$(
+            node apps/studio/scripts/release-summary.ts slack \
+              --notes /tmp/release-notes.md \
+              --commits /tmp/app-commits.txt \
+              --skills-commits /tmp/skills-commits.txt
+          )
+          COUNT=$(printf '%s\n%s\n' "$APP_COMMITS" "$REGISTRY_COMMITS" | sed '/^$/d' | wc -l | tr -d ' ')
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
-          printf '## What'\''s changed\n' > /tmp/release-body.md
-          if [ "$COUNT" -eq 0 ]; then
-            printf '\n_No user-facing changes in this release._\n' >> /tmp/release-body.md
+          if [ -n "$(tr -d '[:space:]' < /tmp/release-notes.md)" ]; then
+            cp /tmp/release-notes.md /tmp/release-body.md
           else
-            if [ -n "$APP_COMMITS" ]; then
-              printf '\n### Instrument\n\n' >> /tmp/release-body.md
-              echo "$APP_COMMITS" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
-            fi
-            if [ -n "$REGISTRY_COMMITS" ]; then
-              printf '\n### Skills\n\n' >> /tmp/release-body.md
-              echo "$REGISTRY_COMMITS" | awk -v repo="$REGISTRY_REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
+            printf '## What'\''s changed\n' > /tmp/release-body.md
+            if [ "$COUNT" -eq 0 ]; then
+              printf '\n_No user-facing changes in this release._\n' >> /tmp/release-body.md
+            else
+              if [ -n "$APP_COMMITS" ]; then
+                printf '\n### Instrument\n\n' >> /tmp/release-body.md
+                echo "$APP_COMMITS" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
+              fi
+              if [ -n "$REGISTRY_COMMITS" ]; then
+                printf '\n### Skills\n\n' >> /tmp/release-body.md
+                echo "$REGISTRY_COMMITS" | awk -v repo="$REGISTRY_REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
+              fi
             fi
           fi
           if [ -n "$PREV_TAG" ]; then
@@ -423,8 +436,8 @@ jobs:
       # Published rather than drafted, unlike the stable release below: a draft is
       # invisible to the unauthenticated GitHub API, and the app reads these notes
       # back to show prerelease users the changelog for the build they are running.
-      # Nothing here is private -- the body is commit subjects linking to commits
-      # in this same public repo. `prerelease: true` keeps them off the "Latest"
+      # Nothing here is private -- the body is the tag's release notes, or
+      # commit subjects linking to commits in this same public repo. `prerelease: true` keeps them off the "Latest"
       # badge and lets the app filter them for stable users.
       - name: GitHub Prerelease
         id: prerelease_release

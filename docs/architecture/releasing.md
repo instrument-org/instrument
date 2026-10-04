@@ -26,6 +26,13 @@ Prereleases are published immediately for the same reason read the other way: be
 
 ## The notes
 
-The generated body is a commit list standing in for real notes. Replace it wholesale with output from the `release-notes` skill: a one-line summary, then bullets grouped by product area. Read the previous few published releases for the register.
+The notes travel in the tag. `tag-release.ts --notes <file>` makes them the annotated tag's message, written with the `release-notes` skill before tagging: a one-line summary, then bullets grouped by product area, each led by one short sentence. The publish job reads that message back and uses it twice:
 
-That generated body also grows a `Skills` section when the registry submodule pointer moved since the previous tag, which is the quickest cue for what bundled content changed.
+- **Slack** gets the summary line and the lead sentence of the first two bullets in each section, with a link to the release. [`release-summary.ts`](../../apps/studio/scripts/release-summary.ts) does the cutting, deterministically and with no model, which is why the leads have to stand on their own.
+- **The release body** is the notes followed by the compare links, and is what the app shows as the changelog.
+
+The job re-fetches the tag before reading it, because `actions/checkout` rewrites a pushed annotated tag as a lightweight one and the message would read as empty.
+
+A tag cut without notes still ships. Slack then gets the range's commits grouped by scope with the plumbing scopes (`dx`, `docs`, `lint` and the like) dropped, and the body is the commit list, with a `Skills` section when the registry pointer moved.
+
+The range starts at the last published release, so a tag whose build failed folds into the next one. Its notes have to as well: the next tag's notes cover everything since the last release anyone could install.

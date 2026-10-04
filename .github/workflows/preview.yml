@@ -1,9 +1,9 @@
 name: Preview Build
 
 # A signed, notarized macOS build with an identity of its own (bundle id,
-# product name, protocol), so it installs beside Instrument and its first
-# launch is a real first launch: no userData, no keychain item, no privacy
-# grants. Pick the branch in "Use workflow from"; the name labels the build and
+# product name, protocol), so it runs beside Instrument and its first launch is
+# a real first launch: no userData, no keychain item, no privacy grants. Shipped
+# as a zip, so it can be unzipped, tried, and deleted without installing. Pick the branch in "Use workflow from"; the name labels the build and
 # defaults to the branch. See APP_PREVIEW_NAME in packages/shared.
 on:
   workflow_dispatch:
@@ -31,7 +31,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The same reduction APP_PREVIEW_NAME applies, for the artifact's name.
+      # The same reduction APP_PREVIEW_NAME applies, to fail early on a name
+      # that reduces to nothing and to label the summary.
       - name: Resolve preview name
         id: preview
         run: |
@@ -61,7 +62,7 @@ jobs:
       - name: Package
         run: |
           for attempt in 1 2 3; do
-            if pnpm --filter @instrument-org/studio exec electron-builder --mac dmg --arm64 --publish never; then
+            if pnpm --filter @instrument-org/studio exec electron-builder --mac zip --arm64 --publish never; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
@@ -86,11 +87,13 @@ jobs:
         if: always()
         run: rm -f ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
+      # Uploaded as the zip itself rather than wrapped in another one, so a
+      # download is one unzip away from the app. The file names the artifact.
       - name: Upload preview
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: instrument-preview-${{ steps.preview.outputs.slug }}
-          path: apps/studio/dist/*.dmg
+          archive: false
+          path: apps/studio/dist/*.zip
           retention-days: 30
           if-no-files-found: error
 
@@ -99,7 +102,7 @@ jobs:
           {
             echo "### Instrument Preview (${{ steps.preview.outputs.slug }})"
             echo
-            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download **instrument-preview-${{ steps.preview.outputs.slug }}** under Artifacts below, open the DMG, and drag the app to Applications."
+            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download the zip under Artifacts below, unzip it, and open the app wherever it landed."
             echo
-            echo "It installs beside Instrument and never updates itself. **Preview › Reset to First Run…** in its menu bar erases its data, keychain item, and macOS permissions and reopens it as a first launch."
+            echo "It runs beside Instrument and never updates itself. **Preview › Reset to First Run…** in its menu bar erases its data, keychain item, and macOS permissions and reopens it as a first launch."
           } >> "$GITHUB_STEP_SUMMARY"

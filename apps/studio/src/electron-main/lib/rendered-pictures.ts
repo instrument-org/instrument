@@ -3,15 +3,21 @@ import {
   isMapping,
   splitFrontMatter,
 } from "@/shared/front-matter";
-import { BrowserWindow, type NativeImage, session } from "electron";
+import {
+  BrowserWindow,
+  type CallbackResponse,
+  type NativeImage,
+  type OnBeforeRequestListenerDetails,
+  session,
+} from "electron";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { sleep } from "radashi";
 import { type BundledLanguage, bundledLanguages } from "shiki";
 import { parse } from "yaml";
 
-import { trackFrameDocumentsIn } from "../browser-view/frame-documents";
-import { isAllowedLocalRequest } from "../browser-view/local-file-policy";
+import { guests } from "../browser-view/guest-registry";
+import { confineLocalPagesToTheirFolder } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
 import {
   extensionOf,
@@ -420,23 +426,21 @@ function drawingSession() {
       callback(false);
     });
     drawing.setPermissionCheckHandler(() => false);
-    trackFrameDocumentsIn(drawing);
-    drawing.webRequest.onBeforeRequest((details, callback) => {
-      const { hostname, protocol } = new URL(details.url);
-      if (protocol === "file:") {
-        callback({ cancel: !isAllowedLocalRequest(details) });
-        return;
-      }
-      if (protocol === "data:" || protocol === "about:") {
-        callback({});
-        return;
-      }
-      callback({
-        cancel: !(protocol === "https:" && PAGE_HOSTS.has(hostname)),
-      });
-    });
+    guests.watchSession(drawing, () => "picture");
+    confineLocalPagesToTheirFolder(drawing, pageHostsOnly);
   }
   return drawing;
+}
+
+/** What a drawn page may load besides its own folder's files: inline data and the page skill's hosts. */
+function pageHostsOnly(
+  details: OnBeforeRequestListenerDetails,
+): CallbackResponse {
+  const { hostname, protocol } = new URL(details.url);
+  if (protocol === "data:" || protocol === "about:") {
+    return {};
+  }
+  return { cancel: !(protocol === "https:" && PAGE_HOSTS.has(hostname)) };
 }
 
 const drawers: Drawer[] = [];

@@ -17,26 +17,17 @@ import {
 } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
-  session,
   type WebContents,
   type WindowOpenHandlerResponse,
 } from "electron";
-import fs from "node:fs";
 import { noop } from "radashi";
 
-import {
-  applyProductBrandedMetadata,
-  applyStandardUserAgent,
-} from "../lib/user-agent";
-import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
+import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
-import {
-  attachDownloadHandler,
-  captureDownloadWillBeginGuid,
-} from "./downloads";
+import { captureDownloadWillBeginGuid } from "./downloads";
 import {
   advanceEntry,
   type BrowserEntry,
@@ -52,18 +43,11 @@ import {
   createFocusGuard,
   isAgentDrivenCommand,
 } from "./focus-guard";
-import { committedDocumentOf } from "./frame-documents";
+import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
-import {
-  confineLocalPagesToTheirFolder,
-  mayPageNavigateTo,
-  refuseLocalFilesInPopups,
-} from "./local-file-policy";
-import {
-  blockedRequestResponse,
-  enableContentBlocking,
-  isBlocking,
-} from "./content-blocking";
+import { guests } from "./guest-registry";
+import { configureGuestSession } from "./guest-session";
+import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
@@ -232,17 +216,14 @@ export function createBrowserViewManager(): BrowserViewManager {
   function bindGuest(entry: BrowserEntry, guest: WebContents) {
     entry.webContents = guest;
     const { targetId } = entry;
-    const guestId = guest.id;
-    taskOfGuest.set(guestId, entry.id);
-    guest.once("destroyed", () => {
-      taskOfGuest.delete(guestId);
-    });
+    guests.bind(guest.id, entry);
+    const pageDocument = () => guests.documentOf(guest.id, guest.mainFrame);
 
     // Where a link on the page may take a tab: a file only from a page on
     // the computer, as Chromium itself allows, and within what an agent
     // driving the tab may reach.
     const mayOpenFromPage = (url: string) => {
-      const from = committedDocumentOf(guest.id, guest.mainFrame);
+      const from = pageDocument();
       return (
         (!isFileUrl(url) || (from !== undefined && isFileUrl(from))) &&
         mayPageNavigateTo(entry.agentFileRoots, from, url)
@@ -255,11 +236,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.on("will-frame-navigate", (details) => {
       if (
         details.isMainFrame &&
-        !mayPageNavigateTo(
-          entry.agentFileRoots,
-          committedDocumentOf(guest.id, guest.mainFrame),
-          details.url,
-        )
+        !mayPageNavigateTo(entry.agentFileRoots, pageDocument(), details.url)
       ) {
         log.warn(
           `refused a page taking its tab outside the agent's folders targetId=${targetId}`,
@@ -288,10 +265,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         // rather than an agent is driving the page.
         const newTab = focusGuard.isGuarded(targetId)
           ? null
-          : newTabOpenOf(
-              details,
-              committedDocumentOf(guest.id, guest.mainFrame),
-            );
+          : newTabOpenOf(details, pageDocument());
         if (newTab && mayOpenFromPage(newTab.url)) {
           publisher.publish("browser.open-in-new-tab", {
             ...newTab,
@@ -318,12 +292,6 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       return response;
     });
-    // A sign-in popup may open a further popup (multi-step / account-chooser
-    // flows); keep the shape policy on the child so those don't hang either.
-    guest.on("did-create-window", (child) => {
-      child.webContents.setWindowOpenHandler(guestWindowOpenHandler);
-      refuseLocalFilesInPopups(child.webContents);
-    });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
     // Keep the guest's timers and animations running while the Studio window
@@ -345,8 +313,6 @@ export function createBrowserViewManager(): BrowserViewManager {
         });
       },
     });
-
-    attachDownloadHandler({ entries, session: guest.session });
 
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
@@ -472,7 +438,7 @@ export function createBrowserViewManager(): BrowserViewManager {
 
       // The partition carries the target id for this attach. The workspace
       // profile keeps cookies and storage shared across its tasks.
-      webPreferences.session = sessionForEntry(entry);
+      webPreferences.session = configureGuestSession(entry.partitionDir);
       webPreferences.contextIsolation = true;
       webPreferences.nodeIntegration = false;
       webPreferences.sandbox = true;
@@ -638,17 +604,13 @@ export function createBrowserViewManager(): BrowserViewManager {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;
       return guest && !guest.isDestroyed()
-        ? committedDocumentOf(guest.id, guest.mainFrame)
+        ? guests.documentOf(guest.id, guest.mainFrame)
         : undefined;
     },
-    contentBlocking: (id, blocking) => {
-      if (blocking === false) {
-        unblockedTasks.add(id);
-      } else if (blocking === true) {
-        unblockedTasks.delete(id);
-      }
-      return { task: !unblockedTasks.has(id), workspace: isBlocking() };
-    },
+    contentBlocking: (id, blocking) => ({
+      task: guests.setAdBlocking(id, blocking),
+      workspace: isBlocking(),
+    }),
     listTargets,
     onTargetDestroyed,
     sendCommand: (async (
@@ -791,16 +753,6 @@ export function createBrowserViewManager(): BrowserViewManager {
   return managerInstance;
 }
 
-/** The task each live guest belongs to, by web contents id. */
-const taskOfGuest = new Map<number, TaskId>();
-/** Tasks that turned ad blocking off for their own tabs. */
-const unblockedTasks = new Set<TaskId>();
-
-function isUnblockedGuest(webContentsId: number) {
-  const task = taskOfGuest.get(webContentsId);
-  return task !== undefined && unblockedTasks.has(task);
-}
-
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
@@ -838,40 +790,6 @@ function markNavigated(entry: BrowserEntry, url: string) {
 function notifyEntriesChanged() {
   notifyDebugChange();
   publisher.publish("browser.targets-changed", null);
-}
-
-// session.fromPath requires the directory to exist (Chromium opens the profile
-// in-place). The workspace's .instrument dir is created lazily, so ensure it
-// exists before handing the path to Electron.
-function sessionForEntry(entry: BrowserEntry) {
-  fs.mkdirSync(entry.partitionDir, { recursive: true });
-  const guestSession = session.fromPath(entry.partitionDir, { cache: true });
-  // Electron auto-approves every permission request (camera, mic, geolocation,
-  // notifications, ...) when no handler is set. There's no browser chrome here
-  // to show a native prompt, so deny everything rather than silently granting
-  // it to whatever site the guest navigates to. The one exception is writing
-  // text to the clipboard, which ordinary browsers grant without a prompt and
-  // which a page's copy button needs: `navigator.clipboard.writeText` rejects
-  // under a denial, and most pages swallow that rejection, so the button does
-  // nothing. Reading the clipboard stays denied; a page overwriting it is a
-  // click the user made, a page reading it is the user's clipboard handed over.
-  guestSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === "clipboard-sanitized-write");
-  });
-  guestSession.setPermissionCheckHandler(
-    (_wc, permission) => permission === "clipboard-sanitized-write",
-  );
-  // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
-  // browser ships (and matching client hints) so third-party services treat it
-  // like one. Branded with the app's own name because the guest's pages get the
-  // matching metadata over CDP; see applyProductBrandedMetadata.
-  applyStandardUserAgent(guestSession, { productBranded: true });
-  // Required, not optional: a passkey sign-in that finds more than one
-  // credential is cancelled outright when nothing answers this.
-  selectWebAuthnAccountOnRequest(guestSession);
-  confineLocalPagesToTheirFolder(guestSession, blockedRequestResponse);
-  enableContentBlocking(guestSession, isUnblockedGuest);
-  return guestSession;
 }
 
 function zoomGuest(wc: WebContents, direction: "in" | "out" | "reset") {

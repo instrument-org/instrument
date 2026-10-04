@@ -8,7 +8,7 @@ import {
 import fs, { realpathSync } from "node:fs";
 import path from "node:path";
 
-import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
+import { type GuestRole, guests } from "./guest-registry";
 
 /**
  * What a page loaded from a file on this computer may read from the disk: its
@@ -32,39 +32,54 @@ import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
  * it.
  *
  * The page is the document its frame loaded, never the address the frame
- * shows now, which the page's own script can rewrite (see
- * `frame-documents.ts`). Call this before the session's first guest exists.
+ * shows now, which the page's own script can rewrite (see `GuestRecord`'s
+ * `frames`). Electron keeps one `onBeforeRequest` listener per session, so
+ * this one hears every request and hands what is not a file to
+ * `otherRequests`. The session's contents must be watched by the guest
+ * registry from before the first one exists.
  */
 export function confineLocalPagesToTheirFolder(
-  guestSession: Session,
+  browserSession: Session,
   otherRequests: (details: OnBeforeRequestListenerDetails) => CallbackResponse,
 ) {
-  trackFrameDocumentsIn(guestSession);
-  // Electron keeps one `onBeforeRequest` listener per session, so this one
-  // hears every request and hands what is not a file to `otherRequests`.
-  guestSession.webRequest.onBeforeRequest(
+  browserSession.webRequest.onBeforeRequest(
     { urls: ["<all_urls>"] },
     (details, callback) => {
       if (!details.url.startsWith("file:")) {
         callback(otherRequests(details));
         return;
       }
-      if (!isAllowedGuestRequest(details)) {
-        callback({ cancel: true });
-        return;
-      }
-      if (details.resourceType === "mainFrame") {
-        callback({});
-        return;
-      }
-      void leadsBesidePage(
-        details.url,
-        committedDocumentOf(details.webContentsId, details.frame),
-      ).then((allowed) => {
-        callback({ cancel: !allowed });
-      });
+      void localFileResponse(details).then(callback);
     },
   );
+}
+
+/**
+ * The answer to one `file:` request from a contents the guest registry
+ * knows: refused for a popup's page or anything outside the requesting
+ * page's folder, by name and by where the name really leads.
+ */
+export async function localFileResponse(
+  details: Pick<
+    OnBeforeRequestListenerDetails,
+    "frame" | "resourceType" | "url" | "webContentsId"
+  >,
+): Promise<CallbackResponse> {
+  const role =
+    details.webContentsId === undefined
+      ? undefined
+      : guests.get(details.webContentsId)?.role;
+  if (!isAllowedGuestRequest({ ...details, role })) {
+    return { cancel: true };
+  }
+  if (details.resourceType === "mainFrame") {
+    return {};
+  }
+  const allowed = await leadsBesidePage(
+    details.url,
+    guests.documentOf(details.webContentsId, details.frame),
+  );
+  return allowed ? {} : { cancel: true };
 }
 
 const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
@@ -73,29 +88,24 @@ const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
 );
 
 /**
- * `isAllowedLocalRequest` for a browser guest's session, which also holds the
- * windows a guest's pages open (sign-in popups, see `window-open-policy.ts`).
- * An opener keeps a handle to its popup and every `file://` document shares
- * one origin, so a local page that opened a popup and then sent it to
- * `file:///etc/hosts` would read that file through the handle. So a file is
- * a page of its own only in a guest, the one contents the person navigates;
- * any other contents here is a popup, and never shows one.
+ * `isAllowedLocalRequest` for a browser session, which also holds the windows
+ * a guest's pages open (sign-in popups, see `window-open-policy.ts`). An
+ * opener keeps a handle to its popup and every `file://` document shares one
+ * origin, so a local page that opened a popup and then sent it to
+ * `file:///etc/hosts` would read that file through the handle. So a popup
+ * never shows a file.
  *
- * A request that names no contents at all is let through to the folder rule:
- * a guest's first navigation after a launch arrives that way, with no
- * contents, id, or frame to tell it from anything else. Popups are held back
- * where they are known instead, by {@link refuseLocalFilesInPopups}.
+ * A request that names no contents at all (`role` undefined) is let through
+ * to the folder rule: a guest's first navigation after a launch arrives that
+ * way, with no contents, id, or frame to tell it from anything else. Popups
+ * are held back where they are known instead, by {@link refuseLocalFilesIn}.
  */
 export function isAllowedGuestRequest(
   details: Parameters<typeof isAllowedLocalRequest>[0] & {
-    webContents?: Pick<WebContents, "getType">;
+    role: GuestRole | undefined;
   },
 ): boolean {
-  if (
-    details.resourceType === "mainFrame" &&
-    details.webContents !== undefined &&
-    details.webContents.getType() !== "webview"
-  ) {
+  if (details.resourceType === "mainFrame" && details.role === "popup") {
     return false;
   }
   return isAllowedLocalRequest(details);
@@ -137,7 +147,7 @@ export function isAllowedLocalRequest(
     return true;
   }
   const page = hostPathOf(
-    committedDocumentOf(details.webContentsId, details.frame),
+    guests.documentOf(details.webContentsId, details.frame),
   );
   return (
     page !== undefined &&
@@ -145,26 +155,18 @@ export function isAllowedLocalRequest(
   );
 }
 
-/** The navigation half of {@link refuseLocalFilesInPopups}, for one window. */
+/**
+ * Keeps a window a guest's page opened from ever showing a file, whoever
+ * sends it there: its own script or its opener's, which is how a local page
+ * would read another file through the handle it keeps. Every popup in a
+ * guest's session gets this, a popup's popup included. Opening one at a file
+ * is refused before this, by the open policy's http(s) rule.
+ */
 export function refuseLocalFilesIn(popup: Pick<WebContents, "on">): void {
   popup.on("will-frame-navigate", (event) => {
     if (event.url.toLowerCase().startsWith("file:")) {
       event.preventDefault();
     }
-  });
-}
-
-/**
- * Keeps a window a guest's page opened, and every window that one opens in
- * turn, from ever showing a file, whoever sends it there: its own script or
- * its opener's, which is how a local page would read another file through
- * the handle it keeps. Opening one at a file is refused before this, by the
- * open policy's http(s) rule.
- */
-export function refuseLocalFilesInPopups(popup: WebContents): void {
-  refuseLocalFilesIn(popup);
-  popup.on("did-create-window", (child) => {
-    refuseLocalFilesInPopups(child.webContents);
   });
 }
 

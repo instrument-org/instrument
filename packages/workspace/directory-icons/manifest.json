@@ -242,12 +242,23 @@
     "url": "https://globalping.io/icons/apple-touch-icon.png",
     "license": "trademark"
   },
-  "google-workspace": {
+  "gmail": {
     "source": "svgl",
-    "path": "google.svg",
+    "path": "gmail.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
-    "license": "MIT",
-    "override": "no set has a square Workspace mark, so the Google G stands in"
+    "license": "MIT"
+  },
+  "google-calendar": {
+    "source": "svgl",
+    "path": "google-calendar.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "google-drive": {
+    "source": "svgl",
+    "path": "drive.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
   },
   "grafana": {
     "source": "svgl",
@@ -413,10 +424,22 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "onedrive": {
+    "source": "svgl",
+    "path": "microsoft-onedrive.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "otter": {
     "source": "app-store",
     "id": 1276437113,
     "license": "trademark"
+  },
+  "outlook": {
+    "source": "svgl",
+    "path": "microsoft-outlook.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
   },
   "oxylabs": {
     "source": "site",
@@ -635,6 +658,12 @@
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "MIT"
   },
+  "teams": {
+    "source": "svgl",
+    "path": "microsoft-teams.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "thumbtack": {
     "source": "thesvg",
     "path": "icons/thumbtack/default.svg",
@@ -644,6 +673,12 @@
   "todoist": {
     "source": "svgl",
     "path": "todoist.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "trello": {
+    "source": "svgl",
+    "path": "trello.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },

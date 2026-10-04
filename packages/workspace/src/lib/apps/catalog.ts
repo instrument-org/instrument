@@ -1,12 +1,16 @@
+import {
+  APP_CATEGORY_IDS,
+  APP_FAMILY_IDS,
+  searchDirectory,
+} from "@instrument-org/shared/app-directory";
 import { z } from "zod";
 
 import catalogSeed from "./catalog-seed.json";
 
 /**
- * A service the directory knows how to reach. Seed data is a curated snapshot
- * of a public integrations index, cached locally so the directory works
- * offline and instantly; a live refresh can layer on top later without
- * changing this shape.
+ * A service the directory knows how to reach, one product per entry. Seed data
+ * is curated by hand and checked in, so the directory works offline and
+ * instantly.
  */
 const AppCatalogEntrySchema = z.object({
   /**
@@ -29,15 +33,26 @@ const AppCatalogEntrySchema = z.object({
       type: z.enum(["api_key", "oauth2", "pat", "token"]),
     }),
   ),
-  categories: z.array(z.string()),
+  /** Other names a person calls the product by: "jira" for Atlassian, "excel" for OneDrive. */
+  aliases: z.array(z.string()).optional(),
+  category: z.literal(APP_CATEGORY_IDS),
   description: z.string(),
   docsUrl: z.string().optional(),
   domain: z.string(),
+  /** The vendor whose products sign in together, when it has several. */
+  family: z.literal(APP_FAMILY_IDS).optional(),
   /** The signed-in web app, when it is not the domain's front page. */
   home: z.string().optional(),
+  /**
+   * The ways in, tried in the order `app catalog` describes: a hosted MCP
+   * server, one that runs here, an API a key opens, the Mac's own app, and
+   * last the web app at `home`.
+   */
   interfaces: z.array(
     z.object({
       auth: z.string().optional(),
+      /** For the Mac's own app (`format: "mac-app"`), which app. */
+      bundleId: z.string().optional(),
       endpoint: z.string().optional(),
       format: z.string(),
       name: z.string(),
@@ -47,8 +62,16 @@ const AppCatalogEntrySchema = z.object({
     }),
   ),
   name: z.string(),
+  /**
+   * Position in public usage (the better of Zapier's app popularity and the
+   * Claude connector directory's order), hand-set for the Mac's own apps;
+   * lower is used more. Orders browsing and breaks ties in search.
+   */
+  rank: z.number().optional(),
   slug: z.string(),
   tagline: z.string(),
+  /** Featured leads the Apps page; hidden is found only by its name. */
+  tier: z.enum(["featured", "hidden", "listed"]),
 });
 
 export type AppCatalogEntry = z.output<typeof AppCatalogEntrySchema>;
@@ -132,96 +155,26 @@ export function getAppCatalog(): AppCatalogEntry[] {
 }
 
 /**
- * Entries whose slug, name, domain, tagline, or category carries every word
- * given, the ones the query names before the ones that merely mention it.
+ * Entries matching every word given, the ones the words name before the ones
+ * that only mention them, then by use (`searchDirectory`). With no words, the
+ * directory a person browses, most used first.
  */
 export function searchAppCatalog(query: string): AppCatalogEntry[] {
-  const needle = query.trim().toLowerCase();
-  const words = needle.split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return getAppCatalog();
-  }
-  return getAppCatalog()
-    .filter((entry) => {
-      const haystack = [
-        entry.slug,
-        entry.name,
-        entry.domain,
-        entry.tagline,
-        ...entry.categories,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return words.every((word) => haystack.includes(word));
-    })
-    .map((entry) => ({ entry, tier: matchTier(entry, needle) }))
-    .sort((a, b) => a.tier - b.tier || a.entry.slug.localeCompare(b.entry.slug))
-    .map(({ entry }) => entry);
-}
-
-/** True when the needle sits in the text on both its boundaries. */
-function containsWord(text: string, needle: string): boolean {
-  for (
-    let at = text.indexOf(needle);
-    at !== -1;
-    at = text.indexOf(needle, at + 1)
-  ) {
-    const before = text[at - 1];
-    const after = text[at + needle.length];
-    if (
-      (before === undefined || !/[a-z0-9]/.test(before)) &&
-      (after === undefined || !/[a-z0-9]/.test(after))
-    ) {
-      return true;
-    }
-  }
-  return false;
+  return searchDirectory(getAppCatalog(), query);
 }
 
 /**
- * How closely an entry's own identity answers the query, best tier first.
- *
- * The agent searches by a service's name, so an entry that *is* the thing asked
- * for has to come back ahead of one that only mentions it in passing: "paper"
- * matches Consensus, whose tagline reads "read what the papers found", and
- * matched it ahead of Paper while the order was the catalog's own.
+ * The Mac app an entry is worked through when that is its way in: the Mac's
+ * own apps, and a service a Mac app reads (Gmail through Mail) until its own
+ * sign-in client clears.
  */
-function matchTier(entry: AppCatalogEntry, needle: string): number {
-  const slug = entry.slug.toLowerCase();
-  const name = entry.name.toLowerCase();
-  const domain = entry.domain.toLowerCase();
-  // The domain's own label -- "paper" out of paper.design -- so a service the
-  // query names reaches its entry whether or not the slug spells it that way.
-  // The suffix stays out of the tiers below it: matching that, "ai" would rank
-  // every .ai company and "app" every .app one, on nothing but a TLD.
-  const label = domain.split(".")[0] ?? "";
-
-  if (slug === needle || name === needle || label === needle) {
-    return 0;
-  }
-  // A domain typed whole is still the service named outright.
-  if (domain === needle) {
-    return 0;
-  }
-  if (
-    slug.startsWith(needle) ||
-    name.startsWith(needle) ||
-    label.startsWith(needle)
-  ) {
-    return 1;
-  }
-  if (
-    containsWord(name, needle) ||
-    containsWord(slug.replaceAll("-", " "), needle)
-  ) {
-    return 2;
-  }
-  if (
-    slug.includes(needle) ||
-    name.includes(needle) ||
-    label.includes(needle)
-  ) {
-    return 3;
-  }
-  return 4;
+export function catalogEntryMacApp(
+  entry: AppCatalogEntry,
+): undefined | { bundleId: string; name: string } {
+  const surface = entry.interfaces.find(
+    (candidate) => candidate.format === "mac-app" && candidate.bundleId,
+  );
+  return surface?.bundleId
+    ? { bundleId: surface.bundleId, name: surface.name }
+    : undefined;
 }

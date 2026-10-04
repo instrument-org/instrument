@@ -4,6 +4,7 @@ export {
 } from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,
+  catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
   findCatalogEntry,

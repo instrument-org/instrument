@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
 import {
   type ByteString,
   defineCommand,
@@ -11,6 +13,7 @@ import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
   catalogEntryLocalServer,
+  catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   findCatalogEntry,
   searchAppCatalog,
@@ -73,6 +76,7 @@ type CatalogWayIn =
   | { auth: string; endpoint: string; kind: "api"; test?: string }
   | { auth?: string; endpoint: string; kind: "mcp" }
   | { kind: "browser"; where: string }
+  | { kind: "mac-app"; name: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -274,6 +278,10 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
       };
     }
   }
+  const macApp = catalogEntryMacApp(entry);
+  if (macApp) {
+    return { kind: "mac-app", name: macApp.name };
+  }
   return { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
 }
 
@@ -301,7 +309,9 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         ? `${start} --local ${way.package} --runtime ${way.runtime}`
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
-          : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
+          : way.kind === "mac-app"
+            ? `nothing to connect: a task works in ${way.name} on this Mac with osascript, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise the user signs in on the Browser screen (${entry.home ?? `https://${entry.domain}`}) and a task handed that tab works there.`}`.trimEnd()
+            : `not as an app from here: every way in needs a sign-in client ${APP_NAME} does not have yet, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,
@@ -565,10 +575,14 @@ function runCatalog(args: string[]) {
   // the alphabet from "consensus" to "slack". So a listing nobody narrowed is
   // one line each, which fits, and a word brings back the detail.
   if (query === "") {
+    const groups = APP_CATEGORIES.flatMap(({ id, label }) => {
+      const inCategory = entries.filter((entry) => entry.category === id);
+      return inCategory.length === 0
+        ? []
+        : [`${label}\n${inCategory.map(summarizeCatalogEntry).join("\n")}`];
+    });
     return ok(
-      `${entries.length} services. \`${APP_COMMAND.name} catalog <words>\` for what one is, how it is reached, and the line that sets it up.\n\n${entries
-        .map(summarizeCatalogEntry)
-        .join("\n")}\n`,
+      `${entries.length} services, by category, most used first. \`${APP_COMMAND.name} catalog <words>\` for what one is, how it is reached, and the line that sets it up.\n\n${groups.join("\n\n")}\n`,
     );
   }
   const detailed = entries
@@ -996,7 +1010,9 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
         ? "mcp:local"
         : way.kind === "api"
           ? "api:key"
-          : "browser";
+          : way.kind === "mac-app"
+            ? "mac-app"
+            : "browser";
   return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
 }
 

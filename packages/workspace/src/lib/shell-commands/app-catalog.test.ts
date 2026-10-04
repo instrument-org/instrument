@@ -2,7 +2,7 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
-import { getAppCatalog } from "../apps/catalog";
+import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
 import { truncateMiddle } from "../truncate-buffer";
 import { createAppCommand } from "./app";
 
@@ -63,7 +63,7 @@ describe("app catalog", () => {
   });
 
   it("says plainly when every way in needs a client the card cannot make", async () => {
-    const text = await catalog("google-workspace");
+    const text = await catalog("google-drive");
     expect(text).toContain("set up: not as an app from here");
     expect(text).toContain("Browser screen");
     expect(text).not.toContain("<base-url>");
@@ -73,16 +73,61 @@ describe("app catalog", () => {
   // a head and a tail with the middle dropped. Every entry in full ran to 43KB
   // and came back missing everything from "consensus" to "slack", the agent's
   // own note the only sign the directory it read was a fifth of the real one.
-  it("keeps every service in a listing nobody narrowed", async () => {
+  it("keeps every service a person browses in a listing nobody narrowed", async () => {
     const text = await catalog();
     expect(truncateMiddle(text).truncated).toBe(false);
     const listed = new Set(
       [...text.matchAll(/^ {2}(\S+) /gm)].map((match) => match[1]),
     );
     const missing = getAppCatalog()
+      .filter((entry) => entry.tier !== "hidden")
       .map((entry) => entry.slug)
       .filter((slug) => !listed.has(slug));
     expect(missing).toEqual([]);
+  });
+
+  it.each([
+    // A name a person calls the product by.
+    ["jira", "atlassian"],
+    ["excel", "onedrive"],
+    ["imessage", "apple-messages"],
+    ["google docs", "google-drive"],
+    // A documentation server comes back when named, and only then.
+    ["context7", "context7"],
+  ])("answers %s with %s first", async (query, slug) => {
+    expect(searchAppCatalog(query)[0]?.slug).toBe(slug);
+  });
+
+  // The vendor's name reaches every product it signs in to, ahead of any
+  // service that only mentions it.
+  it.each([
+    ["google", ["gmail", "google-calendar", "google-drive"]],
+    ["microsoft", ["onedrive", "outlook", "teams"]],
+  ])("answers %s with its products first", (query, slugs) => {
+    expect(
+      searchAppCatalog(query)
+        .slice(0, slugs.length)
+        .map((entry) => entry.slug)
+        .toSorted(),
+    ).toEqual(slugs);
+  });
+
+  it("keeps documentation servers out of a search that only mentions docs", () => {
+    expect(
+      searchAppCatalog("docs").filter((entry) => entry.tier === "hidden"),
+    ).toEqual([]);
+  });
+
+  it("works the Mac's own apps with nothing to connect", async () => {
+    const text = await catalog("apple notes");
+    expect(text).toContain("set up: nothing to connect");
+    expect(text).not.toContain("account is added");
+  });
+
+  it("reaches Gmail through Mail until its sign-in client clears", async () => {
+    const text = await catalog("gmail");
+    expect(text).toContain("set up: nothing to connect: a task works in Mail");
+    expect(text).toContain("only when its account is added to Mail");
   });
 
   // A query names a service, so an entry that is the thing asked for comes

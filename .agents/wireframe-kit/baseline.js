@@ -84,6 +84,30 @@ const states = [
     }),
   },
   {
+    title: "Draft",
+    note: "A new chat's compose window docked at the bottom right: the model and the arrow in its head, the words, then the band with the ways in.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      body: inboxCol({ on: 0 }) + thread(),
+      over: composeWin(),
+    }),
+  },
+  {
+    title: "Reply box and its plus menu",
+    note: "The reply box opened up with a model notice leading it, and the plus menu, where the reply box offers the model.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      body:
+        inboxCol({ on: 0 }) +
+        thread({
+          replyEl: replyBoxOpen({
+            extras: modelProblem("No models available"),
+          }),
+        }),
+      over: plusMenu({ left: 456, top: 452 }),
+    }),
+  },
+  {
     title: "Menu and sheet",
     note: "The two overlays the window uses: a popover menu and a sheet over a dimmed window.",
     body: appWindow({

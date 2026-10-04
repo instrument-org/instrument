@@ -789,6 +789,7 @@ export const PromptInput = ({
               )}
 
               <ModelPicker
+                align="end"
                 className="min-w-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}

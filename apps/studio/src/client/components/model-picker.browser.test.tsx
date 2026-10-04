@@ -295,6 +295,42 @@ describe("ModelPicker in a browser", () => {
     expect(peak).toBeLessThan(crowdedModels.length / 4);
   });
 
+  // A long catalog opens on what we recommend, and a chosen model outside that
+  // used to open the picker on a list without it: nothing chosen in sight, as
+  // though the choice had been lost.
+  it("opens a long catalog whole when the chosen model is not a recommendation", async () => {
+    const catalog = [
+      autoModel,
+      ...Array.from({ length: 30 }, (_, index) =>
+        anthropic({
+          canonicalId: `claude-catalog-${index}`,
+          name: `Claude Catalog ${index}`,
+          tags: index < 3 ? ["recommended"] : [],
+        }),
+      ),
+    ];
+    const chosen = catalog[20];
+    if (!chosen) {
+      throw new TypeError("the catalog is shorter than expected");
+    }
+    await renderInBrowser(
+      <ModelPicker
+        models={catalog}
+        modelURI={chosen.uri}
+        onValueChange={vi.fn()}
+        selectedModel={chosen}
+      />,
+    );
+    await userEvent.click(page.getByRole("combobox", { name: "Model" }));
+
+    await expect
+      .element(page.getByRole("option", { name: `${chosen.name} (chosen)` }))
+      .toBeInViewport();
+    await expect
+      .element(page.getByRole("button", { name: "All" }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
   it("opens scrolled to a chosen model far down a long list", async () => {
     const chosen = crowdedModels[150];
     if (!chosen) {

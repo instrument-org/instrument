@@ -30,12 +30,7 @@ import {
   modelNameFromURI,
   readModelURI,
 } from "@instrument-org/ai-gateway/client";
-import {
-  AIProviderTypeSchema,
-  APP_NAME,
-  type AIProviderType,
-  OUR_MODELS,
-} from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -46,6 +41,7 @@ import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
+import { ModelMakerIcon } from "./model-maker-icon";
 import { ModelNoticeRow } from "./model-notice";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -71,6 +67,7 @@ type ListError = NonNullable<
 type RailEntry = Connection & { failed?: ListError };
 
 export function ModelPicker({
+  align = "start",
   anchorOnly = false,
   className = "",
   disabled = false,
@@ -90,6 +87,8 @@ export function ModelPicker({
   placeholder = "Select a model",
   selectedModel,
 }: {
+  /** Which edge of the trigger the panel lines up with: the end for a trigger at the right of its row. */
+  align?: "end" | "start";
   /**
    * Render no button of its own: the panel hangs off an empty box the caller
    * places, for a surface that offers the picker from a menu instead.
@@ -206,7 +205,7 @@ export function ModelPicker({
         </PopoverTrigger>
       )}
       <PopoverContent
-        align="start"
+        align={align}
         className="flex flex-col p-0"
         maxHeight={PANEL_HEIGHT}
         style={{
@@ -300,7 +299,14 @@ function PickerPanel({
       rail.find((entry) => entry.id === chosenConnection)?.id ?? rail[0]?.id,
   );
   const [query, setQuery] = useState("");
-  const [showAll, setShowAll] = useState(false);
+  // A chosen model the recommendations leave out opens the whole catalog,
+  // since the picker's first answer is what is chosen.
+  const [showAll, setShowAll] = useState(
+    () =>
+      selectedModel !== undefined &&
+      !selectedModel.tags.includes("recommended") &&
+      selectedModel.params.providerConfigId === openId,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const opened = rail.find((entry) => entry.id === openId);
@@ -310,6 +316,7 @@ function PickerPanel({
     : opened && !opened.failed
       ? rowsForConnection({ connectionId: opened.id, models, showAll })
       : [];
+  const autoRow = !searching && rows[0]?.type === "auto" ? rows[0] : undefined;
   const long =
     !searching && opened !== undefined && isLongCatalog(models, opened.id);
 
@@ -322,17 +329,20 @@ function PickerPanel({
       label="Search models"
       shouldFilter={false}
     >
-      <CommandInput
-        autoFocus
-        className="h-10"
-        onValueChange={setQuery}
-        placeholder="Search models"
-        value={query}
-      />
+      <div className="shrink-0 border-b p-2">
+        <CommandInput
+          autoFocus
+          className="h-8 py-0"
+          containerClassName="h-8 rounded-lg bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
+          onValueChange={setQuery}
+          placeholder="Search models"
+          value={query}
+        />
+      </div>
       <div className="flex min-h-0 flex-1">
         <nav
           aria-label="Providers"
-          className="flex w-50 shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-muted/40 p-1.5"
+          className="flex w-50 shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-muted/40 p-2"
         >
           {rail.map((entry) => (
             <button
@@ -384,36 +394,16 @@ function PickerPanel({
           data-slot="model-picker-scroll"
           ref={scrollRef}
         >
-          {notice && (
-            <ModelNoticeRow
-              className="mx-2 mt-2"
-              notice={notice}
-              onAction={onAction}
-              onDismiss={onDismissOffer}
-            />
-          )}
-          {long && (
-            <div className="flex gap-1 px-3 pt-2">
-              {[false, true].map((all) => (
-                <button
-                  aria-pressed={showAll === all}
-                  className={cn(
-                    "h-6 rounded-full px-2.5 text-xs ring-1 ring-border",
-                    showAll === all &&
-                      "bg-foreground text-background ring-foreground",
-                  )}
-                  key={String(all)}
-                  onClick={() => {
-                    setShowAll(all);
-                  }}
-                  type="button"
-                >
-                  {all ? "All" : "Recommended"}
-                </button>
-              ))}
-            </div>
-          )}
           <CommandList className="max-h-none! overflow-visible! p-2">
+            {/* "Choose a model" is what the open picker already is. */}
+            {notice && notice.action?.kind !== "choose" && (
+              <ModelNoticeRow
+                className="mb-2"
+                notice={notice}
+                onAction={onAction}
+                onDismiss={onDismissOffer}
+              />
+            )}
             {opened?.failed && !searching ? (
               <FailedConnection
                 error={opened.failed}
@@ -449,12 +439,27 @@ function PickerPanel({
                 <AddProviderButton onClick={onAddProvider} />
               </EmptyMessage>
             ) : (
-              <VirtualRows
-                onPick={onPick}
-                rows={rows}
-                scrollRef={scrollRef}
-                selectedModel={selectedModel}
-              />
+              <>
+                {/* Auto leads its connection's list, over the catalog
+                    toggle, so it is not drawn as one of the rows the toggle
+                    filters. */}
+                {autoRow && (
+                  <AutoCard
+                    chosen={selectedModel?.uri === autoRow.model.uri}
+                    model={autoRow.model}
+                    onPick={onPick}
+                  />
+                )}
+                {long && (
+                  <CatalogToggle onChange={setShowAll} showAll={showAll} />
+                )}
+                <VirtualRows
+                  onPick={onPick}
+                  rows={autoRow ? rows.slice(1) : rows}
+                  scrollRef={scrollRef}
+                  selectedModel={selectedModel}
+                />
+              </>
             )}
           </CommandList>
         </div>
@@ -617,7 +622,7 @@ function AutoCard({
   return (
     <CommandItem
       className={cn(
-        "mb-1 flex items-start gap-3 rounded-lg p-3 ring-1 ring-border ring-inset",
+        "flex items-start gap-3 rounded-lg p-3 ring-1 ring-border ring-inset",
         chosen &&
           cn(
             CHOSEN,
@@ -687,12 +692,7 @@ function ModelRow({
       }}
       value={model.uri}
     >
-      {row.showMaker && (
-        <AIProviderIcon
-          className="size-4 shrink-0"
-          type={makerIconType(model.author)}
-        />
-      )}
+      {row.showMaker && <ModelMakerIcon author={model.author} />}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={cn("truncate text-sm", chosen && "font-medium")}>
           <FuzzyHighlight
@@ -718,20 +718,6 @@ function ModelRow({
         </>
       )}
     </CommandItem>
-  );
-}
-
-/** Maker ids that name a provider we draw differently. */
-const MAKER_ICONS: Record<string, AIProviderType> = {
-  "meta-llama": "openai-compatible",
-  mistralai: "mistral",
-};
-
-/** The icon for whoever made a model, which is a provider's mark when the maker is also a provider. */
-function makerIconType(author: string): AIProviderType {
-  const parsed = AIProviderTypeSchema.safeParse(author);
-  return (
-    MAKER_ICONS[author] ?? (parsed.success ? parsed.data : "openai-compatible")
   );
 }
 
@@ -799,5 +785,43 @@ function AddProviderButton({ onClick }: { onClick: () => void }) {
       <PlusIcon className="mr-2 size-4" />
       Add a provider
     </Button>
+  );
+}
+
+/**
+ * Recommended or All, for a catalog too long to open whole: a heading row of
+ * its own, so the control reads as a filter on the models under it rather
+ * than as something beside Auto.
+ */
+function CatalogToggle({
+  onChange,
+  showAll,
+}: {
+  onChange: (showAll: boolean) => void;
+  showAll: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between px-2.5 pt-4 pb-1">
+      <span className="text-xs font-medium text-muted-foreground">Models</span>
+      <div className="flex rounded-md bg-black/[0.04] p-0.5 dark:bg-white/[0.06]">
+        {[false, true].map((all) => (
+          <button
+            aria-pressed={showAll === all}
+            className={cn(
+              "h-5 rounded-[5px] px-2 text-xs text-muted-foreground",
+              showAll === all &&
+                "bg-white text-foreground shadow-xs dark:bg-gray-600",
+            )}
+            key={String(all)}
+            onClick={() => {
+              onChange(all);
+            }}
+            type="button"
+          >
+            {all ? "All" : "Recommended"}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

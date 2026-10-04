@@ -9,6 +9,8 @@ import path from "node:path";
 import vm from "node:vm";
 
 const [partPath, outPath] = process.argv.slice(2);
+if (!partPath || !outPath)
+  throw new Error("usage: node build.mjs <part.js> <out.html>");
 const here = path.dirname(new URL(import.meta.url).pathname);
 const SKILL =
   process.env.CREATE_PAGE_DIR ??
@@ -23,6 +25,7 @@ const kit = ["brands.js", "window.js", "mac.js"]
   .join("\n");
 const part = fs.readFileSync(partPath, "utf8");
 
+/** @type {(s: string, from: string, to: string, insert: string) => string} */
 const cut = (s, from, to, insert) => {
   const a = s.indexOf(from);
   const b = s.indexOf(to, a);
@@ -35,12 +38,14 @@ const marks = main.slice(
   main.indexOf("// ---- annotations"),
   main.indexOf("// ---- the frames"),
 );
+/** @type {{ __out?: { META: { title: string; line: string; source: string; slotH?: number; tileMin?: number }; states: { title: string; note: string; body: string; w?: number; h?: number }[] } }} */
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(
   `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states };`,
   ctx,
 );
+if (!ctx.__out) throw new Error("the part defined no META or states");
 const { META, states } = ctx.__out;
 for (const [i, s] of states.entries()) {
   if (typeof s.body !== "string") throw new Error(`frame ${i + 1} has no body`);
@@ -77,6 +82,20 @@ html = html.replace(
   () =>
     `<main class="flex min-h-dvh flex-col px-4 pb-8 sm:px-6">\n${main}\n    </main>`,
 );
+// The part shares one module scope with the template's render code, so a top-level
+// name it reuses (`stage`, `layout`, `rack`) is a SyntaxError that blanks the page.
+// The run above never sees the render code; compiling the page's script does.
+for (const [, src] of html.matchAll(
+  /<script type="module">([\s\S]*?)<\/script>/g,
+)) {
+  try {
+    new vm.Script(src);
+  } catch (error) {
+    throw new Error(
+      `page script does not compile: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
 fs.writeFileSync(outPath, html);
 // RAW=<n> also writes <out>.raw.html: frame n alone at true size, for a kit check.
 if (process.env.RAW) {

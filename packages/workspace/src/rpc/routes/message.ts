@@ -199,7 +199,9 @@ const create = base
                 title: title.value,
               });
             }
-          })();
+          })().catch((error: unknown) => {
+            context.workspaceConfig.captureException(error);
+          });
         }
 
         // Written now, so the conversation shows it the moment it was sent; the

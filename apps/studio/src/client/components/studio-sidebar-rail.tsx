@@ -205,9 +205,13 @@ export function StudioSidebarRail({
                     collapsingRef.current = true;
                     draggingRef.current = false;
                     const frozenWidth = panelWidth.get();
-                    animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
-                    animate(panelX, away * frozenWidth, RAIL_SLIDE_TRANSITION);
-                    animate(opacity, 0, RAIL_FADE_TRANSITION);
+                    void animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
+                    void animate(
+                      panelX,
+                      away * frozenWidth,
+                      RAIL_SLIDE_TRANSITION,
+                    );
+                    void animate(opacity, 0, RAIL_FADE_TRANSITION);
                     onCollapse();
                   },
                 }

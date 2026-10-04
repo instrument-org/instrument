@@ -32,7 +32,11 @@ import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
-import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  listenWithPortFallback,
+  PORTS,
+} from "@instrument-org/shared";
 import {
   cancelMcpOAuth,
   completeMcpOAuth,
@@ -421,6 +425,17 @@ async function start() {
             }),
           )
         : c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    if (account.state === "plan-disabled") {
+      // Signed in, with plan access left unchecked on OpenAI's page.
+      return c.html(
+        renderAuthPage({
+          detail: `Plan access was left off on ChatGPT's page, so ${APP_NAME} can't use your plan. Turn it on when you connect again.`,
+          fromChat: false,
+          kind: "declined",
+          service: chatGPT,
+        }),
+      );
     }
     if (account.state !== "signed-in") {
       return c.html(

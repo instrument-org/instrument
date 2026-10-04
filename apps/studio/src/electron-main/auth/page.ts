@@ -28,9 +28,11 @@ export type AuthOutcome =
     }
   /**
    * The user said no on the service's own page: to connecting it, or with
-   * `signIn`, to signing in with it. `fromChat` when a chat asked for it.
+   * `signIn`, to signing in with it. `fromChat` when a chat asked for it;
+   * `detail` when what was declined was narrower than canceling.
    */
   | {
+      detail?: string;
       fromChat: boolean;
       kind: "declined";
       service: AuthService;
@@ -208,7 +210,7 @@ function renderOutcome(outcome: AuthOutcome) {
       };
     }
     case "declined": {
-      const { fromChat, service, signIn } = outcome;
+      const { detail, fromChat, service, signIn } = outcome;
       return {
         body: html`${
           service.mark ? serviceMark(service, "opacity-60") : appMark("size-20")
@@ -218,9 +220,10 @@ function renderOutcome(outcome: AuthOutcome) {
             signIn ? "Sign-in canceled" : `${service.name} wasn't connected`,
           ),
           subline(
-            fromChat
-              ? `You canceled on ${service.name}'s page. Nothing changed, and the chat knows you said not now.`
-              : `You canceled on ${service.name}'s page. Nothing changed.`,
+            detail ??
+              (fromChat
+                ? `You canceled on ${service.name}'s page. Nothing changed, and the chat knows you said not now.`
+                : `You canceled on ${service.name}'s page. Nothing changed.`),
           ),
         )}
         ${backToApp("secondary", `Back to ${APP_NAME}`)}`,

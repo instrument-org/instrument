@@ -106,6 +106,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Character budgets are a token proxy](character-budgets-are-a-token-proxy.md) — and moving to tokens buys less than it looks like | open question |
 | [Prompt cache provider affinity and breakpoints](prompt-cache-provider-affinity-and-breakpoints.md) | open |
 | [ChatGPT citation markers in model output](chatgpt-citation-markers-in-model-output.md) — the fix costs more than the bug | known, not fixed |
+| [A ChatGPT plan cannot generate images](chatgpt-plan-cannot-generate-images.md): the plan route refuses it, so a plan-only user has no image tool | known, upstream |
 | [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured; superseded in part |
 | [Reasoning effort was never connected](reasoning-effort-was-never-connected.md) | fixed |
 | [Which Workers AI models can run the product](which-workers-ai-models-can-run-the-product.md) | measured |

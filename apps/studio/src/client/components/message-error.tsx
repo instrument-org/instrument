@@ -1,4 +1,7 @@
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModel,
+  type AIGatewayModelURI,
+} from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import {
   describeMessageError,
@@ -16,6 +19,7 @@ import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
 } from "../lib/parse-platform-api-error";
+import { readModelStatus } from "../lib/model-status";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
@@ -135,8 +139,8 @@ export function MessageError({
       : undefined;
 
   const actions = errorActions({
-    autoModelURI: needsAutoRecovery
-      ? modelsData?.models.find((m) => m.providerId === OUR_MODELS.text.id)?.uri
+    switchTo: needsAutoRecovery
+      ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
     classification,
     kind: error.kind,
@@ -285,7 +289,7 @@ function detailsText(facts: [string, string][], body: string | undefined) {
 }
 
 function errorActions({
-  autoModelURI,
+  switchTo,
   classification,
   kind,
   onModelChange,
@@ -293,7 +297,7 @@ function errorActions({
   openLink,
   provider,
 }: {
-  autoModelURI: AIGatewayModelURI.Type | undefined;
+  switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
@@ -311,13 +315,14 @@ function errorActions({
     },
   };
 
-  if (autoModelURI && onModelChange) {
+  if (switchTo && onModelChange) {
+    const name = isAuto(switchTo) ? "Auto" : switchTo.name.trim();
     return [
       {
-        label: "Switch to Auto",
+        label: `Switch to ${name}`,
         onClick: () => {
-          onModelChange(autoModelURI);
-          toast.success("Switched to Auto");
+          onModelChange(switchTo.uri);
+          toast.success(`Switched to ${name}`);
         },
       },
     ];
@@ -429,4 +434,31 @@ function providerSentence(error: MessageErrorData): string {
     }
   }
   return error.message;
+}
+
+const isAuto = (model: AIGatewayModel.Type) =>
+  model.providerId === OUR_MODELS.text.id;
+
+/**
+ * What to move a turn to after our gateway refused its model: whatever the
+ * composer would offer for the same model (its next release, or the same
+ * model through another connection), and Auto when the list still thinks the
+ * model is fine, since the gateway refusing it says otherwise.
+ */
+function recoveryFor(
+  failedURI: AIGatewayModelURI.Type | undefined,
+  models: AIGatewayModel.Type[] | undefined,
+): AIGatewayModel.Type | undefined {
+  const status = readModelStatus({
+    dismissedOffers: new Set(),
+    models,
+    modelURI: failedURI,
+  });
+  const fix =
+    status.kind === "gone" || status.kind === "restricted"
+      ? status.fix
+      : status.kind === "newer"
+        ? status.newer
+        : undefined;
+  return fix ?? models?.find(isAuto);
 }

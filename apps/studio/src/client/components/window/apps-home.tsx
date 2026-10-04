@@ -263,13 +263,17 @@ export function AppsHome({
                     </div>
                   </div>
                 ) : null}
-                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                  <UnlistedTile
-                    isOnlyOne={matches.length === 0 && meant.length === 0}
-                    name={typed}
-                    onConnect={connectTyped}
-                  />
-                </div>
+                {/* A service the words name exactly is the one meant, so
+                    "connect it anyway" would only offer it a second time. */}
+                {namesOne(matches, typed) ? null : (
+                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                    <UnlistedTile
+                      isOnlyOne={matches.length === 0 && meant.length === 0}
+                      name={typed}
+                      onConnect={connectTyped}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -559,5 +563,16 @@ function CategoryGroups({
         );
       })}
     </div>
+  );
+}
+
+/** Whether the words are some match's own name, slug, or alias. */
+function namesOne(matches: CatalogEntry[], typed: string): boolean {
+  const words = typed.trim().toLowerCase();
+  return matches.some(
+    (entry) =>
+      entry.name.toLowerCase() === words ||
+      entry.slug === words ||
+      (entry.aliases ?? []).some((alias) => alias.toLowerCase() === words),
   );
 }

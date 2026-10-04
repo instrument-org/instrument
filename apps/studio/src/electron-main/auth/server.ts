@@ -263,7 +263,10 @@ async function start() {
         focusAppWindow();
         return await c.html(page, 400);
       }
-      email = "user" in res.data ? res.data.user.email : undefined;
+      // The session is saved by now, so reading the email must not throw
+      // into the catch below and report a sign-in that went through as failed.
+      const { data } = res;
+      email = data && "user" in data ? data.user.email : undefined;
     } catch (error) {
       const page = failed(new Error("Error signing in", { cause: error }), {
         provider: "Google",

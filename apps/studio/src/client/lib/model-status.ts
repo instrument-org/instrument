@@ -53,7 +53,7 @@ export type ModelStatus =
   | { kind: "no-models" };
 
 export interface ModelListError {
-  config: { displayName: string; id: string };
+  config: { displayName?: string; id: string };
   message: string;
 }
 
@@ -129,7 +129,7 @@ export function readModelStatus({
         kind: "provider-failed",
         message: failed.message,
         name,
-        provider: failed.config.displayName,
+        provider: failed.config.displayName ?? "a provider",
       };
     }
     const fix = replacementFor(source, models, auto);

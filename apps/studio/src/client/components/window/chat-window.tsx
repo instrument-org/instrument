@@ -31,14 +31,10 @@ import {
   COMPOSE_MOTION,
   GROWN,
 } from "./compose-layout";
-import {
-  BarMarks,
-  GroupItem,
-  IncludedChip,
-  WindowButton,
-} from "./compose-window";
+import { BarMarks, IncludedChip, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { GroupItem } from "./group-item";
 import { isGroupShown, isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";

@@ -32,7 +32,7 @@ import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatRail } from "@/client/components/window/chat-rail";
 import { ChatScreen } from "@/client/components/window/chat-screen";
-import { GroupItem } from "@/client/components/window/compose-window";
+import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useInboxRoom } from "@/client/components/window/inbox-room";

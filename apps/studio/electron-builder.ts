@@ -203,13 +203,21 @@ const config: Configuration = {
       // Merged ahead of `fileAssociations`, which can name extensions only.
       // Text and code have too many extensions to list, and one content type
       // covers them, since a source file's type conforms to plain text. Not
-      // `.ts`, which macOS types as an MPEG transport stream.
+      // `.ts`, which macOS types as an MPEG transport stream. Folders are
+      // what the Dock icon accepts a dropped folder by; public.folder rather
+      // than public.directory, which app bundles and other packages conform to.
       CFBundleDocumentTypes: [
         {
           CFBundleTypeName: "Text",
           CFBundleTypeRole: "Viewer",
           LSHandlerRank: "Alternate",
           LSItemContentTypes: ["public.plain-text", "public.json"],
+        },
+        {
+          CFBundleTypeName: "Folder",
+          CFBundleTypeRole: "Viewer",
+          LSHandlerRank: "Alternate",
+          LSItemContentTypes: ["public.folder"],
         },
       ],
       // Must match the Icon Composer bundle name (build/icon.icon).

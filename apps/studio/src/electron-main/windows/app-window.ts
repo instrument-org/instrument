@@ -4,10 +4,7 @@ import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
 import { openExternal } from "@/electron-main/lib/open-external";
-import {
-  isQuitApproved,
-  requestQuitApproval,
-} from "@/electron-main/lib/quit";
+import { isQuitApproved, requestQuitApproval } from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
@@ -21,7 +18,9 @@ import {
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
+import { folderHref } from "@/shared/computer-href";
 import { app, BrowserWindow } from "electron";
+import { statSync } from "node:fs";
 import path from "node:path";
 
 /** The shape this window takes the first time, before it has been sized. */
@@ -60,11 +59,24 @@ export function getAppWindow(): BrowserWindow | null {
 }
 
 /**
- * Opens a file handed to the app from outside it, a double click or Open
- * With, in the window that is open or the one this opens.
+ * Opens a file handed to the app from outside it, a double click, Open With,
+ * or a drop on the Dock icon, in the window that is open or the one this
+ * opens. A folder opens in the folder view, standing in it.
  */
 export function openAppFile(hostPath: string) {
+  if (isFolder(hostPath)) {
+    openAppScreen(folderHref(hostPath));
+    return;
+  }
   askAppWindow({ hostPath, type: "openFile" });
+}
+
+function isFolder(hostPath: string) {
+  try {
+    return statSync(hostPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /**

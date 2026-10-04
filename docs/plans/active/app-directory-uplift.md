@@ -1,6 +1,6 @@
 # Plan: the app directory, made connectable and drawn well
 
-Status: proposed. Nothing below is built yet except the icon precedence it builds on (an app's own `icon.svg`/`icon.png`, then its Mac app's icon, then the site favicon).
+Status: in progress. Landed: an app's own icon (`app icon`), bundled directory icons for 121 entries (`packages/workspace/directory-icons/`), set-up lines that carry an MCP server's key and skip servers whose sign-in needs a client we have not registered (`oauth-client`), and the data fixes the audit verified (Globalping, Semgrep, HubSpot, Shopify, Canva). Open: everything under Shape and Listing, the Craft ideas, and the vendor clients (tracked in Linear FP-1324).
 
 The directory (`packages/workspace/src/lib/apps/catalog-seed.json`, read through `catalog.ts` and `app catalog`) is a curated snapshot of a public integrations index: 127 entries, each with a domain, interfaces, and auth kinds. It is what the chat matches a request against and what the Apps page lists. An audit of every entry (endpoints probed for OAuth metadata, vendor docs read) found it mostly connectable, unevenly described, and missing whole families people ask for by name.
 
@@ -37,13 +37,42 @@ Kinds: `mcp-oauth` (registration `dcr`, `cimd`, or `preregistered`), `mcp-key`, 
 
 **A probe.** A script that walks every entry's endpoints, checks OAuth metadata and registration, and writes `verifiedAt`, run before each release, so a stale endpoint shows up as a diff rather than as a user's failed connection.
 
+## Listing
+
+What to list, how to group it, and where it comes from, after surveying how Claude's and ChatGPT's connector directories, Craft Agents, Raycast, Zapier, Make, Composio, Pipedream, Smithery and the official MCP Registry list theirs.
+
+**Every consumer-facing directory lists per product and orders by usage,** and every one that reaches Google and Microsoft at scale either owns verified OAuth clients (Zapier, Raycast, Composio, Pipedream) or has the vendor host the server (Claude, ChatGPT). We have neither yet, so the order of ways in matters more for us than for them.
+
+**A family is a sign-in, not a row.** Gmail, Calendar and Drive are rows sharing `family: google`: once one is connected, the others offer to add their scopes to that sign-in. The family name appears only where accounts are listed ("Google: Gmail, Calendar · add Drive").
+
+**A Mac app is a way in to a service, not only a product.** Mail and Calendar on the Mac already read the Google and Exchange accounts the user added there, so Gmail's `connect` list is our client (pending) → the Mail app → the browser, and the same for Calendar and Outlook. That makes the five most-asked-for products usable before any vendor review clears.
+
+**Inclusion.** Listed when a person would name it in a request, it holds their own data or acts for them, one way in works for us today, and the vendor runs or endorses the endpoint. Supported when the probe passes; featured when an end-to-end eval passes and it ranks near the top of public usage. Hidden from browsing but found by exact name: developer-docs servers (Astro, AWS Knowledge, Context7, DeepWiki, Microsoft Learn, Svelte, Stack Overflow), duplicates of built-in search (Exa, Tavily), and endpoints only one other client can use (`/anthropic`, `/chatgpt_app_mcp` paths). Services that move money or hold health records are never featured.
+
+**Categories (15):** Mail & messages, Calendar & meetings, Notes & docs, Files, Tasks & projects, Design & creative, Sales & customers, Marketing, Money, Stores & websites, Data & analytics, Research, Life & leisure, Automation, Developer tools. Developer tools holds a quarter of today's entries and is collapsed by default, so the Apps page does not read as a developer product.
+
+**Featured (20):** Gmail, Google Calendar, Google Drive, Outlook, OneDrive, Slack, Notion, Canva, Apple Notes, Apple Reminders, Dropbox, Trello, Todoist, Asana, monday.com, Airtable, Calendly, Zoom, Figma, HubSpot, chosen by Zapier's and Claude's public usage ranks. Eleven work today; the rest are carried by a Mac app or the browser until their clients clear.
+
+**Missing and asked for:** Outlook, Teams and OneDrive; Gmail, Calendar and Drive as products; Trello (`mcp.trello.com/v1`, connectable now); the Apple apps; Mailchimp, Salesforce, Typeform, WordPress.com, Readwise, Docusign; and consumer services with no personal-account API (Discord, WhatsApp, YouTube, LinkedIn, Spotify, banks) as browser rows.
+
+**Sources.**
+- The checked-in seed is the source of truth, and each row records where it came from.
+- Drop integrations.sh as the upstream: most of its consumer MCP entries are copies of Anthropic's and OpenAI's own directories, which carry no license to reuse.
+- Sync the official MCP Registry (CC0) weekly, keeping only servers hosted on their namespace's own domain, and open a reviewed diff; never auto-merge.
+- Read public usage ranks (Zapier's app popularity, Claude's directory order) for demand, internally.
+- The probe is the quality gate before each release; a failing row drops to browser-first.
+- Never connect through an aggregator (Smithery, Composio, Pipedream): the user's tokens would pass through a third party.
+
+**The long tail.** About 30 browser-only rows where demand is shown, not a row per site; an "Any website" card closing every category and every search ("sign in in the browser and I'll work it there"); and names nobody matched counted, which says which browser rows to add next. Banks are one "Your bank" row with aliases.
+
 ## Icons
 
 Ship icons with the directory rather than fetching them per user.
 
 - **Sources, in order:** svgl, gilbarbara/logos (`*-icon.svg`, CC0), thesvg (only icons whose own license is CC0 or MIT), lobe-icons for AI vendors, homarr-labs dashboard-icons, then App Store artwork (1024px, checked by seller), the site's apple-touch-icon or SVG favicon, and the favicon proxy last. A hand-set override always wins.
 - **Coverage measured:** svgl, gilbarbara and thesvg together give a usable full-color square mark for 91 of 127 entries and 27 of the 32 weak ones; with App Store and site icons, 118. Wordmarks, outdated marks and same-name products were rejected by eye.
-- **Pipeline:** a checked-in manifest from slug to source, pinned upstream version, license and override; a refresh script that fetches, runs svgo, pads to a square viewBox, and writes a contact sheet so a review approves images rather than paths. About 0.6 MB for the whole set.
+- **Pipeline (landed):** `packages/workspace/directory-icons/manifest.json` maps slug to source, pinned upstream version, license and override; `script:refresh-directory-icons --sheet <file.html>` fetches, cleans and squares each SVG, takes App Store art at 256px, and writes a contact sheet so a review approves images rather than paths. 121 entries, about 0.9 MB. Six have no good source anywhere and keep the favicon.
+- **Dark ink:** fifteen marks are dark ink with no dark variant (Sentry, Square, Heroku, Wix and others) and nearly vanish on the dark plate, as their favicons already do.
 - **Trademarks:** the collections license the files, not the marks. Showing a mark to name the integration is the ordinary use; recoloring or redrawing one is not, so marks go on the plate as published.
 
 An agent-drawn icon (`app icon`) stays the answer for anything outside the directory and for local servers with no Mac app.

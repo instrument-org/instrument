@@ -35,6 +35,8 @@ sprin = "sprin"
 als = "als"
 # axe-core, the accessibility audit library.
 axe = "axe"
+# Canva, the design service, listed in the app directory.
+canva = "canva"
 # Critical advisories, counted as a plural noun.
 criticals = "criticals"
 # Left behind when the bracket markup in composer action labels splits

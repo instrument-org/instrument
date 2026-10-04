@@ -38,7 +38,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
@@ -741,7 +741,7 @@ function WindowShell({
       return;
     }
     return () => {
-      getWebviewElement(
+      getGuest(
         encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
       )?.reload();
     };

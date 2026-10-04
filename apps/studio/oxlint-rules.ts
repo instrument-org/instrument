@@ -77,6 +77,46 @@ const noRouterLink = defineRule({
   },
 });
 
+/** DOM calls that make or find an element by its tag or a selector. */
+const ELEMENT_LOOKUPS = new Set([
+  "closest",
+  "createElement",
+  "getElementsByTagName",
+  "matches",
+  "querySelector",
+  "querySelectorAll",
+]);
+const webviewTag = /(?:^|[^\w-])webview(?:$|[^\w-])/i;
+
+const noRawWebview = defineRule({
+  create(context) {
+    return {
+      CallExpression(node) {
+        const { arguments: args, callee } = node;
+        const first = args[0];
+        if (
+          callee.type === "MemberExpression" &&
+          callee.property.type === "Identifier" &&
+          ELEMENT_LOOKUPS.has(callee.property.name) &&
+          first?.type === "Literal" &&
+          typeof first.value === "string" &&
+          webviewTag.test(first.value)
+        ) {
+          context.report({ messageId: "rawWebview", node });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      rawWebview:
+        "A browser guest's <webview> belongs to the pool (client/lib/browser-pool.ts). Reach it with getGuest(targetId) or useGuest(targetId), which hand out a GuestHandle only once the guest is ready.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 const transitionColors = /(?:^|\s)transition-colors(?:\s|$)/;
 
 const noTransitionColors = defineRule({
@@ -106,6 +146,7 @@ export default definePlugin({
   meta: { name: "studio" },
   rules: {
     "no-raw-anchor": noRawAnchor,
+    "no-raw-webview": noRawWebview,
     "no-router-link": noRouterLink,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,

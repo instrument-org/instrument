@@ -33,7 +33,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
-import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
+import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -1011,7 +1011,7 @@ export function GroupItem({
   // then what the tab showed before it, then, for a tab that is a site of
   // the window's own, where the window's tab was before the site. The row's
   // arrows and the mouse's thumb buttons over the page both take these.
-  const webview = targetId ? getWebviewElement(targetId) : null;
+  const page = targetId ? getGuest(targetId) : null;
   const at = atOf(up);
   const withinBack = up.kind === "page" ? guest.canGoBack : at > 0;
   const withinForward =
@@ -1022,7 +1022,7 @@ export function GroupItem({
   const goBack = () => {
     if (withinBack) {
       if (up.kind === "page") {
-        webview?.goBack();
+        page?.step("back");
       } else {
         windowTabs.stepTab(up.id, -1);
       }
@@ -1035,7 +1035,7 @@ export function GroupItem({
   const goForward = () => {
     if (withinForward) {
       if (up.kind === "page") {
-        webview?.goForward();
+        page?.step("forward");
       } else {
         windowTabs.stepTab(up.id, 1);
       }
@@ -1079,8 +1079,8 @@ export function GroupItem({
         {...(onClose ? { onClose } : {})}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
-          if (up.kind === "page" && webview) {
-            void webview.loadURL(url);
+          if (up.kind === "page" && page) {
+            void page.load(url);
           } else {
             browser?.open(url, { group, replacing: up });
           }

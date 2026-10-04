@@ -34,10 +34,11 @@ import {
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getGuest, type GuestEventMap } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
   type EmulatedDevice,
@@ -72,15 +73,6 @@ import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-
-// Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
-// fields; the DOM lib types it as a plain Event).
-interface DidFailLoadEvent extends Event {
-  errorCode: number;
-  errorDescription: string;
-  isMainFrame: boolean;
-  validatedURL: string;
-}
 
 /**
  * The task's in-app browser, hosted in the artifact panel. The guest `<webview>`
@@ -252,12 +244,9 @@ export function TaskBrowserPanel({
   }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
   // Track main-frame load failures so we can show a light error state.
+  const guest = useGuest(active ? targetId : null);
   useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
+    if (!guest) {
       return;
     }
     // Clear only a failure stamped with this listener's own guest. These
@@ -272,8 +261,7 @@ export function TaskBrowserPanel({
         current?.targetId === targetId ? null : current,
       );
     };
-    const onFailLoad = (event: Event) => {
-      const detail = event as DidFailLoadEvent;
+    const onFailLoad = (detail: GuestEventMap["did-fail-load"]) => {
       // Ignore sub-frame failures and user-aborted navigations (ERR_ABORTED),
       // which fire routinely when a new navigation supersedes an in-flight one.
       if (!detail.isMainFrame || detail.errorCode === -3) {
@@ -288,17 +276,18 @@ export function TaskBrowserPanel({
         setDraftUrl(detail.validatedURL);
       }
     };
-    webview.addEventListener("did-navigate", clearFailure);
-    webview.addEventListener("did-navigate-in-page", clearFailure);
-    webview.addEventListener("did-start-loading", clearFailure);
-    webview.addEventListener("did-fail-load", onFailLoad);
+    const stops = [
+      guest.on("did-navigate", clearFailure),
+      guest.on("did-navigate-in-page", clearFailure),
+      guest.on("did-start-loading", clearFailure),
+      guest.on("did-fail-load", onFailLoad),
+    ];
     return () => {
-      webview.removeEventListener("did-navigate", clearFailure);
-      webview.removeEventListener("did-navigate-in-page", clearFailure);
-      webview.removeEventListener("did-start-loading", clearFailure);
-      webview.removeEventListener("did-fail-load", onFailLoad);
+      for (const stop of stops) {
+        stop();
+      }
     };
-  }, [active, targetId]);
+  }, [guest, targetId]);
 
   // Focus the URL bar on a blank page ONLY when this panel opened the browser
   // (autoOpenedRef), i.e. a user-initiated open, so they can type immediately.
@@ -308,20 +297,16 @@ export function TaskBrowserPanel({
     if (!active || !focusAddress || !autoOpenedRef.current.has(targetId)) {
       return;
     }
-    try {
-      const url = getWebviewElement(targetId)?.getURL();
-      const activeElement = document.activeElement;
-      // isContentEditable also covers contenteditable="" / "plaintext-only",
-      // which an attribute selector would miss.
-      const hostInputFocused =
-        activeElement instanceof HTMLElement &&
-        (activeElement.isContentEditable ||
-          activeElement.matches("input, textarea, select"));
-      if ((!url || url === "about:blank") && !hostInputFocused) {
-        inputRef.current?.focus();
-      }
-    } catch {
-      // Not attached yet; nothing to focus into.
+    const url = getGuest(targetId)?.url();
+    const activeElement = document.activeElement;
+    // isContentEditable also covers contenteditable="" / "plaintext-only",
+    // which an attribute selector would miss.
+    const hostInputFocused =
+      activeElement instanceof HTMLElement &&
+      (activeElement.isContentEditable ||
+        activeElement.matches("input, textarea, select"));
+    if ((!url || url === "about:blank") && !hostInputFocused) {
+      inputRef.current?.focus();
     }
   }, [active, focusAddress, targetId]);
 
@@ -342,39 +327,31 @@ export function TaskBrowserPanel({
     };
   }, [menuOpen]);
 
-  const webviewFor = () => getWebviewElement(targetId);
+  const guestNow = () => getGuest(targetId);
 
   // loadURL rejects on a failed navigation (bad host, offline, ...); the
   // did-fail-load listener already surfaces the error, so swallow the rejection
   // to avoid an unhandled promise error.
   const navigateTo = (url: string) => {
-    void webviewFor()
-      ?.loadURL(url)
+    void guestNow()
+      ?.load(url)
       .catch(() => {
         // Surfaced by the did-fail-load listener; nothing to do here.
       });
   };
 
   const applyZoom = (factor: number) => {
-    const webview = webviewFor();
-    if (!webview) {
+    const current = guestNow();
+    if (!current) {
       return;
     }
-    webview.setZoomFactor(factor);
+    current.setZoom(factor);
     setZoomFactor(factor);
   };
 
   const currentUrl = () => {
-    try {
-      // getURL throws until the guest's WebContents is dom-ready; `active` can
-      // lead that (it round-trips through main), so treat a throw as "no page".
-      const url = webviewFor()?.getURL();
-      return url && url !== "about:blank"
-        ? withoutPageEditParam(url)
-        : undefined;
-    } catch {
-      return;
-    }
+    const url = guestNow()?.url();
+    return url && url !== "about:blank" ? withoutPageEditParam(url) : undefined;
   };
 
   // A real page is loaded (not about:blank). Zoom, copy, and open-external all
@@ -399,12 +376,8 @@ export function TaskBrowserPanel({
       toast("Removed from Bookmarks");
       return;
     }
-    let title = "";
-    try {
-      title = webviewFor()?.getTitle() ?? "";
-    } catch {
-      // Not dom-ready yet; the start view names it by its site instead.
-    }
+    // Untitled until the guest is ready; the start view names it by its site instead.
+    const title = guestNow()?.title() ?? "";
     setBookmarks((current) => [
       ...current,
       { id: crypto.randomUUID(), title, url: pageUrl },
@@ -435,15 +408,10 @@ export function TaskBrowserPanel({
               if (open && !pageUrl) {
                 return;
               }
-              if (open) {
-                const webview = webviewFor();
-                if (webview) {
-                  try {
-                    setZoomFactor(webview.getZoomFactor());
-                  } catch {
-                    // Not dom-ready yet; keep the last known zoom.
-                  }
-                }
+              // Not ready yet: the last known zoom stands.
+              const current = open ? guestNow() : null;
+              if (current) {
+                setZoomFactor(current.zoom());
               }
               setMenuOpen(open);
             }}
@@ -544,7 +512,7 @@ export function TaskBrowserPanel({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
-                  webviewFor()?.reloadIgnoringCache();
+                  guestNow()?.reload({ ignoreCache: true });
                 }}
               >
                 <ArrowCounterClockwiseIcon className="size-4" />
@@ -557,7 +525,7 @@ export function TaskBrowserPanel({
                   // reloads to show it the way it looks under the new one.
                   setBlockAds.mutate(
                     { enabled },
-                    { onSuccess: () => webviewFor()?.reload() },
+                    { onSuccess: () => guestNow()?.reload() },
                   );
                 }}
               >
@@ -629,7 +597,7 @@ export function TaskBrowserPanel({
             disabled={!active}
             icon={<ArrowClockwiseIcon className="size-4" />}
             label="Reload"
-            onClick={() => webviewFor()?.reload()}
+            onClick={() => guestNow()?.reload()}
           />
         );
         const bar = (
@@ -637,7 +605,7 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="reloadPage">
               <Button
                 disabled={!active}
-                onClick={() => webviewFor()?.reload()}
+                onClick={() => guestNow()?.reload()}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -712,7 +680,7 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="back">
               <Button
                 disabled={!active || !nav.canGoBack}
-                onClick={() => webviewFor()?.goBack()}
+                onClick={() => guestNow()?.step("back")}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -722,7 +690,7 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="forward">
               <Button
                 disabled={!active || !nav.canGoForward}
-                onClick={() => webviewFor()?.goForward()}
+                onClick={() => guestNow()?.step("forward")}
                 size="icon-sm"
                 variant="ghost"
               >

@@ -1,13 +1,8 @@
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { useGuest } from "@/client/hooks/use-browser-targets";
+import { getGuest } from "@/client/lib/browser-pool";
 import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useRef, useState } from "react";
-
-// Shape of the `<webview>` `found-in-page` DOM event (Electron adds `result`;
-// the DOM lib types it as a plain Event).
-interface FoundInPageEvent extends Event {
-  result: { activeMatchOrdinal: number; matches: number };
-}
 
 /**
  * Find-in-page state and wiring for a browser panel's guest. Owns the find bar's
@@ -41,41 +36,27 @@ export function useBrowserFind({
     matches: number;
   }>(null);
 
-  // Mirror the guest's match count into the find bar. Runs whenever a webview
-  // exists; the guest fires this for every findInPage call and clears its
-  // highlights on navigation, so a stale count self-corrects on the next search.
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
-      return;
-    }
-    const onFound = (event: Event) => {
-      const detail = event as FoundInPageEvent;
-      setFindResult({
-        active: detail.result.activeMatchOrdinal,
-        matches: detail.result.matches,
-      });
-    };
-    webview.addEventListener("found-in-page", onFound);
-    return () => {
-      webview.removeEventListener("found-in-page", onFound);
-    };
-  }, [active, targetId]);
+  // Mirror the guest's match count into the find bar. Runs whenever the guest
+  // is there; it fires this for every find and clears its highlights on
+  // navigation, so a stale count self-corrects on the next search.
+  const guest = useGuest(active ? targetId : null);
+  useEffect(
+    () =>
+      guest?.on("found-in-page", ({ result }) => {
+        setFindResult({
+          active: result.activeMatchOrdinal,
+          matches: result.matches,
+        });
+      }),
+    [guest],
+  );
 
   // The guest outlives this panel (it's pooled, not reaped on panel close), so a
   // find left highlighted stays highlighted when the panel remounts with the bar
   // closed. Clear the guest's highlight on unmount so a reopen starts clean.
   useEffect(() => {
     return () => {
-      try {
-        getWebviewElement(targetId)?.stopFindInPage("clearSelection");
-      } catch {
-        // A guest that has not reached dom-ready throws here, and has nothing
-        // highlighted to clear.
-      }
+      getGuest(targetId)?.stopFind("clearSelection");
     };
   }, [targetId]);
 
@@ -131,23 +112,23 @@ export function useBrowserFind({
   // for next/prev stepping (Enter / the arrows); a fresh keystroke omits it so
   // the guest re-anchors from the top.
   const runFind = (query: string, options?: { forward: boolean }) => {
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
+    const target = getGuest(targetId);
+    if (!target) {
       return;
     }
     if (!query) {
-      webview.stopFindInPage("clearSelection");
+      target.stopFind("clearSelection");
       setFindResult(null);
       return;
     }
-    webview.findInPage(
+    target.find(
       query,
       options ? { findNext: true, forward: options.forward } : undefined,
     );
   };
 
   const closeFind = () => {
-    getWebviewElement(targetId)?.stopFindInPage("clearSelection");
+    getGuest(targetId)?.stopFind("clearSelection");
     setFindOpen(false);
     setFindQuery("");
     setFindResult(null);

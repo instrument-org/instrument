@@ -22,8 +22,16 @@
       "files": ["**/*.test.*", "src/tests/**"],
       "rules": {
         "studio/no-raw-anchor": "off",
+        "studio/no-raw-webview": "off",
         "studio/no-router-link": "off",
         "studio/one-tooltip-provider": "off"
+      }
+    },
+    {
+      // The pool is the one owner of the guest elements.
+      "files": ["src/client/lib/browser-pool.ts"],
+      "rules": {
+        "studio/no-raw-webview": "off"
       }
     },
     {
@@ -123,6 +131,7 @@
     "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "studio/no-raw-anchor": "error",
+    "studio/no-raw-webview": "error",
     "studio/no-router-link": "error",
     "studio/no-transition-colors": "error",
     "studio/one-tooltip-provider": "error",

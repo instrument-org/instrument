@@ -1,5 +1,5 @@
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
+import { useGuest } from "@/client/hooks/use-browser-targets";
+import { onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -56,18 +56,13 @@ export function useHostedPageNavigation(
   fileUrl: string | undefined,
   onStep: (step: NonNullable<HostedPageStep>) => void,
 ) {
-  const attached = useBrowserTargets();
-  const isAttached = target !== undefined && attached.has(target);
+  const guest = useGuest(target);
   const latest = useRef({ fileUrl, onStep });
   useEffect(() => {
     latest.current = { fileUrl, onStep };
   });
   useEffect(() => {
-    if (target === undefined || !isAttached) {
-      return;
-    }
-    const webview = getWebviewElement(target);
-    if (!webview) {
+    if (target === undefined || !guest) {
       return;
     }
     const onNavigate = () => {
@@ -75,46 +70,28 @@ export function useHostedPageNavigation(
       if (shown === undefined) {
         return;
       }
-      let url: string;
-      try {
-        url = webview.getURL();
-      } catch {
-        return;
-      }
-      const next = hostedPageStep(url, { fileUrl: shown });
+      const next = hostedPageStep(guest.url(), { fileUrl: shown });
       if (!next) {
         return;
       }
       // The tab's own history holds the file now, behind the page; the
       // guest's would hold it a second time.
       if (next.kind === "site") {
-        webview.clearHistory();
+        guest.clearHistory();
       }
       step(next);
     };
-    webview.addEventListener("did-navigate", onNavigate);
+    const stopNavigate = guest.on("did-navigate", onNavigate);
     const releaseThumbs = onPageThumb(target, (direction) => {
-      try {
-        if (direction === "forward") {
-          if (webview.canGoForward()) {
-            webview.goForward();
-          } else if (latest.current.fileUrl !== undefined) {
-            latest.current.onStep({ kind: "forward" });
-          }
-        } else if (webview.canGoBack()) {
-          webview.goBack();
-        } else if (latest.current.fileUrl !== undefined) {
-          latest.current.onStep({ kind: "back" });
-        }
-      } catch {
-        // Not attached yet: there is no history to step.
+      if (!guest.step(direction) && latest.current.fileUrl !== undefined) {
+        latest.current.onStep({ kind: direction });
       }
     });
     return () => {
-      webview.removeEventListener("did-navigate", onNavigate);
+      stopNavigate();
       releaseThumbs();
     };
-  }, [isAttached, target]);
+  }, [guest, target]);
 }
 
 /**

@@ -7,22 +7,22 @@ import {
   requestBrowserReload,
 } from "./foreground-browser-registry";
 
-const { getWebviewElement } = vi.hoisted(() => ({
-  getWebviewElement: vi.fn(),
+const { getGuest } = vi.hoisted(() => ({
+  getGuest: vi.fn(),
 }));
 
-vi.mock("@/client/lib/browser-pool", () => ({ getWebviewElement }));
+vi.mock("@/client/lib/browser-pool", () => ({ getGuest }));
 
 const TARGET_ID = "task_1/session_1" as BrowserTargetId;
 
 function mountWebview(reload = vi.fn()) {
-  getWebviewElement.mockReturnValue({ reload });
+  getGuest.mockReturnValue({ reload });
   return reload;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getWebviewElement.mockReturnValue(null);
+  getGuest.mockReturnValue(null);
 });
 
 describe("with no foreground browser", () => {
@@ -56,7 +56,7 @@ describe("with a foreground browser", () => {
     });
 
     expect(requestBrowserReload()).toBe(true);
-    expect(getWebviewElement).toHaveBeenCalledWith(TARGET_ID);
+    expect(getGuest).toHaveBeenCalledWith(TARGET_ID);
     expect(reload).toHaveBeenCalledOnce();
 
     unregister();
@@ -64,17 +64,10 @@ describe("with a foreground browser", () => {
     expect(reload).toHaveBeenCalledOnce();
   });
 
-  it("falls back to the app when the guest is gone or not yet attached", () => {
+  it("leaves the chord unhandled when the guest is gone or not yet ready", () => {
     registerForegroundBrowser({ openFind: vi.fn(), targetId: TARGET_ID });
 
-    getWebviewElement.mockReturnValue(null);
-    expect(requestBrowserReload()).toBe(false);
-
-    getWebviewElement.mockReturnValue({
-      reload: () => {
-        throw new Error("The WebView must be attached to the DOM");
-      },
-    });
+    getGuest.mockReturnValue(null);
     expect(requestBrowserReload()).toBe(false);
   });
 

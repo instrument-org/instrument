@@ -1,4 +1,4 @@
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getGuest } from "@/client/lib/browser-pool";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 
 // The browser panel the user is looking at, mirroring tab-router-registry: the
@@ -44,16 +44,10 @@ export function requestBrowserReload(): boolean {
   if (!foreground) {
     return false;
   }
-  const webview = getWebviewElement(foreground.targetId);
-  if (!webview) {
+  const guest = getGuest(foreground.targetId);
+  if (!guest) {
     return false;
   }
-  try {
-    webview.reload();
-  } catch {
-    // The element throws until its guest attaches, which registration already
-    // excludes. Reload the app rather than swallow the chord if it happens.
-    return false;
-  }
+  guest.reload();
   return true;
 }

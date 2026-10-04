@@ -14,6 +14,7 @@ import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath, taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
+import { STORE_TABLE } from "./store-table";
 
 /**
  * How many task databases stay open once they have gone idle. Building the
@@ -306,7 +307,7 @@ function startOpen(
   const storage = createStorage({
     driver: dbDriver({
       database,
-      tableName: "sessions",
+      tableName: STORE_TABLE,
     }),
   });
 

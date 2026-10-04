@@ -5,7 +5,6 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import superjson from "superjson";
 import { ulid } from "ulid";
 
 import {
@@ -39,6 +38,8 @@ import { isRecord } from "./skills";
 import { windowStatePath } from "./window-paths";
 import { NOTHING_SEEN } from "./window-state";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
+import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
+import { StorageKey } from "./storage-key";
 
 // Where what the move leaves behind is kept, so a migration that went wrong
 // can be undone by hand: the projects, once their topics are written, and the
@@ -65,14 +66,6 @@ const LEADING_EMOJI =
 // copies of skills it read, its scratch, or what it installed.
 const HELD_FILE_ROOTS = [`${TASK_FOLDER_NAMES.work}/`, "output/"];
 const UNHELD_FILE_SEGMENTS = /(?:^|\/)(?:\.[^/]*|node_modules|skills|tmp)\//;
-
-const STORE_SCHEMA = `CREATE TABLE IF NOT EXISTS sessions (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        blob BLOB,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )`;
 
 export interface LegacyTasksMigration {
   /** Tasks now inside a chat made for each. */
@@ -624,7 +617,7 @@ function readConversation(dbPath: string): {
     // of the store's own columns.
     rows = db
       .prepare(
-        "select key, blob from sessions where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'",
+        `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
       )
       .all() as unknown as StoreRow[];
   } finally {
@@ -996,7 +989,7 @@ function writeChatRows({
   session: Session.Type;
   taskId: ReturnType<typeof TaskIdSchema.parse>;
 }) {
-  const rows: [string, unknown][] = [[`sessions:${session.id}`, session]];
+  const rows: [string, unknown][] = [[StorageKey.session(session.id), session]];
   let adopted = false;
   for (const message of messages) {
     const stored: SessionMessage.Type =
@@ -1024,7 +1017,7 @@ function writeChatRows({
             },
             role: "assistant",
           };
-    rows.push([`messages:${session.id}:${message.id}`, stored]);
+    rows.push([StorageKey.message(session.id, message.id), stored]);
     const metadata = () => ({
       createdAt: message.createdAt,
       id: StoreId.newPartId(),
@@ -1061,32 +1054,11 @@ function writeChatRows({
     }
     for (const part of parts) {
       rows.push([
-        `parts:${session.id}:${message.id}:${part.metadata.id}`,
+        StorageKey.part(session.id, message.id, part.metadata.id),
         part,
       ]);
     }
   }
 
-  const db = new DatabaseSync(dbPath);
-  try {
-    db.exec(STORE_SCHEMA);
-    const insert = db.prepare(
-      "insert or replace into sessions (key, blob) values (?, ?)",
-    );
-    db.exec("BEGIN");
-    try {
-      for (const [key, value] of rows) {
-        // As text: the store reads a row back as a string or not at all.
-        insert.run(key, superjson.stringify(value));
-      }
-      db.exec("COMMIT");
-    } catch (error) {
-      if (db.isTransaction) {
-        db.exec("ROLLBACK");
-      }
-      throw error;
-    }
-  } finally {
-    db.close();
-  }
+  writeStoreRowsSync(dbPath, rows);
 }

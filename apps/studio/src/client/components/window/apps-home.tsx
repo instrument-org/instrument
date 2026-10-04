@@ -6,6 +6,7 @@ import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
@@ -29,6 +30,13 @@ type CatalogEntry = RPCOutput["apps"]["catalog"][number];
  * one from this morning, few enough that the apps stay the head of the page.
  */
 const RECENT_SHOWN = 9;
+
+/**
+ * A search that names this few services by its words, and is this long, is
+ * also asked of the decision model for the services it means.
+ */
+const MEANING_BELOW_MATCHES = 3;
+const MEANING_MIN_LENGTH = 3;
 
 /** How many tiles hold the directory's place while it is on its way. */
 const SKELETONS_SHOWN = 12;
@@ -90,6 +98,28 @@ export function AppsHome({
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
   const rest = more.filter((entry) => entry.tier !== "featured");
+  // A search the words barely answer ("text my mom") also goes to the
+  // decision model, once the typing settles; what it finds is added under
+  // the matches when it arrives, leaving out any already shown.
+  const settled = useDebouncedValue(typed, 300);
+  const asksMeaning =
+    showsConnect &&
+    settled.length >= MEANING_MIN_LENGTH &&
+    searchDirectory(unconnected, settled).length < MEANING_BELOW_MATCHES;
+  const byMeaning = useQuery(
+    rpcClient.apps.catalogByMeaning.queryOptions({
+      enabled: asksMeaning,
+      input: { query: settled },
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const shownSlugs = new Set(matches.map((entry) => entry.slug));
+  const meant =
+    asksMeaning && settled === typed
+      ? (byMeaning.data ?? []).filter(
+          (entry) => !known.has(entry.slug) && !shownSlugs.has(entry.slug),
+        )
+      : [];
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
@@ -217,13 +247,29 @@ export function AppsHome({
                 ) : null}
               </>
             ) : (
-              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                {matches.map(tileFor)}
-                <UnlistedTile
-                  isOnlyOne={matches.length === 0}
-                  name={typed}
-                  onConnect={connectTyped}
-                />
+              <div className="space-y-6">
+                {matches.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                    {matches.map(tileFor)}
+                  </div>
+                ) : null}
+                {meant.length > 0 ? (
+                  <div>
+                    <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
+                      Might be what you mean
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                      {meant.map(tileFor)}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                  <UnlistedTile
+                    isOnlyOne={matches.length === 0 && meant.length === 0}
+                    name={typed}
+                    onConnect={connectTyped}
+                  />
+                </div>
               </div>
             )}
           </div>

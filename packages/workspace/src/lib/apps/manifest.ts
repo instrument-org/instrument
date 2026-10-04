@@ -180,6 +180,16 @@ const LocalMcpAppManifestSchema = z
     // Static, non-secret environment for the process. The credential is never
     // one of these; the secret scan the test runs is what catches one.
     env: z.record(z.string(), z.string()).optional(),
+    // The bundle identifier of the Mac app the server drives, when it drives
+    // one ("com.agiletortoise.Drafts-OSX"). A server that runs here has no
+    // site to draw, so the app is drawn with that app's own icon.
+    macApp: z
+      .string()
+      .regex(/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/, {
+        message:
+          'macApp must be a bundle identifier, like "com.apple.Notes"; `osascript -e \'id of app "Notes"\'` prints one.',
+      })
+      .optional(),
     name: z.string().min(1),
     package: z.string().min(1),
     runtime: z.enum(["node", "python"]),
@@ -236,6 +246,7 @@ Local MCP app (an MCP server that runs on this machine, installed from npm ("nod
   "type": "mcp-local",
   "runtime": "node",
   "package": "@agiletortoise/drafts-mcp-server",
+  "macApp": "com.agiletortoise.Drafts-OSX",
   "auth": { "kind": "none" }
 }
 

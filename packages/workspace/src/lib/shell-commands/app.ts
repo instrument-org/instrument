@@ -84,7 +84,7 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
       Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} when there is
       none, from the directory's entry for the service when it has one. An
       MCP app's guide is done as written; an API app's may leave prompts to
@@ -97,7 +97,10 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       --local names an MCP server that runs on this machine, installed from npm
       (--runtime node, the default) or PyPI (--runtime python): it defaults to
       no key, takes env:<VAR> when the server reads one from its environment,
-      and the user has to allow it to run before it does. Refuses to overwrite
+      and the user has to allow it to run before it does. When it drives an
+      app on this Mac, --mac-app takes that app's bundle identifier
+      (\`osascript -e 'id of app "Drafts"'\` prints it), and the app is drawn
+      with that app's icon. Refuses to overwrite
       an existing manifest without --force. You can also write the two files
       yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
@@ -633,6 +636,7 @@ async function runNew(args: string[], context: AppCommandContext) {
       "auth",
       "header",
       "local",
+      "mac-app",
       "mcp",
       "name",
       "runtime",
@@ -687,10 +691,17 @@ async function runNew(args: string[], context: AppCommandContext) {
       `--runtime takes node (an npm package) or python (a PyPI one), and defaults to node (got "${runtime}").`,
     );
   }
+  const macApp = values.get("mac-app")?.[0]?.trim();
+  if (macApp && !local) {
+    throw new Error(
+      "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
+    );
+  }
   const candidate: unknown = local
     ? {
         ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
         auth,
+        ...(macApp ? { macApp } : {}),
         name,
         package: local,
         runtime,

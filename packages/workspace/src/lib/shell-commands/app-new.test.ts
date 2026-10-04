@@ -91,6 +91,52 @@ describe("app new --auth basic", () => {
   });
 });
 
+describe("app new --mac-app", () => {
+  it("names the Mac app a local server drives", async () => {
+    await app(
+      "new",
+      "drafts",
+      "--name",
+      "Drafts",
+      "--local",
+      "@agiletortoise/drafts-mcp-server",
+      "--mac-app",
+      "com.agiletortoise.Drafts-OSX",
+    );
+    expect(await manifestOf("drafts")).toMatchObject({
+      macApp: "com.agiletortoise.Drafts-OSX",
+      type: "mcp-local",
+    });
+  });
+
+  it.each([
+    [
+      "a hosted server",
+      ["--mcp", "https://mcp.example.com/mcp"],
+      "Drafts",
+      "--mac-app goes with --local",
+    ],
+    [
+      "an app name",
+      ["--local", "@agiletortoise/drafts-mcp-server"],
+      "Drafts",
+      "macApp must be a bundle identifier",
+    ],
+  ])("refuses it for %s", async (_, endpoint, macApp, message) => {
+    const result = await app(
+      "new",
+      "drafts-bad",
+      "--name",
+      "Drafts",
+      ...endpoint,
+      "--mac-app",
+      macApp,
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(message);
+  });
+});
+
 describe("app test and the guide skeleton", () => {
   // `app new` writes the guide as a form, and the check that gated connecting
   // only asked whether the file was non-empty, so the form passed. The cost

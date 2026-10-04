@@ -21,7 +21,8 @@ export interface Connection {
 
 export type PickerRow =
   | { model: AIGatewayModel.Type; type: "auto" }
-  | { label: string; type: "header" }
+  /** A group's heading; under a search, the connection's, with its icon. */
+  | { label: string; provider?: AIProviderType; type: "header" }
   | {
       /** Under a search, where the name came from, for the highlight. */
       nameRanges?: null | number[];
@@ -104,11 +105,11 @@ export function isFoldedAway(
 
 /**
  * One connection's list. Instrument leads with Auto. A list with
- * recommendations opens on them, by maker, with the rest behind Show all;
- * shown whole, models that something newer replaced go under Older versions,
- * each saying what replaced it, and ones this user cannot run go last, saying
- * why. Every row carries its maker's mark, so the list needs no maker
- * headings.
+ * recommendations opens on them, under Recommended, with the rest behind Show
+ * all; showing all only adds groups under them, so nothing already on screen
+ * moves. Models that something newer replaced go under Older versions, each
+ * saying what replaced it, and ones this user cannot run go last, saying why.
+ * Every row carries its maker's mark, so the groups are by kind, not maker.
  */
 export function rowsForConnection({
   connectionId,
@@ -126,16 +127,28 @@ export function rowsForConnection({
   const row = (model: AIGatewayModel.Type) => modelRow(model, own);
   const rows: PickerRow[] = auto ? [{ model: auto, type: "auto" }] : [];
 
-  if (folds && !showAll) {
-    rows.push(...byMaker(recommended).map(row), { type: "show-all" });
-    return rows;
-  }
-
   const section = (label: string, group: AIGatewayModel.Type[]) => {
     if (group.length > 0) {
       rows.push({ label, type: "header" }, ...group.map(row));
     }
   };
+
+  if (folds) {
+    section("Recommended", byMaker(recommended));
+    if (!showAll) {
+      rows.push({ type: "show-all" });
+      return rows;
+    }
+    section(
+      "Other models",
+      byMaker(latest.filter((model) => !recommended.includes(model))),
+    );
+    section("Older versions", older);
+    section("Requires a paid plan", restricted);
+    rows.push({ type: "show-fewer" });
+    return rows;
+  }
+
   // A list with nothing older and nothing out of reach needs no heading over
   // its one group.
   if (older.length > 0 || restricted.length > 0) {
@@ -145,9 +158,6 @@ export function rowsForConnection({
   }
   section("Older versions", older);
   section("Requires a paid plan", restricted);
-  if (folds) {
-    rows.push({ type: "show-fewer" });
-  }
   return rows;
 }
 
@@ -178,7 +188,11 @@ export function rowsForSearch({
     }
     const info = fuzzy.info(indexes, haystack, query);
     const order = fuzzy.sort(info, haystack, query);
-    rows.push({ label: connection.name, type: "header" });
+    rows.push({
+      label: connection.name,
+      provider: connection.provider,
+      type: "header",
+    });
     for (const at of order) {
       const index = info.idx[at] ?? -1;
       const model = own[index];

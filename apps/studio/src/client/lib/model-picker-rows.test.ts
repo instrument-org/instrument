@@ -261,12 +261,14 @@ describe("rowsForConnection", () => {
           "(google) Gemini 3.7 Flash",
         ],
         "a long catalog opens on its recommendations, by maker": [
+          "# Recommended",
           "(anthropic) Claude Sonnet 5.5",
           "(google) Gemini 3.7 Flash",
           "(moonshotai) Kimi K3",
           "[Show all models]",
         ],
         "a short mixed list folds too": [
+          "# Recommended",
           "(deepseek) DeepSeek V4 Flash",
           "(z-ai) GLM 5.3",
           "(z-ai) GLM 5.3 Flash",
@@ -283,10 +285,11 @@ describe("rowsForConnection", () => {
           "(anthropic) Claude Opus 5.5 — Needs a paid plan.",
         ],
         "the same list shown whole": [
-          "# Latest",
+          "# Recommended",
           "(deepseek) DeepSeek V4 Flash",
           "(z-ai) GLM 5.3",
           "(z-ai) GLM 5.3 Flash",
+          "# Other models",
           "(meta) Llama 4 Scout",
           "# Older versions",
           "(z-ai) GLM 5.2 — Replaced by GLM 5.3",
@@ -295,6 +298,24 @@ describe("rowsForConnection", () => {
       }
     `);
   });
+
+  // Showing all used to re-sort the list, so the rows already on screen
+  // jumped under the pointer; it may only add below them.
+  it.each([
+    ["a long catalog", longCatalog, "openrouter-key"],
+    ["a short mixed list", shortMixed, "workers-ai"],
+  ])(
+    "showing all of %s keeps every folded row where it was",
+    (_, models, connectionId) => {
+      const folded = rowsForConnection({
+        connectionId,
+        models,
+        showAll: false,
+      });
+      const whole = rowsForConnection({ connectionId, models, showAll: true });
+      expect(whole.slice(0, folded.length - 1)).toEqual(folded.slice(0, -1));
+    },
+  );
 
   it("shows the whole of a long catalog when asked", () => {
     const rows = rowsForConnection({

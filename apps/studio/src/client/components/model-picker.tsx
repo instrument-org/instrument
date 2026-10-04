@@ -583,7 +583,10 @@ function VirtualRows({
             }}
           >
             {row.type === "header" ? (
-              <div className="px-2.5 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">
+              <div className="flex items-center gap-2 px-2.5 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">
+                {row.provider && (
+                  <AIProviderIcon className="size-3.5" type={row.provider} />
+                )}
                 {row.label}
               </div>
             ) : row.type === "auto" ? (
@@ -622,9 +625,9 @@ function VirtualRows({
 }
 
 /**
- * Auto, the way Instrument is meant to be used: an option like the models
- * under it, a line taller, marked as the recommendation and saying what it
- * does, and set apart from them by a rule rather than drawn as a box.
+ * Auto, the way Instrument is meant to be used: built like a model row with a
+ * second line, so it reads as one of the options, and set apart by the
+ * recommendation leading that line in the brand color and the rule under it.
  */
 function AutoRow({
   chosen,
@@ -638,7 +641,7 @@ function AutoRow({
   return (
     <CommandItem
       className={cn(
-        "flex items-start gap-2.5 rounded-md px-2.5 py-2",
+        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5",
         chosen &&
           cn(
             CHOSEN,
@@ -651,28 +654,23 @@ function AutoRow({
       value={model.uri}
     >
       <AIProviderIcon
-        className="mt-0.5 size-4 shrink-0"
+        className="size-4 shrink-0"
         type={OUR_MODELS.providerType}
       />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-2 text-sm font-medium">
+        <span className={cn("truncate text-sm", chosen && "font-medium")}>
           Auto
-          <span className="rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 font-medium text-white dark:bg-brand-500">
+        </span>
+        <span className="truncate text-xs text-muted-foreground">
+          <span className="font-medium text-brand-700 dark:text-brand-300">
             Recommended
           </span>
-        </span>
-        <span
-          className={cn(
-            "truncate text-xs",
-            chosen ? "opacity-80" : "text-muted-foreground",
-          )}
-        >
-          Picks the right model for each message
+          {" · Picks the right model for each message"}
         </span>
       </span>
       {chosen && (
         <>
-          <CheckIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <CheckIcon aria-hidden className="size-4 shrink-0" />
           <span className="sr-only">(chosen)</span>
         </>
       )}

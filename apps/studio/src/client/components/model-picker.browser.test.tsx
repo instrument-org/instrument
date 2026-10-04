@@ -157,9 +157,9 @@ describe("ModelPicker in a browser", () => {
           - text: Anthropic models
         - button "Add a provider"
       - listbox "Suggestions":
-        - option "Auto Recommended Picks the right model for each message (chosen)" [selected]:
+        - option "Auto Recommended · Picks the right model for each message (chosen)" [selected]:
           - img
-          - text: Auto Recommended Picks the right model for each message (chosen)"
+          - text: Auto Recommended · Picks the right model for each message (chosen)"
     `);
   });
 

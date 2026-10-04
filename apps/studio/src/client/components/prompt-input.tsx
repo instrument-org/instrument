@@ -12,6 +12,7 @@ import {
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
@@ -561,9 +562,19 @@ export const PromptInput = ({
             // from there.
             handsOff: true,
             icon: CpuIcon,
+            // Where the chosen model is billed, as the draft's model control
+            // shows it, so the entry says which model before it is read.
+            ...(selectedModel && {
+              iconElement: (
+                <AIProviderIcon
+                  className="size-4 shrink-0"
+                  type={selectedModel.params.provider}
+                />
+              ),
+            }),
             id: "model",
             label: selectedModel
-              ? `Model · ${selectedModel.name}`
+              ? `Model · ${selectedModel.name.trim()}`
               : "Choose a model",
             onSelect: () => {
               setPickerOpen(true);

@@ -10,7 +10,7 @@ import { type AbsolutePath } from "../../schemas/paths";
  * user asked for) and `app icon` puts it there after checking it draws well.
  * SVG first, since it is sharp at every size.
  */
-export const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
+const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
 
 /** Drawn up to 64px on a 2x screen, so smaller goes soft. */
 const MIN_PNG_SIZE = 128;

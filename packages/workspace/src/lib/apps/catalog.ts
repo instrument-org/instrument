@@ -80,7 +80,7 @@ export function catalogEntryLocalServer(
  * server registers no client on the spot, so the sign-in card cannot make
  * one. Such a server is skipped for the next way in.
  */
-export const NEEDS_REGISTERED_CLIENT = "oauth-client";
+const NEEDS_REGISTERED_CLIENT = "oauth-client";
 
 /**
  * The entry's hosted MCP server, when it has one the sign-in card or a key

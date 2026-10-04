@@ -370,14 +370,14 @@ describe("app new with a key already stored", () => {
 
 describe("app icon", () => {
   async function setIcon(slug: string, file: string, svg: string) {
-    const fs = new InMemoryFs();
-    await fs.writeFile(`/task/${file}`, svg);
+    const taskFs = new InMemoryFs();
+    await taskFs.writeFile(`/task/${file}`, svg);
     return createAppCommand({ taskId }).execute(
       ["icon", slug, file],
       createCommandContext({
         cwd: "/task",
         env: new Map<string, string>(),
-        fs,
+        fs: taskFs,
         stdin: EMPTY_BYTES,
       }),
     );

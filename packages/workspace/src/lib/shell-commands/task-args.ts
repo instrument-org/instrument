@@ -459,9 +459,10 @@ export function chatOnlyPathsIn(prompt: string, handed: string[]): string[] {
   return [
     ...new Set(
       named.filter(
-        (path) =>
+        (candidate) =>
           !handed.some(
-            (itemPath) => path === itemPath || path.startsWith(`${itemPath}/`),
+            (itemPath) =>
+              candidate === itemPath || candidate.startsWith(`${itemPath}/`),
           ),
       ),
     ),

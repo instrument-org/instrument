@@ -4,7 +4,7 @@ import { html, raw } from "hono/html";
 import { randomBytes } from "node:crypto";
 
 /** Who the user signed in to or connected: the name it goes by, and its mark as an image address when there is one. */
-export interface AuthService {
+interface AuthService {
   mark?: string;
   name: string;
 }

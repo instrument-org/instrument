@@ -59,6 +59,10 @@ import {
   mayPageNavigateTo,
   refuseLocalFilesInPopups,
 } from "./local-file-policy";
+import {
+  blockedRequestResponse,
+  enableContentBlocking,
+} from "./content-blocking";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
@@ -841,7 +845,8 @@ function sessionForEntry(entry: BrowserEntry) {
   // Required, not optional: a passkey sign-in that finds more than one
   // credential is cancelled outright when nothing answers this.
   selectWebAuthnAccountOnRequest(guestSession);
-  confineLocalPagesToTheirFolder(guestSession);
+  confineLocalPagesToTheirFolder(guestSession, blockedRequestResponse);
+  enableContentBlocking(guestSession);
   return guestSession;
 }
 

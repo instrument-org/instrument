@@ -1,5 +1,6 @@
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
+  type CallbackResponse,
   type OnBeforeRequestListenerDetails,
   type Session,
   type WebContents,
@@ -34,11 +35,20 @@ import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
  * shows now, which the page's own script can rewrite (see
  * `frame-documents.ts`). Call this before the session's first guest exists.
  */
-export function confineLocalPagesToTheirFolder(guestSession: Session) {
+export function confineLocalPagesToTheirFolder(
+  guestSession: Session,
+  otherRequests: (details: OnBeforeRequestListenerDetails) => CallbackResponse,
+) {
   trackFrameDocumentsIn(guestSession);
+  // Electron keeps one `onBeforeRequest` listener per session, so this one
+  // hears every request and hands what is not a file to `otherRequests`.
   guestSession.webRequest.onBeforeRequest(
-    { urls: ["file:///*"] },
+    { urls: ["<all_urls>"] },
     (details, callback) => {
+      if (!details.url.startsWith("file:")) {
+        callback(otherRequests(details));
+        return;
+      }
       if (!isAllowedGuestRequest(details)) {
         callback({ cancel: true });
         return;

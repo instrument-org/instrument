@@ -6,6 +6,7 @@ import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -64,8 +65,9 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -216,6 +218,12 @@ export function TaskBrowserPanel({
     targetId,
   });
 
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setBlockAds = useMutation(
+    rpcClient.preferences.setBlockAds.mutationOptions(),
+  );
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
@@ -542,6 +550,20 @@ export function TaskBrowserPanel({
                 <ArrowCounterClockwiseIcon className="size-4" />
                 Hard reload
               </DropdownMenuItem>
+              <DropdownMenuCheckboxItem
+                checked={preferences?.blockAds ?? true}
+                onCheckedChange={(enabled) => {
+                  // The blocker reads the choice per request, so the page
+                  // reloads to show it the way it looks under the new one.
+                  setBlockAds.mutate(
+                    { enabled },
+                    { onSuccess: () => webviewFor()?.reload() },
+                  );
+                }}
+              >
+                <ShieldCheckIcon className="size-4" />
+                Block ads
+              </DropdownMenuCheckboxItem>
               {menuItems}
               {onEditSource && (
                 <DropdownMenuItem onSelect={onEditSource}>

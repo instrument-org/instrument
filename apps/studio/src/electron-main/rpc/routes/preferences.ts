@@ -90,6 +90,12 @@ const openNotificationSettings = base
     return { opened: url !== undefined };
   });
 
+const setBlockAds = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("blockAds", input.enabled);
+  });
+
 const setDeveloperMode = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -182,6 +188,7 @@ export const preferences = {
   quitAndInstall,
   sendTestNotification,
   setAgentCompletionNotifications,
+  setBlockAds,
   setDefaultModelURI,
   setDeveloperMode,
   setEnableUsageMetrics,

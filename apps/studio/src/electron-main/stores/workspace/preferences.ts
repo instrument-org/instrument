@@ -20,6 +20,8 @@ export type AgentCompletionNotificationMode = z.output<
 export const WorkspacePreferencesSchema = z.object({
   agentCompletionNotifications:
     AgentCompletionNotificationModeSchema.catch("unfocused"),
+  // Ads and trackers blocked in the task browser; see content-blocking.ts.
+  blockAds: z.boolean().catch(true),
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
   theme: z.enum(["light", "dark", "system"]).catch("system"),

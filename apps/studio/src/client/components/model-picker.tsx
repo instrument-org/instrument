@@ -43,7 +43,6 @@ import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
 import { ModelMakerIcon } from "./model-maker-icon";
-import { ModelNoticeRow } from "./model-notice";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
@@ -81,7 +80,6 @@ export function ModelPicker({
   onAction,
   onAddProvider,
   onClose,
-  onDismissOffer,
   onOpenChange,
   onValueChange,
   open: openProp,
@@ -113,7 +111,6 @@ export function ModelPicker({
   onAction?: (action: ModelAction) => void;
   onAddProvider?: () => void;
   onClose?: () => void;
-  onDismissOffer?: () => void;
   onOpenChange?: (open: boolean) => void;
   onValueChange: (value: AIGatewayModelURI.Type) => void;
   /** Open from outside, for a surface that offers the picker from a menu rather than its own button. */
@@ -232,7 +229,6 @@ export function ModelPicker({
               closePopover();
               onAddProvider?.();
             }}
-            onDismissOffer={onDismissOffer}
             onPick={(model) => {
               captureClientEvent("model_picker.model_selected", {
                 modelId: model.canonicalId,
@@ -261,7 +257,6 @@ function PickerPanel({
   notice,
   onAction,
   onAddProvider,
-  onDismissOffer,
   onPick,
   selectedModel,
 }: {
@@ -272,7 +267,6 @@ function PickerPanel({
   notice?: ModelNotice | null;
   onAction: (action: ModelAction) => void;
   onAddProvider: () => void;
-  onDismissOffer?: () => void;
   onPick: (model: AIGatewayModel.Type) => void;
   selectedModel?: AIGatewayModel.Type;
 }) {
@@ -310,13 +304,13 @@ function PickerPanel({
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   // cmdk always lights an item, the first if nothing else, so a panel that
-  // had not been touched opened with one row looking pointed at. The
-  // highlight is held empty until a key or the pointer is used in the panel,
-  // and from then on follows cmdk as usual.
-  const [highlight, setHighlight] = useState("");
-  const engaged = useRef(false);
+  // had not been touched opened with one row looking pointed at. The light is
+  // not drawn until a key or the pointer is used in the panel. Holding cmdk's
+  // value empty does not do it: cmdk keeps its own pick of the first item and
+  // shows it at the next update.
+  const [engaged, setEngaged] = useState(false);
   const engage = () => {
-    engaged.current = true;
+    setEngaged(true);
   };
 
   const opened = rail.find((entry) => entry.id === openId);
@@ -326,21 +320,22 @@ function PickerPanel({
     : opened && !opened.failed
       ? rowsForConnection({ connectionId: opened.id, models, showAll })
       : [];
+  // A newer release of the chosen model is offered on the chosen row itself,
+  // beside what replaced it, rather than in a banner of its own.
+  const offer =
+    notice?.tone === "offer" && notice.action?.kind === "switch"
+      ? notice.action
+      : undefined;
   const autoRow = !searching && rows[0]?.type === "auto" ? rows[0] : undefined;
 
   return (
     <Command
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 flex-1 flex-col [&:not([data-engaged])_[data-selected=true]:not([data-chosen])]:bg-transparent"
+      data-engaged={engaged || undefined}
       label="Search models"
       onKeyDownCapture={engage}
       onPointerMoveCapture={engage}
-      onValueChange={(value) => {
-        if (engaged.current) {
-          setHighlight(value);
-        }
-      }}
       shouldFilter={false}
-      value={highlight}
     >
       <div className="shrink-0 border-b p-2">
         <CommandInput
@@ -408,15 +403,6 @@ function PickerPanel({
           ref={scrollRef}
         >
           <CommandList className="max-h-none! overflow-visible! p-2">
-            {/* "Choose a model" is what the open picker already is. */}
-            {notice && notice.action?.kind !== "choose" && (
-              <ModelNoticeRow
-                className="mb-2"
-                notice={notice}
-                onAction={onAction}
-                onDismiss={onDismissOffer}
-              />
-            )}
             {opened?.failed && !searching ? (
               <FailedConnection
                 error={opened.failed}
@@ -455,17 +441,25 @@ function PickerPanel({
               <>
                 {/* Auto leads its connection's list, set apart from the
                     models under it rather than being the first of them. */}
-                {autoRow && (
+                {autoRow && rows.length === 1 ? (
+                  <AutoOnly
+                    chosen={selectedModel?.uri === autoRow.model.uri}
+                    model={autoRow.model}
+                    onPick={onPick}
+                  />
+                ) : autoRow ? (
                   <AutoRow
                     chosen={selectedModel?.uri === autoRow.model.uri}
                     model={autoRow.model}
                     onPick={onPick}
                   />
-                )}
+                ) : null}
                 {autoRow && rows.length > 1 && (
                   <div className="mx-2.5 my-2 h-px bg-border" />
                 )}
                 <VirtualRows
+                  offer={offer}
+                  onAction={onAction}
                   onPick={onPick}
                   onShowAll={setShowAll}
                   rows={autoRow ? rows.slice(1) : rows}
@@ -482,12 +476,16 @@ function PickerPanel({
 }
 
 function VirtualRows({
+  offer,
+  onAction,
   onPick,
   onShowAll,
   rows,
   scrollRef,
   selectedModel,
 }: {
+  offer?: ModelAction;
+  onAction: (action: ModelAction) => void;
   onPick: (model: AIGatewayModel.Type) => void;
   onShowAll: (showAll: boolean) => void;
   rows: PickerRow[];
@@ -627,6 +625,8 @@ function VirtualRows({
             ) : (
               <ModelRow
                 chosen={selectedModel?.uri === row.model.uri}
+                offer={selectedModel?.uri === row.model.uri ? offer : undefined}
+                onAction={onAction}
                 onPick={onPick}
                 row={row}
               />
@@ -654,6 +654,7 @@ function AutoRow({
 }) {
   return (
     <CommandItem
+      data-chosen={chosen || undefined}
       className={cn(
         "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
         chosen &&
@@ -697,18 +698,80 @@ function AutoRow({
   );
 }
 
+/**
+ * Auto when it is all a connection offers, as Instrument does at launch: a
+ * single row alone in the pane read as a list with nothing in it, so the
+ * one option is drawn as the answer, centered, with the one thing to do
+ * about it. Still an item of the list, so the keyboard reaches it.
+ */
+function AutoOnly({
+  chosen,
+  model,
+  onPick,
+}: {
+  chosen: boolean;
+  model: AIGatewayModel.Type;
+  onPick: (model: AIGatewayModel.Type) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
+      <AIProviderIcon className="size-9" type={OUR_MODELS.providerType} />
+      <div className="flex flex-col items-center gap-1">
+        <span className="flex items-center gap-2 text-base font-medium">
+          Auto
+          <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
+            Recommended
+          </span>
+        </span>
+        <span className="text-sm text-muted-foreground">
+          Included with your subscription
+        </span>
+      </div>
+      <CommandItem
+        data-chosen={chosen || undefined}
+        aria-label={chosen ? "Auto (chosen)" : "Use Auto"}
+        className={cn(
+          "mt-1 flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium",
+          chosen
+            ? "text-brand-800 dark:text-brand-200"
+            : "bg-brand-600 text-white data-[selected=true]:bg-brand-700 dark:bg-brand-500",
+        )}
+        onSelect={() => {
+          onPick(model);
+        }}
+        value={model.uri}
+      >
+        {chosen ? (
+          <>
+            <CheckIcon aria-hidden className="size-4" />
+            In use
+          </>
+        ) : (
+          "Use Auto"
+        )}
+      </CommandItem>
+    </div>
+  );
+}
+
 function ModelRow({
   chosen,
+  offer,
+  onAction,
   onPick,
   row,
 }: {
   chosen: boolean;
+  /** On the chosen row, the newer release to switch to, beside what replaced it. */
+  offer?: ModelAction;
+  onAction: (action: ModelAction) => void;
   onPick: (model: AIGatewayModel.Type) => void;
   row: Extract<PickerRow, { type: "model" }>;
 }) {
   const { model } = row;
   return (
     <CommandItem
+      data-chosen={chosen || undefined}
       className={cn(
         "flex items-center gap-2.5 rounded-md px-2.5",
         row.sub ? "py-1.5" : "min-h-9",
@@ -733,13 +796,31 @@ function ModelRow({
           />
         </span>
         {row.sub && (
-          <span
-            className={cn(
-              "truncate text-xs",
-              chosen ? "opacity-80" : "text-muted-foreground",
+          <span className="flex min-w-0 items-center gap-2 text-xs">
+            <span
+              className={cn(
+                "truncate",
+                chosen ? "opacity-80" : "text-muted-foreground",
+              )}
+            >
+              {row.sub}
+            </span>
+            {offer && (
+              <button
+                className="shrink-0 font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300"
+                onClick={(event) => {
+                  // The row picks the model it names; this picks its successor.
+                  event.stopPropagation();
+                  onAction(offer);
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                type="button"
+              >
+                {offer.label}
+              </button>
             )}
-          >
-            {row.sub}
           </span>
         )}
       </span>

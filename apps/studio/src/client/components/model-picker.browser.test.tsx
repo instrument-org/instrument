@@ -157,9 +157,9 @@ describe("ModelPicker in a browser", () => {
           - text: Anthropic models
         - button "Add a provider"
       - listbox "Suggestions":
-        - option "Auto Recommended Included with your subscription (chosen)":
-          - img
-          - text: Auto Recommended Included with your subscription (chosen)"
+        - img
+        - text: Auto Recommended Included with your subscription
+        - option "Auto (chosen)" [selected]: In use"
     `);
   });
 
@@ -187,7 +187,7 @@ describe("ModelPicker in a browser", () => {
     `);
   });
 
-  it("repeats the composer's notice over the list, and its button does the fix", async () => {
+  it("offers the newer release on the chosen row, and its button switches", async () => {
     const onAction = vi.fn();
     const notice = noticeFor(
       readModelStatus({
@@ -204,6 +204,28 @@ describe("ModelPicker in a browser", () => {
     expect(onAction).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "switch", model: sonnet }),
     );
+  });
+
+  // cmdk lights its first item whether or not anything has been pointed at,
+  // which read as a row being pointed at before the panel was touched.
+  it("tints no row but the chosen one until the panel is used", async () => {
+    await openPicker(olderSonnet);
+
+    const tinted = () =>
+      [...document.querySelectorAll("[role=option]")]
+        .filter((row) => !row.hasAttribute("data-chosen"))
+        .filter(
+          (row) => getComputedStyle(row).backgroundColor !== "rgba(0, 0, 0, 0)",
+        )
+        .map((row) => row.textContent);
+
+    await expect.element(page.getByRole("dialog")).toBeVisible();
+    expect(tinted()).toEqual([]);
+
+    await userEvent.hover(
+      page.getByRole("option", { name: "Claude Haiku 4.5" }),
+    );
+    await expect.poll(tinted).toEqual(["Claude Haiku 4.5"]);
   });
 
   it("will not pick a model the user cannot run", async () => {

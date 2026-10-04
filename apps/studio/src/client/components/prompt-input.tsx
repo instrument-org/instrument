@@ -817,7 +817,6 @@ export const PromptInput = ({
                     promptEditorRef.current?.focus();
                   }
                 }}
-                onDismissOffer={dismissOffer}
                 onOpenChange={(open) => {
                   setPickerOpen(open);
                   if (open && modelsErrors && modelsErrors.length > 0) {
@@ -955,7 +954,6 @@ export const PromptInput = ({
                     void modelsRefetch();
                   }
                 }}
-                onDismissOffer={dismissOffer}
                 onValueChange={onModelChange}
                 open={pickerOpen}
                 selectedModel={selectedModel}

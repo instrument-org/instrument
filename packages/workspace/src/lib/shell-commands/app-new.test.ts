@@ -351,3 +351,55 @@ describe("app new with a key already stored", () => {
     );
   });
 });
+
+describe("app icon", () => {
+  async function setIcon(slug: string, file: string, svg: string) {
+    const fs = new InMemoryFs();
+    await fs.writeFile(`/task/${file}`, svg);
+    return createAppCommand({ taskId }).execute(
+      ["icon", slug, file],
+      createCommandContext({
+        cwd: "/task",
+        env: new Map<string, string>(),
+        fs,
+        stdin: EMPTY_BYTES,
+      }),
+    );
+  }
+
+  it("puts a square SVG in the app's folder, replacing a PNG", async () => {
+    await app(
+      "new",
+      "drafts-icon",
+      "--name",
+      "Drafts",
+      "--local",
+      "@agiletortoise/drafts-mcp-server",
+    );
+    const appDir = path.join(getWorkspaceConfig().appsDir, "drafts-icon");
+    await fs.writeFile(path.join(appDir, "icon.png"), "old");
+
+    const result = await setIcon(
+      "drafts-icon",
+      "mark.svg",
+      '<svg viewBox="0 0 64 64"><rect width="64" height="64"/></svg>',
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await fs.readdir(appDir)).toEqual(
+      expect.arrayContaining(["icon.svg"]),
+    );
+    expect(await fs.readdir(appDir)).not.toContain("icon.png");
+  });
+
+  it("refuses a file that would not draw as a square", async () => {
+    const result = await setIcon(
+      "drafts-icon",
+      "wide.svg",
+      '<svg viewBox="0 0 120 40"></svg>',
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("an icon is square");
+  });
+});

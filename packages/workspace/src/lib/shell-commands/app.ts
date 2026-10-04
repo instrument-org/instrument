@@ -1,7 +1,12 @@
-import { type ByteString, defineCommand } from "just-bash";
+import {
+  type ByteString,
+  defineCommand,
+  type ResolvedCommandContext,
+} from "just-bash";
 import ms from "ms";
 
 import { MOUNT } from "../../mount-points";
+import { publisher } from "../../rpc/publisher";
 import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
@@ -43,6 +48,7 @@ import {
   writeAppFolder,
   writeAppGuide,
 } from "../apps/store";
+import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { boundaryContainmentNote, boundContent } from "../content-boundary";
 import { taskDir } from "../task-dir-utils";
@@ -124,6 +130,11 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
   ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
       The app's ${APP_GUIDE_FILE_NAME}. With the whole file on stdin through a
       quoted heredoc, write it instead: how an API app's prompts get answered.
+  ${APP_COMMAND.name} icon <slug> <file>
+      Draw the app with this icon: a square SVG, or a square PNG of at least
+      128px, in place of its site's or its Mac app's. For a service whose site
+      has no good one, a local app that drives no Mac app, or when the user
+      asks. A task can draw one; set it from the task's folder.
   ${APP_COMMAND.name} disconnect <slug>
       Take the app's key or sign-in away. Its folder stays.
 
@@ -155,6 +166,9 @@ export function createAppCommand(context: AppCommandContext) {
         }
         case "guide": {
           return await runGuide(rest, context, ctx.stdin);
+        }
+        case "icon": {
+          return await runIcon(rest, context, ctx);
         }
         case "list": {
           return await runList(context);
@@ -565,6 +579,11 @@ function runCatalog(args: string[]) {
 }
 
 async function runDisconnect(args: string[], context: AppCommandContext) {
+  if (await allowedSlugs(context.taskId)) {
+    throw new Error(
+      "only the conversation disconnects apps; a task uses them.",
+    );
+  }
   const app = await requireApp(args[0], context, { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
@@ -599,6 +618,38 @@ async function runGuide(
   }
   await markGuideRead(context.taskId, app.slug);
   return ok(`${guide.trimEnd()}\n`);
+}
+
+async function runIcon(
+  args: string[],
+  context: AppCommandContext,
+  ctx: ResolvedCommandContext,
+) {
+  if (await allowedSlugs(context.taskId)) {
+    throw new Error("only the conversation sets apps up; a task uses them.");
+  }
+  const app = await requireApp(args[0], context, { connected: false });
+  const source = args[1];
+  if (!source) {
+    throw new Error(
+      `icon takes the app and a file: ${APP_COMMAND.name} icon ${app.slug} <path to a .svg or .png>.`,
+    );
+  }
+  let bytes: Uint8Array;
+  try {
+    bytes = await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, source));
+  } catch {
+    throw new Error(`cannot read ${source}.`);
+  }
+  const checked = checkAppIcon(bytes);
+  if ("error" in checked) {
+    throw new Error(`${source} cannot be ${app.slug}'s icon: ${checked.error}`);
+  }
+  await writeAppIcon(app.dir, bytes, checked.fileName);
+  publisher.publish("app.updated", null);
+  return ok(
+    `${app.slug} is drawn with ${MOUNT.apps}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
+  );
 }
 
 async function runList(context: AppCommandContext) {

@@ -1,5 +1,12 @@
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
-import { getMacAppIconUrl } from "@/electron-main/lib/file-open-target";
+import {
+  storeFileOpenIcon,
+  storeFileOpenSvgIcon,
+} from "@/electron-main/lib/app-protocol";
+import {
+  APP_ICON_SIZE,
+  getMacAppIconUrl,
+} from "@/electron-main/lib/file-open-target";
 import { base } from "@/electron-main/rpc/base";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
@@ -29,6 +36,8 @@ import {
   runAppTest,
   withAppMcpClient,
   workspacePublisher,
+  findAppIcon,
+  type AppManifest,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -67,7 +76,7 @@ const AppListItemSchema = z.object({
   hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
-  /** The installed Mac app's own icon, for a local server that drives one; drawn in place of the site's. */
+  /** The app's own icon from its folder, else its Mac app's for a local server that drives one; drawn in place of the site's. */
   icon: z.string().optional(),
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
@@ -78,6 +87,24 @@ const AppListItemSchema = z.object({
   standing: AppStandingSchema,
   type: z.enum(["api", "mcp", "mcp-local"]),
 });
+
+/** The app's own icon, else its Mac app's; neither leaves the site's to draw. */
+async function iconFor(app: {
+  dir: Parameters<typeof findAppIcon>[0];
+  manifest: AppManifest;
+}): Promise<{ icon?: string }> {
+  const own = await findAppIcon(app.dir).catch(() => undefined);
+  const url = own
+    ? await (
+        own.fileName === "icon.svg"
+          ? storeFileOpenSvgIcon(own.bytes)
+          : storeFileOpenIcon(own.bytes.toString("base64"), APP_ICON_SIZE)
+      ).catch(() => null)
+    : app.manifest.type === "mcp-local" && app.manifest.macApp
+      ? await getMacAppIconUrl(app.manifest.macApp).catch(() => null)
+      : null;
+  return url ? { icon: url } : {};
+}
 
 const AppListSchema = z.object({
   apps: z.array(AppListItemSchema),
@@ -112,14 +139,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
-          ...(app.manifest.type === "mcp-local" && app.manifest.macApp
-            ? {
-                icon:
-                  (await getMacAppIconUrl(app.manifest.macApp).catch(
-                    () => null,
-                  )) ?? undefined,
-              }
-            : {}),
+          ...(await iconFor(app)),
           name: app.manifest.name,
           ...(app.manifest.type === "mcp-local"
             ? { runs: describeLocalLaunch(app.manifest) }

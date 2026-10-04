@@ -89,7 +89,7 @@ export async function getBrowserOpenTarget(): Promise<FileOpenTarget> {
 }
 
 // Large enough for the biggest plate an app is drawn on.
-const MAC_APP_ICON_SIZE = 128;
+export const APP_ICON_SIZE = 128;
 const macAppIcons = new Map<string, Promise<null | string>>();
 
 /**
@@ -106,8 +106,8 @@ export function getMacAppIconUrl(bundleId: string): Promise<null | string> {
   if (cached) {
     return cached;
   }
-  const pending = renderDarwinBundleIcon(bundleId, MAC_APP_ICON_SIZE).then(
-    (base64) => storeFileOpenIcon(base64, MAC_APP_ICON_SIZE),
+  const pending = renderDarwinBundleIcon(bundleId, APP_ICON_SIZE).then(
+    (base64) => storeFileOpenIcon(base64, APP_ICON_SIZE),
   );
   macAppIcons.set(bundleId, pending);
   void pending.catch(() => {

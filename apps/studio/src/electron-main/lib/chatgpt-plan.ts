@@ -19,7 +19,10 @@ import {
   verify,
 } from "node:crypto";
 import { ulid } from "ulid";
+import { type Actor, createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
+
+import { grantMachine, type RefreshOutcome } from "./chatgpt-grant";
 
 /**
  * Sign in with ChatGPT for the user's own plans: an OAuth public client that
@@ -143,8 +146,8 @@ export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
     ) {
       return [];
     }
-    if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-      void refreshRegistration(registration.id);
+    if (isDue(registration)) {
+      grantOf(registration.id).send({ type: "refreshDue" });
     }
     return [
       {
@@ -209,8 +212,13 @@ async function verifyAccount(id: string): Promise<void> {
   // A refused expired token says nothing about the session, which the
   // refresh token still holds, so an old one is replaced before asking. A
   // refresh that could not finish leaves the question for the next time.
-  if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-    await refreshRegistration(id);
+  if (isDue(registration)) {
+    const grant = grantOf(id);
+    grant.send({ type: "refreshDue" });
+    await waitFor(
+      grant,
+      (snapshot) => !snapshot.matches({ active: "refreshing" }),
+    );
     registration = registrationById(id);
     if (
       !registration?.accessToken ||
@@ -225,7 +233,10 @@ async function verifyAccount(id: string): Promise<void> {
     });
     if (response.status === 401) {
       log.warn("ChatGPT refused a session; signing in again is required");
-      saveUnlessReplaced(registration, withoutTokens(registration));
+      grantOf(id).send({
+        accessToken: registration.accessToken,
+        type: "sessionRefused",
+      });
     }
   } catch (error) {
     // Offline says nothing about the session.
@@ -334,39 +345,39 @@ function hostId(): string {
 }
 
 /**
- * Writes what a request spending `spent`'s grant came back with, unless that
- * grant was replaced while the request was out: a sign-out removed it, or a
- * sign-in brought a new one. The answer describes a grant that is gone, and
- * writing it would bring back tokens the user signed out of or overwrite the
- * ones they just signed in with.
+ * The one writer of the registrations. Writes `next` (or, with null, forgets
+ * the registration) only when the stored one is still `spent`, the one the
+ * caller read before it went out: undefined for an account not stored yet.
+ * Otherwise the grant was replaced while the request was out (a sign-out
+ * removed it, or a sign-in brought new tokens), the answer describes a grant
+ * that is gone, and writing it would bring back tokens the user signed out of
+ * or overwrite the ones they just signed in with. Answers whether it wrote.
  */
-function saveUnlessReplaced(spent: Registration, next: Registration) {
-  const stored = registrationById(spent.id);
-  if (
-    !stored ||
-    stored.refreshToken !== spent.refreshToken ||
-    stored.accessToken !== spent.accessToken
-  ) {
+function saveUnlessReplaced(
+  spent: Registration | undefined,
+  next: null | Registration,
+): boolean {
+  const id = spent?.id ?? next?.id;
+  if (id === undefined) {
+    return false;
+  }
+  const stored = registrationById(id);
+  const unchanged =
+    spent === undefined
+      ? stored === undefined
+      : stored !== undefined &&
+        stored.refreshToken === spent.refreshToken &&
+        stored.accessToken === spent.accessToken;
+  if (!unchanged) {
     log.info(
       "ChatGPT grant changed while a request was out; dropping its answer",
     );
-    return;
+    return false;
   }
-  saveRegistration(next);
-}
-
-function saveRegistration(registration: Registration) {
   const store = getStore();
-  store.set("registrations", {
-    ...store.get("registrations"),
-    [registration.id]: registration,
-  });
-}
-
-function removeRegistration(id: string) {
-  const store = getStore();
-  const { [id]: _removed, ...rest } = store.get("registrations");
-  store.set("registrations", rest);
+  const { [id]: _replaced, ...rest } = store.get("registrations");
+  store.set("registrations", next ? { ...rest, [id]: next } : rest);
+  return true;
 }
 
 /**
@@ -446,13 +457,18 @@ export function signInWithChatGPT({
       resolve(null);
     };
   });
+  const target = accountId ? registrationById(accountId) : undefined;
+  const grant = target ? grantOf(target.id) : undefined;
+  grant?.send({ type: "signInStarted" });
   const entry: PendingSignIn = {
     ...controls,
     promise: runSignIn({
       received,
       redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
-      target: accountId ? registrationById(accountId) : undefined,
+      target,
     }).finally(() => {
+      // A sign-in that landed has told its grant; this one ended without.
+      grant?.send({ type: "signInEnded" });
       if (pendingSignIn === entry) {
         pendingSignIn = null;
       }
@@ -622,8 +638,10 @@ async function runSignIn({
     },
     existing,
   );
-  saveRegistration(registration);
-  scheduleRegistrationRefresh(registration.id);
+  // Over whatever is stored now: the user's sign-in wins over any answer
+  // still out for the tokens it replaces.
+  saveUnlessReplaced(registrationById(registration.id), registration);
+  grantOf(registration.id).send({ type: "signedIn" });
   return accountStatus(registration, registrations());
 }
 
@@ -636,38 +654,84 @@ const UNUSABLE_REFRESH_CODES = new Set([
   "token_expired",
 ]);
 
-// Per registration: each has its own rotating refresh token and its own clock.
-const refreshing = new Map<string, Promise<void>>();
-const refreshTimers = new Map<string, NodeJS.Timeout>();
-/** Refreshes that failed in a row, for how long to wait before the next. */
-const failedRefreshes = new Map<string, number>();
+/**
+ * Each account's grant (chatgpt-grant.ts), which holds its refresh clock and
+ * runs one refresh at a time: the refresh token rotates, so two racing
+ * requests would spend it twice and lose the session.
+ */
+const grants = new Map<string, Actor<typeof grantMachine>>();
 /** The longest wait between refreshes that keep failing. */
 const MAX_REFRESH_BACKOFF_MS = 5 * 60 * 1000;
+
+/** The account's grant, started on first use; it ends with a sign-out. */
+function grantOf(id: string): Actor<typeof grantMachine> {
+  const existing = grants.get(id);
+  if (existing) {
+    return existing;
+  }
+  const grant = createActor(
+    grantMachine.provide({
+      actions: {
+        endSession: (_, { accessToken }) => {
+          const stored = registrationById(id);
+          if (stored?.accessToken === accessToken) {
+            saveUnlessReplaced(stored, withoutTokens(stored));
+          }
+        },
+      },
+      actors: {
+        refresh: fromPromise<RefreshOutcome, { id: string }>(({ input }) =>
+          refreshTokens(input.id),
+        ),
+        revoke: fromPromise<{ revoked: boolean }, { id: string }>(({ input }) =>
+          forgetAndRevoke(input.id),
+        ),
+      },
+      delays: {
+        refreshDelay: ({ context }) => {
+          const registration = registrationById(context.id);
+          return registration
+            ? refreshDelayMs({
+                account: registration,
+                failures: context.failures,
+                now: Date.now(),
+              })
+            : MAX_REFRESH_BACKOFF_MS;
+        },
+      },
+      guards: {
+        hasSession: ({ context }) =>
+          Boolean(registrationById(context.id)?.refreshToken),
+        isDue: ({ context }) => isDue(registrationById(context.id)),
+      },
+    }),
+    { input: { id } },
+  );
+  grants.set(id, grant);
+  grant.subscribe({
+    complete: () => {
+      if (grants.get(id) === grant) {
+        grants.delete(id);
+      }
+    },
+  });
+  grant.start();
+  return grant;
+}
+
+/** Whether an account's access token is close enough to expiring to replace now. */
+function isDue(registration: Registration | undefined): boolean {
+  return (
+    registration?.refreshToken !== undefined &&
+    (registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS
+  );
+}
 
 /** Keep every account's token fresh; call once at startup. */
 export function scheduleRefresh(): void {
   for (const registration of registrations()) {
-    scheduleRegistrationRefresh(registration.id);
+    grantOf(registration.id);
   }
-}
-
-function scheduleRegistrationRefresh(id: string): void {
-  clearTimeout(refreshTimers.get(id));
-  refreshTimers.delete(id);
-  const registration = registrationById(id);
-  if (!registration?.refreshToken) {
-    return;
-  }
-  const timer = setTimeout(
-    () => void refreshRegistration(id),
-    refreshDelayMs({
-      account: registration,
-      failures: failedRefreshes.get(id) ?? 0,
-      now: Date.now(),
-    }),
-  );
-  timer.unref();
-  refreshTimers.set(id, timer);
 }
 
 /**
@@ -706,14 +770,7 @@ export function refreshDelayMs({
  */
 export function refreshAfterWake(): void {
   for (const registration of registrations()) {
-    if (!registration.refreshToken) {
-      continue;
-    }
-    if ((registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
-      void refreshRegistration(registration.id);
-    } else {
-      scheduleRegistrationRefresh(registration.id);
-    }
+    grantOf(registration.id).send({ type: "woke" });
   }
 }
 
@@ -723,51 +780,61 @@ export async function signOutOfChatGPT({
 }: {
   accountId: string;
 }): Promise<{ revoked: boolean }> {
-  // A refresh in flight spends the refresh token and brings back its
-  // replacement. Waited out, so the token revoked below is the current one.
-  await refreshing.get(accountId);
-  const registration = registrationById(accountId);
+  if (!registrationById(accountId)) {
+    return { revoked: true };
+  }
+  const grant = grantOf(accountId);
+  // A refresh out when this is asked is waited for, so the token revoked is
+  // the one it brought back.
+  grant.send({ type: "signOut" });
+  const done = await waitFor(grant, (snapshot) => snapshot.status === "done");
+  return done.output ?? { revoked: false };
+}
+
+/**
+ * Forgets the account and revokes its refresh token. Gone from the store
+ * before the revocation is asked, so nothing that starts meanwhile can spend
+ * the token or keep it.
+ */
+async function forgetAndRevoke(id: string): Promise<{ revoked: boolean }> {
+  const registration = registrationById(id);
+  lastVerifiedAt.delete(id);
   if (!registration) {
     return { revoked: true };
   }
-  clearTimeout(refreshTimers.get(accountId));
-  refreshTimers.delete(accountId);
-  failedRefreshes.delete(accountId);
-  lastVerifiedAt.delete(accountId);
-  // Gone from the store before the revocation is asked, so nothing that starts
-  // meanwhile can spend the token or keep it.
-  removeRegistration(accountId);
-  let revoked = !registration.refreshToken;
-  if (registration.refreshToken) {
-    try {
-      const discovery = await openIdConfiguration();
-      const response = await fetch(discovery.revocation_endpoint, {
-        body: new URLSearchParams({
-          client_id: registration.clientId,
-          token: registration.refreshToken,
-          token_type_hint: "refresh_token",
-        }),
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        method: "POST",
-      });
-      revoked = response.ok;
-    } catch (error) {
-      log.warn("ChatGPT token revocation failed", error);
-    }
+  saveUnlessReplaced(registration, null);
+  if (!registration.refreshToken) {
+    return { revoked: true };
   }
-  return { revoked };
+  try {
+    const discovery = await openIdConfiguration();
+    const response = await fetch(discovery.revocation_endpoint, {
+      body: new URLSearchParams({
+        client_id: registration.clientId,
+        token: registration.refreshToken,
+        token_type_hint: "refresh_token",
+      }),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+    });
+    return { revoked: response.ok };
+  } catch (error) {
+    log.warn("ChatGPT token revocation failed", error);
+    return { revoked: false };
+  }
 }
 
-async function doRefresh(id: string): Promise<void> {
+/** One refresh of an account's tokens; its grant runs one at a time. */
+async function refreshTokens(id: string): Promise<RefreshOutcome> {
   const registration = registrationById(id);
   if (!registration?.refreshToken) {
-    return;
+    return "ended";
   }
   if (
     registration.earliestRefreshAt &&
     Date.now() < registration.earliestRefreshAt
   ) {
-    return;
+    return "not-yet";
   }
   try {
     const tokens = await postToken({
@@ -776,38 +843,26 @@ async function doRefresh(id: string): Promise<void> {
       refresh_token: registration.refreshToken,
       resource: RESOURCE,
     });
-    saveUnlessReplaced(
+    return saveUnlessReplaced(
       registration,
       registrationFromTokens(tokens, registration, registration),
-    );
-    failedRefreshes.delete(id);
+    )
+      ? "refreshed"
+      : "replaced";
   } catch (error) {
     if (
       error instanceof TokenError &&
       UNUSABLE_REFRESH_CODES.has(error.code ?? "")
     ) {
       log.warn("ChatGPT session ended; signing in again is required");
-      saveUnlessReplaced(registration, withoutTokens(registration));
-      return;
+      return saveUnlessReplaced(registration, withoutTokens(registration))
+        ? "ended"
+        : "replaced";
     }
     // A network or server failure keeps the credentials for the next try.
-    failedRefreshes.set(id, (failedRefreshes.get(id) ?? 0) + 1);
     log.warn("ChatGPT token refresh failed", error);
+    return "failed";
   }
-}
-
-// One refresh at a time per account: the refresh token rotates, so two racing
-// requests would spend it twice and lose the session.
-function refreshRegistration(id: string): Promise<void> {
-  let inFlight = refreshing.get(id);
-  if (!inFlight) {
-    inFlight = doRefresh(id).finally(() => {
-      refreshing.delete(id);
-      scheduleRegistrationRefresh(id);
-    });
-    refreshing.set(id, inFlight);
-  }
-  return inFlight;
 }
 
 function withoutTokens(registration: Registration): Registration {

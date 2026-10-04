@@ -16,6 +16,7 @@ import {
   openAppScreen,
   openAppWindow,
   updateAppWindowBackgroundColor,
+  warmAppWindowBehind,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
@@ -242,7 +243,7 @@ async function bootstrapPrimaryInstance() {
   });
 
   if (shouldShowOnboarding()) {
-    openOnboardingWindow();
+    openOnboarding();
   } else {
     openAppWindow();
   }
@@ -264,7 +265,7 @@ async function bootstrapPrimaryInstance() {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
       if (shouldShowOnboarding()) {
-        openOnboardingWindow();
+        openOnboarding();
       } else {
         openAppWindow();
       }
@@ -299,7 +300,7 @@ function focusForegroundWindow() {
     return;
   }
   if (shouldShowOnboarding()) {
-    openOnboardingWindow();
+    openOnboarding();
     return;
   }
   ensureForegroundWindowVisible();
@@ -316,6 +317,11 @@ function handleDeepLink(url: string) {
   if (link) {
     openAppScreen(link.href);
   }
+}
+
+/** Onboarding, with the app window loading off screen behind it. */
+function openOnboarding() {
+  warmAppWindowBehind(openOnboardingWindow());
 }
 
 function shouldShowOnboarding(): boolean {

@@ -55,6 +55,19 @@ let pendingAsks: AppWindowAsk[] = [];
  */
 let isTakingAsks = false;
 
+/**
+ * Whether the window is open but held off screen, loading behind onboarding so
+ * it is ready the moment onboarding is done. Asks wait for it to come on
+ * screen rather than going to a page nobody can see.
+ */
+let isWarming = false;
+
+/** Settles once the window has painted, and so can go on screen. */
+let painted: Promise<void> = Promise.resolve();
+
+/** Whether the window comes on screen maximized, as it was last left. */
+let showsMaximized = false;
+
 export function getAppWindow(): BrowserWindow | null {
   return appWindow && !appWindow.isDestroyed() ? appWindow : null;
 }
@@ -91,10 +104,24 @@ export function openAppScreen(href: string) {
 /**
  * The app window: the inbox of chats, the tasks they started, and the tabs
  * the user and the agents open. Its renderer hosts every task's browser guest.
+ *
+ * `hidden` opens it off screen to warm behind onboarding
+ * ({@link warmAppWindowBehind}); opening it again without puts it on screen.
+ * `onShow` runs once the window is on screen, for a window it replaces. Not
+ * the window's own `show` event, which macOS ties to occlusion and does not
+ * send while the display sleeps.
  */
-export function openAppWindow(): BrowserWindow {
+export function openAppWindow({
+  hidden = false,
+  onShow,
+}: { hidden?: boolean; onShow?: () => void } = {}): BrowserWindow {
   if (appWindow && !appWindow.isDestroyed()) {
-    appWindow.focus();
+    if (isWarming && !hidden) {
+      revealAppWindow(onShow);
+    } else if (!isWarming) {
+      appWindow.focus();
+      onShow?.();
+    }
     return appWindow;
   }
 
@@ -102,6 +129,7 @@ export function openAppWindow(): BrowserWindow {
     height: WINDOW_HEIGHT,
     width: WINDOW_WIDTH,
   });
+  showsMaximized = remembered.isMaximized;
 
   appWindow = new BrowserWindow({
     ...remembered.bounds,
@@ -158,15 +186,14 @@ export function openAppWindow(): BrowserWindow {
   // one keeps its macOS frame.
   setTrafficLightForZoom(appWindow, getAppZoom());
 
-  showWhenReady(appWindow, () => {
-    // Maximized only once there is a window to maximize: on Windows and Linux
-    // maximizing one that has not been shown is itself what shows it, which
-    // would put this window up before its first paint.
-    if (remembered.isMaximized) {
-      appWindow?.maximize();
-    }
-    appWindow?.show();
+  const window = appWindow;
+  painted = new Promise((resolve) => {
+    showWhenReady(window, resolve);
   });
+  isWarming = hidden;
+  if (!hidden) {
+    revealAppWindow(onShow);
+  }
 
   // Closing the last window the user can see quits the app, so the
   // running-agent warning has to happen here, while the window still exists.
@@ -262,6 +289,52 @@ export function openAppWindow(): BrowserWindow {
 }
 
 /**
+ * Opens the app window off screen once onboarding has painted, so it loads
+ * while the person goes through onboarding instead of after it, and is ready
+ * to take onboarding's place the moment they finish. After onboarding's own
+ * first paint, so the two pages do not compete for it. Onboarding closed
+ * without finishing takes the waiting window with it, which is then the last
+ * window and quits the app.
+ */
+export function warmAppWindowBehind(onboarding: BrowserWindow) {
+  onboarding.webContents.once("did-finish-load", () => {
+    if (!onboarding.isDestroyed() && !getAppWindow()) {
+      openAppWindow({ hidden: true });
+    }
+  });
+  onboarding.once("closed", () => {
+    if (isWarming) {
+      appWindow?.destroy();
+    }
+  });
+}
+
+/** Puts the window on screen once it has painted, with what waited for it. */
+function revealAppWindow(onShow?: () => void) {
+  isWarming = false;
+  void painted.then(() => {
+    const window = getAppWindow();
+    if (!window) {
+      return;
+    }
+    // Maximized only once there is a window to maximize: on Windows and Linux
+    // maximizing one that has not been shown is itself what shows it, which
+    // would put this window up before its first paint.
+    if (showsMaximized) {
+      window.maximize();
+    }
+    window.show();
+    onShow?.();
+    // What was asked while it waited off screen, for a page already listening.
+    if (isTakingAsks) {
+      for (const ask of takePendingAppWindowAsks()) {
+        publisher.publish("window.command", ask);
+      }
+    }
+  });
+}
+
+/**
  * What waits for the window without taking it: what onboarding names, so
  * the person knows it opens once they are through.
  */
@@ -271,9 +344,14 @@ export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
 
 /** What was asked of the window while it was opening, once, then nothing. */
 export function takePendingAppWindowAsks(): AppWindowAsk[] {
+  isTakingAsks = true;
+  // A page warming off screen is listening, but what waits is for the window
+  // the person sees; it is handed over when the window comes on screen.
+  if (isWarming) {
+    return [];
+  }
   const asks = pendingAsks;
   pendingAsks = [];
-  isTakingAsks = true;
   return asks;
 }
 
@@ -285,7 +363,7 @@ export function updateAppWindowBackgroundColor() {
 
 function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
-  if (window) {
+  if (window && !isWarming) {
     window.focus();
     if (isTakingAsks) {
       publisher.publish("window.command", ask);

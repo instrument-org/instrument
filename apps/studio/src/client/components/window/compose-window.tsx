@@ -11,6 +11,7 @@ import {
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
   type ScreenView,
+  screenViewsAtom,
   type WindowTab,
 } from "@/client/atoms/window";
 import {
@@ -506,7 +507,7 @@ export function ComposeWindow({
   // What the band has up, for the chat the draft starts: a folder or file
   // is said by the screen drawing it, since only that screen knows where the
   // browser has walked to.
-  const [filesView, setFilesView] = useState<null | ScreenView>(null);
+  const filesView = useAtomValue(screenViewsAtom)[up?.id ?? ""] ?? null;
   const onViewChangeEvent = useEffectEvent(onViewChange);
   const upKind =
     up === undefined || (up.kind === "screen" && isHomeTab(up))
@@ -593,7 +594,6 @@ export function ComposeWindow({
         group={group}
         onPageChrome={onPageChrome}
         onPageHost={setPageHost}
-        onScreenView={setFilesView}
         up={up}
       />
     );

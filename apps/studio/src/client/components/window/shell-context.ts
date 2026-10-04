@@ -4,6 +4,7 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { atom } from "jotai";
 import { createContext, useContext } from "react";
 
 import { type useAppTabs } from "./app-tabs";
@@ -12,16 +13,18 @@ import { type Chat, type Topic } from "./chats";
 import { type useCompose } from "./use-compose";
 
 /**
- * Where the tab on screen wants the window's page drawn: the element the
- * page lies over, the row its reload and controls go into, and whether the
- * page is what the tab shows right now. A tab with no page to show reports
- * nothing.
+ * Where a tab wants the window's page drawn: the element the page lies
+ * over, the row its reload and controls go into, and whether the page is
+ * what the tab shows right now. A tab with no page to show reports nothing.
  */
 export interface PageSlot {
   chrome: PageChromeSlots | undefined;
   host: HTMLElement | null;
   isShown: boolean;
 }
+
+/** Where each of the window's tabs wants the page drawn, by the tab's id; a tab with none is not named. In memory only, with the elements. */
+export const pageSlotByTabAtom = atom<Readonly<Record<string, PageSlot>>>({});
 
 /**
  * What the window keeps once and every app tab reads: its lists, the drafts
@@ -48,8 +51,6 @@ export interface WindowShell {
   onNewTopic: (name: string | undefined) => void;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<StoreId.Session, string>;
-  /** Where the tab on screen wants the page drawn; null for none. */
-  reportPageSlot: (slot: null | PageSlot) => void;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */

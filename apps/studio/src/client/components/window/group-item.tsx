@@ -1,4 +1,4 @@
-import { type ScreenView, type WindowTab } from "@/client/atoms/window";
+import { screenViewsAtom, type WindowTab } from "@/client/atoms/window";
 import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
@@ -8,6 +8,7 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -41,7 +42,6 @@ export function GroupItem({
   onClose,
   onPageChrome,
   onPageHost,
-  onScreenView,
   up,
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
@@ -56,8 +56,6 @@ export function GroupItem({
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
-  /** What a screen it draws has up (the Finder, a chat's tasks), in the terms the conversation is told it. */
-  onScreenView?: (view: null | ScreenView) => void;
   up: WindowTab;
 }) {
   const windowTabs = useWindowTabs();
@@ -70,7 +68,8 @@ export function GroupItem({
   const [screenTail, setScreenTail] = useState<HTMLDivElement | null>(null);
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
-  const [filesView, setFilesView] = useState<null | ScreenView>(null);
+  // What the screen up says it shows, which the row reads a folder's place off.
+  const filesView = useAtomValue(screenViewsAtom)[up.id];
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
@@ -237,10 +236,6 @@ export function GroupItem({
             closeTab(up.id);
           },
           id: up.id,
-          report: (view) => {
-            setFilesView(view);
-            onScreenView?.(view);
-          },
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },

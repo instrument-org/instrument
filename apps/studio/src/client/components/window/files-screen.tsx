@@ -318,15 +318,13 @@ export function FilesScreen({
     [],
   );
   useEffect(() => {
-    // Drawn only while this screen's tab is the one up: a tab behind keeps
+    // Shown only while this screen's tab is the one up: a tab behind keeps
     // its page parked rather than over the tab in front.
-    if (!isActiveTab) {
-      return;
-    }
     setPageSlots((current) =>
-      current[hostGroup]?.into === slot
+      current[hostGroup]?.into === slot &&
+      current[hostGroup].isShown === isActiveTab
         ? current
-        : { ...current, [hostGroup]: { into: slot } },
+        : { ...current, [hostGroup]: { into: slot, isShown: isActiveTab } },
     );
     return () => {
       setPageSlots((current) => {

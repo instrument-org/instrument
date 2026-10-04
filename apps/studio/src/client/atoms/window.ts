@@ -46,9 +46,11 @@ export const recentsAtom = atomWithStorage<RecentEntry[]>(
 );
 
 /**
- * What the window has on screen this moment, written by the screen that is
- * up and cleared when it leaves, so what goes with a message is what the
- * user was looking at and never a screen they left. The page's words and the
+ * What each screen shows, by the tab it is drawn in (one of the window's own
+ * tabs, or a group's tab beside a chat or in a draft's band), written by the
+ * screen and cleared when it leaves. What goes with a message is read from
+ * the tab in view at the moment of sending, so it is what the user was
+ * looking at and never a screen they left. The page's words and the
  * screen's address are added at send time by the layout, which holds both.
  */
 export type ScreenView = Omit<
@@ -56,7 +58,7 @@ export type ScreenView = Omit<
   "page" | "url"
 >;
 
-export const screenViewAtom = atom<null | ScreenView>(null);
+export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
 
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
@@ -457,12 +459,18 @@ export const fileTreeWidthAtom = atomWithStorage<number>(
  * that page as a tab in a group of its own, off every strip, and says here
  * where the browser is to draw it. A slot inside a surface floating over the
  * window (Quick Look) names the layer its page stands on, and is shown for as
- * long as it is there. In memory only, with the elements.
+ * long as it is there; a slot in one of the window's tabs is shown while
+ * that tab is up. In memory only, with the elements.
  */
 export const pageSlotsAtom = atom<
   Record<
     string,
-    { insideOverlay?: boolean; into: HTMLElement | null; layer?: number }
+    {
+      insideOverlay?: boolean;
+      into: HTMLElement | null;
+      isShown?: boolean;
+      layer?: number;
+    }
   >
 >({});
 

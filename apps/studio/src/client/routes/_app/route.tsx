@@ -8,8 +8,7 @@ import {
   inboxOpenAtom,
   inboxWidthAtom,
   paneOpenByGroupAtom,
-  type ScreenView,
-  screenViewAtom,
+  screenViewsAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -41,12 +40,15 @@ import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
-import { useShell } from "@/client/components/window/shell-context";
+import {
+  pageSlotByTabAtom,
+  useShell,
+} from "@/client/components/window/shell-context";
 import { tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import { chatOfHref } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
@@ -200,8 +202,6 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     pageChrome,
     showsPane && up.kind === "page",
   );
-  const reportView = useScreenViewOfTab();
-
   const chatRecord = chats?.find((entry) => entry.id === chat);
 
   return (
@@ -336,7 +336,6 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                       }}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
-                      onScreenView={reportView}
                       up={up}
                     />
                   )}
@@ -420,7 +419,7 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewAtom);
+  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -504,7 +503,6 @@ function SiteView({ group }: { group: string }) {
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);
-  const reportView = useScreenViewOfTab();
   // A tab reopened after its page was put away brings the page back, at
   // the address it had.
   const [putAway, setPutAway] = useAtom(putAwaySitesAtom);
@@ -557,7 +555,6 @@ function SiteView({ group }: { group: string }) {
         isFramed={false}
         onPageChrome={setPageChrome}
         onPageHost={setPageHost}
-        onScreenView={reportView}
         up={up}
       />
     </div>
@@ -590,41 +587,30 @@ function TabContent() {
 }
 
 /**
- * Where this tab wants the window's page drawn, told to the window while the
- * tab is the one up: a tab behind leaves the page to the tab in front.
+ * Where this tab wants the window's page drawn, told to the window under the
+ * tab's id; the window draws the page where the tab up wants it.
  */
 function usePageSlot(
   host: HTMLElement | null,
   chrome: PageChromeSlots | undefined,
   isShown: boolean,
 ) {
-  const { reportPageSlot } = useShell();
-  const isActive = useIsActiveTab();
+  const setSlots = useSetAtom(pageSlotByTabAtom);
+  const tabId = useTabId();
   useEffect(() => {
-    if (!isActive) {
+    if (!host) {
       return;
     }
-    reportPageSlot(host ? { chrome, host, isShown } : null);
-  }, [chrome, host, isActive, isShown, reportPageSlot]);
-}
-
-/**
- * What a screen in this tab has up, told to the window while the tab is the
- * one up, for what goes with a message.
- */
-function useScreenViewOfTab() {
-  const isActive = useIsActiveTab();
-  const setScreenView = useSetAtom(screenViewAtom);
-  const [view, setView] = useState<null | ScreenView>(null);
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    setScreenView(view);
-    // Only its own answer is cleared, so the next tab's is not cleared with it.
+    const slot = { chrome, host, isShown };
+    setSlots((current) => ({ ...current, [tabId]: slot }));
     return () => {
-      setScreenView((current) => (current === view ? null : current));
+      setSlots((current) => {
+        if (current[tabId] !== slot) {
+          return current;
+        }
+        const { [tabId]: _gone, ...rest } = current;
+        return rest;
+      });
     };
-  }, [isActive, setScreenView, view]);
-  return setView;
+  }, [chrome, host, isShown, setSlots, tabId]);
 }

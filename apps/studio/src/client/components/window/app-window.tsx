@@ -8,7 +8,7 @@ import {
   inboxOpenAtom,
   pageSlotsAtom,
   paneOpenByGroupAtom,
-  screenViewAtom,
+  screenViewsAtom,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -102,7 +102,7 @@ import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
 import {
-  type PageSlot,
+  pageSlotByTabAtom,
   type WindowShell as Shell,
   ShellContext,
 } from "./shell-context";
@@ -273,7 +273,6 @@ function WindowShell({
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
-  const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
@@ -423,14 +422,14 @@ function WindowShell({
   // file tab's tree), shown while the screen that made the slot is up.
   const pageSlots = useAtomValue(pageSlotsAtom);
   const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, { insideOverlay, into, layer }]) =>
+    ([group, { insideOverlay, into, isShown = true, layer }]) =>
       into
         ? [
             {
               chrome: false,
               group,
               into,
-              isActive: true,
+              isActive: isShown,
               ...(layer === undefined ? {} : { layer }),
               ...(insideOverlay ? { insideOverlay } : {}),
               place: `${group}:${rowWidth}`,
@@ -442,7 +441,8 @@ function WindowShell({
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
-  const [pageSlot, setPageSlot] = useState<null | PageSlot>(null);
+  const pageSlot =
+    useAtomValue(pageSlotByTabAtom)[appTabs.model.selectedId ?? ""] ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";
@@ -558,6 +558,19 @@ function WindowShell({
     canPeek: !isChat || (chatUp !== undefined && !isInboxOpen),
   });
 
+  // What the tab in view says it shows: a chat's or a site's tab up while
+  // its pane is open, or the screen the window's tab is at.
+  const screenViews = useAtomValue(screenViewsAtom);
+  const groupUp = windowTabs.active;
+  const groupInView = windowTabs.groupOnScreen;
+  const screenView =
+    groupInView === undefined
+      ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
+      : groupUp?.kind === "screen" &&
+          (!StoreId.SessionSchema.safeParse(groupInView).success ||
+            (paneOpenByGroup[groupInView] ?? true))
+        ? (screenViews[groupUp.id] ?? null)
+        : null;
   // What goes with a message, read at the moment of sending.
   const finders = useAtomValue(findersByTabAtom);
   const { draftContext, sendContext } = contextReaders({
@@ -764,7 +777,6 @@ function WindowShell({
     onNewTopic: (name) => {
       setNewTopic(name ? { name } : {});
     },
-    reportPageSlot: setPageSlot,
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),

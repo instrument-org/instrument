@@ -59,9 +59,11 @@ export function checkAppIcon(
     if (!viewBox) {
       return { error: "the SVG has no viewBox, so it cannot scale." };
     }
-    if (Number(viewBox[1]) !== Number(viewBox[2])) {
+    const width = Number(viewBox[1]);
+    const height = Number(viewBox[2]);
+    if (width !== height) {
       return {
-        error: `the SVG's viewBox is ${viewBox[1]}x${viewBox[2]}; an icon is square.`,
+        error: `the SVG's viewBox is ${width}x${height}; an icon is square.`,
       };
     }
     return { fileName: "icon.svg" };

@@ -1,9 +1,11 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
+import { type TaskDir } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
+import { type RecordRef } from "../record-folders";
 import { type TaskVenvError } from "../ensure-task-venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
@@ -62,6 +64,12 @@ export type ToWorker =
       config: WorkerConfig;
       execOptions: Omit<ExecOptions, "signal">;
       id: number;
+      /**
+       * The record the shell runs in, resolved on main, which keeps the
+       * folder index: the worker answers for this record alone and never
+       * reads the index itself.
+       */
+      record: { dir: TaskDir; ref: RecordRef } | undefined;
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";

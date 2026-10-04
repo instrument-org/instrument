@@ -61,6 +61,14 @@ interface Index {
 
 let index: Index | undefined;
 
+/**
+ * The records this process was handed and the folder each is in, in a
+ * process that is told its records rather than reading them (the bash
+ * worker, handed the one its command runs in). Set, it is the whole answer:
+ * an id not in it is not found, and the index is never read from disk.
+ */
+let handed: Map<TaskId, { dir: TaskDir; ref: RecordRef }> | undefined;
+
 /** A chat's own folder. */
 export function chatDir(id: ChatId): ChatDir {
   return ChatDirSchema.parse(path.join(chatsDir(), id));
@@ -157,6 +165,14 @@ export function forgetRecord(id: TaskId): void {
   known.tasks.delete(id);
 }
 
+/**
+ * Takes a record resolved by another process, and from then on answers only
+ * for the records handed in, without reading the disk.
+ */
+export function handRecord(record: { dir: TaskDir; ref: RecordRef }): void {
+  (handed ??= new Map()).set(record.ref.id, record);
+}
+
 /** Reads the index from disk again on its next use. */
 export function forgetRecordFolders(): void {
   index = undefined;
@@ -206,6 +222,10 @@ export function recordDir(id: TaskId): TaskDir {
   if (id === WINDOW_ID) {
     return TaskDirSchema.parse(windowDir());
   }
+  const given = handed?.get(id);
+  if (given) {
+    return given.dir;
+  }
   const ref = resolveRecord(id);
   if (ref.isErr()) {
     throw ref.error;
@@ -245,6 +265,12 @@ export function resolveRecord(
   const parsed = TaskIdSchema.safeParse(id);
   if (!parsed.success || parsed.data === WINDOW_ID) {
     return err(new TypedError.NotFound(`No record has the id ${id}.`));
+  }
+  if (handed) {
+    const given = handed.get(parsed.data);
+    return given
+      ? ok(given.ref)
+      : err(new TypedError.NotFound(`No record has the id ${id}.`));
   }
   const known = read();
   const ref = refIn(known, parsed.data) ?? discover(known, parsed.data);
@@ -359,6 +385,16 @@ function listDirs(dir: string): string[] {
 
 function read(): Index {
   const { rootDir, tasksDir } = getWorkspaceConfig();
+  if (handed) {
+    // Nothing but what was handed in: an empty index, never a scan.
+    return {
+      chats: new Map(),
+      root: rootDir,
+      sessions: new Map(),
+      tasks: new Map(),
+      tasksDir,
+    };
+  }
   if (index?.root === rootDir && index.tasksDir === tasksDir) {
     return index;
   }

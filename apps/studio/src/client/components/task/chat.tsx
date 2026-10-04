@@ -444,7 +444,7 @@ export function TaskChat({
                 data-transcript
               >
                 <MessageScrollerContent
-                  className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]"
+                  className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]"
                   ref={contentRef}
                 >
                   {selectedSessionId ? (
@@ -567,7 +567,7 @@ function SentPrompt({
     }),
   );
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
       <UserMessage compact part={part} />
       <TypingRow />
     </div>

@@ -1,3 +1,4 @@
+import { cn } from "@/client/lib/utils";
 import {
   AGENT_MESSAGE_LANGUAGE,
   FILES_FENCE,
@@ -11,6 +12,7 @@ import { memo, useContext } from "react";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { BubbleActions } from "./bubble-actions";
+import { FollowedBubblesContext } from "./bubble-run-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MessageCard } from "./message-card";
 import { ReplyContext } from "./reply-context";
@@ -29,14 +31,20 @@ interface AssistantMessageProps {
 
 /**
  * The face an assistant's bubble wears, the user's shape mirrored: the same
- * soft corners with the short one at the top left, on the card's ground with
- * no edge and no shadow, where the user's is the brand's tint.
- * `--transcript-room` is zeroed inside it so a wide table scrolls within the
- * bubble rather than bleeding past its edge into the room the transcript
- * has: the bubble is the reply's whole width.
+ * soft corners, on the card's ground with no edge and no shadow, where the
+ * user's is the brand's tint. `--transcript-room` is zeroed inside it so a
+ * wide table scrolls within the bubble rather than bleeding past its edge into
+ * the room the transcript has: the bubble is the reply's whole width.
  */
 export const ASSISTANT_BUBBLE =
-  "max-w-[85%] min-w-0 rounded-2xl rounded-tl-md bg-card px-3.5 py-2 text-foreground [--transcript-room:0px]";
+  "max-w-[85%] min-w-0 rounded-2xl bg-card px-3.5 py-2 text-foreground [--transcript-room:0px]";
+
+/**
+ * The short corner at the bottom left that the last bubble of a run of the
+ * assistant's wears, the tail a text chat draws there; see
+ * `FollowedBubblesContext`.
+ */
+export const ASSISTANT_BUBBLE_TAIL = "rounded-bl-md";
 
 /** A ```message fence that has opened and not yet closed, to the end. */
 const OPEN_MESSAGE_FENCE = new RegExp(
@@ -76,6 +84,13 @@ function messageSegments(
   return segments;
 }
 
+/** Whether a reply's text draws any words in a bubble, not only cards. */
+export function hasBubbleWords(text: string): boolean {
+  return messageSegments(text.replace(FILES_FENCE, "")).some(
+    (segment) => segment.kind === "words",
+  );
+}
+
 export const AssistantMessage = memo(function AssistantMessage({
   bubble = false,
   part,
@@ -83,6 +98,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 }: AssistantMessageProps) {
   const messageText = part.text;
   const startReply = useContext(ReplyContext);
+  const isFollowed = useContext(FollowedBubblesContext).has(part.metadata.id);
 
   if (bubble) {
     // The bubble is for the words. The files a reply hands over stand under
@@ -97,6 +113,11 @@ export const AssistantMessage = memo(function AssistantMessage({
     // sentence is too narrow to read an email in.
     const segments = messageSegments(messageText.replace(FILES_FENCE, ""));
     const isStreaming = part.state === "streaming";
+    // The part's last bubble ends the run unless a later one carries it on;
+    // a card under it is not a bubble and leaves the tail where it is.
+    const tailIndex = isFollowed
+      ? -1
+      : segments.findLastIndex((segment) => segment.kind === "words");
     return (
       <div className="flex flex-col items-start gap-2">
         {segments.map((segment, index) =>
@@ -107,7 +128,12 @@ export const AssistantMessage = memo(function AssistantMessage({
               data-reply-target={part.metadata.id}
               key={index}
             >
-              <div className={ASSISTANT_BUBBLE}>
+              <div
+                className={cn(
+                  ASSISTANT_BUBBLE,
+                  index === tailIndex && ASSISTANT_BUBBLE_TAIL,
+                )}
+              >
                 <SessionMarkdown
                   assetVersion={part.metadata.id}
                   className="text-sm/[1.5]"

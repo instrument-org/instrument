@@ -4,9 +4,10 @@ import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention"
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { debounce } from "radashi";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useContext, useEffect, useRef, useState } from "react";
 
 import { BubbleActions } from "./bubble-actions";
+import { FollowedBubblesContext } from "./bubble-run-context";
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
 import { SkillMentionText } from "./skill-mention-text";
@@ -40,6 +41,7 @@ export const UserMessage = memo(function UserMessage({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isFollowed = useContext(FollowedBubblesContext).has(part.metadata.id);
 
   const messageText = part.text;
 
@@ -84,12 +86,13 @@ export const UserMessage = memo(function UserMessage({
             "relative max-w-[80%] text-foreground",
             // In the conversation the user's bubble wears the brand's tint,
             // rebuilt light and soft from the brand's hue since no token of the
-            // scale sits there, with soft corners and the short one at the top
-            // right, facing the assistant's on the card's ground; on a task
-            // page it is a card of its own.
+            // scale sits there, with soft corners and, on the last of a run,
+            // the short one at the bottom right, facing the assistant's on the
+            // card's ground; on a task page it is a card of its own.
             compact
-              ? "rounded-2xl rounded-tr-md bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]"
+              ? "rounded-2xl bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]"
               : "rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm dark:from-card dark:to-card",
+            compact && !isFollowed && "rounded-br-md",
           )}
         >
           <Collapsible
@@ -134,6 +137,7 @@ export const UserMessage = memo(function UserMessage({
                 className={cn(
                   "pointer-events-none absolute right-0 bottom-0 left-0 h-12 bg-linear-to-t from-50%",
                   compact ? "rounded-b-2xl" : "rounded-br-xl rounded-bl-xl",
+                  compact && !isFollowed && "rounded-br-md",
                   compact
                     ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
                     : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",

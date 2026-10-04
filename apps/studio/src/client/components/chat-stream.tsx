@@ -9,12 +9,17 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
-import { ASSISTANT_BUBBLE } from "./assistant-message";
+import {
+  ASSISTANT_BUBBLE,
+  ASSISTANT_BUBBLE_TAIL,
+  hasBubbleWords,
+} from "./assistant-message";
+import { FollowedBubblesContext } from "./bubble-run-context";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
 import { ChatSeparatorRow } from "./chat-separator";
@@ -114,6 +119,17 @@ const PROSE_GAP_IN_GROUP = "pt-3";
 // asked to find the footer in order to reveal it.
 const TURN_BOX = "group/assistant-turn flex flex-col gap-2";
 const SENT_BOX = "flex flex-col gap-2";
+
+// The conversation's boxes are one speaker's run of bubbles, held 4px apart so
+// the run reads as one cluster against the 16px the chat's column puts between
+// speakers (`task/chat.tsx`).
+const CHAT_TURN_BOX = "group/assistant-turn flex flex-col gap-1";
+const CHAT_SENT_BOX = "flex flex-col gap-1";
+
+// A box that goes on with the speaker of the one above it -- a second message
+// sent before the reply came, the dots under a reply already in progress -- is
+// pulled up out of the column's 16px to the 4px of the run it continues.
+const CHAT_CONTINUES_RUN = "-mt-3";
 
 interface AssistantMessageCheck {
   /**
@@ -464,7 +480,16 @@ export function ChatStream({
     );
   };
 
+  const followedBubbles = new Set<string>();
   const chatElements = buildChatElements();
+  // One set for as long as the same bubbles are followed, so a render that
+  // moves no tail re-renders no bubble: the transcript renders on every token
+  // the agent writes.
+  const followedKey = [...followedBubbles].join(" ");
+  const stableFollowedBubbles = useMemo(
+    () => new Set(followedKey.split(" ")),
+    [followedKey],
+  );
 
   function buildChatElements() {
     const elements: React.ReactNode[] = [];
@@ -482,6 +507,35 @@ export function ChatStream({
     // a failed command says its line again before the retry, and the second
     // copy is the same reply twice, not a second reply.
     let lastSaidInTurn: string | undefined;
+    const turnBox = presentation === "chat" ? CHAT_TURN_BOX : TURN_BOX;
+    const sentBox = presentation === "chat" ? CHAT_SENT_BOX : SENT_BOX;
+    // Who the last box drawn belongs to, so the next one by the same speaker
+    // can join its run.
+    let lastSpeaker: "assistant" | "user" | undefined;
+    // The bubbles of the run being drawn, and of the box being built for it,
+    // by the id of the part each draws.
+    let runBubbles: string[] = [];
+    let boxBubbles: string[] = [];
+    const endRun = () => {
+      for (const id of runBubbles.slice(0, -1)) {
+        followedBubbles.add(id);
+      }
+      runBubbles = [];
+    };
+    // Draws the box just built into its speaker's run, or opens a run of its
+    // own, and answers the class that pulls a box that goes on with a run up
+    // to it.
+    const joinRun = (speaker: "assistant" | "user", opensRun = false) => {
+      const continues =
+        presentation === "chat" && lastSpeaker === speaker && !opensRun;
+      if (!continues) {
+        endRun();
+      }
+      runBubbles.push(...boxBubbles);
+      boxBubbles = [];
+      lastSpeaker = speaker;
+      return continues ? CHAT_CONTINUES_RUN : undefined;
+    };
 
     for (const [messageIndex, message] of regularMessages.entries()) {
       if (message.role === "user") {
@@ -624,6 +678,13 @@ export function ChatStream({
 
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
+        }
+        if (
+          presentation === "chat" &&
+          part.type === "text" &&
+          (message.role === "user" || hasBubbleWords(part.text))
+        ) {
+          boxBubbles.push(part.metadata.id);
         }
       }
 
@@ -796,17 +857,18 @@ export function ChatStream({
         // produced nothing draws no box at all.
         if (isLastInConsecutiveAssistantGroup) {
           if (turnRows.length > 0) {
+            const joinsRun = joinRun("assistant");
             elements.push(
               renderAsItems ? (
                 <MessageScrollerItem
-                  className={TURN_BOX}
+                  className={cn(turnBox, joinsRun)}
                   key={turnId}
                   messageId={turnId}
                 >
                   {turnRows}
                 </MessageScrollerItem>
               ) : (
-                <div className={TURN_BOX} key={turnId}>
+                <div className={turnBox} key={turnId}>
                   {turnRows}
                 </div>
               ),
@@ -821,10 +883,13 @@ export function ChatStream({
         // arrival and holds it there while the reply grows into the room the
         // scroller reserves below, so the column stops moving under whatever is
         // being read.
+        //
+        // A message under a separator of its own opens a new run.
+        const joinsRun = joinRun("user", separators?.has(message.id));
         elements.push(
           renderAsItems ? (
             <MessageScrollerItem
-              className={SENT_BOX}
+              className={cn(sentBox, joinsRun)}
               key={message.id}
               messageId={message.id}
               // The conversation keeps to its end, the way a chat does; a
@@ -834,7 +899,7 @@ export function ChatStream({
               {messageElements}
             </MessageScrollerItem>
           ) : (
-            <div className={SENT_BOX} key={message.id}>
+            <div className={sentBox} key={message.id}>
               {messageElements}
             </div>
           ),
@@ -872,9 +937,13 @@ export function ChatStream({
     // One row under one key for the whole run, so going from one of those to
     // the next never takes the dots away and fades a new copy in.
     if (presentation === "chat" && (isAgentRunning || isAwaitingFirstRow)) {
+      // The dots are the assistant's last bubble while they stand, so the
+      // reply above them gives its tail up to them.
+      boxBubbles.push(TYPING_TAIL_ID);
+      const joinsRun = joinRun("assistant");
       elements.push(
         renderAsItems ? (
-          <MessageScrollerItem key={TYPING_TAIL_ID}>
+          <MessageScrollerItem className={joinsRun} key={TYPING_TAIL_ID}>
             <TypingRow />
           </MessageScrollerItem>
         ) : (
@@ -882,6 +951,7 @@ export function ChatStream({
         ),
       );
     }
+    endRun();
 
     return elements;
   }
@@ -914,7 +984,9 @@ export function ChatStream({
   if (renderAsItems) {
     return (
       <TranscriptExpansionContext value={expansion}>
-        <TailFirst items={chatElements} />
+        <FollowedBubblesContext value={stableFollowedBubbles}>
+          <TailFirst items={chatElements} />
+        </FollowedBubblesContext>
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
@@ -926,10 +998,12 @@ export function ChatStream({
 
   return (
     <TranscriptExpansionContext value={expansion}>
-      <div className="flex w-full flex-col gap-2">
-        <div className="flex flex-col gap-2">{chatElements}</div>
-        {continueNode}
-      </div>
+      <FollowedBubblesContext value={stableFollowedBubbles}>
+        <div className="flex w-full flex-col gap-2">
+          <div className="flex flex-col gap-2">{chatElements}</div>
+          {continueNode}
+        </div>
+      </FollowedBubblesContext>
     </TranscriptExpansionContext>
   );
 }
@@ -950,7 +1024,12 @@ export function TypingRow() {
     <div className="flex animate-in justify-start fill-mode-both fade-in">
       <span
         aria-label="Typing"
-        className={cn(ASSISTANT_BUBBLE, "flex h-9 items-center gap-1")}
+        // The dots always end the run they stand in.
+        className={cn(
+          ASSISTANT_BUBBLE,
+          ASSISTANT_BUBBLE_TAIL,
+          "flex h-9 items-center gap-1",
+        )}
       >
         {[0, 1, 2].map((index) => (
           <span

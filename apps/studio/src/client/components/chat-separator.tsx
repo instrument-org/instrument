@@ -18,7 +18,7 @@ export function ChatSeparatorRow({ separator }: { separator: ChatSeparator }) {
   return (
     <div className="flex min-w-0 items-center justify-center gap-1.5 py-1.5 text-xs text-muted-foreground">
       <span className="shrink-0">
-        <span className="font-semibold">{separatorDayLabel(at, now)}</span>{" "}
+        <span className="font-medium">{separatorDayLabel(at, now)}</span>{" "}
         {separatorTimeLabel(at)}
       </span>
       {usage && (

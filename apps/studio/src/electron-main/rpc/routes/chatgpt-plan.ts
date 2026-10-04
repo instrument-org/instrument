@@ -1,5 +1,6 @@
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
+  cancelChatGPTSignIn,
   chatGPTPlanStatus,
   signInWithChatGPT,
   signOutOfChatGPT,
@@ -74,7 +75,13 @@ const signOut = base
   .input(z.object({ accountId: z.string() }))
   .handler(({ input }) => signOutOfChatGPT(input));
 
+/** The user gave up on the sign-in waiting in their browser. */
+const cancelSignIn = base.handler(() => {
+  cancelChatGPTSignIn();
+});
+
 export const chatgptPlan = {
+  cancelSignIn,
   chooseDefaultModel,
   live,
   signIn,

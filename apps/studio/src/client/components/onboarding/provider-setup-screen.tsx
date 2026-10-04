@@ -31,7 +31,7 @@ export function ProviderSetupScreen({
   onAddProvider?: () => void;
   onBack?: () => void;
   onContinue: () => void;
-  onLogin: () => Promise<void>;
+  onLogin: () => Promise<"canceled" | "signed-in">;
   onLoginSuccess: () => void;
   onPageChange: (page: ProviderSetupPage) => void;
   page: ProviderSetupPage;
@@ -113,30 +113,25 @@ export function ProviderSetupScreen({
             </div>
           )}
 
-          <div className="flex w-full flex-col items-center gap-y-4">
-            <div className="flex items-center justify-center gap-x-2">
-              <BrandLeafIcon className="size-3" />
-              <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                Create an account to enjoy free AI usage
-              </p>
-            </div>
+          <GoogleLoginButton
+            caption={
+              <div className="flex items-center justify-center gap-x-2">
+                <BrandLeafIcon className="size-3" />
+                <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
+                  Create an account to enjoy free AI usage
+                </p>
+              </div>
+            }
+            className="w-full justify-center"
+            onLogin={onLogin}
+            onSuccess={onLoginSuccess}
+          />
 
-            <GoogleLoginButton
-              className="w-full justify-center"
-              onLogin={onLogin}
-              onSuccess={onLoginSuccess}
-            />
-          </div>
-
-          <div className="flex w-full flex-col items-center gap-y-2">
-            <ChatGPTLoginButton
-              className="w-full justify-center"
-              onSuccess={onLoginSuccess}
-            />
-            <p className="text-center text-xs text-foreground/60">
-              {`${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
-            </p>
-          </div>
+          <ChatGPTLoginButton
+            caption={`${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
+            className="w-full justify-center"
+            onSuccess={onLoginSuccess}
+          />
 
           <TermsFooter />
         </div>

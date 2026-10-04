@@ -1,4 +1,5 @@
 import {
+  cancelSignInSocial,
   signInSocial as signInSocialFn,
   signOut as signOutFn,
 } from "@/electron-main/auth/client";
@@ -41,7 +42,13 @@ const signInSocial = base.handler(async ({ errors }) => {
   }
 });
 
+/** The user gave up on the sign-in waiting in their browser. */
+const cancelSignIn = base.handler(() => {
+  cancelSignInSocial();
+});
+
 export const auth = {
+  cancelSignIn,
   hasToken,
   live,
   signInSocial,

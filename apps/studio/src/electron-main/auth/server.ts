@@ -191,16 +191,13 @@ async function start() {
     }
 
     const google = createGoogleProvider({ port });
-    const tokens = await google.validateAuthorizationCode(
-      code,
-      store.codeVerifier,
-    );
-
+    const { codeVerifier } = store;
     const sessionStore = getSessionStore();
 
     const headers = new Headers();
 
     try {
+      const tokens = await google.validateAuthorizationCode(code, codeVerifier);
       const res = await auth.signIn.social(
         {
           // The ID token alone proves who signed in; Google's access and
@@ -232,6 +229,14 @@ async function start() {
     } catch (error) {
       captureServerException(new Error("Error signing in", { cause: error }), {
         scopes: ["auth"],
+      });
+      // The button in the app holds until it hears how the sign-in went.
+      publisher.publish("auth.login-error", {
+        error: {
+          message: error instanceof Error ? error.message : undefined,
+          status: 500,
+          statusText: "Error signing in",
+        },
       });
       focusAppWindow();
       return c.html(renderAuthPage({ isError: true }), 400);

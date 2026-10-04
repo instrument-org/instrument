@@ -7,9 +7,9 @@ export function useLoginSocial() {
     rpcClient.auth.signInSocial.mutationOptions(),
   );
 
-  const login = async () => {
+  const login = () => {
     captureClientEvent("auth.login_started");
-    await loginSocial({});
+    return loginSocial({});
   };
 
   return { login, ...rest };

@@ -1,8 +1,11 @@
+import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
+import { noop } from "radashi";
+import { useRef, useState } from "react";
 
 import { ExternalLink } from "./external-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -17,6 +20,9 @@ export type UpgradeSubscriptionAlertState =
   | "status-error";
 
 interface UpgradeSubscriptionAlertViewProps {
+  /** Whether a log-in is waiting on the browser. */
+  loggingIn?: boolean;
+  onCancelLogin?: () => void;
   onContinue: () => void;
   onLogin: () => void;
   state: UpgradeSubscriptionAlertState;
@@ -36,6 +42,10 @@ export function UpgradeSubscriptionAlert({
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { login } = useLoginSocial();
+  const [loggingIn, setLoggingIn] = useState(false);
+  // Counts presses, so a log-in that settles after a newer one started
+  // leaves the button to the newer one.
+  const attempts = useRef(0);
 
   let state: UpgradeSubscriptionAlertState;
   if (error) {
@@ -52,9 +62,23 @@ export function UpgradeSubscriptionAlert({
 
   return (
     <UpgradeSubscriptionAlertView
+      loggingIn={loggingIn}
+      onCancelLogin={() => {
+        attempts.current++;
+        setLoggingIn(false);
+        void rpcClient.auth.cancelSignIn.call();
+      }}
       onContinue={onContinue}
       onLogin={() => {
-        void login();
+        const attempt = ++attempts.current;
+        setLoggingIn(true);
+        void login()
+          .catch(() => {})
+          .finally(() => {
+            if (attempt === attempts.current) {
+              setLoggingIn(false);
+            }
+          });
       }}
       state={state}
     />
@@ -63,6 +87,8 @@ export function UpgradeSubscriptionAlert({
 
 /** Pure presentational component — no data fetching. */
 export function UpgradeSubscriptionAlertView({
+  loggingIn = false,
+  onCancelLogin = noop,
   onContinue,
   onLogin,
   state,
@@ -103,11 +129,21 @@ export function UpgradeSubscriptionAlertView({
       <Alert>
         <AlertTitle>Log in required</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
-          <span>Log in to {APP_NAME} to continue.</span>
+          <span>
+            {loggingIn
+              ? "Finish logging in with Google in your browser."
+              : `Log in to ${APP_NAME} to continue.`}
+          </span>
           <div className="flex">
-            <Button onClick={onLogin} size="sm" variant="brand">
+            <BrowserHandoffButton
+              onCancel={onCancelLogin}
+              onStart={onLogin}
+              size="sm"
+              variant="brand"
+              waiting={loggingIn}
+            >
               Log in
-            </Button>
+            </BrowserHandoffButton>
           </div>
         </AlertDescription>
       </Alert>

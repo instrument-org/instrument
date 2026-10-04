@@ -464,6 +464,14 @@ export function signInWithChatGPT({
   return entry.promise;
 }
 
+/**
+ * Give up on the sign-in waiting on the browser, if there is one: it settles
+ * as canceled, and the browser's redirect, should it still come, is refused.
+ */
+export function cancelChatGPTSignIn() {
+  pendingSignIn?.supersede();
+}
+
 function registrationFromTokens(
   tokens: z.output<typeof TokenResponseSchema>,
   identity: Pick<Registration, "addedAt" | "clientId" | "id" | "subject"> &

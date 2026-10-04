@@ -17,7 +17,9 @@ export const Route = createFileRoute("/debug/components/onboarding/login")({
   }),
 });
 
-const noopAsync = () => Promise.resolve();
+// Never settles, so a press shows the button waiting on the browser until
+// it is canceled.
+const waitForever = () => new Promise<"canceled" | "signed-in">(noop);
 
 function RouteComponent() {
   const [page1, setPage1] = useState<ProviderSetupPage>("welcome");
@@ -31,7 +33,7 @@ function RouteComponent() {
               setPage1("welcome");
             }}
             onContinue={noop}
-            onLogin={noopAsync}
+            onLogin={waitForever}
             onLoginSuccess={noop}
             onPageChange={setPage1}
             page={page1}
@@ -47,7 +49,7 @@ function RouteComponent() {
               setPage2("welcome");
             }}
             onContinue={noop}
-            onLogin={noopAsync}
+            onLogin={waitForever}
             onLoginSuccess={noop}
             onPageChange={setPage2}
             page={page2}

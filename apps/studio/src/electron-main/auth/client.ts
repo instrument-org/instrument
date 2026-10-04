@@ -54,7 +54,16 @@ export function decodeOAuthState(encodedState: string): null | OAuthState {
   }
 }
 
-export async function signInSocial() {
+/** Ends the Google sign-in waiting on the browser, as canceled. */
+let cancelPendingSignIn: (() => void) | undefined;
+
+/**
+ * Open Google's sign-in in the user's browser and wait for it to come back.
+ * Starting again while one waits cancels that one, so only the newest tab can
+ * land. Resolves "canceled" when the user gives up from the app.
+ */
+export async function signInSocial(): Promise<"canceled" | "signed-in"> {
+  cancelPendingSignIn?.();
   const authServerPort = getAuthServerPort();
   if (authServerPort === null) {
     throw new Error("Auth server port is not set");
@@ -76,28 +85,57 @@ export async function signInSocial() {
     store.codeVerifier,
     scopes,
   );
-  await openExternal(url.toString());
 
-  const promise = new Promise((resolve, reject) => {
-    const onError = publisher.subscribe("auth.login-error");
-    const onSuccess = publisher.subscribe("auth.login-success");
+  const controller = new AbortController();
+  const outcome = new Promise<"canceled" | "signed-in">((resolve, reject) => {
+    const cancel = () => {
+      // The callback for this sign-in is refused from here on.
+      store.state = null;
+      store.codeVerifier = null;
+      resolve("canceled");
+      controller.abort();
+    };
+    cancelPendingSignIn = cancel;
 
     async function waitForAuthUpdate() {
-      for await (const payload of mergeGenerators([onError, onSuccess])) {
-        if ("error" in payload) {
-          reject(new Error("Login failed", { cause: payload.error }));
-          break;
-        } else {
-          resolve(payload);
+      const { signal } = controller;
+      try {
+        for await (const payload of mergeGenerators([
+          publisher.subscribe("auth.login-error", { signal }),
+          publisher.subscribe("auth.login-success", { signal }),
+        ])) {
+          if ("error" in payload) {
+            reject(new Error("Login failed", { cause: payload.error }));
+          } else {
+            resolve("signed-in");
+          }
           break;
         }
+      } catch {
+        // Aborted by a cancel, which has already resolved.
+      } finally {
+        if (cancelPendingSignIn === cancel) {
+          cancelPendingSignIn = undefined;
+        }
+        controller.abort();
       }
     }
 
     void waitForAuthUpdate();
   });
 
-  return promise;
+  try {
+    await openExternal(url.toString());
+  } catch (error) {
+    cancelPendingSignIn?.();
+    throw error;
+  }
+  return outcome;
+}
+
+/** Cancel the Google sign-in waiting on the browser, if there is one. */
+export function cancelSignInSocial() {
+  cancelPendingSignIn?.();
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
@@ -72,6 +73,9 @@ export function AppFront({
   const icon = app?.icon ?? entry?.icon;
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
+  // Worked on its own site in the window's browser: the site is the app, so
+  // opening it is what the page leads with.
+  const isWeb = app?.type === "web";
   // Every action the app lists, open to try, behind the menu by its name:
   // there to look into, not what the page leads with.
   const [isInspecting, setIsInspecting] = useState(false);
@@ -165,13 +169,15 @@ export function AppFront({
   const examples = isConnected ? (entry?.examples ?? []) : [];
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
   const needs = app
-    ? app.type === "mcp-local"
-      ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
-      : app.type === "mcp" && app.authKind === "oauth"
-        ? `Sign in to ${name} once.`
-        : app.authKind === "none"
-          ? "No sign-in needed."
-          : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
+    ? app.type === "web"
+      ? `Sign in to ${name} in Instrument’s browser, then say so here.`
+      : app.type === "mcp-local"
+        ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
+        : app.type === "mcp" && app.authKind === "oauth"
+          ? `Sign in to ${name} once.`
+          : app.authKind === "none"
+            ? "No sign-in needed."
+            : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
     : methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
       : "";
@@ -258,7 +264,12 @@ export function AppFront({
               way to it is always here, wearing the app's own mark;
               connecting is what the agent needs, not what a person needs to
               open a page. */}
-            {home && browser ? (
+            {home && browser && isWeb && isConnected ? (
+              <Button onClick={openHome} size="sm">
+                <AppIcon icon={icon} name={name} site={site} size="sm" />
+                <span className="truncate">Open {name}</span>
+              </Button>
+            ) : home && browser ? (
               <button
                 className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-xs hover:bg-accent"
                 onClick={openHome}
@@ -384,7 +395,9 @@ export function AppFront({
               {needs ? (
                 <p className="mb-3 text-sm text-muted-foreground">{needs}</p>
               ) : null}
-              {app?.standing === "needs-sign-in" ? (
+              {isWeb ? (
+                <ConnectControls kind="web" name={name} slug={slug} />
+              ) : app?.standing === "needs-sign-in" ? (
                 <ConnectControls kind="sign-in" name={name} slug={slug} />
               ) : app?.standing === "needs-approval" ? (
                 <ConnectControls

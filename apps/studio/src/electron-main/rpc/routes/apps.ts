@@ -86,11 +86,13 @@ const AppListItemSchema = z.object({
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
   runs: z.string().optional(),
+  /** For a web app, the page its sign-in opens in the window's browser. */
+  signIn: z.string().optional(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
   standing: AppStandingSchema,
-  type: z.enum(["api", "mcp", "mcp-local"]),
+  type: z.enum(["api", "mcp", "mcp-local", "web"]),
 });
 
 /**
@@ -159,13 +161,15 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
                 : "stale"
               : connection.status;
         return {
-          authKind: app.manifest.auth.kind,
+          // A web app has no auth binding: the user signs in on the site.
+          authKind:
+            app.manifest.type === "web" ? "web" : app.manifest.auth.kind,
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
           endpoint:
             app.manifest.type === "api"
               ? app.manifest.baseUrl
-              : app.manifest.type === "mcp"
+              : app.manifest.type === "mcp" || app.manifest.type === "web"
                 ? app.manifest.url
                 : app.manifest.package,
           hasCredential: hasAppCredential(app.slug),
@@ -175,6 +179,9 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           name: app.manifest.name,
           ...(app.manifest.type === "mcp-local"
             ? { runs: describeLocalLaunch(app.manifest) }
+            : {}),
+          ...(app.manifest.type === "web"
+            ? { signIn: app.manifest.signIn ?? app.manifest.url }
             : {}),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
@@ -620,6 +627,40 @@ const allow = base
     return report;
   });
 
+/**
+ * "I'm signed in" on a web app's card or page: the user's word is the whole
+ * of the connection, since nothing here can see a session in the browser.
+ * Pinned to the manifest as it stands, so a site the agent moves the app to
+ * later asks again; the chat is woken the way a finished sign-in wakes it.
+ */
+const markWebSignedIn = base
+  .input(z.object({ slug: AppSlugSchema }))
+  .handler(async ({ context, errors, input }) => {
+    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    const { manifest, manifestHash } = loaded.value;
+    if (manifest.type !== "web") {
+      throw errors.NOT_FOUND({
+        message: `${input.slug} is not a web app.`,
+      });
+    }
+    await recordConnection(input.slug, {
+      connectedAt: Date.now(),
+      error: undefined,
+      manifestHash,
+      status: "connected",
+    });
+    workspacePublisher.publish("app.updated", null);
+    workspacePublisher.publish("app.event", {
+      event: "connected",
+      name: manifest.name,
+      slug: input.slug,
+      web: manifest.url,
+    });
+  });
+
 /** "Not now" on the card. */
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
@@ -684,6 +725,7 @@ export const apps = {
   inspect,
   list,
   live,
+  markWebSignedIn,
   read,
   remove,
   setCredential,

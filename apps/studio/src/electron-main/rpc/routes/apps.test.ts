@@ -4,11 +4,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { workspacePublisher } from "@instrument-org/workspace/electron";
+
 import { type InitialRPCContext } from "../context";
 import { apps } from "./apps";
 
 const mocks = vi.hoisted(() => ({
   beginMcpOAuth: vi.fn(),
+  recordConnection: vi.fn(),
   runAppTest: vi.fn(),
   setAppCredential: vi.fn(),
 }));
@@ -40,6 +43,7 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal()),
     beginMcpOAuth: mocks.beginMcpOAuth,
+    recordConnection: mocks.recordConnection,
     runAppTest: mocks.runAppTest,
   }),
 );
@@ -143,5 +147,48 @@ describe("startOAuth", () => {
       ),
     ).rejects.toMatchObject({ code: "API_ERROR" });
     expect(mocks.beginMcpOAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("markWebSignedIn", () => {
+  it("records a web app as connected on its manifest and wakes the chat", async () => {
+    await writeApp("drive", {
+      name: "Google Drive",
+      type: "web",
+      url: "https://drive.google.com",
+    });
+
+    const publish = vi.spyOn(workspacePublisher, "publish");
+
+    await call(apps.markWebSignedIn, { slug: "drive" }, options);
+
+    expect(mocks.recordConnection).toHaveBeenCalledWith(
+      "drive",
+      expect.objectContaining({
+        manifestHash: expect.any(String),
+        status: "connected",
+      }),
+    );
+    expect(publish).toHaveBeenCalledWith("app.event", {
+      event: "connected",
+      name: "Google Drive",
+      slug: "drive",
+      web: "https://drive.google.com",
+    });
+  });
+
+  it("refuses an app that is not a web app", async () => {
+    await writeApp("keyed", {
+      auth: { kind: "bearer" },
+      baseUrl: "https://api.example.com/v1",
+      name: "Keyed",
+      test: { path: "/me" },
+      type: "api",
+    });
+
+    await expect(
+      call(apps.markWebSignedIn, { slug: "keyed" }, options),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
   });
 });

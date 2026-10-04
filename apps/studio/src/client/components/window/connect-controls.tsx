@@ -23,7 +23,9 @@ type SignInDestination = "app" | "external";
  * A sign-in opens the window's own browser, where the callback lands too and
  * the agent can see the page; the user's own browser is offered beside it,
  * since a session they already hold there may be the one they want. A key
- * goes straight to the encrypted store and is tested on arrival.
+ * goes straight to the encrypted store and is tested on arrival. A web app
+ * signs in on its own site in the window's browser, and the user's word that
+ * they did is what connects it.
  */
 export function ConnectControls({
   dismissible = false,
@@ -35,7 +37,7 @@ export function ConnectControls({
 }: {
   /** Whether "Not now" is offered: a card asks a question, a row does not. */
   dismissible?: boolean;
-  kind: "key" | "run" | "sign-in";
+  kind: "key" | "run" | "sign-in" | "web";
   /** The sign-in button's words; the app's name is the default. */
   label?: string;
   name: string;
@@ -119,6 +121,15 @@ export function ConnectControls({
   };
   const cancelOAuth = useMutation(rpcClient.apps.cancelOAuth.mutationOptions());
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
+  const markWebSignedIn = useMutation(
+    rpcClient.apps.markWebSignedIn.mutationOptions({
+      onError: (error) => {
+        toast.error(`Could not connect ${name}`, {
+          description: error.message,
+        });
+      },
+    }),
+  );
   const allow = useMutation(
     rpcClient.apps.allow.mutationOptions({
       onError: (error) => {
@@ -151,6 +162,7 @@ export function ConnectControls({
     startOAuth.isPending ||
     cancelOAuth.isPending ||
     dismiss.isPending ||
+    markWebSignedIn.isPending ||
     setCredential.isPending;
 
   // A server that runs here is the one thing the user is agreeing to rather
@@ -174,6 +186,52 @@ export function ConnectControls({
             {allow.isPending
               ? "Setting it up…"
               : (label ?? "Allow and connect")}
+          </Button>
+          {dismissible ? (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                dismiss.mutate({ slug });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Not now
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // A site's own sign-in, in the window's browser where the work happens:
+  // nothing here can see the session, so the user says when it is done.
+  if (kind === "web") {
+    const signInPage = listed?.signIn;
+    return (
+      <div className="flex flex-col gap-2">
+        <Destination origin={origin}>Signs in at</Destination>
+        <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
+          <Button
+            disabled={busy || !appWindow?.browser || signInPage === undefined}
+            onClick={() => {
+              if (signInPage !== undefined) {
+                appWindow?.openPage(signInPage);
+              }
+            }}
+            size="sm"
+          >
+            {label ?? `Open ${name}`}
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              markWebSignedIn.mutate({ slug });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            I’m signed in
           </Button>
           {dismissible ? (
             <Button

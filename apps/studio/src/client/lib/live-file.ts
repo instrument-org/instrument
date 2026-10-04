@@ -22,10 +22,51 @@ const FLUSH_ROUNDS = 5;
 const WATCH_INTERVAL_MS = 250;
 
 /**
- * One file's disk I/O as a single queue, so a merge never interleaves with a
- * save in flight. Saves are debounced, but never postponed past the max wait:
- * a steady stream of edits or agent writes must not keep the person's changes
- * off disk. A task that throws reports an error status and the queue goes on.
+ * One file's disk I/O in order: each task runs once every task queued before
+ * it has settled, so a merge never interleaves with a save in flight. A read
+ * queued while one already waits is covered by that one. A task that throws
+ * is logged and handed to `onError`, and the queue goes on.
+ */
+export function createDiskQueue({
+  label,
+  onError,
+}: {
+  /** Names the editor in the log when a task fails. */
+  label: string;
+  onError?: (message: string) => void;
+}) {
+  let queue: Promise<void> = Promise.resolve();
+  let pullQueued = false;
+  const run = (task: () => Promise<void>) => {
+    queue = queue.then(task).catch((error: unknown) => {
+      logger.error(`${label}:`, error);
+      onError?.(error instanceof Error ? error.message : "Could not save");
+    });
+    return queue;
+  };
+  return {
+    /** Queues a read of the disk; one already waiting covers this one. */
+    pull: (read: () => Promise<void>) => {
+      if (pullQueued) {
+        return;
+      }
+      pullQueued = true;
+      void run(async () => {
+        pullQueued = false;
+        await read();
+      });
+    },
+    run,
+    /** Settles once everything queued so far has. */
+    settled: () => queue,
+  };
+}
+
+/**
+ * One file's saves on its disk queue ({@link createDiskQueue}). Saves are
+ * debounced, but never postponed past the max wait: a steady stream of edits
+ * or agent writes must not keep the person's changes off disk. A task that
+ * throws reports an error status and the queue goes on.
  */
 export function createSaveQueue({
   label,
@@ -37,17 +78,13 @@ export function createSaveQueue({
   onStatus: (status: SaveStatus, detail?: string) => void;
   save: () => Promise<void>;
 }) {
-  let queue: Promise<void> = Promise.resolve();
-  const enqueue = (task: () => Promise<void>) => {
-    queue = queue.then(task).catch((error: unknown) => {
-      logger.error(`${label}:`, error);
-      onStatus(
-        "error",
-        error instanceof Error ? error.message : "Could not save",
-      );
-    });
-    return queue;
-  };
+  const disk = createDiskQueue({
+    label,
+    onError: (message) => {
+      onStatus("error", message);
+    },
+  });
+  const enqueue = disk.run;
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let saveQueued = false;
@@ -65,8 +102,6 @@ export function createSaveQueue({
 
   // Read through a call: a save can schedule another while a flush awaits.
   const saveWaiting = () => saveQueued || saveTimer !== undefined;
-
-  let pullQueued = false;
 
   return {
     /** Stops a scheduled save from running. */
@@ -86,7 +121,7 @@ export function createSaveQueue({
           pendingSince = 0;
           queueSave();
         }
-        await queue;
+        await disk.settled();
         if (!saveWaiting()) {
           return;
         }
@@ -94,20 +129,11 @@ export function createSaveQueue({
     },
     /** Whether, once the queue settles, no save is waiting. */
     idle: async () => {
-      await queue;
+      await disk.settled();
       return !saveQueued && saveTimer === undefined;
     },
     /** Queues a read of the disk; one already waiting covers this one. */
-    pull: (read: () => Promise<void>) => {
-      if (pullQueued) {
-        return;
-      }
-      pullQueued = true;
-      void enqueue(async () => {
-        pullQueued = false;
-        await read();
-      });
-    },
+    pull: disk.pull,
     /** Marks the file unsaved and saves it once editing rests for `ms`. */
     schedule: (ms = SAVE_DEBOUNCE_MS) => {
       clearTimeout(saveTimer);

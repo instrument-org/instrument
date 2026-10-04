@@ -12,12 +12,15 @@ import {
 } from "@/client/lib/browser-pool";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { createDiskQueue, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { PAGE_EDITOR_CHANNEL } from "@/shared/page-editor-channels";
 import {
+  type PageEditorFlushRequest,
   PageEditorGuestMessageSchema,
   type PageEditorHostMessage,
 } from "@/shared/page-editor-messages";
+import { answerRequest, createRequests } from "@/shared/page-editor-requests";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -25,7 +28,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { useQuery } from "@tanstack/react-query";
+import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createActor, fromCallback } from "xstate";
@@ -61,10 +64,32 @@ import {
 const FLUSH_TIMEOUT_MS = 3000;
 
 /**
- * Each tab's loads, writes and stops, in order across Edit sessions, so a
- * stop left behind a slow write never lands after the next Edit's load.
+ * Each tab's loads, writes, reads and stops on one disk queue, in order
+ * across Edit sessions, so a stop left behind a slow write never lands after
+ * the next Edit's load. Held while any session of the tab uses it.
  */
-const tabChains = new Map<string, Promise<unknown>>();
+const tabQueues = new Map<
+  string,
+  { queue: ReturnType<typeof createDiskQueue>; users: number }
+>();
+
+function acquireTabQueue(tabId: string) {
+  const held = tabQueues.get(tabId) ?? {
+    queue: createDiskQueue({ label: "page editor" }),
+    users: 0,
+  };
+  held.users += 1;
+  tabQueues.set(tabId, held);
+  return {
+    queue: held.queue,
+    release: () => {
+      held.users -= 1;
+      if (held.users === 0 && tabQueues.get(tabId) === held) {
+        tabQueues.delete(tabId);
+      }
+    },
+  };
+}
 
 /**
  * One page tab in Edit: shows the stamped page in its guest, and serves the
@@ -132,9 +157,9 @@ export function PageEditSession({
       staged,
     };
   });
-  // Serves the editor for as long as the tab is in Edit. `check` is how the
-  // file watch below reaches the session.
-  const session = useRef<null | { check: () => void }>(null);
+  // Serves the editor for as long as the tab is in Edit; the file watch below
+  // pulls the disk into it.
+  const [session, setSession] = useState<null | { pull: () => void }>(null);
   // The guest to serve: a tab switched to Edit before its guest attached is
   // served once it does, and a guest recreated under the tab is served anew.
   const attached = useBrowserTargets().has(target);
@@ -150,7 +175,14 @@ export function PageEditSession({
               // whether there is one.
               const guest = attachedGuest(target);
               return guest
-                ? serveGuest({ guest, latest, path, sendBack, session, tabId })
+                ? serveGuest({
+                    guest,
+                    latest,
+                    path,
+                    sendBack,
+                    setSession,
+                    tabId,
+                  })
                 : undefined;
             },
           ),
@@ -204,15 +236,7 @@ export function PageEditSession({
     }
   });
 
-  const watched = useQuery(
-    rpcClient.files.live.info.experimental_liveOptions({ input: { path } }),
-  );
-  const modifiedAt = watched.data?.modifiedAt;
-  useEffect(() => {
-    if (modifiedAt !== undefined) {
-      session.current?.check();
-    }
-  }, [modifiedAt]);
+  usePullOnDiskChange(path, session);
   return cover && isShown ? (
     <img
       alt=""
@@ -326,7 +350,7 @@ function serveGuest({
   latest,
   path,
   sendBack,
-  session,
+  setSession,
   tabId,
 }: {
   guest: NonNullable<ReturnType<typeof attachedGuest>>;
@@ -343,7 +367,7 @@ function serveGuest({
   };
   path: string;
   sendBack: (event: PageEditServeEvent) => void;
-  session: { current: null | { check: () => void } };
+  setSession: (session: null | { pull: () => void }) => void;
   tabId: string;
 }) {
   // The file version the editor holds, as it last said or as a write
@@ -351,8 +375,9 @@ function serveGuest({
   let known: string | undefined;
   // The load this session last made, which its stop names.
   let generation: number | undefined;
-  const serial = (work: () => Promise<unknown>) => {
-    serialFor(tabId, work);
+  const { queue, release } = acquireTabQueue(tabId);
+  const serial = (work: () => Promise<void>) => {
+    void queue.run(work);
   };
   // Back to the page as it is, saying why.
   const giveUp = (message: string, description?: string) => {
@@ -383,40 +408,36 @@ function serveGuest({
       // The guest is gone; the tab closing ends this session too.
     }
   };
-  const check = () => {
-    serial(async () => {
-      if (known === undefined) {
-        return;
-      }
-      const disk = await rpcClient.files.read.call({ path });
-      if (disk.version !== known) {
-        known = disk.version;
-        send({
-          content: disk.content,
-          type: "external",
-          version: disk.version,
-        });
-      }
-    });
+  // The editor told what changed on disk that it did not write.
+  const check = async () => {
+    if (known === undefined) {
+      return;
+    }
+    const disk = await rpcClient.files.read.call({ path });
+    if (disk.version !== known) {
+      known = disk.version;
+      send({
+        content: disk.content,
+        type: "external",
+        version: disk.version,
+      });
+    }
   };
-  session.current = { check };
+  const pull = () => {
+    queue.pull(check);
+  };
+  setSession({ pull });
   // Asked of the file by another view of it (its source) before that view
   // reads it: the editor commits what is being typed, and the flush settles
-  // once every write it queued is on disk.
-  const flushes = new Map<number, () => void>();
-  let nextFlush = 0;
+  // once every write it queued is on disk. A guest that is gone or stuck
+  // fails the question at its deadline, and the flush settles all the same.
+  const flushes = createRequests<PageEditorFlushRequest, null>({
+    send,
+    timeoutMs: FLUSH_TIMEOUT_MS,
+  });
   const unregisterFlush = registerFileFlush(path, async () => {
-    const id = ++nextFlush;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
-      flushes.set(id, () => {
-        clearTimeout(timer);
-        resolve();
-      });
-      send({ id, type: "flush" });
-    });
-    flushes.delete(id);
-    await tabChains.get(tabId);
+    await flushes.request({ kind: "flush" }).catch(noop);
+    await queue.settled();
   });
   const onMessage = (event: Event) => {
     const { args, channel } = event as Event & {
@@ -444,14 +465,10 @@ function serveGuest({
         });
         break;
       }
-      case "flushed": {
-        flushes.get(message.id)?.();
-        break;
-      }
       case "hello": {
         known = message.version;
         send(latest.current.staged);
-        check();
+        pull();
         sendBack({ type: "guestReady" });
         break;
       }
@@ -475,26 +492,32 @@ function serveGuest({
         });
         break;
       }
-      case "save": {
-        serial(async () => {
-          try {
-            const result = await rpcClient.files.write.call({
-              baseVersion: message.baseVersion,
-              content: message.content,
-              path,
-            });
-            known = result.version;
-            send({ id: message.id, result, type: "reply" });
-          } catch (error) {
-            // Answered either way: the editor's saves wait on this one.
-            send({
-              error: error instanceof Error ? error.message : "Could not save",
-              id: message.id,
-              type: "replyFailed",
-            });
-            throw error;
-          }
-        });
+      case "request": {
+        // A save, answered whatever the write does: the editor's later saves
+        // wait on this one.
+        serial(() =>
+          answerRequest(
+            message,
+            async ({ baseVersion, content }) => {
+              const result = await rpcClient.files.write.call({
+                baseVersion,
+                content,
+                path,
+              });
+              known = result.version;
+              return result;
+            },
+            send,
+          ),
+        );
+        break;
+      }
+      case "response": {
+        flushes.settle(
+          message.error === undefined
+            ? { id: message.id, result: null, type: "response" }
+            : { error: message.error, id: message.id, type: "response" },
+        );
         break;
       }
       case "status": {
@@ -527,11 +550,9 @@ function serveGuest({
   return () => {
     webview.removeEventListener("ipc-message", onMessage);
     webview.removeEventListener("did-navigate", onNavigate);
-    session.current = null;
+    setSession(null);
     unregisterFlush();
-    for (const done of flushes.values()) {
-      done();
-    }
+    flushes.abandon("The page left Edit");
     // After every write in flight, so leaving never drops an edit.
     serial(async () => {
       if (generation !== undefined) {
@@ -542,20 +563,6 @@ function serveGuest({
         });
       }
     });
+    void queue.settled().then(release);
   };
-}
-
-function serialFor(tabId: string, work: () => Promise<unknown>) {
-  const next = (tabChains.get(tabId) ?? Promise.resolve())
-    .then(work, work)
-    .catch(() => {
-      // A write or a load that failed leaves the editor holding its text;
-      // its next save retries against whatever is on disk.
-    });
-  tabChains.set(tabId, next);
-  void next.finally(() => {
-    if (tabChains.get(tabId) === next) {
-      tabChains.delete(tabId);
-    }
-  });
 }

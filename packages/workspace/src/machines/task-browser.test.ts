@@ -70,6 +70,7 @@ const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
 function makeBrowser(): BrowserConfig {
   return {
     closeTarget: vi.fn(asyncNoop),
+    contentBlocking: vi.fn(() => ({ task: true, workspace: true })),
     createTarget: vi.fn(createTargetMock),
     getTargetMeta: vi.fn(() => null),
     getTargetUrl: vi.fn<() => string | undefined>(),

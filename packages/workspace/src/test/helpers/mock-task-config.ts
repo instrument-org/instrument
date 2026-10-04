@@ -174,6 +174,7 @@ export function createStubBrowserConfig(): BrowserConfig {
       Promise.resolve({
         targetId: encodeBrowserTargetId(id, sessionId),
       }),
+    contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     getTargetUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.

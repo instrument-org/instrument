@@ -76,14 +76,20 @@ let engine: FiltersEngine | null = null;
 let loading: Promise<void> | null = null;
 let blockAds: boolean | null = null;
 let ipcHandlersRegistered = false;
+let isExempt: (webContentsId: number) => boolean = () => false;
 const blockingSessions = new WeakSet<Session>();
 
 /**
- * Block in `guestSession` from now on. Idempotent, since every page's session
- * comes through here: the preload is registered once per session and the IPC
- * handlers once per process.
+ * Block in `guestSession` from now on, except in the pages `exempt` names by
+ * their web contents id. Idempotent, since every page's session comes through
+ * here: the preload is registered once per session and the IPC handlers once
+ * per process.
  */
-export function enableContentBlocking(guestSession: Session) {
+export function enableContentBlocking(
+  guestSession: Session,
+  exempt: (webContentsId: number) => boolean,
+) {
+  isExempt = exempt;
   loading ??= loadEngine();
   if (blockingSessions.has(guestSession)) {
     return;
@@ -95,6 +101,7 @@ export function enableContentBlocking(guestSession: Session) {
       MUTATION_OBSERVER_CHANNEL,
       (event) =>
         blockingSessions.has(event.sender.session) &&
+        !isExempt(event.sender.id) &&
         engine?.config.enableMutationObserver === true,
     );
   }
@@ -114,7 +121,11 @@ export function enableContentBlocking(guestSession: Session) {
 export function blockedRequestResponse(
   details: OnBeforeRequestListenerDetails,
 ): CallbackResponse {
-  if (!engine || !isBlocking()) {
+  if (
+    !engine ||
+    !isBlocking() ||
+    (details.webContentsId !== undefined && isExempt(details.webContentsId))
+  ) {
     return {};
   }
   const request = requestFrom(details);
@@ -134,6 +145,7 @@ function cspResponse(
   if (
     !engine ||
     !isBlocking() ||
+    (details.webContentsId !== undefined && isExempt(details.webContentsId)) ||
     (details.resourceType !== "mainFrame" &&
       details.resourceType !== "subFrame")
   ) {
@@ -181,7 +193,8 @@ function injectCosmeticFilters(
     !engine ||
     !isBlocking() ||
     typeof url !== "string" ||
-    !blockingSessions.has(event.sender.session)
+    !blockingSessions.has(event.sender.session) ||
+    isExempt(event.sender.id)
   ) {
     return;
   }
@@ -221,7 +234,8 @@ function injectCosmeticFilters(
   }
 }
 
-function isBlocking() {
+/** Whether the person has blocking on for this workspace. */
+export function isBlocking() {
   if (blockAds === null) {
     const preferences = getWorkspacePreferences();
     blockAds = preferences.get("blockAds");

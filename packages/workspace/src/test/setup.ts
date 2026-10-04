@@ -39,6 +39,7 @@ setWorkspaceConfig({
   browser: {
     closeTarget: () => Promise.resolve(),
     createTarget: rejectBrowserTarget,
+    contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     getTargetUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.

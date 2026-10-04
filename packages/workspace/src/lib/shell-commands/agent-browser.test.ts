@@ -8,6 +8,7 @@ import {
   createMockTaskConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-task-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   agentBrowserCommandDescription,
   browserFreeReadEnv,
@@ -106,6 +107,67 @@ describe("createAgentBrowserCommand", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("subcommand 'close' is not available");
+  });
+
+  describe("adblock", () => {
+    const unblocked = new Set<string>();
+    let workspaceBlocking = true;
+
+    beforeEach(() => {
+      unblocked.clear();
+      workspaceBlocking = true;
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({
+        ...config,
+        browser: {
+          ...config.browser,
+          contentBlocking: (id, blocking) => {
+            if (blocking === false) {
+              unblocked.add(id);
+            } else if (blocking === true) {
+              unblocked.delete(id);
+            }
+            return { task: !unblocked.has(id), workspace: workspaceBlocking };
+          },
+        },
+      });
+    });
+
+    it("turns blocking off and on for the task without spawning the CLI", async () => {
+      const off = await command.execute(["adblock", "off"], mockCtx);
+      expect(off.stdout).toMatchInlineSnapshot(`
+        "Ad blocking is off in this task's tabs, until \`agent-browser adblock on\` or the app restarts. The user's own setting is unchanged.
+        Reload the page (\`agent-browser reload\`) for the change to apply.
+        "
+      `);
+      expect(unblocked.has(taskId)).toBe(true);
+
+      const status = await command.execute(["adblock"], mockCtx);
+      expect(status.stdout).toContain("off in this task's tabs");
+
+      const on = await command.execute(["adblock", "on"], mockCtx);
+      expect(on.stdout).toMatchInlineSnapshot(`
+        "Ad blocking is on in this task's tabs.
+        Reload the page (\`agent-browser reload\`) for the change to apply.
+        "
+      `);
+      expect(unblocked.has(taskId)).toBe(false);
+    });
+
+    it("says the user's own setting wins when they turned blocking off", async () => {
+      workspaceBlocking = false;
+      const result = await command.execute(["adblock", "off"], mockCtx);
+      expect(result.stdout).toMatchInlineSnapshot(`
+        "Ad blocking is off: the user turned it off for every page.
+        "
+      `);
+    });
+
+    it("refuses a mode it does not know", async () => {
+      const result = await command.execute(["adblock", "maybe"], mockCtx);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("adblock [on|off]");
+    });
   });
 });
 

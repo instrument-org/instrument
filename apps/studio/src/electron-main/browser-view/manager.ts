@@ -62,6 +62,7 @@ import {
 import {
   blockedRequestResponse,
   enableContentBlocking,
+  isBlocking,
 } from "./content-blocking";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -231,6 +232,11 @@ export function createBrowserViewManager(): BrowserViewManager {
   function bindGuest(entry: BrowserEntry, guest: WebContents) {
     entry.webContents = guest;
     const { targetId } = entry;
+    const guestId = guest.id;
+    taskOfGuest.set(guestId, entry.id);
+    guest.once("destroyed", () => {
+      taskOfGuest.delete(guestId);
+    });
 
     // Where a link on the page may take a tab: a file only from a page on
     // the computer, as Chromium itself allows, and within what an agent
@@ -635,6 +641,14 @@ export function createBrowserViewManager(): BrowserViewManager {
         ? committedDocumentOf(guest.id, guest.mainFrame)
         : undefined;
     },
+    contentBlocking: (id, blocking) => {
+      if (blocking === false) {
+        unblockedTasks.add(id);
+      } else if (blocking === true) {
+        unblockedTasks.delete(id);
+      }
+      return { task: !unblockedTasks.has(id), workspace: isBlocking() };
+    },
     listTargets,
     onTargetDestroyed,
     sendCommand: (async (
@@ -777,6 +791,16 @@ export function createBrowserViewManager(): BrowserViewManager {
   return managerInstance;
 }
 
+/** The task each live guest belongs to, by web contents id. */
+const taskOfGuest = new Map<number, TaskId>();
+/** Tasks that turned ad blocking off for their own tabs. */
+const unblockedTasks = new Set<TaskId>();
+
+function isUnblockedGuest(webContentsId: number) {
+  const task = taskOfGuest.get(webContentsId);
+  return task !== undefined && unblockedTasks.has(task);
+}
+
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
@@ -846,7 +870,7 @@ function sessionForEntry(entry: BrowserEntry) {
   // credential is cancelled outright when nothing answers this.
   selectWebAuthnAccountOnRequest(guestSession);
   confineLocalPagesToTheirFolder(guestSession, blockedRequestResponse);
-  enableContentBlocking(guestSession);
+  enableContentBlocking(guestSession, isUnblockedGuest);
   return guestSession;
 }
 

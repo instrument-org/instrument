@@ -49,6 +49,16 @@ export interface BrowserConfig {
    */
   hasNoWindow?: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
+  /**
+   * Whether ads and trackers are blocked in this task's tabs: off when the
+   * person turned blocking off for the workspace, or when the task set
+   * `blocking: false` for itself. The task's setting lasts until the app quits
+   * and never touches the person's.
+   */
+  contentBlocking: (
+    id: TaskId,
+    blocking?: boolean,
+  ) => { task: boolean; workspace: boolean };
   onTargetDestroyed: (
     targetId: BrowserTargetId,
     listener: () => void,

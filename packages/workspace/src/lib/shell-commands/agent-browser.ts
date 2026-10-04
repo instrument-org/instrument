@@ -13,6 +13,7 @@ import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -204,6 +205,41 @@ const PROXY_ENV_VARS = new Set([
   "https_proxy",
 ]);
 
+const ADBLOCK_SUBCOMMAND = "adblock";
+
+/**
+ * `agent-browser adblock [on|off]`: the task's own say over the ad and tracker
+ * blocking in its tabs, for a page the block lists broke. Answered here rather
+ * than by the CLI, since the blocking lives in the app, not in the browser.
+ */
+function adblock(
+  browser: BrowserConfig,
+  id: TaskId,
+  mode: string | undefined,
+): { exitCode: number; stderr: string; stdout: string } {
+  if (mode !== undefined && mode !== "on" && mode !== "off") {
+    return {
+      exitCode: 1,
+      stderr: "agent-browser: usage: agent-browser adblock [on|off]\n",
+      stdout: "",
+    };
+  }
+  const { task, workspace } = browser.contentBlocking(
+    id,
+    mode === undefined ? undefined : mode === "on",
+  );
+  const state = !workspace
+    ? "Ad blocking is off: the user turned it off for every page."
+    : task
+      ? "Ad blocking is on in this task's tabs."
+      : "Ad blocking is off in this task's tabs, until `agent-browser adblock on` or the app restarts. The user's own setting is unchanged.";
+  const reload =
+    mode !== undefined && workspace
+      ? "\nReload the page (`agent-browser reload`) for the change to apply."
+      : "";
+  return { exitCode: 0, stderr: "", stdout: `${state}${reload}\n` };
+}
+
 const WORKSPACE_HELP_MANAGED = dedent`
   agent-browser - Control the task's managed browser.
 
@@ -253,6 +289,13 @@ const WORKSPACE_HELP_MANAGED = dedent`
     screenshot [path|@ref]      Capture the page or an element
     is visible|enabled|checked  Check element state
     find role|text|label ...    Use semantic locators as an alternative to refs
+    adblock [on|off]            Show or set ad and tracker blocking for this
+                                task's tabs (on by default)
+
+  Ads and trackers are blocked in this browser. If a page looks broken --
+  a missing button, an empty embed, a checkout or sign-in that never
+  loads -- run \`agent-browser adblock off\`, reload, and try again.
+  Turn it back on when done.
 
   Do not pass session, config, namespace, or plugin flags; the workspace
   manages daemon sessions and the plugin registry.
@@ -586,7 +629,10 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const { subcommand } = parseAgentBrowserArgs(args);
+    const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+    if (subcommand === ADBLOCK_SUBCOMMAND) {
+      return adblock(workspaceConfig.browser, id, subArgs[1]?.value);
+    }
     const asksForASecondPage =
       !isExternalBrowserInvocation(args) &&
       ((subcommand !== undefined && SECOND_PAGE_SUBCOMMANDS.has(subcommand)) ||

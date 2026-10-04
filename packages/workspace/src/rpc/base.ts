@@ -60,8 +60,21 @@ export function toORPCError(
     case "workspace-storage-error": {
       return orpcErrors.STORAGE_ERROR(options);
     }
-    default: {
+    // No code of their own: each reaches the client, and telemetry, as an
+    // unexpected failure. A type added to either union fails to compile below
+    // until it is placed here or above.
+    case "gateway-unknown-error":
+    case "gateway-verification-failed-error":
+    case "workspace-api-call-error":
+    case "workspace-conflict-error":
+    case "workspace-dependency-install-error":
+    case "workspace-provider-limitation-error":
+    case "workspace-shim-not-found-error":
+    case "workspace-unknown-error": {
       return orpcErrors.UNKNOWN(options);
+    }
+    default: {
+      return error satisfies never;
     }
   }
 }

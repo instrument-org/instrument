@@ -263,9 +263,10 @@ export function AppsHome({
                     </div>
                   </div>
                 ) : null}
-                {/* A service the words name exactly is the one meant, so
-                    "connect it anyway" would only offer it a second time. */}
-                {namesOne(matches, typed) ? null : (
+                {/* A service the words name exactly, listed or already
+                    yours, is the one meant, so "connect it anyway" would
+                    only offer it a second time. */}
+                {namesOne(matches, typed) || namesOne(own, typed) ? null : (
                   <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
                     <UnlistedTile
                       isOnlyOne={matches.length === 0 && meant.length === 0}
@@ -566,8 +567,11 @@ function CategoryGroups({
   );
 }
 
-/** Whether the words are some match's own name, slug, or alias. */
-function namesOne(matches: CatalogEntry[], typed: string): boolean {
+/** Whether the words are some app's own name, slug, or alias. */
+function namesOne(
+  matches: { aliases?: string[] | undefined; name: string; slug: string }[],
+  typed: string,
+): boolean {
   const words = typed.trim().toLowerCase();
   return matches.some(
     (entry) =>

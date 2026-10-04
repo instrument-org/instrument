@@ -17,6 +17,7 @@ import {
   catalogEntryMcpEndpoint,
   findCatalogEntry,
   searchAppCatalog,
+  searchAppCatalogByMeaning,
 } from "../apps/catalog";
 import {
   describeConnection,
@@ -163,7 +164,7 @@ export function createAppCommand(context: AppCommandContext) {
           return await runCall(rest, context, ctx.stdin, ctx.signal);
         }
         case "catalog": {
-          return runCatalog(rest);
+          return await runCatalog(rest, ctx.signal);
         }
         case "disconnect": {
           return await runDisconnect(rest, context);
@@ -562,10 +563,20 @@ async function runCall(
     : ok(`${text}\n`);
 }
 
-function runCatalog(args: string[]) {
+async function runCatalog(args: string[], signal: AbortSignal | undefined) {
   const query = args.join(" ").trim();
   const entries = searchAppCatalog(query);
   if (entries.length === 0) {
+    // The words name nothing listed, but they may still say what it is for.
+    const meant = await searchAppCatalogByMeaning(query, {
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
+      signal,
+    });
+    if (meant.length > 0) {
+      return ok(
+        `Nothing in the directory is called "${query}". By what it is for, these may be what is meant, most likely first; ask the user which before setting one up unless one plainly fits.\n\n${meant.map(describeCatalogEntry).join("\n\n")}\n`,
+      );
+    }
     return ok(
       `Nothing in the directory matches "${query}". Set it up by hand. A service you do not know is a short research task first, and the brief has to name what you can actually write, or what comes back is a manifest shape this command does not take: ask it for the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
     );

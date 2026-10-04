@@ -5,6 +5,8 @@ import {
 } from "@instrument-org/shared/app-directory";
 import { z } from "zod";
 
+import { askDecisionModel } from "../decision-model";
+
 import catalogSeed from "./catalog-seed.json";
 
 /**
@@ -182,4 +184,66 @@ export function catalogEntryMacApp(
   return surface?.bundleId
     ? { bundleId: surface.bundleId, name: surface.name }
     : undefined;
+}
+
+/** Below this chance a service is not offered as what a search meant. */
+const MEANT_AT_LEAST = 0.1;
+/** How many services a search by meaning offers. */
+const MEANT_SHOWN = 4;
+
+/**
+ * Services a search means without naming them, asked of the decision model:
+ * "text my mom" is Apple Messages, "track my runs" Strava, "word documents"
+ * OneDrive, none of which the words spell. Most likely first, only those it
+ * gives a real chance, and nothing when no provider reaches the model or the
+ * call fails, so a caller treats it as a bonus over the search by words.
+ */
+export async function searchAppCatalogByMeaning(
+  query: string,
+  {
+    configs,
+    signal,
+  }: {
+    configs: Parameters<typeof askDecisionModel>[0]["configs"];
+    signal?: AbortSignal;
+  },
+): Promise<AppCatalogEntry[]> {
+  const browsed = getAppCatalog().filter((entry) => entry.tier !== "hidden");
+  const bySlug = new Map(browsed.map((entry) => [entry.slug, entry]));
+  try {
+    const asked = await askDecisionModel({
+      body: {
+        questions: {
+          service: {
+            criteria: {
+              ...Object.fromEntries(
+                browsed.map((entry) => [
+                  entry.slug,
+                  `${entry.name}: ${entry.tagline}`,
+                ]),
+              ),
+              none: "None of these: no listed service is what the person means.",
+            },
+            instructions:
+              "A person typed this into the search box of an app directory. Which listed service do they most likely mean or need? Pick none when no listed service fits.",
+            type: "choice",
+          },
+        },
+        state: { query },
+      },
+      configs,
+      signal,
+    });
+    const probabilities = asked?.response.answers.service?.probabilities ?? {};
+    return Object.entries(probabilities)
+      .filter(([slug, chance]) => slug !== "none" && chance >= MEANT_AT_LEAST)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MEANT_SHOWN)
+      .flatMap(([slug]) => {
+        const entry = bySlug.get(slug);
+        return entry ? [entry] : [];
+      });
+  } catch {
+    return [];
+  }
 }

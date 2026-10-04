@@ -309,6 +309,15 @@ function PickerPanel({
       isFoldedAway(models, selectedModel),
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  // cmdk always lights an item, the first if nothing else, so a panel that
+  // had not been touched opened with one row looking pointed at. The
+  // highlight is held empty until a key or the pointer is used in the panel,
+  // and from then on follows cmdk as usual.
+  const [highlight, setHighlight] = useState("");
+  const engaged = useRef(false);
+  const engage = () => {
+    engaged.current = true;
+  };
 
   const opened = rail.find((entry) => entry.id === openId);
   const searching = query.trim().length > 0;
@@ -322,11 +331,16 @@ function PickerPanel({
   return (
     <Command
       className="flex min-h-0 flex-1 flex-col"
-      // The highlight starts on the chosen model, so the pointer's tint and
-      // the chosen row's are on the same row until the user moves.
-      defaultValue={selectedModel?.uri}
       label="Search models"
+      onKeyDownCapture={engage}
+      onPointerMoveCapture={engage}
+      onValueChange={(value) => {
+        if (engaged.current) {
+          setHighlight(value);
+        }
+      }}
       shouldFilter={false}
+      value={highlight}
     >
       <div className="shrink-0 border-b p-2">
         <CommandInput
@@ -504,7 +518,7 @@ function VirtualRows({
       const row = rows[index];
       return row?.type === "header"
         ? 28
-        : row?.type === "auto" || (row?.type === "model" && row.sub)
+        : row?.type === "model" && row.sub
           ? 48
           : 36;
     },
@@ -625,9 +639,9 @@ function VirtualRows({
 }
 
 /**
- * Auto, the way Instrument is meant to be used: built like a model row with a
- * second line, so it reads as one of the options, and set apart by the
- * recommendation leading that line in the brand color and the rule under it.
+ * Auto, the way Instrument is meant to be used: one line like every model
+ * row, so it reads as one of the options, set apart by the recommendation in
+ * the brand color after its name and the rule under it.
  */
 function AutoRow({
   chosen,
@@ -641,7 +655,7 @@ function AutoRow({
   return (
     <CommandItem
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5",
+        "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
         chosen &&
           cn(
             CHOSEN,
@@ -657,15 +671,20 @@ function AutoRow({
         className="size-4 shrink-0"
         type={OUR_MODELS.providerType}
       />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className={cn("truncate text-sm", chosen && "font-medium")}>
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className={cn("shrink-0 text-sm", chosen && "font-medium")}>
           Auto
         </span>
-        <span className="truncate text-xs text-muted-foreground">
-          <span className="font-medium text-brand-700 dark:text-brand-300">
-            Recommended
-          </span>
-          {" · Picks the right model for each message"}
+        <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300">
+          Recommended
+        </span>
+        <span
+          className={cn(
+            "truncate text-xs",
+            chosen ? "opacity-80" : "text-muted-foreground",
+          )}
+        >
+          Included with your subscription
         </span>
       </span>
       {chosen && (

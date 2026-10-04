@@ -85,6 +85,13 @@ const viaOpenRouter = model({
   provider: "openrouter",
 });
 
+const viaInstrument = model({
+  canonicalId: "claude-haiku-4.5",
+  config: "instrument",
+  name: "Claude Haiku 4.5",
+  provider: "instrument",
+});
+
 const listed = [auto, sonnet55, sonnet5, opus, viaOpenRouter];
 
 /** A URI for a model no list holds any more. */
@@ -127,6 +134,12 @@ const cases = {
   "provider removed, same model elsewhere": {
     dismissedOffers: none,
     models: listed,
+    modelURI: goneURI("claude-haiku-4.5", "removed-key"),
+  },
+  "provider removed, same model through OpenRouter and Instrument": {
+    dismissedOffers: none,
+    // Instrument listed last, so only the preference can put it first.
+    models: [...listed, viaInstrument],
     modelURI: goneURI("claude-haiku-4.5", "removed-key"),
   },
   "withdrawn, nothing continues it": {
@@ -195,6 +208,10 @@ describe("readModelStatus and noticeFor", () => {
         },
         "provider removed, same model elsewhere": {
           "notice": "[problem] Claude Haiku 4.5 is no longer available → Use it through openrouter-key",
+          "status": "gone",
+        },
+        "provider removed, same model through OpenRouter and Instrument": {
+          "notice": "[problem] Claude Haiku 4.5 is no longer available → Use it through instrument",
           "status": "gone",
         },
         "restricted, with Auto to fall back on": {

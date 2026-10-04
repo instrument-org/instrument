@@ -157,9 +157,9 @@ describe("ModelPicker in a browser", () => {
           - text: Anthropic models
         - button "Add a provider"
       - listbox "Suggestions":
-        - option "Auto Recommended · Picks the right model for each message (chosen)" [selected]:
+        - option "Auto Recommended Included with your subscription (chosen)":
           - img
-          - text: Auto Recommended · Picks the right model for each message (chosen)"
+          - text: Auto Recommended Included with your subscription (chosen)"
     `);
   });
 
@@ -178,8 +178,8 @@ describe("ModelPicker in a browser", () => {
         - button "Add a provider"
       - listbox "Suggestions":
         - text: Latest
-        - option "Claude Haiku 4.5"
-        - option "Claude Sonnet 5.5 (chosen)" [selected]
+        - option "Claude Haiku 4.5" [selected]
+        - option "Claude Sonnet 5.5 (chosen)"
         - text: Older versions
         - option "Claude Sonnet 5 Replaced by Claude Sonnet 5.5"
         - text: Requires a paid plan

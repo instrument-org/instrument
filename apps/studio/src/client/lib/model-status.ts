@@ -91,7 +91,9 @@ export function readModelStatus({
         kind: "restricted",
         message: model.restricted.message,
         model,
-        ...withFix(findReplacement(model.canonicalId, models) ?? auto),
+        ...withFix(
+          findReplacement(model.canonicalId, oursFirst(models)) ?? auto,
+        ),
       };
     }
     const newer =
@@ -161,13 +163,28 @@ function replacementFor(
   const sameConnection = models.filter(
     (model) => model.params.providerConfigId === source.providerConfigId,
   );
+  const elsewhere = oursFirst(models);
   return (
     findReplacement(source.canonicalId, sameConnection) ??
-    models.find(
+    elsewhere.find(
       (model) => model.canonicalId === source.canonicalId && !model.restricted,
     ) ??
-    findReplacement(source.canonicalId, models) ??
+    findReplacement(source.canonicalId, elsewhere) ??
     auto
+  );
+}
+
+/**
+ * Instrument's models ahead of every other connection's, so where the same
+ * fix is offered by more than one, the one through Instrument is offered: it
+ * is the subscription the app is built around, where another connection is
+ * a key the user may only have added for one model.
+ */
+function oursFirst(models: AIGatewayModel.Type[]) {
+  return models.toSorted(
+    (a, b) =>
+      Number(b.params.provider === OUR_MODELS.providerType) -
+      Number(a.params.provider === OUR_MODELS.providerType),
   );
 }
 

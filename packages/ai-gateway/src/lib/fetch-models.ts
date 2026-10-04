@@ -9,6 +9,7 @@ import { z } from "zod";
 import { AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { demoteSupersededModels } from "./demote-superseded-models";
+import { markReplacedModels } from "./mark-replaced-models";
 import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 import { TypedError } from "./errors";
 import { fetchAndParseAnthropicModels } from "./fetch-models/anthropic";
@@ -79,13 +80,16 @@ export function fetchModelsForProvider(
   )
     .map((rawModels) => {
       // The one place that holds a provider's whole list, which is what the
-      // variant and supersession rules need to see, and it runs before the
-      // cache write so a cached read carries the same tags a fresh fetch would.
+      // variant, supersession and replacement rules need to see, and it runs
+      // before the cache write so a cached read carries the same tags a fresh
+      // fetch would.
       // Variants go first, so a Pro or Fast build cannot stand as its series'
       // current release and demote the base model it is a step up from.
-      const models = demoteSupersededModels(
-        demoteVariantsOfListedModels(
-          representableModels(rawModels, config, captureException),
+      const models = markReplacedModels(
+        demoteSupersededModels(
+          demoteVariantsOfListedModels(
+            representableModels(rawModels, config, captureException),
+          ),
         ),
       );
 

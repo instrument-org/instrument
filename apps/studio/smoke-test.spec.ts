@@ -1,9 +1,10 @@
 import { APP_EXECUTABLE, APP_NAME } from "@instrument-org/shared";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { _electron as electron } from "playwright";
+import { type Browser, chromium } from "playwright";
 import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -36,6 +37,42 @@ function runPnpmScript(
 }
 
 const isAppWindow = (url: string) => url.includes("#/");
+
+/** A port nothing is listening on, for the app's DevTools endpoint. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => {
+        if (address && typeof address === "object") {
+          resolve(address.port);
+        } else {
+          reject(new Error("no port assigned"));
+        }
+      });
+    });
+  });
+}
+
+/** Connects to the app's DevTools endpoint once it is listening. */
+async function connectWhenListening(
+  port: number,
+  timeoutMs: number,
+): Promise<Browser> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      return await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    } catch (error) {
+      if (Date.now() > deadline) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
 
 /** The archive the packaged app actually loads its dependencies from. */
 function asarPath(executablePath: string): string {
@@ -346,50 +383,60 @@ describe("Studio Smoke Test", () => {
     const appEnv: NodeJS.ProcessEnv = { ...process.env };
     delete appEnv.ELECTRON_RUN_AS_NODE;
 
-    const electronApp = await electron.launch({
-      args:
-        process.platform === "linux" ? ["--no-sandbox", "--disable-gpu"] : [],
-      env: {
-        ...(appEnv as Record<string, string>),
-        DISABLE_AUTO_UPDATE_POLLING: "true",
-        ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
-        ELECTRON_USER_DATA_DIR: tempUserDataDir,
-        SKIP_MOVE_TO_APPLICATIONS: "true",
-        SKIP_ONBOARDING: "true",
-      },
+    // Attached over Chromium's DevTools endpoint rather than Playwright's
+    // electron.launch, which waits on a main-process `--inspect` debugger that
+    // the packaged app's EnableNodeCliInspectArguments fuse refuses. This
+    // drives the binary exactly as it ships.
+    const port = await freePort();
+    const childProcess = spawn(
       executablePath,
-      timeout: 60_000,
+      [
+        ...(process.platform === "linux"
+          ? ["--no-sandbox", "--disable-gpu"]
+          : []),
+        `--remote-debugging-port=${port}`,
+      ],
+      {
+        env: {
+          ...appEnv,
+          DISABLE_AUTO_UPDATE_POLLING: "true",
+          ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
+          ELECTRON_USER_DATA_DIR: tempUserDataDir,
+          SKIP_MOVE_TO_APPLICATIONS: "true",
+          SKIP_ONBOARDING: "true",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const exited = new Promise<void>((resolve) => {
+      childProcess.once("exit", () => {
+        resolve();
+      });
     });
 
-    const childProcess = electronApp.process();
-
-    childProcess.stdout?.on("data", (data: Buffer | string) => {
+    childProcess.stdout.on("data", (data: Buffer | string) => {
       console.log(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
-    childProcess.stderr?.on("data", (data: Buffer | string) => {
+    childProcess.stderr.on("data", (data: Buffer | string) => {
       console.error(Buffer.isBuffer(data) ? data.toString("utf8") : data);
     });
 
-    electronApp.on("console", (msg) => {
-      console.log(msg.text());
-    });
-
-    expect(electronApp, "electron app launched").toBeDefined();
-
-    await electronApp.firstWindow({ timeout: 30_000 });
+    const browser = await connectWhenListening(port, 60_000);
+    const windows = () =>
+      browser.contexts().flatMap((context) => context.pages());
 
     // The app runs with SKIP_ONBOARDING, so only the AppShell window launches;
     // locate it by URL rather than index since ordering isn't guaranteed.
     const startTime = Date.now();
 
-    let appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
+    let appWindow = windows().find((w) => isAppWindow(w.url()));
     while (!appWindow && Date.now() - startTime < 30_000) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
+      appWindow = windows().find((w) => isAppWindow(w.url()));
     }
 
-    const windowUrls = electronApp.windows().map((w) => w.url());
+    const windowUrls = windows().map((w) => w.url());
     expect(
       appWindow,
       `app window found (all window URLs: ${windowUrls.join(", ")})`,
@@ -398,6 +445,10 @@ describe("Studio Smoke Test", () => {
     if (!appWindow) {
       throw new Error(`app window not found. URLs: ${windowUrls.join(", ")}`);
     }
+
+    appWindow.on("console", (msg) => {
+      console.log(msg.text());
+    });
 
     const windowConfigs = [
       { name: "app", state: "visible", testId: "app-page", window: appWindow },
@@ -424,7 +475,9 @@ describe("Studio Smoke Test", () => {
       }),
     );
 
-    await electronApp.close();
+    await browser.close();
+    childProcess.kill();
+    await exited;
 
     const requiredPaths = [
       path.join(tempUserDataDir, "bin"),

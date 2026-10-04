@@ -28,12 +28,11 @@ export type AuthOutcome =
     }
   /**
    * The user said no on the service's own page: to connecting it, or with
-   * `signIn`, to signing in with it. `fromChat` when a chat asked for it;
-   * `detail` when what was declined was narrower than canceling.
+   * `signIn`, to signing in with it. `headline` when what was declined was
+   * narrower than canceling.
    */
   | {
-      detail?: string;
-      fromChat: boolean;
+      headline?: string;
       kind: "declined";
       service: AuthService;
       signIn?: boolean;
@@ -41,12 +40,7 @@ export type AuthOutcome =
   /** The link matches no sign-in waiting for it: an old tab, a second visit, or the app restarted. */
   | { kind: "expired" }
   /** The service said yes and the rest went wrong. `connecting` names what was being connected; absent, it was signing in. */
-  | {
-      connecting?: string;
-      kind: "failed";
-      provider: string;
-      reference: string;
-    };
+  | { connecting?: string; kind: "failed"; reference: string };
 
 /** A short code for a failure, logged with it, that the page offers to copy for support. */
 export function newAuthReference() {
@@ -89,8 +83,6 @@ const baseBtn = [
 ].join(" ");
 
 const btnClass = {
-  // A quiet way back for when the window did not come forward.
-  link: "text-sm text-stone-600 underline decoration-stone-300 underline-offset-4 hover:text-stone-900 dark:text-white/60 dark:decoration-white/25 dark:hover:text-white",
   primary: [
     baseBtn,
     "bg-white text-stone-900 shadow-sm hover:bg-stone-100",
@@ -106,10 +98,10 @@ const btnClass = {
 const button = (variant: keyof typeof btnClass, href: string, label: string) =>
   html`<a class="${btnClass[variant]}" href="${href}">${label}</a>`;
 
-// A bare address brings the window forward and leaves it on whatever it shows,
-// which for an app sign-in is the chat that asked for it.
-const backToApp = (variant: keyof typeof btnClass, label: string) =>
-  button(variant, `${APP_PROTOCOL}://`, label);
+// Every page's one way back. A bare address brings the window forward and
+// leaves it on whatever it shows, which for an app sign-in is the chat that
+// asked for it.
+const openApp = button("primary", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`);
 
 const heading = (text: string) =>
   html`<h1
@@ -193,7 +185,7 @@ function renderOutcome(outcome: AuthOutcome) {
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
         )}
-        ${closeTab} ${backToApp("link", `Open ${APP_NAME}`)}`,
+        ${closeTab} ${openApp}`,
         title: "Signed in",
       };
     }
@@ -205,28 +197,21 @@ function renderOutcome(outcome: AuthOutcome) {
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
         )}
-        ${inFront ? closeTab : backToApp("primary", `Back to ${APP_NAME}`)}`,
+        ${inFront ? closeTab : ""} ${openApp}`,
         title: `${service.name} connected`,
       };
     }
     case "declined": {
-      const { detail, fromChat, service, signIn } = outcome;
+      const { headline, service, signIn } = outcome;
       return {
         body: html`${
           service.mark ? serviceMark(service, "opacity-60") : appMark("size-20")
         }
-        ${group(
-          heading(
-            signIn ? "Sign-in canceled" : `${service.name} wasn't connected`,
-          ),
-          subline(
-            detail ??
-              (fromChat
-                ? `You canceled on ${service.name}'s page. Nothing changed, and the chat knows you said not now.`
-                : `You canceled on ${service.name}'s page. Nothing changed.`),
-          ),
+        ${heading(
+          headline ??
+            (signIn ? "Sign-in canceled" : `${service.name} wasn't connected`),
         )}
-        ${backToApp("secondary", `Back to ${APP_NAME}`)}`,
+        ${openApp}`,
         title: signIn ? "Sign-in canceled" : "Not connected",
       };
     }
@@ -236,18 +221,12 @@ function renderOutcome(outcome: AuthOutcome) {
           CLOCK_COUNTDOWN,
           "size-14 text-stone-400 dark:text-white/40",
         )}
-        ${group(
-          heading("This sign-in link has expired"),
-          subline(
-            `Each link works once, from the ${APP_NAME} window that opened it. Start again from there.`,
-          ),
-        )}
-        ${backToApp("secondary", `Open ${APP_NAME}`)}`,
+        ${heading("This sign-in link has expired")} ${openApp}`,
         title: "Link expired",
       };
     }
     case "failed": {
-      const { connecting, provider, reference } = outcome;
+      const { connecting, reference } = outcome;
       const details = [
         `Reference ${reference}`,
         `${APP_NAME} ${app.getVersion()}`,
@@ -255,15 +234,8 @@ function renderOutcome(outcome: AuthOutcome) {
       ].join("\n");
       return {
         body: html`${glyph(WARNING_CIRCLE, "size-14 text-amber-600")}
-          ${group(
-            heading(
-              connecting
-                ? `Couldn't finish connecting ${connecting}`
-                : "Couldn't finish signing in",
-            ),
-            subline(
-              `${provider} accepted the sign-in, but ${APP_NAME} couldn't finish it. Trying again usually works.`,
-            ),
+          ${heading(
+            connecting ? `Couldn't connect ${connecting}` : "Couldn't sign in",
           )}
           <button
             type="button"
@@ -278,19 +250,20 @@ function renderOutcome(outcome: AuthOutcome) {
               >${glyph(COPY, "size-3.5")}Copy</span
             >
           </button>
-          <div class="flex flex-wrap justify-center gap-2">
-            ${backToApp("primary", `Try again in ${APP_NAME}`)}
-            ${button("secondary", SUPPORT_URL, "Contact support")}
-          </div>`,
-        footer: false,
+          ${openApp}`,
         title: "Sign-in failed",
       };
     }
   }
 }
 
-/** Sample outcomes, for previewing each page without signing in. */
-export const previewOutcomes: { label: string; outcome: AuthOutcome }[] = [
+/**
+ * Sample outcomes, for previewing each page without signing in. `sampleMark`
+ * is the sample app's mark, which the caller looks up the way a real sign-in does.
+ */
+export const previewOutcomes = (
+  sampleMark?: string,
+): { label: string; outcome: AuthOutcome }[] => [
   {
     label: "Signed in",
     outcome: {
@@ -313,12 +286,15 @@ export const previewOutcomes: { label: string; outcome: AuthOutcome }[] = [
     outcome: {
       inFront: false,
       kind: "connected",
-      service: { name: "Linear" },
+      service: { mark: sampleMark, name: "Linear" },
     },
   },
   {
     label: "Declined",
-    outcome: { fromChat: true, kind: "declined", service: { name: "Linear" } },
+    outcome: {
+      kind: "declined",
+      service: { mark: sampleMark, name: "Linear" },
+    },
   },
   { label: "Expired", outcome: { kind: "expired" } },
   {
@@ -326,7 +302,6 @@ export const previewOutcomes: { label: string; outcome: AuthOutcome }[] = [
     outcome: {
       connecting: "ChatGPT",
       kind: "failed",
-      provider: "OpenAI",
       reference: "AUTH-7F3K2Q",
     },
   },
@@ -349,13 +324,8 @@ function renderIndex(links: { href: string; label: string }[]) {
 export function renderAuthPage(
   page: AuthOutcome | { index: { href: string; label: string }[] },
 ) {
-  const {
-    body,
-    footer = true,
-    title,
-  }: { body: unknown; footer?: boolean; title: string } = "index" in page
-    ? renderIndex(page.index)
-    : renderOutcome(page);
+  const { body, title }: { body: unknown; title: string } =
+    "index" in page ? renderIndex(page.index) : renderOutcome(page);
 
   return html`
     <!DOCTYPE html>
@@ -399,7 +369,7 @@ export function renderAuthPage(
         <main
           class="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
         >
-          ${body} ${footer ? supportFooter : ""}
+          ${body} ${supportFooter}
         </main>
         <script>
           for (const mark of document.querySelectorAll("[data-app-mark]")) {

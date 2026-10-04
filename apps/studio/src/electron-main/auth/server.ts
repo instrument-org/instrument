@@ -22,6 +22,7 @@ import {
 } from "@/electron-main/lib/apps";
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import {
   CHATGPT_CALLBACK_PATH,
   receiveChatGPTCallback,
@@ -32,11 +33,7 @@ import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
-import {
-  APP_NAME,
-  listenWithPortFallback,
-  PORTS,
-} from "@instrument-org/shared";
+import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
 import {
   cancelMcpOAuth,
   completeMcpOAuth,
@@ -179,10 +176,7 @@ async function start() {
 
   const googleService = { mark: GOOGLE_MARK, name: "Google" };
   // A failure the page offers a reference for, logged under that reference.
-  const failed = (
-    error: Error,
-    page: { connecting?: string; provider: string },
-  ) => {
+  const failed = (error: Error, page: { connecting?: string } = {}) => {
     const reference = newAuthReference();
     captureServerException(error, {
       auth_reference: reference,
@@ -203,7 +197,6 @@ async function start() {
       focusAppWindow();
       return c.html(
         renderAuthPage({
-          fromChat: false,
           kind: "declined",
           service: googleService,
           signIn: true,
@@ -258,9 +251,7 @@ async function start() {
       );
 
       if (res.error) {
-        const page = failed(new Error("Login failed", { cause: res.error }), {
-          provider: "Google",
-        });
+        const page = failed(new Error("Login failed", { cause: res.error }));
         publisher.publish("auth.login-error", {
           error: res.error,
         });
@@ -272,9 +263,7 @@ async function start() {
       const { data } = res;
       email = data && "user" in data ? data.user.email : undefined;
     } catch (error) {
-      const page = failed(new Error("Error signing in", { cause: error }), {
-        provider: "Google",
-      });
+      const page = failed(new Error("Error signing in", { cause: error }));
       // The button in the app holds until it hears how the sign-in went.
       publisher.publish("auth.login-error", {
         error: {
@@ -328,7 +317,6 @@ async function start() {
       });
       return c.html(
         renderAuthPage({
-          fromChat: true,
           kind: "declined",
           service: { mark: await appMark(appsDir, slug), name },
         }),
@@ -347,7 +335,7 @@ async function start() {
       const name = appsDir ? await appName(appsDir, slug) : slug;
       const page = failed(
         new Error(`App sign-in failed: ${result.error.message}`),
-        { connecting: name, provider: name },
+        { connecting: name },
       );
       if (appsDir) {
         await recordConnection(slug, {
@@ -403,7 +391,7 @@ async function start() {
     }
     const chatGPT = { mark: OPENAI_MARK, name: "ChatGPT" };
     const failedPage = (error: Error) =>
-      failed(error, { connecting: chatGPT.name, provider: "OpenAI" });
+      failed(error, { connecting: chatGPT.name });
     const status = await finished.then(
       (value) => ({ value }),
       (error: unknown) =>
@@ -419,7 +407,6 @@ async function start() {
       return params.get("error") === "access_denied"
         ? c.html(
             renderAuthPage({
-              fromChat: false,
               kind: "declined",
               service: chatGPT,
             }),
@@ -430,8 +417,7 @@ async function start() {
       // Signed in, with plan access left unchecked on OpenAI's page.
       return c.html(
         renderAuthPage({
-          detail: `Plan access was left off on ChatGPT's page, so ${APP_NAME} can't use your plan. Turn it on when you connect again.`,
-          fromChat: false,
+          headline: "ChatGPT plan access is off",
           kind: "declined",
           service: chatGPT,
         }),
@@ -456,15 +442,16 @@ async function start() {
   app.get("/test", (c) =>
     c.html(
       renderAuthPage({
-        index: previewOutcomes.map(({ label }, i) => ({
+        index: previewOutcomes().map(({ label }, i) => ({
           href: `/test/${String(i)}`,
           label,
         })),
       }),
     ),
   );
-  app.get("/test/:index", (c) => {
-    const preview = previewOutcomes[Number(c.req.param("index"))];
+  app.get("/test/:index", async (c) => {
+    const previews = previewOutcomes(await directoryIconDataUri("linear"));
+    const preview = previews[Number(c.req.param("index"))];
     return preview ? c.html(renderAuthPage(preview.outcome)) : c.notFound();
   });
 

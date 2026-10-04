@@ -2,21 +2,23 @@ import { visitedPagesAtom } from "@/client/atoms/window";
 import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
 import { Spinner } from "@/client/components/ui/spinner";
+import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import {
   AppInspector,
-  AppInspectorPreview,
   type InspectorReading,
 } from "@/client/components/window/app-inspector";
 import { visitsWithin } from "@/client/components/window/app-visits";
@@ -26,8 +28,9 @@ import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
+import { zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { appMentionToken } from "@/client/lib/app-mention";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -69,9 +72,10 @@ export function AppFront({
   const icon = app?.icon ?? entry?.icon;
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
-  // The inspector reads the app's server, which for a local app starts it on
-  // this computer, so it loads when asked rather than with the page.
-  const [isBrowsing, setIsBrowsing] = useState(false);
+  // Every action the app lists, open to try, behind the menu by its name:
+  // there to look into, not what the page leads with.
+  const [isInspecting, setIsInspecting] = useState(false);
+  useBlockTabNavigation(isInspecting);
   const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
   const runsHere =
@@ -158,7 +162,7 @@ export function AppFront({
   }
 
   const domain = home ? new URL(home).host : undefined;
-  const description = entry?.description ?? entry?.tagline;
+  const examples = isConnected ? (entry?.examples ?? []) : [];
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
   const needs = app
     ? app.type === "mcp-local"
@@ -179,12 +183,7 @@ export function AppFront({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6">
-      <div
-        className={cn(
-          "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          isBrowsable ? "max-w-6xl" : "max-w-3xl",
-        )}
-      >
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">
           <AppIcon icon={icon} name={name} site={site} size="lg" />
@@ -203,6 +202,15 @@ export function AppFront({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
+                    {isBrowsable ? (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setIsInspecting(true);
+                        }}
+                      >
+                        See every action
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       disabled={test.isPending}
                       onSelect={() => {
@@ -234,26 +242,11 @@ export function AppFront({
                 </DropdownMenu>
               ) : null}
             </div>
-            {/* The directory's line about the app folded into the head: one
-              line under the name, the whole of it in a popover so opening it
-              moves nothing on the page. */}
-            {description ? (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    className="block w-full max-w-2xl truncate text-left text-xs leading-5 text-muted-foreground hover:text-foreground"
-                    type="button"
-                  >
-                    {description}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-md text-[13px] leading-5"
-                >
-                  {description}
-                </PopoverContent>
-              </Popover>
+            {/* The directory's one line about the app under its name. */}
+            {entry?.tagline ? (
+              <p className="truncate text-xs leading-5 text-muted-foreground">
+                {entry.tagline}
+              </p>
             ) : (
               <p className="truncate text-xs leading-5 text-muted-foreground">
                 {domain ?? (app ? app.endpoint : "")}
@@ -320,26 +313,61 @@ export function AppFront({
           )
         ) : null}
 
+        {/* Requests a person might make of the app, each one press from
+          the conversation. */}
+        {examples.length > 0 ? (
+          <section className="mt-8">
+            <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
+              Try asking
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {examples.map((example) => (
+                <button
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
+                  key={example}
+                  onClick={() => {
+                    ask(`${appMentionToken({ name, slug })}: ${example}`);
+                  }}
+                  type="button"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {isBrowsable ? <AppCapabilities name={name} slug={slug} /> : null}
+
         {isBrowsable ? (
-          isBrowsing ? (
-            <AppInspector
-              name={name}
-              onHide={() => {
-                setIsBrowsing(false);
+          <Dialog
+            onOpenChange={(isOpen) => {
+              setIsInspecting(isOpen);
+              if (!isOpen) {
                 setReading(undefined);
-              }}
-              onReading={setReading}
-              runsHere={runsHere}
-              slug={slug}
-            />
-          ) : (
-            <AppInspectorPreview
-              name={name}
-              onLoad={() => {
-                setIsBrowsing(true);
-              }}
-            />
-          )
+              }
+            }}
+            open={isInspecting}
+          >
+            <DialogContent
+              className="flex flex-col"
+              maxWidth="72rem"
+              style={{ height: zoomMaxSize("height", "46rem") }}
+            >
+              <DialogHeader>
+                <DialogTitle>Every action in {name}</DialogTitle>
+                <DialogDescription>
+                  Press anything that only reads to see what {name} answers.
+                </DialogDescription>
+              </DialogHeader>
+              <AppInspector
+                name={name}
+                onReading={setReading}
+                runsHere={runsHere}
+                slug={slug}
+              />
+            </DialogContent>
+          </Dialog>
         ) : null}
 
         {/* While the app is still being set up, the one thing that

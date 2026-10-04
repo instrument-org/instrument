@@ -169,9 +169,14 @@ export async function createOpenCodeLanguageModel(
 /**
  * Checks a key against OpenCode's Go usage endpoint, the one route that
  * answers a key without running a model: both model lists are public, so
- * reading one proves nothing. Zen and Go share one key per workspace, so the
- * route also tells a Zen key apart from a bad one: it refuses a key with no
- * subscription (403) differently from an unknown key (401).
+ * reading one proves nothing. Zen and Go share one key per workspace, and the
+ * route refuses an unknown key (401) differently from a key with no Go
+ * subscription (403).
+ *
+ * Only those two answers fail a key. OpenCode serves its newer keys from a
+ * second backend whose answers here are not published, so any other status
+ * passes rather than turning a working key away; a bad key that slips through
+ * fails on its first request instead.
  */
 export function verifyOpenCodeApiKey(
   config: Pick<AIGatewayProviderConfig.Type, "apiKey"> & {
@@ -190,18 +195,25 @@ export function verifyOpenCodeApiKey(
     if (result.ok) {
       return Result.ok(true);
     }
-    if (config.type === "opencode-zen" && isForbidden(result.error)) {
-      return Result.ok(true);
+    const status =
+      result.error instanceof TypedError.Fetch
+        ? result.error.status
+        : undefined;
+    if (status === 401 || status === undefined) {
+      return Result.error(
+        new TypedError.VerificationFailed("Unable to verify OpenCode API key", {
+          cause: result.error,
+        }),
+      );
     }
-    const message = isForbidden(result.error)
-      ? "This OpenCode key has no Go subscription"
-      : "Unable to verify OpenCode API key";
-    return Result.error(
-      new TypedError.VerificationFailed(message, { cause: result.error }),
-    );
+    if (status === 403 && config.type === "opencode-go") {
+      return Result.error(
+        new TypedError.VerificationFailed(
+          "This OpenCode key has no Go subscription",
+          { cause: result.error },
+        ),
+      );
+    }
+    return Result.ok(true);
   });
-}
-
-function isForbidden(error: Error) {
-  return error instanceof TypedError.Fetch && error.status === 403;
 }

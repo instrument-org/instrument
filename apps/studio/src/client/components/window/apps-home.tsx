@@ -10,11 +10,16 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import {
+  APP_CATEGORIES,
+  directoryByUse,
+  searchDirectory,
+} from "@instrument-org/shared/app-directory";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
@@ -27,26 +32,6 @@ const RECENT_SHOWN = 9;
 
 /** How many of the directory's services are offered before the rest are behind the head's button. */
 const MORE_SHOWN = 12;
-
-/**
- * The services offered first among the directory's, since the directory is
- * alphabetical and its first dozen say nothing about what connecting is for:
- * the ones most people already use, in the order they are most likely to.
- */
-const FEATURED = [
-  "notion",
-  "linear",
-  "slack",
-  "github",
-  "figma",
-  "google-workspace",
-  "todoist",
-  "asana",
-  "dropbox",
-  "spotify",
-  "zoom",
-  "stripe",
-];
 
 /**
  * The Apps place's new tab: the apps this workspace reaches as marks, the
@@ -84,9 +69,12 @@ export function AppsHome({
     ...apps.filter((app) => app.standing !== "connected"),
   ];
   const known = new Set(apps.map((app) => app.slug));
-  const more = featuredFirst(
-    (catalog.data ?? []).filter((entry) => !known.has(entry.slug)),
+  // Still to connect, most used first; the documentation servers and the
+  // like are left out until a search names one.
+  const unconnected = (catalog.data ?? []).filter(
+    (entry) => !known.has(entry.slug),
   );
+  const more = directoryByUse(unconnected);
   // Across every app the page knows: the workspace's own first, so a page
   // on one of them is filed under it, then the directory's, since a site
   // opened from its front is an app here whether or not it is connected.
@@ -98,8 +86,7 @@ export function AppsHome({
     })),
   ]).slice(0, RECENT_SHOWN);
   const typed = query.trim();
-  const matches =
-    typed === "" ? more : more.filter((entry) => matchesWords(entry, typed));
+  const matches = typed === "" ? more : searchDirectory(unconnected, typed);
   const shown =
     typed === "" ? (showsAll ? more : more.slice(0, MORE_SHOWN)) : matches;
   const connectTyped = () => {
@@ -107,6 +94,18 @@ export function AppsHome({
     setQuery("");
   };
   const openApp = onOpenApp;
+  const tileFor = (entry: CatalogEntry) => (
+    <CatalogTile
+      entry={entry}
+      key={entry.slug}
+      onConnect={() => {
+        ask(`Connect ${appMentionToken(entry)}`);
+      }}
+      onOpen={() => {
+        openApp(entry.slug);
+      }}
+    />
+  );
 
   return (
     <div className="@container/apps h-full min-h-0 overflow-y-auto">
@@ -203,20 +202,11 @@ export function AppsHome({
             </form>
             {catalog.data === undefined ? (
               <TileSkeletons />
+            ) : typed === "" && showsAll ? (
+              <CategoryGroups entries={more} renderTile={tileFor} />
             ) : shown.length > 0 || typed !== "" ? (
               <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                {shown.map((entry) => (
-                  <CatalogTile
-                    entry={entry}
-                    key={entry.slug}
-                    onConnect={() => {
-                      ask(`Connect ${appMentionToken(entry)}`);
-                    }}
-                    onOpen={() => {
-                      openApp(entry.slug);
-                    }}
-                  />
-                ))}
+                {shown.map(tileFor)}
                 {typed === "" ? null : (
                   <UnlistedTile
                     isOnlyOne={matches.length === 0}
@@ -369,16 +359,6 @@ function CatalogTile({
   );
 }
 
-function featuredFirst(entries: CatalogEntry[]): CatalogEntry[] {
-  const bySlug = new Map(entries.map((entry) => [entry.slug, entry]));
-  const front = FEATURED.flatMap((slug) => {
-    const entry = bySlug.get(slug);
-    return entry ? [entry] : [];
-  });
-  const featured = new Set(front.map((entry) => entry.slug));
-  return [...front, ...entries.filter((entry) => !featured.has(entry.slug))];
-}
-
 /** Marks holding the section's place while the apps are still on their way. */
 function MarkSkeletons() {
   return (
@@ -394,23 +374,6 @@ function MarkSkeletons() {
       ))}
     </div>
   );
-}
-
-/** Whether every word typed is somewhere in the entry's name, domain, tagline, or categories. */
-function matchesWords(entry: CatalogEntry, typed: string): boolean {
-  const haystack = [
-    entry.slug,
-    entry.name,
-    entry.domain,
-    entry.tagline,
-    ...entry.categories,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return typed
-    .toLowerCase()
-    .split(/\s+/)
-    .every((word) => haystack.includes(word));
 }
 
 /** Tiles holding the directory's place while it is still on its way. */
@@ -503,4 +466,53 @@ function waitingLine(app: App): string {
       return "Not tested yet";
     }
   }
+}
+
+/**
+ * Every service still to connect, under its category, most used first in
+ * each. Developer tools hold a quarter of the directory and few of the
+ * people it is for, so they wait behind their own button rather than
+ * making the page read as a developer product.
+ */
+function CategoryGroups({
+  entries,
+  renderTile,
+}: {
+  entries: CatalogEntry[];
+  renderTile: (entry: CatalogEntry) => ReactNode;
+}) {
+  const [showsDeveloper, setShowsDeveloper] = useState(false);
+  return (
+    <div className="space-y-8">
+      {APP_CATEGORIES.map(({ id, label }) => {
+        const inCategory = entries.filter((entry) => entry.category === id);
+        if (inCategory.length === 0) {
+          return null;
+        }
+        const collapsed = id === "developer" && !showsDeveloper;
+        return (
+          <div key={id}>
+            <h3 className="mb-3 text-[13px] font-medium text-foreground">
+              {label}
+            </h3>
+            {collapsed ? (
+              <button
+                className="text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setShowsDeveloper(true);
+                }}
+                type="button"
+              >
+                {`Show ${inCategory.length} developer tools`}
+              </button>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                {inCategory.map(renderTile)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

@@ -25,6 +25,7 @@ import {
   beginMcpOAuth,
   cancelMcpOAuth,
   describeLocalLaunch,
+  catalogEntryMacApp,
   findCatalogEntry,
   getAppCatalog,
   isConnected,
@@ -121,6 +122,21 @@ async function iconFor(app: {
   return directory ? { icon: directory } : {};
 }
 
+/**
+ * The Mac's own app's icon for an entry that is that app (Apple Notes is
+ * drawn as Notes), never for a service a Mac app merely reads, so Gmail is
+ * not drawn as Mail.
+ */
+async function macAppIconFor(
+  entry: ReturnType<typeof getAppCatalog>[number],
+): Promise<string | undefined> {
+  const macApp =
+    entry.family === "apple" ? catalogEntryMacApp(entry) : undefined;
+  return macApp
+    ? ((await getMacAppIconUrl(macApp.bundleId).catch(() => null)) ?? undefined)
+    : undefined;
+}
+
 const AppListSchema = z.object({
   apps: z.array(AppListItemSchema),
   invalid: z.array(z.object({ message: z.string(), slug: z.string() })),
@@ -190,7 +206,8 @@ const catalog = base.handler(() =>
   Promise.all(
     getAppCatalog().map(async (entry) => ({
       ...entry,
-      icon: await directoryIconFor(entry.slug),
+      icon:
+        (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry)),
     })),
   ),
 );

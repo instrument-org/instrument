@@ -47,6 +47,15 @@ export function ConnectControls({
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   const [waiting, setWaiting] = useState(false);
+  // The default browser, for the button that sends the sign-in there.
+  const browser = useQuery(
+    rpcClient.utils.browserOpenTarget.queryOptions({
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
   // The standing when the sign-in started, so a failure or a decline from
   // the provider's page, which changes it, lets the controls go.
   const waitingFrom = useRef<string>(undefined);
@@ -213,7 +222,23 @@ export function ConnectControls({
               size="sm"
               variant="ghost"
             >
-              Use your own browser
+              {/* Named only when the computer says which browser is the
+                  default, so the button never promises the wrong one. */}
+              {browser.data?.appName ? (
+                <>
+                  {browser.data.iconUrl ? (
+                    <img
+                      alt=""
+                      className="size-4 shrink-0"
+                      draggable={false}
+                      src={browser.data.iconUrl}
+                    />
+                  ) : null}
+                  {`Use ${browser.data.appName}`}
+                </>
+              ) : (
+                "Use your own browser"
+              )}
             </Button>
           )}
           {dismissible && !waiting ? (

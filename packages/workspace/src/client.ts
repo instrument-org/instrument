@@ -19,6 +19,7 @@ export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
+export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type {
   ComputerFolder,

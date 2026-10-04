@@ -15,6 +15,7 @@ import { instrumentFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  modelChangeSincePreviousTurn,
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
@@ -35,6 +36,7 @@ import { toast } from "sonner";
 
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
+import { ModelChangeNote } from "../model-change-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { ReplyContext } from "../reply-context";
 import { ComposerReplyQuote } from "../reply-quote";
@@ -198,6 +200,20 @@ export function TaskChat({
   if (unsettled.length !== pending.length) {
     setPending(unsettled);
   }
+  // A model picked and not sent yet, said now the way the send will say it,
+  // so the choice shows in the transcript at once: from the plus menu it is
+  // otherwise gone the moment the menu closes. The send stores the choice,
+  // the two agree again and this gives way to the note the turn records.
+  const { data: modelsData } = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
+  const pickedModel =
+    selectedModelURI !== initialSelectedModelURI
+      ? modelsData?.models.find((model) => model.uri === selectedModelURI)
+      : undefined;
+  const pendingModelChange = pickedModel
+    ? modelChangeSincePreviousTurn({ messages, model: pickedModel })
+    : undefined;
   const shownMessages = [
     ...messages,
     ...unsettled
@@ -491,6 +507,9 @@ export function TaskChat({
                     )
                   ) : (
                     <NoMessages />
+                  )}
+                  {pendingModelChange && (
+                    <ModelChangeNote data={pendingModelChange} />
                   )}
                   {transcriptTrailing}
                 </MessageScrollerContent>

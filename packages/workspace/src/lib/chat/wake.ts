@@ -9,7 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { chatOfSession, owningChat, sessionOfChat } from "../record-folders";
+import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -36,6 +36,7 @@ import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
+import { type ChatId } from "../../schemas/chat-id";
 
 /** What a wake carries: the part that starts the chat's turn. */
 export type WakePart =
@@ -180,13 +181,12 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
 export async function wakeChatForApp(
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  askedIn: StoreId.Session | undefined,
+  asked: ChatId | undefined,
 ): Promise<void> {
   // The chat that asked, when it is still there, and then the newest first,
   // so an event for a chat since deleted still reaches someone.
-  const asked = askedIn ? chatOfSession(askedIn) : undefined;
   const candidates = [
-    ...(asked ? [asked] : []),
+    ...(asked && resolveChat(asked) ? [asked] : []),
     ...listChatIds()
       .toReversed()
       .filter((id) => id !== asked),

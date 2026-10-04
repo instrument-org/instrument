@@ -4,7 +4,11 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  StoreId,
+  TaskIdSchema,
+} from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
 import {
@@ -166,7 +170,7 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     runningTasks: [],
     starred: false,
     state: "idle",
-    taskId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
+    taskId: ChatIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],

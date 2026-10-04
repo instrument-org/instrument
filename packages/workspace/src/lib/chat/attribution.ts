@@ -1,3 +1,4 @@
+import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { owningChat, sessionOfChat } from "../record-folders";
@@ -8,7 +9,7 @@ export async function chatOfApp({
   slug,
 }: {
   slug: string;
-}): Promise<StoreId.Session | undefined> {
+}): Promise<ChatId | undefined> {
   const state = await getWindowState();
   return state.appChats?.[slug];
 }
@@ -33,13 +34,13 @@ export function chatOfTask(taskId: TaskId): StoreId.Session | undefined {
  * arrives for the window and has to find the chat from there.
  */
 export async function recordAppChat({
-  sessionId,
+  chatId,
   slug,
 }: {
-  sessionId: StoreId.Session;
+  chatId: ChatId;
   slug: string;
 }): Promise<void> {
   await updateWindowState((state) => ({
-    appChats: { ...state.appChats, [slug]: sessionId },
+    appChats: { ...state.appChats, [slug]: chatId },
   }));
 }

@@ -179,11 +179,28 @@ const liveChildTasksRoute = base
     });
   });
 
+/**
+ * The window and the agent name a chat by its session, so the routes take
+ * that and act on the chat it is; a session that is no chat's does nothing.
+ */
+async function whenChat(
+  sessionId: StoreId.Session,
+  act: (chatId: ChatId) => Promise<unknown>,
+): Promise<void> {
+  const chatId = chatOfSession(sessionId);
+  if (chatId) {
+    await act(chatId);
+  }
+}
+
 /** One chat as the list shows it, or none for a session that is not a chat. */
 const chatByIdRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(ChatSchema.optional())
-  .handler(({ input }) => chatById(input.sessionId));
+  .handler(({ input }) => {
+    const chatId = chatOfSession(input.sessionId);
+    return chatId ? chatById(chatId) : undefined;
+  });
 
 /**
  * Fires whenever anything lands in any chat of the task, a chat's
@@ -276,21 +293,21 @@ const liveListChatsRoute = base
 const seenChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markChatSeen(input.sessionId);
+    await whenChat(input.sessionId, (chatId) => markChatSeen(chatId));
   });
 
 /** A chat the user wants back among the unread: its newest reply unseen again. */
 const unseenChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markChatUnseen(input.sessionId);
+    await whenChat(input.sessionId, (chatId) => markChatUnseen(chatId));
   });
 
 /** Puts a chat away: out of the inbox, still in the list, marked. */
 const archiveChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await archiveChat(input.sessionId);
+    await whenChat(input.sessionId, (chatId) => archiveChat(chatId));
   });
 
 /** Stars a chat, or takes the star off. */
@@ -302,14 +319,16 @@ const starChatRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await setChatStarred(input.sessionId, input.starred);
+    await whenChat(input.sessionId, (chatId) =>
+      setChatStarred(chatId, input.starred),
+    );
   });
 
 /** Brings a chat back into the inbox. */
 const unarchiveChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await unarchiveChat(input.sessionId);
+    await whenChat(input.sessionId, (chatId) => unarchiveChat(chatId));
   });
 
 /**
@@ -330,7 +349,7 @@ const retitleChatRoute = base
     if (title === undefined) {
       return {};
     }
-    await settleChatTitle(input.sessionId);
+    await settleChatTitle(id);
     return { title };
   });
 
@@ -343,7 +362,9 @@ const renameChatRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await renameChat(input.sessionId, input.title);
+    await whenChat(input.sessionId, (chatId) =>
+      renameChat(chatId, input.title),
+    );
   });
 
 /** The topics a chat carries, replaced whole. */
@@ -355,7 +376,9 @@ const setChatTopicsRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await setChatTopics(input.sessionId, input.topics);
+    await whenChat(input.sessionId, (chatId) =>
+      setChatTopics(chatId, input.topics),
+    );
   });
 
 /**
@@ -418,7 +441,7 @@ export function announceChatRemoved({
   sessionId,
 }: {
   chatTasks: TaskId[];
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session;
 }) {
   for (const child of chatTasks) {

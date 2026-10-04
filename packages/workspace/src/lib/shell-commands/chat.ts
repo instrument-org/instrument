@@ -1,10 +1,8 @@
 import { defineCommand } from "just-bash";
 import { alphabetical } from "radashi";
 
-import { type StoreId } from "../../schemas/store-id";
 import { type Chat, listChats, setChatTopics } from "../chat/chats";
 import { listTopics, type Topic, topicByName } from "../chat/topics";
-import { chatOfSession } from "../record-folders";
 import { Store } from "../store";
 import { CHAT_COMMAND } from "./chat-command";
 
@@ -129,12 +127,11 @@ function findChat(
 }
 
 /** A chat's messages as `who: what` lines, oldest first. */
-async function lines(sessionId: StoreId.Session): Promise<string[]> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return [];
-  }
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+async function lines(chat: Chat): Promise<string[]> {
+  const messages = await Store.getMessagesWithParts({
+    sessionId: chat.id,
+    taskId: chat.taskId,
+  });
   if (messages.isErr()) {
     return [];
   }
@@ -198,7 +195,7 @@ async function runRead(args: string[]) {
     return failure(`${CHAT_NAME} read: ${found.error}`);
   }
   const tail = Number(option(args, "--tail") ?? DEFAULT_TAIL);
-  const said = await lines(found.chat.id);
+  const said = await lines(found.chat);
   const shown = said.slice(
     -(Number.isFinite(tail) && tail > 0 ? tail : DEFAULT_TAIL),
   );
@@ -217,7 +214,7 @@ async function runSearch(args: string[]) {
   const chats = await listChats();
   const hits: string[] = [];
   for (const chat of chats) {
-    for (const line of await lines(chat.id)) {
+    for (const line of await lines(chat)) {
       if (line.toLowerCase().includes(words)) {
         hits.push(`${chat.id}  "${chat.title}"  ${line}`);
       }
@@ -260,7 +257,7 @@ async function runTag(args: string[]) {
       stdout: `"${found.chat.title}" is already under #${topic.name}.\n`,
     };
   }
-  const written = await setChatTopics(found.chat.id, [
+  const written = await setChatTopics(found.chat.taskId, [
     ...found.chat.topics,
     topic.id,
   ]);

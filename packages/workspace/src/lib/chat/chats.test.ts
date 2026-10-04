@@ -404,13 +404,13 @@ describe("listChats", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
 
-    await markChatUnseen(sessionId);
+    await markChatUnseen(chatFor(sessionId));
     const [put] = await listChats();
     expect(put?.unread).toBe(1);
 
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
     const [seen] = await listChats();
     expect(seen?.unread).toBe(0);
   });
@@ -460,7 +460,7 @@ describe("listChats", () => {
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
 
-    await markChatUnseen(sessionId);
+    await markChatUnseen(chatFor(sessionId));
     const [chat] = await listChats();
     expect(chat?.unread).toBe(1);
   });
@@ -471,7 +471,7 @@ describe("listChats", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Done.", { minute: 2 });
 
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
 
     const [chat] = await listChats();
@@ -482,7 +482,7 @@ describe("listChats", () => {
       finished: false,
       minute: 4,
     });
-    const seen = await chatById(sessionId);
+    const seen = await chatById(chatFor(sessionId));
     const settled = seen?.newestSettledMessageId;
     expect(settled).toBeDefined();
     expect(settled).not.toBe(streaming);
@@ -494,7 +494,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list");
 
-    await setChatTopics(sessionId, [home.id, "top_nothing"]);
+    await setChatTopics(chatFor(sessionId), [home.id, "top_nothing"]);
 
     const [chat] = await listChats();
     expect(chat?.topics).toEqual([home.id]);
@@ -508,12 +508,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.archived).toBe(false);
 
-    await archiveChat(sessionId);
+    await archiveChat(chatFor(sessionId));
     const [archived] = await listChats();
     expect(archived?.archived).toBe(true);
     expect(archived?.updatedAt).toBe(before?.updatedAt);
 
-    await unarchiveChat(sessionId);
+    await unarchiveChat(chatFor(sessionId));
     const [back] = await listChats();
     expect(back?.archived).toBe(false);
   });
@@ -526,12 +526,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.starred).toBe(false);
 
-    await setChatStarred(sessionId, true);
+    await setChatStarred(chatFor(sessionId), true);
     const [starred] = await listChats();
     expect(starred?.starred).toBe(true);
     expect(starred?.updatedAt).toBe(before?.updatedAt);
 
-    await setChatStarred(sessionId, false);
+    await setChatStarred(chatFor(sessionId), false);
     const [back] = await listChats();
     expect(back?.starred).toBe(false);
   });
@@ -543,7 +543,7 @@ describe("listChats", () => {
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
 
-    await renameChat(sessionId, "Weekly shop");
+    await renameChat(chatFor(sessionId), "Weekly shop");
     const [renamed] = await listChats();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);

@@ -175,7 +175,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     ),
     ...readDirs(tasksDir),
   ]);
-  const seen = new Map<StoreId.Session, StoreId.Message | undefined>();
+  const seen = new Map<string, StoreId.Message | undefined>();
   const stagedDirs: string[] = [];
 
   for (const name of legacy) {
@@ -191,7 +191,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
         migration.emptyCount += 1;
       } else {
         migration.adoptedCount += 1;
-        seen.set(adopted.sessionId, adopted.seen);
+        seen.set(adopted.chatId, adopted.seen);
         stagedDirs.push(adopted.stagingDir);
       }
     } catch {
@@ -264,9 +264,10 @@ function adoptTask({
   topicOf: Map<string, string>;
 }):
   | {
+      /** The chat's id, the folder it lands in once staged. */
+      chatId: string;
       kind: "adopted";
       seen?: StoreId.Message;
-      sessionId: StoreId.Session;
       stagingDir: string;
     }
   | { kind: "empty" } {
@@ -376,8 +377,8 @@ function adoptTask({
     throw error;
   }
   return {
+    chatId: chatName,
     kind: "adopted",
-    sessionId,
     stagingDir,
     ...seenMark(conversation.messages, settings.unreadIndicator !== undefined),
   };
@@ -528,7 +529,8 @@ function isProjectFolder(folder: string): boolean {
  */
 function markSeen(
   rootDir: string,
-  seen: Map<StoreId.Session, StoreId.Message | undefined>,
+  /** By chat id, which is what the window keeps its marks by. */
+  seen: Map<string, StoreId.Message | undefined>,
 ) {
   if (seen.size === 0) {
     return;
@@ -540,8 +542,8 @@ function markSeen(
       const marks = new Map<string, unknown>(
         Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
       );
-      for (const [sessionId, messageId] of seen) {
-        marks.set(sessionId, messageId ?? NOTHING_SEEN);
+      for (const [chatId, messageId] of seen) {
+        marks.set(chatId, messageId ?? NOTHING_SEEN);
       }
       return { chatSeen: Object.fromEntries(marks) };
     },

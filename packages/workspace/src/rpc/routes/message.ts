@@ -144,8 +144,8 @@ const create = base
             throw toORPCError(sessionResult.error, errors);
           }
           finalSessionId = sessionResult.value.id;
-          if (isChat && topics && topics.length > 0) {
-            await setChatTopics(finalSessionId, topics);
+          if (chatId && topics && topics.length > 0) {
+            await setChatTopics(chatId, topics);
           }
         }
 

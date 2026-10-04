@@ -1,5 +1,5 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -70,7 +70,7 @@ function chat(): Chat {
     runningTasks: [],
     starred: false,
     state: "idle",
-    taskId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
+    taskId: ChatIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],

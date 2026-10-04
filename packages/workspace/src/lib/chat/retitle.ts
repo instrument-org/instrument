@@ -227,11 +227,11 @@ async function retitleOnSettle({
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
-  if (await chatIsWorking(sessionId)) {
+  if (await chatIsWorking(chatId)) {
     return;
   }
   const title = await retitleChat({ id: chatId, keep: true, sessionId });
   if (title !== undefined) {
-    await settleChatTitle(sessionId);
+    await settleChatTitle(chatId);
   }
 }

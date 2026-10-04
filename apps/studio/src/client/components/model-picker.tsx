@@ -56,8 +56,7 @@ const PANEL_WIDTH = "42.5rem";
 const PANEL_HEIGHT = "32.5rem";
 
 /** The chosen model's row, the same pressed state the inbox's filters use. */
-const CHOSEN =
-  "bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200";
+const CHOSEN = "bg-accent text-accent-foreground";
 
 type ListError = NonNullable<
   RPCOutput["gateway"]["models"]["list"]["errors"]
@@ -330,7 +329,7 @@ function PickerPanel({
 
   return (
     <Command
-      className="flex min-h-0 flex-1 flex-col [&:not([data-engaged])_[data-selected=true]:not([data-chosen])]:bg-transparent"
+      className="flex min-h-0 flex-1 flex-col [&:not([data-engaged])_[data-selected=true]:not([data-chosen]):not([data-solid])]:bg-transparent"
       data-engaged={engaged || undefined}
       label="Search models"
       onKeyDownCapture={engage}
@@ -382,8 +381,20 @@ function PickerPanel({
                     list holds one connection's. */}
                 <span className="sr-only"> models</span>
               </span>
-              {entry.failed && (
+              {entry.failed ? (
                 <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
+              ) : (
+                entry.id === chosenConnection && (
+                  // Where the chosen model lives, so browsing another
+                  // connection does not lose it.
+                  <>
+                    <CheckIcon
+                      aria-hidden
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="sr-only">(has the chosen model)</span>
+                  </>
+                )
               )}
             </button>
           ))}
@@ -657,11 +668,7 @@ function AutoRow({
       data-chosen={chosen || undefined}
       className={cn(
         "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
-        chosen &&
-          cn(
-            CHOSEN,
-            "data-[selected=true]:bg-brand-100 dark:data-[selected=true]:bg-brand-500/20",
-          ),
+        chosen && CHOSEN,
       )}
       onSelect={() => {
         onPick(model);
@@ -690,7 +697,7 @@ function AutoRow({
       </span>
       {chosen && (
         <>
-          <CheckIcon aria-hidden className="size-4 shrink-0" />
+          <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />
           <span className="sr-only">(chosen)</span>
         </>
       )}
@@ -728,13 +735,14 @@ function AutoOnly({
         </span>
       </div>
       <CommandItem
+        data-solid
         data-chosen={chosen || undefined}
         aria-label={chosen ? "Auto (chosen)" : "Use Auto"}
         className={cn(
           "mt-1 flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium",
           chosen
-            ? "text-brand-800 dark:text-brand-200"
-            : "bg-brand-600 text-white data-[selected=true]:bg-brand-700 dark:bg-brand-500",
+            ? "text-foreground"
+            : "bg-brand-600 text-white data-[selected=true]:bg-brand-700 data-[selected=true]:text-white dark:bg-brand-500 dark:data-[selected=true]:bg-brand-600",
         )}
         onSelect={() => {
           onPick(model);
@@ -775,11 +783,7 @@ function ModelRow({
       className={cn(
         "flex items-center gap-2.5 rounded-md px-2.5",
         row.sub ? "py-1.5" : "min-h-9",
-        chosen &&
-          cn(
-            CHOSEN,
-            "data-[selected=true]:bg-brand-100 dark:data-[selected=true]:bg-brand-500/20",
-          ),
+        chosen && CHOSEN,
       )}
       disabled={Boolean(model.restricted)}
       onSelect={() => {
@@ -826,7 +830,7 @@ function ModelRow({
       </span>
       {chosen && (
         <>
-          <CheckIcon aria-hidden className="size-4 shrink-0" />
+          <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />
           <span className="sr-only">(chosen)</span>
         </>
       )}

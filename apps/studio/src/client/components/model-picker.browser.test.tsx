@@ -149,9 +149,9 @@ describe("ModelPicker in a browser", () => {
       "- text: Search models
       - combobox "Search models" [expanded]
       - navigation "Providers":
-        - button "Instrument models":
+        - button "Instrument models (has the chosen model)":
           - img
-          - text: Instrument models
+          - text: Instrument models (has the chosen model)
         - button "Anthropic models":
           - img
           - text: Anthropic models
@@ -172,9 +172,9 @@ describe("ModelPicker in a browser", () => {
         - button "Instrument models":
           - img
           - text: Instrument models
-        - button "Anthropic models":
+        - button "Anthropic models (has the chosen model)":
           - img
-          - text: Anthropic models
+          - text: Anthropic models (has the chosen model)
         - button "Add a provider"
       - listbox "Suggestions":
         - text: Latest
@@ -226,6 +226,21 @@ describe("ModelPicker in a browser", () => {
       page.getByRole("option", { name: "Claude Haiku 4.5" }),
     );
     await expect.poll(tinted).toEqual(["Claude Haiku 4.5"]);
+  });
+
+  // The rule that keeps cmdk's untouched highlight from showing also took
+  // the Use Auto button's own fill, leaving white words on nothing.
+  it("draws Use Auto filled before the panel is touched", async () => {
+    await renderInBrowser(
+      <ModelPicker models={[autoModel]} onValueChange={vi.fn()} />,
+    );
+    await userEvent.click(page.getByRole("combobox", { name: "Model" }));
+
+    const button = page.getByRole("option", { name: "Use Auto" });
+    await expect.element(button).toBeVisible();
+    expect(getComputedStyle(button.element()).backgroundColor).not.toBe(
+      "rgba(0, 0, 0, 0)",
+    );
   });
 
   it("will not pick a model the user cannot run", async () => {

@@ -79,7 +79,9 @@ function inkedMarkup(svg: string): string {
     markup = svg
       .replace(INK, 'fill="currentColor"')
       .replace(/ (?:width|height)="1em"/g, "")
-      .replace(/ style="[^"]*"/, "");
+      .replace(/ style="[^"]*"/, "")
+      // The row names the model; a title would add the maker to its text.
+      .replace(/<title>[^<]*<\/title>/, "");
     inked.set(svg, markup);
   }
   return markup;

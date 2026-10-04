@@ -53,6 +53,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
+import { chatRefusal } from "./chat-shell-policy";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -68,125 +69,6 @@ const MAX_YIELD_MS = ms("10 minutes");
  * from `yieldMs` plus this slack so promotion always wins the race.
  */
 const YIELD_TIMEOUT_SLACK_MS = ms("30 seconds");
-
-/** What the chat's shell runs: the two commands that are its job, and filters to read their output with. */
-// Its commands, and the file commands for putting a finished file where it
-// belongs and looking at one: a task's folder is mounted read-only under the
-// chat's view and the user's folders read and write, so a copy out of
-// one into the other is the whole of what these can do to a file.
-const CHAT_COMMANDS = new Set([
-  "app",
-  "cat",
-  "chat",
-  "cp",
-  "du",
-  "fg",
-  "file",
-  "find",
-  "head",
-  "jobs",
-  "kill",
-  "ls",
-  "memory",
-  "mkdir",
-  "mv",
-  "stat",
-  "tab",
-  "tail",
-  "task",
-  "wc",
-]);
-const CHAT_FILTERS = new Set([
-  "awk",
-  "cut",
-  "echo",
-  "grep",
-  "head",
-  "jq",
-  "rg",
-  "sed",
-  "sort",
-  "tail",
-  "true",
-  "uniq",
-  "wc",
-]);
-// The two filters that only ever read, so a path of their own is the same read
-// `cat` already allows. Refusing `grep <pattern> <file>` while allowing
-// `cat <file> | grep <pattern>` buys no containment and costs a turn every
-// time: measured, the conversation's agent reaches for the first form, loses
-// the read, and answers from a task's one-line summary instead of the file.
-// The rest stay downstream of a pipe because they can write from inside their
-// own arguments -- `sed -i`, and `awk 'BEGIN{print > "..."}'` -- which the
-// redirect guard above does not see.
-const CHAT_SEARCH = new Set(["grep", "rg"]);
-
-/**
- * The first word of every command in a script, heredoc bodies skipped, and
- * whether the command follows a pipe: a command that starts with a quoted
- * heredoc marker owns the lines up to the marker, and those lines are a
- * brief, not commands.
- */
-export function leadingWords(
-  script: string,
-): { piped: boolean; word: string }[] {
-  const words: { piped: boolean; word: string }[] = [];
-  const lines = script.split("\n");
-  let terminator: string | undefined;
-  for (const line of lines) {
-    if (terminator !== undefined) {
-      if (line.trim() === terminator) {
-        terminator = undefined;
-      }
-      continue;
-    }
-    for (const { piped, stage } of stages(line)) {
-      const word = stage.trim().split(/\s+/)[0];
-      if (word) {
-        words.push({ piped, word });
-      }
-    }
-    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
-    if (heredoc) {
-      terminator = heredoc[1];
-    }
-  }
-  return words;
-}
-
-/**
- * The conversation's agent does no work of its own: every command it runs
- * is `task` or `app`, and a filter is allowed only downstream of one, on
- * their output. Anything else is refused with the way to do it instead, so
- * the agent never becomes busy doing what a task exists for.
- */
-export function chatRefusal(script: string): string | undefined {
-  // Checked before the command names, because this is the hole they leave: the
-  // list is a list of things safe to *read* with, and every one of them writes
-  // a file the moment its output is redirected. Measured, a model finds it on
-  // its own -- gpt-oss-120b answered a "put a summary in my folder" ask with
-  // `cat > /mnt/Instrument/summary.md <<'EOF'` and wrote the deliverable from
-  // the conversation, which is the one thing this shell exists to prevent.
-  if (redirectsOutput(script)) {
-    return `Redirecting output to a file is not yours to do: this shell reads files and never writes one. Work that writes a file's contents is a task's: start one with \`task new\`.`;
-  }
-  const outside = leadingWords(script).find(
-    ({ piped, word }) =>
-      !CHAT_COMMANDS.has(word) &&
-      !CHAT_SEARCH.has(word) &&
-      !(piped && CHAT_FILTERS.has(word)),
-  );
-  if (outside === undefined) {
-    return;
-  }
-  // A filter run without one is a rewrite away from working, so say the
-  // rewrite: a refusal that only names the rule leaves the agent to guess at
-  // the form, and the guess is usually another refusal.
-  if (CHAT_FILTERS.has(outside.word)) {
-    return `\`${outside.word}\` reads what a command before it printed, so give it one: \`cat <file> | ${outside.word} ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one.`;
-  }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, du, cp, mv, mkdir), \`jobs\`/\`fg\`/\`kill\` on what it sent to the background, and \`grep\`/\`rg\` on a path, with the other filters (${[...CHAT_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
-}
 
 function bashToolCallTimeoutMs(yieldMs: number) {
   return clampYieldMs(yieldMs) + YIELD_TIMEOUT_SLACK_MS;
@@ -229,71 +111,6 @@ async function raceYield<T>(
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * A line cut into its commands (at `;`, `&&`, `||`) and each command into
- * the stages of its pipeline (at `|`), with quoted text left whole: a `|`
- * inside a grep pattern or an app call's JSON is data, and cutting there
- * would refuse the command for a word from the middle of its argument.
- */
-function stages(line: string): { piped: boolean; stage: string }[] {
-  const result: { piped: boolean; stage: string }[] = [];
-  let quote: string | undefined;
-  let start = 0;
-  let piped = false;
-  const cut = (end: number, next: number, nextPiped: boolean) => {
-    result.push({ piped, stage: line.slice(start, end) });
-    start = next;
-    piped = nextPiped;
-  };
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (quote !== undefined) {
-      if (quote === '"' && character === "\\") {
-        index += 1;
-      } else if (character === quote) {
-        quote = undefined;
-      }
-      continue;
-    }
-    switch (character) {
-      case '"':
-      case "'": {
-        quote = character;
-        break;
-      }
-      case "&": {
-        if (line[index + 1] === "&") {
-          cut(index, index + 2, false);
-          index += 1;
-        }
-        break;
-      }
-      case ";": {
-        cut(index, index + 1, false);
-        break;
-      }
-      case "\\": {
-        index += 1;
-        break;
-      }
-      case "|": {
-        if (line[index + 1] === "|") {
-          cut(index, index + 2, false);
-          index += 1;
-        } else {
-          cut(index, index + 1, true);
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  result.push({ piped, stage: line.slice(start) });
-  return result;
 }
 
 export const BashTool = setupTool({
@@ -623,57 +440,4 @@ function browserSkillText(skill: BrowserSkill, toolCallId: string) {
       toolCallId,
     }) + truncation,
   ].join("\n");
-}
-
-/**
- * Whether the script sends output to a file anywhere the shell would act on it.
- *
- * Walks the characters rather than matching a pattern, because the two places a
- * `>` means nothing are exactly the places a pattern gets wrong: inside quotes
- * (`rg '>' notes.md`, `task new --name 'a > b'`) and inside a heredoc body,
- * which is a brief rather than a command. A `>` followed by `&` is duplicating
- * a file descriptor (`2>&1`, `>&2`) and writes no file, so it stays allowed.
- */
-function redirectsOutput(script: string): boolean {
-  let quote: string | undefined;
-  let terminator: string | undefined;
-  for (const line of script.split("\n")) {
-    if (terminator !== undefined) {
-      if (line.trim() === terminator) {
-        terminator = undefined;
-      }
-      continue;
-    }
-    quote = undefined;
-    // Indexed rather than iterated: every character that matters to a shell is
-    // ASCII, and the surrounding text is only ever skipped over.
-    for (let index = 0; index < line.length; index += 1) {
-      const character = line[index];
-      if (quote) {
-        if (character === quote) {
-          quote = undefined;
-        }
-        continue;
-      }
-      if (character === "'" || character === '"') {
-        quote = character;
-        continue;
-      }
-      if (character === ">" && line[index + 1] !== "&") {
-        // Throwing a stream away is not writing a file: `2>/dev/null` is
-        // how a command's noise is dropped, and refusing it costs a turn. The
-        // target ends where the shell ends a word, so `2>/dev/null;` and
-        // `2>/dev/null)` name the same file as the bare form.
-        const target = /^>?\s*([^\s;&|()<>]+)/.exec(line.slice(index + 1))?.[1];
-        if (target !== "/dev/null") {
-          return true;
-        }
-      }
-    }
-    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
-    if (heredoc) {
-      terminator = heredoc[1];
-    }
-  }
-  return false;
 }

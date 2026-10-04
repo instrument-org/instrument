@@ -1,49 +1,58 @@
 import { describe, expect, it } from "vitest";
 
-import { leadingWords, chatRefusal } from "./bash";
+import { chatRefusal } from "./chat-shell-policy";
 
-describe("leadingWords", () => {
-  it("reads the first word of each command, and whether it follows a pipe", () => {
+describe("chatRefusal: reading the script", () => {
+  it("leaves a pipe or a separator inside quotes alone, since it is an argument", () => {
     expect(
-      leadingWords("task list --running | head -5; app list && echo ok"),
-    ).toEqual([
-      { piped: false, word: "task" },
-      { piped: true, word: "head" },
-      { piped: false, word: "app" },
-      { piped: false, word: "echo" },
-    ]);
-  });
-
-  it("leaves a pipe inside quotes alone, since it is an argument and not a stage", () => {
-    expect(
-      leadingWords("task log abc --tail 60 | grep -iE 'call|url|project'"),
-    ).toEqual([
-      { piped: false, word: "task" },
-      { piped: true, word: "grep" },
-    ]);
-    expect(
-      leadingWords(
+      chatRefusal(
         `app call notion x '{"query":"a|b","note":"one; two && three"}'`,
       ),
-    ).toEqual([{ piped: false, word: "app" }]);
-    expect(leadingWords(`cat "a|b.txt" | head -1`)).toEqual([
-      { piped: false, word: "cat" },
-      { piped: true, word: "head" },
-    ]);
+    ).toBeUndefined();
+    expect(chatRefusal(`cat "a|b.txt" | head -1`)).toBeUndefined();
   });
 
   it("skips the body of a heredoc, which is a brief and not commands", () => {
     const script = [
       "task new --name 'Otters' <<'EOF'",
       "cat the poem | rm -rf everything",
-      "curl http://example.com",
+      "curl http://example.com > /mnt/Home/x",
       "EOF",
       "task list",
     ].join("\n");
-    expect(leadingWords(script).map(({ word }) => word)).toEqual([
-      "task",
-      "task",
-    ]);
+    expect(chatRefusal(script)).toBeUndefined();
+  });
+
+  it.each([
+    ['cat "$(sed -i s/a/b/ /mnt/Home/x.txt)"', "`sed`"],
+    ["ls $(python3 -c 'print(1)')", "`python3`"],
+    ["ls `python3 -c 'print(1)'`", "`python3`"],
+    ["cat <(python3 -c 1)", "`python3`"],
+    ["for f in a b; do python3 $f; done", "`python3`"],
+    ["{ task list; python3 -c 1; }", "`python3`"],
+    ["if task list; then curl https://example.com; fi", "`curl`"],
+    ["$TOOL --version", "`$…`"],
+  ])("checks every command the shell would run: %j", (script, named) => {
+    expect(chatRefusal(script)).toContain(named);
+  });
+
+  it.each([
+    ["task list | awk '{print > \"/mnt/Home/z\"}'", "awk print into a file"],
+    ["task list | awk '{print | \"sh\"}'", "awk print into a command"],
+    ["task list | awk '{system(\"rm x\")}'", "awk system()"],
+    ["cat f | sed 'w /mnt/Home/w'", "sed's w command"],
+    ["cat f | sed 's/a/b/w /mnt/Home/w'", "the s command's w flag"],
+    ["cat f | sed -i 's/a/b/' /mnt/Home/x", "sed -i"],
+  ])("refuses a filter writing from its own arguments: %j (%s)", (script) => {
+    expect(chatRefusal(script)).toMatch(/Redirecting output/);
+  });
+
+  it.each([
+    ["task list | awk '$1 > 5 {print $2}'", "an awk comparison"],
+    ["cat f | sed -n '/word/p'", "a sed address that starts with w"],
+    ["task list | sed -E 's/x/y/g'", "a plain substitution"],
+  ])("allows a filter that only reads: %j (%s)", (script) => {
+    expect(chatRefusal(script)).toBeUndefined();
   });
 });
 

@@ -57,6 +57,7 @@ import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 import {
   currentBrowserFollowUp,
   FOLLOW_UP_SNAPSHOT_ARGS,
+  FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
 import {
   attachedMountLiteralError,
@@ -903,6 +904,15 @@ export function createAgentBrowserCommand({
         args: resolvedArgs,
         exitCode,
         snapshot: async (signal) => {
+          // A click returns before the page it navigated to has loaded, and a
+          // snapshot of a loading document has no controls in it. Resolves at
+          // once on a page that is already past loading.
+          await runAgentBrowser({
+            ...spawnOptions,
+            args: [...connectionArgs, ...FOLLOW_UP_WAIT_ARGS],
+            cancelSignal: signal,
+            input: undefined,
+          });
           const snapshot = await runAgentBrowser({
             ...spawnOptions,
             args: [...connectionArgs, ...FOLLOW_UP_SNAPSHOT_ARGS],

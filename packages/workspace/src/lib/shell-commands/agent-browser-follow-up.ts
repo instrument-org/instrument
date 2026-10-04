@@ -31,6 +31,12 @@ export type PageAfter = z.output<typeof PageAfterSchema>;
 /** The snapshot a follow-up takes, matching what the note tells the model. */
 export const FOLLOW_UP_SNAPSHOT_ARGS = ["snapshot", "-i", "--delta"];
 
+/** Run ahead of the snapshot, so a navigation the change started has a DOM. */
+export const FOLLOW_UP_WAIT_ARGS = ["wait", "--load", "domcontentloaded"];
+
+/** What `snapshot -i` prints for a page with no controls in it. */
+const NO_CONTROLS = "(no interactive elements)";
+
 /**
  * Characters of a full snapshot attached before the rest is cut. About the
  * 75th percentile of the `snapshot -i` outputs in real task history: a page
@@ -231,6 +237,11 @@ export function parseFollowUpSnapshot(
     return { after, kind: "full", text: output.trimEnd() };
   }
   const body = lines.slice(1, -1);
+  // Most often a page caught before it loaded. Shown as the page after the
+  // change, it reads as a dead end; left out, the model looks for itself.
+  if (body.length === 1 && body[0]?.trim() === NO_CONTROLS) {
+    return undefined;
+  }
   if (body[0]?.trimStart().startsWith("{")) {
     const delta = parseDelta(body.join("\n"));
     if (delta) {

@@ -468,8 +468,13 @@ describe("agent-browser routing", () => {
         return;
       }
       expect(page).toMatchObject({ after: "click", kind: "unchanged" });
-      expect(calls).toHaveLength(2);
-      expect(calls[1]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
+      expect(calls).toHaveLength(3);
+      expect(calls[1]?.slice(-3)).toEqual([
+        "wait",
+        "--load",
+        "domcontentloaded",
+      ]);
+      expect(calls[2]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
     },
   );
 

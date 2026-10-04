@@ -187,6 +187,15 @@ describe("parseFollowUpSnapshot", () => {
     expect(parsed?.text.endsWith(END)).toBe(true);
   });
 
+  it("attaches nothing for a page with no controls", () => {
+    expect(
+      parseFollowUpSnapshot(
+        `${START}\n(no interactive elements)\n${END}\n`,
+        "click",
+      ),
+    ).toBeUndefined();
+  });
+
   it("passes unexpected output through whole", () => {
     expect(parseFollowUpSnapshot("something else\n", "click")).toEqual({
       after: "click",

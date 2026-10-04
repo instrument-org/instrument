@@ -1269,7 +1269,7 @@
         "List the components in our design system",
         "Describe the checkout screen in our app design"
       ],
-      "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in on the Browser screen and a task works there.",
+      "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in to the site in Instrument's browser, as a web app, and a task works there.",
       "domain": "figma.com",
       "authMethods": [
         {
@@ -4240,7 +4240,7 @@
       "slug": "xero",
       "name": "Xero",
       "tagline": "Invoices, bills, and the ledger behind them.",
-      "description": "Xero authenticates every path, its MCP server included, with an OAuth client from an app registered in Xero's developer portal, which the sign-in card cannot be. There is no API key. Not reachable as an app from here; the user signs in on the Browser screen and a task works there.",
+      "description": "Xero authenticates every path, its MCP server included, with an OAuth client from an app registered in Xero's developer portal, which the sign-in card cannot be. There is no API key. Reachable as a web app: the user signs in to the site in Instrument's browser and a task works there.",
       "domain": "xero.com",
       "authMethods": [
         {

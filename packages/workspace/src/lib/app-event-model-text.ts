@@ -29,7 +29,9 @@ export function appEventModelNote(
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
       }
       case "disconnected": {
-        return `- ${event.name} (${event.slug}) was disconnected. Its tools and requests will refuse until it is connected again.`;
+        return event.web === undefined
+          ? `- ${event.name} (${event.slug}) was disconnected. Its tools and requests will refuse until it is connected again.`
+          : `- ${event.name} (${event.slug}) was disconnected. Do not work its site until the user signs in again.`;
       }
       case "failed": {
         return `- Connecting ${event.name} (${event.slug}) failed${detail ? `: ${detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;

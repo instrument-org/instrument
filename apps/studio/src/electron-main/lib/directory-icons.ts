@@ -23,6 +23,16 @@ function getDirectoryIconsDir(): string {
 
 let shipped: Promise<Map<string, string>> | undefined;
 
+/** The shipped icon's file name for a slug. */
+async function shippedIconFile(slug: string): Promise<string | undefined> {
+  // A build without the folder draws every service from its site, as before
+  // there were icons to ship.
+  shipped ??= readDirectoryIcons(getDirectoryIconsDir()).catch(
+    () => new Map<string, string>(),
+  );
+  return (await shipped).get(slug);
+}
+
 /**
  * The directory's icon for a slug, as the address the renderer draws it
  * from, when the build ships one. Drawn after an app's own icon and its Mac
@@ -31,13 +41,28 @@ let shipped: Promise<Map<string, string>> | undefined;
 export async function directoryIconFor(
   slug: string,
 ): Promise<string | undefined> {
-  // A build without the folder draws every service from its site, as before
-  // there were icons to ship.
-  shipped ??= readDirectoryIcons(getDirectoryIconsDir()).catch(
-    () => new Map<string, string>(),
-  );
-  const file = (await shipped).get(slug);
+  const file = await shippedIconFile(slug);
   return file === undefined ? undefined : directoryIconUrl(file);
+}
+
+/** The directory's icon for a slug as a data address, for a page outside the window that cannot load `app:` addresses. */
+export async function directoryIconDataUri(
+  slug: string,
+): Promise<string | undefined> {
+  const file = await shippedIconFile(slug);
+  if (file === undefined) {
+    return undefined;
+  }
+  const bytes = await fs
+    .readFile(path.join(getDirectoryIconsDir(), file))
+    .catch(() => undefined);
+  return bytes && iconDataUri(bytes, file);
+}
+
+/** An icon file's bytes as a data address, typed by its name. */
+export function iconDataUri(bytes: Buffer, fileName: string): string {
+  const type = fileName.endsWith(".svg") ? "image/svg+xml" : "image/png";
+  return `data:${type};base64,${bytes.toString("base64")}`;
 }
 
 /** One of the directory's icons, by its file name. */

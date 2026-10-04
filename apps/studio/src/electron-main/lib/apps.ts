@@ -1,4 +1,8 @@
 import { getAuthServerPort } from "@/electron-main/auth/state";
+import {
+  directoryIconDataUri,
+  iconDataUri,
+} from "@/electron-main/lib/directory-icons";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
   getAppCredential,
@@ -11,6 +15,8 @@ import {
 import { PORTS } from "@instrument-org/shared";
 import {
   appHomeFor,
+  findAppIcon,
+  findCatalogEntry,
   loadApp,
   type WorkspaceConfig,
   workspacePublisher,
@@ -71,6 +77,30 @@ export async function appName(
 ): Promise<string> {
   const loaded = await loadApp(appsDir, slug);
   return loaded.isOk() ? loaded.value.manifest.name : slug;
+}
+
+/**
+ * The app's mark for the page a sign-in lands on, as a data address: its own
+ * icon, else the directory's for the service it reaches.
+ */
+export async function appMark(
+  appsDir: WorkspaceConfig["appsDir"],
+  slug: string,
+): Promise<string | undefined> {
+  const loaded = await loadApp(appsDir, slug);
+  if (loaded.isErr()) {
+    return undefined;
+  }
+  const { dir, manifest } = loaded.value;
+  const own = await findAppIcon(dir).catch(() => undefined);
+  if (own) {
+    return iconDataUri(own.bytes, own.fileName);
+  }
+  const entry = findCatalogEntry(
+    slug,
+    manifest.type === "mcp" ? manifest.url : undefined,
+  );
+  return entry ? directoryIconDataUri(entry.slug) : undefined;
 }
 
 /**

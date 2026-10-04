@@ -133,6 +133,9 @@ export type CaptureExceptionFunction = (
   additionalProperties?: {
     apps_server_port?: number;
     assistant_error_kind?: string;
+    // The code a failed sign-in's page shows, so a support message can be
+    // matched to this report.
+    auth_reference?: string;
     existing_part_state?: string;
     input_stream_char_count?: number;
     machine_name?: string;

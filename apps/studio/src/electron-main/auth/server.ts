@@ -4,12 +4,19 @@ import {
   decodeOAuthState,
   store,
 } from "@/electron-main/auth/client";
-import { renderAuthPage, testStates } from "@/electron-main/auth/page";
+import {
+  GOOGLE_MARK,
+  newAuthReference,
+  OPENAI_MARK,
+  previewOutcomes,
+  renderAuthPage,
+} from "@/electron-main/auth/page";
 import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   announceConnected,
   APP_OAUTH_CALLBACK_PATH,
   appHome,
+  appMark,
   appName,
   getAppsDir,
 } from "@/electron-main/lib/apps";
@@ -166,9 +173,39 @@ async function start() {
     ),
   );
 
+  const googleService = { mark: GOOGLE_MARK, name: "Google" };
+  // A failure the page offers a reference for, logged under that reference.
+  const failed = (
+    error: Error,
+    page: { connecting?: string; provider: string },
+  ) => {
+    const reference = newAuthReference();
+    captureServerException(error, {
+      auth_reference: reference,
+      scopes: ["auth"],
+    });
+    return renderAuthPage({ ...page, kind: "failed", reference });
+  };
+
   app.get("/auth/callback/google", async (c) => {
     const code = c.req.query("code");
     const state = c.req.query("state");
+
+    if (
+      c.req.query("error") !== undefined &&
+      state !== undefined &&
+      state === store.state
+    ) {
+      focusAppWindow();
+      return c.html(
+        renderAuthPage({
+          fromChat: false,
+          kind: "declined",
+          service: googleService,
+          signIn: true,
+        }),
+      );
+    }
 
     if (
       code === undefined ||
@@ -181,13 +218,13 @@ async function start() {
         { scopes: ["auth"] },
       );
       focusAppWindow();
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
 
     const decodedState = decodeOAuthState(state);
     if (!decodedState) {
       focusAppWindow();
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
 
     const google = createGoogleProvider({ port });
@@ -195,6 +232,7 @@ async function start() {
     const sessionStore = getSessionStore();
 
     const headers = new Headers();
+    let email: string | undefined;
 
     try {
       const tokens = await google.validateAuthorizationCode(code, codeVerifier);
@@ -216,19 +254,19 @@ async function start() {
       );
 
       if (res.error) {
-        captureServerException(
-          new Error("Login failed", { cause: res.error }),
-          { scopes: ["auth"] },
-        );
+        const page = failed(new Error("Login failed", { cause: res.error }), {
+          provider: "Google",
+        });
         publisher.publish("auth.login-error", {
           error: res.error,
         });
         focusAppWindow();
-        return await c.html(renderAuthPage({ isError: true }), 400);
+        return await c.html(page, 400);
       }
+      email = "user" in res.data ? res.data.user.email : undefined;
     } catch (error) {
-      captureServerException(new Error("Error signing in", { cause: error }), {
-        scopes: ["auth"],
+      const page = failed(new Error("Error signing in", { cause: error }), {
+        provider: "Google",
       });
       // The button in the app holds until it hears how the sign-in went.
       publisher.publish("auth.login-error", {
@@ -239,7 +277,7 @@ async function start() {
         },
       });
       focusAppWindow();
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(page, 400);
     }
 
     void setDefaultModel();
@@ -248,7 +286,9 @@ async function start() {
     // before the window comes to front -- keeps the entrance animation visible.
     setTimeout(focusAppWindow, 400);
     captureServerEvent("auth.logged_in");
-    return c.html(renderAuthPage({}));
+    return c.html(
+      renderAuthPage({ email, kind: "signed-in", service: googleService }),
+    );
   });
 
   // An app's sign-in lands here after the user approves. Finish the parked
@@ -268,28 +308,41 @@ async function start() {
       // the conversation hears a decline, the same as "Not now" on the card.
       const slug = pendingMcpOAuthSlug(state);
       await cancelMcpOAuth(state);
-      if (slug !== undefined && appsDir) {
-        await recordConnection(slug, { status: "declined" });
-        workspacePublisher.publish("app.updated", null);
-        workspacePublisher.publish("app.event", {
-          event: "declined",
-          name: await appName(appsDir, slug),
-          slug,
-        });
+      if (slug === undefined || !appsDir) {
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
       }
-      return c.html(renderAuthPage({ isError: true }), 400);
+      await recordConnection(slug, { status: "declined" });
+      const name = await appName(appsDir, slug);
+      workspacePublisher.publish("app.updated", null);
+      workspacePublisher.publish("app.event", {
+        event: "declined",
+        name,
+        slug,
+      });
+      return c.html(
+        renderAuthPage({
+          fromChat: true,
+          kind: "declined",
+          service: { mark: await appMark(appsDir, slug), name },
+        }),
+      );
     }
     if (code === undefined || state === undefined) {
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
     const slug = pendingMcpOAuthSlug(state);
     const result = await completeMcpOAuth({ code, state });
     if (result.isErr()) {
-      captureServerException(
+      // No flow was waiting for this state: an old tab or a second visit.
+      if (slug === undefined) {
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      const name = appsDir ? await appName(appsDir, slug) : slug;
+      const page = failed(
         new Error(`App sign-in failed: ${result.error.message}`),
-        { scopes: ["auth"] },
+        { connecting: name, provider: name },
       );
-      if (slug !== undefined && appsDir) {
+      if (appsDir) {
         await recordConnection(slug, {
           error: result.error.message,
           status: "failed",
@@ -298,11 +351,11 @@ async function start() {
         workspacePublisher.publish("app.event", {
           detail: result.error.message,
           event: "failed",
-          name: await appName(appsDir, slug),
+          name,
           slug,
         });
       }
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(page, 400);
     }
     const name = appsDir
       ? await appName(appsDir, result.value.slug)
@@ -320,44 +373,82 @@ async function start() {
     if (result.value.opensIn === "app" && home) {
       return c.redirect(home);
     }
-    return c.html(renderAuthPage({ signedInTo: name }));
+    return c.html(
+      renderAuthPage({
+        inFront: false,
+        kind: "connected",
+        service: {
+          mark: appsDir ? await appMark(appsDir, result.value.slug) : undefined,
+          name,
+        },
+      }),
+    );
   });
 
   // Sign in with ChatGPT lands here. The sign-in is finished before the page
   // renders, so it says whether the plan is ready, and the window comes back
   // to the front because the browser it ran in is the user's own.
   app.get(CHATGPT_CALLBACK_PATH, async (c) => {
-    const finished = receiveChatGPTCallback(new URL(c.req.url).searchParams);
+    const params = new URL(c.req.url).searchParams;
+    const finished = receiveChatGPTCallback(params);
     if (!finished) {
-      return c.html(renderAuthPage({ isError: true }), 400);
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-    const status = await finished.catch((error: unknown) => {
-      captureServerException(
-        new Error("ChatGPT sign-in failed", { cause: error }),
-        { scopes: ["auth"] },
-      );
-      return;
-    });
+    const chatGPT = { mark: OPENAI_MARK, name: "ChatGPT" };
+    const failedPage = (error: Error) =>
+      failed(error, { connecting: chatGPT.name, provider: "OpenAI" });
+    const status = await finished.then(
+      (value) => ({ value }),
+      (error: unknown) =>
+        failedPage(new Error("ChatGPT sign-in failed", { cause: error })),
+    );
     focusAppWindow();
-    return status?.state === "signed-in"
-      ? c.html(renderAuthPage({ signedInTo: "Your ChatGPT plan" }))
-      : c.html(renderAuthPage({ isError: true }), 400);
+    if (!("value" in status)) {
+      return c.html(status, 400);
+    }
+    const account = status.value;
+    if (account === undefined) {
+      // Canceled on OpenAI's page, or a newer sign-in took this one's place.
+      return params.get("error") === "access_denied"
+        ? c.html(
+            renderAuthPage({
+              fromChat: false,
+              kind: "declined",
+              service: chatGPT,
+            }),
+          )
+        : c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    if (account.state !== "signed-in") {
+      return c.html(
+        failedPage(new Error(`ChatGPT sign-in ended ${account.state}`)),
+        400,
+      );
+    }
+    return c.html(
+      renderAuthPage({
+        email: account.email,
+        inFront: true,
+        kind: "connected",
+        service: chatGPT,
+      }),
+    );
   });
 
   app.get("/test", (c) =>
     c.html(
       renderAuthPage({
-        indexHref: "/test",
-        states: testStates,
-        title: "Auth Page Preview",
+        index: previewOutcomes.map(({ label }, i) => ({
+          href: `/test/${String(i)}`,
+          label,
+        })),
       }),
     ),
   );
-  app.get("/test/success", (c) => c.html(renderAuthPage({})));
-  app.get("/test/connected", (c) =>
-    c.html(renderAuthPage({ signedInTo: "Your ChatGPT plan" })),
-  );
-  app.get("/test/error", (c) => c.html(renderAuthPage({ isError: true })));
+  app.get("/test/:index", (c) => {
+    const preview = previewOutcomes[Number(c.req.param("index"))];
+    return preview ? c.html(renderAuthPage(preview.outcome)) : c.notFound();
+  });
 
   return { port };
 }

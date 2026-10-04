@@ -75,15 +75,26 @@ export function catalogEntryLocalServer(
 }
 
 /**
- * The entry's hosted MCP endpoint, when it has one: the interface the agent
- * should reach for first, since sign-in, refresh, and the tool list all come
- * with it.
+ * An interface's `auth` when its sign-in needs an OAuth client registered
+ * with the vendor ahead of time, which Instrument does not have yet: the
+ * server registers no client on the spot, so the sign-in card cannot make
+ * one. Such a server is skipped for the next way in.
+ */
+export const NEEDS_REGISTERED_CLIENT = "oauth-client";
+
+/**
+ * The entry's hosted MCP server, when it has one the sign-in card or a key
+ * can open: the interface the agent should reach for first, since sign-in,
+ * refresh, and the tool list all come with it.
  */
 export function catalogEntryMcpEndpoint(
   entry: AppCatalogEntry,
 ): string | undefined {
   return entry.interfaces.find(
-    (surface) => surface.format === "mcp" && surface.endpoint,
+    (surface) =>
+      surface.format === "mcp" &&
+      surface.endpoint &&
+      surface.auth !== NEEDS_REGISTERED_CLIENT,
   )?.endpoint;
 }
 

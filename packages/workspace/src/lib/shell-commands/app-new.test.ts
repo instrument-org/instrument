@@ -279,6 +279,22 @@ describe("app test and the guide skeleton", () => {
     expect(result.stderr).toContain("PASS guide:");
   });
 
+  it.each([
+    // A hosted MCP server that takes a key carries it, or the card it makes
+    // offers a sign-in the server cannot do.
+    ["render", "--mcp https://mcp.render.com/mcp --auth bearer"],
+    // One whose sign-in needs a client Instrument has not registered falls
+    // through to the key that works.
+    ["slack", "--api https://slack.com/api --auth bearer"],
+    ["hubspot", "--api https://api.hubapi.com --auth bearer"],
+    // One that wants a sign-in gets the card, not --auth none.
+    ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
+  ])("sets %s up the way it actually connects", async (slug, line) => {
+    const result = await app("catalog", slug);
+
+    expect(`${result.stdout}\n`).toContain(line);
+  });
+
   it("puts the directory's key test in the set-up line", async () => {
     const result = await app("catalog", "github");
 

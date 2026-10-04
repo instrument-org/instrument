@@ -71,7 +71,7 @@ export interface AppCommandContext {
 /** How a service is reached: one decision, shared by the index and the detail. */
 type CatalogWayIn =
   | { auth: string; endpoint: string; kind: "api"; test?: string }
-  | { endpoint: string; kind: "mcp"; open: boolean }
+  | { auth?: string; endpoint: string; kind: "mcp" }
   | { kind: "browser"; where: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
 
@@ -244,12 +244,17 @@ function catalogKeyPlacement(auth: string | undefined): string | undefined {
 function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   const mcp = catalogEntryMcpEndpoint(entry);
   if (mcp) {
-    // A server that wants no sign-in says so, since an MCP app defaults to a
-    // sign-in card.
+    // A server that wants no sign-in, or a key rather than one, says so,
+    // since an MCP app defaults to a sign-in card.
     const auth = entry.interfaces.find(
       (surface) => surface.endpoint === mcp,
     )?.auth;
-    return { endpoint: mcp, kind: "mcp", open: auth === "none" };
+    const placement = auth === "none" ? "none" : catalogKeyPlacement(auth);
+    return placement === "none" ||
+      placement === "bearer" ||
+      placement?.startsWith("header:")
+      ? { auth: placement, endpoint: mcp, kind: "mcp" }
+      : { endpoint: mcp, kind: "mcp" };
   }
   const local = catalogEntryLocalServer(entry);
   if (local) {
@@ -291,7 +296,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
   const start = `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}'`;
   const howTo =
     way.kind === "mcp"
-      ? `${start} --mcp ${way.endpoint}${way.open ? " --auth none" : ""}`
+      ? `${start} --mcp ${way.endpoint}${way.auth ? ` --auth ${way.auth}` : ""}`
       : way.kind === "local"
         ? `${start} --local ${way.package} --runtime ${way.runtime}`
         : way.kind === "api"
@@ -982,9 +987,11 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
   const way = catalogWayIn(entry);
   const label =
     way.kind === "mcp"
-      ? way.open
+      ? way.auth === "none"
         ? "mcp:open"
-        : "mcp"
+        : way.auth
+          ? "mcp:key"
+          : "mcp"
       : way.kind === "local"
         ? "mcp:local"
         : way.kind === "api"

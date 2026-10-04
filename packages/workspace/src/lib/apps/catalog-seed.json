@@ -174,6 +174,11 @@
           "type": "oauth2",
           "label": "OAuth 2.0",
           "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        },
+        {
+          "type": "pat",
+          "label": "Personal access token",
+          "note": "Created under My settings, Apps, Developer apps; sent as a Bearer header."
         }
       ],
       "interfaces": [
@@ -181,7 +186,13 @@
           "format": "mcp",
           "name": "Asana MCP server",
           "endpoint": "https://mcp.asana.com/v2/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
+        },
+        {
+          "format": "openapi",
+          "name": "Asana REST API",
+          "endpoint": "https://app.asana.com/api/1.0",
+          "auth": "pat"
         }
       ],
       "home": "https://app.asana.com"
@@ -467,11 +478,11 @@
       "home": "https://calendly.com/app"
     },
     {
-      "slug": "canvas",
-      "name": "Canvas",
+      "slug": "canva",
+      "name": "Canva",
       "tagline": "Designs, brand kits, and exports.",
-      "description": "Make Canvas a native part of your AI workflow—an AI-powered design agent that helps you create polished visuals faster, with less friction.",
-      "domain": "canvas.com",
+      "description": "Make Canva a native part of your AI workflow—an AI-powered design agent that helps you create polished visuals faster, with less friction.",
+      "domain": "canva.com",
       "categories": ["design"],
       "authMethods": [
         {
@@ -483,12 +494,12 @@
       "interfaces": [
         {
           "format": "mcp",
-          "name": "Canvas MCP server",
+          "name": "Canva MCP server",
           "endpoint": "https://mcp.canva.com/mcp",
           "auth": "oauth"
         }
       ],
-      "home": "https://www.canvas.com"
+      "home": "https://www.canva.com"
     },
     {
       "slug": "clay",
@@ -1088,13 +1099,19 @@
       "description": "Ping, traceroute, DNS, and HTTP from probes around the world.",
       "domain": "globalping.io",
       "categories": ["developer-tools", "networking"],
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Globalping MCP server",
           "endpoint": "https://mcp.globalping.dev/sse",
-          "auth": "none"
+          "auth": "oauth"
         }
       ]
     },
@@ -1266,17 +1283,23 @@
       "categories": ["crm", "sales", "marketing"],
       "authMethods": [
         {
-          "type": "api_key",
-          "label": "API key",
-          "note": "A key from the service's dashboard, sent as a Bearer header."
+          "type": "token",
+          "label": "Private app token",
+          "note": "From a private app in the HubSpot account's settings; sent as a Bearer header."
         }
       ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "HubSpot MCP server",
-          "endpoint": "https://app.hubspot.com/mcp/v1/http",
-          "auth": "api_key"
+          "endpoint": "https://mcp.hubspot.com",
+          "auth": "oauth-client"
+        },
+        {
+          "format": "openapi",
+          "name": "HubSpot REST API",
+          "endpoint": "https://api.hubapi.com",
+          "auth": "token"
         }
       ],
       "home": "https://app.hubspot.com"
@@ -2295,13 +2318,19 @@
       "description": "Scan code for bugs and security issues.",
       "domain": "semgrep.dev",
       "categories": ["security", "developer-tools"],
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Semgrep MCP server",
           "endpoint": "https://mcp.semgrep.ai/mcp",
-          "auth": "none"
+          "auth": "oauth"
         }
       ]
     },
@@ -2377,12 +2406,6 @@
           "name": "Storefront API",
           "endpoint": "https://{store}.myshopify.com/api/2025-04/graphql.json",
           "auth": "api_key"
-        },
-        {
-          "format": "mcp",
-          "name": "Shopify MCP",
-          "endpoint": "https://setup.shopify.com/mcp",
-          "auth": "oauth"
         }
       ],
       "docsUrl": "https://shopify.dev",
@@ -2484,7 +2507,7 @@
           "format": "mcp",
           "name": "Slack MCP",
           "endpoint": "https://mcp.slack.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
         },
         {
           "format": "openapi",
@@ -3095,7 +3118,7 @@
           "format": "mcp",
           "name": "Zoom MCP server",
           "endpoint": "https://mcp.zoom.us/mcp/zoom/streamable",
-          "auth": "oauth"
+          "auth": "oauth-client"
         }
       ]
     },

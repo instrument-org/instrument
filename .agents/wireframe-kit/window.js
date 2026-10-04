@@ -119,7 +119,7 @@ const RAIL = [
 const rail = (on = "chat", { mark = {}, user = false } = {}) => `
   <nav class="flex w-[76px] shrink-0 flex-col items-center gap-3 pt-1 pb-2">
     <div class="flex w-15 flex-col items-center gap-0.5 py-1.5">
-      <span class="grid size-11 place-items-center rounded-full bg-brand-600 text-white shadow-xs"><i class="ph ph-feather text-[20px]"></i></span>
+      <span class="grid size-11 place-items-center rounded-full bg-brand-600 text-white shadow-xs"><i class="ph ph-note-pencil text-[20px]"></i></span>
       <span class="text-[11px] leading-4 font-medium">New</span>
       ${mark.new || ""}
     </div>
@@ -159,13 +159,13 @@ const appWindow = ({
     ${over}
   </div>`;
 
-/** Chat with nothing open: what sits beside the inbox. There is no Home page. */
+/** Chat with none selected: what sits beside the inbox. There is no Home page. */
 const noChatOpen = () => `
-  <div class="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-muted/20">
-    <i class="ph ph-chats-circle text-[40px] text-muted-foreground/40"></i>
-    <span class="text-[15px] font-medium">No chat open</span>
-    <span class="max-w-72 text-center text-[13px] text-muted-foreground">Pick one from the list, or start a new one.</span>
-    <span class="flex h-8 items-center gap-1.5 rounded-full bg-brand-600 px-3 text-[13px] font-medium text-white"><i class="ph ph-feather"></i>New chat<span class="text-[11px] opacity-70">⌘N</span></span>
+  <div class="flex min-w-0 flex-1 flex-col items-center justify-center bg-muted/20 text-center">
+    <span class="mb-5 grid size-14 place-items-center rounded-2xl text-muted-foreground/30 shadow-md inset-ring inset-ring-current/60"><i class="ph ph-chats-circle text-[28px]"></i></span>
+    <span class="text-sm font-medium text-muted-foreground">No chat selected</span>
+    <span class="mt-0.5 max-w-72 text-[13px] leading-6 text-muted-foreground/60">Select a chat or start a new one</span>
+    <span class="mt-5 flex h-8 items-center gap-1.5 rounded-full bg-card pr-1.5 pl-2.5 text-sm font-medium shadow-sm"><i class="ph ph-note-pencil"></i>New chat<span class="ml-0.5 flex h-5 items-center rounded-full bg-black/5 px-1.5 text-[11px] text-muted-foreground ring-1 ring-black/8">⌘N</span></span>
   </div>`;
 
 // ---- inbox ---------------------------------------------------------------------

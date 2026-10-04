@@ -14,7 +14,7 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
-import { FeatherIcon } from "@phosphor-icons/react/Feather";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
@@ -109,7 +109,7 @@ export function AppRail({
           type="button"
         >
           <span className="grid size-11 place-items-center rounded-full bg-brand-600 button-sheen text-brand-foreground shadow-xs group-hover:bg-brand-700">
-            <FeatherIcon className="size-5" weight="bold" />
+            <NotePencilIcon className="size-5" weight="bold" />
           </span>
           <span className="text-[11px] leading-4 font-medium">New</span>
         </button>

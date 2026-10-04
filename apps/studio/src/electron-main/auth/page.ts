@@ -217,7 +217,9 @@ function renderOutcome(outcome: AuthOutcome) {
         }
         ${heading(
           headline ??
-            (signIn ? "Sign-in canceled" : `${service.name} wasn't connected`),
+            (signIn
+              ? "There was a problem signing in"
+              : `There was a problem connecting to ${service.name}`),
         )}
         ${openApp}`,
         title: signIn ? "Sign-in canceled" : "Not connected",
@@ -238,7 +240,9 @@ function renderOutcome(outcome: AuthOutcome) {
       return {
         body: html`${glyph(WARNING_CIRCLE, "size-14 text-amber-600")}
         ${heading(
-          connecting ? `Error connecting to ${connecting}` : "Error signing in",
+          connecting
+            ? `There was a problem connecting to ${connecting}`
+            : "There was a problem signing in",
         )}
         ${openApp}`,
         reference,

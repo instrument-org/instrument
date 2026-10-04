@@ -443,16 +443,19 @@ const startOAuth = base
     return { status: "started" as const, url: result.value.authorizationUrl };
   });
 
-/** The user gave up on a sign-in that was started, from the card. */
+/**
+ * The user gave up on a sign-in that was started, to try it again: the flow is
+ * torn down, so its callback is refused, and the app is left as it was. A
+ * decline is "Not now", not this.
+ */
 const cancelOAuth = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input }) => {
+  .handler(async ({ input }) => {
     const state = await appOAuthStore.getState(input.slug);
     if (state !== undefined) {
       await cancelMcpOAuth(state);
     }
     await appOAuthStore.clearTransient(input.slug);
-    await decline(context.workspaceConfig.appsDir, input.slug);
   });
 
 /**

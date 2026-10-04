@@ -1,3 +1,4 @@
+import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { thisComputer } from "@/client/components/window/computer-name";
@@ -5,7 +6,7 @@ import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** Where the sign-in page opens: the window's own browser, or the user's. */
@@ -46,6 +47,9 @@ export function ConnectControls({
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   const [waiting, setWaiting] = useState(false);
+  // The standing when the sign-in started, so a failure or a decline from
+  // the provider's page, which changes it, lets the controls go.
+  const waitingFrom = useRef<string>(undefined);
   // The sign-in lands where the site sends it, which is the site. The app's
   // page here is where the user was doing this, so that is where they land.
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
@@ -59,6 +63,12 @@ export function ConnectControls({
     if (waiting && standing === "connected") {
       setWaiting(false);
       appWindow?.openScreen(`/apps/${slug}`);
+    } else if (
+      waiting &&
+      standing !== waitingFrom.current &&
+      (standing === "declined" || standing === "failed")
+    ) {
+      setWaiting(false);
     }
     // Once, as the standing lands; the opener is read then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +100,7 @@ export function ConnectControls({
       {
         onSuccess: (result) => {
           if (result.status === "started") {
+            waitingFrom.current = standing;
             setWaiting(true);
             openAuthorization(result.url, where);
           }
@@ -97,13 +108,7 @@ export function ConnectControls({
       },
     );
   };
-  const cancelOAuth = useMutation(
-    rpcClient.apps.cancelOAuth.mutationOptions({
-      onSuccess: () => {
-        setWaiting(false);
-      },
-    }),
-  );
+  const cancelOAuth = useMutation(rpcClient.apps.cancelOAuth.mutationOptions());
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
   const allow = useMutation(
     rpcClient.apps.allow.mutationOptions({
@@ -185,17 +190,20 @@ export function ConnectControls({
         {/* In a column too narrow for three buttons in a row they stack, each
           the column's width, rather than wrapping into a ragged pair. */}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-          <Button
-            disabled={busy || waiting}
-            onClick={() => {
+          <BrowserHandoffButton
+            disabled={busy}
+            onCancel={() => {
+              setWaiting(false);
+              cancelOAuth.mutate({ slug });
+            }}
+            onStart={() => {
               signIn("app");
             }}
             size="sm"
+            waiting={waiting}
           >
-            {waiting
-              ? "Waiting for the sign-in…"
-              : (label ?? `Sign in to ${name}`)}
-          </Button>
+            {label ?? `Sign in to ${name}`}
+          </BrowserHandoffButton>
           {waiting ? null : (
             <Button
               disabled={busy}
@@ -208,20 +216,16 @@ export function ConnectControls({
               Use your own browser
             </Button>
           )}
-          {dismissible || waiting ? (
+          {dismissible && !waiting ? (
             <Button
               disabled={busy}
               onClick={() => {
-                if (waiting) {
-                  cancelOAuth.mutate({ slug });
-                } else {
-                  dismiss.mutate({ slug });
-                }
+                dismiss.mutate({ slug });
               }}
               size="sm"
               variant="ghost"
             >
-              {waiting ? "Cancel" : "Not now"}
+              Not now
             </Button>
           ) : null}
         </div>

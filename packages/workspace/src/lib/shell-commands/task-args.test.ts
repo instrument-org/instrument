@@ -14,6 +14,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   awaitAnswers,
+  chatOnlyPathsIn,
   parseDelay,
   parseFlags,
   parseFolderSpec,
@@ -567,5 +568,39 @@ describe("awaitAnswers", () => {
   it("does not wait at all with no yield left", async () => {
     const { looks } = await askedFolder();
     await expect(awaitAnswers(looks, -1000)).resolves.toHaveLength(1);
+  });
+});
+
+describe("chatOnlyPathsIn", () => {
+  it.each([
+    [
+      "an app folder",
+      "Save it to /apps/beacon/icon.png.",
+      [],
+      ["/apps/beacon/icon.png"],
+    ],
+    [
+      "a task's folder",
+      "Read `/tasks/2026-10-04-x/work/a.md`",
+      [],
+      ["/tasks/2026-10-04-x/work/a.md"],
+    ],
+    ["the bare mount", "anything in /apps", [], ["/apps"]],
+    ["a handed file", "Use /tasks/t/work/a.md", ["/tasks/t/work/a.md"], []],
+    [
+      "a path inside a mount of the task's",
+      "Write /mnt/Instrument/apps/x",
+      [],
+      [],
+    ],
+    [
+      "a word that only starts the same",
+      "see /applications and /tasksheet",
+      [],
+      [],
+    ],
+    ["a URL", "https://example.com/apps/x", [], []],
+  ])("%s", (_, prompt, handed, expected) => {
+    expect(chatOnlyPathsIn(prompt, handed)).toEqual(expected);
   });
 });

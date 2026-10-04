@@ -439,3 +439,31 @@ async function requireReadable(
   }
   return undefined;
 }
+
+/**
+ * Paths a brief names under the app folders or the tasks' folders, which are
+ * the conversation's alone: no task is ever handed them, so a brief naming
+ * one sends the task looking for something it cannot have, or making a
+ * stand-in for it somewhere it can write. A file handed with --file covers
+ * its own path.
+ */
+export function chatOnlyPathsIn(prompt: string, handed: string[]): string[] {
+  const named = [
+    ...prompt.matchAll(
+      new RegExp(
+        `(?<![\\w./-])(?:${MOUNT.apps}|${MOUNT.tasks})(?![\\w-])(?:/[^\\s'"\`)\\]>,;]*)?`,
+        "g",
+      ),
+    ),
+  ].map(([match]) => match.replace(/[.:]+$/, ""));
+  return [
+    ...new Set(
+      named.filter(
+        (path) =>
+          !handed.some(
+            (itemPath) => path === itemPath || path.startsWith(`${itemPath}/`),
+          ),
+      ),
+    ),
+  ];
+}

@@ -34,6 +34,7 @@ import path from "node:path";
 import { mountsOf } from "../../src/lib/chat/mount-paths";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { taskDir } from "../../src/lib/task-dir-utils";
+import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { MOUNT } from "../../src/mount-points";
 import { type Session } from "../../src/schemas/session";
 import { TaskIdSchema } from "../../src/schemas/task-id";
@@ -460,6 +461,42 @@ function aTaskLoadedSkill(name: string): Assertion {
 }
 
 /**
+ * A task never sees the app folders, so a task that looks for one is probing
+ * for something its context already told it it does not have.
+ */
+const noTaskProbedTheAppFolders: Assertion = {
+  check: async ({ childSessions }) => {
+    const text = "no task looked for the app folders";
+    const children = await childSessions();
+    if (children.length === 0) {
+      return fail(text, "no task was started");
+    }
+    const probes = children.flatMap((child) =>
+      bashCommands(child.sessions).filter((command) =>
+        command.includes(MOUNT.apps),
+      ),
+    );
+    return probes.length === 0
+      ? pass(text, `${children.length} task(s), none touched ${MOUNT.apps}`)
+      : fail(text, probes.map((command) => command.split("\n")[0]).join(" | "));
+  },
+  text: "no task looked for the app folders",
+};
+
+function landedInAppFolder(slug: string, file: string): Assertion {
+  const text = `${file} is in ${slug}'s app folder`;
+  return {
+    check: () => {
+      const target = path.join(getWorkspaceConfig().appsDir, slug, file);
+      return fs.existsSync(target)
+        ? pass(text, `${fs.statSync(target).size} bytes`)
+        : fail(text, `nothing at ${MOUNT.apps}/${slug}/${file}`);
+    },
+    text,
+  };
+}
+
+/**
  * The hand-off channel is the child's last assistant text, cut at 400
  * characters, so a child that writes its report into the chat spends the
  * conversation's context on words the conversation is told not to repeat. What
@@ -834,6 +871,24 @@ export const CHAT_EVALS = [
     name: "chat-hands-over-an-app",
     prompt:
       "Write me a short markdown note in my Instrument folder about what makes a good bug report.",
+  }),
+
+  defineEval({
+    // A file bound for a place only the conversation reaches. A task never
+    // sees the app folders, so the work crosses the boundary the other way:
+    // the task makes the file in its own folder and the conversation puts it
+    // in place. Seen in real use: a brief naming the app folder sent the task
+    // probing every mount for two minutes before it said it could not reach it.
+    apps: [{ name: "Beacon", slug: "beacon" }],
+    assertions: [
+      delegated(1),
+      noTaskProbedTheAppFolders,
+      landedInAppFolder("beacon", "icon.png"),
+    ],
+    kind: "chat",
+    name: "chat-places-a-task-file-in-an-app-folder",
+    prompt:
+      "Make a simple square PNG icon for my Beacon app, a lighthouse on a dark blue background, and put it in Beacon's app folder as icon.png.",
   }),
 
   // A question about the world, in the words one was asked in. The failure

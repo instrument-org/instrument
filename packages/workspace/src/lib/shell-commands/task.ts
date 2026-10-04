@@ -102,6 +102,7 @@ import {
 import {
   ANSWER_WAIT_MS,
   awaitAnswers,
+  chatOnlyPathsIn,
   parseDelay,
   parseFlags,
   parseFolderSpec,
@@ -1362,6 +1363,12 @@ function requireFoldersNamedInBriefHanded(
   // A file written out on the command has no path, so there is nothing of it
   // a path in the brief could name.
   const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
+  const chatOnly = chatOnlyPathsIn(prompt, paths);
+  if (chatOnly.length > 0) {
+    throw new Error(
+      `${command}: the ${command === "new" ? "brief" : "message"} names ${chatOnly.join(", ")}, and no task reaches ${MOUNT.apps} or ${MOUNT.tasks}: they are yours alone. Have the task leave what it makes in its own folder and \`cp\` it into place yourself when it reports; hand it a file from one with --file. Nothing was ${command === "new" ? "created" : "sent"}.`,
+    );
+  }
   const unreachable = unreachableMountPaths(
     prompt,
     chatFolders,

@@ -69,8 +69,13 @@ const config: Configuration = {
   // process can start Instrument with a debugger on main and read what
   // safeStorage decrypts. RunAsNode and NODE_OPTIONS stay on: the agent's
   // `node` is this binary in Node mode, and projects lean on NODE_OPTIONS.
+  // Flipping a fuse rewrites a page of Electron Framework, which breaks its
+  // linker-signed ad-hoc signature. A signed build re-signs it anyway; an
+  // unsigned one (`identity: null`, the smoke test) is SIGKILLed on its first
+  // fuse read on Apple Silicon unless the ad-hoc signature is reset.
   electronFuses: {
     enableNodeCliInspectArguments: false,
+    resetAdHocDarwinSignature: true,
   },
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
   // from package.json `name`, which sanitizes "@instrument-org/studio" into the

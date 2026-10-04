@@ -1,31 +1,11 @@
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { tabStepsAtom } from "@/client/components/window/tab-steps";
 import { Button } from "@/client/components/ui/button";
+import { type TabSteps } from "@/client/components/window/use-tab-steps";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
-import {
-  useCanGoBack,
-  useRouter,
-  useRouterState,
-} from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 
-export function NavControls() {
-  // Each tab has its own router/history, and NavControls renders inside that
-  // tab's RouterProvider, so back/forward act on this tab's stack directly.
-  const router = useRouter();
-  const routerCanGoBack = useCanGoBack();
-  // No `useCanGoForward` in this router version; derive it from the history
-  // index vs length (memory history, so length is the real entry count).
-  const routerCanGoForward = useRouterState({
-    select: (s) => s.location.state.__TSR_index < router.history.length - 1,
-  });
-  // What the tab shows may have steps of its own ahead of the tab's: a site's
-  // page, whose history comes before the tab's.
-  const steps = useAtomValue(tabStepsAtom);
-  const canGoBack = steps ? steps.canGoBack : routerCanGoBack;
-  const canGoForward = steps ? steps.canGoForward : routerCanGoForward;
-
+/** The window's back and forward, over the steps of the tab up. */
+export function NavControls({ steps }: { steps: TabSteps }) {
   // The pair sits tighter than the rest of the row: their 28px hit boxes meet,
   // which leaves the arrows themselves 12px apart.
   return (
@@ -33,13 +13,9 @@ export function NavControls() {
       <ToolbarTooltip chord="back">
         <Button
           className="size-7 text-foreground/80"
-          disabled={!canGoBack}
+          disabled={!steps.canGoBack}
           onClick={() => {
-            if (steps) {
-              steps.back();
-            } else {
-              router.history.back();
-            }
+            steps.go("back");
           }}
           size="icon"
           variant="ghost-toolbar"
@@ -50,13 +26,9 @@ export function NavControls() {
       <ToolbarTooltip chord="forward">
         <Button
           className="size-7 text-foreground/80"
-          disabled={!canGoForward}
+          disabled={!steps.canGoForward}
           onClick={() => {
-            if (steps) {
-              steps.forward();
-            } else {
-              router.history.forward();
-            }
+            steps.go("forward");
           }}
           size="icon"
           variant="ghost-toolbar"

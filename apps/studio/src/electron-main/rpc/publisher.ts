@@ -57,6 +57,13 @@ interface PublisherEvents {
     size: null | { height: number; width: number };
     targetId: BrowserTargetId;
   };
+  // A page's own menu asked to step back or forward. The window walks the
+  // tab the page is in, the way its arrows and thumb buttons do, rather
+  // than the guest stepping its own history alone.
+  "browser.step-page": {
+    direction: "back" | "forward";
+    targetId: BrowserTargetId;
+  };
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;

@@ -3,8 +3,6 @@ import {
   type ScreenView,
   type WindowTab,
 } from "@/client/atoms/window";
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import {
@@ -29,9 +27,8 @@ import { screenLocation } from "./screen-presentation";
 import { ScreenTabContext } from "./screen-tab";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
-import { atOf, trailOf } from "./tab-model";
-import { useTabSteps } from "./tab-steps";
 import { useTaskTitles } from "./task-titles";
+import { useTabSteps } from "./use-tab-steps";
 import { parseHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
@@ -105,65 +102,29 @@ export function GroupItem({
           StoreId.SessionSchema.parse(up.id),
         )
       : undefined;
-  const targets = useBrowserTargets();
-  const guest = useGuestNavigation(
-    targetId !== undefined && targets.has(targetId) ? targetId : null,
-  );
+  const webview = targetId ? getWebviewElement(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
   // the window's own, where the window's tab was before the site. The row's
-  // arrows and the mouse's thumb buttons over the page both take these.
-  const webview = targetId ? getWebviewElement(targetId) : null;
-  const at = atOf(up);
-  const withinBack = up.kind === "page" ? guest.canGoBack : at > 0;
-  const withinForward =
-    up.kind === "page" ? guest.canGoForward : at < trailOf(up).length - 1;
-  // A site of the window's own has nothing of its own before its page.
-  const hasPast = !before && Boolean(up.past?.length);
-  const hasFuture = Boolean(up.future?.length);
+  // arrows and every step asked of the page take these; a site's are the
+  // window's own arrows, which read the same steps.
+  const steps = useTabSteps(up, before ? { outer: before } : {});
+  const { canGoBack, canGoForward } = steps;
   const goBack = () => {
-    if (withinBack) {
-      if (up.kind === "page") {
-        webview?.goBack();
-      } else {
-        windowTabs.stepTab(up.id, -1);
-      }
-    } else if (hasPast) {
-      windowTabs.stepVisitOf(up.id, -1);
-    } else {
-      before?.back();
-    }
+    steps.go("back");
   };
   const goForward = () => {
-    if (withinForward) {
-      if (up.kind === "page") {
-        webview?.goForward();
-      } else {
-        windowTabs.stepTab(up.id, 1);
-      }
-    } else if (hasFuture) {
-      windowTabs.stepVisitOf(up.id, 1);
-    }
+    steps.go("forward");
   };
-  const stepByThumb = useEffectEvent((direction: "back" | "forward") => {
-    if (direction === "back") {
-      goBack();
-    } else {
-      goForward();
-    }
+  const stepPage = useEffectEvent((direction: "back" | "forward") => {
+    steps.go(direction);
   });
-  const canGoBack = withinBack || hasPast || Boolean(before?.canGoBack);
-  const canGoForward = withinForward || hasFuture;
-  // A site of the window's own is the tab, so its steps are the window's:
-  // its bar's arrows, its chords and a thumb over the chrome walk the page
-  // first, and the row over the page leaves the arrows to the bar.
-  useTabSteps(before ? { canGoBack, canGoForward, goBack, goForward } : null);
   useEffect(() => {
     if (targetId === undefined) {
       return;
     }
     return onPageThumb(targetId, (direction) => {
-      stepByThumb(direction);
+      stepPage(direction);
     });
   }, [targetId]);
 

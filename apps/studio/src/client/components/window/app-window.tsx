@@ -68,7 +68,7 @@ import {
   RouterProvider,
   useRouterState,
 } from "@tanstack/react-router";
-import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -97,7 +97,6 @@ import { ChatPane } from "./chat-pane";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
-import { tabStepsAtom } from "./tab-steps";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
@@ -115,6 +114,7 @@ import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "./use-record-recents";
+import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
@@ -299,6 +299,9 @@ function WindowShell({
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
+  // What the window's arrows and chords walk: the tab up's history, through
+  // a site's page first.
+  const windowSteps = useWindowSteps();
   const place = placeOfHref(activeHref);
   const isChat = isChatHref(activeHref);
 
@@ -602,12 +605,7 @@ function WindowShell({
   useWindowCommands(
     {
       back: () => {
-        const steps = getDefaultStore().get(tabStepsAtom);
-        if (steps) {
-          steps.back();
-        } else {
-          appTabs.activeRouter?.history.back();
-        }
+        windowSteps.go("back");
       },
       closeTab: () => {
         if (appTabs.model.selectedId) {
@@ -615,12 +613,7 @@ function WindowShell({
         }
       },
       forward: () => {
-        const steps = getDefaultStore().get(tabStepsAtom);
-        if (steps) {
-          steps.forward();
-        } else {
-          appTabs.activeRouter?.history.forward();
-        }
+        windowSteps.go("forward");
       },
       newChat: newDraft,
       newTab: appTabs.openNewTab,
@@ -790,7 +783,7 @@ function WindowShell({
           <WindowFrame
             bar={
               <WindowBar
-                leading={<NavControls />}
+                leading={<NavControls steps={windowSteps} />}
                 tabs={
                   <AppTabStrip
                     chatTitles={chatTitles}

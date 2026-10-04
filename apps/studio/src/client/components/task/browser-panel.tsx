@@ -37,7 +37,7 @@ import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getWebviewElement, stepPage } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
   type EmulatedDevice,
@@ -712,7 +712,9 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="back">
               <Button
                 disabled={!active || !nav.canGoBack}
-                onClick={() => webviewFor()?.goBack()}
+                onClick={() => {
+                  stepPage(targetId, "back");
+                }}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -722,7 +724,9 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="forward">
               <Button
                 disabled={!active || !nav.canGoForward}
-                onClick={() => webviewFor()?.goForward()}
+                onClick={() => {
+                  stepPage(targetId, "forward");
+                }}
                 size="icon-sm"
                 variant="ghost"
               >

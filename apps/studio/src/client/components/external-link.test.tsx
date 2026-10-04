@@ -30,10 +30,6 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
   const context = {
     ask: vi.fn(),
     browser: {
-      canGoBack: false,
-      canGoForward: false,
-      goBack: vi.fn(),
-      goForward: vi.fn(),
       navigate: vi.fn(),
       navigateTab: vi.fn(),
       open: browserOpen,

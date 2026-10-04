@@ -79,6 +79,13 @@ const events = {
       yield event;
     }
   }),
+  stepPage: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.step-page", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
 };
 
 const live = {

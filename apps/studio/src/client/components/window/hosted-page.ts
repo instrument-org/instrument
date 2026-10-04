@@ -1,5 +1,9 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
+import {
+  getWebviewElement,
+  goGuest,
+  onPageThumb,
+} from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -94,20 +98,8 @@ export function useHostedPageNavigation(
     };
     webview.addEventListener("did-navigate", onNavigate);
     const releaseThumbs = onPageThumb(target, (direction) => {
-      try {
-        if (direction === "forward") {
-          if (webview.canGoForward()) {
-            webview.goForward();
-          } else if (latest.current.fileUrl !== undefined) {
-            latest.current.onStep({ kind: "forward" });
-          }
-        } else if (webview.canGoBack()) {
-          webview.goBack();
-        } else if (latest.current.fileUrl !== undefined) {
-          latest.current.onStep({ kind: "back" });
-        }
-      } catch {
-        // Not attached yet: there is no history to step.
+      if (!goGuest(target, direction) && latest.current.fileUrl !== undefined) {
+        latest.current.onStep({ kind: direction });
       }
     });
     return () => {

@@ -21,6 +21,8 @@ export interface GuestLinkPlaces {
   mayOpen: (url: string) => boolean;
   /** Opens the address in a tab of the window's own; absent where the window has none. */
   openInNewTab?: (url: string) => void;
+  /** Asks the window to step the tab the page is in, which runs into the page's own history first. */
+  step: (direction: "back" | "forward") => void;
 }
 
 /** Wire user input the agent-browser guest needs to be usable directly: a
@@ -44,14 +46,14 @@ function contextMenuTemplate(
   const items: MenuItemConstructorOptions[] = [
     {
       click: () => {
-        guest.navigationHistory.goBack();
+        places.step("back");
       },
       enabled: guest.navigationHistory.canGoBack(),
       label: "Back",
     },
     {
       click: () => {
-        guest.navigationHistory.goForward();
+        places.step("forward");
       },
       enabled: guest.navigationHistory.canGoForward(),
       label: "Forward",

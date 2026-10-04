@@ -12,8 +12,10 @@ import { PageFavicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import {
+  getWebviewElement,
+  takeGuestTraversal,
+} from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -71,12 +73,6 @@ export interface BrowserPage {
 const ORPHAN_GRACE_MS = 1500;
 
 export interface BrowserTabsHandle {
-  /** Whether the guest on screen has anywhere of its own to go. */
-  canGoBack: boolean;
-  canGoForward: boolean;
-  /** A step in the guest's own history, which is this tab's and no other's. */
-  goBack: () => void;
-  goForward: () => void;
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
   /**
@@ -313,29 +309,6 @@ export function BrowserTabs({
   // The chat's own browser is the tab on screen; a task's tab is the
   // task's to drive.
   const activeTarget = active && !active.taskId ? targetOf(active) : null;
-  // Whether the guest on screen has been anywhere, for the arrows in the row
-  // above it. Read from the guest rather than counted here: it is the thing
-  // that has the history, and a redirect moves it without our being told. A
-  // tab arriving on screen brings its own history with it, so the arrows are
-  // read off that tab's guest once it has attached.
-  const { canGoBack, canGoForward } = useGuestNavigation(
-    activeTarget && attached.has(activeTarget) ? activeTarget : null,
-  );
-  const historySteps = useRef(new Set<string>());
-  const stepGuest = (direction: "back" | "forward") => {
-    const webview = activeTarget && getWebviewElement(activeTarget);
-    if (!webview) {
-      return;
-    }
-    if (active) {
-      historySteps.current.add(active.id);
-    }
-    if (direction === "back") {
-      webview.goBack();
-    } else {
-      webview.goForward();
-    }
-  };
   useEffect(() => {
     void rpcClient.workspace.window.setActiveTab.call({
       targetId: activeTarget,
@@ -496,7 +469,7 @@ export function BrowserTabs({
           if (isPageEditAddress(url)) {
             return;
           }
-          const isHistoryStep = historySteps.current.delete(id);
+          const isHistoryStep = takeGuestTraversal(target);
           if (
             !isHistoryStep &&
             url !== latest.current.tabs.find((tab) => tab.id === id)?.url
@@ -678,14 +651,6 @@ export function BrowserTabs({
   useImperativeHandle(
     ref,
     () => ({
-      canGoBack,
-      canGoForward,
-      goBack: () => {
-        stepGuest("back");
-      },
-      goForward: () => {
-        stepGuest("forward");
-      },
       navigate: (url) => {
         const webview = activeTarget && getWebviewElement(activeTarget);
         if (webview) {
@@ -868,10 +833,9 @@ export function BrowserTabs({
       },
     }),
     // The handle reads the strip through `latest` at call time; the guest on
-    // screen and what its history allows are read here, so the handle is
-    // remade, and the row above told, whenever either changes.
+    // screen is read here, so the handle is remade whenever it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTarget, canGoBack, canGoForward],
+    [activeTarget],
   );
 
   const taskIdsWithTabs = [

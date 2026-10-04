@@ -26,6 +26,8 @@ The live list (`liveListChatsRoute` in `rpc/routes/chats.ts`) calls `listChats` 
 
 No schema, index or client change.
 
+Done as part of [chat-identity.md](../completed/chat-identity.md): the index keeps each chat's tasks, and `chatTaskIds` is a lookup.
+
 ### The first ask as text
 
 - `ChatDigest.root?: SessionMessage.UserWithParts` becomes `firstAsk: string` (the first user message's text parts joined, as `askOf` does today) and `firstAskedAt?: Date` (that message's `createdAt`). `chatFor` takes `createdAt` from `firstAskedAt` and the untitled title from `firstAsk`.

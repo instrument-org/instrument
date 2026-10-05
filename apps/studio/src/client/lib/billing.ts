@@ -331,7 +331,9 @@ export function noticeCopy(
       return {
         action: { kind: "continue", label: "Continue" },
         line: "Pick up where this chat stopped.",
-        title: notice.subscribed ? "You're subscribed" : "Your limit has reset",
+        title: notice.subscribed
+          ? "You're subscribed"
+          : "Your plan has room again",
       };
     }
     case "trial-ended": {

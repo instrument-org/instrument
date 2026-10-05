@@ -21,7 +21,7 @@ export interface FrameId {
  * A page's file shown ready to edit in its guest; `page-editor/sessions.ts`
  * owns its lifetime.
  */
-export interface PageEdit {
+interface PageEdit {
   /** Which load this is: a stop names the one it ends, so a late stop never ends a later Edit. */
   generation: number;
   /** The file on this computer the guest shows. */

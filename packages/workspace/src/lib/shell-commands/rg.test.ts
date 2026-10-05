@@ -27,15 +27,16 @@ let taskRoot: string;
 let attachedDir: string;
 let taskId: ReturnType<typeof TaskIdSchema.parse>;
 
-async function run(command: string, attach = false) {
+async function run(command: string, attach: boolean | string = false) {
+  const mountName = typeof attach === "string" ? attach : "Docs";
   const bash = await createBashEnv({
     attachedFolders: attach
       ? {
-          docs: {
+          [mountName]: {
             access: "read-only",
             createdAt: Date.now(),
             id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
+            mountName,
             path: TaskDirSchema.parse(attachedDir),
             source: "user",
           },
@@ -73,6 +74,17 @@ afterEach(async () => {
 });
 
 describe("rg command", () => {
+  // A task handed a folder inside one of its chat's mounts holds the
+  // directories above it with nothing else in them.
+  it.each(["/mnt", "/mnt/Home"])(
+    "searches the mounts under %s, which holds no mount itself",
+    async (root) => {
+      const result = await run(`rg -l NEEDLE ${root}`, "Home/Docs");
+      expect(result.stdout).toBe("/mnt/Home/Docs/note.md\n");
+      expect(result.exitCode).toBe(0);
+    },
+  );
+
   it("searches the chat's /apps mount, which the chat's shell has", async () => {
     const appDir = path.join(getWorkspaceConfig().appsDir, "rg-weather");
     await fs.mkdir(appDir, { recursive: true });

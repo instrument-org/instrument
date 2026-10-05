@@ -11,6 +11,8 @@
  *   pnpm script:run-bash -- --tasks-dir /path/to/tasks # REPL with custom tasks root
  *   pnpm script:run-bash -- --attach /some/dir "ls /mnt" # mount a folder read-only under /mnt
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # mount it read-write instead
+ *   pnpm script:run-bash -- --mount-name Home/Downloads --attach-writable ~/Downloads "ls /mnt/Home"
+ *                                                      # mount the next folder under a name given, as a chat's task does
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -31,11 +33,11 @@ import { ulid } from "ulid";
 
 import { TASK_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
-import { assignMountNames } from "../src/lib/assign-mount-names";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
+import { grantFolders } from "../src/lib/grant-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { FolderAttachment } from "../src/schemas/folder-attachment";
+import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
@@ -44,7 +46,12 @@ import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 
 function parseArgs(argv: string[]) {
-  const attach: { access: FolderAttachment.Access; path: string }[] = [];
+  const attach: {
+    access: FolderAttachment.Access;
+    mountName?: string;
+    path: string;
+  }[] = [];
+  let mountName: string | undefined;
   let bail = false;
   const commands: string[] = [];
   let taskId: string | undefined;
@@ -57,7 +64,12 @@ function parseArgs(argv: string[]) {
       case "--attach": {
         const dir = remaining.shift();
         if (dir) {
-          attach.push({ access: "read-only", path: path.resolve(dir) });
+          attach.push({
+            access: "read-only",
+            ...(mountName ? { mountName } : {}),
+            path: path.resolve(dir),
+          });
+          mountName = undefined;
         }
 
         break;
@@ -65,8 +77,18 @@ function parseArgs(argv: string[]) {
       case "--attach-writable": {
         const dir = remaining.shift();
         if (dir) {
-          attach.push({ access: "read-write", path: path.resolve(dir) });
+          attach.push({
+            access: "read-write",
+            ...(mountName ? { mountName } : {}),
+            path: path.resolve(dir),
+          });
+          mountName = undefined;
         }
+
+        break;
+      }
+      case "--mount-name": {
+        mountName = remaining.shift();
 
         break;
       }
@@ -166,18 +188,16 @@ for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
 
 const sessionId = StoreId.newSessionId();
 
-const draftFolders = args.attach.map((folder) => ({
-  access: folder.access,
-  createdAt: Date.now(),
-  id: FolderAttachment.IdSchema.parse(ulid()),
-  path: AbsolutePathSchema.parse(folder.path),
-}));
-const mountNames = assignMountNames(draftFolders);
-const attachedFolders: Record<string, FolderAttachment.Type> = {};
-for (const folder of draftFolders) {
-  const mountName = mountNames.get(folder.id) ?? folder.path;
-  attachedFolders[mountName] = { ...folder, mountName, source: "user" };
-}
+const attachedFolders = grantFolders(
+  [],
+  args.attach.map((folder) => ({
+    access: folder.access,
+    ...(folder.mountName ? { mountName: folder.mountName } : {}),
+    path: AbsolutePathSchema.parse(folder.path),
+    source: "user" as const,
+  })),
+  Date.now(),
+).folders;
 
 const bash = await createBashEnv({
   attachedFolders,

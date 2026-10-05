@@ -3,38 +3,20 @@ import path from "node:path";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { FILES_FENCE, parseFilesBlock } from "../parse-files-block";
-import { folderReach } from "./folder-reach";
 
-/** The folders a task reaches, by the name each is mounted under. */
+/** The folders a chat or a task reaches, by the name each is mounted under. */
 export type FolderMounts = Record<string, { mountName: string; path: string }>;
 
+/**
+ * One folder a task holds, at the path the task reaches it by and the path
+ * its chat does, or no chat path where the chat no longer reaches it.
+ */
+export interface MountAlias {
+  chatPath: string | undefined;
+  taskPath: string;
+}
+
 const PREFIX = `${MOUNT.attachedFolders}/`;
-
-/**
- * Where a mount path certainly ends. Short, because a folder's name is its
- * name on disk and may hold nearly anything a sentence can: the reading is
- * settled by which one names a folder rather than by where the writing stops.
- */
-const PATH_ENDS = new Set(["\n", "\r", '"', "'", "`"]);
-
-/**
- * Where a mount path might end. A sentence that finishes on a path, a path in
- * parentheses, the `:rw` on a `--folder` spec, and the space before the next
- * word all end one, and every one of them can equally sit inside a folder's
- * name.
- */
-const MAYBE_PATH_ENDS = new Set([
-  " ",
-  "\t",
-  ")",
-  ",",
-  ".",
-  ":",
-  ";",
-  ">",
-  "]",
-  "}",
-]);
 
 /**
  * The path a folder on disk is reached by in `mounts`, through the deepest
@@ -44,123 +26,112 @@ export function mountPathOf(
   hostPath: string,
   mounts: FolderMounts,
 ): string | undefined {
-  return deepestMount(path.resolve(hostPath), mounts)?.mountPath;
-}
-
-/** The folders a task reaches, as it reaches them. */
-export function mountsOf(taskId: TaskId): Promise<FolderMounts> {
-  return folderReach(taskId);
-}
-
-/**
- * The same text with every mount path in it rewritten from the mounts of the
- * task that wrote it to the mounts of the task that reads it.
- *
- * Mount names are assigned per task (see assign-mount-names.ts), so the two
- * sides need not agree on them and, where two folders share a name, need not
- * even disagree visibly. A conversation holding the whole home folder mounts
- * Downloads inside it and names it for the home folder; the task handed
- * Downloads alone mounts it at the top and names it for itself. And a
- * conversation that hands over a folder of the user's called Instrument gives
- * that task a mount of that name which is not the workspace folder its own
- * mount of that name is. Going through the folder on disk settles both: a name
- * is only ever read against the mounts of the side that wrote it.
- *
- * A path no mount on the reading side covers is left exactly as it was, so a
- * task told about a folder it was not handed fails on the folder it was told
- * about rather than on a neighboring one.
- */
-export function translateMountPaths(
-  text: string,
-  from: FolderMounts,
-  to: FolderMounts,
-): string {
-  let translated = "";
-  let index = 0;
-  for (const found of mountPathsIn(text, from, to)) {
-    translated += text.slice(index, found.at);
-    translated +=
-      found.read?.mountPath ?? text.slice(found.at, found.subpathAt);
-    index = found.read?.end ?? found.subpathAt;
-  }
-  return translated + text.slice(index);
-}
-
-/**
- * The mount paths in `text`, as the writing side wrote them, that name a
- * folder no mount of the reading side covers: the paths translateMountPaths
- * would leave as they were. Each is cut at the first place a path might end,
- * short of punctuation with more of the path after it (`notes.md`), which is
- * enough to say which folder was meant.
- */
-export function unreachableMountPaths(
-  text: string,
-  from: FolderMounts,
-  to: FolderMounts,
-): string[] {
-  const unreachable = new Set<string>();
-  for (const found of mountPathsIn(text, from, to)) {
-    if (found.read) {
-      continue;
+  const wanted = path.resolve(hostPath);
+  let deepest: undefined | { mountName: string; root: string };
+  for (const folder of Object.values(mounts)) {
+    const root = path.resolve(folder.path);
+    const covers = wanted === root || wanted.startsWith(`${root}${path.sep}`);
+    if (
+      covers &&
+      (deepest === undefined || root.length > deepest.root.length)
+    ) {
+      deepest = { mountName: folder.mountName, root };
     }
-    let end =
-      text[found.subpathAt] === "/" ? found.subpathAt + 1 : found.subpathAt;
-    while (end < text.length && !PATH_ENDS.has(text[end] ?? "")) {
-      const next = text[end + 1];
-      if (
-        MAYBE_PATH_ENDS.has(text[end] ?? "") &&
-        (next === undefined || /[\s)\]}>"'`]/u.test(next) || text[end] === " ")
-      ) {
-        break;
-      }
-      end++;
-    }
-    unreachable.add(text.slice(found.at, end).replace(/\/$/u, ""));
   }
-  return [...unreachable];
+  if (!deepest) {
+    return undefined;
+  }
+  const rest = wanted.slice(deepest.root.length).split(path.sep).join("/");
+  return `${PREFIX}${deepest.mountName}${rest}`;
 }
 
 /**
- * Every mount path in the text that starts with one of the writing side's
- * mounts, with how it reads on the reading side, or no reading where no mount
- * there covers it.
+ * The path a chat reaches one of its task's folders by.
+ *
+ * A task the chat granted a folder mounts it under the chat's own path for it
+ * (`Home/Downloads`), so its name read against the chat's mounts is that path.
+ * A task granted folders before names were shared holds names of its own
+ * (`Downloads`), and so does one whose chat has since renamed a mount; for
+ * those the chat's path is wherever the chat reaches the folder on disk.
  */
-function* mountPathsIn(
-  text: string,
-  from: FolderMounts,
-  to: FolderMounts,
-): Generator<{
-  at: number;
-  read: ReturnType<typeof readSubpath>;
-  subpathAt: number;
-}> {
-  if (!text.includes(PREFIX)) {
-    return;
-  }
-  // Longest first, so `Home-Downloads` is not read as `Home` with something
-  // called `-Downloads` inside it.
-  const sources = Object.values(from).toSorted(
-    (a, b) => b.mountName.length - a.mountName.length,
+export function chatPathOf(
+  folder: { mountName: string; path: string },
+  chatFolders: FolderMounts,
+): string | undefined {
+  const [name = "", ...rest] = folder.mountName.split("/");
+  const chatMount = Object.values(chatFolders).find(
+    (candidate) => candidate.mountName === name,
   );
-  let index = 0;
-  for (;;) {
-    const at = text.indexOf(PREFIX, index);
-    if (at === -1) {
-      return;
-    }
-    const nameAt = at + PREFIX.length;
-    const source = sources.find((folder) =>
-      startsWithMountName(text, nameAt, folder.mountName),
-    );
-    if (!source) {
-      index = nameAt;
+  if (
+    chatMount &&
+    path.resolve(chatMount.path, ...rest) === path.resolve(folder.path)
+  ) {
+    return `${PREFIX}${folder.mountName}`;
+  }
+  return mountPathOf(folder.path, chatFolders);
+}
+
+/** Every folder a task holds, at its path and at its chat's. */
+export function mountAliases(
+  chatFolders: FolderMounts,
+  taskFolders: FolderMounts,
+): MountAlias[] {
+  return Object.values(taskFolders).map((folder) => ({
+    chatPath: chatPathOf(folder, chatFolders),
+    taskPath: `${PREFIX}${folder.mountName}`,
+  }));
+}
+
+/** Text the chat wrote, in the paths its task reaches the same folders by. */
+export function toTaskPaths(text: string, aliases: MountAlias[]): string {
+  return swapPrefixes(
+    text,
+    aliases.flatMap(({ chatPath, taskPath }) =>
+      chatPath === undefined ? [] : [{ from: chatPath, to: taskPath }],
+    ),
+  );
+}
+
+/** Text a task wrote, in the paths its chat reaches the same folders by. */
+export function toChatPaths(text: string, aliases: MountAlias[]): string {
+  return swapPrefixes(
+    text,
+    aliases.flatMap(({ chatPath, taskPath }) =>
+      chatPath === undefined ? [] : [{ from: taskPath, to: chatPath }],
+    ),
+  );
+}
+
+/**
+ * The paths in `text` under one of the chat's mounts that no path in
+ * `handed` covers: what a task handed only those would not find. Each is cut
+ * where the writing around it most likely resumes, which is enough to say
+ * which folder was meant.
+ *
+ * A path is only ever compared against a whole mount path, so nothing here
+ * decides where a path ends: `/mnt/Home/Downloads` covers
+ * `/mnt/Home/Downloads/notes.md` and `/mnt/Home/Downloads.` at the end of a
+ * sentence, and not `/mnt/Home/Downloads-old`.
+ */
+export function mountPathsOutside(
+  text: string,
+  chatFolders: FolderMounts,
+  handed: string[],
+): string[] {
+  const chatPaths = Object.values(chatFolders).map(
+    (folder) => `${PREFIX}${folder.mountName}`,
+  );
+  const outside = new Set<string>();
+  for (const at of prefixOccurrences(text)) {
+    if (!chatPaths.some((chatPath) => startsWithPath(text, at, chatPath))) {
       continue;
     }
-    const subpathAt = nameAt + source.mountName.length;
-    const read = readSubpath(text, subpathAt, source, to);
-    yield { at, read, subpathAt };
-    index = read?.end ?? subpathAt;
+    if (handed.some((handedPath) => startsWithPath(text, at, handedPath))) {
+      continue;
+    }
+    outside.add(pathAt(text, at));
   }
+  return [...outside];
 }
 
 /**
@@ -196,102 +167,68 @@ export function translateTaskFolderPaths(text: string, taskId: TaskId): string {
     });
 }
 
-/**
- * The mount that covers a folder most closely, of those a task has. Two mounts
- * can both cover it -- the home folder and something inside it -- and the
- * closer one is the one that says most about which folder is meant.
- */
-function deepestMount(
-  hostPath: string,
-  mounts: FolderMounts,
-): undefined | { depth: number; mountPath: string } {
-  let deepest: undefined | { mountName: string; root: string };
-  for (const folder of Object.values(mounts)) {
-    const root = path.resolve(folder.path);
-    const covers =
-      hostPath === root || hostPath.startsWith(`${root}${path.sep}`);
-    if (
-      covers &&
-      (deepest === undefined || root.length > deepest.root.length)
-    ) {
-      deepest = { mountName: folder.mountName, root };
-    }
+/** Where a path in prose most likely ends: before a space, a quote, or a bracket, and before punctuation closing a sentence. */
+function pathAt(text: string, at: number): string {
+  const rest = text.slice(at);
+  const end = rest.search(/[\s"'`<>()[\]{}]/u);
+  return (end === -1 ? rest : rest.slice(0, end))
+    .replace(/[.,;:!?]+$/u, "")
+    .replace(/\/$/u, "");
+}
+
+/** Every index in `text` where a mount path begins. */
+function* prefixOccurrences(text: string): Generator<number> {
+  for (
+    let at = text.indexOf(PREFIX);
+    at !== -1;
+    at = text.indexOf(PREFIX, at + PREFIX.length)
+  ) {
+    yield at;
   }
-  if (!deepest) {
-    return undefined;
-  }
-  const rest = hostPath.slice(deepest.root.length).split(path.sep).join("/");
-  return {
-    depth: deepest.root.length,
-    mountPath: `${PREFIX}${deepest.mountName}${rest}`,
-  };
 }
 
 /**
- * How far the path runs past its mount name, and what that folder is called on
- * the reading side.
- *
- * Every reading is tried, from the mount on its own to everything up to the
- * next quote or line break, and the one that lands in the closest mount wins,
- * the shortest of those where several tie. Closest rather than longest,
- * because a reading is only as good as the folder it finds: `Downloads` inside
- * a brief that goes on to say something else about the file is a reading that
- * lands in the home folder along with the rest of the sentence, and
- * `Downloads` on its own is one that lands in Downloads. Shortest among equals,
- * because whatever the reading leaves behind is carried over untouched, and a
- * path that reads the same to both sides needs no more than its folder
- * translated.
- *
- * Undefined when nothing resolves, which leaves the path exactly as it was.
+ * Whether the text at `at` is `mountPath` or a path under it, rather than the
+ * start of a longer name: `/mnt/Home` is not the mount in
+ * `/mnt/Home-Downloads` or `/mnt/Home.old`, and is in `/mnt/Home.` at the end
+ * of a sentence and in `/mnt/Home:rw`.
  */
-function readSubpath(
-  text: string,
-  at: number,
-  source: { mountName: string; path: string },
-  to: FolderMounts,
-): undefined | { end: number; mountPath: string } {
-  let ends = at;
-  while (ends < text.length && !PATH_ENDS.has(text[ends] ?? "")) {
-    ends++;
-  }
-  const root = path.resolve(source.path);
-  let best: undefined | { depth: number; end: number; mountPath: string };
-  for (let end = at; end <= ends; end++) {
-    if (end !== ends && end !== at && !MAYBE_PATH_ENDS.has(text[end] ?? "")) {
-      continue;
-    }
-    const hostPath = path.join(root, text.slice(at, end));
-    // A `..` that climbs out of the mount names a folder the writing side was
-    // not given, so the path is left as it was rather than pointed at a folder
-    // the reading side does have.
-    if (hostPath !== root && !hostPath.startsWith(`${root}${path.sep}`)) {
-      return undefined;
-    }
-    const found = deepestMount(hostPath, to);
-    if (found && (best === undefined || found.depth > best.depth)) {
-      best = { depth: found.depth, end, mountPath: found.mountPath };
-    }
-  }
-  return best;
-}
-
-/**
- * Whether a mount's name is the name at this point in the text, rather than
- * the start of a longer one: `Home` is not the mount in `/mnt/Home-Downloads`.
- */
-function startsWithMountName(
-  text: string,
-  at: number,
-  mountName: string,
-): boolean {
-  if (!text.startsWith(mountName, at)) {
+function startsWithPath(text: string, at: number, mountPath: string): boolean {
+  if (!text.startsWith(mountPath, at)) {
     return false;
   }
-  const after = text[at + mountName.length];
-  return (
-    after === undefined ||
-    after === "/" ||
-    PATH_ENDS.has(after) ||
-    MAYBE_PATH_ENDS.has(after)
-  );
+  const after = text.slice(at + mountPath.length);
+  return !/^(?:[\p{L}\p{N}_-]|\.[\p{L}\p{N}_-])/u.test(after);
+}
+
+/**
+ * The text with each `from` mount path swapped for its `to`, the longest
+ * `from` first so a mount inside another is swapped as itself. A pair that
+ * swaps a path for itself is no swap, so a task granted folders under its
+ * chat's names leaves text as it was.
+ */
+function swapPrefixes(
+  text: string,
+  pairs: { from: string; to: string }[],
+): string {
+  const swaps = pairs
+    .filter(({ from, to }) => from !== to)
+    .toSorted((a, b) => b.from.length - a.from.length);
+  if (swaps.length === 0) {
+    return text;
+  }
+  let swapped = "";
+  let index = 0;
+  for (const at of prefixOccurrences(text)) {
+    if (at < index) {
+      continue;
+    }
+    const swap = swaps.find(({ from }) => startsWithPath(text, at, from));
+    if (!swap) {
+      continue;
+    }
+    swapped += text.slice(index, at) + swap.to;
+    index = at + swap.from.length;
+  }
+  return swapped + text.slice(index);
 }

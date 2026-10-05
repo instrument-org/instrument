@@ -141,8 +141,18 @@ describe("resolveFolders", () => {
 
   it("hands a task the conversation's access unless the spec narrows it", () => {
     expect(resolveFolders(["Home", "Home/Downloads:ro"], attached)).toEqual([
-      { access: "read-write", path: "/Users/someone", source: "user" },
-      { access: "read-only", path: "/Users/someone/Downloads", source: "user" },
+      {
+        access: "read-write",
+        mountName: "Home",
+        path: "/Users/someone",
+        source: "user",
+      },
+      {
+        access: "read-only",
+        mountName: "Home/Downloads",
+        path: "/Users/someone/Downloads",
+        source: "user",
+      },
     ]);
   });
 
@@ -168,7 +178,12 @@ describe("resolveFolders", () => {
 
     it("reads the whole and refuses to write it, naming the folder inside to hand instead", () => {
       expect(resolveFolders(["Root"], home)).toEqual([
-        { access: "read-only", path: home.Root.path, source: "user" },
+        {
+          access: "read-only",
+          mountName: "Root",
+          path: home.Root.path,
+          source: "user",
+        },
       ]);
       expect(() => resolveFolders(["Root:rw"], home)).toThrow(
         "/mnt/Root holds Instrument's own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder /mnt/Root/<folder>:rw.",
@@ -179,8 +194,18 @@ describe("resolveFolders", () => {
       const desktop = path.join(home.Root.path, "Desktop");
       expect(resolveFolders(["Root/Desktop:rw", "Root/Desktop"], home)).toEqual(
         [
-          { access: "read-write", path: desktop, source: "user" },
-          { access: "read-write", path: desktop, source: "user" },
+          {
+            access: "read-write",
+            mountName: "Root/Desktop",
+            path: desktop,
+            source: "user",
+          },
+          {
+            access: "read-write",
+            mountName: "Root/Desktop",
+            path: desktop,
+            source: "user",
+          },
         ],
       );
     });
@@ -202,9 +227,15 @@ describe("resolveFolders", () => {
     );
   });
 
+  // The name is where the folder is, not how the spec spelled the way there.
   it("keeps a subpath that only wanders inside the mount", () => {
     expect(resolveFolders(["Home/Downloads/../Desktop"], attached)).toEqual([
-      { access: "read-write", path: "/Users/someone/Desktop", source: "user" },
+      {
+        access: "read-write",
+        mountName: "Home/Desktop",
+        path: "/Users/someone/Desktop",
+        source: "user",
+      },
     ]);
   });
 

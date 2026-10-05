@@ -51,7 +51,13 @@ export async function newMessage({
   /** The user's other chats, on the message that opens a new one; see the chat-context part. */
   chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
+  /**
+   * Folders to grant the task, each at the access and under the mount name
+   * given, where given; see grant-folders.ts.
+   */
   folders?: {
+    access?: FolderAttachment.Access;
+    mountName?: string;
     path: string;
     source?: FolderAttachment.Source;
   }[];

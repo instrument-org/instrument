@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import {
   type FolderMounts,
+  mountAliases,
   mountPathOf,
-  translateMountPaths,
+  mountPathsOutside,
+  toChatPaths,
+  toTaskPaths,
   translateTaskFolderPaths,
-  unreachableMountPaths,
 } from "./mount-paths";
 
 function mounts(paths: Record<string, string>): FolderMounts {
@@ -24,166 +26,119 @@ const conversation = mounts({
   Instrument: "/Users/x/Documents/Instrument",
 });
 
-/** A task of its own, handed Downloads and the workspace folder it always has. */
-const task = mounts({
+/** A task the conversation handed Downloads, under the conversation's path for it. */
+const handedDownloads = mounts({
+  "Home/Downloads": "/Users/x/Downloads",
+  Instrument: "/Users/x/Documents/Instrument",
+});
+
+/** A task handed Downloads before names were shared, under a name of its own. */
+const namedItsOwnWay = mounts({
   Downloads: "/Users/x/Downloads",
   Instrument: "/Users/x/Documents/Instrument",
 });
 
-describe("translateMountPaths", () => {
-  it("reads a folder inside the conversation's mount under the task's own name for it", () => {
-    expect(
-      translateMountPaths(
-        "The invoices are in /mnt/Home/Downloads; write the summary to /mnt/Instrument/invoices/summary.md.",
-        conversation,
-        task,
-      ),
-    ).toMatchInlineSnapshot(
-      `"The invoices are in /mnt/Downloads; write the summary to /mnt/Instrument/invoices/summary.md."`,
-    );
+describe("mountAliases", () => {
+  it("reads a shared name as the conversation's path", () => {
+    expect(mountAliases(conversation, handedDownloads)).toMatchInlineSnapshot(`
+      [
+        {
+          "chatPath": "/mnt/Home/Downloads",
+          "taskPath": "/mnt/Home/Downloads",
+        },
+        {
+          "chatPath": "/mnt/Instrument",
+          "taskPath": "/mnt/Instrument",
+        },
+      ]
+    `);
   });
 
-  it("reads a task's own path back under the conversation's name for it", () => {
-    expect(
-      translateMountPaths(
-        "Wrote /mnt/Downloads/summary.md.",
-        task,
-        conversation,
-      ),
-    ).toMatchInlineSnapshot(`"Wrote /mnt/Home/Downloads/summary.md."`);
+  it("finds a name of the task's own by the folder on disk", () => {
+    expect(mountAliases(conversation, namedItsOwnWay)[0])
+      .toMatchInlineSnapshot(`
+      {
+        "chatPath": "/mnt/Home/Downloads",
+        "taskPath": "/mnt/Downloads",
+      }
+    `);
   });
 
-  it("keeps a name that means one folder here and another there apart", () => {
-    // The user has a folder of their own called Instrument. The conversation
-    // mounts the workspace under that name and the folder under another; the
-    // task it hands the folder to does the reverse.
-    const withNamesake = mounts({
-      "code-Instrument": "/Users/x/code/Instrument",
-      Instrument: "/Users/x/Documents/Instrument",
-    });
+  it("does not take a namesake of the conversation's for the folder", () => {
+    // The task's Instrument is a folder of the user's; the conversation's is
+    // the workspace folder.
     const handedTheNamesake = mounts({
-      "Documents-Instrument": "/Users/x/Documents/Instrument",
       Instrument: "/Users/x/code/Instrument",
     });
+    expect(mountAliases(conversation, handedTheNamesake))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "chatPath": "/mnt/Home/code/Instrument",
+          "taskPath": "/mnt/Instrument",
+        },
+      ]
+    `);
+  });
+
+  it("has no conversation path for a folder the conversation no longer reaches", () => {
     expect(
-      translateMountPaths(
-        "Read /mnt/code-Instrument/README.md and put the notes in /mnt/Instrument/notes.md.",
-        withNamesake,
-        handedTheNamesake,
+      mountAliases(conversation, mounts({ Archive: "/Volumes/Archive" })),
+    ).toEqual([{ chatPath: undefined, taskPath: "/mnt/Archive" }]);
+  });
+});
+
+describe("toTaskPaths and toChatPaths", () => {
+  it("leaves text alone where the two share every name", () => {
+    const text =
+      "The invoices are in /mnt/Home/Downloads; write the summary to /mnt/Instrument/invoices/summary.md.";
+    const aliases = mountAliases(conversation, handedDownloads);
+    expect(toTaskPaths(text, aliases)).toBe(text);
+    expect(toChatPaths(text, aliases)).toBe(text);
+  });
+
+  it("swaps a task's own name for the conversation's path, both ways", () => {
+    const aliases = mountAliases(conversation, namedItsOwnWay);
+    expect(
+      toTaskPaths(
+        "Read /mnt/Home/Downloads/a.pdf, then /mnt/Home/Downloads.",
+        aliases,
       ),
     ).toMatchInlineSnapshot(
-      `"Read /mnt/Instrument/README.md and put the notes in /mnt/Documents-Instrument/notes.md."`,
+      `"Read /mnt/Downloads/a.pdf, then /mnt/Downloads."`,
     );
-  });
-
-  it("leaves a folder the reading side does not have exactly as it was", () => {
     expect(
-      translateMountPaths(
-        "Check /mnt/Home/Desktop/notes.txt first.",
-        conversation,
-        task,
-      ),
-    ).toMatchInlineSnapshot(`"Check /mnt/Home/Desktop/notes.txt first."`);
-  });
-
-  it("does not read a longer name as a shorter one with something under it", () => {
-    const twoNamesakes = mounts({
-      Home: "/Users/x",
-      "Home-Downloads": "/Users/x/Downloads",
-    });
-    expect(
-      translateMountPaths(
-        "/mnt/Home-Downloads/a.md and /mnt/Home/b.md",
-        twoNamesakes,
-        mounts({ Downloads: "/Users/x/Downloads", Home: "/Users/x" }),
-      ),
-    ).toMatchInlineSnapshot(`"/mnt/Downloads/a.md and /mnt/Home/b.md"`);
-  });
-
-  it("carries a name with a space in it", () => {
-    expect(
-      translateMountPaths(
-        "It goes in /mnt/Home/My Notes/today.md, nowhere else.",
-        conversation,
-        mounts({ "My Notes": "/Users/x/My Notes" }),
-      ),
-    ).toMatchInlineSnapshot(
-      `"It goes in /mnt/My Notes/today.md, nowhere else."`,
-    );
-  });
-
-  it("ends a path where a sentence ends", () => {
-    expect(
-      translateMountPaths(
-        "Everything is in /mnt/Home/Downloads.",
-        conversation,
-        task,
-      ),
-    ).toMatchInlineSnapshot(`"Everything is in /mnt/Downloads."`);
-  });
-
-  it("leaves the access suffix on a folder spec alone", () => {
-    expect(
-      translateMountPaths(
-        "--folder /mnt/Home/Downloads:rw",
-        conversation,
-        task,
-      ),
-    ).toMatchInlineSnapshot(`"--folder /mnt/Downloads:rw"`);
-  });
-
-  it("stops at the folder it finds rather than running on into the sentence", () => {
-    expect(
-      translateMountPaths(
-        "Put it in /mnt/Home/Downloads and say when /mnt/Home/Desktop is clear.",
-        conversation,
-        mounts({
-          Desktop: "/Users/x/Desktop",
-          Downloads: "/Users/x/Downloads",
-        }),
-      ),
-    ).toMatchInlineSnapshot(
-      `"Put it in /mnt/Downloads and say when /mnt/Desktop is clear."`,
-    );
-  });
-
-  it("takes a path out of a link and out of backticks", () => {
-    expect(
-      translateMountPaths(
+      toChatPaths(
         "Wrote [the summary](/mnt/Downloads/summary.md) beside `/mnt/Downloads/raw.csv`.",
-        task,
-        conversation,
+        aliases,
       ),
     ).toMatchInlineSnapshot(
       `"Wrote [the summary](/mnt/Home/Downloads/summary.md) beside \`/mnt/Home/Downloads/raw.csv\`."`,
     );
   });
 
-  it("leaves a path that climbs out of its mount where it was", () => {
+  it("swaps only a whole name", () => {
+    const aliases = mountAliases(conversation, namedItsOwnWay);
     expect(
-      translateMountPaths("/mnt/Downloads/../.ssh/id_rsa", task, conversation),
-    ).toMatchInlineSnapshot(`"/mnt/Downloads/../.ssh/id_rsa"`);
+      toChatPaths("/mnt/Downloads-old/a.md and /mnt/Downloads.bak", aliases),
+    ).toMatchInlineSnapshot(`"/mnt/Downloads-old/a.md and /mnt/Downloads.bak"`);
   });
 
   it("leaves a mount nobody has alone", () => {
-    expect(
-      translateMountPaths("/mnt/Photos/holiday.jpg", conversation, task),
-    ).toMatchInlineSnapshot(`"/mnt/Photos/holiday.jpg"`);
-  });
-
-  it("returns text with no path in it untouched", () => {
-    const text = "Two paragraphs and no folder in either of them.";
-    expect(translateMountPaths(text, conversation, task)).toBe(text);
+    const aliases = mountAliases(conversation, namedItsOwnWay);
+    expect(toTaskPaths("/mnt/Photos/holiday.jpg", aliases)).toBe(
+      "/mnt/Photos/holiday.jpg",
+    );
   });
 });
 
-describe("unreachableMountPaths", () => {
+describe("mountPathsOutside", () => {
   it("names a folder the task was not handed, beside one it was", () => {
     expect(
-      unreachableMountPaths(
+      mountPathsOutside(
         "Your paths map under `/mnt/Home`. Add the lines to /mnt/Home/Downloads/notes.md, then read /mnt/Home/Desktop/todo.md.",
         conversation,
-        task,
+        ["/mnt/Home/Downloads", "/mnt/Instrument"],
       ),
     ).toMatchInlineSnapshot(`
       [
@@ -193,13 +148,34 @@ describe("unreachableMountPaths", () => {
     `);
   });
 
-  it("names nothing when every path reaches a folder the task has", () => {
+  it("names nothing when every path is under a folder the task has", () => {
     expect(
-      unreachableMountPaths(
-        "Read /mnt/Home/Downloads/a.pdf and write /mnt/Instrument/out.md.",
+      mountPathsOutside(
+        "Read /mnt/Home/Downloads/a.pdf and write /mnt/Instrument/out.md, all in /mnt/Home/Downloads.",
         conversation,
-        task,
+        ["/mnt/Home/Downloads", "/mnt/Instrument"],
       ),
+    ).toEqual([]);
+  });
+
+  it("does not read a longer name as the handed one", () => {
+    expect(
+      mountPathsOutside(
+        "Compare /mnt/Home/Downloads-old/a.md with /mnt/Home/Downloads.old/b.md.",
+        conversation,
+        ["/mnt/Home/Downloads"],
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "/mnt/Home/Downloads-old/a.md",
+        "/mnt/Home/Downloads.old/b.md",
+      ]
+    `);
+  });
+
+  it("leaves a mount the conversation does not have to the task", () => {
+    expect(
+      mountPathsOutside("See /mnt/Photos/holiday.jpg.", conversation, []),
     ).toEqual([]);
   });
 });

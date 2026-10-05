@@ -236,6 +236,11 @@ function bridgePathArgs(
     const owner = mountPoints.find((mountPoint) =>
       isAtOrUnder(mountPoint, arg),
     );
+    const below = owner === undefined ? mountsBelow(layout, arg) : [];
+    if (below.length > 0) {
+      bridged.push(...below);
+      continue;
+    }
     if (!owner) {
       const isOperand = operandsOnly || !arg.startsWith("-");
       operandsOnly ||= arg === "--";
@@ -269,6 +274,26 @@ function bridgePathArgs(
     bridged.push(hostPath);
   }
   return { args: bridged };
+}
+
+/**
+ * The host roots of the mounts under a directory that is no mount itself but
+ * holds some: `/mnt`, or `/mnt/Home` in a task handed `/mnt/Home/Downloads`
+ * and `/mnt/Home/Desktop` alone. The sandbox shows such a directory as the
+ * mounts under it, so a search of it is a search of them. Only under the
+ * attached-folder root, so neither `/` nor a pattern elsewhere is read as one.
+ */
+function mountsBelow(layout: WorkspaceFsLayout, arg: string): string[] {
+  if (!isAtOrUnder(MOUNT.attachedFolders, arg)) {
+    return [];
+  }
+  return nonTaskMounts(layout).flatMap((mount) => {
+    if (mount.mountPoint === arg || !isAtOrUnder(arg, mount.mountPoint)) {
+      return [];
+    }
+    const hostPath = resolveReadOnlyHostPath(layout, mount.mountPoint);
+    return hostPath === null ? [] : [hostPath];
+  });
 }
 
 /** A path's real location, or null for one that does not exist. */

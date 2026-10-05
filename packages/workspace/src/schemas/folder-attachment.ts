@@ -33,10 +33,12 @@ export namespace FolderAttachment {
 
   /**
    * The name this folder is mounted under, at `/mnt/<mountName>`. Unique within
-   * a task and assigned by us (see assign-mount-names.ts), so it is the agent's
-   * handle for the folder and not the user's word for it -- that comes from the
-   * path. Reading one as the other is what put "the documents-test folder" in
-   * front of a user who has no such folder.
+   * a task and decided by us when the folder is granted (see grant-folders.ts):
+   * a chat's path for the folder where the chat handed it to a task, which may
+   * hold `/` (`Home/Downloads`), and otherwise a name assigned from the path.
+   * It is the agent's handle for the folder and not the user's word for it --
+   * that comes from the path. Reading one as the other is what put "the
+   * documents-test folder" in front of a user who has no such folder.
    */
   const MountNameSchema = z.string();
 

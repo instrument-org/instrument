@@ -278,7 +278,9 @@ export async function requireFilesNamedInBrief(
 /**
  * The folders a task is handed, from the `--folder` specs on `task new` and
  * the folders the conversation has: each a host path inside a mount, with the
- * conversation's access unless the spec narrows it.
+ * conversation's access unless the spec narrows it, and the name the task
+ * mounts it under, which is the conversation's own path for it
+ * (`Home/Downloads` for `--folder /mnt/Home/Downloads`).
  */
 export function resolveFolders(
   specs: string[],
@@ -332,9 +334,11 @@ export function resolveFolders(
           : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
       );
     }
+    const inside = path.relative(root, folderPath).split(path.sep);
     // The task gets what the conversation has unless the brief narrows it.
     return {
       access: access ?? granted,
+      mountName: [name, ...inside.filter(Boolean)].join("/"),
       path: folderPath,
       source: "user" as const,
     };

@@ -62,11 +62,13 @@ import {
 } from "../chat/models";
 import {
   type FolderMounts,
+  type MountAlias,
+  mountAliases,
   mountPathOf,
-  mountsOf,
-  translateMountPaths,
+  mountPathsOutside,
+  toChatPaths,
+  toTaskPaths,
   translateTaskFolderPaths,
-  unreachableMountPaths,
 } from "../chat/mount-paths";
 import { outputFolderPath } from "../chat/output-folder";
 import { renderSteps, sessionSteps } from "../chat/steps";
@@ -433,8 +435,8 @@ export async function runApp(
  * The grant `new --folder` makes, made after the fact: a task that turns out to
  * need one more folder is handed it where it stands, rather than stopped and
  * started again with everything it had worked out thrown away. The specs are
- * this conversation's own, the same as on `new`, since the names a task mounts
- * its folders under are assigned per task and mean nothing here.
+ * this conversation's own, the same as on `new`, and the task mounts each
+ * folder at the same path.
  *
  * A task reads its folders fresh on every turn, so the mount is there the
  * moment this returns, and the task is told in the same call (tellOfGrant).
@@ -466,7 +468,7 @@ export async function runFolder(
   const workspace = path.resolve(outputFolderPath());
   // Matched against the folders as they stand before any of this runs: every
   // spec on the line names one of those, not one a later removal has moved.
-  const taskFolders = await mountsOf(task.id);
+  const taskFolders = await folderReach(task.id);
   const removes = none
     ? Object.values(taskFolders).filter(
         (folder) => path.resolve(folder.path) !== workspace,
@@ -488,11 +490,16 @@ export async function runFolder(
   const removedPaths = new Set(
     removes.map((folder) => path.resolve(folder.path)),
   );
+  const kept = Object.values(taskFolders).filter(
+    (folder) => !removedPaths.has(path.resolve(folder.path)),
+  );
+  requireUnnestedMounts("folder", [
+    ...kept.map((folder) => ({ ...folder, spec: undefined })),
+    ...adds.map((folder, index) => ({ ...folder, spec: askedAdds[index] })),
+  ]);
   const purpose = await grantPurpose("folder", task.id, context, stdin, [
-    ...Object.values(taskFolders).filter(
-      (folder) => !removedPaths.has(path.resolve(folder.path)),
-    ),
-    ...adds,
+    ...chatPathsOf(mountAliases(chatFolders, byMountName(kept))),
+    ...adds.map((folder) => attachedFolderMountPoint(folder.mountName)),
   ]);
 
   const lines: string[] = [];
@@ -502,7 +509,7 @@ export async function runFolder(
   for (const folder of removes) {
     await detachFolder({ path: folder.path, taskId: task.id });
     lines.push(
-      `Took ${mountPathOf(folder.path, chatFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} back from ${task.id}.`,
+      `Took ${mountAliases(chatFolders, { [folder.mountName]: folder })[0]?.chatPath ?? attachedFolderMountPoint(folder.mountName)} back from ${task.id}.`,
     );
     facts.push(
       `The folder ${folderLabel(folder.path)} at ${attachedFolderMountPoint(folder.mountName)} was taken back from you.`,
@@ -511,11 +518,12 @@ export async function runFolder(
   for (const folder of adds) {
     const attached = await attachFolder({
       access: folder.access,
+      mountName: folder.mountName,
       path: folder.path,
       taskId: task.id,
     });
     lines.push(
-      `${task.id} now has ${mountPathOf(folder.path, chatFolders) ?? folder.path} (${folder.access}).`,
+      `${task.id} now has ${attachedFolderMountPoint(folder.mountName)} (${folder.access}).`,
     );
     facts.push(
       `You were handed the folder ${folderLabel(attached.path)} at ${attachedFolderMountPoint(attached.mountName)}, ${attached.access === "read-write" ? "read and write" : "read-only"}.`,
@@ -534,7 +542,7 @@ export async function runFolder(
   );
 }
 
-async function runNew(
+export async function runNew(
   args: string[],
   context: TaskCommandContext,
   stdin: ByteString,
@@ -573,14 +581,18 @@ async function runNew(
   const chatFolders = await folderReach(context.chatId);
   const resolvedFolders = resolveFolders(askedFolders, chatFolders);
   const looks = await requireFoldersOnDisk(resolvedFolders, askedFolders);
-  const folders = withWorkspaceFolder(resolvedFolders);
+  const folders = withWorkspaceFolder(resolvedFolders, chatFolders);
+  requireUnnestedMounts(
+    "new",
+    folders.map((folder, index) => ({ ...folder, spec: askedFolders[index] })),
+  );
   const askedFiles = values.get("file") ?? [];
   const layout = await chatLayout(context, chatFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
   requireFoldersNamedInBriefHanded("new", prompt, chatFolders, [
-    ...folders,
-    ...files,
+    ...folders.map((folder) => attachedFolderMountPoint(folder.mountName)),
+    ...filePaths(askedFiles, cwd),
   ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const handedTabs = await resolveTabs(values.get("tab") ?? []);
@@ -648,18 +660,15 @@ async function runNew(
   if (message.isErr()) {
     throw message.error;
   }
-  // The brief names folders by the paths this conversation reaches them at, and
-  // the task reaches the same folders at paths of its own: the message attached
-  // them a line ago, which is what makes the task's names readable here.
-  const taskFolders = await mountsOf(taskId);
+  // The task mounts each folder at this conversation's path for it, so the
+  // brief reads the same there; the swap covers a name another folder of the
+  // task's had taken.
+  const aliases = mountAliases(chatFolders, await folderReach(taskId));
   const briefed = {
     ...message.value,
     parts: message.value.parts.map((part) =>
       part.type === "text"
-        ? {
-            ...part,
-            text: translateMountPaths(part.text, chatFolders, taskFolders),
-          }
+        ? { ...part, text: toTaskPaths(part.text, aliases) }
         : part,
     ),
   };
@@ -704,7 +713,7 @@ async function runNew(
       ? `It is running now.`
       : `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog. Until then it waits; \`${TASK_COMMAND.name} send\` queues behind that, and \`${TASK_COMMAND.name} stop\` cancels it.`;
   return ok(
-    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, chatFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 
@@ -733,11 +742,12 @@ export async function runSend(
   const layout = await chatLayout(context, chatFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
+  const aliases = mountAliases(chatFolders, state.attachedFolders ?? {});
   requireFoldersNamedInBriefHanded(
     "send",
     prompt,
     chatFolders,
-    [...Object.values(state.attachedFolders ?? {}), ...files],
+    [...chatPathsOf(aliases), ...filePaths(askedFiles, cwd)],
     task.id,
   );
   const { held, message, running } = await deliver({
@@ -746,11 +756,7 @@ export async function runSend(
     files,
     interrupt: now,
     // In the task's paths, as the brief that started it was.
-    prompt: translateMountPaths(
-      prompt,
-      chatFolders,
-      state.attachedFolders ?? {},
-    ),
+    prompt: toTaskPaths(prompt, aliases),
     task,
   });
   if (!held) {
@@ -881,20 +887,18 @@ async function grantPurpose(
   taskId: TaskId,
   context: TaskCommandContext,
   stdin: ByteString,
-  handed?: { path: string }[],
+  handed?: string[],
 ): Promise<string> {
   const said = promptFrom("", stdin);
   if (!said) {
     return "";
   }
   const chatFolders = await folderReach(context.chatId);
-  const taskState = await getTaskState(taskDir(taskId));
-  const taskFolders = taskState.attachedFolders;
   requireFoldersNamedInBriefHanded(
     command,
     said,
     chatFolders,
-    handed ?? Object.values(taskFolders ?? {}),
+    handed ?? chatPathsOf(mountAliases(chatFolders, await folderReach(taskId))),
     taskId,
   );
   // Translated against the folders as they stand once the grant is written,
@@ -942,10 +946,14 @@ async function tellOfGrant({
   if (!running && !added && !purpose) {
     return `${task.id} is not running; it is told when its next turn starts.\n`;
   }
-  const chatFolders = await folderReach(context.chatId);
-  const state = await getTaskState(taskDir(task.id));
   const said = purpose
-    ? translateMountPaths(purpose, chatFolders, state.attachedFolders ?? {})
+    ? toTaskPaths(
+        purpose,
+        mountAliases(
+          await folderReach(context.chatId),
+          await folderReach(task.id),
+        ),
+      )
     : "";
   const { held } = await deliver({
     command,
@@ -1195,18 +1203,18 @@ function handedFiles(message: SessionMessage.UserWithParts): string {
 }
 
 /**
- * What a task was handed, in this conversation's own paths: the folders named
- * on the command with the access each ended up with, and the workspace folder
- * that goes with them whether it was named or not.
+ * What a task was handed, at the paths it and this conversation both reach
+ * them by: the folders named on the command with the access each ended up
+ * with, and the workspace folder that goes with them whether it was named or
+ * not.
  */
 function handedFolders(
-  folders: { access: FolderAttachment.Access; path: string }[],
-  chatFolders: FolderMounts,
+  folders: { access: FolderAttachment.Access; mountName: string }[],
 ): string {
   return folders
     .map(
       (folder) =>
-        `${mountPathOf(folder.path, chatFolders) ?? folder.path} (${folder.access})`,
+        `${attachedFolderMountPoint(folder.mountName)} (${folder.access})`,
     )
     .join(", ");
 }
@@ -1221,8 +1229,8 @@ function handedTabsLine(tabs: BrowserTargetId[]): string {
 /**
  * The folder of a task's own that a `--remove` spec names.
  *
- * `show` prints a task's folders in this conversation's paths where a mount of
- * its own covers one, and in the task's own where none does, so both readings
+ * `show` prints a task's folders at this conversation's paths where a mount of
+ * its own covers one, and at the task's own where none does, so both readings
  * are tried here: a task can hold a folder this conversation has since given
  * up, and that folder is still the task's to lose.
  */
@@ -1247,7 +1255,8 @@ function matchTaskFolder(
     }
   }
   const { name, subpath } = parseFolderSpec(spec);
-  return subpath ? undefined : held.find((folder) => folder.mountName === name);
+  const mountName = subpath ? `${name}/${subpath}` : name;
+  return held.find((folder) => folder.mountName === mountName);
 }
 
 /**
@@ -1351,38 +1360,30 @@ async function requireChild(
 }
 
 /**
- * Refuses a brief that names a folder by a path the task will not have. Mount
- * paths are this conversation's own: the task reaches the folders and files it
- * is handed at paths of its own, and a path none of them covers reaches the
- * task as written, naming nothing there. A folder the task is not handed is
- * still something a brief can talk about, by its name, the way a person would.
+ * Refuses a brief that names a folder by a path the task will not have. A
+ * task reaches each folder it is handed at this conversation's path for it,
+ * and nothing else under this conversation's mounts, so a path under one of
+ * them that no handed folder or file covers names nothing there. A folder the
+ * task is not handed is still something a brief can talk about, by its name,
+ * the way a person would.
+ *
+ * `handed` holds this conversation's paths for what the task is handed: its
+ * folders and the files given with --file.
  */
 function requireFoldersNamedInBriefHanded(
   command: "app" | "folder" | "new" | "send",
   prompt: string,
   chatFolders: FolderMounts,
-  handed: ({ content: string } | { path: string })[],
+  handed: string[],
   taskId?: string,
 ) {
-  // A file written out on the command has no path, so there is nothing of it
-  // a path in the brief could name.
-  const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
-  const chatOnly = chatOnlyPathsIn(prompt, paths);
+  const chatOnly = chatOnlyPathsIn(prompt, handed);
   if (chatOnly.length > 0) {
     throw new Error(
       `${command}: the ${command === "new" ? "brief" : "message"} names ${chatOnly.join(", ")}, and no task reaches ${MOUNT.apps} or ${MOUNT.tasks}: they are yours alone. Have the task leave what it makes in its own folder and \`cp\` it into place yourself when it reports; hand it a file from one with --file. Nothing was ${command === "new" ? "created" : "sent"}.`,
     );
   }
-  const unreachable = unreachableMountPaths(
-    prompt,
-    chatFolders,
-    Object.fromEntries(
-      paths.map((itemPath) => [
-        itemPath,
-        { mountName: itemPath, path: itemPath },
-      ]),
-    ),
-  );
+  const unreachable = mountPathsOutside(prompt, chatFolders, handed);
   if (unreachable.length === 0) {
     return;
   }
@@ -1394,7 +1395,7 @@ function requireFoldersNamedInBriefHanded(
         ? `add it on this command with --add <path>`
         : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
   throw new Error(
-    `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, at paths of its own, and your paths are translated to its paths only for those folders. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
+    `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, each at the path you reach it by: ${handedFolderPaths(handed)}. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
   );
 }
 
@@ -1932,13 +1933,14 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const state = await getTaskState(taskDir(task.id));
   const running = isWorking(task.id);
   const held = taskHold(task.id);
-  // Everything below is the task's, said in this conversation's paths: the
-  // names are the task's own and mean nothing here (see mount-paths.ts).
+  // Everything below is the task's, said in this conversation's paths, which
+  // are the task's own for every folder this conversation granted it under
+  // shared names (see mount-paths.ts).
   const taskFolders = state.attachedFolders ?? {};
-  const chatFolders = await mountsOf(context.chatId);
+  const aliases = mountAliases(await folderReach(context.chatId), taskFolders);
   const folders = Object.values(taskFolders).map(
-    (folder) =>
-      `${mountPathOf(folder.path, chatFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} (${effectiveFolderAccess(folder)})`,
+    (folder, index) =>
+      `${aliases[index]?.chatPath ?? attachedFolderMountPoint(folder.mountName)} (${effectiveFolderAccess(folder)})`,
   );
   const holds = await taskFolderHoldings(task.id);
   const sessionId = await latestSessionId(task.id);
@@ -1954,10 +1956,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const lastSaid =
     said === undefined
       ? undefined
-      : translateTaskFolderPaths(
-          translateMountPaths(said, taskFolders, chatFolders),
-          task.id,
-        );
+      : translateTaskFolderPaths(toChatPaths(said, aliases), task.id);
 
   const settings = await getTaskSettings(taskDir(task.id));
   const handedApps = settings?.apps ?? [];
@@ -1992,13 +1991,95 @@ async function runShow(args: string[], context: TaskCommandContext) {
  * The workspace folder, read and write, on every task: where results go when
  * nobody said where, so a task puts its deliverable there itself rather than
  * leaving it in scratch for the conversation to fetch. A brief that names the
- * folder, or a folder inside it, keeps what it asked for beside this.
+ * folder, or a folder inside it, keeps what it asked for beside this. It
+ * mounts where this conversation reaches it.
  */
-function withWorkspaceFolder<T extends { path: string }>(
+function withWorkspaceFolder<T extends { mountName: string; path: string }>(
   folders: T[],
-): (T | { access: "read-write"; path: string; source: "user" })[] {
+  chatFolders: FolderMounts,
+): (
+  | T
+  | { access: "read-write"; mountName: string; path: string; source: "user" }
+)[] {
   const workspace = outputFolderPath();
-  return folders.some((folder) => folder.path === workspace)
-    ? folders
-    : [...folders, { access: "read-write", path: workspace, source: "user" }];
+  if (folders.some((folder) => folder.path === workspace)) {
+    return folders;
+  }
+  const chatPath = mountPathOf(workspace, chatFolders);
+  return [
+    ...folders,
+    {
+      access: "read-write",
+      mountName: chatPath
+        ? chatPath.slice(`${MOUNT.attachedFolders}/`.length)
+        : path.basename(workspace),
+      path: workspace,
+      source: "user",
+    },
+  ];
+}
+
+/** The chat's paths in a set of aliases, leaving out the folders it no longer reaches. */
+function chatPathsOf(aliases: MountAlias[]): string[] {
+  return aliases.flatMap(({ chatPath }) =>
+    chatPath === undefined ? [] : [chatPath],
+  );
+}
+
+/** Folders keyed by mount name, the way a task's record holds them. */
+function byMountName<T extends { mountName: string }>(
+  folders: T[],
+): Record<string, T> {
+  return Object.fromEntries(
+    folders.map((folder) => [folder.mountName, folder]),
+  );
+}
+
+/**
+ * This conversation's paths for the files handed with --file, as its shell
+ * reads them: relative ones from the directory it is in.
+ */
+function filePaths(specs: string[], cwd: string): string[] {
+  return specs.map((spec) =>
+    path.posix.normalize(
+      path.posix.isAbsolute(spec) ? spec : path.posix.join(cwd, spec),
+    ),
+  );
+}
+
+/** The folder paths among what a task is handed, for a refusal to list. */
+function handedFolderPaths(handed: string[]): string {
+  return (
+    handed
+      .filter((handedPath) =>
+        handedPath.startsWith(`${MOUNT.attachedFolders}/`),
+      )
+      .join(", ") || "none"
+  );
+}
+
+/**
+ * Refuses a set of folders where one would mount inside another. A task
+ * mounts each at this conversation's path for it, and a filesystem holds no
+ * mount inside another, so `/mnt/Home` and `/mnt/Home/Desktop` cannot both be
+ * a task's. The usual intent, reading the whole and writing one folder in it,
+ * is a task handed only the folder it writes.
+ */
+function requireUnnestedMounts(
+  command: "folder" | "new",
+  folders: { mountName: string; spec: string | undefined }[],
+) {
+  for (const outer of folders) {
+    const inner = folders.find((folder) =>
+      folder.mountName.startsWith(`${outer.mountName}/`),
+    );
+    if (!inner) {
+      continue;
+    }
+    const named = (folder: { mountName: string; spec: string | undefined }) =>
+      folder.spec ?? attachedFolderMountPoint(folder.mountName);
+    throw new Error(
+      `${command}: ${named(inner)} is inside ${named(outer)}, and a task cannot be handed both: it reaches each folder at your path for it, and one cannot be mounted inside the other. Hand it only the one the work needs${command === "folder" ? `, taking the other back with --remove first` : ""}. Nothing was ${command === "new" ? "created" : "changed"}.`,
+    );
+  }
 }

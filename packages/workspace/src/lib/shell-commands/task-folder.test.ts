@@ -15,7 +15,7 @@ import { outputFolderPath } from "../chat/output-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runFolder as run, type TaskCommandContext } from "./task";
+import { runFolder as run, runNew, type TaskCommandContext } from "./task";
 import { ChatIdSchema } from "../../schemas/chat-id";
 
 // The chat the tasks were started in: a record of its own under `chats/`.
@@ -323,7 +323,7 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "You were handed the folder Downloads at /mnt/Downloads, read and write.",
+        "You were handed the folder Downloads at /mnt/home/Downloads, read and write.",
       ]
     `);
   });
@@ -343,9 +343,9 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "You were handed the folder Desktop at /mnt/Desktop, read-only.
+        "You were handed the folder Desktop at /mnt/home/Desktop, read-only.
 
-      The invoices you were missing are in /mnt/Desktop/invoices.",
+      The invoices you were missing are in /mnt/home/Desktop/invoices.",
       ]
     `);
   });
@@ -390,7 +390,7 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "The folder Downloads at /mnt/Downloads was taken back from you. The folder Desktop at /mnt/Desktop was taken back from you.",
+        "The folder Downloads at /mnt/home/Downloads was taken back from you. The folder Desktop at /mnt/home/Desktop was taken back from you.",
       ]
     `);
     expect(Object.keys(await heldBy(CHILD_ID))).toEqual([outputFolderPath()]);
@@ -406,6 +406,138 @@ describe("task folder, telling the task", () => {
     ).rejects.toThrow(/add it on this command with --add <path>/);
     expect(await heldBy(CHILD_ID)).toEqual({});
     expect(delivered()).toEqual([]);
+  });
+});
+
+// A task mounts each folder at the path its chat reaches it by, so what the
+// two say about a folder needs no translating.
+describe("the paths a task shares with its chat", () => {
+  /** The name each folder a task holds is mounted under, by its path. */
+  async function namesHeldBy(taskId: TaskId) {
+    const state = await getTaskState(taskDir(taskId));
+    return Object.fromEntries(
+      Object.values(state.attachedFolders ?? {}).map((folder) => [
+        folder.path,
+        folder.mountName,
+      ]),
+    );
+  }
+
+  it("mounts a folder at the chat's path for it", async () => {
+    await runFolder([CHILD_ID, "--add", "/mnt/home/Downloads/"], context);
+
+    expect(await namesHeldBy(CHILD_ID)).toEqual({
+      [path.join(home, "Downloads")]: "home/Downloads",
+    });
+  });
+
+  it("refuses a folder inside one the task has, changing nothing", async () => {
+    await runFolder([CHILD_ID, "--add", "/mnt/home:ro"], context);
+    const before = await heldBy(CHILD_ID);
+
+    await expect(
+      runFolder([CHILD_ID, "--add", "/mnt/home/Desktop:rw"], context),
+    ).rejects.toThrow(
+      "folder: /mnt/home/Desktop:rw is inside /mnt/home, and a task cannot be handed both",
+    );
+    expect(await heldBy(CHILD_ID)).toEqual(before);
+  });
+
+  it("swaps a name of the task's own for the chat's path on the way in", async () => {
+    // Granted before names were shared: the task holds Downloads by its own
+    // name for it.
+    await attachFolder({
+      access: "read-write",
+      path: path.join(home, "Downloads"),
+      taskId: CHILD_ID,
+    });
+    expect(await namesHeldBy(CHILD_ID)).toEqual({
+      [path.join(home, "Downloads")]: "Downloads",
+    });
+
+    await runFolder(
+      [CHILD_ID, "--add", "/mnt/home/Desktop"],
+      context,
+      "Compare it with /mnt/home/Downloads/list.csv.",
+    );
+
+    expect(delivered()).toMatchInlineSnapshot(`
+      [
+        "You were handed the folder Desktop at /mnt/home/Desktop, read and write.
+
+      Compare it with /mnt/Downloads/list.csv.",
+      ]
+    `);
+  });
+});
+
+describe("task new", () => {
+  /** The task the last `new` made, by the id it printed. */
+  function createdBy(stdout: string): TaskId {
+    return TaskIdSchema.parse(/^Created (\S+)/.exec(stdout)?.[1]);
+  }
+
+  it("hands each folder at the chat's path, with the access asked for", async () => {
+    const result = await runNew(
+      ["--name", "Sort", "--folder", "/mnt/home/Downloads:ro"],
+      context,
+      encodeUtf8ToBytes("Sort the PDFs in /mnt/home/Downloads by year."),
+      "/task",
+    );
+    const taskId = createdBy(result.stdout);
+
+    const state = await getTaskState(taskDir(taskId));
+    const folders = Object.values(state.attachedFolders ?? {});
+    expect(
+      folders.find((folder) => folder.path === path.join(home, "Downloads")),
+    ).toMatchObject({ access: "read-only", mountName: "home/Downloads" });
+    expect(result.stdout).toContain(
+      "Its folders: /mnt/home/Downloads (read-only),",
+    );
+    const brief = sent.events.flatMap((event) =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "createSession"
+        ? [JSON.stringify(event)]
+        : [],
+    );
+    expect(brief.join("")).toContain(
+      "Sort the PDFs in /mnt/home/Downloads by year.",
+    );
+  });
+
+  it("refuses a brief naming a folder it is not handed", async () => {
+    await expect(
+      runNew(
+        ["--name", "Sort", "--folder", "/mnt/home/Downloads"],
+        context,
+        encodeUtf8ToBytes("Move /mnt/home/Desktop/a.pdf into place."),
+        "/task",
+      ),
+    ).rejects.toThrow(
+      "new: the brief names /mnt/home/Desktop/a.pdf, which this task is not handed.",
+    );
+  });
+
+  it("refuses a folder beside one around it", async () => {
+    await expect(
+      runNew(
+        [
+          "--name",
+          "Sort",
+          "--folder",
+          "/mnt/home:ro",
+          "--folder",
+          "/mnt/home/Desktop:rw",
+        ],
+        context,
+        encodeUtf8ToBytes("Tidy the desktop."),
+        "/task",
+      ),
+    ).rejects.toThrow(
+      "new: /mnt/home/Desktop:rw is inside /mnt/home:ro, and a task cannot be handed both",
+    );
   });
 });
 

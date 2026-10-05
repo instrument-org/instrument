@@ -27,9 +27,10 @@ import {
   lastAssistantText,
   latestOrNewSessionId,
 } from "./latest-session";
+import { folderReach } from "./folder-reach";
 import {
-  mountsOf,
-  translateMountPaths,
+  mountAliases,
+  toChatPaths,
   translateTaskFolderPaths,
 } from "./mount-paths";
 import { endedWithoutWords } from "./standing";
@@ -303,9 +304,10 @@ async function deliverAskedWake(
 }
 
 /**
- * What a task said, in the paths the conversation that started it reads. The
- * two hold the same folders under names of their own (see mount-paths.ts), and
- * a note is composed for the conversation rather than for the task.
+ * What a task said, in the paths the conversation that started it reads: its
+ * own folder at `/tasks/<id>`, and any folder it holds under a name of its own
+ * at the chat's path for it (see mount-paths.ts). A note is composed for the
+ * conversation rather than for the task.
  */
 async function inChatPaths(
   text: string | undefined,
@@ -314,10 +316,11 @@ async function inChatPaths(
   if (text === undefined) {
     return undefined;
   }
-  return translateTaskFolderPaths(
-    translateMountPaths(text, await mountsOf(taskId), await mountsOf(chatId)),
-    taskId,
+  const aliases = mountAliases(
+    await folderReach(chatId),
+    await folderReach(taskId),
   );
+  return translateTaskFolderPaths(toChatPaths(text, aliases), taskId);
 }
 
 async function onSessionDone(

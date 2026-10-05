@@ -48,7 +48,7 @@ import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 function SettingsSection({
@@ -654,14 +654,20 @@ function Notifications() {
   const openNotificationSettingsMutation = useMutation(
     rpcClient.preferences.openNotificationSettings.mutationOptions(),
   );
-  // What macOS says about the app's notifications. Read again whenever the
-  // window comes back to the front, which is when someone returns from
-  // System Settings having changed it.
+  // What macOS says about the app's notifications, read again each time the
+  // window takes focus, which is when someone returns from System Settings
+  // having changed it. Switching apps leaves the page visible, so the query
+  // library's own refetch-on-focus never fires here.
   const permission = useQuery(
-    rpcClient.mac.notifications.status.queryOptions({
-      refetchOnWindowFocus: "always",
-    }),
+    rpcClient.mac.notifications.status.queryOptions(),
   );
+  const { data: windowFocusChanged } = useQuery(
+    rpcClient.utils.events.windowFocusChanged.experimental_liveOptions(),
+  );
+  const refetchPermission = permission.refetch;
+  useEffect(() => {
+    void refetchPermission();
+  }, [windowFocusChanged, refetchPermission]);
   const requestPermission = useMutation(
     rpcClient.mac.notifications.request.mutationOptions({
       onError: (error) => {
@@ -808,9 +814,9 @@ function NotificationsPermission({
   state: "not-asked" | "off" | "quiet";
 }) {
   const detail = {
-    "not-asked": `${APP_NAME} keeps working while you do other things. Allow notifications to hear when something's ready or needs you.`,
-    off: `Notifications are off for ${APP_NAME} in System Settings. Turn them on to hear when something's ready or needs you.`,
-    quiet: `Notifications reach Notification Center but don't show on screen. Choose banners in System Settings to see them.`,
+    "not-asked": "Get a notification when a task finishes or needs you.",
+    off: "Notifications are off in System Settings.",
+    quiet: "Banners are off in System Settings, so nothing shows on screen.",
   }[state];
   return (
     <Card className="p-4">

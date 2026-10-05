@@ -18,7 +18,7 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "defaultTaskTemplateDir",
-  "eventKitBinPath",
+  "macHelperBinPath",
   "nodeExecEnv",
   "pnpmBinPath",
   "preparedSkillsDir",

@@ -232,12 +232,12 @@ const config: Configuration = {
       ? "build/entitlements.mac.preview.plist"
       : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
-    // The EventKit helper behind the agent's `calendar` command, built by
-    // `pnpm build:eventkit` before packaging.
+    // The Mac helper behind the agent's `calendar` and `contacts` commands, built by
+    // `pnpm build:mac-helper` before packaging.
     extraResources: [
       {
-        from: "native/eventkit/.build/out/Products/Release/instrument-eventkit",
-        to: "bin/instrument-eventkit",
+        from: "native/mac-helper/.build/out/Products/Release/instrument-mac",
+        to: "bin/instrument-mac",
       },
     ],
     extendInfo: {
@@ -251,7 +251,9 @@ const config: Configuration = {
       // a task is handed the folder.
       NSAppDataUsageDescription: `${APP_NAME} reads another app's files when you ask it to work with them.`,
       // Asked the first time a task reads or adds to each, through the
-      // bundled EventKit helper behind the agent's `calendar` command.
+      // bundled Mac helper behind the agent's `calendar` and `contacts`
+      // commands.
+      NSContactsUsageDescription: `${APP_NAME} looks people up in your contacts when you ask it to, like an email address or a birthday.`,
       NSCalendarsFullAccessUsageDescription: `${APP_NAME} reads and adds to your calendars when you ask it to, like checking tomorrow or adding a meeting.`,
       NSCalendarsUsageDescription: `${APP_NAME} reads and adds to your calendars when you ask it to, like checking tomorrow or adding a meeting.`,
       NSRemindersFullAccessUsageDescription: `${APP_NAME} reads and adds to your reminders when you ask it to, like what is due today or a new reminder.`,

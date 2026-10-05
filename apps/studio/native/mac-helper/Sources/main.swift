@@ -1,14 +1,17 @@
+import Contacts
 import EventKit
 import Foundation
 
-// Calendar and Reminders through EventKit. Every answer is one line of JSON
-// on stdout; a failure is a sentence on stderr and a non-zero exit.
+// Calendar, Reminders, and Contacts through Apple's own frameworks. Every
+// answer is one line of JSON on stdout; a failure is a sentence on stderr
+// and a non-zero exit.
 //
-//   instrument-eventkit calendars
-//   instrument-eventkit events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]
-//   instrument-eventkit reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]
-//   instrument-eventkit add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]
-//   instrument-eventkit add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]
+//   instrument-mac contacts [--search <words>] [--limit <n>]
+//   instrument-mac calendars
+//   instrument-mac events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]
+//   instrument-mac reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]
+//   instrument-mac add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]
+//   instrument-mac add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]
 //
 // A date is today, tomorrow, yesterday, 2026-10-06, or 2026-10-06T14:30
 // (local time), with an optional Z or offset. A calendar or list is named
@@ -20,6 +23,7 @@ struct Failure: Error {
 }
 
 let store = EKEventStore()
+let contactStore = CNContactStore()
 
 func fail(_ message: String, _ code: Int32 = 1) -> Never {
   FileHandle.standardError.write(Data((message + "\n").utf8))
@@ -59,6 +63,38 @@ func requireAccess(to entity: EKEntityType) async {
     } catch {
       fail("Could not ask for access to \(what.lowercased()): \(error.localizedDescription)")
     }
+  }
+}
+
+/// Asks once, the first time; after that answers from what the user chose.
+func requireContactsAccess() async {
+  switch CNContactStore.authorizationStatus(for: .contacts) {
+  case .authorized:
+    return
+  case .denied, .restricted:
+    fail(
+      "Instrument is not allowed to use your contacts. The user can allow it under System Settings, Privacy & Security, Contacts.",
+      2)
+  default:
+    do {
+      if !(try await contactStore.requestAccess(for: .contacts)) {
+        fail(
+          "The user declined access to their contacts. Only they can change it, under System Settings, Privacy & Security, Contacts.",
+          2)
+      }
+    } catch {
+      fail("Could not ask for access to contacts: \(error.localizedDescription)")
+    }
+  }
+}
+
+/// A labeled phone or email as a person reads it: "mobile", "work".
+func labeled<T>(_ values: [CNLabeledValue<T>], _ text: (T) -> String) -> [[String: String]] {
+  values.map { value in
+    [
+      "label": value.label.map { CNLabeledValue<T>.localizedString(forLabel: $0) } ?? "",
+      "value": text(value.value),
+    ]
   }
 }
 
@@ -164,7 +200,7 @@ func limited<T>(_ items: [T]) -> [T] {
 
 let args = CommandLine.arguments.dropFirst()
 guard let command = args.first else {
-  fail("Usage: instrument-eventkit calendars | events | reminders | add-event | add-reminder")
+  fail("Usage: instrument-mac calendars | events | reminders | add-event | add-reminder")
 }
 let given = options(args.dropFirst())
 
@@ -277,6 +313,48 @@ case "add-reminder":
   }
   emit(["added": title, "list": reminder.calendar.title])
 
+case "contacts":
+  await requireContactsAccess()
+  let keys: [CNKeyDescriptor] = [
+    CNContactGivenNameKey, CNContactFamilyNameKey, CNContactNicknameKey,
+    CNContactOrganizationNameKey, CNContactJobTitleKey, CNContactEmailAddressesKey,
+    CNContactPhoneNumbersKey, CNContactBirthdayKey,
+  ].map { $0 as CNKeyDescriptor }
+  var found: [CNContact] = []
+  do {
+    try contactStore.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) {
+      contact, _ in
+      let texts: [String?] =
+        [
+          contact.givenName, contact.familyName, contact.nickname, contact.organizationName,
+          contact.jobTitle,
+        ] + contact.emailAddresses.map { String($0.value) }
+        + contact.phoneNumbers.map { $0.value.stringValue }
+      if matches(given["search"], texts) { found.append(contact) }
+    }
+  } catch {
+    fail("Could not read contacts: \(error.localizedDescription)")
+  }
+  emit(
+    limited(found).map { contact in
+      let name = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(
+        separator: " ")
+      return [
+        "birthday": contact.birthday.map { birthday -> String in
+          birthday.year.map { String(format: "%04d-%02d-%02d", $0, birthday.month ?? 0, birthday.day ?? 0) }
+            ?? String(format: "--%02d-%02d", birthday.month ?? 0, birthday.day ?? 0)
+        } ?? NSNull(),
+        "emails": labeled(contact.emailAddresses) { String($0) },
+        "jobTitle": contact.jobTitle.isEmpty ? NSNull() : contact.jobTitle,
+        "name": name.isEmpty ? contact.organizationName : name,
+        "nickname": contact.nickname.isEmpty ? NSNull() : contact.nickname,
+        "organization": contact.organizationName.isEmpty ? NSNull() : contact.organizationName,
+        "phones": labeled(contact.phoneNumbers) { $0.stringValue },
+      ] as [String: Any]
+    })
+
 default:
-  fail("\(command) is not a command: calendars, events, reminders, add-event, or add-reminder.")
+  fail(
+    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, or contacts."
+  )
 }

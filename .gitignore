@@ -67,5 +67,5 @@ agent-reference.local.json
 /*.zip
 /shots/
 
-# The Swift build of Studio's EventKit helper
-apps/studio/native/eventkit/.build/
+# The Swift build of Studio's Mac helper
+apps/studio/native/mac-helper/.build/

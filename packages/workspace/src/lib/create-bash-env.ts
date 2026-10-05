@@ -51,8 +51,13 @@ import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
-  createCalendarCommand,
-} from "./shell-commands/calendar";
+  CONTACTS_COMMAND,
+  createMacHelperCommand,
+} from "./shell-commands/mac-helper";
+import {
+  createShortcutsCommand,
+  SHORTCUTS_COMMAND,
+} from "./shell-commands/shortcuts";
 import {
   createOsascriptCommand,
   OSASCRIPT_COMMAND,
@@ -395,11 +400,26 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: NODE_COMMAND.name,
   },
   {
-    available: () => getWorkspaceConfig().eventKitBinPath !== undefined,
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CALENDAR_COMMAND.description,
-    factory: ({ taskId }) => createCalendarCommand(taskId),
+    factory: ({ taskId }) => createMacHelperCommand(CALENDAR_COMMAND, taskId),
     listInDescription: true,
     name: CALENDAR_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
+    description: CONTACTS_COMMAND.description,
+    factory: ({ taskId }) => createMacHelperCommand(CONTACTS_COMMAND, taskId),
+    listInDescription: true,
+    name: CONTACTS_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: SHORTCUTS_COMMAND.description,
+    factory: ({ layout, taskId }) => createShortcutsCommand(taskId, layout),
+    listInDescription: true,
+    name: SHORTCUTS_COMMAND.name,
     platforms: ["darwin"],
   },
   {

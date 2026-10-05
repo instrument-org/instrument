@@ -65,25 +65,25 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-/** Where `pnpm build:eventkit` leaves the helper in a checkout. */
-const UNPACKAGED_EVENTKIT_BIN = path.resolve(
+/** Where `pnpm build:mac-helper` leaves the helper in a checkout. */
+const UNPACKAGED_MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
-  "../../native/eventkit/.build/out/Products/Release/instrument-eventkit",
+  "../../native/mac-helper/.build/out/Products/Release/instrument-mac",
 );
-const EVENTKIT_BIN_NAME = "instrument-eventkit";
+const MAC_HELPER_BIN_NAME = "instrument-mac";
 
 /**
- * The EventKit helper behind the agent's `calendar` command: in the app's
+ * The Mac helper behind the agent's `calendar` and `contacts` commands: in the app's
  * resources when packaged, from the Swift build in a checkout that has run
  * it, and on macOS only.
  */
-function eventKitBinPath(): string | undefined {
+function macHelperBinPath(): string | undefined {
   if (process.platform !== "darwin") {
     return undefined;
   }
   const bin = app.isPackaged
-    ? path.join(process.resourcesPath, "bin", EVENTKIT_BIN_NAME)
-    : UNPACKAGED_EVENTKIT_BIN;
+    ? path.join(process.resourcesPath, "bin", MAC_HELPER_BIN_NAME)
+    : UNPACKAGED_MAC_HELPER_BIN;
   return existsSync(bin) ? bin : undefined;
 }
 
@@ -161,7 +161,7 @@ export function createWorkspaceActor() {
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       ensureOutputFolderIcon,
-      eventKitBinPath: eventKitBinPath(),
+      macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // Beside the other per-machine state rather than in the workspace: the

@@ -68,7 +68,11 @@ export function fetchJson({
         return (await response.json()) as object;
       },
       (error) =>
-        new TypedError.Fetch(`Failed to fetch from ${url}`, { cause: error }),
+        error instanceof TypedError.Fetch
+          ? error
+          : new TypedError.Fetch(`Failed to fetch from ${url}`, {
+              cause: error,
+            }),
     ).then((result) => {
       if (result.ok) {
         if (cache) {

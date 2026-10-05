@@ -8,7 +8,8 @@ export type SettingsTab =
   | "Memory"
   | "Providers"
   | "Skills"
-  | "Storage";
+  | "Storage"
+  | "Usage and billing";
 
 interface SettingsModalState {
   /** Open the General tab's diagnostic log viewer over Settings. */

@@ -51,7 +51,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-function SettingsSection({
+export function SettingsSection({
   children,
   title,
 }: {

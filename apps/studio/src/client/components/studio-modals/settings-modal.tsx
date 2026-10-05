@@ -9,6 +9,7 @@ import { MemorySection } from "@/client/components/settings/memory-section";
 import { ProvidersSection } from "@/client/components/settings/providers-section";
 import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
+import { UsageAndBillingSection } from "@/client/components/settings/usage-and-billing-section";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -35,6 +36,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -198,6 +200,9 @@ function SettingsSectionBody({
     case "Storage": {
       return <StorageSection />;
     }
+    case "Usage and billing": {
+      return <UsageAndBillingSection />;
+    }
     default: {
       tab satisfies never;
       return null;
@@ -217,6 +222,11 @@ function useNavItems(): NavItem[] {
       icon: FadersHorizontalIcon,
       tab: "General",
       title: "General",
+    },
+    {
+      icon: GaugeIcon,
+      tab: "Usage and billing",
+      title: "Usage and billing",
     },
     {
       icon: FingerprintIcon,

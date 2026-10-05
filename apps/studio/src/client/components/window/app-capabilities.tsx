@@ -42,7 +42,7 @@ export function AppCapabilities({
     return (
       <section className="mt-8">
         <p className="text-[13px] text-muted-foreground">
-          {name} didn’t say what it lets Instrument do.{" "}
+          Couldn’t load {name}’s actions.{" "}
           <button
             className="underline hover:text-foreground disabled:opacity-60"
             disabled={tools.isFetching}

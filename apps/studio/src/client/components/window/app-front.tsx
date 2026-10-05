@@ -71,7 +71,14 @@ export function AppFront({
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const app = list.data?.apps.find((entry) => entry.slug === slug);
-  const entry = catalog.data?.find((candidate) => candidate.slug === slug);
+  // The directory's entry for the service: by slug, or by site for a second
+  // account set up beside the first (notion-2 is Notion).
+  const entry =
+    catalog.data?.find((candidate) => candidate.slug === slug) ??
+    catalog.data?.find(
+      (candidate) =>
+        app?.site !== undefined && app.site === `https://${candidate.domain}`,
+    );
   // Drawn as every other surface draws the app, the chip and the tab included.
   const drawn = useAppsBySlug().get(slug);
   const name = drawn?.name ?? slug;
@@ -187,19 +194,48 @@ export function AppFront({
   const domain = home ? new URL(home).host : undefined;
   const examples = isConnected ? (entry?.examples ?? []) : [];
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
-  const needs = app
-    ? app.type === "web"
-      ? `Sign in to ${name} in Instrument’s browser, then say so here.`
-      : app.type === "mcp-local"
-        ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
-        : app.type === "mcp" && app.authKind === "oauth"
-          ? `Sign in to ${name} once.`
-          : app.authKind === "none"
-            ? "No sign-in needed."
-            : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
-    : methods.length > 0
+  // What setting up waits on, in one line, with at most one more under it;
+  // where the controls below say where a sign-in or key goes, they say it.
+  const setupTitle = !app
+    ? `Connect ${name}`
+    : isWeb
+      ? `Sign in to ${name} on the web`
+      : app.standing === "needs-sign-in"
+        ? app.connection?.error
+          ? `Sign in to ${name} again`
+          : `Sign in to ${name}`
+        : app.standing === "needs-key"
+          ? `Add a key from ${name}`
+          : app.standing === "needs-approval"
+            ? `Allow ${name} to run on ${thisComputer()}`
+            : app.standing === "failed"
+              ? `Couldn’t connect to ${name}`
+              : app.standing === "stale"
+                ? `${name} changed since it last connected`
+                : `Finish connecting ${name}`;
+  const setupDetail = !app
+    ? methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
-      : "";
+      : undefined
+    : app.standing === "stale"
+      ? "Try again to connect it as it is now."
+      : undefined;
+  // The agent, as a way to connect in its own right rather than a footnote:
+  // it can find a way in, fix a setup, or walk someone through a sign-in.
+  const withInstrument = (
+    <GlyphButton
+      onClick={() => {
+        ask(
+          app
+            ? `Help me finish connecting ${appMentionToken({ name, slug })}`
+            : `Connect ${appMentionToken({ name, slug })}`,
+        );
+      }}
+      size="sm"
+    >
+      Connect with Instrument
+    </GlyphButton>
+  );
   const openHome = () => {
     if (home && browser) {
       openPage(home);
@@ -233,7 +269,7 @@ export function AppFront({
                           setIsInspecting(true);
                         }}
                       >
-                        See every action
+                        View actions
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem
@@ -241,7 +277,7 @@ export function AppFront({
                         setIsNaming(true);
                       }}
                     >
-                      {app.account ? "Rename the account" : "Name the account"}
+                      Rename
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={test.isPending}
@@ -249,8 +285,18 @@ export function AppFront({
                         test.mutate({ slug });
                       }}
                     >
-                      Test the connection
+                      Test connection
                     </DropdownMenuItem>
+                    {entry ? (
+                      <DropdownMenuItem
+                        disabled={isConnecting}
+                        onSelect={() => {
+                          connect(entry, { another: true });
+                        }}
+                      >
+                        Connect another account
+                      </DropdownMenuItem>
+                    ) : null}
                     {isConnected || app.hasCredential ? (
                       <DropdownMenuItem
                         disabled={disconnect.isPending}
@@ -420,93 +466,104 @@ export function AppFront({
         ) : null}
 
         {/* While the app is still being set up, the one thing that
-          finishes it, in a quiet block: what connecting takes, the control
-          for it, and what went wrong the last time, kept whole for copying.
-          Gone the moment the connection lands; nothing about a connection
-          stands on a connected app's front. */}
+          finishes it: a line saying what, the controls for it, what went
+          wrong last time (kept whole for copying), and the agent beside them
+          for when the controls alone are not getting there. Gone the moment
+          the connection lands. */}
         {isConnected ? null : (
-          <section className="mt-8">
-            <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-              Setting up
-            </p>
-            <div className="rounded-xl border border-border bg-card p-4">
-              {needs ? (
-                <p className="mb-3 text-sm text-muted-foreground">{needs}</p>
-              ) : null}
-              {isWeb ? (
-                <ConnectControls kind="web" name={name} slug={slug} />
-              ) : app?.standing === "needs-sign-in" ? (
-                <ConnectControls kind="sign-in" name={name} slug={slug} />
-              ) : app?.standing === "needs-approval" ? (
-                <ConnectControls
-                  kind="run"
-                  name={name}
-                  runs={app.runs}
-                  slug={slug}
-                />
-              ) : app?.standing === "needs-key" ? (
-                <ConnectControls kind="key" name={name} slug={slug} />
-              ) : (
-                <GlyphButton
-                  disabled={isConnecting}
-                  onClick={() => {
-                    // A service the directory lists and nothing here yet is
-                    // set up from the directory; anything else (a set-up the
-                    // agent began, one that failed) is the agent's to finish.
-                    if (!app && entry) {
-                      connect(entry);
-                    } else {
-                      ask(
-                        app && app.standing !== "untested"
-                          ? `Finish connecting ${appMentionToken({ name, slug })}`
-                          : `Connect ${appMentionToken({ name, slug })}`,
-                      );
-                    }
-                  }}
-                  size="sm"
-                >
-                  Connect {name}
-                </GlyphButton>
-              )}
-              {app?.standing === "failed" && app.connection?.error ? (
-                <div className="group/detail relative mt-3 rounded-lg bg-muted/60 px-3 py-2">
-                  <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
-                    {app.connection.error}
-                  </pre>
-                  {/* `focus-within` as well as hover: the button stays in the
-                      tab order while it is transparent. */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
-                    <CopyButton
-                      className={blockToolbarButtonClassName}
-                      iconSize={12}
-                      onCopy={async () => {
-                        await navigator.clipboard.writeText(
-                          app.connection?.error ?? "",
-                        );
-                      }}
-                      tooltip="Copy"
-                    />
-                  </div>
+          <div className="mt-8">
+            <PageSection title="Setting up">
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">{setupTitle}</p>
+                  {setupDetail ? (
+                    <p className="text-xs text-muted-foreground">
+                      {setupDetail}
+                    </p>
+                  ) : null}
                 </div>
-              ) : null}
-              {/* The way out when the card alone is not getting there: the
-                  agent picks it up from where it stands. */}
-              {app ? (
-                <button
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    ask(
-                      `Help me finish connecting ${appMentionToken({ name, slug })}`,
-                    );
-                  }}
-                  type="button"
-                >
-                  <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
-                  Get help connecting
-                </button>
-              ) : null}
-            </div>
-          </section>
+                {app?.standing === "failed" && app.connection?.error ? (
+                  <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2">
+                    <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
+                      {app.connection.error}
+                    </pre>
+                    {/* `focus-within` as well as hover: the button stays in
+                        the tab order while it is transparent. */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
+                      <CopyButton
+                        className={blockToolbarButtonClassName}
+                        iconSize={12}
+                        onCopy={async () => {
+                          await navigator.clipboard.writeText(
+                            app.connection?.error ?? "",
+                          );
+                        }}
+                        tooltip="Copy"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                {isWeb ? (
+                  <ConnectControls
+                    alongside={withInstrument}
+                    kind="web"
+                    name={name}
+                    slug={slug}
+                  />
+                ) : app?.standing === "needs-sign-in" ? (
+                  <ConnectControls
+                    alongside={withInstrument}
+                    kind="sign-in"
+                    name={name}
+                    slug={slug}
+                  />
+                ) : app?.standing === "needs-approval" ? (
+                  <ConnectControls
+                    alongside={withInstrument}
+                    kind="run"
+                    name={name}
+                    runs={app.runs}
+                    slug={slug}
+                  />
+                ) : app?.standing === "needs-key" ? (
+                  <ConnectControls
+                    alongside={withInstrument}
+                    kind="key"
+                    name={name}
+                    slug={slug}
+                  />
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* A service the directory lists and nothing here yet
+                        is set up from the directory; one already here that
+                        failed or changed is tested again. */}
+                    {app ? (
+                      <Button
+                        disabled={test.isPending}
+                        onClick={() => {
+                          test.mutate({ slug });
+                        }}
+                        size="sm"
+                      >
+                        {test.isPending ? "Trying…" : "Try again"}
+                      </Button>
+                    ) : entry ? (
+                      <Button
+                        disabled={isConnecting}
+                        onClick={() => {
+                          connect(entry);
+                        }}
+                        size="sm"
+                      >
+                        Connect {name}
+                      </Button>
+                    ) : null}
+                    {withInstrument}
+                  </div>
+                )}
+              </div>
+            </PageSection>
+          </div>
         )}
       </div>
     </div>

@@ -6,7 +6,7 @@ import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** Where the sign-in page opens: the window's own browser, or the user's. */
@@ -28,6 +28,7 @@ type SignInDestination = "app" | "external";
  * they did is what connects it.
  */
 export function ConnectControls({
+  alongside,
   dismissible = false,
   kind,
   label,
@@ -35,6 +36,8 @@ export function ConnectControls({
   runs,
   slug,
 }: {
+  /** One more control at the end of the row: the app's page puts its way to ask the agent here. */
+  alongside?: ReactNode;
   /** Whether "Not now" is offered: a card asks a question, a row does not. */
   dismissible?: boolean;
   kind: "key" | "run" | "sign-in" | "web";
@@ -202,6 +205,7 @@ export function ConnectControls({
               Not now
             </Button>
           ) : null}
+          {alongside}
         </div>
       </div>
     );
@@ -269,6 +273,7 @@ export function ConnectControls({
               Not now
             </Button>
           ) : null}
+          {alongside}
         </div>
       </div>
     );
@@ -335,6 +340,7 @@ export function ConnectControls({
               Not now
             </Button>
           ) : null}
+          {alongside}
         </div>
       </div>
     );
@@ -403,6 +409,9 @@ export function ConnectControls({
           </Button>
         ) : null}
       </div>
+      {alongside ? (
+        <div className="flex flex-wrap gap-2">{alongside}</div>
+      ) : null}
     </div>
   );
 }

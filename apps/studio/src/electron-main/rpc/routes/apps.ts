@@ -469,6 +469,17 @@ async function withInspectorClient<T>({
     slug,
   });
   if (result.isErr()) {
+    // A server that refuses the sign-in or key the app holds has
+    // disconnected it (an expired or revoked sign-in), so the app says so
+    // and its page asks again, instead of reading as connected with nothing
+    // working behind it. No chat hears of it until someone writes.
+    if (result.error.reason === "unauthorized") {
+      await recordConnection(slug, {
+        error: result.error.message.slice(0, 300),
+        status: manifest.auth.kind === "oauth" ? "needs-sign-in" : "needs-key",
+      });
+      await appChanged(slug);
+    }
     throw errors.API_ERROR({ message: result.error.message });
   }
   return result.value;

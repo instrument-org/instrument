@@ -16,7 +16,6 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
-import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
@@ -28,7 +27,7 @@ import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ChatActivity } from "./chat-activity";
 import { TopicPill } from "./chat-row";
-import { ChatTitle } from "./chat-title";
+import { ChatTitleButton, ChatTitleField } from "./chat-title";
 import { type Chat, type Topic } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
@@ -38,9 +37,8 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
 
 /**
  * The head over a chat's conversation, the way a task's page heads its
- * chat: its title at the left, which renames the chat when clicked, the
- * topics it is filed under after it, and the chat's own menu hugging them,
- * and at the right what the chat has in flight while its tasks work, then
+ * chat: its title at the left, which opens the chat's menu, the topics it
+ * is filed under after it, and at the right what the chat has in flight while its tasks work, then
  * the glyph that pops the conversation out into its small view in the corner (lit while it is out, when pressing it brings the
  * conversation back), then the pane toggle while the pane is closed. No way out of the chat here: the
  * chat stays beside the inbox until the inbox is dragged over it. Nothing
@@ -140,12 +138,12 @@ export function ChatHeader({
 }
 
 /**
- * A chat's title, the topics it is filed under and its menu, as the chat's
- * head and its popped-out window both draw them: the title renames the chat
- * when clicked, the topics after it the way mail puts a label after a
- * subject, and the menu hugging them. The title gives way first, truncating;
- * on a narrow head the topics stand as their marks alone, and nothing is
- * ever drawn over the menu.
+ * A chat's title and the topics it is filed under, as the chat's head and
+ * its popped-out window both draw them: the title, with its caret, opens the
+ * chat's menu, whose Rename puts a field in the title's place, and the
+ * topics follow it the way mail puts a label after a subject. The title
+ * gives way first, truncating; on a narrow head the topics stand as their
+ * marks alone.
  */
 export function ChatHeading({
   chat,
@@ -175,7 +173,20 @@ export function ChatHeading({
     const topic = topics.find((entry) => entry.id === id);
     return topic ? [topic] : [];
   });
-  const rename = useChatRename(chat);
+  const chatRename = useChatRename(chat);
+  // The title's width as renaming begins, which the field opens at, read
+  // in layout px (offsetWidth, not a rect) since the app scales with CSS zoom.
+  const [titleButton, setTitleButton] = useState<HTMLButtonElement | null>(
+    null,
+  );
+  const [fieldWidth, setFieldWidth] = useState<number>();
+  const rename = {
+    ...chatRename,
+    start: () => {
+      setFieldWidth(titleButton?.offsetWidth);
+      chatRename.start();
+    },
+  };
   const toggleTopic = (id: string) => {
     onSetTopics(
       chat.topics.includes(id)
@@ -185,12 +196,31 @@ export function ChatHeading({
   };
   return (
     <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
+      {/* The title opens the chat's menu, Rename among it; renaming puts
+          the field in the title's place. */}
       <h2 className="flex min-w-0">
-        <ChatTitle
-          className={titleClassName}
-          rename={rename}
-          title={chat.title}
-        />
+        {rename.isEditing ? (
+          <ChatTitleField
+            className={titleClassName}
+            rename={rename}
+            width={fieldWidth}
+          />
+        ) : (
+          <ChatMenu
+            {...menu}
+            chat={chat}
+            onDelete={onDelete}
+            rename={rename}
+            topicsMenu={{ onNew: onNewTopic, onToggle: toggleTopic, topics }}
+            trigger={
+              <ChatTitleButton
+                className={titleClassName}
+                ref={setTitleButton}
+                title={chat.title}
+              />
+            }
+          />
+        )}
       </h2>
       {/* Pressing them opens the topic picker every filing shares. No
           dashed slot in the head: a chat with no topics is filed from the
@@ -217,21 +247,14 @@ export function ChatHeading({
           </button>
         </TopicPicker>
       )}
-      <ChatMenu
-        {...menu}
-        chat={chat}
-        onDelete={onDelete}
-        rename={rename}
-        topicsMenu={{ onNew: onNewTopic, onToggle: toggleTopic, topics }}
-      />
     </div>
   );
 }
 
 /**
- * The chat's own menu, beside its title: the inbox row's menu in the same
- * groups and order (see `chatMenuGroups`), with renaming it, which opens
- * the title's field, and its tasks among the ways to organize it, and
+ * The chat's own menu, opened from its title: the inbox row's menu in the
+ * same groups and order (see `chatMenuGroups`), with renaming it, which
+ * opens the title's field, and its tasks among the ways to organize it, and
  * deleting it at the foot. Its topics are the pills beside the title.
  */
 export function ChatMenu({
@@ -242,6 +265,7 @@ export function ChatMenu({
   onViewTasks,
   rename,
   topicsMenu,
+  trigger,
 }: {
   chat: Chat;
   /** After the chat is archived from this menu, for a head that should go with it. */
@@ -258,6 +282,8 @@ export function ChatMenu({
     onToggle: (id: string) => void;
     topics: Topic[];
   };
+  /** What opens it: the chat's title. */
+  trigger: ReactNode;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
   const item = (action: RowAction) => (
@@ -275,22 +301,7 @@ export function ChatMenu({
   const renaming = useRef(false);
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          aria-label="Chat actions"
-          className={toolbarClassName({
-            // 4px around a 16px glyph: the button hugs the title it acts on
-            // rather than reading as its own toolbar slot.
-            className:
-              "size-6 shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-            pressed: false,
-          })}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         className="w-56"

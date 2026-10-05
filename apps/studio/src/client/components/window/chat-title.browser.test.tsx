@@ -3,7 +3,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { ChatTitle } from "./chat-title";
+import { ChatTitleButton, ChatTitleField } from "./chat-title";
 import { type Chat } from "./chats";
 import { WindowContext } from "./context";
 import { useChatRename } from "./use-chat-rename";
@@ -97,17 +97,22 @@ async function renderTitle() {
   );
 }
 
+/** The title, and the field in its place once renaming starts: the head's menu starts it from Rename, the press stands in for that here. */
 function Title() {
   const rename = useChatRename(chat());
-  return <ChatTitle className="text-sm" rename={rename} title={TITLE} />;
+  return rename.isEditing ? (
+    <ChatTitleField className="text-sm" rename={rename} width={120} />
+  ) : (
+    <ChatTitleButton className="text-sm" onClick={rename.start} title={TITLE} />
+  );
 }
 
-describe("ChatTitle", () => {
+describe("ChatTitleField", () => {
   beforeEach(() => {
     calls.rename.mockClear();
   });
 
-  it("opens a field on a click and saves what the user typed on Enter", async () => {
+  it("opens focused and saves what the user typed on Enter", async () => {
     await renderTitle();
     await userEvent.click(page.getByRole("button", { name: TITLE }));
     const field = page.getByRole("textbox");

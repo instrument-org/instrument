@@ -19,9 +19,9 @@ import {
   instrumentLinkOf,
 } from "@/shared/instrument-link";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { type ReactNode } from "react";
 
@@ -234,7 +234,7 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
       );
     }
     case "memory": {
-      return <BrainIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+      return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     case "skill": {
       return <GraduationCapIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

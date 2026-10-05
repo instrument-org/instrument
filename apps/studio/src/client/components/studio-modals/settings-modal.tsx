@@ -30,10 +30,10 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
-import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
@@ -221,7 +221,7 @@ function useNavItems(): NavItem[] {
       title: "General",
     },
     {
-      icon: BrainIcon,
+      icon: FingerprintIcon,
       tab: "Memory",
       title: "Memory",
     },

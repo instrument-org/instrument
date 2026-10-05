@@ -1,3 +1,4 @@
+import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
@@ -21,6 +22,7 @@ import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
 
 export const EVALS = [
+  ...APP_IMPORT_FILE_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,

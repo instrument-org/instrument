@@ -695,19 +695,11 @@ export namespace SessionMessageDataPart {
       "discover",
       "file",
       "home",
+      // No screen is called this; messages already stored may still name it.
       "skills",
       "task",
       "tasks",
     ]),
-    /** The one skill open on the Skills screen. */
-    skill: z
-      .object({
-        description: z.string(),
-        /** The exact name a task loads it by. */
-        name: z.string(),
-        title: z.string(),
-      })
-      .optional(),
     /** The one task open on the Tasks screen. */
     task: ViewedTaskSchema.optional(),
     /** The tasks listed on the Tasks screen. */

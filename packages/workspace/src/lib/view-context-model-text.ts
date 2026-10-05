@@ -181,11 +181,6 @@ function screenNote(data: ViewContext) {
       `;
     }
     case "skills": {
-      if (data.skill) {
-        return systemNote`
-          When the user sent this, the window showed the skill "${data.skill.title}", loaded by a task as \`${data.skill.name}\`: ${data.skill.description} "This", "this skill", and "it" refer to it. Work they ask for here that the skill fits is a brief naming that skill by its exact name.
-        `;
-      }
       return systemNote`
         When the user sent this, the window showed the Skills screen: every skill a task can load, grouped by where it comes from. Nothing in particular is in view unless they name one.
       `;

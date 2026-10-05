@@ -237,12 +237,11 @@ const inboxCol = ({ on = 0, w = 320, rows = ROWS, waiting = false } = {}) => `
 
 // ---- a chat --------------------------------------------------------------------
 
-/** The chat header: inbox toggle, title, the menu, then at the right the work in flight (`working`, from workLine) and pop-out. */
+/** The chat header: inbox toggle, the title with its caret (which opens the chat's menu), then at the right the work in flight (`working`, from workLine) and pop-out. */
 const threadHead = (title, { right = "", working = "" } = {}) => `
   <div class="flex shrink-0 items-center gap-2 bg-background p-3">
     <i class="ph ph-sidebar-simple px-1.5 text-[16px] text-muted-foreground"></i>
-    <span class="truncate text-sm font-medium">${title}</span>
-    <i class="ph ph-dots-three-outline-vertical text-[16px] text-muted-foreground"></i>
+    <span class="flex min-w-0 items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
     <span class="flex-1"></span>
     ${working}
     ${right || `<i class="ph ph-picture-in-picture px-1.5 text-[16px] text-muted-foreground"></i>`}

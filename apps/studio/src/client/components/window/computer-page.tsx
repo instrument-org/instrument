@@ -90,6 +90,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
+  queryOptions,
   useMutation,
   useQueries,
   useQuery,
@@ -366,8 +367,8 @@ export function ComputerPage({
     queries: isRecents
       ? []
       : prefixes.map((prefix) =>
-          rpcClient.workspace.computer.list.queryOptions({
-            input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+          ({
+            ...listingOptions(hostPathOf(prefix)),
             refetchInterval: refreshInterval,
             retry: false,
           }),
@@ -387,16 +388,17 @@ export function ComputerPage({
   // A folder that has gone (thrown away here, moved in the Finder) is asked
   // for on the clock until it is let go of, which is a failing read every few
   // seconds for as long as the screen is up. Opening it again brings it back.
-  // A folder the system refused is kept: it is on the same clock, and the
-  // clock is what fills the column the moment the refusal is undone.
-  const goneFolder = prefixes.find((prefix, index) => {
-    const listing = listings[index];
-    return (
-      prefix !== "" &&
-      listing?.isError === true &&
-      !isNotPermitted(listing.error)
-    );
-  });
+  // A folder the system refused is an answer rather than a failure, and is
+  // kept: it is on the same clock, and the clock is what fills the folder the
+  // moment the refusal is undone.
+  const goneFolder = prefixes.find(
+    (prefix, index) => prefix !== "" && listings[index]?.isError === true,
+  );
+  // Whether the system refused to let this app read a folder, by its prefix.
+  // Unknown until the folder has been read once, which the browser shows as
+  // loading meanwhile.
+  const isRefused = (prefix: string) =>
+    listings[prefixes.indexOf(prefix)]?.isRefused === true;
   useEffect(() => {
     if (goneFolder === undefined) {
       return;
@@ -770,9 +772,7 @@ export function ComputerPage({
   // The folder on screen is one the operating system would not let this app
   // read. On a Mac the first read of a protected folder is the system's own
   // ask, so this is what a declined ask looks like, and where it is undone.
-  const isCurrentNotPermitted = isNotPermitted(
-    listings[prefixes.indexOf(onScreen)]?.error,
-  );
+  const isCurrentNotPermitted = isRefused(onScreen);
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
@@ -1377,17 +1377,6 @@ export function ComputerPage({
               }}
               ref={browserRef}
             >
-              {isCurrentNotPermitted && folderHostPath !== undefined && (
-                <NotPermitted
-                  hostPath={folderHostPath}
-                  onGranted={(granted) => {
-                    reread();
-                    if (granted !== folderHostPath) {
-                      rootTo(granted);
-                    }
-                  }}
-                />
-              )}
               <FileSystem
                 className="h-full rounded-none border-0"
                 columnWidth={columnWidth}
@@ -1421,9 +1410,7 @@ export function ComputerPage({
                   // A listing read ahead on hover, and still fresh, is the
                   // answer as it stands rather than a second read.
                   await queryClient.fetchQuery({
-                    ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                    }),
+                    ...listingOptions(hostPathOf(prefix)),
                     staleTime: REFRESH_MS,
                   });
                   // The entries arrive through `items`, re-read on the clock
@@ -1464,9 +1451,7 @@ export function ComputerPage({
                     return;
                   }
                   void queryClient.prefetchQuery({
-                    ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                    }),
+                    ...listingOptions(hostPathOf(prefix)),
                     staleTime: REFRESH_MS,
                   });
                 }}
@@ -1564,6 +1549,27 @@ export function ComputerPage({
                       }
                     : undefined
                 }
+                // Where the folder's contents would be: the whole browser for
+                // the folder on screen, its column's place beside the folder
+                // above it in the columns.
+                renderUnreadable={(prefix) => {
+                  if (!isRefused(prefix)) {
+                    return null;
+                  }
+                  const refused = hostPathOf(prefix, rootHostPath ?? root);
+                  return (
+                    <NotPermitted
+                      hostPath={refused}
+                      key={refused}
+                      onGranted={(granted) => {
+                        reread();
+                        if (granted !== refused) {
+                          rootTo(granted);
+                        }
+                      }}
+                    />
+                  );
+                }}
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
@@ -1900,18 +1906,50 @@ function FolderMenuItems({
  */
 function combineListings(
   results: {
-    data: ComputerListing | undefined;
-    error: unknown;
+    data: Listing | undefined;
     isError: boolean;
     isPending: boolean;
   }[],
 ) {
   return results.map((result) => ({
-    data: result.data,
-    error: result.error,
+    data: result.data === REFUSED ? undefined : result.data,
     isError: result.isError,
     isPending: result.isPending,
+    isRefused: result.data === REFUSED,
   }));
+}
+
+/** A folder the operating system would not let this app read. */
+const REFUSED = "refused";
+
+/** A folder's entries, or the operating system's refusal to let them be read. */
+type Listing = ComputerListing | typeof REFUSED;
+
+/**
+ * A folder's listing, with a refusal kept as the answer rather than thrown.
+ * A failed read holds no data, and a query with none goes back to pending
+ * for every read on the clock: a refusal held as an error came and went
+ * with each one, and so did everything drawn from it. Kept apart from the
+ * plain listing other screens read, whose answer has the other shape.
+ */
+function listingOptions(path: string) {
+  const input = { id: WINDOW_ID, path };
+  return queryOptions({
+    queryFn: async ({ signal }): Promise<Listing> => {
+      try {
+        return await rpcClient.workspace.computer.list.call(input, { signal });
+      } catch (error) {
+        if (isNotPermitted(error)) {
+          return REFUSED;
+        }
+        throw error;
+      }
+    },
+    queryKey: [
+      ...rpcClient.workspace.computer.list.queryKey({ input }),
+      REFUSED,
+    ],
+  });
 }
 
 /**
@@ -1975,7 +2013,7 @@ function NotPermitted({
     rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
   );
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background p-8">
+    <div className="flex size-full items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
         <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
         <div>

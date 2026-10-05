@@ -74,6 +74,49 @@ describe("FileSystem", () => {
     expect(screen.getByText("This folder is empty")).toBeTruthy();
   });
 
+  describe("a folder the caller cannot list", () => {
+    const ITEMS: FileSystemItem[] = [
+      { hasChildren: true, kind: "folder", path: "locked/" },
+      { kind: "file", path: "readme.md" },
+    ];
+    const renderUnreadable = (folderPath: string) =>
+      folderPath === "locked/" ? <p>Refused {folderPath}</p> : null;
+
+    it.each(["columns", "gallery", "icons", "list"] as const)(
+      "stands in for the whole folder on screen in %s",
+      (view) => {
+        renderWithProviders(
+          <FileSystem
+            defaultPath="locked/"
+            defaultView={view}
+            items={ITEMS}
+            renderUnreadable={renderUnreadable}
+          />,
+        );
+
+        expect(screen.getByText("Refused locked/")).toBeTruthy();
+        expect(screen.queryByText("This folder is empty")).toBeNull();
+        expect(screen.queryByRole("option")).toBeNull();
+      },
+    );
+
+    it("takes the column's place beside the folder above it in the columns", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultSelectedPath="locked/"
+          defaultView="columns"
+          items={ITEMS}
+          renderUnreadable={renderUnreadable}
+        />,
+      );
+
+      expect(screen.getByText("Refused locked/")).toBeTruthy();
+      expect(
+        screen.getAllByRole("option").map((option) => option.textContent),
+      ).toEqual(["locked", "readme.md"]);
+    });
+  });
+
   describe("selecting several, the way the Finder does", () => {
     it("adds and lets go of one with ⌘-click", () => {
       const { reported, row } = renderList();

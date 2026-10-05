@@ -301,6 +301,14 @@ export type FileSystemProps = {
    */
   renderTrailing?: (folderPath: string) => React.ReactNode;
   /**
+   * What stands where a folder's contents would, for a folder the caller
+   * cannot list (the system refused the read), given the folder; null for one
+   * it can. The folder on screen gives it the whole of the browser below the
+   * toolbar, in every view; a folder opened beside it in the columns gives it
+   * the place of that folder's column.
+   */
+  renderUnreadable?: (folderPath: string) => React.ReactNode;
+  /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
    * just made or renamed, the way the Finder leaves the new thing selected.
@@ -1610,6 +1618,7 @@ export function FileSystem({
   renderHeaderPrimary,
   renderHeaderLead,
   renderTrailing,
+  renderUnreadable,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
@@ -2763,6 +2772,7 @@ export function FileSystem({
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
   const isLoadingCurrentFolder = loadingFolders.has(currentPath);
+  const currentUnreadable = renderUnreadable?.(currentPath) ?? null;
   // The list view keeps its open folders here, per folder on screen, so
   // returning to the list view — or to a previously visited folder — finds
   // them open again.
@@ -2802,6 +2812,7 @@ export function FileSystem({
     renderFileStage,
     renderNameField,
     renderTrailing,
+    renderUnreadable,
     rowGestures,
     searchQuery,
     selectedEntry,
@@ -3064,7 +3075,9 @@ export function FileSystem({
         </div>
       ) : null}
       <div className="relative min-h-0 flex-1">
-        {isLoadingCurrentFolder && currentEntries.length === 0 ? (
+        {currentUnreadable !== null ? (
+          currentUnreadable
+        ) : isLoadingCurrentFolder && currentEntries.length === 0 ? (
           // Blank while the folder is read, and a ring only once that is slow.
           <div
             className="flex size-full items-center justify-center"
@@ -3797,6 +3810,7 @@ type FileSystemViewProps = {
   /** The name field for the row being renamed, with the view's own spacing. */
   renderNameField: RenderNameField;
   renderTrailing?: (folderPath: string) => React.ReactNode;
+  renderUnreadable?: (folderPath: string) => React.ReactNode;
   /** What every row's press, click and double-click go through. */
   rowGestures: RowGestures;
   searchQuery: string;
@@ -5354,6 +5368,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     renderFileStage,
     renderNameField,
     renderTrailing,
+    renderUnreadable,
     rowGestures,
     selectedEntry,
     selectedPath,
@@ -5452,6 +5467,17 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     }
     return index.children.get(columnPaths[0] ?? "")?.[0]?.path ?? null;
   }, [columnPaths, index, selectedPath]);
+  // The first folder in the trail that cannot be listed stands in its
+  // column's place, and nothing past it can be open. The first column is the
+  // folder on screen, which the browser stands in for as a whole.
+  const unreadableAt = columnPaths.findIndex(
+    (columnPath, columnIndex) =>
+      columnIndex > 0 && (renderUnreadable?.(columnPath) ?? null) !== null,
+  );
+  const unreadableColumnPath =
+    unreadableAt === -1 ? undefined : columnPaths[unreadableAt];
+  const listedColumnPaths =
+    unreadableAt === -1 ? columnPaths : columnPaths.slice(0, unreadableAt);
   const selectedFile =
     deferredSelectedEntry?.kind === "file" && !deferredIsSeveral
       ? (deferredSelectedEntry as FileEntry)
@@ -5502,7 +5528,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
         data-file-system-listing=""
         style={{ minWidth: "100%" }}
       >
-        {columnPaths.map((columnPath, columnIndex) => (
+        {listedColumnPaths.map((columnPath, columnIndex) => (
           <FileSystemColumn
             draggable={draggable}
             entries={index.children.get(columnPath) ?? []}
@@ -5552,7 +5578,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             width={columnWidth}
           />
         ))}
-        {selectedFile ? (
+        {unreadableColumnPath !== undefined ? (
+          <div className="min-w-72 flex-1 contain-inline-size">
+            {renderUnreadable?.(unreadableColumnPath)}
+          </div>
+        ) : selectedFile ? (
           <InlineScrollArea2
             className="min-w-60 flex-1 contain-inline-size"
             orientation="vertical"

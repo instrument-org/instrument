@@ -345,8 +345,31 @@ export function ConnectControls({
       setCredential.mutate({ origin, slug, value: value.trim() });
     }
   };
+  // Where the directory says the key is made, so the card says where to go
+  // rather than asking for something the user has never seen.
+  const keyHelp = listed?.keyHelp;
   return (
     <div className="flex flex-col gap-2">
+      {keyHelp ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {keyHelp.steps ?? `Make a key for ${name}, then paste it here.`}
+          </p>
+          <Button
+            onClick={() => {
+              if (appWindow?.browser) {
+                appWindow.openPage(keyHelp.page);
+              } else {
+                openExternalLink(keyHelp.page, { addReferral: false });
+              }
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Get a key
+          </Button>
+        </div>
+      ) : null}
       <Destination origin={origin}>The key goes only to</Destination>
       <div className="flex items-center gap-2">
         <Input

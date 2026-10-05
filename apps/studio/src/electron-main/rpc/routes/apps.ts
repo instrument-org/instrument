@@ -26,6 +26,7 @@ import {
   cancelMcpOAuth,
   describeLocalLaunch,
   catalogEntryMacApp,
+  catalogKeyHelp,
   findCatalogEntry,
   getAppCatalog,
   isConnected,
@@ -83,6 +84,10 @@ const AppListItemSchema = z.object({
   home: z.string().optional(),
   /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
   icon: z.string().optional(),
+  /** For an app opened with a key, where the directory says the user makes one, and what to do there. */
+  keyHelp: z
+    .object({ page: z.string(), steps: z.string().optional() })
+    .optional(),
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
   runs: z.string().optional(),
@@ -140,6 +145,29 @@ async function macAppIconFor(
     : undefined;
 }
 
+/** Where the key for an app opened with one is made, when the directory knows. */
+function keyHelpFor(
+  slug: string,
+  manifest: AppManifest,
+): { keyHelp?: { page: string; steps?: string } } {
+  if (
+    manifest.type === "web" ||
+    manifest.auth.kind === "none" ||
+    manifest.auth.kind === "oauth"
+  ) {
+    return {};
+  }
+  const keyHelp = catalogKeyHelp(
+    slug,
+    manifest.type === "api"
+      ? manifest.baseUrl
+      : manifest.type === "mcp"
+        ? manifest.url
+        : manifest.package,
+  );
+  return keyHelp ? { keyHelp } : {};
+}
+
 const AppListSchema = z.object({
   apps: z.array(AppListItemSchema),
   invalid: z.array(z.object({ message: z.string(), slug: z.string() })),
@@ -176,6 +204,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
+          ...keyHelpFor(app.slug, app.manifest),
           name: app.manifest.name,
           ...(app.manifest.type === "mcp-local"
             ? { runs: describeLocalLaunch(app.manifest) }

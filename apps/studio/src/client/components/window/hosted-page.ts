@@ -15,8 +15,9 @@ import { useEffect, useRef } from "react";
  *   where the file was opened from.
  * - `forward`: the same forward, with nothing of the page's own ahead of it:
  *   the tab's step forward.
- * - `file`: a link took the page to another file on the computer, which the
- *   tab shows in the file's place, its tree following.
+ * - `file`: the page went to another file on the computer (a link, or a step
+ *   through its own history), which the tab shows in the file's place, its
+ *   tree following, without a step of the tab's own.
  * - `site`: a link took the page off the computer, and the tab becomes the
  *   page at that address.
  *
@@ -42,6 +43,14 @@ export function hostedPageStep(
   }
   const path = hostPathOfFileUrl(url);
   return path === undefined ? { kind: "site", url } : { kind: "file", path };
+}
+
+/**
+ * The group of the page a file tab draws beside its tree, by the tab's id: a
+ * group no strip lists, holding that one page.
+ */
+export function hostGroupOf(tabId: string) {
+  return `page:${tabId}`;
 }
 
 /**

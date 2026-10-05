@@ -136,12 +136,6 @@ const config: Configuration = {
       from: "../../registry/skills",
       to: "registry/skills",
     },
-    // The pictures the Discover screen shows of each page template's examples.
-    {
-      filter: ["**/*.png"],
-      from: "../../registry/captures",
-      to: "registry/captures",
-    },
     {
       filter: ["**/*"],
       from: "../../packages/workspace/system-skills",

@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import {
   settingsModalAtom,
   type SettingsTab,
@@ -39,7 +38,7 @@ import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom } from "jotai";
 
 interface NavItem {
   icon: React.ElementType;
@@ -208,7 +207,6 @@ function SettingsSectionBody({
 
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
-  const features = useAtomValue(featuresAtom);
   const { data: invalidFolders } = useQuery(
     rpcClient.workspace.storage.invalidFolders.list.queryOptions(),
   );
@@ -230,15 +228,11 @@ function useNavItems(): NavItem[] {
       tab: "Providers",
       title: "Providers",
     },
-    ...(features.skills
-      ? [
-          {
-            icon: CubeIcon,
-            tab: "Skills" as const,
-            title: "Skills",
-          },
-        ]
-      : []),
+    {
+      icon: CubeIcon,
+      tab: "Skills",
+      title: "Skills",
+    },
     ...(hasUnrecognizedFolders
       ? [
           {

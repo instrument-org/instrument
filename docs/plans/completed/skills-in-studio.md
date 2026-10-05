@@ -4,7 +4,7 @@ Status: **completed**. Landed on `main` via PR #71 (`feature/skills-sidebar`), t
 
 ## What this is
 
-Agent Skills, surfaced in Studio: a browsable list, a page per skill, a slash menu in the composer, and a create-skill flow. Everything user-facing sits behind the `skills` feature flag, off by default.
+Agent Skills, surfaced in Studio: a browsable list, a page per skill, a slash menu in the composer, and a create-skill flow.
 
 ## Shape of what landed
 

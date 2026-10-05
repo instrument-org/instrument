@@ -4,7 +4,6 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
-  "skills",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
@@ -29,10 +28,5 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
-  },
-  skills: {
-    description:
-      "Offer installed agent skills in the composer, from its plus menu or by typing / in the prompt, and list them in Settings, where a skill can be made, changed or deleted.",
-    title: "Skills",
   },
 };

@@ -271,17 +271,12 @@ export const PromptInput = ({
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
-  // An empty list also closes off the editor's slash menu, so the flag gates
-  // both the lookup and the completion UI.
   const { data: skills = [] } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
-      enabled: features.skills,
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
-  const userInvocableSkills = features.skills
-    ? skills.filter((skill) => skill.userInvocable)
-    : [];
+  const userInvocableSkills = skills.filter((skill) => skill.userInvocable);
   // The apps the workspace has, for a slash to name: any standing, since a
   // message can be about an app before it is connected.
   const { data: appList } = useQuery(

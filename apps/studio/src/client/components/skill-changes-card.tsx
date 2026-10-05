@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { SkillLink } from "@/client/components/skill-link";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
@@ -9,7 +8,6 @@ import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
@@ -20,19 +18,13 @@ export function SkillChangesCard({
   className?: string;
   data: SessionMessageDataPart.SkillChangesDataPart;
 }) {
-  const features = useAtomValue(featuresAtom);
   // Shares the cache the composer's slash menu fills, so the title and
   // description are a lookup rather than another walk of every skill source.
   const { data: skills = [], isSuccess } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
-      enabled: features.skills,
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
-
-  if (!features.skills) {
-    return null;
-  }
 
   // Rendered from the name alone until the list resolves, so the card is never
   // missing from the transcript and only its description arrives late.

@@ -93,7 +93,6 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",
-  skills: "s",
 };
 
 const FEATURE_NAMES = Object.keys(FEATURE_CODES) as FeatureName[];

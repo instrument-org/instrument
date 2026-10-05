@@ -1,5 +1,8 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import { openSettings } from "@/client/atoms/settings-modal";
+import {
+  openSettings,
+  type SettingsTab,
+} from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   APPS_HREF,
@@ -256,6 +259,25 @@ export function CommandMenu({
     }
   }
 
+  // Each tab of Settings by name, found by typing it and never listed
+  // before, so the empty menu stays short. General is the Settings row
+  // itself; the tabs for building the app only show in developer mode.
+  const settingsTabs: SettingsTab[] = [
+    "Providers",
+    "Skills",
+    "Memory",
+    "Storage",
+    ...(developerMode ? (["Features", "Debug"] as const) : []),
+  ];
+  const settingsRows = settingsTabs.map((tab) => ({
+    icon: <GearIcon />,
+    id: `settings-${tab}`,
+    label: `Settings: ${tab}`,
+    run: () => {
+      openSettings({ tab });
+    },
+  }));
+
   const debugItems = developerMode
     ? [
         ...debugNavigationRoutes.map((route) => ({
@@ -315,7 +337,7 @@ export function CommandMenu({
       : [
           {
             items: fuzzyMatch(
-              commands,
+              [...commands, ...settingsRows],
               (command) => [command.label],
               words,
             ).map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),

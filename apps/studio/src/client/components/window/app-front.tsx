@@ -70,6 +70,16 @@ export function AppFront({
   const { ask, browser, openPage } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
+  // The default browser by name, as the sign-in button beside it says it.
+  const defaultBrowser = useQuery(
+    rpcClient.utils.browserOpenTarget.queryOptions({
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const browserName = defaultBrowser.data?.appName ?? "your browser";
   const app = list.data?.apps.find((entry) => entry.slug === slug);
   // The directory's entry for the service: by slug, or by site for a second
   // account set up beside the first (notion-2 is Notion).
@@ -217,13 +227,15 @@ export function AppFront({
     ? methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
       : undefined
-    : app.standing === "stale"
-      ? "Try again to connect it as it is now."
-      : undefined;
-  // The agent, as a way to connect in its own right rather than a footnote:
-  // it can find a way in, fix a setup, or walk someone through a sign-in.
+    : app.standing === "needs-sign-in" && !isWeb
+      ? `Sign in here in a tab, or with ${browserName} if you’re already signed in to ${name} there.`
+      : app.standing === "stale"
+        ? "Try again to connect it as it is now."
+        : undefined;
+  // The way out when the buttons beside it are not getting there: last and
+  // quiet, so it reads as help rather than one more way to sign in.
   const withInstrument = (
-    <GlyphButton
+    <Button
       onClick={() => {
         ask(
           app
@@ -231,10 +243,13 @@ export function AppFront({
             : `Connect ${appMentionToken({ name, slug })}`,
         );
       }}
+      className="text-muted-foreground hover:text-foreground"
       size="sm"
+      variant="ghost"
     >
-      Connect with Instrument
-    </GlyphButton>
+      <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
+      Ask Instrument for help
+    </Button>
   );
   const openHome = () => {
     if (home && browser) {
@@ -513,6 +528,7 @@ export function AppFront({
                 ) : app?.standing === "needs-sign-in" ? (
                   <ConnectControls
                     alongside={withInstrument}
+                    describesDestination={false}
                     kind="sign-in"
                     name={name}
                     slug={slug}

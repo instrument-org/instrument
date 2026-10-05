@@ -29,6 +29,7 @@ type SignInDestination = "app" | "external";
  */
 export function ConnectControls({
   alongside,
+  describesDestination = true,
   dismissible = false,
   kind,
   label,
@@ -38,6 +39,8 @@ export function ConnectControls({
 }: {
   /** One more control at the end of the row: the app's page puts its way to ask the agent here. */
   alongside?: ReactNode;
+  /** Whether a sign-in says where it signs in; off where a line above already explains the buttons. */
+  describesDestination?: boolean;
   /** Whether "Not now" is offered: a card asks a question, a row does not. */
   dismissible?: boolean;
   kind: "key" | "run" | "sign-in" | "web";
@@ -282,7 +285,9 @@ export function ConnectControls({
   if (kind === "sign-in") {
     return (
       <div className="flex flex-col gap-2">
-        <Destination origin={origin}>Signs in at</Destination>
+        {describesDestination ? (
+          <Destination origin={origin}>Signs in at</Destination>
+        ) : null}
         {/* In a column too narrow for three buttons in a row they stack, each
           the column's width, rather than wrapping into a ragged pair. */}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
@@ -298,7 +303,7 @@ export function ConnectControls({
             size="sm"
             waiting={waiting}
           >
-            {label ?? `Sign in to ${name}`}
+            {label ?? "Sign in here"}
           </BrowserHandoffButton>
           {waiting ? null : (
             <Button
@@ -307,7 +312,7 @@ export function ConnectControls({
                 signIn("external");
               }}
               size="sm"
-              variant="ghost"
+              variant="outline"
             >
               {/* Named only when the computer says which browser is the
                   default, so the button never promises the wrong one. */}
@@ -321,10 +326,10 @@ export function ConnectControls({
                       src={browser.data.iconUrl}
                     />
                   ) : null}
-                  {`Use ${browser.data.appName}`}
+                  {`Sign in with ${browser.data.appName}`}
                 </>
               ) : (
-                "Use your own browser"
+                "Sign in with your browser"
               )}
             </Button>
           )}

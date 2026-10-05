@@ -479,19 +479,21 @@ export function CommandMenu({
         placeholder="Search chats, apps, pages, and commands…"
         value={search}
       />
-      <CommandList className="max-h-none! min-h-48 overflow-visible!">
+      {/* One height whatever the search finds, so the dialog does not grow
+          and shrink under the caret as results come and go. */}
+      <CommandList className="h-96 max-h-none! overflow-hidden!">
         {rows.length > 0 ? (
           // A list of its own per search: a fresh scroller starts at the top,
           // where cmdk's pick of the first row then lands, rather than at
           // wherever the last search's list was scrolled to.
           <ResultRows key={words} rows={rows} />
         ) : chatsByMeaning.isLooking ? (
-          <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
             Looking through your chats…
           </div>
         ) : words !== "" && !(isBang && words.length < 3) ? (
-          <div className="flex min-h-48 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
             Nothing matches “{words}”
             {chatsByMeaning.failed ? (
               <span className="text-xs">
@@ -525,7 +527,7 @@ function ResultRows({ rows }: { rows: Row[] }) {
   });
 
   return (
-    <div className="max-h-96 overflow-y-auto p-1" ref={parentRef}>
+    <div className="h-full overflow-y-auto p-1" ref={parentRef}>
       <div
         className="relative w-full"
         style={{ height: `${virtualizer.getTotalSize()}px` }}

@@ -125,10 +125,7 @@ export function openAppWindow({
     return appWindow;
   }
 
-  const remembered = getWindowState("app", {
-    height: WINDOW_HEIGHT,
-    width: WINDOW_WIDTH,
-  });
+  const remembered = rememberedAppWindowState();
   showsMaximized = remembered.isMaximized;
 
   appWindow = new BrowserWindow({
@@ -331,6 +328,14 @@ function revealAppWindow(onShow?: () => void) {
         publisher.publish("window.command", ask);
       }
     }
+  });
+}
+
+/** Where the app window opens: where it was left, or its first-time shape. */
+export function rememberedAppWindowState() {
+  return getWindowState("app", {
+    height: WINDOW_HEIGHT,
+    width: WINDOW_WIDTH,
   });
 }
 

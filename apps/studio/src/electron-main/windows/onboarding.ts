@@ -7,7 +7,7 @@ import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, type Rectangle, screen } from "electron";
 import path from "node:path";
 
 const ONBOARDING_WIDTH = 480;
@@ -24,6 +24,18 @@ export function closeOnboardingWindow() {
 
 export function getOnboardingWindow(): BrowserWindow | null {
   return onboardingWindow;
+}
+
+/**
+ * Grows onboarding into the frame the app window is about to take, so that
+ * window can replace it in place. Animated on macOS, where the call holds the
+ * main thread until the animation ends; elsewhere `setBounds` cannot animate
+ * and the window takes the frame at once.
+ */
+export function growOnboardingWindow(bounds: Rectangle) {
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.setBounds(bounds, true);
+  }
 }
 
 export function openOnboardingWindow(): BrowserWindow {

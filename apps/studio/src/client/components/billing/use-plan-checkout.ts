@@ -1,0 +1,63 @@
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { rpcClient } from "@/client/rpc/client";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
+/** How often billing is read while Checkout is open in the browser. */
+const WAITING_POLL_MS = 3000;
+
+/**
+ * Subscribing in Stripe Checkout, in the system browser: opening it, opening
+ * it again for a closed tab, and noticing when the subscription lands. The
+ * webhook usually beats the person back to the window, so billing is read on
+ * a timer while it waits as well as on focus.
+ */
+export function usePlanCheckout({
+  onSubscribed,
+}: {
+  /** Called once, when billing shows the plan Checkout was opened for. */
+  onSubscribed: (plan: string) => void;
+}) {
+  const [waitingFor, setWaitingFor] = useState<null | string>(null);
+  const { data: status } = useBillingStatus({
+    pollMs: waitingFor ? WAITING_POLL_MS : undefined,
+  });
+  const checkout = useMutation(
+    rpcClient.billing.openCheckout.mutationOptions({
+      onError: () => {
+        setWaitingFor(null);
+        toast.error("Couldn't open checkout");
+      },
+    }),
+  );
+
+  const subscribed =
+    waitingFor !== null &&
+    status?.subscription !== undefined &&
+    status.plan === waitingFor;
+
+  useEffect(() => {
+    if (subscribed && waitingFor) {
+      setWaitingFor(null);
+      onSubscribed(waitingFor);
+    }
+  }, [subscribed, waitingFor, onSubscribed]);
+
+  return {
+    cancel: () => {
+      setWaitingFor(null);
+    },
+    isOpening: checkout.isPending,
+    reopen: () => {
+      if (waitingFor) {
+        checkout.mutate({ plan: waitingFor });
+      }
+    },
+    start: (plan: string) => {
+      setWaitingFor(plan);
+      checkout.mutate({ plan });
+    },
+    waitingFor,
+  };
+}

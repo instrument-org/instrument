@@ -20,6 +20,8 @@ const BillingStatusSchema = z.object({
   plan: z.string(),
   subscription: z
     .object({
+      /** When it ends, if it is scheduled to: the period's end, or later. */
+      cancelAt: z.string().optional(),
       cancelAtPeriodEnd: z.boolean(),
       currentPeriodEnd: z.string().optional(),
       status: z.string(),
@@ -78,6 +80,13 @@ const BillingOfferSchema = z.object({
 
 export const contract = {
   billing: {
+    /**
+     * Moves a live subscription to another offered plan, charging the
+     * difference now; the new limits apply once that payment succeeds.
+     */
+    changePlan: base
+      .input(z.object({ plan: z.string() }))
+      .output(z.looseObject({})),
     createCheckout: base
       .input(z.object({ plan: z.string() }))
       .output(z.object({ url: z.string() })),

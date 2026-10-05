@@ -9,8 +9,26 @@ import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
+import { ORPCError } from "@orpc/client";
 import { app } from "electron";
 import { z } from "zod";
+
+/** The Stripe page an agent-driven instance last held back; see `openBillingPage`. */
+let heldBackPage: null | string = null;
+
+/**
+ * Opens a Stripe page (Checkout, the portal) in the system browser. A dev
+ * instance an agent drives (`studio-drive boot` sets STUDIO_DRIVE_PURPOSE)
+ * keeps it instead, for the run to complete in a headless browser, so a run
+ * never opens one on the machine it shares with a person.
+ */
+async function openBillingPage(url: string) {
+  if (!app.isPackaged && process.env.STUDIO_DRIVE_PURPOSE) {
+    heldBackPage = url;
+    return;
+  }
+  await openExternal(url);
+}
 
 const offer = base.handler(() => platformApiRpcClient.billing.offer.call());
 
@@ -25,16 +43,48 @@ const openCheckout = authenticated
     const { url } = await platformApiRpcClient.billing.createCheckout.call({
       plan: input.plan,
     });
-    await openExternal(url);
+    await openBillingPage(url);
     return { url };
   });
 
 /** Stripe's Customer Portal, where every plan change and cancellation happens. */
 const openPortal = authenticated.handler(async () => {
   const { url } = await platformApiRpcClient.billing.createPortal.call();
-  await openExternal(url);
+  await openBillingPage(url);
   return { url };
 });
+
+/**
+ * Moves a live subscription to another plan through the API, which charges
+ * the difference with Stripe's pending updates so the higher limits wait on
+ * the payment. When the payment needs the person (a card to confirm), the
+ * API hands back a page for it, opened like Checkout.
+ *
+ * STUB: an API without `billing.changePlan` answers 404, and until every
+ * target serves it the Customer Portal stands in. Its own plan switch is to be
+ * turned off, so this fallback goes once the API procedure ships everywhere.
+ */
+const changePlan = authenticated
+  .input(z.object({ plan: z.string() }))
+  .handler(async ({ input }) => {
+    try {
+      const result = await platformApiRpcClient.billing.changePlan.call({
+        plan: input.plan,
+      });
+      const url: unknown = Reflect.get(result, "url");
+      if (typeof url === "string") {
+        await openBillingPage(url);
+      }
+      return { via: "api" as const };
+    } catch (error) {
+      if (!(error instanceof ORPCError) || error.status !== 404) {
+        throw error;
+      }
+      const { url } = await platformApiRpcClient.billing.createPortal.call();
+      await openBillingPage(url);
+      return { via: "portal" as const };
+    }
+  });
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
 
@@ -53,6 +103,9 @@ const localDev = devOnly.use(({ errors, next }) => {
   }
   return next();
 });
+
+/** The Stripe page an agent-driven instance held back instead of opening. */
+const heldBackBillingPage = localDev.handler(() => ({ url: heldBackPage }));
 
 /** Where this build sends platform requests, for the debug page to show. */
 const environment = devOnly.handler(() => ({
@@ -115,7 +168,8 @@ const burn = localDev
   });
 
 export const billing = {
-  dev: { burn, environment, setDevToken },
+  changePlan,
+  dev: { burn, environment, heldBackBillingPage, setDevToken },
   lastRefusal,
   offer,
   openCheckout,

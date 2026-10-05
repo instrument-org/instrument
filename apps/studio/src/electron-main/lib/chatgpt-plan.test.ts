@@ -4,9 +4,11 @@ import type * as ChatGPTPlanModule from "./chatgpt-plan";
 
 let stored: Record<string, unknown> = {};
 
+const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
+
 vi.mock("electron", () => ({
   safeStorage: { isEncryptionAvailable: () => true },
-  shell: { openExternal: vi.fn() },
+  shell: { openExternal },
 }));
 
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
@@ -361,14 +363,12 @@ describe("several ChatGPT accounts", () => {
 describe("how a ChatGPT sign-in ends", () => {
   /** Starts a sign-in and answers with the state its authorize URL carries. */
   async function start() {
-    const { shell } = await import("electron");
-    const opened = vi.mocked(shell.openExternal);
-    opened.mockClear();
+    openExternal.mockClear();
     const ended = plan.signInWithChatGPT({ callbackPort: 1455 });
     await vi.waitFor(() => {
-      expect(opened).toHaveBeenCalled();
+      expect(openExternal).toHaveBeenCalled();
     });
-    const url = new URL(String(opened.mock.calls[0]?.[0]));
+    const url = new URL(String(openExternal.mock.calls[0]?.[0]));
     return { ended, state: url.searchParams.get("state") ?? "" };
   }
 

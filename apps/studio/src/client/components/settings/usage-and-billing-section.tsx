@@ -161,11 +161,15 @@ function PlanGroup({ status }: { status: Status }) {
                     ? `Renews ${describeDate(renewsAt, now)}`
                     : undefined
             }
-            title={[plan?.name ?? status.plan, price]
-              .filter(Boolean)
-              .join(" · ")}
+            // Status names no plan while a payment is owed, since none is in
+            // effect; the row then says only that there is a subscription.
+            title={
+              plan
+                ? [plan.name, price].filter(Boolean).join(" · ")
+                : "Your subscription"
+            }
           >
-            {endsAt && !paymentFailed ? (
+            {paymentFailed ? null : endsAt ? (
               <Button
                 disabled={portal.isPending}
                 onClick={openPortal}

@@ -22,7 +22,6 @@ import { computerName } from "./computer-name";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
-import { DISCOVER_HREF, ideaTitleOf } from "./ideas";
 import {
   locationCrumbs,
   type TabLocation,
@@ -85,15 +84,6 @@ export function screenLocation(
   }
   if (pathname === "/apps") {
     return { kind: "apps" };
-  }
-  if (pathname.startsWith(`${DISCOVER_HREF}/`)) {
-    return {
-      kind: "idea",
-      title: ideaTitleOf(pathname.slice(DISCOVER_HREF.length + 1)),
-    };
-  }
-  if (pathname === DISCOVER_HREF) {
-    return { kind: "discover" };
   }
   if (pathname.startsWith(`${CHATS_HREF}/`)) {
     return { kind: "chat", title: chatTitleOf(pathname, chatTitles) };
@@ -172,18 +162,6 @@ export function screenPresentation(
     return {
       icon: <PlaceIcon className="size-3.5" place="apps" />,
       title: "Apps",
-    };
-  }
-  if (pathname.startsWith(`${DISCOVER_HREF}/`)) {
-    return {
-      icon: <PlaceIcon className="size-3.5" place="discover" />,
-      title: ideaTitleOf(pathname.slice(DISCOVER_HREF.length + 1)),
-    };
-  }
-  if (pathname === DISCOVER_HREF) {
-    return {
-      icon: <PlaceIcon className="size-3.5" place="discover" />,
-      title: "Discover",
     };
   }
   if (pathname === "/debug" || pathname.startsWith("/debug/")) {

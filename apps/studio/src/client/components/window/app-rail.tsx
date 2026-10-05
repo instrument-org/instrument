@@ -25,7 +25,6 @@ const PLACES: { id: AppPlace; label: string }[] = [
   { id: "files", label: "Files" },
   { id: "browser", label: "Browser" },
   { id: "apps", label: "Apps" },
-  { id: "discover", label: "Discover" },
 ];
 
 /**

@@ -1,6 +1,5 @@
 export const REGISTRY_FOLDER_NAMES = {
   skills: "skills",
-  templates: "templates",
 } as const;
 
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";

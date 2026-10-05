@@ -1,10 +1,10 @@
 import { type ReactNode } from "react";
 
 /**
- * A shelf of a start page, labeled the way Discover labels its own: a quiet
- * name on a hairline that runs out to the column's edge. The browser's
- * starting view and the Apps place both read their heads in it, so recent
- * pages are headed the same wherever they are listed.
+ * A shelf of a start page, labeled with a quiet name on a hairline that
+ * runs out to the column's edge. The browser's starting view and the Apps
+ * place both read their heads in it, so recent pages are headed the same
+ * wherever they are listed.
  *
  * An action, when there is one, waits at the hairline's end and shows only
  * while the head is under the pointer or the action has the keyboard, so a

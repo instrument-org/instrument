@@ -9,7 +9,6 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { isInside, segmentsOf, separatorOf } from "./host-path";
-import { DISCOVER_HREF } from "./ideas";
 
 /** One part of the place the field shows. */
 export interface LocationCrumb {
@@ -77,8 +76,6 @@ export type TabLocation =
   | { kind: "apps" }
   | { kind: "chat"; title: string }
   | { kind: "folder"; path: string }
-  | { kind: "idea"; title: string }
-  | { kind: "discover" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | {
@@ -121,15 +118,6 @@ export function locationCrumbs(
     case "file":
     case "folder": {
       return pathCrumbs(location.path, { home, volumes });
-    }
-    case "idea": {
-      return [
-        { label: "Discover", to: { href: DISCOVER_HREF, kind: "screen" } },
-        { label: location.title },
-      ];
-    }
-    case "discover": {
-      return [{ label: "Discover" }];
     }
     case "newTab":
     case "page": {

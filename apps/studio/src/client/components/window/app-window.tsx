@@ -111,7 +111,6 @@ import { useStagedAskActions } from "./staged-asks";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
-import { ideasQueryOptions } from "./use-ideas";
 import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
@@ -491,7 +490,6 @@ function WindowShell({
     void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
-    void queryClient.prefetchQuery(ideasQueryOptions());
   }, [opened, queryClient]);
 
   // Closing a task's browser tab closes the browser, and the task loses its

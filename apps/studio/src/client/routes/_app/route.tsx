@@ -391,8 +391,8 @@ function inboxBounds(
 }
 
 /**
- * A screen that is its own route (the Finder, a file, the apps, an app,
- * Discover, a skill), under the row that says where it stands. Its steps are
+ * A screen that is its own route (the Finder, a file, the apps, an app, a
+ * skill), under the row that says where it stands. Its steps are
  * the tab's history, walked by the arrows in the window's bar.
  */
 function RouteScreen({ href }: { href: string }) {
@@ -416,11 +416,10 @@ function RouteScreen({ href }: { href: string }) {
     fromHref.kind === "folder" && screenView?.folder
       ? { ...fromHref, path: screenView.folder.display }
       : fromHref;
-  // The catalogs (the apps and Discover's ideas) are places you arrive at
-  // from the rail, with nothing above them to walk back up to and nothing to
-  // type an address for: a row there would only offer to leave for the web.
-  const hasLocationRow =
-    location.kind !== "apps" && location.kind !== "discover";
+  // The apps' catalog is a place you arrive at from the rail, with nothing
+  // above it to walk back up to and nothing to type an address for: a row
+  // there would only offer to leave for the web.
+  const hasLocationRow = location.kind !== "apps";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

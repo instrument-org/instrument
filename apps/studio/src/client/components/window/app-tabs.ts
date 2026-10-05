@@ -27,7 +27,6 @@ import { instrumentFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
-import { DISCOVER_HREF } from "./ideas";
 import { chatOfGroup, chatOfHref, parseHref } from "./window-href";
 
 /** The chat with no chat open: the inbox, and where every new tab opens. */
@@ -73,7 +72,7 @@ function siteGroupOf(id: string): string {
 
 /**
  * The window's tabs, across its bar: each one a chat, a folder or file, the
- * apps or an app, Discover, or a site, kept across launches with each tab's
+ * apps or an app, or a site, kept across launches with each tab's
  * own history.
  */
 export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
@@ -125,9 +124,6 @@ export function placeOfHref(href: string): AppPlace | undefined {
   }
   if (pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`)) {
     return "apps";
-  }
-  if (pathname === DISCOVER_HREF || pathname.startsWith(`${DISCOVER_HREF}/`)) {
-    return "discover";
   }
   return undefined;
 }
@@ -255,8 +251,8 @@ export function useAppTabs() {
 
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
- * open, the computer at the Instrument folder, the browser's start, the
- * apps, and Discover. With no chat named, the chat is the inbox, which is
+ * open, the computer at the Instrument folder, the browser's start, and the
+ * apps. With no chat named, the chat is the inbox, which is
  * where a new tab of the chat opens.
  */
 function placeHrefOf(place: AppPlace, lastChat: null | string): string {
@@ -270,9 +266,6 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
     case "chat": {
       const chat = chatOfGroup(lastChat ?? undefined);
       return chat ? `${CHATS_HREF}/${chat}` : INBOX_HREF;
-    }
-    case "discover": {
-      return DISCOVER_HREF;
     }
     case "files": {
       return instrumentFolderHref();

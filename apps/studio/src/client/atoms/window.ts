@@ -200,8 +200,8 @@ export function composeKeyOf(entry: ComposeEntry): string {
  */
 export const composeAtom = keptAtom<ComposeEntry[]>("layout", "compose.v2", []);
 
-/** The places the rail at the window's edge switches between: the chat, the files, the browser, the apps, and Discover. */
-export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
+/** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
+export type AppPlace = "apps" | "browser" | "chat" | "files";
 
 /**
  * The chat a tab last had open, so Chat in the rail takes a tab back to it.

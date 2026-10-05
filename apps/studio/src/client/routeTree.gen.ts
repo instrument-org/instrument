@@ -28,8 +28,6 @@ import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
 import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
 import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
 import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
-import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
-import { Route as AppDiscoverIdRouteImport } from './routes/_app/discover/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
@@ -145,16 +143,6 @@ const AppChatsIndexRoute = AppChatsIndexRouteImport.update({
 const AppChatsIdRoute = AppChatsIdRouteImport.update({
   id: '/chats/$id',
   path: '/chats/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppDiscoverIndexRoute = AppDiscoverIndexRouteImport.update({
-  id: '/discover/',
-  path: '/discover/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppDiscoverIdRoute = AppDiscoverIdRouteImport.update({
-  id: '/discover/$id',
-  path: '/discover/$id',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSitesIdRoute = AppSitesIdRouteImport.update({
@@ -298,7 +286,6 @@ export interface FileRoutesByFullPath {
   '/onboarding/': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
-  '/discover/$id': typeof AppDiscoverIdRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
@@ -316,7 +303,6 @@ export interface FileRoutesByFullPath {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
   '/chats/': typeof AppChatsIndexRoute
-  '/discover/': typeof AppDiscoverIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -339,7 +325,6 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
-  '/discover/$id': typeof AppDiscoverIdRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
@@ -356,7 +341,6 @@ export interface FileRoutesByTo {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
   '/chats': typeof AppChatsIndexRoute
-  '/discover': typeof AppDiscoverIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/debug/components': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -384,7 +368,6 @@ export interface FileRoutesById {
   '/onboarding/': typeof OnboardingIndexRoute
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
-  '/_app/discover/$id': typeof AppDiscoverIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
   '/_app/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
@@ -402,7 +385,6 @@ export interface FileRoutesById {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
   '/_app/chats/': typeof AppChatsIndexRoute
-  '/_app/discover/': typeof AppDiscoverIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
   '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
@@ -430,7 +412,6 @@ export interface FileRouteTypes {
     | '/onboarding/'
     | '/apps/$slug'
     | '/chats/$id'
-    | '/discover/$id'
     | '/sites/$id'
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
@@ -448,7 +429,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/apps/'
     | '/chats/'
-    | '/discover/'
     | '/tasks/'
     | '/debug/components/'
     | '/debug/components/onboarding/complete'
@@ -471,7 +451,6 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/apps/$slug'
     | '/chats/$id'
-    | '/discover/$id'
     | '/sites/$id'
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
@@ -488,7 +467,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/apps'
     | '/chats'
-    | '/discover'
     | '/tasks'
     | '/debug/components'
     | '/debug/components/onboarding/complete'
@@ -515,7 +493,6 @@ export interface FileRouteTypes {
     | '/onboarding/'
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
-    | '/_app/discover/$id'
     | '/_app/sites/$id'
     | '/_app/tasks/$id'
     | '/debug/browser-view/$targetId'
@@ -533,7 +510,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/_app/apps/'
     | '/_app/chats/'
-    | '/_app/discover/'
     | '/_app/tasks/'
     | '/debug/components/'
     | '/debug/components/onboarding/complete'
@@ -683,20 +659,6 @@ declare module '@tanstack/react-router' {
       path: '/chats/$id'
       fullPath: '/chats/$id'
       preLoaderRoute: typeof AppChatsIdRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/discover/': {
-      id: '/_app/discover/'
-      path: '/discover'
-      fullPath: '/discover/'
-      preLoaderRoute: typeof AppDiscoverIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/discover/$id': {
-      id: '/_app/discover/$id'
-      path: '/discover/$id'
-      fullPath: '/discover/$id'
-      preLoaderRoute: typeof AppDiscoverIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/sites/$id': {
@@ -862,12 +824,10 @@ interface AppRouteRouteChildren {
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
-  AppDiscoverIdRoute: typeof AppDiscoverIdRoute
   AppSitesIdRoute: typeof AppSitesIdRoute
   AppTasksIdRoute: typeof AppTasksIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
-  AppDiscoverIndexRoute: typeof AppDiscoverIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
 }
 
@@ -877,12 +837,10 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,
-  AppDiscoverIdRoute: AppDiscoverIdRoute,
   AppSitesIdRoute: AppSitesIdRoute,
   AppTasksIdRoute: AppTasksIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
-  AppDiscoverIndexRoute: AppDiscoverIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
 }
 

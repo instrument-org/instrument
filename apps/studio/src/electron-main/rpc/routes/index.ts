@@ -9,7 +9,6 @@ import { debug } from "./debug";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
-import { ideas } from "./ideas";
 import { mac } from "./mac";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
@@ -37,7 +36,6 @@ export const router = {
   features,
   files,
   gateway,
-  ideas,
   mac,
   onboarding,
   pageEditor,

@@ -1,5 +1,4 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
-import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import {
   getFaviconUrl,
@@ -226,12 +225,6 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "chat": {
       return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
-    }
-    case "idea":
-    case "ideas": {
-      return (
-        <PlaceIcon className={INLINE_CHIP_ICON_CLASS_NAME} place="discover" />
-      );
     }
     case "memory": {
       return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

@@ -1,5 +1,4 @@
 import { PageFavicon } from "@/client/components/favicon";
-import { PlaceIcon } from "@/client/components/window/place-icons";
 import {
   bookmarksAtom,
   CHATS_HREF,
@@ -15,7 +14,6 @@ import { useChatTasks } from "@/client/components/window/child-tasks-query";
 import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
-import { ideaHref } from "@/client/components/window/ideas";
 import {
   addressCompletion,
   bareAddress,
@@ -35,7 +33,6 @@ import {
   type TabLocation,
   taskHref,
 } from "@/client/components/window/tab-location";
-import { ideasQueryOptions } from "@/client/components/window/use-ideas";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
@@ -82,13 +79,7 @@ const MATCHES_SHOWN = 8;
  * screen the list that screen is one of, so an app's page finds apps and a
  * task's page finds tasks.
  */
-export type OmnibarMode =
-  | "apps"
-  | "chats"
-  | "files"
-  | "ideas"
-  | "tasks"
-  | "web";
+export type OmnibarMode = "apps" | "chats" | "files" | "tasks" | "web";
 
 function omnibarModeOf(location: TabLocation): OmnibarMode {
   switch (location.kind) {
@@ -102,10 +93,6 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "file":
     case "folder": {
       return "files";
-    }
-    case "discover":
-    case "idea": {
-      return "ideas";
     }
     case "task":
     case "tasks": {
@@ -123,7 +110,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
   apps: "Find an app",
   chats: "Find a chat",
   files: "Go to a folder or file",
-  ideas: "Find an idea",
   tasks: "Find a task",
   web: "Search or enter address",
 };
@@ -132,7 +118,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
 const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   apps: "apps",
   chats: "chats",
-  ideas: "ideas",
   tasks: "tasks",
 };
 
@@ -622,10 +607,6 @@ function useRows({
 
   // The lists the other screens are one of.
   const appsBySlug = useAppsBySlug();
-  const ideas = useQuery({
-    ...ideasQueryOptions(),
-    enabled: mode === "ideas",
-  });
   // The tasks of the chat the tasks screen or the task's page is for.
   const tasks = useChatTasks(
     mode === "tasks" && (location.kind === "task" || location.kind === "tasks")
@@ -831,19 +812,6 @@ function useRows({
             open.visit(`${CHATS_HREF}/${id}`);
           },
         }));
-      }
-      case "ideas": {
-        return matchNames(words, ideas.data ?? [], (idea) => idea.title).map(
-          (idea) => ({
-            detail: idea.tagline,
-            icon: <PlaceIcon className="size-4" place="discover" />,
-            id: `idea:${idea.name}`,
-            name: idea.title,
-            run: () => {
-              open.visit(ideaHref(idea.name));
-            },
-          }),
-        );
       }
       case "tasks": {
         // A task's page finds the tasks of the chat it was opened from, the

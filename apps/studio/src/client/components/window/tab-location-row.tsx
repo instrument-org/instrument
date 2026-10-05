@@ -423,17 +423,6 @@ function locationMark(location: TabLocation): ReactNode {
     case "folder": {
       return <FolderMark path={location.path} />;
     }
-    // The catalog, and one kind of page in it: an idea is under Discover
-    // the way an app page is under Apps.
-    case "discover":
-    case "idea": {
-      return (
-        <PlaceIcon
-          className="size-3.5 shrink-0 text-muted-foreground"
-          place="discover"
-        />
-      );
-    }
     case "newTab": {
       return (
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -477,12 +466,6 @@ function locationText(location: TabLocation) {
     case "file":
     case "folder": {
       return expandHomePath(location.path, window.api.homeDir);
-    }
-    case "idea": {
-      return location.title;
-    }
-    case "discover": {
-      return "Discover";
     }
     case "newTab": {
       return "";

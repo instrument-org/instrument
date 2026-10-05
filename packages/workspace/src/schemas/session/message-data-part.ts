@@ -647,15 +647,6 @@ export namespace SessionMessageDataPart {
         selected: z.array(z.string()).default([]),
       })
       .optional(),
-    /** The kind of page open on the Discover screen: a template of the page skill. */
-    idea: z
-      .object({
-        /** The template's folder name under the page skill's `templates/`. */
-        name: z.string(),
-        tagline: z.string(),
-        title: z.string(),
-      })
-      .optional(),
     page: ViewedPageSchema.optional(),
     /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
     tabs: z
@@ -675,7 +666,6 @@ export namespace SessionMessageDataPart {
       "apps",
       "browser",
       "computer",
-      "discover",
       "file",
       "home",
       // No screen is called this; messages already stored may still name it.

@@ -61,12 +61,6 @@ describe("instrumentLinkOf", () => {
       },
     ],
     [
-      "instrument://discover/timeline",
-      { href: "/discover/timeline", kind: "idea", name: "timeline" },
-    ],
-    ["instrument://discover", { href: "/discover", kind: "ideas", name: "" }],
-    ["instrument://discover/", { href: "/discover", kind: "ideas", name: "" }],
-    [
       "INSTRUMENT://Task/lisbon-hotel",
       {
         href: "/tasks/lisbon-hotel",
@@ -103,8 +97,6 @@ describe("instrumentUrlOf", () => {
       "/skills/instrument%3Acreate-page",
       "instrument://skill/instrument:create-page",
     ],
-    ["/discover/timeline", "instrument://discover/timeline"],
-    ["/discover", "instrument://discover"],
     ["/chats/ses_01J9?tab=1", "instrument://chat/ses_01J9"],
   ])("writes %s as %s", (href, url) => {
     expect(instrumentUrlOf(href)).toBe(url);

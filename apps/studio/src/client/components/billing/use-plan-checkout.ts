@@ -4,8 +4,12 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/** How often billing is read while Checkout is open in the browser. */
-const WAITING_POLL_MS = 3000;
+/**
+ * How often billing is read while Checkout is open in the browser. The API
+ * allows ten status reads a minute per person, shared with every other read
+ * (focus, a finished turn), so this leaves room for those.
+ */
+export const WAITING_POLL_MS = 10_000;
 
 /**
  * Subscribing in Stripe Checkout, in the system browser: opening it, opening

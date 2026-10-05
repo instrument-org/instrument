@@ -1,6 +1,9 @@
 import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { PlanCards } from "@/client/components/billing/plan-cards";
-import { usePlanCheckout } from "@/client/components/billing/use-plan-checkout";
+import {
+  usePlanCheckout,
+  WAITING_POLL_MS,
+} from "@/client/components/billing/use-plan-checkout";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -66,7 +69,7 @@ function PlanSheetBody({
     plan: string;
   }>(null);
   const { data: status, refetch } = useBillingStatus({
-    pollMs: pendingChange ? 3000 : undefined,
+    pollMs: pendingChange ? WAITING_POLL_MS : undefined,
   });
   const changeLanded =
     pendingChange !== null && status?.plan === pendingChange.plan;

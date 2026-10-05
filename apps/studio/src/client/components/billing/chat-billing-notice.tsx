@@ -19,8 +19,11 @@ import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+/** The least time between the billing reads a finished turn makes. */
+const TURN_END_READ_GAP_MS = 15_000;
 
 /**
  * Which 80% warning was dismissed, by its period: dismissing one holds until
@@ -85,11 +88,23 @@ export function ChatBillingNotice({
   // A finished turn spent some of the plan and a refusal is news about the
   // account, so what billing says is read again as each turn ends rather than
   // at the next focus: that is what moves the 80% line and the notices.
+  // The API allows ten status reads a minute, so a run of short turns reads
+  // it at most every 15 seconds; a new refusal is always read, once.
+  const readRefusal = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!isAgentRunning && isSignedIn) {
+    if (isAgentRunning || !isSignedIn) {
+      return;
+    }
+    const isNewRefusal =
+      refusedId !== undefined && readRefusal.current !== refusedId;
+    if (
+      isNewRefusal ||
+      new Date().getTime() - dataUpdatedAt > TURN_END_READ_GAP_MS
+    ) {
+      readRefusal.current = refusedId;
       void refetch();
     }
-  }, [isAgentRunning, refusedId, isSignedIn, refetch]);
+  }, [isAgentRunning, refusedId, isSignedIn, refetch, dataUpdatedAt]);
 
   const now = new Date();
   const notice =

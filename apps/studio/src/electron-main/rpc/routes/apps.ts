@@ -38,6 +38,7 @@ import {
   recordConnection,
   removeLocalServer,
   setAppAccount,
+  setUpFromDirectory,
   requireAppCredential,
   runAppTest,
   searchAppCatalogByMeaning,
@@ -683,6 +684,25 @@ const markWebSignedIn = base
     await appChanged(input.slug, { event: "connected" });
   });
 
+/**
+ * Connect on a service the directory lists, with no conversation: the
+ * directory's own way in, written as an app that waits on the user's
+ * sign-in, key, or go-ahead, or connected outright when it wants none.
+ * Answers `agent` when the directory cannot finish it alone, for the caller
+ * to ask the agent instead.
+ */
+const setUp = base
+  .input(z.object({ slug: z.string() }))
+  .output(
+    z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("agent") }),
+      z.object({ kind: z.literal("set-up"), slug: z.string() }),
+    ]),
+  )
+  .handler(({ input, signal }) =>
+    setUpFromDirectory({ signal, slug: input.slug }),
+  );
+
 /** The user naming the account an app is signed in as, or clearing the name. */
 const setAccount = base
   .input(
@@ -760,6 +780,7 @@ export const apps = {
   remove,
   setAccount,
   setCredential,
+  setUp,
   startOAuth,
   test,
 };

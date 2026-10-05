@@ -8,11 +8,11 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useWindow } from "@/client/components/window/context";
+import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
@@ -114,6 +114,7 @@ export function AppsHome({
     setQuery("");
   };
   const openApp = onOpenApp;
+  const { connect } = useConnectFromDirectory();
   const tileFor = (entry: CatalogEntry) => {
     // An app of the workspace's is this service when it has its slug or
     // its site, which is how a second account set up beside the first
@@ -128,10 +129,10 @@ export function AppsHome({
         key={entry.slug}
         mine={mine.map((app) => app.slug)}
         onConnect={() => {
-          ask(`Connect ${appMentionToken(entry)}`);
+          connect(entry);
         }}
         onConnectAnother={() => {
-          ask(`Connect another ${appMentionToken(entry)} account`);
+          connect(entry, { another: true });
         }}
         onOpen={(slug) => {
           openApp(slug);

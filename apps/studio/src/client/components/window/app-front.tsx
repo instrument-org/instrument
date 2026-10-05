@@ -20,6 +20,7 @@ import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import {
   AppInspector,
   type InspectorReading,
@@ -95,6 +96,7 @@ export function AppFront({
       /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint));
   const [reading, setReading] = useState<InspectorReading>();
   const [isNaming, setIsNaming] = useState(false);
+  const { connect, isConnecting } = useConnectFromDirectory();
   const setAccount = useMutation(
     rpcClient.apps.setAccount.mutationOptions({
       onError: (error) => {
@@ -446,12 +448,20 @@ export function AppFront({
                 <ConnectControls kind="key" name={name} slug={slug} />
               ) : (
                 <GlyphButton
+                  disabled={isConnecting}
                   onClick={() => {
-                    ask(
-                      app && app.standing !== "untested"
-                        ? `Finish connecting ${appMentionToken({ name, slug })}`
-                        : `Connect ${appMentionToken({ name, slug })}`,
-                    );
+                    // A service the directory lists and nothing here yet is
+                    // set up from the directory; anything else (a set-up the
+                    // agent began, one that failed) is the agent's to finish.
+                    if (!app && entry) {
+                      connect(entry);
+                    } else {
+                      ask(
+                        app && app.standing !== "untested"
+                          ? `Finish connecting ${appMentionToken({ name, slug })}`
+                          : `Connect ${appMentionToken({ name, slug })}`,
+                      );
+                    }
                   }}
                   size="sm"
                 >
@@ -478,6 +488,22 @@ export function AppFront({
                     />
                   </div>
                 </div>
+              ) : null}
+              {/* The way out when the card alone is not getting there: the
+                  agent picks it up from where it stands. */}
+              {app ? (
+                <button
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    ask(
+                      `Help me finish connecting ${appMentionToken({ name, slug })}`,
+                    );
+                  }}
+                  type="button"
+                >
+                  <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
+                  Get help connecting
+                </button>
               ) : null}
             </div>
           </section>

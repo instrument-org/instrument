@@ -1,0 +1,239 @@
+import { keptAtom } from "@/client/lib/kept-state";
+import { openPlanSheet } from "@/client/atoms/plan-sheet";
+import { Button } from "@/client/components/ui/button";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import {
+  type BillingNoticeAction,
+  noticeCopy,
+  refusalNotice,
+  upgradePlan,
+  usageWarning,
+  usageWarningText,
+} from "@/client/lib/billing";
+import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
+import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import { type SessionMessage } from "@instrument-org/workspace/client";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { GaugeIcon } from "@phosphor-icons/react/Gauge";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { XIcon } from "@phosphor-icons/react/X";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAtom } from "jotai";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
+/**
+ * Which 80% warning was dismissed, by its period: dismissing one holds until
+ * the next period (or the next trial) reaches 80% again.
+ */
+const dismissedUsageWarningAtom = keptAtom<null | string>(
+  "layout",
+  "billing-usage-warning-dismissed.v1",
+  null,
+);
+
+/**
+ * What the chat says about the plan, over its reply box and never covering
+ * it: a notice when our platform refused the turn (the trial ended, a limit
+ * was reached, a payment failed, a plan is needed), turning into Continue
+ * once the reason has gone; otherwise the quiet line at 80% of the trial or
+ * of a window. The reply box stays usable throughout, for a model on the
+ * person's own key or ChatGPT plan.
+ */
+export function ChatBillingNotice({
+  isAgentRunning,
+  messages,
+  onContinue,
+}: {
+  isAgentRunning: boolean;
+  messages: SessionMessage.WithParts[];
+  /** Sends the stopped turn again. */
+  onContinue?: () => void;
+}) {
+  const { data: status, dataUpdatedAt, isSignedIn, refetch } =
+    useBillingStatus();
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: isSignedIn,
+  });
+  const portal = useMutation(
+    rpcClient.billing.openPortal.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't open billing");
+      },
+    }),
+  );
+  const [dismissedNotice, setDismissedNotice] = useState<null | string>(null);
+  const [dismissedWarning, setDismissedWarning] = useAtom(
+    dismissedUsageWarningAtom,
+  );
+
+  // The turn the conversation ended on: its last reply, unless something has
+  // been said since. Context the session records after a turn is neither.
+  const last = messages.findLast(
+    (message) => message.role === "assistant" || message.role === "user",
+  );
+  const refused =
+    !isAgentRunning && last?.role === "assistant" ? last : undefined;
+  const refusal = refused ? parsePlatformApiError(refused) : null;
+  const refusedId = refusal ? refused?.id : undefined;
+
+  // A finished turn spent some of the plan and a refusal is news about the
+  // account, so what billing says is read again as each turn ends rather than
+  // at the next focus: that is what moves the 80% line and the notices.
+  useEffect(() => {
+    if (!isAgentRunning && isSignedIn) {
+      void refetch();
+    }
+  }, [isAgentRunning, refusedId, isSignedIn, refetch]);
+
+  const now = new Date();
+  const notice =
+    refused && refusal
+      ? refusalNotice({
+          now,
+          offer,
+          refusal,
+          refusedAt: new Date(refused.metadata.createdAt),
+          status,
+          statusReadAt: dataUpdatedAt,
+        })
+      : undefined;
+  const noticeKey = notice && refused ? `${refused.id}:${notice.kind}` : null;
+
+  const act = (kind: BillingNoticeAction) => {
+    switch (kind) {
+      case "choose-plan": {
+        openPlanSheet();
+        break;
+      }
+      case "continue": {
+        setDismissedNotice(noticeKey);
+        onContinue?.();
+        break;
+      }
+      case "update-card": {
+        portal.mutate(undefined);
+        break;
+      }
+      case "upgrade": {
+        openPlanSheet({ preselect: upgradePlan(offer, status)?.key });
+        break;
+      }
+      default: {
+        kind satisfies never;
+      }
+    }
+  };
+
+  if (notice && noticeKey !== dismissedNotice) {
+    const copy = noticeCopy(notice, now);
+    const isGood = notice.kind === "resumed";
+    return (
+      <div
+        className={cn(
+          "mb-2 flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 shadow-xs ring-1",
+          isGood
+            ? "ring-black/7 dark:ring-white/10"
+            : "ring-warning-300 dark:ring-warning-700",
+        )}
+        data-billing-notice={notice.kind}
+        role="status"
+      >
+        <span
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-full",
+            isGood
+              ? "bg-brand-50 text-brand-700 dark:bg-brand-900 dark:text-brand-200"
+              : "bg-warning-50 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300",
+          )}
+        >
+          {isGood ? (
+            <CheckIcon className="size-4" />
+          ) : (
+            <PauseIcon className="size-4" weight="fill" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold">{copy.title}</div>
+          <div className="text-xs text-muted-foreground">{copy.line}</div>
+        </div>
+        {copy.action && (
+          <Button
+            className="shrink-0 rounded-full px-4"
+            disabled={copy.action.kind === "update-card" && portal.isPending}
+            onClick={() => {
+              if (copy.action) {
+                act(copy.action.kind);
+              }
+            }}
+            size="sm"
+            variant="brand"
+          >
+            {copy.action.label}
+          </Button>
+        )}
+        <DismissButton
+          onDismiss={() => {
+            setDismissedNotice(noticeKey);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const warning = usageWarning(isSignedIn ? status : undefined);
+  if (!warning || warning.key === dismissedWarning) {
+    return null;
+  }
+  const canGoUp =
+    warning.kind === "trial" || upgradePlan(offer, status) !== undefined;
+  return (
+    <div
+      className="mb-2 flex h-8 items-center gap-2 rounded-lg bg-card/70 px-2.5 text-xs text-muted-foreground ring-1 ring-black/6 dark:ring-white/10"
+      data-billing-usage-warning={warning.kind}
+      role="status"
+    >
+      <GaugeIcon className="size-3.5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">
+        {usageWarningText(warning, now)}
+      </span>
+      {canGoUp && (
+        <Button
+          className="h-auto shrink-0 p-0 text-xs font-semibold text-muted-foreground underline decoration-current/30 underline-offset-2"
+          onClick={() => {
+            openPlanSheet({
+              preselect:
+                warning.kind === "trial"
+                  ? undefined
+                  : upgradePlan(offer, status)?.key,
+            });
+          }}
+          variant="link"
+        >
+          See plans
+        </Button>
+      )}
+      <DismissButton
+        onDismiss={() => {
+          setDismissedWarning(warning.key);
+        }}
+      />
+    </div>
+  );
+}
+
+function DismissButton({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <Button
+      aria-label="Dismiss"
+      className="size-6 shrink-0 text-muted-foreground/70"
+      onClick={onDismiss}
+      size="icon-sm"
+      variant="ghost"
+    >
+      <XIcon className="size-3.5" />
+    </Button>
+  );
+}

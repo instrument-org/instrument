@@ -5,6 +5,7 @@ import {
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 
 import { openSettings } from "../atoms/settings-modal";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
+import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
@@ -21,6 +23,7 @@ import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
+import { Spinner } from "./ui/spinner";
 
 interface ErrorAction {
   label: string;
@@ -80,17 +83,28 @@ export function MessageError({
   }
 
   const platformError = parsePlatformApiError(message);
+  // A turn our platform turned away for the plan ends on one plain line: the
+  // way forward is the notice over the reply box, not a card in the
+  // transcript. Too many tasks at once is a wait while the turn waits it out.
+  const stopLine = platformError ? stopLineText(platformError) : undefined;
+  if (stopLine) {
+    if (platformError?.code === "concurrency-limit") {
+      if (isLastMessage && isAgentRunning) {
+        return <WaitingForCapacityLine />;
+      }
+      if (!isLastMessage) {
+        return null;
+      }
+    }
+    return <BillingStopLine text={stopLine} />;
+  }
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, a plan they have since chosen or a window that has
-  // since reset, or a throttle the machine waited out before the turn that
-  // followed succeeded.
+  // stopped themselves, or a throttle the machine waited out before the turn
+  // that followed succeeded.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    ((platformError?.code === "subscription-required" ||
-      platformError?.code === "usage-limit-exceeded") &&
-      !isLastMessage) ||
     ((classification === "rate-limit" || classification === "transient") &&
       !isLastMessage);
   if (isHiddenFromReader && !isDeveloperMode) {
@@ -142,7 +156,6 @@ export function MessageError({
     onModelChange,
     onRunAgain,
     openLink,
-    platformCode: platformError?.code,
     provider,
   });
 
@@ -225,55 +238,19 @@ export function MessageError({
 }
 
 /**
- * Our platform's refusals of a hosted request, said for the person rather
- * than the integrator. The two that need the user (no plan, a spent window)
- * name what to do; the two that clear on their own say so. Undefined for a
- * code with no wording of its own here.
+ * Our platform's refusals of a hosted request that are still errors, said for
+ * the person rather than the integrator. The plan's refusals end the turn on
+ * a stop line instead (`stopLineText`). Undefined for a code with no wording
+ * of its own here.
  */
 function describePlatformRefusal(
   platformError: NonNullable<ReturnType<typeof parsePlatformApiError>>,
 ): undefined | { detail: string; summary: string } {
   switch (platformError.code) {
-    case "concurrency-limit": {
-      return {
-        detail: `Too many of your tasks are using ${APP_NAME}'s models at once. Try again when one finishes.`,
-        summary: "Too many tasks at once",
-      };
-    }
     case "meter-unavailable": {
       return {
         detail: `${APP_NAME} couldn't check your usage just now. Try again in a moment.`,
         summary: "Usage check unavailable",
-      };
-    }
-    case "subscription-required": {
-      return {
-        detail:
-          platformError.message ?? "Choose a plan to keep using our models.",
-        summary:
-          platformError.reason === "trial-ended" ||
-          platformError.reason === "trial-used"
-            ? "Free trial ended"
-            : "Plan required",
-      };
-    }
-    case "usage-limit-exceeded": {
-      const resetsAt = platformError.resetsAt
-        ? new Date(platformError.resetsAt)
-        : undefined;
-      const resets =
-        resetsAt && !Number.isNaN(resetsAt.getTime())
-          ? ` It resets ${resetsAt.toLocaleString(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}.`
-          : "";
-      const allowance = platformError.window
-        ? `your plan's ${platformError.window} allowance`
-        : "your plan's allowance";
-      return {
-        detail: `You've used ${allowance}.${resets} Switch to another model, or bring your own key, to keep going now.`,
-        summary: "Usage limit reached",
       };
     }
     default: {
@@ -349,7 +326,6 @@ function errorActions({
   onModelChange,
   onRunAgain,
   openLink,
-  platformCode,
   provider,
 }: {
   autoModelURI: AIGatewayModelURI.Type | undefined;
@@ -358,7 +334,6 @@ function errorActions({
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
   openLink: ReturnType<typeof useOpenExternalLink>;
-  platformCode: string | undefined;
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain
@@ -380,24 +355,6 @@ function errorActions({
           toast.success("Switched to Auto");
         },
       },
-    ];
-  }
-  // Where the account's plan and usage are shown, and a plan is chosen.
-  if (
-    platformCode === "subscription-required" ||
-    platformCode === "usage-limit-exceeded"
-  ) {
-    return [
-      {
-        label:
-          platformCode === "subscription-required"
-            ? "Choose a plan"
-            : "See usage",
-        onClick: () => {
-          openSettings({ tab: "General" });
-        },
-      },
-      ...tryAgain,
     ];
   }
   if (classification === "usage-limit") {
@@ -507,4 +464,35 @@ function providerSentence(error: MessageErrorData): string {
     }
   }
   return error.message;
+}
+
+/** How a turn our platform turned away for the plan ends: one plain line. */
+function BillingStopLine({ text }: { text: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-1 text-xs text-muted-foreground"
+      data-billing-stop-line
+    >
+      <PauseCircleIcon className="size-3.5 shrink-0" />
+      {text}
+    </div>
+  );
+}
+
+/**
+ * The turn waiting its place behind the person's other tasks on our models,
+ * drawn as work in flight: it starts on its own when one of them finishes.
+ */
+function WaitingForCapacityLine() {
+  return (
+    <div
+      className="flex items-center gap-2 px-1 text-xs"
+      data-billing-waiting-line
+    >
+      <Spinner className="size-3.5 text-muted-foreground" delay={0} />
+      <span className="brand-shiny-text">
+        Waiting for one of your other tasks to finish
+      </span>
+    </div>
+  );
 }

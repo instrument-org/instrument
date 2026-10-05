@@ -33,6 +33,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { ChatBillingNotice } from "../billing/chat-billing-notice";
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
@@ -516,6 +517,11 @@ export function TaskChat({
             <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
+              <ChatBillingNotice
+                isAgentRunning={isAgentRunning}
+                messages={messages}
+                onContinue={handleRunAgain}
+              />
               {beforeComposer}
               {replyTo && (
                 <ComposerReplyQuote

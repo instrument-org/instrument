@@ -325,7 +325,13 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
       className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
       {...opening(onOpen)}
       onContextMenu={onContextMenu}
-      title={waiting ? `${app.name}: ${waiting}` : app.name}
+      title={
+        waiting
+          ? `${app.name}: ${waiting}`
+          : app.account
+            ? `${app.name}: ${app.account}`
+            : app.name
+      }
       type="button"
     >
       <AppIcon
@@ -341,9 +347,11 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
       <span className="w-full truncate text-[13px] leading-4 font-medium">
         {app.name}
       </span>
-      {waiting ? (
+      {/* Under the name, what it waits for, or else which account it is,
+          so two of one service read apart. */}
+      {waiting || app.account ? (
         <span className="-mt-1 w-full truncate text-[11px] leading-4 text-muted-foreground">
-          {waiting}
+          {waiting ?? app.account}
         </span>
       ) : null}
     </button>

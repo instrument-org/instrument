@@ -37,6 +37,7 @@ import {
   readAppGuide,
   recordConnection,
   removeLocalServer,
+  setAppAccount,
   requireAppCredential,
   runAppTest,
   searchAppCatalogByMeaning,
@@ -69,6 +70,8 @@ const AppStandingSchema = z.enum([
 ]);
 
 const AppListItemSchema = z.object({
+  /** Which account of the service the app is signed in as, when the agent or the user named it. */
+  account: z.string().optional(),
   authKind: z.string(),
   connection: AppConnectionSchema.optional(),
   /**
@@ -189,6 +192,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
                 : "stale"
               : connection.status;
         return {
+          ...(app.manifest.account ? { account: app.manifest.account } : {}),
           // A web app has no auth binding: the user signs in on the site.
           authKind:
             app.manifest.type === "web" ? "web" : app.manifest.auth.kind,
@@ -679,6 +683,23 @@ const markWebSignedIn = base
     await appChanged(input.slug, { event: "connected" });
   });
 
+/** The user naming the account an app is signed in as, or clearing the name. */
+const setAccount = base
+  .input(
+    z.object({
+      account: z.string().trim().max(120).optional(),
+      slug: AppSlugSchema,
+    }),
+  )
+  .handler(async ({ context, input }) => {
+    await setAppAccount(
+      context.workspaceConfig.appsDir,
+      input.slug,
+      input.account === "" ? undefined : input.account,
+    );
+    await appChanged(input.slug);
+  });
+
 /** "Not now" on the card. */
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
@@ -737,6 +758,7 @@ export const apps = {
   markWebSignedIn,
   read,
   remove,
+  setAccount,
   setCredential,
   startOAuth,
   test,

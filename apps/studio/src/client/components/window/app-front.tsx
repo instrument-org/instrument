@@ -39,7 +39,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** How many of the pages visited in the app its front lists. */
@@ -94,6 +94,16 @@ export function AppFront({
     (app.type === "mcp-local" ||
       /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint));
   const [reading, setReading] = useState<InspectorReading>();
+  const [isNaming, setIsNaming] = useState(false);
+  const setAccount = useMutation(
+    rpcClient.apps.setAccount.mutationOptions({
+      onError: (error) => {
+        toast.error("Could not name the account", {
+          description: error.message,
+        });
+      },
+    }),
+  );
   const screen = {
     app: {
       name,
@@ -225,6 +235,13 @@ export function AppFront({
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem
+                      onSelect={() => {
+                        setIsNaming(true);
+                      }}
+                    >
+                      {app.account ? "Rename the account" : "Name the account"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       disabled={test.isPending}
                       onSelect={() => {
                         test.mutate({ slug });
@@ -255,8 +272,24 @@ export function AppFront({
                 </DropdownMenu>
               ) : null}
             </div>
-            {/* The directory's one line about the app under its name. */}
-            {entry?.tagline ? (
+            {/* Which account it is, when that is named, so two of one
+                service can be told apart; otherwise the directory's one line
+                about the app. Naming it turns the line into a field. */}
+            {isNaming && app ? (
+              <AccountField
+                initial={app.account ?? ""}
+                onDone={(account) => {
+                  setIsNaming(false);
+                  if (account !== undefined) {
+                    setAccount.mutate({ account, slug });
+                  }
+                }}
+              />
+            ) : app?.account ? (
+              <p className="truncate text-xs leading-5 text-muted-foreground">
+                {app.account}
+              </p>
+            ) : entry?.tagline ? (
               <p className="truncate text-xs leading-5 text-muted-foreground">
                 {entry.tagline}
               </p>
@@ -451,5 +484,53 @@ export function AppFront({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The account line as a field: Enter keeps what was typed (an empty field
+ * clears the name), Escape or leaving it keeps the name as it was.
+ */
+function AccountField({
+  initial,
+  onDone,
+}: {
+  initial: string;
+  /** The name to keep, or undefined to leave it as it was. */
+  onDone: (account: string | undefined) => void;
+}) {
+  const [value, setValue] = useState(initial);
+  // Saving takes the field away, which can blur it on the way out; the
+  // first ending is the one that counts.
+  const ended = useRef(false);
+  const end = (account: string | undefined) => {
+    if (!ended.current) {
+      ended.current = true;
+      onDone(account);
+    }
+  };
+  return (
+    <input
+      aria-label="Account"
+      autoFocus
+      className="h-5 w-full max-w-xs rounded-sm bg-transparent text-xs leading-5 text-foreground ring-1 ring-border outline-none focus-visible:ring-brand-500/40"
+      onBlur={() => {
+        end(undefined);
+      }}
+      onChange={(event) => {
+        setValue(event.target.value);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          end(value.trim());
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          end(undefined);
+        }
+      }}
+      placeholder="jeremy@example.com"
+      value={value}
+    />
   );
 }

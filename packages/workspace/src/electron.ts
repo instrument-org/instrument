@@ -58,6 +58,7 @@ export {
   readDirectoryIcons,
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
+export { setUpFromDirectory } from "./lib/apps/set-up";
 export {
   listApps,
   loadApp,

@@ -64,6 +64,12 @@
       "pulls": [
         { "number": 527, "commit": "82cb4a7fecd3a8f8d314f1eae9761b1ee50b3688" }
       ]
+    },
+    {
+      "name": "pathlib glob",
+      "pulls": [
+        { "number": 544, "commit": "da2e87cf2c0428fb0b0989e218ccdec477046dbf" }
+      ]
     }
   ]
 }

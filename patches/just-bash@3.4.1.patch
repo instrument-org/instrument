@@ -231,7 +231,7 @@ index de25810f8acb9e0a0a8e680f8de41d36768ae88e..ddaf543f61c916224e38a38bf4ebdc31
 -import{a,b}from"./chunk-UXHSH7BM.js";import"./chunk-TDD4NFYE.js";import"./chunk-JA6EY7US.js";import"./chunk-ZBUZKIPX.js";import"./chunk-EFORKKSH.js";import"./chunk-GN6CQ3J4.js";import"./chunk-QIQMJJZ4.js";import"./chunk-QAYAQNCG.js";import"./chunk-NCUTH6QL.js";export{b as flagsForFuzzing,a as statCommand};
 +import{a,b}from"./chunk-UXHSH7BM.js";import"./chunk-TDD4NFYE.js";import"./chunk-JA6EY7US.js";import"./chunk-ZBUZKIPX.js";import"./chunk-UHHCL65P.js";import"./chunk-6D3WD6YU.js";import"./chunk-EFORKKSH.js";import"./chunk-GN6CQ3J4.js";import"./chunk-QIQMJJZ4.js";import"./chunk-QAYAQNCG.js";import"./chunk-NCUTH6QL.js";export{b as flagsForFuzzing,a as statCommand};
 diff --git a/dist/bundle/chunks/worker.js b/dist/bundle/chunks/worker.js
-index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..dd2f7fa0f04c34649a936d83428779411f369b47 100644
+index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..d630a9e380b6bfbc24ebd863072ef3a1756a3335 100644
 --- a/dist/bundle/chunks/worker.js
 +++ b/dist/bundle/chunks/worker.js
 @@ -2300,7 +2300,7 @@ function createHOSTFS(backend, FS, PATH, configuredMaxFileSize) {
@@ -278,6 +278,30 @@ index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..dd2f7fa0f04c34649a936d8342877941
            if (isCreate && isWrite) {
              content = new Uint8Array(0);
            } else {
+@@ -2855,9 +2863,9 @@ def _path_iterdir(self):
+ Path.iterdir = _path_iterdir
+ 
+ Path._orig_glob = Path.glob
+-def _path_glob(self, pattern):
++def _path_glob(self, pattern, *args, **kwargs):
+     redirected = _redirect_path(self)
+-    for p in redirected._orig_glob(pattern):
++    for p in redirected._orig_glob(pattern, *args, **kwargs):
+         s = str(p)
+         if s.startswith('/host'):
+             yield Path(s[5:])
+@@ -2866,9 +2874,9 @@ def _path_glob(self, pattern):
+ Path.glob = _path_glob
+ 
+ Path._orig_rglob = Path.rglob
+-def _path_rglob(self, pattern):
++def _path_rglob(self, pattern, *args, **kwargs):
+     redirected = _redirect_path(self)
+-    for p in redirected._orig_rglob(pattern):
++    for p in redirected._orig_rglob(pattern, *args, **kwargs):
+         s = str(p)
+         if s.startswith('/host'):
+             yield Path(s[5:])
 @@ -3181,6 +3189,15 @@ async function runPython(input) {
      );
      Module = await createPythonModule({

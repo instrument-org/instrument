@@ -78,6 +78,19 @@ afterEach(async () => {
 });
 
 describe("python inside the sandbox", () => {
+  it("walks a folder tree with Path.rglob", async () => {
+    await fs.mkdir(path.join(attachedDir, "a", "b"), { recursive: true });
+    await fs.writeFile(path.join(attachedDir, "a", "one.pdf"), "");
+    await fs.writeFile(path.join(attachedDir, "a", "b", "two.PDF"), "");
+    const result = await run(
+      `python3 -c "from pathlib import Path; print(sorted(str(p) for p in Path('/mnt/Docs').rglob('*.pdf', case_sensitive=False)))"`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe(
+      "['/mnt/Docs/a/b/two.PDF', '/mnt/Docs/a/one.pdf']\n",
+    );
+  });
+
   it("exits with the script's own status", async () => {
     const ok = await run(`python -c "print(1 + 2)"`);
     expect(ok).toMatchObject({ exitCode: 0, stderr: "", stdout: "3\n" });

@@ -2,13 +2,14 @@ import { promptDraftRefAtom } from "@/client/atoms/prompt-value";
 // Asks staged on files in this window: the places the person marked for
 // Instrument, held in memory until a composer sends them, with the hooks each
 // surface uses to stage, list, move and reveal them.
-import { windowTabsAtom } from "@/client/atoms/window";
 import {
   type SessionMessageDataPart,
   StoreId,
 } from "@instrument-org/workspace/client";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useContext, useEffect, useRef } from "react";
+
+import { groupOnScreenAtom } from "./window-tabs";
 
 import { WindowContext } from "./context";
 import { mountOfHostPath } from "./file-tabs";
@@ -257,7 +258,7 @@ export function useMoveAsks() {
  * Ask moves; with none, a new draft takes it.
  */
 function useChatBeside(): StoreId.Session | undefined {
-  const { group } = useAtomValue(windowTabsAtom);
+  const group = useAtomValue(groupOnScreenAtom);
   const parsed = StoreId.SessionSchema.safeParse(group);
   return parsed.success ? parsed.data : undefined;
 }

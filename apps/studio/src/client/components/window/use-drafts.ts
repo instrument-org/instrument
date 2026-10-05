@@ -4,6 +4,7 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
+  forgetDraftWords,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
@@ -19,7 +20,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
@@ -29,7 +30,8 @@ import { type DraftSend } from "./compose-window";
 import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
-import { isHomeTab, type useWindowTabs } from "./window-tabs";
+import { isHomeTab } from "./tab-model";
+import { type useWindowTabs } from "./window-tabs";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
@@ -133,7 +135,7 @@ export function useDrafts({
     // What the draft is opened over: the tab in view, when it is something
     // the conversation can be told about: the tab open in the chat's pane
     // beside it, or a site the tab up shows.
-    const overGroup = windowTabs.group;
+    const overGroup = windowTabs.groupOnScreen;
     const over =
       overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
         ? windowTabs.tabUpIn(overGroup)
@@ -171,7 +173,7 @@ export function useDrafts({
     };
     setDrafts((current) => [...current, draft]);
     windowTabs.openScreen(NEW_TAB_HREF, {
-      activate: true,
+      select: true,
       group: draftGroupOf(draft.id),
     });
     showDraft(draft.id);
@@ -190,12 +192,19 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
-  // What a draft's composer held is kept only as long as the draft: a
-  // composer unmounting keeps its snapshot as it goes, so a draft sent or
-  // thrown away is pruned here, after that.
+  // What a draft's composer held, and its words, are kept only as long as
+  // the draft: a composer unmounting keeps its snapshot as it goes, so a
+  // draft sent or thrown away is pruned here, after that.
   const draftIds = drafts.map((draft) => draft.id).join("\n");
+  const knownDraftIds = useRef(new Set<string>());
   useEffect(() => {
     const keep = new Set(draftIds.split("\n"));
+    for (const id of knownDraftIds.current) {
+      if (!keep.has(id)) {
+        forgetDraftWords(id);
+      }
+    }
+    knownDraftIds.current = keep;
     setDraftSnapshots((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([id]) => keep.has(id)),
@@ -345,7 +354,7 @@ export function useDrafts({
       if (homes.length === own.length) {
         windowTabs.dropGroup(group);
       } else {
-        windowTabs.adoptGroup(group, sessionId, { show: false });
+        windowTabs.adoptGroup(group, sessionId);
       }
     })();
   };

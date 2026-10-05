@@ -10,7 +10,8 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
-import { isFreshTab, parseHref } from "./window-tabs";
+import { isFreshTab } from "./tab-model";
+import { parseHref } from "./window-href";
 
 /**
  * What stands behind a draft now, when it is something other than what the

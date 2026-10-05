@@ -8,8 +8,7 @@ import {
   inboxOpenAtom,
   pageSlotsAtom,
   paneOpenByGroupAtom,
-  screenViewAtom,
-  windowTabsAtom,
+  screenViewsAtom,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -35,6 +34,7 @@ import {
   TabIdProvider,
 } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
@@ -69,13 +69,12 @@ import {
   RouterProvider,
   useRouterState,
 } from "@tanstack/react-router";
-import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
 import { AppTabStrip } from "./app-tab-strip";
-import { withGroupScreensOnly } from "./group-screen";
 import {
   appTabsAtom,
   groupOfHref,
@@ -99,12 +98,11 @@ import { ChatPane } from "./chat-pane";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { InboxPeek } from "./inbox-peek";
-import { tabStepsAtom } from "./tab-steps";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
 import {
-  type PageSlot,
+  pageSlotByTabAtom,
   type WindowShell as Shell,
   ShellContext,
 } from "./shell-context";
@@ -117,12 +115,14 @@ import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "./use-record-recents";
+import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { chatOfHref, useWindowTabs } from "./window-tabs";
+import { chatOfHref } from "./window-href";
+import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -143,12 +143,6 @@ const RETIRED_GROUPS = [
  * along the foot, the window's browser, and its chords.
  */
 export function AppWindow() {
-  // Tabs kept from a launch that let a group hold a screen it cannot draw
-  // go, once, before anything is opened beside them.
-  const setWindowTabs = useSetAtom(windowTabsAtom);
-  useEffect(() => {
-    setWindowTabs(withGroupScreensOnly);
-  }, [setWindowTabs]);
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);
@@ -279,7 +273,6 @@ function WindowShell({
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
-  const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
@@ -306,24 +299,14 @@ function WindowShell({
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
+  // What the window's arrows and chords walk: the tab up's history, through
+  // a site's page first.
+  const windowSteps = useWindowSteps();
+  // Every screen a group's tab stands on is walked by a router of its own.
+  useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   const place = placeOfHref(activeHref);
   const isChat = isChatHref(activeHref);
 
-  // The group on screen is the tab up's: its chat's tabs, a site's page, or
-  // nothing for a screen that is its route. The window's browser, the
-  // openers and what goes with a message all read it from there.
-  const groupOnScreen = groupOfHref(activeHref);
-  useEffect(() => {
-    if (windowTabs.group === groupOnScreen) {
-      return;
-    }
-    if (groupOnScreen === undefined) {
-      windowTabs.leaveGroup();
-    } else {
-      windowTabs.showGroup(groupOnScreen);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupOnScreen, windowTabs.group]);
   // The chat a tab last had open is where Chat in the rail takes a tab.
   useEffect(() => {
     if (!isChat) {
@@ -431,22 +414,22 @@ function WindowShell({
   };
   /** Brings the pane up for the group on screen, for something opened into it. */
   const revealPane = () => {
-    if (windowTabs.group !== undefined) {
-      setPaneOpen(windowTabs.group, true);
+    if (windowTabs.groupOnScreen !== undefined) {
+      setPaneOpen(windowTabs.groupOnScreen, true);
     }
   };
   // The pages screens draw into slots of their own (a page's file beside a
   // file tab's tree), shown while the screen that made the slot is up.
   const pageSlots = useAtomValue(pageSlotsAtom);
   const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, { insideOverlay, into, layer }]) =>
+    ([group, { insideOverlay, into, isShown = true, layer }]) =>
       into
         ? [
             {
               chrome: false,
               group,
               into,
-              isActive: true,
+              isActive: isShown,
               ...(layer === undefined ? {} : { layer }),
               ...(insideOverlay ? { insideOverlay } : {}),
               place: `${group}:${rowWidth}`,
@@ -458,7 +441,8 @@ function WindowShell({
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
-  const [pageSlot, setPageSlot] = useState<null | PageSlot>(null);
+  const pageSlot =
+    useAtomValue(pageSlotByTabAtom)[appTabs.model.selectedId ?? ""] ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";
@@ -574,6 +558,19 @@ function WindowShell({
     canPeek: !isChat || (chatUp !== undefined && !isInboxOpen),
   });
 
+  // What the tab in view says it shows: a chat's or a site's tab up while
+  // its pane is open, or the screen the window's tab is at.
+  const screenViews = useAtomValue(screenViewsAtom);
+  const groupUp = windowTabs.active;
+  const groupInView = windowTabs.groupOnScreen;
+  const screenView =
+    groupInView === undefined
+      ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
+      : groupUp?.kind === "screen" &&
+          (!StoreId.SessionSchema.safeParse(groupInView).success ||
+            (paneOpenByGroup[groupInView] ?? true))
+        ? (screenViews[groupUp.id] ?? null)
+        : null;
   // What goes with a message, read at the moment of sending.
   const finders = useAtomValue(findersByTabAtom);
   const { draftContext, sendContext } = contextReaders({
@@ -624,12 +621,7 @@ function WindowShell({
   useWindowCommands(
     {
       back: () => {
-        const steps = getDefaultStore().get(tabStepsAtom);
-        if (steps) {
-          steps.back();
-        } else {
-          appTabs.activeRouter?.history.back();
-        }
+        windowSteps.go("back");
       },
       closeTab: () => {
         if (appTabs.model.selectedId) {
@@ -637,12 +629,7 @@ function WindowShell({
         }
       },
       forward: () => {
-        const steps = getDefaultStore().get(tabStepsAtom);
-        if (steps) {
-          steps.forward();
-        } else {
-          appTabs.activeRouter?.history.forward();
-        }
+        windowSteps.go("forward");
       },
       newChat: newDraft,
       newTab: appTabs.openNewTab,
@@ -790,7 +777,6 @@ function WindowShell({
     onNewTopic: (name) => {
       setNewTopic(name ? { name } : {});
     },
-    reportPageSlot: setPageSlot,
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
@@ -812,7 +798,7 @@ function WindowShell({
           <WindowFrame
             bar={
               <WindowBar
-                leading={<NavControls />}
+                leading={<NavControls steps={windowSteps} />}
                 tabs={
                   <AppTabStrip
                     chatTitles={chatTitles}

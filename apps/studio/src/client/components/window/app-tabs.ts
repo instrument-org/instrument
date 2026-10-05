@@ -28,7 +28,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
 import { DISCOVER_HREF } from "./ideas";
-import { chatOfHref, parseHref } from "./window-tabs";
+import { chatOfHref, parseHref } from "./window-href";
 
 /** The chat with no chat open: the inbox, and where every new tab opens. */
 export const INBOX_HREF = "/chats";

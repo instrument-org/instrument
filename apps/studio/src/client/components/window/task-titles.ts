@@ -1,10 +1,10 @@
-import { windowTabsAtom } from "@/client/atoms/window";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
 
 import { appTabsAtom } from "./app-tabs";
 import { useTaskTitlesOf } from "./child-tasks-query";
 import { tasksOfHref } from "./tab-location";
+import { windowTabsAtom } from "./window-tabs";
 
 /**
  * Each title of a task a tab stands on, by the task's id: a task's page

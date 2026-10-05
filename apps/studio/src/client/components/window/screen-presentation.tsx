@@ -26,7 +26,7 @@ import {
   tasksOfHref,
   type Volume,
 } from "./tab-location";
-import { parseHref } from "./window-tabs";
+import { parseHref } from "./window-href";
 
 /**
  * What an address alone cannot say about a screen: the names of the things

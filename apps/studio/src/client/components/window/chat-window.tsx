@@ -31,14 +31,10 @@ import {
   COMPOSE_MOTION,
   GROWN,
 } from "./compose-layout";
-import {
-  BarMarks,
-  GroupItem,
-  IncludedChip,
-  WindowButton,
-} from "./compose-window";
+import { BarMarks, IncludedChip, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { GroupItem } from "./group-item";
 import { isGroupShown, isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
@@ -223,8 +219,8 @@ export function ChatWindow({
   const behindTab = windowTabs.active;
   const behind =
     behindTab !== undefined &&
-    windowTabs.group !== sessionId &&
-    isGroupShown(windowTabs.group, paneOpenByGroup) &&
+    windowTabs.groupOnScreen !== sessionId &&
+    isGroupShown(windowTabs.groupOnScreen, paneOpenByGroup) &&
     isIncludable(behindTab)
       ? behindTab
       : undefined;
@@ -250,39 +246,32 @@ export function ChatWindow({
     onPlacementChange("expanded");
   };
   const select = (id: string) => {
-    windowTabs.selectIn(sessionId, id);
+    windowTabs.select(id);
     showUp();
   };
-  // Closing a tab moves to the one before it, the way the strip does; the
-  // tab model only does that for the group on screen.
+  // The tab before it comes up in its place; the view goes with the last.
   const closeTab = (id: string) => {
-    const index = tabs.findIndex((tab) => tab.id === id);
-    const neighbor = tabs[index - 1] ?? tabs[index + 1];
     onCloseTab(id);
-    if (up?.id === id) {
-      if (neighbor) {
-        windowTabs.selectIn(sessionId, neighbor.id);
-      } else {
-        setViewOpen(false);
-      }
+    if (up?.id === id && tabs.length === 1) {
+      setViewOpen(false);
     }
   };
   // A new tab each time: the person asked for another, even of a kind the
   // chat already has open.
   const openHere = (href: string) => {
     windowTabs.openScreen(href, {
-      activate: true,
       group: sessionId,
       isOpened: true,
+      select: true,
     });
     showUp();
   };
   /** The chat's tasks or one of them, up large in this window: the tab already at that address, or a new one. */
   const openTasksHere = (href: string) => {
     windowTabs.openOrFocusScreen(href, {
-      activate: true,
       group: sessionId,
       isOpened: true,
+      select: true,
     });
     showUp();
   };

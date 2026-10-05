@@ -220,11 +220,57 @@ export function getGuestGeneration(
   return pool.get(targetId)?.generation;
 }
 
-/** Who walks each page's tab when a thumb button is pressed over it, by the page's target. */
+/**
+ * Who walks each page's tab when a step is asked of the page (a thumb button
+ * over it, a history chord in it, its menu's Back or Forward, its panel's
+ * arrows), by the page's target.
+ */
 const thumbHandlers = new Map<
   BrowserTargetId,
   (direction: "back" | "forward") => void
 >();
+
+/**
+ * Guests the window stepped through their own history, by target, until the
+ * navigation the step makes is seen: a step is not a page going somewhere
+ * new, and does not drop what its tab had ahead of it.
+ */
+const traversals = new Set<BrowserTargetId>();
+
+/**
+ * Steps a guest through its own history, marked as a step for whoever hears
+ * the navigation it makes. False when the guest has nowhere to go that way
+ * or has not attached.
+ */
+export function goGuest(
+  targetId: BrowserTargetId,
+  direction: "back" | "forward",
+): boolean {
+  const webview = pool.get(targetId)?.webview;
+  if (!webview) {
+    return false;
+  }
+  try {
+    if (direction === "back" ? !webview.canGoBack() : !webview.canGoForward()) {
+      return false;
+    }
+    traversals.add(targetId);
+    if (direction === "back") {
+      webview.goBack();
+    } else {
+      webview.goForward();
+    }
+    return true;
+  } catch {
+    // Not attached yet: there is no history to step.
+    return false;
+  }
+}
+
+/** Whether the guest's latest navigation was a step `goGuest` made, which this answers once. */
+export function takeGuestTraversal(targetId: BrowserTargetId): boolean {
+  return traversals.delete(targetId);
+}
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(
@@ -319,6 +365,29 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runPageSteps() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.events.stepPage.call(
+          undefined,
+          { signal },
+        );
+        for await (const { direction, targetId } of subscription) {
+          stepPage(targetId, direction);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   async function runGuestSurfaces() {
     while (true) {
       if (signal.aborted) {
@@ -350,6 +419,7 @@ export function initBrowserPool(): () => void {
   void runFocusRestores();
   void runGuestFocusRequests();
   void runGuestSurfaces();
+  void runPageSteps();
 
   return () => {
     controller.abort();
@@ -384,22 +454,16 @@ export function stepFocusedPage(direction: "back" | "forward"): boolean {
  * into the tab's own history at either end; with none, the page steps its
  * own history, as a browser would.
  */
-function stepPage(targetId: BrowserTargetId, direction: "back" | "forward") {
+export function stepPage(
+  targetId: BrowserTargetId,
+  direction: "back" | "forward",
+) {
   const handler = thumbHandlers.get(targetId);
   if (handler) {
     handler(direction);
     return;
   }
-  const webview = pool.get(targetId)?.webview;
-  try {
-    if (direction === "back" && webview?.canGoBack()) {
-      webview.goBack();
-    } else if (direction === "forward" && webview?.canGoForward()) {
-      webview.goForward();
-    }
-  } catch {
-    // Not attached yet: there is no history to step.
-  }
+  goGuest(targetId, direction);
 }
 
 /**

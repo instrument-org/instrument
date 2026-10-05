@@ -37,7 +37,7 @@ import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getWebviewElement, stepPage } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
   type EmulatedDevice,
@@ -103,6 +103,7 @@ export function TaskBrowserPanel({
   onEditSource,
   pageControls,
   relayoutKey,
+  restoreUrl,
   sessionId,
   sliding,
   taskId,
@@ -143,6 +144,12 @@ export function TaskBrowserPanel({
   pageControls?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
   relayoutKey?: string;
+  /**
+   * Where the page goes when its guest comes up blank and its session
+   * recorded no page of its own: the address a window tab remembers its page
+   * at, which brings the page back after a launch or a reap.
+   */
+  restoreUrl?: string | undefined;
   sessionId: StoreId.Session;
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
@@ -248,7 +255,13 @@ export function TaskBrowserPanel({
       return;
     }
     autoOpenedRef.current.add(targetId);
-    openBrowser({ id: taskId, sessionId });
+    openBrowser({
+      id: taskId,
+      sessionId,
+      ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
+    });
+    // Once per target: the address is only where a blank guest goes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
   // Track main-frame load failures so we can show a light error state.
@@ -712,7 +725,9 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="back">
               <Button
                 disabled={!active || !nav.canGoBack}
-                onClick={() => webviewFor()?.goBack()}
+                onClick={() => {
+                  stepPage(targetId, "back");
+                }}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -722,7 +737,9 @@ export function TaskBrowserPanel({
             <ToolbarTooltip chord="forward">
               <Button
                 disabled={!active || !nav.canGoForward}
-                onClick={() => webviewFor()?.goForward()}
+                onClick={() => {
+                  stepPage(targetId, "forward");
+                }}
                 size="icon-sm"
                 variant="ghost"
               >

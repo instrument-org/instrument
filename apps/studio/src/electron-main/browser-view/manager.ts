@@ -344,6 +344,9 @@ export function createBrowserViewManager(): BrowserViewManager {
           url,
         });
       },
+      step: (direction) => {
+        publisher.publish("browser.step-page", { direction, targetId });
+      },
     });
 
     attachDownloadHandler({ entries, session: guest.session });

@@ -28,7 +28,8 @@ import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type useCompose } from "./use-compose";
-import { parseHref, type useWindowTabs } from "./window-tabs";
+import { parseHref } from "./window-href";
+import { type useWindowTabs } from "./window-tabs";
 
 /** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
 const PAGE_READ_MS = ms("5 seconds");
@@ -63,7 +64,7 @@ export interface SendContextWindow {
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
-    "active" | "allTabs" | "group" | "tabUpIn"
+    "active" | "allTabs" | "groupOnScreen" | "tabUpIn"
   >;
 }
 
@@ -359,7 +360,7 @@ export function contextReaders({
   const windowShown = async (
     sessionId: StoreId.Session,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
-    if (windowTabs.group === sessionId) {
+    if (windowTabs.groupOnScreen === sessionId) {
       return;
     }
     if (active && isGroupShown(active.group, paneOpenByGroup)) {

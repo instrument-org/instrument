@@ -73,7 +73,7 @@ export type TabLocation =
       kind: "task";
       title: string;
     }
-  | { kind: "app"; name: string; site?: string }
+  | { icon?: string; kind: "app"; name: string; site?: string }
   | { kind: "apps" }
   | { kind: "chat"; title: string }
   | { kind: "folder"; path: string }

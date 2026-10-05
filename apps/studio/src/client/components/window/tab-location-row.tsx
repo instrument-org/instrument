@@ -1,4 +1,3 @@
-import { PageFavicon } from "@/client/components/favicon";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FolderMark } from "@/client/components/window/folder-mark";
@@ -389,11 +388,12 @@ function locationMark(location: TabLocation): ReactNode {
     case "app": {
       return (
         <span className="flex size-3.5 shrink-0 items-center justify-center [&_img]:size-3.5 [&_svg]:size-3.5">
-          {location.site ? (
-            <AppIcon site={location.site} size="sm" />
-          ) : (
-            <PageFavicon url={undefined} />
-          )}
+          <AppIcon
+            icon={location.icon}
+            name={location.name}
+            site={location.site}
+            size="sm"
+          />
         </span>
       );
     }

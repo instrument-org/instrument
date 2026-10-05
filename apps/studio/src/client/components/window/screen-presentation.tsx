@@ -79,6 +79,7 @@ export function screenLocation(
     const app = appsBySlug.get(slug);
     return {
       kind: "app",
+      ...(app?.icon ? { icon: app.icon } : {}),
       name: app?.name ?? slug,
       ...(app?.site ? { site: app.site } : {}),
     };

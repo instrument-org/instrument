@@ -23,7 +23,7 @@ Step 5 stopped short of the RPC surface. The window keys a chat's tab group, its
 
 ## Addendum: the window and the agent on chat ids
 
-Status: active.
+Status: completed. Steps 1 and 2 landed as one commit, since the window's keys follow the routes' ids and a step between them would have rewritten every call site twice; it also moved the agent's window tab asks (`window.tab`) to the chat id and added `chats.session` for the chat screen. `chat read` and `tag` accept the start of a session as well as a whole one.
 
 What step 5 left: the renderer and the routes still name a chat by its session. Each step below is one commit that keeps both packages' types and suites green.
 

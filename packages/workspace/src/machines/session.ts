@@ -17,6 +17,7 @@ import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -262,6 +263,7 @@ export const sessionMachine = setup({
           id: input.taskId,
           sessionId: input.sessionId,
         });
+        recordChanged(input.taskId, "agent");
         previousTags = currentTags;
       }
     });
@@ -270,6 +272,7 @@ export const sessionMachine = setup({
       id: input.taskId,
       sessionId: input.sessionId,
     });
+    recordChanged(input.taskId, "agent");
 
     return {
       agent: input.agent,
@@ -500,6 +503,7 @@ export const sessionMachine = setup({
           id: context.taskId,
           sessionId: context.sessionId,
         });
+        recordChanged(context.taskId, "agent");
 
         context.parentRef.send({
           type: "session.done",

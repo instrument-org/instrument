@@ -14,6 +14,7 @@ import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
+import { recordChanged } from "../record-changes";
 import { chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
@@ -197,6 +198,7 @@ function announceMark(chatId: ChatId) {
   if (sessionId) {
     publisher.publish("session.updated", { id: chatId, sessionId });
   }
+  recordChanged(chatId, "state");
 }
 
 /** What every chat of a conversation is read against, loaded once per list. */

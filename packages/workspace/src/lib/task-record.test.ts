@@ -112,7 +112,7 @@ describe("updateTaskRecord", () => {
       name: "Test task",
     });
 
-    await updateTaskRecord(taskDir(taskId), (record) => ({
+    await updateTaskRecord(taskDir(taskId), "settings", (record) => ({
       ...record.raw,
       name: "Renamed",
     }));
@@ -190,7 +190,9 @@ describe("updateTaskRecord", () => {
   });
 
   it("leaves no temporary file behind", async () => {
-    await updateTaskRecord(taskDir(taskId), () => ({ name: "Test task" }));
+    await updateTaskRecord(taskDir(taskId), "settings", () => ({
+      name: "Test task",
+    }));
 
     const entries = await fs.readdir(getTaskPrivateDir(taskDir(taskId)));
 
@@ -205,7 +207,7 @@ describe("updateTaskRecord", () => {
     const long = "x".repeat(200_000);
     const reads: Promise<string>[] = [];
 
-    const write = updateTaskRecord(taskDir(taskId), (record) => ({
+    const write = updateTaskRecord(taskDir(taskId), "settings", (record) => ({
       ...record.raw,
       state: { selectedModelURI: long },
     }));
@@ -257,11 +259,11 @@ describe("updateTaskRecord", () => {
 
   it("serializes overlapping updates instead of losing one", async () => {
     await Promise.all([
-      updateTaskRecord(taskDir(taskId), (record) => ({
+      updateTaskRecord(taskDir(taskId), "settings", (record) => ({
         ...record.raw,
         name: "Named",
       })),
-      updateTaskRecord(taskDir(taskId), (record) => ({
+      updateTaskRecord(taskDir(taskId), "settings", (record) => ({
         ...record.raw,
         state: { selectedModelURI: "drafted" },
       })),

@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
+import { publisher } from "../rpc/publisher";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import {
@@ -36,6 +37,31 @@ async function storage() {
 }
 
 describe("session store storage", () => {
+  it("says once what each write changed, and nothing for a read", async () => {
+    const heard: string[] = [];
+    const handle = await storage();
+    const stop = publisher.subscribe("record.changed", (change) => {
+      if (change.id === taskId) {
+        heard.push(change.kind);
+      }
+    });
+    await handle.setItemRaw("messages:session:message", "{}");
+    await handle.setItemRaw("parts:session:message:part", "{}");
+    await handle.setItemRaw("sessions:session", "{}");
+    await handle.setItemRaw("browser-state:session", "{}");
+    await handle.removeItem("parts:session:message:part");
+    await handle.getItemRaw("sessions:session");
+    await handle.getKeys("messages");
+    stop();
+    expect(heard).toEqual([
+      "messages",
+      "messages",
+      "session",
+      "session",
+      "messages",
+    ]);
+  });
+
   it("reads back what it wrote, across a dispose", async () => {
     const handle = await storage();
     expect((await handle.setItemRaw("key", "value")).isOk()).toBe(true);

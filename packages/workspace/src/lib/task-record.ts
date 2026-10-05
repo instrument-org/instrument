@@ -1,6 +1,8 @@
 import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import path from "node:path";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { TaskIdSchema } from "../schemas/task-id";
 import {
   type TaskSettings,
   TaskSettingsSchema,
@@ -12,6 +14,7 @@ import {
 } from "../schemas/task-state";
 import { absolutePathJoin } from "./absolute-path-join";
 import { readJsonRecord, updateJsonRecord } from "./json-record-file";
+import { recordChanged } from "./record-changes";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
 /**
@@ -32,14 +35,10 @@ import { getTaskPrivateDir } from "./task-dir-utils";
  * list following file timestamps for why they were split and why that reason
  * did not survive.
  *
- * The two views publish differently and the asymmetry is deliberate.
- * `updateTaskSettings` publishes `task.updated` itself, waking the whole list;
- * the state writers leave `task.stateUpdated` to their callers. That looks
- * sloppy and is not, because it makes the dangerous direction unreachable: no
- * state write can wake the task list, so a model pick or a tab cannot reorder the
- * sidebar the way a file mtime once did. The opposite mistake, forgetting to
- * publish after a state write, costs a panel that does not refresh until
- * something else does.
+ * Every write says which half it changed on the record change feed
+ * (`settings` or `state`), so a reader of the settings is not woken by a
+ * model pick or a tab, and a reader of the state hears every write to it
+ * without its writer having to announce it.
  */
 export interface TaskRecord {
   /**
@@ -99,7 +98,9 @@ export async function setTaskState(
   dir: TaskDir,
   state: Partial<TaskState>,
 ): Promise<void> {
-  await updateTaskRecord(dir, (record) => recordWithState(record, state));
+  await updateTaskRecord(dir, "state", (record) =>
+    recordWithState(record, state),
+  );
 }
 
 /**
@@ -113,14 +114,22 @@ export async function setTaskState(
  */
 export async function updateTaskRecord(
   dir: TaskDir,
+  /** Which half the change is to, which is what the change feed says moved. */
+  half: "settings" | "state",
   update: (record: TaskRecord) => Record<string, unknown>,
 ): Promise<TaskRecord> {
   // An unreadable record is refused rather than built on: the write would
   // build on an empty reading of it, and going ahead costs everything the
   // file holds where failing the caller costs a model pick or a tab.
-  return recordFrom(
+  const written = recordFrom(
     await updateJsonRecord(recordPath(dir), (raw) => update(recordFrom(raw))),
   );
+  // A record's folder is named by its id.
+  const id = TaskIdSchema.safeParse(path.basename(dir));
+  if (id.success) {
+    recordChanged(id.data, half);
+  }
+  return written;
 }
 
 function emptyRecord(unreadable: boolean): TaskRecord {

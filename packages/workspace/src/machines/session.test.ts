@@ -1046,6 +1046,19 @@ describe("sessionMachine", () => {
     `);
   });
 
+  it("says on the record change feed when its agent moves, as well as what it writes", async () => {
+    const result = await createActorAndTask({ chunkSets: [finishChunks] });
+    const kinds = new Set<string>();
+    const stop = publisher.subscribe("record.changed", (change) => {
+      if (change.id === result.taskId) {
+        kinds.add(change.kind);
+      }
+    });
+    await runTestMachine(result);
+    stop();
+    expect([...kinds].toSorted()).toEqual(["agent", "messages", "session"]);
+  });
+
   it("should stop agents during llm request", async () => {
     const result = await createActorAndTask({
       chunkSets: [finishChunks],

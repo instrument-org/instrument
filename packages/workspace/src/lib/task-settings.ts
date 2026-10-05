@@ -83,7 +83,7 @@ async function writeMergedSettings(
   taskId: TaskId,
   updates: TaskSettingsUpdate,
 ): Promise<void> {
-  await updateTaskRecord(taskDir(taskId), (record) => {
+  await updateTaskRecord(taskDir(taskId), "settings", (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings so their defaults apply, then the change.
     //

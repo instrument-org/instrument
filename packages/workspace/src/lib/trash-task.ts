@@ -11,7 +11,13 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
-import { chatTaskIds, forgetRecord } from "./record-folders";
+import { recordRemoved } from "./record-changes";
+import {
+  chatTaskIds,
+  forgetRecord,
+  type RecordRef,
+  resolveRecord,
+} from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -120,8 +126,15 @@ export async function trashTask({
         }
 
         if (!keepFolder) {
+          // What it was, and the tasks a chat's folder took with it, read
+          // before the index forgets them.
+          const ref = resolveRecord(taskId);
+          const removed = ref.isOk() ? withTasksInside(ref.value) : [];
           await workspaceConfig.trashItem(taskDir(taskId));
           forgetRecord(taskId);
+          for (const gone of removed) {
+            recordRemoved(gone);
+          }
         }
 
         // In the off chance that a future task with the same id is
@@ -152,4 +165,20 @@ async function rmrf(path: string): Promise<void> {
     recursive: true,
     retryDelay: ms("2 seconds"),
   });
+}
+
+/** A record, after the tasks inside it when it is a chat's. */
+function withTasksInside(ref: RecordRef): RecordRef[] {
+  if (ref.kind !== "chat") {
+    return [ref];
+  }
+  const chatId = ref.id;
+  return [
+    ...chatTaskIds(chatId).map((id) => ({
+      chatId,
+      id,
+      kind: "task" as const,
+    })),
+    ref,
+  ];
 }

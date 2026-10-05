@@ -18,6 +18,7 @@ import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   AppInspector,
   type InspectorReading,
@@ -334,13 +335,16 @@ export function AppFront({
             <div className="flex flex-wrap gap-2">
               {examples.map((example) => (
                 <button
-                  className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
                   key={example}
                   onClick={() => {
                     ask(`${appMentionToken({ name, slug })}: ${example}`);
                   }}
                   type="button"
                 >
+                  {/* The glyph every button that opens a prefilled draft
+                      carries, so these read as asking Instrument. */}
+                  <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
                   {example}
                 </button>
               ))}

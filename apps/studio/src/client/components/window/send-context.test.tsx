@@ -11,14 +11,14 @@ import { TabIdSchema } from "@/shared/tabs";
 import {
   FolderAttachment,
   type SessionMessageDataPart,
-  StoreId,
+  ChatIdSchema,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { contextReaders, type SendContextWindow } from "./send-context";
 
-const CHAT = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const HOME = FolderAttachment.Schema.parse({
   access: "read-write",
   createdAt: 0,
@@ -53,7 +53,7 @@ function tabsOf(
   return {
     active: tabs[0],
     allTabs,
-    group,
+    groupOnScreen: group,
     tabUpIn: (key) => allTabs.find((tab) => tab.group === key),
   };
 }
@@ -101,7 +101,7 @@ describe("sendContext", () => {
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
     await expect(
-      sendContext({ isViewOpen: true, sessionId: CHAT }),
+      sendContext({ chatId: CHAT, isViewOpen: true }),
     ).resolves.toMatchObject({
       page: { text: "Words on the page" },
       screen: "browser",
@@ -113,7 +113,7 @@ describe("sendContext", () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
-    await expect(sendContext({ isViewOpen: false, sessionId: CHAT })).resolves
+    await expect(sendContext({ chatId: CHAT, isViewOpen: false })).resolves
       .toMatchInlineSnapshot(`
       {
         "screen": "home",
@@ -130,14 +130,14 @@ describe("sendContext", () => {
   });
 
   it("tells a popped-out chat about the page up in the chat on screen", async () => {
-    const other = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW");
+    const other = ChatIdSchema.parse("2026-10-02-other");
     const { sendContext } = contextReaders(
       windowOf({
         paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: false, sessionId: other })).resolves
+    await expect(sendContext({ chatId: other, isViewOpen: false })).resolves
       .toMatchInlineSnapshot(`
       {
         "page": {
@@ -167,7 +167,7 @@ describe("sendContext", () => {
       }),
     );
     await expect(
-      sendContext({ isViewOpen: true, sessionId: CHAT }),
+      sendContext({ chatId: CHAT, isViewOpen: true }),
     ).resolves.toBeUndefined();
   });
 
@@ -184,7 +184,7 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE, chat], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
       .toMatchInlineSnapshot(`
       {
         "page": {
@@ -200,7 +200,7 @@ describe("sendContext", () => {
             "title": "Example",
           },
           {
-            "at": "/chats/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "at": "/chats/2026-10-01-lisbon",
             "id": "chat",
             "title": "Lisbon",
           },
@@ -226,7 +226,7 @@ describe("sendContext", () => {
         windowTabs: tabsOf([file], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
       .toMatchInlineSnapshot(`
       {
         "file": {
@@ -257,7 +257,7 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    const sent = sendContext({ isViewOpen: true, sessionId: CHAT });
+    const sent = sendContext({ chatId: CHAT, isViewOpen: true });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
@@ -298,13 +298,13 @@ describe("sendContext", () => {
         windowTabs: tabsOf([tasksTab, SITE], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
       .toMatchInlineSnapshot(`
       {
         "screen": "tasks",
         "tabs": [
           {
-            "at": "/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "at": "/tasks?chat=2026-10-01-lisbon",
             "id": "tasks",
             "title": "Tasks",
           },
@@ -322,7 +322,7 @@ describe("sendContext", () => {
             "title": "Scan the receipts",
           },
         ],
-        "url": "/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "url": "/tasks?chat=2026-10-01-lisbon",
       }
     `);
   });
@@ -394,7 +394,7 @@ describe("draftContext", () => {
             "title": "Hotels",
           },
           {
-            "at": "/chats/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "at": "/chats/2026-10-01-lisbon",
             "id": "chat",
             "title": "Lisbon",
           },

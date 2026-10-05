@@ -9,7 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { chatIdOfTask, chatOfSession, sessionOfChat } from "../record-folders";
+import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -27,15 +27,17 @@ import {
   lastAssistantText,
   latestOrNewSessionId,
 } from "./latest-session";
+import { folderReach } from "./folder-reach";
 import {
-  mountsOf,
-  translateMountPaths,
+  mountAliases,
+  toChatPaths,
   translateTaskFolderPaths,
 } from "./mount-paths";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
+import { type ChatId } from "../../schemas/chat-id";
 
 /** What a wake carries: the part that starts the chat's turn. */
 export type WakePart =
@@ -180,13 +182,12 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
 export async function wakeChatForApp(
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  askedIn: StoreId.Session | undefined,
+  asked: ChatId | undefined,
 ): Promise<void> {
   // The chat that asked, when it is still there, and then the newest first,
   // so an event for a chat since deleted still reaches someone.
-  const asked = askedIn ? chatOfSession(askedIn) : undefined;
   const candidates = [
-    ...(asked ? [asked] : []),
+    ...(asked && resolveChat(asked) ? [asked] : []),
     ...listChatIds()
       .toReversed()
       .filter((id) => id !== asked),
@@ -215,8 +216,8 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     }
   }
   for (const task of working) {
-    const parentTaskId = task.parentTaskId;
-    if (parentTaskId === undefined) {
+    const { chatId } = task;
+    if (chatId === undefined) {
       continue;
     }
     // The conversation said when it wants to look; the clock stays quiet.
@@ -231,7 +232,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     }
     overdueReportedAt.set(task.id, now);
     const event = await stillWorkingEvent({
-      chatId: parentTaskId,
+      chatId,
       taskId: task.id,
       title: task.title,
       turnStart,
@@ -241,7 +242,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
     if (!isWorking(task.id)) {
       continue;
     }
-    schedule(parentTaskId, event, workspaceRef);
+    schedule(chatId, event, workspaceRef);
   }
 }
 
@@ -303,9 +304,10 @@ async function deliverAskedWake(
 }
 
 /**
- * What a task said, in the paths the conversation that started it reads. The
- * two hold the same folders under names of their own (see mount-paths.ts), and
- * a note is composed for the conversation rather than for the task.
+ * What a task said, in the paths the conversation that started it reads: its
+ * own folder at `/tasks/<id>`, and any folder it holds under a name of its own
+ * at the chat's path for it (see mount-paths.ts). A note is composed for the
+ * conversation rather than for the task.
  */
 async function inChatPaths(
   text: string | undefined,
@@ -314,10 +316,11 @@ async function inChatPaths(
   if (text === undefined) {
     return undefined;
   }
-  return translateTaskFolderPaths(
-    translateMountPaths(text, await mountsOf(taskId), await mountsOf(chatId)),
-    taskId,
+  const aliases = mountAliases(
+    await folderReach(chatId),
+    await folderReach(taskId),
   );
+  return translateTaskFolderPaths(toChatPaths(text, aliases), taskId);
 }
 
 async function onSessionDone(
@@ -331,7 +334,7 @@ async function onSessionDone(
   workspaceRef: WorkspaceActorRef,
 ) {
   // Only a chat is woken, by a task inside it.
-  const chatId = chatIdOfTask(id);
+  const chatId = owningChat(id);
   if (!chatId) {
     return;
   }

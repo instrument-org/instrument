@@ -4,9 +4,11 @@ import type * as ChatGPTPlanModule from "./chatgpt-plan";
 
 let stored: Record<string, unknown> = {};
 
+const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
+
 vi.mock("electron", () => ({
   safeStorage: { isEncryptionAvailable: () => true },
-  shell: { openExternal: vi.fn() },
+  shell: { openExternal },
 }));
 
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
@@ -355,6 +357,54 @@ describe("several ChatGPT accounts", () => {
       accessToken: "access-work",
       refreshToken: "refresh-work",
     });
+  });
+});
+
+describe("how a ChatGPT sign-in ends", () => {
+  /** Starts a sign-in and answers with the state its authorize URL carries. */
+  async function start() {
+    openExternal.mockClear();
+    const ended = plan.signInWithChatGPT({ callbackPort: 1455 });
+    await vi.waitFor(() => {
+      expect(openExternal).toHaveBeenCalled();
+    });
+    const url = new URL(String(openExternal.mock.calls[0]?.[0]));
+    return { ended, state: url.searchParams.get("state") ?? "" };
+  }
+
+  it("is declined when the person says no on OpenAI's page", async () => {
+    stored = { registrations: {} };
+    const { ended, state } = await start();
+    void plan.receiveChatGPTCallback(
+      new URLSearchParams({ error: "access_denied", state }),
+    );
+    await expect(ended).resolves.toEqual({ outcome: "declined" });
+  });
+
+  it("is canceled when given up in the app", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    plan.cancelChatGPTSignIn();
+    await expect(ended).resolves.toEqual({ outcome: "canceled" });
+  });
+
+  it("is canceled when a newer sign-in takes its place", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    void plan.signInWithChatGPT({ callbackPort: 1455 });
+    await expect(ended).resolves.toEqual({ outcome: "canceled" });
+    plan.cancelChatGPTSignIn();
+  });
+
+  it("fails on a callback for some other attempt", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    void plan
+      .receiveChatGPTCallback(
+        new URLSearchParams({ code: "c", state: "not-this-one" }),
+      )
+      ?.catch(() => undefined);
+    await expect(ended).rejects.toThrow("did not match");
   });
 });
 

@@ -1,12 +1,9 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
-import { stepFocusedPage } from "@/client/lib/browser-pool";
-import {
-  requestBrowserFind,
-  requestBrowserReload,
-} from "@/client/lib/foreground-browser-registry";
+import { runPageChord } from "@/client/lib/page-chords";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -28,6 +25,9 @@ const MODAL_SAFE_COMMANDS = new Set([
   "openShortcutGuide",
   "reloadPage",
   "toggleInbox",
+  "zoomIn",
+  "zoomOut",
+  "zoomReset",
 ]);
 
 /**
@@ -161,7 +161,7 @@ export function useWindowCommands(
           }
           switch (command) {
             case "back": {
-              if (!stepFocusedPage("back")) {
+              if (!runPageChord("back")) {
                 latest.current.back();
               }
               break;
@@ -179,11 +179,11 @@ export function useWindowCommands(
             case "findInPage": {
               // The page on screen registers itself as the foreground
               // browser; with none up there is nothing to search.
-              requestBrowserFind();
+              runPageChord("findInPage");
               break;
             }
             case "forward": {
-              if (!stepFocusedPage("forward")) {
+              if (!runPageChord("forward")) {
                 latest.current.forward();
               }
               break;
@@ -222,7 +222,7 @@ export function useWindowCommands(
             }
             case "reloadPage": {
               // The page on screen, when there is one; nothing otherwise.
-              requestBrowserReload();
+              runPageChord("reloadPage");
               break;
             }
             case "reopenTab": {
@@ -235,6 +235,17 @@ export function useWindowCommands(
             }
             case "toggleInbox": {
               latest.current.toggleInbox();
+              break;
+            }
+            case "zoomIn":
+            case "zoomOut":
+            case "zoomReset": {
+              // The page holding the keyboard, else the app's own zoom.
+              if (!runPageChord(command)) {
+                getDefaultStore().set(zoomAtom, (z) =>
+                  appZoomAfter(command, z),
+                );
+              }
               break;
             }
           }

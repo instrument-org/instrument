@@ -11,7 +11,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setTaskVenvCreator, type TaskVenvError } from "../ensure-task-venv";
-import { forgetRecordFolders } from "../record-folders";
+import { handRecord } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
@@ -131,16 +131,19 @@ async function runExec({
   config,
   execOptions,
   id,
+  record,
   stream,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
   runs.set(id, controller);
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
-  // Main keeps the index of which chat holds which task current as it makes
-  // and trashes them; this thread's copy would miss a task made since it was
-  // read, and mount the wrong folder as its /task.
-  forgetRecordFolders();
+  // Main keeps the folder index current as it makes and trashes records, so
+  // the record comes resolved with the command rather than read here, where a
+  // copy of the index would miss a task made since.
+  if (record) {
+    handRecord(record);
+  }
   try {
     const bash = await createLocalBashEnv({
       ...bashEnv,

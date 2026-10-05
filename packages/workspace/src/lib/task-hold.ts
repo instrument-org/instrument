@@ -1,5 +1,5 @@
-import { publisher } from "../rpc/publisher";
 import { type TaskId } from "../schemas/task-id";
+import { recordChanged } from "./record-changes";
 
 /**
  * Why a task that exists has not started, and since when: `reason` for the
@@ -38,7 +38,7 @@ export function cancelHold(taskId: TaskId): TaskHold | undefined {
     return undefined;
   }
   holds.delete(taskId);
-  publisher.publish("task.updated", { id: taskId });
+  recordChanged(taskId, "agent");
   return {
     reason: held.reason,
     since: held.since,
@@ -75,7 +75,7 @@ export function holdTask<T>(
     userReason,
   };
   holds.set(taskId, held);
-  publisher.publish("task.updated", { id: taskId });
+  recordChanged(taskId, "agent");
   void until.then(
     (value) => {
       // Canceled, or replaced by a newer hold, while it waited.
@@ -87,7 +87,7 @@ export function holdTask<T>(
       for (const deliver of held.queued) {
         deliver();
       }
-      publisher.publish("task.updated", { id: taskId });
+      recordChanged(taskId, "agent");
     },
     () => {
       if (holds.get(taskId) === held) {

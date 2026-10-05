@@ -10,6 +10,8 @@ import { withTempDir } from "../test/helpers/temp-dir";
 import { windowStatePath } from "./window-paths";
 import { getWindowState, updateWindowState } from "./window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { chatFor } from "../test/helpers/chat-record";
 
 const root = withTempDir("window-state");
 
@@ -25,6 +27,7 @@ async function readFile(): Promise<unknown> {
 describe("window state", () => {
   const seen = StoreId.newMessageId();
   const session = StoreId.newSessionId();
+  const chatId = ChatIdSchema.parse("2026-10-04-lisbon");
 
   beforeEach(() => {
     createMockTaskConfig(TaskIdSchema.parse("window-state"));
@@ -38,20 +41,44 @@ describe("window state", () => {
   it("keeps a field it cannot read through a write to another", async () => {
     await writeFile(
       JSON.stringify({
-        appChats: { linear: session },
-        chatSeen: { [session]: "written by a newer build" },
+        appChats: { linear: chatId },
+        chatSeen: { [chatId]: "written by a newer build" },
         futureField: { kept: true },
       }),
     );
 
-    expect((await getWindowState()).appChats).toEqual({ linear: session });
+    expect((await getWindowState()).appChats).toEqual({ linear: chatId });
 
     await updateWindowState(() => ({ appChats: {} }));
 
     expect(await readFile()).toMatchObject({
       appChats: {},
-      chatSeen: { [session]: "written by a newer build" },
+      chatSeen: { [chatId]: "written by a newer build" },
       futureField: { kept: true },
+    });
+  });
+
+  it("reads a chat a 2.0 beta named by its session as the chat, and writes it so", async () => {
+    const named = chatFor(session);
+    const gone = StoreId.newSessionId();
+    const older = StoreId.newMessageId();
+    const newer = StoreId.newMessageId();
+    await writeFile(
+      JSON.stringify({
+        appChats: { gone: gone, linear: session, notion: named },
+        chatSeen: { [gone]: seen, [named]: newer, [session]: older },
+      }),
+    );
+
+    const read = await getWindowState();
+    // A chat no longer there is dropped; the chat's own mark wins.
+    expect(read.appChats).toEqual({ linear: named, notion: named });
+    expect(read.chatSeen).toEqual({ [named]: newer });
+
+    await updateWindowState(() => ({ browserTargetId: undefined }));
+    expect(await readFile()).toMatchObject({
+      appChats: { linear: named, notion: named },
+      chatSeen: { [named]: newer },
     });
   });
 

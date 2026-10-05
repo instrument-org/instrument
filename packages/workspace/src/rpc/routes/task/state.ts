@@ -8,7 +8,6 @@ import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskStateSchema } from "../../../schemas/task-state";
 import { base } from "../../base";
-import { publisher } from "../../publisher";
 
 const get = base
   .input(z.object({ id: TaskIdSchema }))
@@ -31,9 +30,6 @@ const set = base
     const taskId = input.id;
 
     await setTaskState(taskDir(taskId), input.state);
-
-    // What reads the state back listens for this, so a write has to push.
-    publisher.publish("task.stateUpdated", { id: taskId });
   });
 
 /**

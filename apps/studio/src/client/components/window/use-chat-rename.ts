@@ -40,7 +40,7 @@ export function useChatRename(chat: Chat | undefined) {
   const inline = useInlineRename({
     onSave: async (title) => {
       if (chat) {
-        await renameChat({ sessionId: chat.id, title });
+        await renameChat({ id: chat.id, title });
       }
     },
     value: chat?.title ?? "",
@@ -51,7 +51,7 @@ export function useChatRename(chat: Chat | undefined) {
     }
     let title: string | undefined;
     try {
-      ({ title } = await retitle.mutateAsync({ sessionId: chat.id }));
+      ({ title } = await retitle.mutateAsync({ id: chat.id }));
     } catch {
       // Toasted by the mutation; the field stays open.
       return;

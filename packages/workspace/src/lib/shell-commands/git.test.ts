@@ -21,6 +21,7 @@ import {
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
 import { collapseProgress } from "./exec-shim";
 import { createGitCommand } from "./git";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 const mockCtx = createCommandContext({
   cwd: "/task",
@@ -30,10 +31,13 @@ const mockCtx = createCommandContext({
 });
 
 describe("createGitCommand arg policy", () => {
-  const taskId = createMockTaskConfigForDir(
-    `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`,
-  );
-  const command = createGitCommand({ taskId });
+  const taskDir = `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`;
+  const taskId = createMockTaskConfigForDir(taskDir);
+  const command = createGitCommand({ layout: taskLayout(taskId), taskId });
+  // The later blocks point the workspace elsewhere as they are collected.
+  beforeAll(() => {
+    createMockTaskConfigForDir(taskDir);
+  });
 
   it.each([
     { args: ["--exec-path=/tmp/evil", "status"], flag: "--exec-path" },
@@ -144,8 +148,13 @@ describe("createGitCommand", () => {
     "git-smoke",
   );
   mkdirSync(dir, { recursive: true });
+  const smokeTaskId = createMockTaskConfigForDir(dir);
   const command = createGitCommand({
-    taskId: createMockTaskConfigForDir(dir),
+    layout: taskLayout(smokeTaskId),
+    taskId: smokeTaskId,
+  });
+  beforeAll(() => {
+    createMockTaskConfigForDir(dir);
   });
 
   it("commits as the agent, ignoring the user's git identity", async () => {
@@ -291,8 +300,9 @@ describe("createGitCommand over attached folders", () => {
   let command: ReturnType<typeof createGitCommand>;
 
   beforeAll(async () => {
+    const mountedTaskId = createMockTaskConfigForDir(taskRoot);
     command = createGitCommand({
-      attachedFolders: {
+      layout: taskLayout(mountedTaskId, {
         repo: {
           access: "read-only",
           createdAt: Date.now(),
@@ -309,8 +319,8 @@ describe("createGitCommand over attached folders", () => {
           path: TaskDirSchema.parse(workDir),
           source: "user",
         },
-      },
-      taskId: createMockTaskConfigForDir(taskRoot),
+      }),
+      taskId: mountedTaskId,
     });
     // Seeded with the real binary directly: the command under test may not
     // write into the read-only mount, and that is the point of the test.

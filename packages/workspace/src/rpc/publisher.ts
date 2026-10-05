@@ -1,5 +1,7 @@
 import { EventPublisher } from "@orpc/server";
 
+import { type AppEvent } from "../lib/apps/changed";
+import { type RecordChanged } from "../lib/record-changes";
 import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
@@ -13,12 +15,13 @@ import { type BrowserTargetId } from "../types";
 export const publisher = new EventPublisher<{
   /**
    * The user acted on an app outside the conversation: finished a sign-in,
-   * saved a key, declined, disconnected. Published by the host app, which
-   * owns those surfaces; the chat is woken with it.
+   * saved a key, declined, disconnected. Published only by `appChanged`,
+   * which the host app calls from the surfaces it owns; the chat is woken
+   * with it.
    */
   "app.event": {
     detail?: string;
-    event: "connected" | "declined" | "disconnected" | "failed" | "removed";
+    event: AppEvent;
     name: string;
     slug: string;
     /** For a web app, the site the work happens on. */
@@ -26,7 +29,7 @@ export const publisher = new EventPublisher<{
   };
   /**
    * An app's folder or connection record changed. Carries no payload because
-   * every listener re-reads the list.
+   * every listener re-reads the list. Published only by `appChanged`.
    */
   "app.updated": null;
   /**
@@ -50,15 +53,6 @@ export const publisher = new EventPublisher<{
     targetId: BrowserTargetId;
   };
   /**
-   * A chat was deleted with everything in it. Its own event rather than
-   * `session.removed`, because by the time anything hears that the index has
-   * already forgotten the chat, so a listener cannot tell it was one.
-   */
-  "chat.removed": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  /**
    * A memory was saved, corrected, or forgotten. Carries no payload because
    * every listener re-reads the folder.
    */
@@ -77,26 +71,19 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     part: SessionMessagePart.Type;
   };
+  /**
+   * Something about one record moved: its transcript, its sessions, its
+   * settings or state, its agent, or the record itself is gone. Published
+   * where the change is made (the store's write layer, the record writer,
+   * the session actor, the hold registry), so a view that re-reads on it
+   * hears every change without keeping a list of events. Read through
+   * `recordChanges` in `lib/record-changes.ts`.
+   */
+  "record.changed": RecordChanged;
   "runtime.log.updated": {
     id: TaskId;
   };
-  "session.added": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
   "session.done": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.removed": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.tagsChanged": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.updated": {
     id: TaskId;
     sessionId: StoreId.Session;
   };
@@ -105,23 +92,6 @@ export const publisher = new EventPublisher<{
    * deleted. Carries no payload because every listener re-reads the list.
    */
   "skill.changed": null;
-  "task.removed": {
-    id: TaskId;
-  };
-  /**
-   * A task's own state file changed: the held tabs, the draft, the selected model.
-   *
-   * Deliberately not `task.updated`, which the task list subscribes to. The
-   * list is ordered by a filesystem timestamp, so every re-read is a chance for
-   * a task to jump to the top on a change nobody made -- and opening a panel is
-   * not activity in a task. Anything that only wants the state reads this.
-   */
-  "task.stateUpdated": {
-    id: TaskId;
-  };
-  "task.updated": {
-    id: TaskId;
-  };
   /**
    * An agent asking the window to act on its tabs: open one (on screen, or
    * behind whatever is up), point one at something else, close one, or bring

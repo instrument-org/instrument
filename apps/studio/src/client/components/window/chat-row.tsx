@@ -17,7 +17,7 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -128,7 +128,7 @@ export function ChatRow({
   const isUnseen = chat.unread > 0;
   // What the chat's composer holds, whether or not it is on screen.
   const draft = useAtomValue(
-    promptDraftAtom({ scope: "chat", sessionId: chat.id }),
+    promptDraftAtom({ chatId: chat.id, scope: "chat" }),
   );
   const hasDraft = draft.trim() !== "";
   const hasHolds =
@@ -261,7 +261,7 @@ export function ChatRow({
                 the list keeps one row height down its length. */}
             <div className="mt-1 flex h-5 items-center gap-2">
               {hasHolds && (
-                <HoldsInChat chatSessionId={chat.id}>
+                <HoldsInChat chatId={chat.id}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
                     className="min-w-0 flex-1 gap-1"
@@ -427,14 +427,14 @@ export function TopicPill({
  * the same tab.
  */
 function HoldsInChat({
-  chatSessionId,
+  chatId,
   children,
 }: {
-  chatSessionId: StoreId.Session;
+  chatId: ChatId;
   children: ReactNode;
 }) {
   const appWindow = useWindow();
-  const inChat = { group: chatSessionId, ownTab: true, show: true };
+  const inChat = { group: chatId, ownTab: true, show: true };
   // A new-tab gesture asks for a tab of the window's own instead.
   const options = (asked?: OpenOptions) =>
     asked?.newTab ? { behind: asked.behind, newTab: true } : inChat;

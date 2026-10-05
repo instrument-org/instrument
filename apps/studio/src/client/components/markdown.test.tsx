@@ -9,7 +9,7 @@ import {
   UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -1260,8 +1260,8 @@ describe("Markdown file chips", () => {
   // in a draft no composer shows.
   it("adds a file to the draft of the composer under the transcript", async () => {
     const draftKey: PromptDraftKey = {
+      chatId: ChatIdSchema.parse("2026-10-01-chips"),
       scope: "chat",
-      sessionId: StoreId.newSessionId(),
     };
     const { store } = renderWithProviders(
       <ComposerDraftContext value={draftKey}>

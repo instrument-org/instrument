@@ -53,7 +53,9 @@ async function nowHolds(apps: string[]) {
  * of it has to follow with this.
  */
 function useWorkspace(taskId: string) {
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),

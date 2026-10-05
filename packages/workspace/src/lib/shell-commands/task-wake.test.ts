@@ -11,13 +11,18 @@ import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config"
 import { initializeTask } from "../initialize-task";
 import { cancelAskedWake } from "../chat/wake";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runWake, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { wakeSubcommand } from "./task/wake";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runWake = subcommandRunner(wakeSubcommand, "task wake");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("audit-the-runtime");
 
 const working = vi.hoisted(() => ({ value: true }));
@@ -44,7 +49,9 @@ let rootDir: string;
 beforeEach(async () => {
   working.value = true;
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-wake-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
@@ -113,7 +120,7 @@ describe("task wake", () => {
     await expect(
       runWake([CHILD_ID, "--in", "5m"], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"audit-the-runtime" was started in another chat/);
   });

@@ -11,6 +11,7 @@ import {
   createPnxCommand,
   PNPM_COMMAND,
 } from "./pnpm";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock(import("../execa-node-for-task"));
 
@@ -23,7 +24,7 @@ const mockCtx = createCommandContext({
 
 describe("createPnpmCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createPnpmCommand(taskId);
+  const command = createPnpmCommand(taskId, taskLayout(taskId));
 
   // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest
   // guard passes. The dedicated guard test below uses a fresh, empty fs.
@@ -222,7 +223,7 @@ describe("createPnpmCommand", () => {
       stdout: "1\n",
     });
 
-    const npxCommand = createNpxCommand(taskId);
+    const npxCommand = createNpxCommand(taskId, taskLayout(taskId));
     const result = await npxCommand.execute(
       ["-y", "node", "-e", "console.log(1)"],
       {
@@ -279,7 +280,7 @@ describe("createPnpmCommand", () => {
         stdout: "hello",
       });
 
-      const dlxCommand = createCommand(taskId);
+      const dlxCommand = createCommand(taskId, taskLayout(taskId));
       const result = await dlxCommand.execute(args, mockCtx);
 
       expect(result.exitCode).toBe(0);

@@ -6,8 +6,8 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { isAtOrUnder } from "../path-containment";
-import { taskDir } from "../task-dir-utils";
 import { taskVenvDir, taskVenvPython } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -54,17 +54,23 @@ export const PYTHON_NATIVE_COMMAND = {
 /** Under the task, where a loaded skill's copy lives: `work/skills/`. */
 const SKILL_COPIES_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}`;
 
-export function createPython3Command(taskId: TaskId) {
-  return createSandboxedPythonCommand(taskId, PYTHON3_COMMAND.name);
+export function createPython3Command(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+) {
+  return createSandboxedPythonCommand(taskId, layout, PYTHON3_COMMAND.name);
 }
 
-export function createPythonCommand(taskId: TaskId) {
-  return createSandboxedPythonCommand(taskId, PYTHON_COMMAND.name);
+export function createPythonCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+  return createSandboxedPythonCommand(taskId, layout, PYTHON_COMMAND.name);
 }
 
-export function createPythonNativeCommand(taskId: TaskId) {
+export function createPythonNativeCommand(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+) {
   return defineCommand(PYTHON_NATIVE_COMMAND.name, (args, ctx) =>
-    runNativePython(taskId, PYTHON_NATIVE_COMMAND.name, args, ctx),
+    runNativePython(taskId, layout, PYTHON_NATIVE_COMMAND.name, args, ctx),
   );
 }
 
@@ -80,7 +86,11 @@ const STDLIB_MODULE_NAMES = new Set(
   ),
 );
 
-function createSandboxedPythonCommand(taskId: TaskId, name: string) {
+function createSandboxedPythonCommand(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+  name: string,
+) {
   return defineCommand(name, async (args, ctx) => {
     if (args[0] === "-m" && args[1] === "pip") {
       return {
@@ -91,12 +101,14 @@ function createSandboxedPythonCommand(taskId: TaskId, name: string) {
     }
 
     if (isSkillScriptInvocation(args, ctx)) {
-      return runNativePython(taskId, name, args, ctx, { skillScript: true });
+      return runNativePython(taskId, layout, name, args, ctx, {
+        skillScript: true,
+      });
     }
 
     const installed = await installedPackagesImported(taskId, args, ctx);
     if (installed.length > 0) {
-      return runNativePython(taskId, name, args, ctx, {
+      return runNativePython(taskId, layout, name, args, ctx, {
         importsInstalled: installed,
       });
     }
@@ -353,6 +365,7 @@ function pythonScriptArgIndex(args: string[]): number | undefined {
  */
 async function runNativePython(
   taskId: TaskId,
+  layout: WorkspaceFsLayout,
   name: string,
   args: string[],
   ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
@@ -458,7 +471,7 @@ async function runNativePython(
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, name), (text) =>
-      filterShellOutput(text, taskDir(taskId)),
+      filterShellOutput(text, layout),
     ),
   };
 }

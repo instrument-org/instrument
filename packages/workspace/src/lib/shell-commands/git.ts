@@ -2,15 +2,11 @@ import { defineCommand } from "just-bash";
 import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
-import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
-import { taskDir } from "../task-dir-utils";
 import {
-  buildWorkspaceFsLayout,
-  hostPathEscapesMount,
-  isMaskedPrivatePath,
+  classifyHostPath,
   nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
@@ -22,7 +18,6 @@ import {
   mapStreams,
   shimOutput,
 } from "./exec-shim";
-import { virtualizeOutput } from "./rg";
 import {
   bridgeFlagValuePath,
   privateDirLiteralError,
@@ -202,10 +197,10 @@ const CONFIG_READ_FLAGS = new Set([
 ]);
 
 export function createGitCommand({
-  attachedFolders,
+  layout,
   taskId,
 }: {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
+  layout: WorkspaceFsLayout;
   taskId: TaskId;
 }) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
@@ -214,10 +209,6 @@ export function createGitCommand({
       return fail(rejection);
     }
 
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const resolveVirtual = (p: string) => ctx.fs.resolvePath(ctx.cwd, p);
 
@@ -288,14 +279,8 @@ export function createGitCommand({
       },
     );
 
-    // Mount roots back to mount points before the task-dir and home redaction,
-    // the order every shim that reaches a mount uses: the home fold would
-    // otherwise turn a mount under `~` into a path the agent cannot open.
     const streams = mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
-      filterShellOutput(
-        collapseProgress(virtualizeOutput(text, layout)),
-        taskDir(taskId),
-      ),
+      filterShellOutput(collapseProgress(text), layout),
     );
     return {
       exitCode: result.exitCode ?? 1,
@@ -529,10 +514,11 @@ function resolveMountPath(
     return undefined;
   }
   const { hostPath, mount } = resolved;
-  if (isMaskedPrivatePath(mount, virtualAbsPath)) {
+  const found = classifyHostPath(layout, hostPath, mount);
+  if (found?.masked !== undefined) {
     return { error: privateDirLiteralError(`"${virtualAbsPath}"`) };
   }
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+  if (found === null || found.escapes) {
     return { error: `${virtualAbsPath}: path is not accessible` };
   }
   return { hostPath, mount };

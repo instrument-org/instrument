@@ -16,61 +16,12 @@ import {
   awaitAnswers,
   chatOnlyPathsIn,
   parseDelay,
-  parseFlags,
   parseFolderSpec,
   requireFilesNamedInBrief,
   requireFoldersOnDisk,
   resolveFileUploads,
   resolveFolders,
 } from "./task-args";
-
-describe("parseFlags", () => {
-  it("reads spaced and inline values, keeps the last of a flag given twice, and collects a repeatable one", () => {
-    const { positional, values } = parseFlags(
-      [
-        "--name",
-        "Lisbon",
-        "--folder",
-        "Home",
-        "--folder=Instrument:rw",
-        "--name=Porto",
-        "the",
-        "brief",
-      ],
-      { flags: ["folder", "model", "name"], repeatable: ["folder"] },
-    );
-    expect(positional).toEqual(["the", "brief"]);
-    expect(Object.fromEntries(values)).toEqual({
-      folder: ["Home", "Instrument:rw"],
-      name: ["Porto"],
-    });
-  });
-
-  it("leaves a flag it was not told about as a positional", () => {
-    const { positional, values } = parseFlags(["--running", "x"], {
-      flags: ["tail"],
-      repeatable: [],
-    });
-    expect(positional).toEqual(["--running", "x"]);
-    expect(values.size).toBe(0);
-  });
-
-  it("refuses a flag with nothing after it", () => {
-    expect(() =>
-      parseFlags(["--tail"], { flags: ["tail"], repeatable: [] }),
-    ).toThrow("--tail needs a value.");
-  });
-
-  it("reads a switch without taking the next token as its value", () => {
-    const { positional, values } = parseFlags(["--steps", "task-1"], {
-      boolean: ["steps"],
-      flags: ["tail"],
-      repeatable: [],
-    });
-    expect(positional).toEqual(["task-1"]);
-    expect(values.has("steps")).toBe(true);
-  });
-});
 
 describe("parseDelay", () => {
   it.each([
@@ -141,8 +92,18 @@ describe("resolveFolders", () => {
 
   it("hands a task the conversation's access unless the spec narrows it", () => {
     expect(resolveFolders(["Home", "Home/Downloads:ro"], attached)).toEqual([
-      { access: "read-write", path: "/Users/someone", source: "user" },
-      { access: "read-only", path: "/Users/someone/Downloads", source: "user" },
+      {
+        access: "read-write",
+        mountName: "Home",
+        path: "/Users/someone",
+        source: "user",
+      },
+      {
+        access: "read-only",
+        mountName: "Home/Downloads",
+        path: "/Users/someone/Downloads",
+        source: "user",
+      },
     ]);
   });
 
@@ -168,7 +129,12 @@ describe("resolveFolders", () => {
 
     it("reads the whole and refuses to write it, naming the folder inside to hand instead", () => {
       expect(resolveFolders(["Root"], home)).toEqual([
-        { access: "read-only", path: home.Root.path, source: "user" },
+        {
+          access: "read-only",
+          mountName: "Root",
+          path: home.Root.path,
+          source: "user",
+        },
       ]);
       expect(() => resolveFolders(["Root:rw"], home)).toThrow(
         "/mnt/Root holds Instrument's own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder /mnt/Root/<folder>:rw.",
@@ -179,8 +145,18 @@ describe("resolveFolders", () => {
       const desktop = path.join(home.Root.path, "Desktop");
       expect(resolveFolders(["Root/Desktop:rw", "Root/Desktop"], home)).toEqual(
         [
-          { access: "read-write", path: desktop, source: "user" },
-          { access: "read-write", path: desktop, source: "user" },
+          {
+            access: "read-write",
+            mountName: "Root/Desktop",
+            path: desktop,
+            source: "user",
+          },
+          {
+            access: "read-write",
+            mountName: "Root/Desktop",
+            path: desktop,
+            source: "user",
+          },
         ],
       );
     });
@@ -202,9 +178,15 @@ describe("resolveFolders", () => {
     );
   });
 
+  // The name is where the folder is, not how the spec spelled the way there.
   it("keeps a subpath that only wanders inside the mount", () => {
     expect(resolveFolders(["Home/Downloads/../Desktop"], attached)).toEqual([
-      { access: "read-write", path: "/Users/someone/Desktop", source: "user" },
+      {
+        access: "read-write",
+        mountName: "Home/Desktop",
+        path: "/Users/someone/Desktop",
+        source: "user",
+      },
     ]);
   });
 

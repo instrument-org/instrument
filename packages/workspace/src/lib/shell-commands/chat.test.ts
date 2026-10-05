@@ -53,7 +53,7 @@ const freshTask = async () => {
   return taskId;
 };
 
-/** A chat: a session, the user's opening message, and one reply. */
+/** A chat: its record and session, the user's opening message, and one reply. */
 async function chat(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
   const taskId = chatFor(sessionId);
@@ -108,7 +108,7 @@ async function chat(title: string, ask: string, reply?: string) {
     };
     await Store.saveMessageWithParts(assistant, taskId);
   }
-  return sessionId;
+  return { chatId: taskId, sessionId };
 }
 
 function run(...args: string[]) {
@@ -139,7 +139,7 @@ describe("chat list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
-      `${groceries}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon}  working  "Trip to Lisbon"  nothing yet\n`,
+      `${groceries.chatId}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon.chatId}  working  "Trip to Lisbon"  nothing yet\n`,
     );
 
     const filtered = await run("list", "--topic", "home");
@@ -180,6 +180,24 @@ describe("chat read", () => {
   });
 });
 
+describe("chat read by an older name", () => {
+  // Older transcripts, and the links in them, name a chat by its session.
+  it.each([
+    ["a whole session", (sessionId: string) => sessionId],
+    ["the start of one", (sessionId: string) => sessionId.slice(0, 20)],
+  ])("reads a chat named by %s", async (_case, nameOf) => {
+    await freshTask();
+    const { chatId, sessionId } = await chat("Trip to Lisbon", "plan a trip");
+
+    const result = await run("read", nameOf(sessionId));
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(
+      `${chatId}  "Trip to Lisbon"\nuser: plan a trip\n`,
+    );
+  });
+});
+
 describe("chat search", () => {
   it("finds a line across every chat", async () => {
     await freshTask();
@@ -211,9 +229,12 @@ describe("chat tag", () => {
   it("files the chat under the topic", async () => {
     await freshTask();
     const home = await createTopic({ name: "Home" });
-    const sessionId = await chat("Groceries", "make me a grocery list");
+    const { chatId, sessionId } = await chat(
+      "Groceries",
+      "make me a grocery list",
+    );
 
-    const result = await run("tag", sessionId.slice(0, 8), "Home");
+    const result = await run("tag", chatId, "Home");
 
     expect(result.stdout).toBe('Filed "Groceries" under #Home.\n');
     const session = await Store.getSession(sessionId, chatFor(sessionId));

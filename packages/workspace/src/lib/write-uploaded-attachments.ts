@@ -1,11 +1,10 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ulid } from "ulid";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { type FileUpload } from "../schemas/file-upload";
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -17,11 +16,11 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { assignMountNames } from "./assign-mount-names";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
+import { type FolderGrant, grantFolders } from "./grant-folders";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
@@ -50,6 +49,8 @@ export async function writeUploadedAttachments({
   dir: TaskDir;
   files?: FileUpload.Type[];
   folders?: {
+    access?: FolderAttachment.Access;
+    mountName?: string;
     path: string;
     source?: FolderAttachment.Source;
   }[];
@@ -130,46 +131,30 @@ export async function writeUploadedAttachments({
 
     if (folders && folders.length > 0) {
       const taskState = await getTaskState(dir);
-      const existingFolders = Object.values(taskState.attachedFolders ?? {});
+      const held = Object.values(taskState.attachedFolders ?? {});
 
       // A path already attached is not attached twice: two mounts over one
-      // directory would give the agent two names for one folder.
-      const existingPaths = new Set(
-        existingFolders.map((folder) => folder.path),
-      );
-      const newFolders: FolderAttachment.Type[] = [];
+      // directory would give the agent two names for one folder. Nor is it
+      // re-granted: sending a folder again says nothing about its access.
+      const heldPaths = new Set(held.map((folder) => folder.path));
+      const grants: FolderGrant[] = [];
       for (const folder of folders) {
         const folderPath = AbsolutePathSchema.parse(folder.path);
-        if (existingPaths.has(folderPath)) {
+        if (heldPaths.has(folderPath)) {
           continue;
         }
-        existingPaths.add(folderPath);
-        newFolders.push({
-          access: "read-write",
-          createdAt: getCurrentDate().getTime(),
-          id: FolderAttachment.IdSchema.parse(ulid()),
-          mountName: "",
+        heldPaths.add(folderPath);
+        grants.push({
+          access: folder.access ?? "read-write",
+          ...(folder.mountName ? { mountName: folder.mountName } : {}),
           path: folderPath,
           source: folder.source ?? "user",
         });
       }
 
-      const allFolders = [...existingFolders, ...newFolders].sort(
-        (a, b) => a.createdAt - b.createdAt,
-      );
-      const names = assignMountNames(allFolders);
-
-      const nextFolders: Record<string, FolderAttachment.Type> = {};
-      for (const folder of allFolders) {
-        const mountName = names.get(folder.id) ?? folder.mountName;
-        nextFolders[mountName] = { ...folder, mountName };
-      }
-      await setTaskState(dir, { attachedFolders: nextFolders });
-
-      for (const folder of newFolders) {
-        const mountName = names.get(folder.id) ?? folder.mountName;
-        folderAttachments.push({ ...folder, mountName });
-      }
+      const granted = grantFolders(held, grants, getCurrentDate().getTime());
+      await setTaskState(dir, { attachedFolders: granted.folders });
+      folderAttachments.push(...granted.granted);
     }
 
     const fileMetadata: SessionMessageDataPart.FileAttachmentDataPart[] =

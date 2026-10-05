@@ -28,7 +28,9 @@ afterEach(async () => {
 describe("initializeTask", () => {
   it("creates a task from the bundled default template", async () => {
     const taskId = TaskIdSchema.parse("test-task");
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+      unplaced: true,
+    });
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
@@ -70,10 +72,10 @@ describe("initializeTask", () => {
     );
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
       "{
+        "name": "Test task",
         "createdAt": "<when>",
         "createdWithAppVersion": "0.0.0-test",
-        "lastActivityAt": "<when>",
-        "name": "Test task"
+        "lastActivityAt": "<when>"
       }"
     `);
     await expect(

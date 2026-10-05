@@ -3,7 +3,7 @@ import { defineCommand } from "just-bash";
 import { type TaskId } from "../../schemas/task-id";
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
-import { taskDir } from "../task-dir-utils";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -18,7 +18,10 @@ export const FFPROBE_COMMAND = {
   name: "ffprobe",
 } as const;
 
-export function createFfprobeCommand(taskId: TaskId) {
+export function createFfprobeCommand(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
     const unreachable = unreachablePathArgError(
       FFPROBE_COMMAND.name,
@@ -52,7 +55,7 @@ export function createFfprobeCommand(taskId: TaskId) {
 
     const streams = mapStreams(
       shimOutput(result, FFPROBE_COMMAND.name),
-      (text) => filterShellOutput(text, taskDir(taskId)),
+      (text) => filterShellOutput(text, layout),
     );
     return {
       exitCode: result.exitCode ?? 1,

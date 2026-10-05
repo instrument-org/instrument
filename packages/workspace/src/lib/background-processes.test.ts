@@ -24,9 +24,11 @@ import {
 } from "./background-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
-import { virtualizeOutput } from "./shell-commands/rg";
 import { taskDir } from "./task-dir-utils";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
+} from "./workspace-fs-layout";
 
 const usedSessionIds: StoreId.Session[] = [];
 
@@ -115,7 +117,7 @@ function promote(
   options?: {
     explanation?: string;
     settleOnAbort?: boolean;
-    virtualizePaths?: (text: string) => string;
+    layout?: WorkspaceFsLayout;
   },
 ) {
   const controllable = controllableRun(options);
@@ -125,7 +127,7 @@ function promote(
     explanation: options?.explanation,
     run: controllable.run,
     taskId: owner.taskId,
-    virtualizePaths: options?.virtualizePaths,
+    ...(options?.layout ? { layout: options.layout } : {}),
   });
   const promoted = promoteBackgroundProcess({ handle, ...owner });
   if ("error" in promoted) {
@@ -670,7 +672,7 @@ describe("background processes", () => {
     const { controllable, info } = promote(
       owner,
       "rg -l status /mnt/Notes /mnt/Vault",
-      { virtualizePaths: (text) => virtualizeOutput(text, layout) },
+      { layout },
     );
     await controllable.emit(
       `${path.join(home, "notes", "a.md")}\n/Volumes/External/Vault/b.md\n`,

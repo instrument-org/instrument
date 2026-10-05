@@ -4,14 +4,14 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 /**
  * Mount points for every attached folder, in iteration order.
  *
- * Folder names are unique per task -- every attachedFolders writer routes the
- * whole set through assignMountNames (see assign-mount-names.ts) on each
- * attach, and the record is keyed by name -- so mount points normally never
- * collide and {@link attachedFolderMountPoint} is safe to derive from a name
- * anywhere. The "(n)" suffix here is a backstop for state that violated the
- * invariant (e.g. a hand-edited state.json): the bash sandbox (last mount
- * wins) and the file tools (longest match wins) would otherwise disagree
- * about a duplicated mount point, leaving one folder unreachable.
+ * Folder names are unique per task -- every attachedFolders writer goes
+ * through grantFolders (see grant-folders.ts), and the record is keyed by
+ * name -- so mount points normally never collide and
+ * {@link attachedFolderMountPoint} is safe to derive from a name anywhere. The
+ * "(n)" suffix here is a backstop for state that violated the invariant (e.g. a
+ * hand-edited state.json): the bash sandbox (last mount wins) and the file
+ * tools (longest match wins) would otherwise disagree about a duplicated mount
+ * point, leaving one folder unreachable.
  */
 export function assignAttachedMounts(
   attachedFolders: Record<string, FolderAttachment.Type>,
@@ -34,16 +34,20 @@ export function assignAttachedMounts(
 
 /**
  * Virtual mount path for an attached folder, e.g. "Family Photos" ->
- * "/mnt/Family Photos".
+ * "/mnt/Family Photos", or "Home/Downloads" -> "/mnt/Home/Downloads" for a
+ * task its chat handed a folder inside one of the chat's own mounts.
  *
- * Names are derived from the folder's path and unique per task (see
- * assignMountNames, assignAttachedMounts), so this is a stable one-to-one
- * mapping; path separators are flattened and degenerate names fall back to a
- * placeholder purely defensively.
+ * Names are unique per task (see grantFolders, assignAttachedMounts), so this
+ * is a stable one-to-one mapping. Each segment is kept as written; an empty,
+ * `.` or `..` one falls back to a placeholder purely defensively, so no name
+ * reaches outside `/mnt`.
  */
 export function attachedFolderMountPoint(name: string) {
-  const segment = name.replaceAll("/", "-").trim();
-  const safe =
-    segment === "" || segment === "." || segment === ".." ? "folder" : segment;
-  return `${MOUNT.attachedFolders}/${safe}`;
+  const segments = name.split("/").map((segment) => {
+    const trimmed = segment.trim();
+    return trimmed === "" || trimmed === "." || trimmed === ".."
+      ? "folder"
+      : trimmed;
+  });
+  return `${MOUNT.attachedFolders}/${segments.join("/")}`;
 }

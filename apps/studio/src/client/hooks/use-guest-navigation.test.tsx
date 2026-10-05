@@ -9,50 +9,46 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useGuestNavigation } from "./use-guest-navigation";
 
-const { getWebviewElement } = vi.hoisted(() => ({
-  getWebviewElement: vi.fn(),
-}));
+const { useGuest } = vi.hoisted(() => ({ useGuest: vi.fn() }));
 
-vi.mock("@/client/lib/browser-pool", () => ({ getWebviewElement }));
+vi.mock("@/client/hooks/use-browser-targets", () => ({ useGuest }));
 
 const TASK_ID = TaskIdSchema.parse("guest-navigation-test");
 const FIRST = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
 const SECOND = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
 
-/** A stand-in guest whose history the test moves by hand. */
-function fakeGuest(url: string) {
-  const guest = Object.assign(new EventTarget(), {
-    attached: true,
+/** A stand-in guest handle whose history the test moves by hand. */
+function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {
+  const events = new EventTarget();
+  const guest = {
     back: false,
+    canGoBack: () => guest.back,
+    canGoForward: () => guest.forward,
+    emit: (event: string) => {
+      events.dispatchEvent(new Event(event));
+    },
     forward: false,
-    url,
-    canGoBack() {
-      if (!guest.attached) {
-        throw new Error("not attached");
-      }
-      return guest.back;
+    on: (event: string, listener: () => void) => {
+      events.addEventListener(event, listener);
+      return () => {
+        events.removeEventListener(event, listener);
+      };
     },
-    canGoForward() {
-      return guest.forward;
-    },
-    getURL() {
-      if (!guest.attached) {
-        throw new Error("not attached");
-      }
-      return guest.url;
-    },
-  });
+    targetId,
+    url: () => guest.page,
+    page: url,
+  };
   return guest;
 }
 
 beforeEach(() => {
-  getWebviewElement.mockReset();
+  useGuest.mockReset();
 });
 
 describe("useGuestNavigation", () => {
   it("reads the guest on mount and again on each navigation", () => {
     const guest = fakeGuest("https://a.test/");
-    getWebviewElement.mockReturnValue(guest);
+    useGuest.mockReturnValue(guest);
     const onNavigate = vi.fn();
     const { result } = renderHook(() =>
       useGuestNavigation(FIRST, { onNavigate }),
@@ -65,10 +61,10 @@ describe("useGuestNavigation", () => {
       }
     `);
 
-    guest.url = "https://b.test/";
+    guest.page = "https://b.test/";
     guest.back = true;
     act(() => {
-      guest.dispatchEvent(new Event("did-navigate"));
+      guest.emit("did-navigate");
     });
     expect(result.current).toMatchInlineSnapshot(`
       {
@@ -85,41 +81,34 @@ describe("useGuestNavigation", () => {
 
   it("refreshes the steps, not the address, when a load fails", () => {
     const guest = fakeGuest("https://a.test/");
-    getWebviewElement.mockReturnValue(guest);
+    useGuest.mockReturnValue(guest);
     const { result } = renderHook(() => useGuestNavigation(FIRST));
 
-    guest.url = "chrome-error://chromewebdata/";
+    guest.page = "chrome-error://chromewebdata/";
     guest.back = true;
     act(() => {
-      guest.dispatchEvent(new Event("did-fail-load"));
+      guest.emit("did-fail-load");
     });
     expect(result.current.canGoBack).toBe(true);
     expect(result.current.url).toBe("https://a.test/");
   });
 
-  it("stays unknown until an unattached guest navigates", () => {
-    const guest = fakeGuest("about:blank");
-    guest.attached = false;
-    getWebviewElement.mockReturnValue(guest);
-    const { result } = renderHook(() => useGuestNavigation(FIRST));
+  it("stays unknown until its guest is ready", () => {
+    const guest = fakeGuest("https://a.test/");
+    useGuest.mockReturnValue(null);
+    const { rerender, result } = renderHook(() => useGuestNavigation(FIRST));
     expect(result.current.url).toBeNull();
 
-    guest.attached = true;
-    guest.url = "https://a.test/";
-    act(() => {
-      guest.dispatchEvent(new Event("did-navigate-in-page"));
-    });
+    useGuest.mockReturnValue(guest);
+    rerender();
     expect(result.current.url).toBe("https://a.test/");
   });
 
   it("drops the previous guest's answer when the target changes or goes away", () => {
     const first = fakeGuest("https://a.test/");
     first.back = true;
-    const second = fakeGuest("about:blank");
-    second.attached = false;
-    getWebviewElement.mockImplementation((target) =>
-      target === FIRST ? first : second,
-    );
+    // The second target's guest is not ready yet.
+    useGuest.mockImplementation((target) => (target === FIRST ? first : null));
     const initialProps: { target: BrowserTargetId | null } = { target: FIRST };
     const seen: (null | string)[] = [];
     const { rerender, result } = renderHook(
@@ -144,7 +133,7 @@ describe("useGuestNavigation", () => {
 
     // The first guest's listeners are gone with it.
     act(() => {
-      first.dispatchEvent(new Event("did-navigate"));
+      first.emit("did-navigate");
     });
     expect(result.current.url).toBeNull();
 

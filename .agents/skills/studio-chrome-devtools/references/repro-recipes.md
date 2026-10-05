@@ -41,7 +41,7 @@ Never `sleep` for this, and never regex the page text for a spinner. Both are gu
 node $DRIVE wait --idle --task <task-id>
 ```
 
-It blocks on the same status the app's own indicators read (`task.agentStatus.byIds`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
+It blocks on the same status the app's own indicators read (`task.status`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
 
 ## Inspecting a `<webview>` guest's real internal state
 

@@ -51,6 +51,7 @@ import {
   type FixtureTask,
   type WorkspaceFixture,
 } from "./workspace-fixture";
+import { type ChatId, ChatIdSchema } from "../../src/schemas/chat-id";
 
 // Where a chat's folders are made: in the user-data directory beside the
 // workspace, not inside it, as a user's own folders are.
@@ -119,13 +120,16 @@ export async function seedWorkspace({
     seeded.push({ id, key: task.key, kind: "task", name: task.name });
   }
   for (const { chat, folders, session, tasks } of fixture.chats) {
-    const chatId = await seedTask({
-      files: [],
-      now,
-      session,
-      task: chat,
-      workspaceConfig,
-    });
+    // The record `seedTask` made from a chat's fixture is a chat.
+    const chatId = ChatIdSchema.parse(
+      await seedTask({
+        files: [],
+        now,
+        session,
+        task: chat,
+        workspaceConfig,
+      }),
+    );
     const granted = await makeFolders({ folders, now, userDataDir });
     await setTaskState(taskDir(chatId), { attachedFolders: granted });
     seeded.push({ id: chatId, key: chat.key, kind: "chat", name: chat.name });
@@ -293,7 +297,7 @@ async function seedTask({
   task,
   workspaceConfig,
 }: {
-  chatId?: TaskId;
+  chatId?: ChatId;
   files: FixtureFile[];
   now: Date;
   session: Session.WithMessagesAndParts;

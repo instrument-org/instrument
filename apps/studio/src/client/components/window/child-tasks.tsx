@@ -1,4 +1,4 @@
-import { type WindowTab, windowTabsAtom } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { ChatStream } from "@/client/components/chat-stream";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
@@ -30,6 +30,7 @@ import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";
 import { useNewestSessionId } from "./newest-session";
 import { useIsTaskWorking } from "./task-working";
+import { windowTabsAtom } from "./window-tabs";
 
 const noop = () => {
   // A transcript with nothing to type into has nothing to retry or continue.

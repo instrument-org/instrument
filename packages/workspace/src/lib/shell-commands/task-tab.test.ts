@@ -14,13 +14,18 @@ import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runTab, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { tabSubcommand } from "./task/tab";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runTab = subcommandRunner(tabSubcommand, "task tab");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("read-the-page");
 
 const context: TaskCommandContext = {
@@ -61,7 +66,9 @@ function tabsAreOpen(...sessionIds: StoreId.Session[]) {
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-tab-"));
   for (const id of [CHILD_ID]) {
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", id), {
+      unplaced: true,
+    });
   }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -176,7 +183,7 @@ describe("task tab", () => {
     await expect(
       runTab([CHILD_ID, openTab], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/"read-the-page" was started in another chat/);
   });

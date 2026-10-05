@@ -557,11 +557,6 @@ export namespace Store {
         { signal },
       );
 
-      publisher.publish("session.updated", {
-        id: taskId,
-        sessionId: savedSession.id,
-      });
-
       return ok(savedSession);
     });
   }

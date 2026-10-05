@@ -4,6 +4,7 @@ import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import { WebSocket } from "ws";
 
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
+import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import {
   agentPathOfFileUrl,
   isLocalAddress,
@@ -38,18 +39,13 @@ type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
 // Commands that operate on the browser-level target tree. We intercept these
 // and return synthetic responses scoped to just the single WebContentsView
 // target so agent-browser doesn't discover or attach to unrelated Electron
-// targets (the Studio renderer, DevTools windows, etc.).
-const INTERCEPTED_TARGET_COMMANDS = new Set([
-  "Target.activateTarget",
-  "Target.attachToTarget",
-  "Target.closeTarget",
-  "Target.createBrowserContext",
-  "Target.createTarget",
-  "Target.disposeBrowserContext",
-  "Target.getTargets",
-  "Target.setAutoAttach",
-  "Target.setDiscoverTargets",
-]);
+// targets (the Studio renderer, DevTools windows, etc.). The table of CDP
+// methods says which they are.
+const INTERCEPTED_TARGET_COMMANDS = new Set<string>(
+  cdpMethodsHandled("page", "override").filter((method) =>
+    method.startsWith("Target."),
+  ),
+);
 
 // How long a `Page.navigate` answer is held for the main frame's load before
 // it is released anyway. Under agent-browser's 30s per-command timeout with

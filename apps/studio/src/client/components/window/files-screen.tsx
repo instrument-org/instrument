@@ -41,14 +41,14 @@ import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
+import { useGroupTab } from "./group-tab";
 import { folderOf, segmentsOf } from "./host-path";
-import { useHostedPageNavigation } from "./hosted-page";
+import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { useOnScreen } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
-import { useScreenTab } from "./screen-tab";
 import { useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -102,7 +102,7 @@ export function FilesScreen({
   tree: string | undefined;
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail } = useWindow();
-  const { allTabs, close, moveToGroup, pageTakesOver, stepTab, stepVisitOf } =
+  const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
     useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
@@ -112,18 +112,16 @@ export function FilesScreen({
   const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
-  // A tab of a draft or a popped-out chat, which the router does not follow:
-  // moved and left through its host instead.
-  const screenTab = useScreenTab();
+  // The tab of a chat's or a draft's group this screen is in, when it is
+  // not one of the window's own.
+  const groupTab = useGroupTab();
   const leaveFile = () => {
-    if (screenTab) {
-      screenTab.leave();
-      return;
-    }
-    // The tab's own history, or the folder the file is in when the tab
-    // opened on it.
+    // The tab's own history; or, at its start, a group's tab closes and a
+    // window tab goes to the folder the file is in.
     if (router.history.canGoBack()) {
       router.history.back();
+    } else if (groupTab) {
+      groupTab.close();
     } else if (file !== undefined) {
       router.history.push(folderHref(folderOf(file)));
     }
@@ -139,30 +137,21 @@ export function FilesScreen({
   // which is where its tab's tree is rooted; the recents stand in no folder,
   // so a file opened there is rooted at its own.
   const openFile = (tab: FileTab) => {
-    const href = fileHref(tab.hostPath, {
-      tree: folder?.hostPath ?? folderOf(tab.hostPath),
-    });
-    if (screenTab) {
-      screenTab.visit(href);
-    } else {
-      openScreen(href);
-    }
+    router.history.push(
+      fileHref(tab.hostPath, {
+        tree: folder?.hostPath ?? folderOf(tab.hostPath),
+      }),
+    );
   };
   const quickLook = useQuickLook({ openFile });
-  /** Another file in this tab's place: the tree and the crumbs follow it. */
-  const showFile = (hostPath: string) => {
-    if (screenTab) {
-      screenTab.visit(
-        `/files?${new URLSearchParams({
-          file: hostPath,
-          path,
-          root,
-          ...(tree === undefined ? {} : { tree }),
-        }).toString()}`,
-      );
-      return;
-    }
+  /**
+   * Another file in this tab's place: the tree and the crumbs follow it.
+   * `replace` for a file the hosted page itself went to, whose step is in the
+   * page's own history and not a second time in the tab's.
+   */
+  const showFile = (hostPath: string, { replace = false } = {}) => {
     void navigate({
+      replace,
       search: {
         file: hostPath,
         path,
@@ -201,8 +190,8 @@ export function FilesScreen({
   // group named for the tab so no strip lists it, sent to the file the tab
   // shows and closed when the tab moves off a page's file or goes. The
   // browser draws it into the slot the viewer gives it below.
-  const tabId = screenTab?.id ?? appTabId;
-  const hostGroup = `page:${tabId}`;
+  const tabId = groupTab?.id ?? appTabId;
+  const hostGroup = hostGroupOf(tabId);
   const hostedFile =
     isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
@@ -240,9 +229,10 @@ export function FilesScreen({
     hostedTabIdsNow.current = hostedTabIds;
   });
   // A link the page follows moves the tab: to another file, which the tab
-  // shows in this one's place, or off the computer, where the tab becomes
-  // the page at that address and back returns here. A step past either end
-  // of the page's history is the tab's own.
+  // shows in this one's place while the step stays in the page's own
+  // history (which back walks first), or off the computer, where the tab
+  // becomes the page at that address and back returns here. A step past
+  // either end of the page's history is the tab's own.
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
@@ -257,15 +247,17 @@ export function FilesScreen({
         return;
       }
       if (step.kind === "forward") {
-        if (!screenTab) {
+        const canGoForward =
+          router.history.location.state.__TSR_index < router.history.length - 1;
+        if (canGoForward) {
           router.history.forward();
-        } else if (stepTab(screenTab.id, 1) === undefined) {
-          stepVisitOf(screenTab.id, 1);
+        } else if (groupTab) {
+          stepVisitOf(groupTab.id, 1);
         }
         return;
       }
       if (step.kind === "file") {
-        showFile(step.path);
+        showFile(step.path, { replace: true });
         return;
       }
       if (hostedTabId === undefined) {
@@ -277,8 +269,8 @@ export function FilesScreen({
         .split("\n")
         .filter((id) => id !== hostedTabId)
         .join("\n");
-      if (screenTab) {
-        pageTakesOver(hostedTabId, screenTab.id, step.url);
+      if (groupTab) {
+        pageTakesOver(hostedTabId, groupTab.id, step.url);
         return;
       }
       const group = newSiteGroup();
@@ -332,15 +324,13 @@ export function FilesScreen({
     [],
   );
   useEffect(() => {
-    // Drawn only while this screen's tab is the one up: a tab behind keeps
+    // Shown only while this screen's tab is the one up: a tab behind keeps
     // its page parked rather than over the tab in front.
-    if (!isActiveTab) {
-      return;
-    }
     setPageSlots((current) =>
-      current[hostGroup]?.into === slot
+      current[hostGroup]?.into === slot &&
+      current[hostGroup].isShown === isActiveTab
         ? current
-        : { ...current, [hostGroup]: { into: slot } },
+        : { ...current, [hostGroup]: { into: slot, isShown: isActiveTab } },
     );
     return () => {
       setPageSlots((current) => {
@@ -385,7 +375,7 @@ export function FilesScreen({
   // stands for its own value.
   const setFinders = useSetAtom(findersByTabAtom);
   // Only for the window's own tabs: a draft's band has a Finder of its own.
-  const finderFolder = activeFile || screenTab ? null : folder;
+  const finderFolder = activeFile || groupTab ? null : folder;
   useEffect(() => {
     if (finderFolder === null) {
       return;
@@ -573,12 +563,7 @@ export function FilesScreen({
                     // The tab turns back into the page, the way it arrives
                     // at a page's file from anywhere.
                     onLeaveSource: () => {
-                      const href = fileHref(activeFile.hostPath);
-                      if (screenTab) {
-                        screenTab.visit(href);
-                      } else {
-                        router.history.push(href);
-                      }
+                      router.history.push(fileHref(activeFile.hostPath));
                     },
                   }
                 : {})}
@@ -593,18 +578,6 @@ export function FilesScreen({
                   : next,
               );
             }}
-            {...(screenTab
-              ? {
-                  onLocationChange: (location: {
-                    path: string;
-                    root: string;
-                  }) => {
-                    screenTab.visit(
-                      `/files?${new URLSearchParams(location).toString()}`,
-                    );
-                  },
-                }
-              : {})}
             onOpenFile={openFile}
             path={path}
             root={root}

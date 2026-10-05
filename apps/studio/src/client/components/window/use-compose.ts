@@ -7,7 +7,7 @@ import {
   type ScreenView,
 } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 
@@ -19,7 +19,7 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
  * chats in their small views, laid out, with what each draft window's page
  * is drawn into and what each has on screen, for the layout that draws the
  * windows over the pane's page and starts the chats the drafts become. Everything is keyed by the group the window shows: the
- * draft's key, or the chat's session.
+ * draft's key, or the chat's id.
  */
 export function useCompose(
   width: number,
@@ -45,7 +45,7 @@ export function useCompose(
   const placed = layoutCompose(
     entries,
     width,
-    (entry) => entry.kind === "chat" && holdsAnything(entry.sessionId),
+    (entry) => entry.kind === "chat" && holdsAnything(entry.chatId),
     zoom,
   );
   const windows = placed.filter((entry) => entry.placement !== "bar");
@@ -86,11 +86,11 @@ export function useCompose(
     }));
   };
   /** Floats a chat in its small view: a new window at the right, or the bar it was put down to, raised. */
-  const float = (sessionId: StoreId.Session) => {
-    raise(sessionId, () => ({
+  const float = (chatId: ChatId) => {
+    raise(chatId, () => ({
+      chatId,
       kind: "chat",
       placement: "docked",
-      sessionId,
     }));
   };
   /** Drops what was kept for a window's group: where its page was drawn and what it had up. */
@@ -114,16 +114,16 @@ export function useCompose(
    * draft was, docked if it had grown, since a chat's view has no larger
    * size. What the draft's band drew and reported goes with the draft.
    */
-  const becomeChat = (draftId: string, sessionId: StoreId.Session) => {
+  const becomeChat = (draftId: string, chatId: ChatId) => {
     const key = draftGroupOf(draftId);
     setEntries((current) =>
       current.map((entry) =>
         entry.kind === "draft" && entry.draftId === draftId
           ? {
+              chatId,
               fromDraft: draftId,
               kind: "chat",
               placement: entry.placement === "bar" ? "bar" : "docked",
-              sessionId,
             }
           : entry,
       ),
@@ -135,10 +135,10 @@ export function useCompose(
    * same place, for a chat that never started: the draft comes back up
    * with what its window was given still in it.
    */
-  const becomeDraft = (sessionId: StoreId.Session, draftId: string) => {
+  const becomeDraft = (chatId: ChatId, draftId: string) => {
     setEntries((current) =>
       current.map((entry) =>
-        entry.kind === "chat" && entry.sessionId === sessionId
+        entry.kind === "chat" && entry.chatId === chatId
           ? { draftId, kind: "draft", placement: "docked" }
           : entry,
       ),

@@ -3,7 +3,6 @@ import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
@@ -31,10 +30,11 @@ import {
 import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
+import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
+import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { isChatId } from "../record-folders";
+import { chatOf, resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getBrowserSessionDir,
@@ -47,7 +47,8 @@ import { getTaskState, setTaskState } from "../task-record";
 import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  privateMountPoint,
+  buildWorkspaceFsLayout,
+  classifyVirtualPath,
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
 import {
@@ -444,6 +445,7 @@ export async function resolveAgentBrowserPathArgs(
     return { args: resolved };
   }
 
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
@@ -451,7 +453,7 @@ export async function resolveAgentBrowserPathArgs(
       return { error: attachedMountLiteralError("Upload") };
     }
 
-    if (isAtOrUnder(privateMountPoint(MOUNT.task), virtualPath)) {
+    if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {
       return { error: privateDirLiteralError("Upload") };
     }
 
@@ -930,10 +932,7 @@ export function createAgentBrowserCommand({
     }
 
     const scrub = (text: string) =>
-      scrubHostPaths(agentSpellingOfFileUrls(text, layout), {
-        homeDir: os.homedir(),
-        taskDirPath: taskDir(taskId),
-      });
+      virtualizeHostPaths(agentSpellingOfFileUrls(text, layout), layout);
 
     const exitCode = result.exitCode ?? 1;
 
@@ -1046,24 +1045,6 @@ export function isExternalLocalLaunch(args: string[]): boolean {
   );
 }
 
-/**
- * Strip host-absolute paths from CLI output before it reaches the model: the
- * real home dir (leaked by e.g. `profiles`, which prints Chrome user-data
- * locations with the username) becomes `~`, and task-dir paths become
- * task-relative. The agent never needs these absolute forms -- profile names
- * feed --profile, and task outputs are addressed relative to the cwd.
- */
-export function scrubHostPaths(
-  output: string,
-  { homeDir, taskDirPath }: { homeDir: string; taskDirPath: string },
-): string {
-  return output
-    .replaceAll(`${taskDirPath}${path.sep}`, "")
-    .replaceAll(taskDirPath, ".")
-    .replaceAll(`${homeDir}${path.sep}`, `~${path.sep}`)
-    .replaceAll(homeDir, "~");
-}
-
 async function enrichBrowserState({
   id,
   sessionId,
@@ -1169,7 +1150,7 @@ async function resolveBrowserTarget({
     error:
       "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
   };
-  if (isChatId(id)) {
+  if (resolveChat(id)) {
     const { browserTargetId: onScreen } = await getWindowState();
     // The conversation drives the tab on the user's screen and never a
     // browser of its own; with no tab up there is nothing to drive.
@@ -1177,8 +1158,7 @@ async function resolveBrowserTarget({
       ? { isOwnGuest: false, kind: "page", targetId: onScreen }
       : noTabUp;
   }
-  const chatSession = chatSessionOfTask(id);
-  if (!chatSession) {
+  if (!chatOf(id)) {
     // Idempotent: createTarget returns the existing view for this (id,
     // sessionId) pair if one is already live, so sub-agents and repeat
     // invocations within the same session reuse the same browsing surface

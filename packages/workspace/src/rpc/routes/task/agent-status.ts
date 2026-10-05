@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import { getTaskAgentStatus } from "../../../lib/get-task-agent-status";
-import { TaskAgentStatusSchema } from "../../../schemas/task-agent-status";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { base, toORPCError } from "../../base";
+import { base } from "../../base";
 
 const aliveAgentCount = base
   .input(z.void())
@@ -23,30 +20,6 @@ const aliveAgentCount = base
     return { count };
   });
 
-const byIds = base
-  .input(z.object({ ids: TaskIdSchema.array() }))
-  .output(TaskAgentStatusSchema.array())
-  .handler(({ context, errors, input }) => {
-    const { workspaceRef } = context;
-    const results = [];
-
-    for (const id of input.ids) {
-      const result = getTaskAgentStatus({
-        id,
-        workspaceRef,
-      });
-
-      if (result.isErr()) {
-        throw toORPCError(result.error, errors);
-      }
-
-      results.push(result.value);
-    }
-
-    return results;
-  });
-
 export const taskAgentStatus = {
   aliveAgentCount,
-  byIds,
 };

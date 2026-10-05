@@ -4,12 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { workspacePublisher } from "@instrument-org/workspace/electron";
-
 import { type InitialRPCContext } from "../context";
 import { apps } from "./apps";
 
 const mocks = vi.hoisted(() => ({
+  appChanged: vi.fn(() => Promise.resolve()),
   beginMcpOAuth: vi.fn(),
   recordConnection: vi.fn(),
   runAppTest: vi.fn(),
@@ -34,7 +33,6 @@ vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
 }));
 vi.mock("../../lib/apps", () => ({
   announceConnected: vi.fn(),
-  appName: (_dir: string, slug: string) => Promise.resolve(slug),
   appOAuthRedirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
   disconnectApp: vi.fn(),
 }));
@@ -42,6 +40,9 @@ vi.mock(
   import("@instrument-org/workspace/electron"),
   async (importOriginal) => ({
     ...(await importOriginal()),
+    // What the workspace says to its lists and the chat, which has no
+    // workspace to say it to here.
+    appChanged: mocks.appChanged,
     beginMcpOAuth: mocks.beginMcpOAuth,
     recordConnection: mocks.recordConnection,
     runAppTest: mocks.runAppTest,
@@ -158,8 +159,6 @@ describe("markWebSignedIn", () => {
       url: "https://drive.google.com",
     });
 
-    const publish = vi.spyOn(workspacePublisher, "publish");
-
     await call(apps.markWebSignedIn, { slug: "drive" }, options);
 
     expect(mocks.recordConnection).toHaveBeenCalledWith(
@@ -169,11 +168,8 @@ describe("markWebSignedIn", () => {
         status: "connected",
       }),
     );
-    expect(publish).toHaveBeenCalledWith("app.event", {
+    expect(mocks.appChanged).toHaveBeenCalledWith("drive", {
       event: "connected",
-      name: "Google Drive",
-      slug: "drive",
-      web: "https://drive.google.com",
     });
   });
 

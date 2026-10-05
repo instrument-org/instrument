@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
+import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskIdSchema } from "../../../schemas/task-id";
@@ -346,6 +347,33 @@ describe("a task's browser", () => {
     );
   });
 
+  it.each(
+    cdpMethodsHandled("task", "override").filter((method) =>
+      method.startsWith("Target."),
+    ),
+  )("answers %s itself, as the table of CDP methods says", async (method) => {
+    const held = tab();
+    record.browserTabs = [held.held];
+    const { command, sendCommand } = connect();
+    // The ones that name a tab name one the task holds.
+    const reply = await command(method, { targetId: held.tabId });
+    expect(reply.error).toBeUndefined();
+    expect(sendCommand).not.toHaveBeenCalledWith(
+      expect.anything(),
+      method,
+      expect.anything(),
+    );
+  });
+
+  it.each(cdpMethodsHandled("task", "refuse"))(
+    "refuses %s, as the table of CDP methods says",
+    async (method) => {
+      record.browserTabs = [tab().held];
+      const { command } = connect();
+      expect((await command(method)).error).toBeDefined();
+    },
+  );
+
   it("never brings a page forward in the window", async () => {
     const only = tab();
     record.browserTabs = [only.held];
@@ -435,7 +463,7 @@ describe("a task's browser", () => {
     const handed = tab();
     appears(handed.held.id);
     record.browserTabs = [...record.browserTabs, handed.held];
-    publisher.publish("task.stateUpdated", { id: TASK_ID });
+    publisher.publish("record.changed", { id: TASK_ID, kind: "state" });
     await flush();
 
     expect(

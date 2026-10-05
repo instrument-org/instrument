@@ -28,45 +28,6 @@ export interface PendingLook {
 }
 
 /**
- * `--flag value` and `--flag=value` pairs, plus everything else in order. Each
- * flag in `repeatable` collects every value it is given; the others keep the
- * last. Values are whatever the shell already split them into, so a quoted
- * prompt arrives whole.
- */
-export function parseFlags(
-  args: string[],
-  {
-    boolean = [],
-    flags,
-    repeatable,
-  }: { boolean?: string[]; flags: string[]; repeatable: string[] },
-) {
-  const values = new Map<string, string[]>();
-  const positional: string[] = [];
-  for (let index = 0; index < args.length; index++) {
-    const argument = args[index] ?? "";
-    const inline = /^--([a-z-]+)=(.*)$/.exec(argument);
-    const name = inline?.[1] ?? argument.replace(/^--/, "");
-    // A switch takes no value: present or absent, and never the next token.
-    if (argument.startsWith("--") && !inline && boolean.includes(name)) {
-      values.set(name, []);
-      continue;
-    }
-    if (argument.startsWith("--") && flags.includes(name)) {
-      const value = inline ? inline[2] : args[++index];
-      if (value === undefined) {
-        throw new Error(`--${name} needs a value.`);
-      }
-      const list = values.get(name) ?? [];
-      values.set(name, repeatable.includes(name) ? [...list, value] : [value]);
-      continue;
-    }
-    positional.push(argument);
-  }
-  return { positional, values };
-}
-
-/**
  * `--folder Home/Downloads:rw`: the mount, the folder inside it when the task
  * gets less than the whole mount, and the access asked for.
  */
@@ -278,7 +239,9 @@ export async function requireFilesNamedInBrief(
 /**
  * The folders a task is handed, from the `--folder` specs on `task new` and
  * the folders the conversation has: each a host path inside a mount, with the
- * conversation's access unless the spec narrows it.
+ * conversation's access unless the spec narrows it, and the name the task
+ * mounts it under, which is the conversation's own path for it
+ * (`Home/Downloads` for `--folder /mnt/Home/Downloads`).
  */
 export function resolveFolders(
   specs: string[],
@@ -332,9 +295,11 @@ export function resolveFolders(
           : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
       );
     }
+    const inside = path.relative(root, folderPath).split(path.sep);
     // The task gets what the conversation has unless the brief narrows it.
     return {
       access: access ?? granted,
+      mountName: [name, ...inside.filter(Boolean)].join("/"),
       path: folderPath,
       source: "user" as const,
     };

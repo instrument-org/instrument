@@ -4,6 +4,7 @@ import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
 
 import { type TaskId } from "../../schemas/task-id";
+import { recordChanged, storeKeyChange } from "../record-changes";
 import {
   bumpEveryStoreGeneration,
   bumpStoreGeneration,
@@ -16,7 +17,10 @@ const mockStorage = createStorage({
 
 const wrappedMockStorage = wrapStorage(mockStorage);
 
-/** The shared storage, counting each write against the task it was made for, as the real one does. */
+/**
+ * The shared storage, counting each write against the task it was made for
+ * and saying what it changed, as the real one does.
+ */
 export function getSessionsStoreStorage(taskId: TaskId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
@@ -24,12 +28,14 @@ export function getSessionsStoreStorage(taskId: TaskId) {
       bumpStoreGeneration(taskId);
       return wrappedMockStorage.removeItem(key, options).andTee(() => {
         bumpStoreGeneration(taskId);
+        recordChanged(taskId, storeKeyChange(key));
       });
     },
     setItemRaw: (key, value, options) => {
       bumpStoreGeneration(taskId);
       return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
         bumpStoreGeneration(taskId);
+        recordChanged(taskId, storeKeyChange(key));
       });
     },
   };

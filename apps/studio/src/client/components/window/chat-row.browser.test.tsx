@@ -4,7 +4,11 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  StoreId,
+  TaskIdSchema,
+} from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
 import {
@@ -112,8 +116,10 @@ vi.mock("@/client/rpc/client", () => {
 
 const sessionId = StoreId.newSessionId();
 
+const CHAT_ID = ChatIdSchema.parse("2026-09-16-nest-eco-mode-guard");
+
 /** The input every route of the row's is asked with. */
-const INPUT = { sessionId };
+const INPUT = { id: CHAT_ID };
 
 /** The moment every row is read at: a Wednesday afternoon. */
 
@@ -142,7 +148,7 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     archived: false,
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
-    id: sessionId,
+    id: CHAT_ID,
     lastReplyAt: MOVED_AT.getTime(),
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
     replyCount: 3,
@@ -164,9 +170,9 @@ function chat(overrides: Partial<Chat> = {}): Chat {
       role: "user",
     },
     runningTasks: [],
+    sessionId,
     starred: false,
     state: "idle",
-    taskId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],
@@ -453,7 +459,7 @@ describe("ChatRow", () => {
   it("says Draft in red right after the title while the chat's composer holds words", async () => {
     const store = createStore();
     store.set(
-      promptDraftAtom({ scope: "chat", sessionId }),
+      promptDraftAtom({ chatId: CHAT_ID, scope: "chat" }),
       "and keep the porch light on",
     );
     const { row } = await renderRow(chat({ topics: ["house"] }), {
@@ -476,7 +482,7 @@ describe("ChatRow", () => {
 
   it("says nothing of a draft that is only whitespace", async () => {
     const store = createStore();
-    store.set(promptDraftAtom({ scope: "chat", sessionId }), "  \n");
+    store.set(promptDraftAtom({ chatId: CHAT_ID, scope: "chat" }), "  \n");
     const { row } = await renderRow(chat(), { store });
     expect(row.textContent).not.toContain("Draft");
   });
@@ -592,7 +598,7 @@ describe("ChatRow", () => {
       const { onOpen, openScreen, row } = await renderRow(chat());
       titleOf(row).dispatchEvent(event());
       expect(onOpen).not.toHaveBeenCalled();
-      expect(openScreen).toHaveBeenCalledWith(`/chats/${sessionId}`, {
+      expect(openScreen).toHaveBeenCalledWith(`/chats/${CHAT_ID}`, {
         behind: true,
         newTab: true,
       });
@@ -820,7 +826,7 @@ describe("ChatRow", () => {
     file?.click();
     expect(onOpen).not.toHaveBeenCalled();
     expect(window.openPath).toHaveBeenCalledWith("/task/out/report.md", {
-      group: sessionId,
+      group: CHAT_ID,
       ownTab: true,
       show: true,
     });

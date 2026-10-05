@@ -1,9 +1,7 @@
 import { shareEqualDeep } from "@/client/lib/share-equal-deep";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
 import { skipToken, useQueries, useQuery } from "@tanstack/react-query";
-
-import { chatListOptions } from "./chat-list-query";
 
 /**
  * The tasks one chat has filed, by the chat's record id, kept current by the
@@ -19,16 +17,9 @@ export function childTasksOptions(chatId: TaskId | typeof skipToken) {
   });
 }
 
-/** The tasks a chat filed, by the chat's session; none read without a chat. */
-export function useChatTasks(chat: StoreId.Session | undefined) {
-  const record = useQuery(
-    rpcClient.workspace.chats.of.queryOptions({
-      input: chat === undefined ? skipToken : { sessionId: chat },
-      // A chat's record is the one it was made in for as long as it lasts.
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
-  return useQuery(childTasksOptions(record.data?.taskId ?? skipToken));
+/** The tasks a chat filed; none read without a chat. */
+export function useChatTasks(chat: ChatId | undefined) {
+  return useQuery(childTasksOptions(chat ?? skipToken));
 }
 
 /**
@@ -41,7 +32,7 @@ export function useChildTask(id: TaskId, enabled = true) {
     enabled,
   });
   const tasks = useQuery({
-    ...childTasksOptions(record.data?.parentTaskId ?? skipToken),
+    ...childTasksOptions(record.data?.chatId ?? skipToken),
     enabled,
   });
   return tasks.data?.find((task) => task.id === id);
@@ -59,30 +50,26 @@ export function taskRecordOptions(id: TaskId) {
 }
 
 /**
- * The chat each task was filed in, by its session, for the tasks named: a
- * task filed in no chat, or one that is gone, is in the map with none. A
- * task not in it is one not read yet.
+ * The chat each task was filed in, for the tasks named: a task filed in no
+ * chat, or one that is gone, is in the map with none. A task not in it is
+ * one not read yet.
  */
 export function useTaskChats(
   ids: readonly TaskId[],
-): ReadonlyMap<TaskId, string | undefined> {
-  const chats = useQuery(chatListOptions());
-  const sessionOf = new Map(chats.data?.map((chat) => [chat.taskId, chat.id]));
+): ReadonlyMap<TaskId, ChatId | undefined> {
   const records = useQueries({
     queries: ids.map((id) => ({ ...taskRecordOptions(id), retry: false })),
   });
-  const known = new Map<TaskId, string | undefined>();
+  const known = new Map<TaskId, ChatId | undefined>();
   ids.forEach((id, index) => {
     const record = records[index];
     if (record?.isError) {
       known.set(id, undefined);
       return;
     }
-    const parent = record?.data?.parentTaskId;
-    if (!record?.data || (parent !== undefined && !chats.data)) {
-      return;
+    if (record?.data) {
+      known.set(id, record.data.chatId);
     }
-    known.set(id, parent === undefined ? undefined : sessionOf.get(parent));
   });
   return known;
 }

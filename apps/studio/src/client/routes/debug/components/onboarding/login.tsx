@@ -1,4 +1,5 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import {
   type ProviderSetupPage,
   ProviderSetupScreen,
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/debug/components/onboarding/login")({
 
 // Never settles, so a press shows the button waiting on the browser until
 // it is canceled.
-const waitForever = () => new Promise<"canceled" | "signed-in">(noop);
+const waitForever = () => new Promise<SignInOutcome>(noop);
 
 function RouteComponent() {
   const [page1, setPage1] = useState<ProviderSetupPage>("welcome");

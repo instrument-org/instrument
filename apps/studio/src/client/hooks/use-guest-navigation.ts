@@ -1,4 +1,4 @@
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { useGuest } from "@/client/hooks/use-browser-targets";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useState } from "react";
 
@@ -30,60 +30,58 @@ export function useGuestNavigation(
   const navigated = useEffectEvent((url: string) => {
     onNavigate?.(url);
   });
+  const guest = useGuest(targetId);
 
   useEffect(() => {
-    const webview = targetId ? getWebviewElement(targetId) : null;
-    if (!targetId || !webview) {
+    if (!guest) {
       return;
     }
-    // getURL/canGoBack throw if the guest hasn't attached its WebContents
-    // yet; the did-navigate events that also drive these only fire once it has.
     const sync = () => {
-      try {
-        const url = webview.getURL();
-        const back = webview.canGoBack();
-        const forward = webview.canGoForward();
-        setState({ back, forward, targetId, url });
-        navigated(url);
-      } catch {
-        // Not attached yet; a did-navigate will re-run sync once it is.
+      const url = guest.url();
+      if (url === "") {
+        // Gone since it was handed out; its own teardown follows.
+        return;
       }
+      setState({
+        back: guest.canGoBack(),
+        forward: guest.canGoForward(),
+        targetId: guest.targetId,
+        url,
+      });
+      navigated(url);
     };
     // A committed error page makes the prior page a back entry, but
     // did-navigate doesn't reliably fire on error-page commit, so the steps are
     // read again here instead of left stale (back stuck disabled).
     const syncSteps = () => {
-      try {
-        const back = webview.canGoBack();
-        const forward = webview.canGoForward();
-        setState((current) =>
-          current?.targetId === targetId
-            ? { ...current, back, forward }
-            : current,
-        );
-      } catch {
-        // Not attached yet; a later did-navigate will sync.
-      }
+      const back = guest.canGoBack();
+      const forward = guest.canGoForward();
+      setState((current) =>
+        current?.targetId === guest.targetId
+          ? { ...current, back, forward }
+          : current,
+      );
     };
     sync();
-    webview.addEventListener("did-navigate", sync);
-    webview.addEventListener("did-navigate-in-page", sync);
-    webview.addEventListener("did-fail-load", syncSteps);
-    // A redirect can move the history once loading stops without a
-    // navigation event for it.
-    webview.addEventListener("did-stop-loading", syncSteps);
+    const stops = [
+      guest.on("did-navigate", sync),
+      guest.on("did-navigate-in-page", sync),
+      guest.on("did-fail-load", syncSteps),
+      // A redirect can move the history once loading stops without a
+      // navigation event for it.
+      guest.on("did-stop-loading", syncSteps),
+    ];
     return () => {
-      webview.removeEventListener("did-navigate", sync);
-      webview.removeEventListener("did-navigate-in-page", sync);
-      webview.removeEventListener("did-fail-load", syncSteps);
-      webview.removeEventListener("did-stop-loading", syncSteps);
+      for (const stop of stops) {
+        stop();
+      }
       // The guest this described is being let go. Reopening the same target
-      // builds a fresh one at about:blank, and `sync()` cannot read that until
+      // builds a fresh one at about:blank, which is not ready to read until
       // its WebContents attaches, so an answer left standing across the gap
       // would describe a page that is no longer there.
       setState(null);
     };
-  }, [targetId]);
+  }, [guest]);
 
   const current = state?.targetId === targetId ? state : null;
   return {

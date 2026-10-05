@@ -16,13 +16,20 @@ import { taskDir } from "../task-dir-utils";
 import { holdTask, taskHold } from "../task-hold";
 import { setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runSend, runStop, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { sendSubcommand } from "./task/send";
+import { stopSubcommand } from "./task/stop";
 import { type HandOff, withHandOffs } from "./task-hand-off";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runSend = subcommandRunner(sendSubcommand, "task send");
+const runStop = subcommandRunner(stopSubcommand, "task stop");
 
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let CHAT_ID = TaskIdSchema.parse("2026-09-29-conversation");
+let CHAT_ID = ChatIdSchema.parse("2026-09-29-conversation");
 let CHILD_ID = TaskIdSchema.parse("write-the-story");
 
 // Whether the child is working, read each time it is asked, so a test can
@@ -59,7 +66,7 @@ let rootDir: string;
 
 beforeEach(async () => {
   counter += 1;
-  CHAT_ID = TaskIdSchema.parse(`2026-09-29-conversation-${counter}`);
+  CHAT_ID = ChatIdSchema.parse(`2026-09-29-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`write-the-story-${counter}`);
   context = {
     chatId: CHAT_ID,
@@ -68,7 +75,9 @@ beforeEach(async () => {
   working.value = () => true;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-send-stop-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(

@@ -9,11 +9,13 @@ import dbDriver from "unstorage/drivers/db0";
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
 import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
+import { recordChanged, storeKeyChange } from "./record-changes";
 import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath, taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
+import { STORE_TABLE } from "./store-table";
 
 /**
  * How many task databases stay open once they have gone idle. Building the
@@ -209,26 +211,35 @@ function handleFor(taskId: TaskId): WrappedStorage {
     return known;
   }
   const use = <T>(
-    write: boolean,
+    /** The key a write is to, or none for a read. */
+    written: string | undefined,
     operation: (storage: WrappedStorage) => ResultAsync<T, TypedError.Storage>,
   ): ResultAsync<T, TypedError.Storage> => {
     const run = (open: OpenStore) => {
       // Counted before the write lands as well as after, so a reader that
       // overlaps the write sees a change either way.
-      if (write) {
+      if (written !== undefined) {
         bumpStoreGeneration(taskId);
       }
       const settle = () => {
         open.inFlight -= 1;
         open.lastUsed = Date.now();
-        if (write) {
+        if (written !== undefined) {
           bumpStoreGeneration(taskId);
         }
         if (open.inFlight === 0) {
           open.onIdle?.();
         }
       };
-      return operation(open.storage).andTee(settle).orTee(settle);
+      return operation(open.storage)
+        .andTee(() => {
+          settle();
+          // Once the write has landed, so whoever re-reads on it reads it.
+          if (written !== undefined) {
+            recordChanged(taskId, storeKeyChange(written));
+          }
+        })
+        .orTee(settle);
     };
     // Claimed in the same tick as the lookup, so neither the sweep nor a
     // dispose can close it between the two.
@@ -249,13 +260,13 @@ function handleFor(taskId: TaskId): WrappedStorage {
       await disposeSessionsStoreStorage(taskId);
     },
     getItemRaw: (key, options) =>
-      use(false, (storage) => storage.getItemRaw(key, options)),
+      use(undefined, (storage) => storage.getItemRaw(key, options)),
     getKeys: (base, options) =>
-      use(false, (storage) => storage.getKeys(base, options)),
+      use(undefined, (storage) => storage.getKeys(base, options)),
     removeItem: (key, options) =>
-      use(true, (storage) => storage.removeItem(key, options)),
+      use(key, (storage) => storage.removeItem(key, options)),
     setItemRaw: (key, value, options) =>
-      use(true, (storage) => storage.setItemRaw(key, value, options)),
+      use(key, (storage) => storage.setItemRaw(key, value, options)),
   };
   HANDLES.set(taskId, handle);
   return handle;
@@ -306,7 +317,7 @@ function startOpen(
   const storage = createStorage({
     driver: dbDriver({
       database,
-      tableName: "sessions",
+      tableName: STORE_TABLE,
     }),
   });
 

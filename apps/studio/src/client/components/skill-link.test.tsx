@@ -2,7 +2,7 @@
 // can open one, and the name alone everywhere else.
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,7 +32,7 @@ describe("SkillLink", () => {
       openPage: vi.fn(),
       openPath: vi.fn(),
       openScreen,
-      sessionId: StoreId.newSessionId(),
+      chatId: ChatIdSchema.parse("2026-10-01-skills"),
     } satisfies WindowContextValue;
     renderWithProviders(<WindowContext value={context}>{link}</WindowContext>);
     const button = screen.getByRole("button", { name: "create-page" });

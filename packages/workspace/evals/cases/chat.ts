@@ -31,7 +31,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { mountsOf } from "../../src/lib/chat/mount-paths";
+import { folderReach } from "../../src/lib/chat/folder-reach";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { taskDir } from "../../src/lib/task-dir-utils";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -607,7 +607,7 @@ const linkedAFileThatExists: Assertion = {
     if (named.length === 0) {
       return fail(text, "the last reply names no file in a fence");
     }
-    const mounts = await mountsOf(taskId);
+    const mounts = await folderReach(taskId);
     const resolved = named.map((name) => ({
       host: hostPathOf(name, mounts),
       name,
@@ -684,7 +684,7 @@ function handedTheFileToATask(filename: string): Assertion {
 /** A path as the conversation writes it, on disk; undefined where no mount covers it. */
 function hostPathOf(
   named: string,
-  mounts: Awaited<ReturnType<typeof mountsOf>>,
+  mounts: Awaited<ReturnType<typeof folderReach>>,
 ): string | undefined {
   const tasksPrefix = `${MOUNT.tasks}/`;
   if (named.startsWith(tasksPrefix)) {

@@ -1,13 +1,13 @@
 import ms from "ms";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
 import { childTaskMounts } from "../../lib/chat/children";
 import { folderReach } from "../../lib/chat/folder-reach";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
+import { resolveChat } from "../../lib/record-folders";
 
 /**
  * Per stream, so one runaway command cannot pin the message port. Generous
@@ -71,13 +71,14 @@ const runBash = base
   .handler(async ({ input, signal }) => {
     // A chat's own shell, with the commands the chat runs, for the chat's
     // agent; a task's otherwise, the way the bash tool builds it.
-    const isChat = agentNameForTask(input.taskId) === "instrument";
+    const chatId = resolveChat(input.taskId);
     const bash = await createBashEnv({
       attachedFolders: await folderReach(input.taskId),
-      ...(isChat
+      ...(chatId
         ? {
             chat: {
-              childMounts: await childTaskMounts(input.taskId),
+              childMounts: await childTaskMounts(chatId),
+              id: chatId,
             },
           }
         : {}),

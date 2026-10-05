@@ -10,12 +10,13 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { trackFrameDocuments } from "./frame-documents";
+import { guests } from "./guest-registry";
 import {
   isAllowedGuestRequest,
   isAllowedLocalDownload,
   isAllowedLocalRequest,
   leadsBesidePage,
+  localFileResponse,
   mayPageNavigateTo,
   refuseLocalFilesIn,
 } from "./local-file-policy";
@@ -45,7 +46,7 @@ let nextRoutingId = 1;
 function guest() {
   // Electron's WebContents is a Node EventEmitter.
   const contents = Object.assign(new EventEmitter(), { id: nextContentsId++ });
-  trackFrameDocuments(contents as unknown as WebContents);
+  guests.track(contents as unknown as WebContents, "webview");
 
   const frame = () => {
     const self = { processId: 4, routingId: nextRoutingId++, url: "" };
@@ -284,15 +285,12 @@ describe("isAllowedLocalRequest", () => {
 });
 
 describe("isAllowedGuestRequest", () => {
-  const navigate = (
-    type: ReturnType<WebContents["getType"]> | undefined,
-    url: string,
-  ) =>
+  const navigate = (role: "popup" | "webview" | undefined, url: string) =>
     isAllowedGuestRequest({
       frame: null,
       resourceType: "mainFrame",
+      role,
       url,
-      webContents: type === undefined ? undefined : { getType: () => type },
     });
 
   it("lets a guest move to another file", () => {
@@ -305,7 +303,7 @@ describe("isAllowedGuestRequest", () => {
   // the opener would read that file through its handle, one `file://` origin
   // to another.
   it("never shows a file in a popup a page opened", () => {
-    expect(navigate("window", "file:///etc/hosts")).toBe(false);
+    expect(navigate("popup", "file:///etc/hosts")).toBe(false);
   });
 
   // A guest's first navigation after a launch names no contents at all.
@@ -313,6 +311,46 @@ describe("isAllowedGuestRequest", () => {
     expect(navigate(undefined, "file:///Users/casey/Desktop/page.html")).toBe(
       true,
     );
+  });
+});
+
+describe("localFileResponse", () => {
+  const request = (
+    webContentsId: number | undefined,
+    url: string,
+    frame: null | { processId: number; routingId: number } = null,
+    resourceType: OnBeforeRequestListenerDetails["resourceType"] = "mainFrame",
+  ) =>
+    localFileResponse({
+      frame: frame as unknown as WebFrameMain,
+      resourceType,
+      url,
+      webContentsId,
+    });
+
+  it("refuses a file page in a popup a page opened", async () => {
+    // Electron's WebContents is a Node EventEmitter.
+    const popup = Object.assign(new EventEmitter(), { id: nextContentsId++ });
+    guests.track(popup as unknown as WebContents, "popup");
+    expect(await request(popup.id, "file:///etc/hosts")).toEqual({
+      cancel: true,
+    });
+  });
+
+  it("lets a guest's navigation, or one naming no contents, reach its file", async () => {
+    const { contents } = pageGuest();
+    expect(await request(contents.id, `${FOLDER}/other.html`)).toEqual({});
+    expect(await request(undefined, `${FOLDER}/other.html`)).toEqual({});
+  });
+
+  it("answers a page's reads by its folder", async () => {
+    const { contents, main } = pageGuest();
+    expect(
+      await request(contents.id, `${FOLDER}/chart.png`, main, "image"),
+    ).toEqual({});
+    expect(
+      await request(contents.id, "file:///etc/hosts", main, "image"),
+    ).toEqual({ cancel: true });
   });
 });
 
@@ -350,8 +388,8 @@ describe("refuseLocalFilesIn", () => {
       isAllowedGuestRequest({
         frame: main as unknown as WebFrameMain,
         resourceType: "xhr",
+        role: "webview",
         url,
-        webContents: { getType: () => "webview" },
         webContentsId: contents.id,
       });
     expect(read(`${FOLDER}/data.json`)).toBe(true);
@@ -381,6 +419,21 @@ describe("a symlink beside the page", () => {
 
   afterAll(async () => {
     await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it("refuses a page's read through it", async () => {
+    const g = guest();
+    const main = g.frame();
+    g.load(main, at("site/page.html"));
+    const read = (url: string) =>
+      localFileResponse({
+        frame: main as unknown as WebFrameMain,
+        resourceType: "xhr",
+        url,
+        webContentsId: g.contents.id,
+      });
+    expect(await read(at("site/data.json"))).toEqual({});
+    expect(await read(at("site/leak/secret.txt"))).toEqual({ cancel: true });
   });
 
   it("reaches only where it really leads", async () => {

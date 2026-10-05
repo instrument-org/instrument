@@ -4,13 +4,20 @@ import fs from "node:fs/promises";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
+import { type ChatId } from "../schemas/chat-id";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
-import { chatTaskIds, forgetChat, forgetChatTask } from "./record-folders";
+import { recordRemoved } from "./record-changes";
+import {
+  chatTaskIds,
+  forgetRecord,
+  type RecordRef,
+  resolveRecord,
+} from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -43,7 +50,7 @@ export async function trashChat({
   id,
   workspaceConfig,
   workspaceRef,
-}: RemoveTaskOptions) {
+}: Omit<RemoveTaskOptions, "id" | "keepFolder"> & { id: ChatId }) {
   workspaceRef.send({ type: "prepareToTrashTask", value: { id } });
   for (const child of chatTaskIds(id)) {
     const stopped = await trashTask({
@@ -57,11 +64,7 @@ export async function trashChat({
       return err(stopped.error);
     }
   }
-  const trashed = await trashTask({ id, workspaceConfig, workspaceRef });
-  if (trashed.isOk()) {
-    forgetChat(id);
-  }
-  return trashed;
+  return await trashTask({ id, workspaceConfig, workspaceRef });
 }
 
 export async function trashTask({
@@ -123,8 +126,15 @@ export async function trashTask({
         }
 
         if (!keepFolder) {
+          // What it was, and the tasks a chat's folder took with it, read
+          // before the index forgets them.
+          const ref = resolveRecord(taskId);
+          const removed = ref.isOk() ? withTasksInside(ref.value) : [];
           await workspaceConfig.trashItem(taskDir(taskId));
-          forgetChatTask(taskId);
+          forgetRecord(taskId);
+          for (const gone of removed) {
+            recordRemoved(gone);
+          }
         }
 
         // In the off chance that a future task with the same id is
@@ -155,4 +165,20 @@ async function rmrf(path: string): Promise<void> {
     recursive: true,
     retryDelay: ms("2 seconds"),
   });
+}
+
+/** A record, after the tasks inside it when it is a chat's. */
+function withTasksInside(ref: RecordRef): RecordRef[] {
+  if (ref.kind !== "chat") {
+    return [ref];
+  }
+  const chatId = ref.id;
+  return [
+    ...chatTaskIds(chatId).map((id) => ({
+      chatId,
+      id,
+      kind: "task" as const,
+    })),
+    ref,
+  ];
 }

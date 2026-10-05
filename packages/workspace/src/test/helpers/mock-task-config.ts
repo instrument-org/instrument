@@ -36,6 +36,7 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
+import { placeTask, resolveRecord } from "../../lib/record-folders";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
@@ -68,6 +69,11 @@ export function createMockTaskConfig(
     externalBrowser?: boolean;
     imageModel?: ImageModelV4;
     model?: AIGatewayModel.Type;
+    /**
+     * Leaves the id out of the folder index, for a test that makes the task
+     * itself through `initializeTask`, which places it.
+     */
+    unplaced?: boolean;
     webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
   } = {},
@@ -147,8 +153,21 @@ export function createMockTaskConfig(
   // read by getWorkspaceConfig().
   mockProviderConfigs.set(config.id, config);
   setWorkspaceConfig(workspaceConfig);
+  if (!options.unplaced) {
+    knowTask(id);
+  }
 
   return id;
+}
+
+/**
+ * Puts a task no chat owns in the folder index, the way making it would, so
+ * `taskDir` answers for it before the test makes its folder, or without one.
+ */
+export function knowTask(id: TaskId) {
+  if (resolveRecord(id).isErr()) {
+    placeTask(id);
+  }
 }
 
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
@@ -164,6 +183,9 @@ export function createMockTaskConfigForDir(
     ...getWorkspaceConfig(),
     tasksDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
+  if (!options.unplaced) {
+    knowTask(id);
+  }
   return id;
 }
 

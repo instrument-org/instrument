@@ -17,20 +17,21 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 vi.mock("execa");
 
 const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+const CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 const TASK_ID = TaskIdSchema.parse("read-the-page");
 // A task no chat owns, which still browses in a guest of its own.
 const LONE_TASK_ID = TaskIdSchema.parse("lone-task");
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
-let asks: { group?: StoreId.Session; show: boolean }[];
+let asks: { group?: ChatId; show: boolean }[];
 let stopAnswering: () => void;
 
 const ctx = createCommandContext({
@@ -48,7 +49,7 @@ function answeringWindow() {
     }
     asks.push({
       show: ask.action.show,
-      ...(ask.sessionId ? { group: ask.sessionId } : {}),
+      ...(ask.chatId ? { group: ask.chatId } : {}),
     });
     publisher.publish("window.tabDone", {
       id: ask.id,
@@ -110,7 +111,9 @@ async function spawnedCdpUrl() {
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
   for (const id of [TASK_ID, LONE_TASK_ID]) {
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", id), {
+      unplaced: true,
+    });
   }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),

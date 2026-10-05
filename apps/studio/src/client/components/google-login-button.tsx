@@ -1,5 +1,6 @@
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { rpcClient } from "@/client/rpc/client";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { type ReactNode, useRef, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
@@ -16,7 +17,7 @@ export function GoogleLoginButton({
   /** Above the button; replaced by where to finish while the browser has it. */
   caption?: ReactNode;
   className?: string;
-  onLogin: () => Promise<"canceled" | "signed-in">;
+  onLogin: () => Promise<SignInOutcome>;
   onSuccess?: () => void;
 }) {
   const [waiting, setWaiting] = useState(false);

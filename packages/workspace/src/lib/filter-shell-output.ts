@@ -2,6 +2,7 @@ import os from "node:os";
 
 import { type TaskDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
+import { nonTaskMounts, type WorkspaceFsLayout } from "./workspace-fs-layout";
 
 /**
  * Scheme plus the userinfo that precedes `@` in a URL authority. Neither the
@@ -42,12 +43,12 @@ const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
  */
 export function filterShellOutput(
   output: string,
-  dir: TaskDir,
+  layout: WorkspaceFsLayout,
   {
     rewriteSeparators = process.platform === "win32",
   }: { rewriteSeparators?: boolean } = {},
 ): string {
-  let filtered = redactHostPaths(output, dir);
+  let filtered = virtualizeHostPaths(output, layout);
 
   // Redact credentials embedded in a URL's userinfo (`https://user:token@host`,
   // `https://token@host`), the form a token reaches git, curl, and package
@@ -84,25 +85,41 @@ export function filterShellOutput(
 }
 
 /**
- * redactTaskDir plus the host home dir -> "~". The home pass keeps the username
- * and host layout out of subprocess output (the pnpm store/cache/dlx paths and
- * tool stack traces sit beneath the home dir). It is deliberately NOT applied
- * to file contents -- read_file/grep use redactTaskDir alone -- because a file
- * may legitimately hold an absolute home path, and rewriting it would mangle a
- * path the agent then edits or reports back.
+ * The text with every host path the layout knows written the way the agent
+ * reaches it: each mount's root as its mount point (`/mnt/Docs`, `/skills/...`,
+ * `/tasks/<id>`), the task's own folder as `.`, and the home folder as `~`.
+ * The one rewrite every command's output goes through, foreground and
+ * streamed, so a path reads the same whichever printed it.
+ *
+ * Every spelling of each root is matched ({@link pathVariants}), without
+ * case, longest first in one pass: a mount inside the home folder is named as
+ * the mount rather than as `~/...`, which resolves to nothing in the sandbox,
+ * and the task folder inside a mount is named as `.`. A root is matched only
+ * where the name it ends in ends too, so `/Users/x/Docs` is not read inside
+ * `/Users/x/Docs2`; `~` stands for anything left under the home folder.
+ *
+ * The home folder is folded only here, never in a file's contents (see
+ * {@link redactTaskDir}), since a file may hold an absolute home path the
+ * agent then edits or reports back.
  */
-export function redactHostPaths(text: string, dir: TaskDir): string {
-  let redacted = redactTaskDir(text, dir);
-  const home = os.homedir();
-  if (home) {
-    for (const variant of pathVariants(home)) {
-      redacted = redacted.replaceAll(
-        new RegExp(escapeRegExp(variant), "gi"),
-        "~",
-      );
-    }
+export function virtualizeHostPaths(
+  text: string,
+  layout: WorkspaceFsLayout,
+): string {
+  let rewrite = rewrites.get(layout);
+  if (rewrite === undefined) {
+    const home = os.homedir();
+    rewrite = rootRewrite([
+      ...nonTaskMounts(layout).map((mount) => ({
+        root: mount.hostRoot,
+        to: mount.mountPoint,
+      })),
+      { root: layout.task.hostRoot, to: "." },
+      ...(home ? [{ root: home, to: "~" }] : []),
+    ]);
+    rewrites.set(layout, rewrite);
   }
-  return redacted;
+  return rewrite(text);
 }
 
 /**
@@ -112,14 +129,44 @@ export function redactHostPaths(text: string, dir: TaskDir): string {
  * redacting it can't mangle a path the agent needs to read or edit verbatim.
  */
 export function redactTaskDir(text: string, dir: TaskDir): string {
-  let redacted = text;
-  for (const variant of pathVariants(dir)) {
-    redacted = redacted.replaceAll(
-      new RegExp(escapeRegExp(variant), "gi"),
-      ".",
-    );
+  return rootRewrite([{ root: dir, to: "." }])(text);
+}
+
+/** One rewrite per layout, built the first time the layout's output is seen. */
+const rewrites = new WeakMap<WorkspaceFsLayout, (text: string) => string>();
+
+/**
+ * A rewrite of each root, in every spelling, to what it stands for, longest
+ * spelling first and in one pass, so nothing a root became is read again as
+ * part of another.
+ */
+function rootRewrite(
+  roots: { root: string; to: string }[],
+): (text: string) => string {
+  const targets = new Map<string, string>();
+  for (const { root, to } of roots) {
+    for (const variant of pathVariants(root)) {
+      const key = variant.toLowerCase();
+      if (!targets.has(key)) {
+        targets.set(key, to);
+      }
+    }
   }
-  return redacted;
+  if (targets.size === 0) {
+    return (text) => text;
+  }
+  const pattern = new RegExp(
+    `(?:${[...targets.keys()]
+      .toSorted((a, b) => b.length - a.length)
+      .map((variant) => escapeRegExp(variant))
+      .join("|")})(?![\\p{L}\\p{N}_-])`,
+    "giu",
+  );
+  return (text) =>
+    text.replaceAll(
+      pattern,
+      (match) => targets.get(match.toLowerCase()) ?? match,
+    );
 }
 
 export function shouldFilterDebuggerMessage(message: string): boolean {

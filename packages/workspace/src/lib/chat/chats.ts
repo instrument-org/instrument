@@ -14,7 +14,8 @@ import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { chatOfSession, chatTaskIds, sessionOfChat } from "../record-folders";
+import { recordChanged } from "../record-changes";
+import { chatTaskIds, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
 import { getTaskSettings } from "../task-settings";
@@ -37,6 +38,8 @@ import { latestSessionId } from "./latest-session";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
 const LATEST_MAX = 160;
@@ -52,8 +55,6 @@ export const ChatSchema = z.object({
   archived: z.boolean(),
   /** Whether the user starred it: a mark of the user's own, meaning whatever they mean by it. */
   starred: z.boolean(),
-  /** The chat's own record, which its transcript and its tasks are under. */
-  taskId: TaskIdSchema,
   /** When the chat began: its first message, or the session itself before one. */
   createdAt: z.number(),
   /**
@@ -73,7 +74,12 @@ export const ChatSchema = z.object({
     /** Hostnames of pages the user sent, then those the chat and its tasks opened, each once, newest last. */
     sites: z.array(z.string()),
   }),
-  id: StoreId.SessionSchema,
+  /**
+   * The chat's own record, which its transcript and its tasks are under, and
+   * how the window and the agent name it (its tabs' group, its address, a
+   * link to it).
+   */
+  id: ChatIdSchema,
   /**
    * The one line saying where the chat stands: the step while it works,
    * the question while it waits, the first line of the last reply otherwise.
@@ -110,6 +116,8 @@ export const ChatSchema = z.object({
    * moving; waiting while a task filed from it is stopped on an ask, or its
    * own last turn ended on one; idle otherwise.
    */
+  /** The chat's session, which its transcript is read and its messages are sent through. */
+  sessionId: StoreId.SessionSchema,
   state: z.enum(["idle", "waiting", "working"]),
   title: z.string(),
   /**
@@ -128,60 +136,49 @@ export const ChatSchema = z.object({
 export type Chat = z.output<typeof ChatSchema>;
 
 /**
- * Each chat's messages as last read, oldest first, by task and session.
- * Reading every part of every chat is most of what building the list
- * costs, and most rebuilds follow a change in one chat (a reply streaming)
- * or in none (an archive, a star, a chat marked seen). An entry goes as
- * soon as the store announces a change to its session, so the read after a
- * write is always a fresh one; a read already on its way when the change
- * lands is dropped with it rather than kept.
+ * Each chat's messages as last read, oldest first. Reading every part of
+ * every chat is most of what building the list costs, and most rebuilds
+ * follow a change in one chat (a reply streaming) or in none (an archive, a
+ * star, a chat marked seen). An entry goes as soon as the chat's transcript
+ * is written, so the read after a write is always a fresh one; a read
+ * already on its way when the change lands is dropped with it rather than
+ * kept.
  */
-const messagesBySession = new Map<
-  string,
+const messagesByChat = new Map<
+  TaskId,
   Promise<SessionMessage.WithParts[] | undefined>
 >();
 
-/**
- * The apps a filed task was given, as last read from its settings. Every
- * write to them announces `task.updated`, which drops the entry.
- */
+/** The apps a filed task was given, as last read from its settings, until they are written. */
 const filedAppsByTask = new Map<TaskId, Promise<string[]>>();
-publisher.subscribe("task.updated", ({ id }) => {
-  filedAppsByTask.delete(id);
-});
 
-function forgetSession({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}) {
-  messagesBySession.delete(sessionKey(id, sessionId));
-}
-
-function sessionKey(taskId: TaskId, sessionId: StoreId.Session): string {
-  return `${taskId}\n${sessionId}`;
-}
-publisher.subscribe("message.updated", forgetSession);
-publisher.subscribe("message.removed", forgetSession);
-publisher.subscribe("session.removed", forgetSession);
-publisher.subscribe("part.updated", ({ id, part }) => {
-  forgetSession({ id, sessionId: part.metadata.sessionId });
-});
-publisher.subscribe("task.removed", ({ id }) => {
-  filedAppsByTask.delete(id);
-  for (const key of messagesBySession.keys()) {
-    if (key.startsWith(`${id}\n`)) {
-      messagesBySession.delete(key);
-    }
+publisher.subscribe("record.changed", (change) => {
+  if (change.kind === "messages" || change.kind === "removed") {
+    messagesByChat.delete(change.id);
+  }
+  if (change.kind === "settings" || change.kind === "removed") {
+    filedAppsByTask.delete(change.id);
   }
 });
+
+/** One queue per chat for the marks the user puts on its session record. */
+const markQueue = createWriteQueue();
+
+/**
+ * What was seen is where the user left off in the chat, kept in the
+ * window's file rather than the chat's, so it is said on the change feed
+ * here: the count clears the moment the chat is opened rather than the next
+ * time something is said.
+ */
+function announceMark(chatId: ChatId) {
+  recordChanged(chatId, "state");
+}
 
 /** What every chat of a conversation is read against, loaded once per list. */
 interface Shared {
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
+  /** Each chat's seen mark, by chat id. */
   seen: Record<string, StoreId.Message>;
   seenFloor?: StoreId.Message;
 }
@@ -190,25 +187,21 @@ interface Shared {
  * Puts a chat away. The list still carries it, marked, and its stamp stays
  * where it was: putting a chat away is not something happening in it.
  */
-export async function archiveChat(
-  sessionId: StoreId.Session,
-): Promise<boolean> {
-  return saveArchivedAt(sessionId, new Date());
+export async function archiveChat(chatId: ChatId): Promise<boolean> {
+  return saveArchivedAt(chatId, new Date());
 }
 
-/** One chat by its session id, or none for a session that is not one. */
-export async function chatById(
-  sessionId: StoreId.Session,
-): Promise<Chat | undefined> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
+/** One chat, or none for an id that is not a chat's. */
+export async function chatById(chatId: ChatId): Promise<Chat | undefined> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
     return undefined;
   }
-  const digest = await chatDigest(taskId, sessionId);
+  const digest = await chatDigest(chatId, sessionId);
   if (!digest || digest.session.parentId) {
     return undefined;
   }
-  return chatFor(digest, taskId, await loadShared());
+  return chatFor(digest, chatId, await loadShared());
 }
 
 /**
@@ -216,17 +209,11 @@ export async function chatById(
  * filed from it that is not stopped on an ask. A chat that is not has
  * settled, and the next move is the user's.
  */
-export async function chatIsWorking(
-  sessionId: StoreId.Session,
-): Promise<boolean> {
-  if (chatIsAlive(sessionId)) {
+export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
+  if (chatIsAlive(chatId)) {
     return true;
   }
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return false;
-  }
-  const { running } = await chatActivity(taskId);
+  const { running } = await chatActivity(chatId);
   return running.some((task) => !task.waiting);
 }
 
@@ -238,20 +225,33 @@ export async function chatIsWorking(
  * by a send that failed partway, say) is left out.
  */
 export async function listChats(): Promise<Chat[]> {
+  const ids = listChatIds();
+  const rows = await listedChats(ids);
+  return ids.flatMap((id) => rows.get(id) ?? []);
+}
+
+/**
+ * The rows of the chats named, as `listChats` would list them, read against
+ * one load of what every row shares: a chat it would leave out has no row.
+ * What the live list reads again for the chats a change moved.
+ */
+export async function listedChats(
+  ids: readonly ChatId[],
+): Promise<Map<ChatId, Chat>> {
   const shared = await loadShared();
-  const chats = await parallel(
-    { limit: READ_LIMIT },
-    listChatIds(),
-    async (chatId) => {
-      const sessionId = sessionOfChat(chatId);
-      if (!sessionId) {
-        return;
-      }
-      const digest = await chatDigest(chatId, sessionId);
-      return digest ? chatFor(digest, chatId, shared) : undefined;
-    },
+  const rows = await parallel({ limit: READ_LIMIT }, ids, async (chatId) => {
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      return;
+    }
+    const digest = await chatDigest(chatId, sessionId);
+    return digest ? chatFor(digest, chatId, shared) : undefined;
+  });
+  return new Map(
+    rows.flatMap((row): [ChatId, Chat][] =>
+      row === undefined ? [] : [[row.id, row]],
+    ),
   );
-  return chats.filter((chat) => chat !== undefined);
 }
 
 /**
@@ -270,8 +270,8 @@ export async function chatReadProblem(
 }
 
 /** Records what the user has seen in a chat, so its count can clear. */
-export async function markChatSeen(sessionId: StoreId.Session): Promise<void> {
-  const messages = await chatMessages(sessionId);
+export async function markChatSeen(chatId: ChatId): Promise<void> {
+  const messages = await chatMessages(chatId);
   if (!messages) {
     return;
   }
@@ -280,15 +280,9 @@ export async function markChatSeen(sessionId: StoreId.Session): Promise<void> {
     return;
   }
   await updateWindowState((state) => ({
-    chatSeen: { ...state.chatSeen, [sessionId]: newest },
+    chatSeen: { ...state.chatSeen, [chatId]: newest },
   }));
-  // What was seen is a fact about the session as the window shows it, and the
-  // live list re-reads on the session's events, so the count clears the
-  // moment the chat is opened rather than the next time something is said.
-  const chatId = chatOfSession(sessionId);
-  if (chatId) {
-    publisher.publish("session.updated", { id: chatId, sessionId });
-  }
+  announceMark(chatId);
 }
 
 /**
@@ -297,10 +291,8 @@ export async function markChatSeen(sessionId: StoreId.Session): Promise<void> {
  * chat's dot back rather than every reply it ever had. A chat with no
  * finished reply has nothing to put back.
  */
-export async function markChatUnseen(
-  sessionId: StoreId.Session,
-): Promise<void> {
-  const ordered = await chatMessages(sessionId);
+export async function markChatUnseen(chatId: ChatId): Promise<void> {
+  const ordered = await chatMessages(chatId);
   if (!ordered) {
     return;
   }
@@ -311,16 +303,10 @@ export async function markChatUnseen(
   const before = ordered
     .slice(0, ordered.indexOf(newest))
     .findLast((message) => message.role !== "session-context");
-  await updateWindowState((state) => {
-    const { [sessionId]: _seen, ...rest } = state.chatSeen ?? {};
-    return {
-      chatSeen: { ...rest, [sessionId]: before?.id ?? NOTHING_SEEN },
-    };
-  });
-  const chatId = chatOfSession(sessionId);
-  if (chatId) {
-    publisher.publish("session.updated", { id: chatId, sessionId });
-  }
+  await updateWindowState((state) => ({
+    chatSeen: { ...state.chatSeen, [chatId]: before?.id ?? NOTHING_SEEN },
+  }));
+  announceMark(chatId);
 }
 
 /**
@@ -328,10 +314,10 @@ export async function markChatUnseen(
  * app never renames a chat the user has named.
  */
 export async function renameChat(
-  sessionId: StoreId.Session,
+  chatId: ChatId,
   title: string,
 ): Promise<boolean> {
-  return saveMark(sessionId, (session) => ({
+  return saveMark(chatId, (session) => ({
     ...session,
     title,
     titleSettledAt: new Date(),
@@ -340,10 +326,10 @@ export async function renameChat(
 
 /** Stars a chat, or takes the star off. The stamp stays where it was, as with putting a chat away. */
 export async function setChatStarred(
-  sessionId: StoreId.Session,
+  chatId: ChatId,
   starred: boolean,
 ): Promise<boolean> {
-  return saveMark(sessionId, (session) => {
+  return saveMark(chatId, (session) => {
     const { starredAt: _was, ...rest } = session;
     return { ...rest, ...(starred ? { starredAt: new Date() } : {}) };
   });
@@ -355,47 +341,27 @@ export async function setChatStarred(
  * was never made.
  */
 export async function setChatTopics(
-  sessionId: StoreId.Session,
+  chatId: ChatId,
   topics: string[],
 ): Promise<boolean> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return false;
-  }
-  const session = await Store.getSession(sessionId, taskId);
-  if (session.isErr()) {
-    return false;
-  }
-  const existing = await listTopics();
-  const known = new Set(existing.map((topic) => topic.id));
-  const saved = await Store.saveSession(
-    {
-      ...session.value,
-      topics: unique(topics.filter((id) => known.has(id))),
-    },
-    taskId,
-  );
-  // The chat reaches its topics' folders (folder-reach.ts), so its state's
-  // readers hear of a change of topic.
-  publisher.publish("task.updated", { id: taskId });
-  return saved.isOk();
+  const known = new Set((await listTopics()).map((topic) => topic.id));
+  return saveMark(chatId, (session) => ({
+    ...session,
+    topics: unique(topics.filter((id) => known.has(id))),
+  }));
 }
 
 /** Records that the app is done naming a chat, leaving any rename after it to the user. */
-export async function settleChatTitle(
-  sessionId: StoreId.Session,
-): Promise<boolean> {
-  return saveMark(sessionId, (session) => ({
+export async function settleChatTitle(chatId: ChatId): Promise<boolean> {
+  return saveMark(chatId, (session) => ({
     ...session,
     titleSettledAt: new Date(),
   }));
 }
 
 /** Brings a chat back into the inbox. */
-export async function unarchiveChat(
-  sessionId: StoreId.Session,
-): Promise<boolean> {
-  return saveArchivedAt(sessionId, undefined);
+export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
+  return saveArchivedAt(chatId, undefined);
 }
 
 /** The app slugs a chat reached: its own calls and the grants of its tasks. */
@@ -567,7 +533,7 @@ function behind(given: string[], made: string[]): string[] {
 
 async function chatFor(
   digest: ChatDigest,
-  taskId: TaskId,
+  taskId: ChatId,
   shared: Shared,
 ): Promise<Chat> {
   const { root, session } = digest;
@@ -586,7 +552,7 @@ async function chatFor(
   // on an ask of its own is the same: alive to the machine, waiting to the
   // user.
   const working =
-    (chatIsAlive(session.id) && digest.ownAsk === undefined) ||
+    (chatIsAlive(taskId) && digest.ownAsk === undefined) ||
     turnIsStarting(digest) ||
     filed.some((task) => !task.waiting) ||
     filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
@@ -594,7 +560,7 @@ async function chatFor(
   const state = working ? "working" : ask ? "waiting" : "idle";
 
   // A chat with no mark of its own has seen up to the window's floor.
-  const seen = shared.seen[session.id] ?? shared.seenFloor;
+  const seen = shared.seen[taskId] ?? shared.seenFloor;
   // A reply still being written is not news yet: it counts once it has
   // finished, which is also when marking the chat seen would record it.
   const unread = digest.unreadCandidates.filter(
@@ -628,9 +594,8 @@ async function chatFor(
       files: behind(sent.files, made.files),
       sites: behind(sent.sites, made.sites),
     },
-    id: session.id,
+    id: taskId,
     starred: session.starredAt !== undefined,
-    taskId,
     ...(digest.lastAsk ? { lastAsk: digest.lastAsk } : {}),
     ...(latest ? { latest } : {}),
     ...(digest.lastReplyAt === undefined
@@ -642,6 +607,7 @@ async function chatFor(
     replyCount: digest.replyCount,
     ...(root ? { root } : {}),
     runningTasks,
+    sessionId: session.id,
     state,
     // Until the agent names the chat, the ask's own first words stand for it
     // rather than the placeholder a session is born with.
@@ -683,30 +649,29 @@ function chatDigest(
 
 /** A chat's messages, oldest first, or nothing when they cannot be read. */
 function chatMessages(
-  sessionId: StoreId.Session,
+  chatId: ChatId,
 ): Promise<SessionMessage.WithParts[] | undefined> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
     return Promise.resolve(undefined);
   }
-  const key = sessionKey(taskId, sessionId);
-  const cached = messagesBySession.get(key);
+  const cached = messagesByChat.get(chatId);
   if (cached) {
     return cached;
   }
   const read = Promise.resolve(
-    Store.getMessagesWithParts({ sessionId, taskId }),
+    Store.getMessagesWithParts({ sessionId, taskId: chatId }),
   ).then((result) => {
     if (result.isErr()) {
       // A failed read is not remembered: the next list tries again.
-      if (messagesBySession.get(key) === read) {
-        messagesBySession.delete(key);
+      if (messagesByChat.get(chatId) === read) {
+        messagesByChat.delete(chatId);
       }
       return;
     }
     return alphabetical(result.value, (message) => message.id);
   });
-  messagesBySession.set(key, read);
+  messagesByChat.set(chatId, read);
   return read;
 }
 
@@ -946,30 +911,36 @@ function openedHostsIn(command: string): string[] {
  * re-read.
  */
 async function saveArchivedAt(
-  sessionId: StoreId.Session,
+  chatId: ChatId,
   archivedAt: Date | undefined,
 ): Promise<boolean> {
-  return saveMark(sessionId, (session) => {
+  return saveMark(chatId, (session) => {
     const { archivedAt: _was, ...rest } = session;
     return { ...rest, ...(archivedAt ? { archivedAt } : {}) };
   });
 }
 
-/** Writes a mark of the user's onto the session record, announcing the change so the live list re-reads. */
-async function saveMark(
-  sessionId: StoreId.Session,
+/**
+ * Writes a mark of the user's onto the chat's session record, announcing the
+ * change so the live list re-reads. Marks on one chat queue behind each
+ * other, so a star and a rename landing together each build on the other.
+ */
+function saveMark(
+  chatId: ChatId,
   mark: (session: Session.Type) => Session.Type,
 ): Promise<boolean> {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return false;
-  }
-  const session = await Store.getSession(sessionId, taskId);
-  if (session.isErr()) {
-    return false;
-  }
-  const saved = await Store.saveSession(mark(session.value), taskId);
-  return saved.isOk();
+  return markQueue(chatId, async () => {
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      return false;
+    }
+    const session = await Store.getSession(sessionId, chatId);
+    if (session.isErr()) {
+      return false;
+    }
+    const saved = await Store.saveSession(mark(session.value), chatId);
+    return saved.isOk();
+  });
 }
 
 /**
@@ -1082,20 +1053,15 @@ function webHostOf(url: string): string {
  */
 const TURN_START_GRACE_MS = 30_000;
 
-function chatIsAlive(sessionId: StoreId.Session): boolean {
-  const taskId = chatOfSession(sessionId);
-  if (!taskId) {
-    return false;
-  }
+function chatIsAlive(chatId: ChatId): boolean {
   const status = getTaskAgentStatus({
-    id: taskId,
+    id: chatId,
     workspaceRef: getWorkspaceActorRef(),
   });
   return (
     status.isOk() &&
-    status.value.sessionActors.some(
-      (actor) =>
-        actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
+    status.value.sessionActors.some((actor) =>
+      actor.tags.includes("agent.alive"),
     )
   );
 }

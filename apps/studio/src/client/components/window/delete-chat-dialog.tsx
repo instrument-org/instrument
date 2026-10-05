@@ -33,7 +33,7 @@ export function DeleteChatDialog({
   const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
   const children = useQuery({
-    ...childTasksOptions(chat.taskId),
+    ...childTasksOptions(chat.id),
     enabled: open,
   });
   const tasks = children.data ?? [];
@@ -76,9 +76,7 @@ export function DeleteChatDialog({
       items={[chat]}
       onDelete={async () => {
         try {
-          await rpcClient.workspace.chats.trash.call({
-            sessionId: chat.id,
-          });
+          await rpcClient.workspace.chats.trash.call({ id: chat.id });
         } catch (error) {
           toast.error("Failed to delete the chat", {
             description:
@@ -92,8 +90,8 @@ export function DeleteChatDialog({
           chats?.filter((each) => each.id !== chat.id),
         );
         queryClient.removeQueries({
-          queryKey: rpcClient.workspace.chats.of.queryKey({
-            input: { sessionId: chat.id },
+          queryKey: rpcClient.workspace.chats.session.queryKey({
+            input: { id: chat.id },
           }),
         });
         onDeleted();

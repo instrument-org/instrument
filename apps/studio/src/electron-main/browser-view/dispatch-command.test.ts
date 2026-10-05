@@ -6,6 +6,7 @@ import type { WebContents } from "electron";
 
 import {
   CdpCommandTimeoutError,
+  cdpMethodsHandled,
   encodeBrowserTargetId,
   StoreId,
   TaskIdSchema,
@@ -13,7 +14,7 @@ import {
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sendCommand } from "./dispatch-command";
+import { MAIN_OVERRIDES, sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
 import {
   clearGuestSurface,
@@ -41,6 +42,7 @@ interface FakeWebContents {
     isDestroyed: () => boolean;
   };
   isDestroyed: () => boolean;
+  isOffscreen: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
 }
 
@@ -88,6 +90,7 @@ function makeEntry({
           isDestroyed: () => false,
         },
         isDestroyed: () => destroyed,
+        isOffscreen: () => false,
         printToPDF,
       }
     : null;
@@ -1065,5 +1068,39 @@ describe("sendCommand", () => {
 
       expect(wcSendCommand).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("the table of CDP methods", () => {
+  it("lists exactly the commands main answers without the debugger", () => {
+    expect(Object.keys(MAIN_OVERRIDES).toSorted()).toEqual(
+      cdpMethodsHandled("main", "override").toSorted(),
+    );
+  });
+
+  it("warns once about a command it does not know, and still sends it on", async () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(noop);
+    const wcSendCommand = vi.fn().mockResolvedValue({ ok: true });
+    const entry = makeEntry({ sendCommand: wcSendCommand });
+    const entries = new Map([[TARGET_ID, entry]]);
+    const send = () =>
+      sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Animation.enable",
+        params: {},
+        targetId: TARGET_ID,
+      });
+
+    await send();
+    await send();
+
+    expect(wcSendCommand).toHaveBeenCalledTimes(2);
+    expect(
+      warn.mock.calls.filter(([line]) =>
+        String(line).includes("Animation.enable"),
+      ),
+    ).toHaveLength(1);
+    warn.mockRestore();
   });
 });

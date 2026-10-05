@@ -13,10 +13,11 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createBashEnv } from "../create-bash-env";
+import { virtualizeHostPaths } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { virtualizeOutput } from "./rg";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -26,15 +27,16 @@ let taskRoot: string;
 let attachedDir: string;
 let taskId: ReturnType<typeof TaskIdSchema.parse>;
 
-async function run(command: string, attach = false) {
+async function run(command: string, attach: boolean | string = false) {
+  const mountName = typeof attach === "string" ? attach : "Docs";
   const bash = await createBashEnv({
     attachedFolders: attach
       ? {
-          docs: {
+          [mountName]: {
             access: "read-only",
             createdAt: Date.now(),
             id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
+            mountName,
             path: TaskDirSchema.parse(attachedDir),
             source: "user",
           },
@@ -72,13 +74,24 @@ afterEach(async () => {
 });
 
 describe("rg command", () => {
+  // A task handed a folder inside one of its chat's mounts holds the
+  // directories above it with nothing else in them.
+  it.each(["/mnt", "/mnt/Home"])(
+    "searches the mounts under %s, which holds no mount itself",
+    async (root) => {
+      const result = await run(`rg -l NEEDLE ${root}`, "Home/Docs");
+      expect(result.stdout).toBe("/mnt/Home/Docs/note.md\n");
+      expect(result.exitCode).toBe(0);
+    },
+  );
+
   it("searches the chat's /apps mount, which the chat's shell has", async () => {
     const appDir = path.join(getWorkspaceConfig().appsDir, "rg-weather");
     await fs.mkdir(appDir, { recursive: true });
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { childMounts: [] },
+        chat: { childMounts: [], id: ChatIdSchema.parse(taskId) },
         sessionId,
         taskId,
       });
@@ -372,6 +385,7 @@ describe("rg command in a chat", () => {
             readOnly: true,
           },
         ],
+        id: chatId,
       },
       sessionId: StoreId.newSessionId(),
       taskId: chatId,
@@ -408,7 +422,7 @@ describe("rg command in a chat", () => {
   });
 });
 
-describe("virtualizeOutput", () => {
+describe("virtualizeHostPaths on what rg prints", () => {
   // ripgrep runs with `--path-separator=/`, so it prints a host root in its
   // POSIX spelling whatever the layout stores.
   function layoutFor(hostRoot: string) {
@@ -433,7 +447,7 @@ describe("virtualizeOutput", () => {
     const layout = layoutFor(String.raw`C:\Users\dev\Downloads`);
 
     expect(
-      virtualizeOutput("C:/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
+      virtualizeHostPaths("C:/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
     ).toBe("/mnt/Docs/note.md:1:NEEDLE\n");
   });
 
@@ -441,7 +455,7 @@ describe("virtualizeOutput", () => {
     const layout = layoutFor("/Users/dev/Downloads");
 
     expect(
-      virtualizeOutput("/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
+      virtualizeHostPaths("/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
     ).toBe("/mnt/Docs/note.md:1:NEEDLE\n");
   });
 });

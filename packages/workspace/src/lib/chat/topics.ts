@@ -12,6 +12,7 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
+import { updateJsonRecordSync } from "../json-record-file";
 
 const ulid = monotonicFactory();
 
@@ -209,18 +210,21 @@ export function updateTopic(
 /**
  * Writes a topic whole into the folder named for it, making the folder the
  * first time: its settings, and its instructions when it has any. The name is
- * the caller's to have made unique and safe.
+ * the caller's to have made unique and safe. A settings field this build
+ * does not know is carried forward, and settings that cannot be read are
+ * refused rather than written over.
  */
 export function writeTopicSync(rootDir: string, topic: Topic): void {
   const { instructions, name, ...settings } = topic;
   const folder = path.join(rootDir, TOPICS_DIR_NAME, name);
-  fs.mkdirSync(path.join(folder, TASK_PRIVATE_FOLDER_NAME), {
-    recursive: true,
-  });
-  fs.writeFileSync(
+  // Every field this build knows is written as the topic has it, absent ones
+  // dropped (a retired topic brought back loses its mark); the rest stay.
+  const known = Object.fromEntries(
+    Object.keys(TopicSettingsSchema.shape).map((key) => [key, undefined]),
+  );
+  updateJsonRecordSync(
     path.join(folder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
-    `${JSON.stringify(TopicSettingsSchema.parse(settings), null, 2)}\n`,
-    "utf8",
+    () => ({ ...known, ...TopicSettingsSchema.parse(settings) }),
   );
   const instructionsFile = path.join(folder, INSTRUCTIONS_FILE_NAME);
   if (instructions?.trim()) {

@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -27,15 +27,13 @@ export function useSetChatTopics() {
       onMutate: (input) => {
         queryClient.setQueryData<Chat[]>(key, (chats) =>
           chats?.map((chat) =>
-            chat.id === input.sessionId
-              ? { ...chat, topics: input.topics }
-              : chat,
+            chat.id === input.id ? { ...chat, topics: input.topics } : chat,
           ),
         );
       },
     }),
   );
-  return (sessionId: StoreId.Session, topics: string[]) => {
-    mutation.mutate({ sessionId, topics });
+  return (id: ChatId, topics: string[]) => {
+    mutation.mutate({ id, topics });
   };
 }

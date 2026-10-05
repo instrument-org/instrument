@@ -1,18 +1,18 @@
-import { type WindowTabs } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { describe, expect, it } from "vitest";
 
-import { groupScreenOf, withGroupScreensOnly } from "./group-screen";
+import { groupScreenTabsOnly, isGroupScreenHref } from "./group-screen";
 
-describe("groupScreenOf", () => {
+describe("isGroupScreenHref", () => {
   it.each([
-    ["/browser", "browser"],
-    ["/new-tab", "newTab"],
-    ["/apps", "apps"],
-    ["/apps/linear", "app"],
-    ["/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV", "tasks"],
-    ["/files?path=&root=~", "computer"],
-  ])("draws %s as %s", (href, kind) => {
-    expect(groupScreenOf(href)?.kind).toBe(kind);
+    "/browser",
+    "/new-tab",
+    "/apps",
+    "/apps/linear",
+    "/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "/files?path=&root=~",
+  ])("lets a group's tab stand at %s", (href) => {
+    expect(isGroupScreenHref(href)).toBe(true);
   });
 
   it.each([
@@ -23,46 +23,34 @@ describe("groupScreenOf", () => {
     "/skills/create-page",
     "/memory/no-stevia",
     "/apps/linear/settings",
-  ])("has no group screen at %s", (href) => {
-    expect(groupScreenOf(href)).toBeUndefined();
+  ])("keeps a group's tab from %s", (href) => {
+    expect(isGroupScreenHref(href)).toBe(false);
   });
 });
 
-describe("withGroupScreensOnly", () => {
+describe("groupScreenTabsOnly", () => {
   it("drops screen tabs at, or with a step back onto, a screen no group draws", () => {
-    const current: WindowTabs = {
-      activeId: "kept",
-      tabs: [
-        { group: "g", href: "/browser", id: "kept", kind: "screen" },
-        {
-          group: "g",
-          id: "page",
-          kind: "page",
-          openedAt: 0,
-          url: "https://example.com",
-        },
-        { group: "g", href: "/release-notes", id: "notes", kind: "screen" },
-        {
-          at: 1,
-          group: "g",
-          href: "/apps",
-          id: "walked",
-          kind: "screen",
-          trail: ["/skills/create-page", "/apps"],
-        },
-      ],
-    };
-    expect(withGroupScreensOnly(current).tabs.map((tab) => tab.id)).toEqual([
+    const tabs: WindowTab[] = [
+      { group: "g", href: "/browser", id: "kept", kind: "screen" },
+      {
+        group: "g",
+        id: "page",
+        kind: "page",
+        openedAt: 0,
+        url: "https://example.com",
+      },
+      { group: "g", href: "/release-notes", id: "notes", kind: "screen" },
+      {
+        group: "g",
+        href: "/apps",
+        id: "walked",
+        kind: "screen",
+        history: { entries: ["/skills/create-page", "/apps"], index: 1 },
+      },
+    ];
+    expect(groupScreenTabsOnly(tabs).map((tab) => tab.id)).toEqual([
       "kept",
       "page",
     ]);
-  });
-
-  it("hands back the same tabs when nothing goes", () => {
-    const current: WindowTabs = {
-      activeId: null,
-      tabs: [{ group: "g", href: "/apps", id: "a", kind: "screen" }],
-    };
-    expect(withGroupScreensOnly(current)).toBe(current);
   });
 });

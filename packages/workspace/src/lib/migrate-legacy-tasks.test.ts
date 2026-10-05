@@ -12,12 +12,12 @@ import { readTopicsSync, writeTopicSync } from "./chat/topics";
 let root: string;
 
 // A mark the window already holds for a chat made before the boot.
-const KEPT_SESSION = "ses_01M3AX9RF3C2E9RTATMB602W0B";
+const KEPT_CHAT = "2026-06-01-kept";
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-legacy-tasks-"));
   writeJson(path.join(root, ".instrument", "window.json"), {
-    chatSeen: { [KEPT_SESSION]: "msg_01M3AX9RF3C2E9RTATMB602W0C" },
+    chatSeen: { [KEPT_CHAT]: "msg_01M3AX9RF3C2E9RTATMB602W0C" },
   });
 });
 
@@ -357,8 +357,8 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const seen = { chatSeen: windowSeen() };
-    const read = sessionOf("2026-06-23-rotating-red-square").id as string;
-    const unread = sessionOf("2026-06-23-unread-one").id as string;
+    const read = "2026-06-23-rotating-red-square";
+    const unread = "2026-06-23-unread-one";
     // The chat already there keeps its mark.
     expect(Object.keys(seen.chatSeen)).toHaveLength(3);
     expect(seen.chatSeen[read]).toBe(
@@ -391,7 +391,7 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(windowSeen()[sessionOf(chat).id as string]).toBe(
+    expect(windowSeen()[chat]).toBe(
       messageIds(chat).at(-1),
     );
   });
@@ -406,7 +406,7 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     expect(windowSeen()).toEqual({
-      [sessionOf("2026-06-23-rotating-red-square").id as string]: messageIds(
+      "2026-06-23-rotating-red-square": messageIds(
         "2026-06-23-rotating-red-square",
       ).at(-1),
     });

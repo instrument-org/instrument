@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listChats } from "../../lib/chat/chats";
 import {
   forgetRecordFolders,
-  isChatId,
+  resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
 import { disposeSessionsStoreStorage } from "../../lib/session-store-storage";
@@ -23,6 +23,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { type WorkspaceRPCContext } from "../base";
 import { storage } from "./storage";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 // The chat list asks the machine what is running; none runs in a test.
 vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
@@ -77,7 +78,7 @@ function createContext(): WorkspaceRPCContext {
 /** A chat with its session saved and one message from the user. */
 async function readableChat(named: string): Promise<TaskId> {
   const sessionId = StoreId.newSessionId();
-  const id = chatFor(sessionId, TaskIdSchema.parse(named));
+  const id = chatFor(sessionId, ChatIdSchema.parse(named));
   opened.push(id);
   const saved = await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title: named },
@@ -120,7 +121,7 @@ async function seedBrokenChats() {
     privateFile("2026-10-01-bad-settings", "settings.json"),
     "{",
   );
-  chatFor(StoreId.newSessionId(), TaskIdSchema.parse("2026-10-01-bad-db"));
+  chatFor(StoreId.newSessionId(), ChatIdSchema.parse("2026-10-01-bad-db"));
   fs.writeFileSync(
     privateFile("2026-10-01-bad-db", "task.db"),
     "not a database, just bytes long enough to be read as a header",
@@ -144,7 +145,7 @@ describe("storage.invalidFolders", () => {
       context: createContext(),
     });
 
-    expect(chats.map((chat) => chat.taskId)).toEqual(["2026-10-01-fine"]);
+    expect(chats.map((chat) => chat.id)).toEqual(["2026-10-01-fine"]);
     expect(
       invalid
         .map(({ kind, name, path: at, reason }) => ({
@@ -186,8 +187,8 @@ describe("storage.invalidFolders", () => {
 
   it("trashes an unreadable chat and forgets it", async () => {
     await seedBrokenChats();
-    const badDb = TaskIdSchema.parse("2026-10-01-bad-db");
-    expect(isChatId(badDb)).toBe(true);
+    const badDb = ChatIdSchema.parse("2026-10-01-bad-db");
+    expect(resolveChat(badDb) !== undefined).toBe(true);
 
     await call(
       storage.invalidFolders.trash,
@@ -200,7 +201,7 @@ describe("storage.invalidFolders", () => {
 
     expect(fs.existsSync(path.join(root, "chats", badDb))).toBe(false);
     expect(invalid.map((folder) => folder.name)).not.toContain(badDb);
-    expect(isChatId(badDb)).toBe(false);
+    expect(resolveChat(badDb) !== undefined).toBe(false);
     expect(sessionOfChat(badDb)).toBeUndefined();
   });
 

@@ -1,6 +1,7 @@
+import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { chatIdOfTask, sessionOfChat } from "../record-folders";
+import { owningChat, sessionOfChat } from "../record-folders";
 import { getWindowState, updateWindowState } from "../window-state";
 
 /** The chat an app was last asked for in, or none for an app nobody asked for. */
@@ -8,7 +9,7 @@ export async function chatOfApp({
   slug,
 }: {
   slug: string;
-}): Promise<StoreId.Session | undefined> {
+}): Promise<ChatId | undefined> {
   const state = await getWindowState();
   return state.appChats?.[slug];
 }
@@ -18,7 +19,7 @@ export async function chatOfApp({
  * reports back into that chat, whichever is newest when it finishes.
  */
 export function chatOfTask(taskId: TaskId): StoreId.Session | undefined {
-  const chatId = chatIdOfTask(taskId);
+  const chatId = owningChat(taskId);
   return chatId === undefined ? undefined : sessionOfChat(chatId);
 }
 
@@ -33,13 +34,13 @@ export function chatOfTask(taskId: TaskId): StoreId.Session | undefined {
  * arrives for the window and has to find the chat from there.
  */
 export async function recordAppChat({
-  sessionId,
+  chatId,
   slug,
 }: {
-  sessionId: StoreId.Session;
+  chatId: ChatId;
   slug: string;
 }): Promise<void> {
   await updateWindowState((state) => ({
-    appChats: { ...state.appChats, [slug]: sessionId },
+    appChats: { ...state.appChats, [slug]: chatId },
   }));
 }

@@ -1,6 +1,6 @@
 import { type AgentName } from "../agents/types";
 import { type TaskId } from "../schemas/task-id";
-import { isChatId } from "./record-folders";
+import { resolveRecord } from "./record-folders";
 
 /**
  * Which agent answers in a task: the chat's own for a chat,
@@ -9,5 +9,6 @@ import { isChatId } from "./record-folders";
  * runs the agent the task was created for.
  */
 export function agentNameForTask(taskId: TaskId): AgentName {
-  return isChatId(taskId) ? "instrument" : "main";
+  const ref = resolveRecord(taskId);
+  return ref.isOk() && ref.value.kind === "chat" ? "instrument" : "main";
 }

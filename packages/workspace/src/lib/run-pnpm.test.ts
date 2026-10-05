@@ -4,6 +4,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
+import { taskLayout } from "../test/helpers/task-layout";
 
 vi.mock(import("./execa-node-for-task"));
 
@@ -16,7 +17,11 @@ describe("runPnpmCommand", () => {
     });
 
     const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-    await runPnpmCommand({ args: ["install"], taskId });
+    await runPnpmCommand({
+      args: ["install"],
+      layout: taskLayout(taskId),
+      taskId,
+    });
 
     expect(execaNodeForTask).toHaveBeenCalledTimes(1);
 
@@ -54,6 +59,7 @@ describe("runPnpmCommand", () => {
     const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
+      layout: taskLayout(taskId),
       pnpmLogLevel: "error",
       taskId,
     });

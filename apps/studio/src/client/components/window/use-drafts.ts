@@ -4,6 +4,7 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
+  forgetDraftWords,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
@@ -12,14 +13,14 @@ import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  type ChatId,
   type SessionMessageDataPart,
   StoreId,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
@@ -29,7 +30,8 @@ import { type DraftSend } from "./compose-window";
 import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
-import { isHomeTab, type useWindowTabs } from "./window-tabs";
+import { isHomeTab } from "./tab-model";
+import { type useWindowTabs } from "./window-tabs";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
@@ -68,7 +70,7 @@ export function useDrafts({
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
   /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
-  openChat: (sessionId: StoreId.Session) => void;
+  openChat: (chatId: ChatId) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The topics, for the one the inbox stands in. */
@@ -86,20 +88,20 @@ export function useDrafts({
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
-  // The chats whose first messages are on their way, by session, with the
+  // The chats whose first messages are on their way, by chat, with the
   // words each sent: the chat shows them from the press, and keeps showing
   // them until its own transcript has them, a moment past the call's answer.
-  const [sentWords, setSentWords] = useState<
-    ReadonlyMap<StoreId.Session, string>
-  >(() => new Map());
+  const [sentWords, setSentWords] = useState<ReadonlyMap<ChatId, string>>(
+    () => new Map(),
+  );
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   // The chat a draft just became, and the draft it was, for as long as
   // its row's arrival lasts.
   const [arrived, setArrived] = useState<{
+    chatId: ChatId;
     draftId: string;
-    sessionId: StoreId.Session;
   }>();
   useEffect(() => {
     if (arrived === undefined) {
@@ -107,7 +109,7 @@ export function useDrafts({
     }
     const timer = setTimeout(() => {
       setArrived(undefined);
-      setSentWords((current) => withoutKey(current, arrived.sessionId));
+      setSentWords((current) => withoutKey(current, arrived.chatId));
     }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
@@ -133,7 +135,7 @@ export function useDrafts({
     // What the draft is opened over: the tab in view, when it is something
     // the conversation can be told about: the tab open in the chat's pane
     // beside it, or a site the tab up shows.
-    const overGroup = windowTabs.group;
+    const overGroup = windowTabs.groupOnScreen;
     const over =
       overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
         ? windowTabs.tabUpIn(overGroup)
@@ -171,7 +173,7 @@ export function useDrafts({
     };
     setDrafts((current) => [...current, draft]);
     windowTabs.openScreen(NEW_TAB_HREF, {
-      activate: true,
+      select: true,
       group: draftGroupOf(draft.id),
     });
     showDraft(draft.id);
@@ -190,12 +192,19 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
-  // What a draft's composer held is kept only as long as the draft: a
-  // composer unmounting keeps its snapshot as it goes, so a draft sent or
-  // thrown away is pruned here, after that.
+  // What a draft's composer held, and its words, are kept only as long as
+  // the draft: a composer unmounting keeps its snapshot as it goes, so a
+  // draft sent or thrown away is pruned here, after that.
   const draftIds = drafts.map((draft) => draft.id).join("\n");
+  const knownDraftIds = useRef(new Set<string>());
   useEffect(() => {
     const keep = new Set(draftIds.split("\n"));
+    for (const id of knownDraftIds.current) {
+      if (!keep.has(id)) {
+        forgetDraftWords(id);
+      }
+    }
+    knownDraftIds.current = keep;
     setDraftSnapshots((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([id]) => keep.has(id)),
@@ -254,7 +263,6 @@ export function useDrafts({
     // sent from it waits for this one to land first.
     const opened = holdSendsUntilOpened(sessionId);
     setStartingIds((current) => new Set(current).add(id));
-    setSentWords((current) => new Map(current).set(sessionId, send.prompt));
     // The model chosen for the chat is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
     // What was marked in files and moved to this draft goes as its asks.
@@ -267,33 +275,33 @@ export function useDrafts({
       // The chat's record is made first, so the window never shows a chat
       // whose record is not there yet; it is a folder and a settings file,
       // so the press still feels immediate.
-      let chatId: TaskId;
+      let chatId: ChatId;
       try {
-        ({ taskId: chatId } = await rpcClient.workspace.chats.ensure.call({
+        ({ id: chatId } = await rpcClient.workspace.chats.ensure.call({
           firstWords: send.prompt,
           sessionId,
         }));
-        // Known at once to the chat's screen, which asks for its chat.
+        // Known at once to the chat's screen, which asks for its session.
         queryClient.setQueryData(
-          rpcClient.workspace.chats.of.queryKey({
-            input: { sessionId },
+          rpcClient.workspace.chats.session.queryKey({
+            input: { id: chatId },
           }),
-          { taskId: chatId },
+          { sessionId },
         );
       } catch (error) {
         opened();
         setStartingIds((current) => withoutId(current, id));
-        setSentWords((current) => withoutKey(current, sessionId));
         toast.error("Failed to start the chat", {
           description: error instanceof Error ? error.message : String(error),
         });
         return;
       }
+      setSentWords((current) => new Map(current).set(chatId, send.prompt));
       if (opensWhole) {
         compose.remove(draftGroupOf(id));
-        openChat(sessionId);
+        openChat(chatId);
       } else {
-        compose.becomeChat(id, sessionId);
+        compose.becomeChat(id, chatId);
       }
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
@@ -317,9 +325,9 @@ export function useDrafts({
         if (opensWhole) {
           showDraft(id);
         } else {
-          compose.becomeDraft(sessionId, id);
+          compose.becomeDraft(chatId, id);
         }
-        setSentWords((current) => withoutKey(current, sessionId));
+        setSentWords((current) => withoutKey(current, chatId));
         toast.error("Failed to start the chat", {
           description: error instanceof Error ? error.message : String(error),
         });
@@ -330,7 +338,7 @@ export function useDrafts({
       }
       setDrafts((current) => current.filter((entry) => entry.id !== id));
       removeAsks(marked.map((ask) => ask.id));
-      setArrived({ draftId: id, sessionId });
+      setArrived({ chatId, draftId: id });
       // What the draft gathered becomes the chat's tabs, the pages and
       // folders as they stand, behind the window; the new-tab pages among
       // them were the band's own face and are not carried over, and a draft
@@ -345,12 +353,12 @@ export function useDrafts({
       if (homes.length === own.length) {
         windowTabs.dropGroup(group);
       } else {
-        windowTabs.adoptGroup(group, sessionId, { show: false });
+        windowTabs.adoptGroup(group, chatId);
       }
     })();
   };
   return {
-    arrivedId: arrived?.sessionId,
+    arrivedId: arrived?.chatId,
     closeDraft,
     deleteDraft,
     newDraft,

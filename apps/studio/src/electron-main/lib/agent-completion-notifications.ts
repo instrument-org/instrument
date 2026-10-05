@@ -10,7 +10,7 @@ import {
   type TaskId,
   type WorkspaceActorRef,
   type WorkspaceConfig,
-  workspacePublisher,
+  sessionEnds,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
@@ -78,9 +78,9 @@ export function startAgentCompletionNotifications({
    * answer that from here would pull every window's machinery in behind them.
    */
   revealTask: (task: {
-    /** A chat of the conversation, which the inbox lists by its session. */
+    id: TaskId;
+    /** A chat of the conversation, which the inbox lists by its id. */
     isChat: boolean;
-    sessionId: StoreId.Session;
   }) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
@@ -105,7 +105,7 @@ export function startAgentCompletionNotifications({
       // A task the conversation started reports into its chat, and the
       // chat's reply is the news; a notification for each would say the
       // same thing twice, the first time in words meant for the conversation.
-      if (task.parentTaskId !== undefined) {
+      if (task.chatId !== undefined) {
         return;
       }
       isChat = task.isChat;
@@ -135,7 +135,7 @@ export function startAgentCompletionNotifications({
       if (body === undefined) {
         return;
       }
-      const chat = await chatOf({ context, sessionId });
+      const chat = await chatOf({ context, id });
       // A reply while a task of the chat's is still at work is a step on
       // the way: the line said before a hand-off, a task sent back. The news
       // is the reply that leaves the chat at rest, with nothing of its own
@@ -155,7 +155,7 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ isChat, sessionId });
+        revealTask({ id, isChat });
       },
       title: taskTitle,
     });
@@ -168,16 +168,16 @@ export function startAgentCompletionNotifications({
    */
   async function chatOf({
     context,
-    sessionId,
+    id,
   }: {
     context: {
       workspaceConfig: WorkspaceConfig;
       workspaceRef: WorkspaceActorRef;
     };
-    sessionId: StoreId.Session;
+    id: TaskId;
   }): Promise<Chat | undefined> {
     try {
-      return await call(workspaceRouter.chats.byId, { sessionId }, { context });
+      return await call(workspaceRouter.chats.byId, { id }, { context });
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
@@ -189,8 +189,8 @@ export function startAgentCompletionNotifications({
   async function subscribe() {
     while (true) {
       try {
-        for await (const event of workspacePublisher.subscribe("session.done", {
-          maxBufferedEvents: MAX_BUFFERED_COMPLETION_EVENTS,
+        for await (const event of sessionEnds({
+          maxBuffered: MAX_BUFFERED_COMPLETION_EVENTS,
         })) {
           await showNotification(event);
         }

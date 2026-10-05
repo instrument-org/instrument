@@ -7,12 +7,13 @@ import { type TaskState } from "../../schemas/task-state";
 import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { isChatId, sessionOfChat } from "../record-folders";
+import { resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
+import { type ChatId } from "../../schemas/chat-id";
 
 /**
  * The folders a task reaches, by the name each is mounted under.
@@ -39,7 +40,8 @@ export async function folderReach(
   const held = isWindow
     ? undefined
     : (state ?? (await getTaskState(taskDir(taskId)))).attachedFolders;
-  if (!isWindow && !isChatId(taskId)) {
+  const chatId = isWindow ? undefined : resolveChat(taskId);
+  if (!isWindow && !chatId) {
     return held ?? {};
   }
 
@@ -62,7 +64,7 @@ export async function folderReach(
   )) {
     add(folder);
   }
-  for (const folderPath of isWindow ? [] : await topicFolderPaths(taskId)) {
+  for (const folderPath of chatId ? await topicFolderPaths(chatId) : []) {
     add(standingFolder(folderPath));
   }
 
@@ -122,7 +124,7 @@ function standingFolder(folderPath: string): FolderAttachment.Type {
  * filed, leaving out any no longer on disk so the agent is not pointed at
  * nothing.
  */
-async function topicFolderPaths(chatId: TaskId): Promise<string[]> {
+async function topicFolderPaths(chatId: ChatId): Promise<string[]> {
   const sessionId = sessionOfChat(chatId);
   if (!sessionId) {
     return [];

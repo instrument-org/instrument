@@ -5,6 +5,7 @@ import { type TaskId } from "../schemas/task-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { taskDir } from "./task-dir-utils";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
+import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 export async function runUvCommand({
   args,
@@ -29,11 +30,13 @@ export async function runUvCommand({
   });
 
   return {
+    // Run for the task outside any shell, so with no folder of the user's
+    // mounted: its own folder and the skills are all the output can name.
     combined: filterShellOutput(
       result.all ||
         result.shortMessage ||
         "uv failed without diagnostic output.",
-      taskDir(taskId),
+      buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) }),
     ),
     exitCode: result.exitCode ?? 1,
     stdout: result.stdout,

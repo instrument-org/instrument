@@ -5,6 +5,7 @@ import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
+  type ChatId,
   StoreId,
   type TaskId,
   WINDOW_ID,
@@ -36,8 +37,8 @@ export function WindowTabStrip({
   tabs,
   trailing,
 }: {
-  /** Each chat's title by its session, for a tab standing on one. */
-  chatTitles: Map<StoreId.Session, string>;
+  /** Each chat's title by its id, for a tab standing on one. */
+  chatTitles: Map<ChatId, string>;
   childTitles: Map<TaskId, string>;
   /** Which chat's tabs these are, so a swap to another chat's is not drawn as tabs arriving. */
   groupKey: string;

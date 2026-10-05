@@ -1,6 +1,6 @@
 import { chatFiltersAtom, type Draft } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
@@ -52,7 +52,7 @@ export function ChatPane({
   /** Deletes a draft outright; the caller says so and offers it back. */
   onDeleteDraft: (id: string) => void;
   /** Told the chats the list shows, in its order, whenever that changes: what a chord steps through. */
-  onListed?: (ids: StoreId.Session[]) => void;
+  onListed?: (ids: ChatId[]) => void;
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;

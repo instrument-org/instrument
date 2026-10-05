@@ -12,6 +12,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
 import { createNodeCommand } from "./node";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 
@@ -26,7 +27,7 @@ const mockCtx = createCommandContext({
 
 describe("nodeCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createNodeCommand(taskId);
+  const command = createNodeCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
     vi.resetAllMocks();

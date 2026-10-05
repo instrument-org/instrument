@@ -3,20 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RelativePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { publisher } from "../../rpc/publisher";
+import {
+  AbsolutePathSchema,
+  RelativePathSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { placeChatTask, sessionOfChat } from "../record-folders";
+import { recordChanged, recordRemoved } from "../record-changes";
+import { forgetRecord, placeTask, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
   archiveChat,
+  type Chat,
   chatById,
   listChats,
   markChatSeen,
@@ -26,7 +33,9 @@ import {
   setChatTopics,
   unarchiveChat,
 } from "./chats";
+import { liveChatList } from "./live-chat-list";
 import { createTopic } from "./topics";
+import { type ChatId } from "../../schemas/chat-id";
 
 vi.mock(import("../session-store-storage"));
 
@@ -46,7 +55,7 @@ vi.mock(import("./wake"), () => ({
 // have a live agent. Neither exists in a test, so both are dials.
 vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
-  chatActivity: (chatId: TaskId) =>
+  chatActivity: (chatId: ChatId) =>
     Promise.resolve({
       running: running.value.filter(
         (task) => task.chat === sessionOfChat(chatId),
@@ -97,7 +106,7 @@ const freshTask = async () => {
 
 /** A task started in a chat: a folder inside that chat's record. */
 function fileTask(sessionId: StoreId.Session, child: TaskId) {
-  const dir = placeChatTask(child, chatFor(sessionId));
+  const dir = placeTask(child, chatFor(sessionId));
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -315,7 +324,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Untitled chat 4", 2);
 
     const [chat] = await listChats();
-    expect(chat?.id).toBe(sessionId);
+    expect(chat?.sessionId).toBe(sessionId);
     expect(chat?.createdAt).toBe(at(2).getTime());
   });
 
@@ -351,7 +360,7 @@ describe("listChats", () => {
     expect(saved.isOk()).toBe(true);
 
     const [chat] = await listChats();
-    expect(chat?.id).toBe(sessionId);
+    expect(chat?.sessionId).toBe(sessionId);
   });
 
   it("reads what was said since the last list, and a part rewritten in place", async () => {
@@ -403,13 +412,13 @@ describe("listChats", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
 
-    await markChatUnseen(sessionId);
+    await markChatUnseen(chatFor(sessionId));
     const [put] = await listChats();
     expect(put?.unread).toBe(1);
 
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
     const [seen] = await listChats();
     expect(seen?.unread).toBe(0);
   });
@@ -459,7 +468,7 @@ describe("listChats", () => {
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
 
-    await markChatUnseen(sessionId);
+    await markChatUnseen(chatFor(sessionId));
     const [chat] = await listChats();
     expect(chat?.unread).toBe(1);
   });
@@ -470,7 +479,7 @@ describe("listChats", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Done.", { minute: 2 });
 
-    await markChatSeen(sessionId);
+    await markChatSeen(chatFor(sessionId));
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
 
     const [chat] = await listChats();
@@ -481,7 +490,7 @@ describe("listChats", () => {
       finished: false,
       minute: 4,
     });
-    const seen = await chatById(sessionId);
+    const seen = await chatById(chatFor(sessionId));
     const settled = seen?.newestSettledMessageId;
     expect(settled).toBeDefined();
     expect(settled).not.toBe(streaming);
@@ -493,7 +502,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list");
 
-    await setChatTopics(sessionId, [home.id, "top_nothing"]);
+    await setChatTopics(chatFor(sessionId), [home.id, "top_nothing"]);
 
     const [chat] = await listChats();
     expect(chat?.topics).toEqual([home.id]);
@@ -507,12 +516,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.archived).toBe(false);
 
-    await archiveChat(sessionId);
+    await archiveChat(chatFor(sessionId));
     const [archived] = await listChats();
     expect(archived?.archived).toBe(true);
     expect(archived?.updatedAt).toBe(before?.updatedAt);
 
-    await unarchiveChat(sessionId);
+    await unarchiveChat(chatFor(sessionId));
     const [back] = await listChats();
     expect(back?.archived).toBe(false);
   });
@@ -525,12 +534,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.starred).toBe(false);
 
-    await setChatStarred(sessionId, true);
+    await setChatStarred(chatFor(sessionId), true);
     const [starred] = await listChats();
     expect(starred?.starred).toBe(true);
     expect(starred?.updatedAt).toBe(before?.updatedAt);
 
-    await setChatStarred(sessionId, false);
+    await setChatStarred(chatFor(sessionId), false);
     const [back] = await listChats();
     expect(back?.starred).toBe(false);
   });
@@ -542,7 +551,7 @@ describe("listChats", () => {
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
 
-    await renameChat(sessionId, "Weekly shop");
+    await renameChat(chatFor(sessionId), "Weekly shop");
     const [renamed] = await listChats();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
@@ -872,5 +881,148 @@ describe("listChats", () => {
       ],
       sites: ["www.instacart.com", "www.costco.com"],
     });
+  });
+});
+
+describe("liveChatList", () => {
+  /**
+   * The live list, followed: `next` answers with the list's next answer, or
+   * none if nothing comes within a moment.
+   */
+  async function open() {
+    const controller = new AbortController();
+    const answers: Chat[][] = [];
+    let wake: (() => void) | undefined;
+    // Ends with the abort's error, as a live route does when its request goes.
+    void (async () => {
+      for await (const answer of liveChatList(controller.signal)) {
+        answers.push(answer);
+        wake?.();
+      }
+    })().catch(() => undefined);
+    const next = async () => {
+      if (answers.length === 0) {
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+          setTimeout(resolve, 200);
+        });
+      }
+      return answers.shift();
+    };
+    return {
+      first: await next(),
+      next,
+      stop: () => {
+        controller.abort();
+      },
+    };
+  }
+
+  it("drops a deleted chat's row, though the index forgot the chat before anything heard", async () => {
+    const taskId = await freshTask();
+    const kept = await session(taskId, "Groceries", 1);
+    await userSays(taskId, kept, "make me a grocery list", 1);
+    const deleted = await session(taskId, "Taxes", 2);
+    await userSays(taskId, deleted, "file my taxes", 2);
+    const { first, next, stop } = await open();
+    expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
+
+    const gone = chatFor(deleted);
+    forgetRecord(gone);
+    recordRemoved({ id: gone, kind: "chat" });
+
+    expect((await next())?.map((chat) => chat.sessionId)).toEqual([kept]);
+    stop();
+  });
+
+  it("says a chat is idle once its turn ends, which writes nothing", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    alive.value = new Set([sessionId]);
+    const { first, next, stop } = await open();
+    expect(first?.[0]?.state).toBe("working");
+
+    alive.value = new Set();
+    recordChanged(chatFor(sessionId), "agent");
+
+    expect((await next())?.[0]?.state).toBe("idle");
+    stop();
+  });
+
+  it("moves a row's apps when the workspace's apps change", async () => {
+    const taskId = await freshTask();
+    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      appsDir: AbsolutePathSchema.parse(appsDir),
+    });
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(
+      taskId,
+      sessionId,
+      "file it in [Linear](instrument://app/linear)",
+      1,
+    );
+    const { first, next, stop } = await open();
+    // No apps folder yet: nothing is known, so nothing is filtered.
+    expect(first?.[0]?.holds.apps).toEqual(["linear"]);
+
+    fs.mkdirSync(path.join(appsDir, "drafts"), { recursive: true });
+    fs.writeFileSync(
+      path.join(appsDir, "drafts", "app.json"),
+      JSON.stringify({
+        auth: { kind: "none" },
+        name: "Drafts",
+        package: "@agiletortoise/drafts-mcp-server",
+        runtime: "node",
+        type: "mcp-local",
+      }),
+    );
+    publisher.publish("app.updated", null);
+
+    expect((await next())?.[0]?.holds.apps).toEqual([]);
+    stop();
+  });
+
+  it("reads a rename and a star into the row", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const { next, stop } = await open();
+
+    await renameChat(chatFor(sessionId), "Weekly shop");
+    expect((await next())?.[0]?.title).toBe("Weekly shop");
+    await setChatStarred(chatFor(sessionId), true);
+    expect((await next())?.[0]?.starred).toBe(true);
+    stop();
+  });
+
+  it("reads a filed task's step into its chat's row, and sends nothing for a change no row shows", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const child = TaskIdSchema.parse("live-grocery-list");
+    fileTask(sessionId, child);
+    const { next, stop } = await open();
+
+    recordChanged(chatFor(sessionId), "settings");
+    expect(await next()).toBeUndefined();
+
+    running.value = [
+      {
+        chat: sessionId,
+        step: "Checking the pantry",
+        taskId: child,
+        title: "Grocery list",
+        updatedAt: at(3).getTime(),
+      },
+    ];
+    recordChanged(child, "messages");
+    expect((await next())?.[0]?.runningTasks).toEqual([
+      { id: child, step: "Checking the pantry", title: "Grocery list" },
+    ]);
+    stop();
   });
 });

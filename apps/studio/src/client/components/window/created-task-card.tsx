@@ -3,8 +3,7 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import ms from "ms";
+import { useMutation } from "@tanstack/react-query";
 import { type MouseEvent } from "react";
 
 import { PlanningDotIcon } from "../icons/planning-dot";
@@ -12,9 +11,7 @@ import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { StopProcessButton } from "../task/stop-process-button";
 import { useChildTask } from "./child-tasks-query";
 import { useWindow } from "./context";
-
-/** How often the row re-reads where the task stands while it works. */
-const REFRESH_MS = ms("2 seconds");
+import { useTaskStatus } from "./task-working";
 
 /**
  * The task a command in the conversation created, inside the reply that
@@ -33,21 +30,13 @@ const REFRESH_MS = ms("2 seconds");
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const appWindow = useWindow();
   const id = TaskIdSchema.parse(taskId);
-  const status = useQuery(
-    rpcClient.workspace.chats.taskStatus.queryOptions({
-      input: { id },
-      refetchInterval: (query) =>
-        query.state.data?.isWorking === false && !query.state.data.held
-          ? false
-          : REFRESH_MS,
-    }),
-  );
+  const status = useTaskStatus(id);
   // The line a finished task ends on: what it made, what it asks for, or how
   // it stopped. Read from the list of the chat it was filed in, and only once
   // this one is done, which is the moment the line is settled.
   const standing = useChildTask(
     id,
-    status.data?.isWorking === false && !status.data.held,
+    status?.isWorking === false && !status.held,
   )?.standing;
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
 
@@ -63,10 +52,10 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
     appWindow.openScreen(href);
   };
 
-  const title = status.data?.title ?? "Task";
-  const held = status.data?.held;
-  const isWorking = !held && status.data?.isWorking !== false;
-  const line = held ?? (isWorking ? status.data?.step : standing?.line);
+  const title = status?.title ?? "Task";
+  const held = status?.held;
+  const isWorking = !held && status?.isWorking !== false;
+  const line = held ?? (isWorking ? status?.step : standing?.line);
   // The line is in the warning tone when the task did not get to the end of
   // its work: it failed, it was stopped, or it is waiting on the user.
   const needsAttention =
@@ -123,7 +112,7 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
           is hovered. */}
         <ArrowUpRightIcon className="-ml-1 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover/run-row:opacity-100 group-focus-visible/run-row:opacity-100" />
       </button>
-      {(status.data?.isWorking || held !== undefined) && (
+      {(status?.isWorking || held !== undefined) && (
         <StopProcessButton
           className="size-6"
           disabled={stop.isPending}

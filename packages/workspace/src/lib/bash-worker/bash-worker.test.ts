@@ -18,7 +18,7 @@ import {
   type BashRunner,
   createLocalBashEnv,
 } from "../create-bash-env";
-import { placeChatTask } from "../record-folders";
+import { placeTask } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
@@ -29,6 +29,8 @@ import {
 } from "../workspace-skill-index";
 import { createRemoteBash, setBashWorkerFactory } from "./client";
 import { fromWireError, type FromWorker, toWireError } from "./protocol";
+import { type ChatId } from "../../schemas/chat-id";
+import { taskDir } from "../task-dir-utils";
 
 // The worker compiles from source under tsx, which takes seconds the first
 // time; the shared worker is warm for every test after the first.
@@ -145,7 +147,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   it("finds a task made inside a chat after the worker started", async () => {
     const chatId = chatFor();
     const chatTaskId = TaskIdSchema.parse(`01k${"chattask".padEnd(23, "0")}`);
-    const dir = placeChatTask(chatTaskId, chatId);
+    const dir = placeTask(chatTaskId, chatId);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
@@ -156,12 +158,29 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(result.stdout).toBe("inside the chat\n");
   });
 
+  it("runs in the record main resolved, without reading the index itself", async () => {
+    const chatId = chatFor();
+    const chatTaskId = TaskIdSchema.parse(`01k${"handedtask".padEnd(23, "0")}`);
+    const dir = placeTask(chatTaskId, chatId);
+    await fs.mkdir(path.join(dir, "work"), { recursive: true });
+    await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
+    // A scan of the disk now skips the chat, whose settings name no session;
+    // only main's index still knows where the task is.
+    await fs.rm(path.join(taskDir(chatId), ".instrument", "settings.json"));
+
+    const result = await remoteBash({
+      sessionId: StoreId.newSessionId(),
+      taskId: chatTaskId,
+    }).exec("cat work/here.txt");
+    expect(result.stdout).toBe("handed\n");
+  });
+
   // A chat's tasks sit inside the chat's own folder, which mounts writable at
   // /task. The chat reaches them at /tasks/<id>, read-only with their private
   // dirs masked, and must not get around that through /task/tasks/<id>.
   describe("a chat's tasks", () => {
     const childId = TaskIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
-    let chatId: TaskId;
+    let chatId: ChatId;
     let childDir: string;
     let chatDir: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
@@ -171,7 +190,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
     beforeAll(async () => {
       chatId = chatFor();
-      childDir = placeChatTask(childId, chatId);
+      childDir = placeTask(childId, chatId);
       chatDir = path.dirname(path.dirname(childDir));
       await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
       await fs.writeFile(
@@ -197,6 +216,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
               readOnly: true,
             },
           ],
+          id: chatId,
         },
         sessionId: StoreId.newSessionId(),
         taskId: chatId,

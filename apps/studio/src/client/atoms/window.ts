@@ -5,14 +5,14 @@ import {
 } from "@/client/components/extend/file-system";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
 import { type ChatFilters, NO_FILTERS } from "@/client/components/window/chats";
-import { type TabId } from "@/shared/tabs";
+import { type TabHistory as ScreenHistory, type TabId } from "@/shared/tabs";
 import {
+  type ChatId,
   type SessionMessageDataPart,
-  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
-import { atomWithStorage, createJSONStorage } from "jotai/utils";
+import { atom, type SetStateAction } from "jotai";
+import { atomFamily, atomWithStorage } from "jotai/utils";
 
 /**
  * What the chat column is narrowed to.
@@ -39,16 +39,18 @@ export interface RecentEntry {
 export const RECENTS_MAX = 15;
 
 export const recentsAtom = atomWithStorage<RecentEntry[]>(
-  "studio.recents.v3",
+  "studio.recents.v4",
   [],
   undefined,
   { getOnInit: true },
 );
 
 /**
- * What the window has on screen this moment, written by the screen that is
- * up and cleared when it leaves, so what goes with a message is what the
- * user was looking at and never a screen they left. The page's words and the
+ * What each screen shows, by the tab it is drawn in (one of the window's own
+ * tabs, or a group's tab beside a chat or in a draft's band), written by the
+ * screen and cleared when it leaves. What goes with a message is read from
+ * the tab in view at the moment of sending, so it is what the user was
+ * looking at and never a screen they left. The page's words and the
  * screen's address are added at send time by the layout, which holds both.
  */
 export type ScreenView = Omit<
@@ -56,7 +58,7 @@ export type ScreenView = Omit<
   "page" | "url"
 >;
 
-export const screenViewAtom = atom<null | ScreenView>(null);
+export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
 
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
@@ -131,16 +133,66 @@ export function draftOfGroup(group: string | undefined): string | undefined {
  * launches the way the tabs are: a draft put away is still in Drafts.
  */
 export const draftsAtom = atomWithStorage<Draft[]>(
-  "studio.drafts.v1",
+  "studio.drafts.v2",
   [],
   undefined,
   { getOnInit: true },
 );
 
+/** How long a draft's words are left alone before its record is written. */
+const DRAFT_WORDS_SETTLE_MS = 300;
+
+/** Each draft's pending write of its words to its record. */
+const draftWordsWrites = new Map<string, ReturnType<typeof setTimeout>>();
+
 /**
- * What each draft's composer held when it was last put away, by draft id:
- * the files and folders it was given, restored when the draft comes back
- * up. In memory only, since bytes do not belong in storage.
+ * A draft's words: the one place they are typed into and read from, by the
+ * composer, its bar, the Drafts list and the send alike. They start as the
+ * record's (a draft made with words in it, or one kept past a launch), and
+ * what is typed is written back to the record a beat later rather than on
+ * every key: writing the record lays the whole window out again, transcripts
+ * and all, and that on each keystroke is felt in the keys.
+ */
+export const draftWordsAtom = atomFamily((draftId: string) => {
+  const typed = atom<null | string>(null);
+  const words = atom(
+    (get) =>
+      get(typed) ??
+      get(draftsAtom).find((draft) => draft.id === draftId)?.words ??
+      "",
+    (get, set, update: SetStateAction<string>) => {
+      const next = typeof update === "function" ? update(get(words)) : update;
+      set(typed, next);
+      clearTimeout(draftWordsWrites.get(draftId));
+      draftWordsWrites.set(
+        draftId,
+        setTimeout(() => {
+          draftWordsWrites.delete(draftId);
+          set(draftsAtom, (current) =>
+            current.map((draft) =>
+              draft.id === draftId && draft.words !== next
+                ? { ...draft, updatedAt: Date.now(), words: next }
+                : draft,
+            ),
+          );
+        }, DRAFT_WORDS_SETTLE_MS),
+      );
+    },
+  );
+  return words;
+});
+
+/** Lets go of a draft's words, for a draft sent or thrown away. */
+export function forgetDraftWords(draftId: string) {
+  clearTimeout(draftWordsWrites.get(draftId));
+  draftWordsWrites.delete(draftId);
+  draftWordsAtom.remove(draftId);
+}
+
+/**
+ * What each draft's composer held besides its words when it was last put
+ * away, by draft id: the files and folders it was given, restored when the
+ * draft comes back up. In memory only, since bytes do not belong in storage.
  */
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
@@ -152,7 +204,7 @@ export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
  */
 export type ComposeEntry = { placement: ComposePlacement } & (
   | { draftId: string; kind: "draft" }
-  | { fromDraft?: string; kind: "chat"; sessionId: StoreId.Session }
+  | { chatId: ChatId; fromDraft?: string; kind: "chat" }
 );
 
 /** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
@@ -160,7 +212,7 @@ export type ComposePlacement = "bar" | "docked" | "expanded";
 
 /** The group key of what a window shows: the draft's tabs, or the chat's. */
 export function composeKeyOf(entry: ComposeEntry): string {
-  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.sessionId;
+  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
 /**
@@ -172,7 +224,7 @@ export function composeKeyOf(entry: ComposeEntry): string {
  * themselves are in `draftsAtom`.
  */
 export const composeAtom = atomWithStorage<ComposeEntry[]>(
-  "studio.compose.v1",
+  "studio.compose.v2",
   [],
   undefined,
   { getOnInit: true },
@@ -186,7 +238,7 @@ export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
  * Null for the inbox alone.
  */
 export const chatGroupAtom = atomWithStorage<null | string>(
-  "studio.chat-group.v1",
+  "studio.chat-group.v2",
   null,
   undefined,
   { getOnInit: true },
@@ -205,13 +257,13 @@ export const inboxOpenAtom = atomWithStorage<boolean>(
 );
 
 /**
- * Whether each group's pane is open, by the chat's session id or the
- * draft's key: the tabs beside the conversation, put away and brought back
+ * Whether each group's pane is open, by the chat's id or the draft's
+ * key: the tabs beside the conversation, put away and brought back
  * by the toggle over it. A group not named here has its pane open, so a
  * chat whose agent opened something shows it on arrival.
  */
 export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
-  "studio.pane-open.v1",
+  "studio.pane-open.v2",
   {},
   undefined,
   { getOnInit: true },
@@ -273,8 +325,14 @@ export interface FileTab {
  * route it is at, so navigating inside it changes the tab and not the row.
  */
 export type TabVisit =
-  | (BrowserTab & { kind: "page"; pageBackSteps?: number })
-  | { at?: number; href: string; id: string; kind: "screen"; trail?: string[] };
+  | (BrowserTab & { kind: "page" })
+  | {
+      /** Where the screen's own router has been, and where along it the tab stands; one address until it has moved. */
+      history?: ScreenHistory;
+      href: string;
+      id: string;
+      kind: "screen";
+    };
 
 export type WindowTab = TabHistory & TabVisit;
 
@@ -283,15 +341,13 @@ export type WindowTab = TabHistory & TabVisit;
  *
  * History belongs to a tab rather than to the window: back never moves you to
  * a different tab, which is the thing that makes a strip of them readable. A
- * page keeps its guest's native history; past and future retain visits across
- * the boundary between screens and pages.
+ * page keeps its guest's native history and a screen its router's; past and
+ * future retain visits across the boundary between screens and pages.
  */
 interface TabHistory {
-  /** Where in `trail` the tab is standing; the end of it, until back is used. */
-  at?: number;
   future?: TabVisit[];
   /**
-   * The chat this tab belongs to, by its session id, or the draft's key:
+   * The chat this tab belongs to, by its id, or the draft's key:
    * what was opened while the chat was on screen stays with the chat.
    */
   group?: string;
@@ -309,8 +365,6 @@ interface TabHistory {
    * that became a page, a page that went back to being a new tab.
    */
   stripKey?: string;
-  /** The screen addresses this tab has been at, oldest first. */
-  trail?: string[];
 }
 
 export function originOf(url: string | undefined): string | undefined {
@@ -342,36 +396,8 @@ export function newTabHrefOf(group: string | undefined): string {
   return draftOfGroup(group) === undefined ? BROWSER_HREF : NEW_TAB_HREF;
 }
 
-/** The route a chat's screen is at, followed by the chat's session id. */
+/** The route a chat's screen is at, followed by the chat's id. */
 export const CHATS_HREF = "/chats";
-
-/**
- * What the window has open: every group's tabs in strip order, which group
- * is on screen, and which tab each group last had up.
- */
-export interface WindowTabs {
-  /** The tab each group last had up, by its key, so coming back lands there. */
-  activeByGroup?: Record<string, string>;
-  activeId: null | string;
-  /** The group on screen: a chat's session id or a draft's key; absent while nothing is on screen. */
-  group?: string;
-  /** The group the one on screen took over from, so a draft put away can hand the screen back. */
-  previousGroup?: string;
-  tabs: WindowTab[];
-}
-
-/**
- * The window's tabs, one list across every group, kept across launches on
- * this computer. Every screen reads and writes this one; a chat's tabs are
- * the ones in its group, and a draft's the ones under its key. The chat
- * itself is not a tab: it stands over its tabs, and a group may have none.
- */
-export const windowTabsAtom = atomWithStorage<WindowTabs>(
-  "studio.window-tabs.v8",
-  { activeId: null, tabs: [] },
-  createJSONStorage<WindowTabs>(() => localStorage),
-  { getOnInit: true },
-);
 
 export const SIDEBAR_WIDTH_MIN = 320;
 /** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
@@ -483,12 +509,18 @@ export const fileTreeWidthAtom = atomWithStorage<number>(
  * that page as a tab in a group of its own, off every strip, and says here
  * where the browser is to draw it. A slot inside a surface floating over the
  * window (Quick Look) names the layer its page stands on, and is shown for as
- * long as it is there. In memory only, with the elements.
+ * long as it is there; a slot in one of the window's tabs is shown while
+ * that tab is up. In memory only, with the elements.
  */
 export const pageSlotsAtom = atom<
   Record<
     string,
-    { insideOverlay?: boolean; into: HTMLElement | null; layer?: number }
+    {
+      insideOverlay?: boolean;
+      into: HTMLElement | null;
+      isShown?: boolean;
+      layer?: number;
+    }
   >
 >({});
 
@@ -530,16 +562,4 @@ export const bookmarksAtom = atomWithStorage<Bookmark[]>(
   [],
   undefined,
   { getOnInit: true },
-);
-
-/** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
-export const everyTabIdAtom = atom(
-  (get) =>
-    new Set(
-      get(windowTabsAtom).tabs.flatMap((tab) => [
-        tab.id,
-        ...(tab.past ?? []).map((visit) => visit.id),
-        ...(tab.future ?? []).map((visit) => visit.id),
-      ]),
-    ),
 );

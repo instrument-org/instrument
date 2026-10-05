@@ -27,7 +27,7 @@ import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
-import { isChatId } from "./record-folders";
+import { resolveChat } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -51,7 +51,13 @@ export async function newMessage({
   /** The user's other chats, on the message that opens a new one; see the chat-context part. */
   chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
+  /**
+   * Folders to grant the task, each at the access and under the mount name
+   * given, where given; see grant-folders.ts.
+   */
   folders?: {
+    access?: FolderAttachment.Access;
+    mountName?: string;
     path: string;
     source?: FolderAttachment.Source;
   }[];
@@ -206,7 +212,7 @@ export async function newMessage({
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned.
-  const isChat = isChatId(taskId);
+  const isChat = resolveChat(taskId) !== undefined;
   const browserStatusPart = isChat
     ? undefined
     : await createBrowserStatusPart({
@@ -438,7 +444,11 @@ async function withTabHolders(
   if (!viewing.tabs?.length && !viewing.page?.tabs?.length) {
     return viewing;
   }
-  const holders = await tabHolders(taskId);
+  const chatId = resolveChat(taskId);
+  if (!chatId) {
+    return viewing;
+  }
+  const holders = await tabHolders(chatId);
   if (holders.size === 0) {
     return viewing;
   }

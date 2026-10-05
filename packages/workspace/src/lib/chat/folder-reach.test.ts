@@ -6,11 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { type TaskState } from "../../schemas/task-state";
 import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 const world = vi.hoisted(() => ({
   isChat: true,
@@ -21,7 +22,8 @@ const world = vi.hoisted(() => ({
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
-  isChatId: () => world.isChat,
+  resolveChat: (id: TaskId) =>
+    world.isChat ? ChatIdSchema.parse(id) : undefined,
   sessionOfChat: () => StoreId.newSessionId(),
 }));
 vi.mock(import("../store"), () => ({

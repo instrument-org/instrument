@@ -11,6 +11,7 @@ export {
   getAppCatalog,
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
+export { type AppEvent, appChanged } from "./lib/apps/changed";
 export {
   type AppConnection,
   AppConnectionSchema,
@@ -68,6 +69,11 @@ export {
   warmBashWorker,
 } from "./lib/bash-worker/client";
 export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
+export {
+  type CdpMethod,
+  cdpMethodsHandled,
+  isKnownCdpMethod,
+} from "./lib/cdp-methods";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
@@ -76,6 +82,7 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";
+export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { taskDir } from "./lib/task-dir-utils";
@@ -90,7 +97,6 @@ export {
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
 export { liveRead, where } from "./rpc/live-read";
-export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,
@@ -100,6 +106,7 @@ export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";
 export { SubdomainPartSchema } from "./schemas/subdomain-part";
+export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export {
   type WebSearchClient,

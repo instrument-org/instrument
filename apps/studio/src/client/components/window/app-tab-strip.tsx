@@ -1,8 +1,7 @@
-import { windowTabsAtom } from "@/client/atoms/window";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   DropdownMenu,
@@ -36,6 +35,7 @@ import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { TabStrip } from "./tab-strip";
+import { windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
@@ -57,7 +57,7 @@ export function AppTabStrip({
   selectedId,
   tabs,
 }: {
-  chatTitles: Map<StoreId.Session, string>;
+  chatTitles: Map<ChatId, string>;
   childTitles: Map<TaskId, string>;
   onClose: (id: TabId) => void;
   onCloseOthers: (id: TabId) => void;
@@ -90,7 +90,7 @@ export function AppTabStrip({
       const open = groupTabs.filter((tab) => tab.group === group);
       const own = open.length > 0 ? open : (putAway[group ?? ""] ?? []);
       const up =
-        own.find((tab) => tab.id === activeByGroup?.[group ?? ""]) ?? own[0];
+        own.find((tab) => tab.id === activeByGroup[group ?? ""]) ?? own[0];
       if (up?.kind === "page") {
         return {
           icon: <TabIcon favicon={up.favicon} url={up.url} />,

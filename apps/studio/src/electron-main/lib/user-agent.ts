@@ -114,9 +114,9 @@ export function applyProductBrandedMetadata(wc: WebContents): void {
 
 // Apply the normalized User-Agent to a session: clean the UA (both the outbound
 // header and in-page navigator.userAgent via setUserAgent) and add matching
-// client hints. Re-callable -- setUserAgent and the single onBeforeSendHeaders
-// listener are both overwriting, so re-invoking on a reused session object (e.g.
-// sessionForEntry on every guest attach) just re-applies the same values.
+// client hints. Re-callable: setUserAgent and the single onBeforeSendHeaders
+// listener are both overwriting, so re-invoking on a session just re-applies
+// the same values.
 // `productBranded` belongs only to a session whose pages also get the matching
 // metadata through applyProductBrandedMetadata. The app's own session cannot: no
 // debugger is attached to it, so its page would keep reporting Chromium alone

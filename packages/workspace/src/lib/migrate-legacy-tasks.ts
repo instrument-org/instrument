@@ -5,7 +5,6 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import superjson from "superjson";
 import { ulid } from "ulid";
 
 import {
@@ -38,7 +37,9 @@ import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { windowStatePath } from "./window-paths";
 import { NOTHING_SEEN } from "./window-state";
-import { writeJsonFileSync } from "./write-json-file-sync";
+import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
+import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
+import { StorageKey } from "./storage-key";
 
 // Where what the move leaves behind is kept, so a migration that went wrong
 // can be undone by hand: the projects, once their topics are written, and the
@@ -65,14 +66,6 @@ const LEADING_EMOJI =
 // copies of skills it read, its scratch, or what it installed.
 const HELD_FILE_ROOTS = [`${TASK_FOLDER_NAMES.work}/`, "output/"];
 const UNHELD_FILE_SEGMENTS = /(?:^|\/)(?:\.[^/]*|node_modules|skills|tmp)\//;
-
-const STORE_SCHEMA = `CREATE TABLE IF NOT EXISTS sessions (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        blob BLOB,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )`;
 
 export interface LegacyTasksMigration {
   /** Tasks now inside a chat made for each. */
@@ -182,7 +175,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     ),
     ...readDirs(tasksDir),
   ]);
-  const seen = new Map<StoreId.Session, StoreId.Message | undefined>();
+  const seen = new Map<string, StoreId.Message | undefined>();
   const stagedDirs: string[] = [];
 
   for (const name of legacy) {
@@ -198,7 +191,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
         migration.emptyCount += 1;
       } else {
         migration.adoptedCount += 1;
-        seen.set(adopted.sessionId, adopted.seen);
+        seen.set(adopted.chatId, adopted.seen);
         stagedDirs.push(adopted.stagingDir);
       }
     } catch {
@@ -271,9 +264,10 @@ function adoptTask({
   topicOf: Map<string, string>;
 }):
   | {
+      /** The chat's id, the folder it lands in once staged. */
+      chatId: string;
       kind: "adopted";
       seen?: StoreId.Message;
-      sessionId: StoreId.Session;
       stagingDir: string;
     }
   | { kind: "empty" } {
@@ -343,24 +337,29 @@ function adoptTask({
     fs.mkdirSync(path.join(stagingDir, TASK_FOLDER_NAMES.attachments), {
       recursive: true,
     });
-    writeJsonFileSync(path.join(privateDir, TASK_SETTINGS_FILE_NAME), {
-      chatSessionId: sessionId,
-      createdAt: createdAt.toISOString(),
-      ...(typeof settings.createdWithAppVersion === "string"
-        ? { createdWithAppVersion: settings.createdWithAppVersion }
-        : {}),
-      lastActivityAt: lastActivityAt.toISOString(),
-      name: title,
-      state: {
-        attachedFolders: chatFoldersOf(
-          isRecord(settings.state) ? settings.state.attachedFolders : undefined,
-        ),
-        ...(isRecord(settings.state) &&
-        typeof settings.state.selectedModelURI === "string"
-          ? { selectedModelURI: settings.state.selectedModelURI }
+    updateJsonRecordSync(
+      path.join(privateDir, TASK_SETTINGS_FILE_NAME),
+      () => ({
+        chatSessionId: sessionId,
+        createdAt: createdAt.toISOString(),
+        ...(typeof settings.createdWithAppVersion === "string"
+          ? { createdWithAppVersion: settings.createdWithAppVersion }
           : {}),
-      },
-    });
+        lastActivityAt: lastActivityAt.toISOString(),
+        name: title,
+        state: {
+          attachedFolders: chatFoldersOf(
+            isRecord(settings.state)
+              ? settings.state.attachedFolders
+              : undefined,
+          ),
+          ...(isRecord(settings.state) &&
+          typeof settings.state.selectedModelURI === "string"
+            ? { selectedModelURI: settings.state.selectedModelURI }
+            : {}),
+        },
+      }),
+    );
     copyAttachments(taskDir, stagingDir, conversation.attachments);
     writeChatRows({
       dbPath: path.join(privateDir, TASK_DB_FILE_NAME),
@@ -378,8 +377,8 @@ function adoptTask({
     throw error;
   }
   return {
+    chatId: chatName,
     kind: "adopted",
-    sessionId,
     stagingDir,
     ...seenMark(conversation.messages, settings.unreadIndicator !== undefined),
   };
@@ -427,9 +426,11 @@ function finishStagedChat(stagingDir: string) {
     TASK_PRIVATE_FOLDER_NAME,
     TASK_SETTINGS_FILE_NAME,
   );
-  const { projectId: _projectId, ...taskSettings } =
-    readJson(taskSettingsPath) ?? {};
-  writeJsonFileSync(taskSettingsPath, taskSettings);
+  // Settings that cannot be read are left for Settings > Storage to show
+  // rather than replaced.
+  if (readJsonRecordSync(taskSettingsPath).kind !== "unreadable") {
+    updateJsonRecordSync(taskSettingsPath, () => ({ projectId: undefined }));
+  }
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
 
@@ -528,24 +529,26 @@ function isProjectFolder(folder: string): boolean {
  */
 function markSeen(
   rootDir: string,
-  seen: Map<StoreId.Session, StoreId.Message | undefined>,
+  /** By chat id, which is what the window keeps its marks by. */
+  seen: Map<string, StoreId.Message | undefined>,
 ) {
   if (seen.size === 0) {
     return;
   }
   const statePath = windowStatePath(AbsolutePathSchema.parse(rootDir));
-  const state = readJson(statePath) ?? {};
-  const marks = new Map<string, unknown>(
-    Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
+  updateJsonRecordSync(
+    statePath,
+    (state) => {
+      const marks = new Map<string, unknown>(
+        Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
+      );
+      for (const [chatId, messageId] of seen) {
+        marks.set(chatId, messageId ?? NOTHING_SEEN);
+      }
+      return { chatSeen: Object.fromEntries(marks) };
+    },
+    { unreadable: "set-aside" },
   );
-  for (const [sessionId, messageId] of seen) {
-    marks.set(sessionId, messageId ?? NOTHING_SEEN);
-  }
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  writeJsonFileSync(statePath, {
-    ...state,
-    chatSeen: Object.fromEntries(marks),
-  });
 }
 
 /** Moves a folder into the backup, beside any earlier one of the same name. */
@@ -616,7 +619,7 @@ function readConversation(dbPath: string): {
     // of the store's own columns.
     rows = db
       .prepare(
-        "select key, blob from sessions where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'",
+        `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
       )
       .all() as unknown as StoreRow[];
   } finally {
@@ -988,7 +991,7 @@ function writeChatRows({
   session: Session.Type;
   taskId: ReturnType<typeof TaskIdSchema.parse>;
 }) {
-  const rows: [string, unknown][] = [[`sessions:${session.id}`, session]];
+  const rows: [string, unknown][] = [[StorageKey.session(session.id), session]];
   let adopted = false;
   for (const message of messages) {
     const stored: SessionMessage.Type =
@@ -1016,7 +1019,7 @@ function writeChatRows({
             },
             role: "assistant",
           };
-    rows.push([`messages:${session.id}:${message.id}`, stored]);
+    rows.push([StorageKey.message(session.id, message.id), stored]);
     const metadata = () => ({
       createdAt: message.createdAt,
       id: StoreId.newPartId(),
@@ -1053,32 +1056,11 @@ function writeChatRows({
     }
     for (const part of parts) {
       rows.push([
-        `parts:${session.id}:${message.id}:${part.metadata.id}`,
+        StorageKey.part(session.id, message.id, part.metadata.id),
         part,
       ]);
     }
   }
 
-  const db = new DatabaseSync(dbPath);
-  try {
-    db.exec(STORE_SCHEMA);
-    const insert = db.prepare(
-      "insert or replace into sessions (key, blob) values (?, ?)",
-    );
-    db.exec("BEGIN");
-    try {
-      for (const [key, value] of rows) {
-        // As text: the store reads a row back as a string or not at all.
-        insert.run(key, superjson.stringify(value));
-      }
-      db.exec("COMMIT");
-    } catch (error) {
-      if (db.isTransaction) {
-        db.exec("ROLLBACK");
-      }
-      throw error;
-    }
-  } finally {
-    db.close();
-  }
+  writeStoreRowsSync(dbPath, rows);
 }

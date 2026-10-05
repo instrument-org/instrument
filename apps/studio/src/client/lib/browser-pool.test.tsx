@@ -6,7 +6,8 @@ import {
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import {
-  getWebviewElement,
+  getAttachedTargetsSnapshot,
+  getGuest,
   initBrowserPool,
   setPaintHost,
   showOverSlot,
@@ -64,11 +65,14 @@ vi.mock("@/client/rpc/client", () => {
   };
 });
 
+/** The pool's element for the one target, as the page holds it. */
+const element = () => document.querySelector("webview");
+
 let stop: () => void;
 beforeAll(async () => {
   stop = initBrowserPool();
   await vi.waitFor(() => {
-    expect(getWebviewElement(target)).not.toBeNull();
+    expect(element()).not.toBeNull();
   });
 });
 afterAll(() => {
@@ -76,7 +80,7 @@ afterAll(() => {
 });
 
 const placement = () => {
-  const { style } = getWebviewElement(target)?.parentElement ?? {};
+  const { style } = element()?.parentElement ?? {};
   return { left: style?.left, opacity: style?.opacity, zIndex: style?.zIndex };
 };
 
@@ -128,4 +132,49 @@ it("gives the page to the newer of two slots on one layer, and keeps it there as
   setPaintHost(target, older);
   expect(placement().left).toMatchInlineSnapshot(`"500px"`);
   setPaintHost(target, newer);
+});
+
+// Runs last: it brings the guest to dom-ready, which the placement cases
+// above do not need.
+it("hands out the guest only once it is ready, and never throws for one gone", () => {
+  const webview = element();
+  if (!webview) {
+    throw new Error("no guest mounted");
+  }
+  expect(getGuest(target)).toBeNull();
+  expect(getAttachedTargetsSnapshot().has(target)).toBe(false);
+
+  let attached = true;
+  const notAttached = () => {
+    if (!attached) {
+      throw new Error("The WebView must be attached to the DOM");
+    }
+  };
+  const goBack = vi.fn();
+  Object.assign(webview, {
+    canGoBack: () => {
+      notAttached();
+      return true;
+    },
+    getURL: () => {
+      notAttached();
+      return "https://example.com/";
+    },
+    getWebContentsId: () => 7,
+    goBack,
+    reload: notAttached,
+  });
+  webview.dispatchEvent(new Event("dom-ready"));
+
+  const guest = getGuest(target);
+  expect(guest?.webContentsId).toBe(7);
+  expect(getAttachedTargetsSnapshot().has(target)).toBe(true);
+  expect(guest?.url()).toBe("https://example.com/");
+  expect(guest?.step("back")).toBe(true);
+  expect(goBack).toHaveBeenCalledOnce();
+
+  attached = false;
+  expect(guest?.url()).toBe("");
+  expect(guest?.step("back")).toBe(false);
+  expect(() => guest?.reload()).not.toThrow();
 });

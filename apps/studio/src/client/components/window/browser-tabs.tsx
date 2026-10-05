@@ -1,23 +1,18 @@
 import {
   type BrowserTab,
-  everyTabIdAtom,
-  newTabHrefOf,
   originOf,
   RECENTS_MAX,
   recentsAtom,
   VISITED_MAX,
   visitedPagesAtom,
   type WindowTab,
-  type WindowTabs,
-  windowTabsAtom,
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { PageFavicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getGuest, takeGuestTraversal } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -34,7 +29,7 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
@@ -47,7 +42,23 @@ import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { EMPTY_GUEST_MEMO, reconcileGuests } from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
-import { isHomeTab, selectTab, useWindowTabs } from "./window-tabs";
+import {
+  addPages,
+  isHomeTab,
+  openPage as openPageIn,
+  type PageTab,
+  pageNavigated,
+  patchPage,
+  replaceTab,
+  selectTab,
+  upIn,
+} from "./tab-model";
+import {
+  everyTabIdAtom,
+  newScreenId,
+  useWindowTabs,
+  useWindowTabsChange,
+} from "./window-tabs";
 
 export interface BrowserPage {
   favicon?: string;
@@ -55,16 +66,7 @@ export interface BrowserPage {
   url: string;
 }
 
-/** How long a tab on screen is given to attach its guest before it is taken for one whose page is gone. */
-const ORPHAN_GRACE_MS = 1500;
-
 export interface BrowserTabsHandle {
-  /** Whether the guest on screen has anywhere of its own to go. */
-  canGoBack: boolean;
-  canGoForward: boolean;
-  /** A step in the guest's own history, which is this tab's and no other's. */
-  goBack: () => void;
-  goForward: () => void;
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
   /**
@@ -226,11 +228,6 @@ interface OpenOptions {
   show?: boolean;
 }
 
-type PageTabsUpdate = (current: {
-  activeId: null | string;
-  tabs: BrowserTab[];
-}) => { activeId: null | string; tabs: BrowserTab[] };
-
 /**
  * The window's pages: each page tab is a browser guest of the window's own,
  * like a task's browser and driven by the same machinery, so a task can be
@@ -258,16 +255,16 @@ export function BrowserTabs({
   /** The element beside the row's arrows that the page's reload is drawn into. */
   reloadInto?: HTMLElement | null;
 }) {
-  const { navigateScreen } = useWindowTabs();
-  const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
-    useAtom(windowTabsAtom);
+  const windowTabs = useWindowTabs();
+  const { activeByGroup, allTabs, groupOnScreen, navigateScreen } = windowTabs;
+  const change = useWindowTabsChange();
   const everyTabId = useAtomValue(everyTabIdAtom);
-  const tabs = allTabs.filter((tab) => tab.kind === "page");
+  const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const setVisited = useSetAtom(visitedPagesAtom);
   const setRecents = useSetAtom(recentsAtom);
   const attached = useBrowserTargets();
-  // The chat each browsing task was filed from, by its session id, which is
-  // the group its browsing lands in; a task filed outside any chat is in the
+  // The chat each browsing task was filed from, which is the group its
+  // browsing lands in; a task filed outside any chat is in the
   // map with no chat. A task not in it is one not read yet, and its guest
   // waits for that read rather than landing in no group.
   const chatOfTask = useTaskChats(
@@ -299,125 +296,36 @@ export function BrowserTabs({
       tab.taskId ?? WINDOW_ID,
       StoreId.SessionSchema.parse(tab.id),
     );
-  const active = tabs.find((tab) => tab.id === activeId);
+  // The page the group on screen has up, when what it has up is a page.
+  const up = windowTabs.active;
+  const active = up?.kind === "page" ? up : undefined;
 
   // The chat's own browser is the tab on screen; a task's tab is the
   // task's to drive.
   const activeTarget = active && !active.taskId ? targetOf(active) : null;
-  // Whether the guest on screen has been anywhere, for the arrows in the row
-  // above it. Read from the guest rather than counted here: it is the thing
-  // that has the history, and a redirect moves it without our being told. A
-  // tab arriving on screen brings its own history with it, so the arrows are
-  // read off that tab's guest once it has attached.
-  const { canGoBack, canGoForward } = useGuestNavigation(
-    activeTarget && attached.has(activeTarget) ? activeTarget : null,
-  );
-  const historySteps = useRef(new Set<string>());
-  const stepGuest = (direction: "back" | "forward") => {
-    const webview = activeTarget && getWebviewElement(activeTarget);
-    if (!webview) {
-      return;
-    }
-    if (active) {
-      historySteps.current.add(active.id);
-      setAllTabs((current) => ({
-        ...current,
-        tabs: current.tabs.map((tab) =>
-          tab.kind === "page" && tab.id === active.id && tab.future?.length
-            ? {
-                ...tab,
-                pageBackSteps: Math.max(
-                  0,
-                  (tab.pageBackSteps ?? 0) + (direction === "back" ? 1 : -1),
-                ),
-              }
-            : tab,
-        ),
-      }));
-    }
-    if (direction === "back") {
-      webview.goBack();
-    } else {
-      webview.goForward();
-    }
-  };
   useEffect(() => {
     void rpcClient.workspace.window.setActiveTab.call({
       targetId: activeTarget,
     });
   }, [activeTarget]);
 
-  // The tabs a launch restored, taken once: only these are sent back to the
-  // page they held, and a tab opened later is navigated by its own open.
-  const bootTabIds = useRef<null | Set<string>>(null);
-  bootTabIds.current ??= new Set(allTabs.map((tab) => tab.id));
-  // Each restored tab is opened at most once, the first time it comes up.
-  const restored = useRef(new Set<string>());
-  const activeUrl = active?.url;
-  // A tab that comes back after a launch opens where it was: the workspace
-  // recreates the guest blank and this sends it to the page it last held,
-  // once, the first time the tab is shown. Shown means up in the window or
-  // handed back by `openOrFocus`, which is how a page drawn inside another
-  // screen (a file tab's page, Quick Look, a popped-out chat) comes up
-  // without ever being the window's active tab. Keyed on the tab coming up
-  // rather than on its guest being absent, because a local file's guest
-  // attaches to about:blank so fast it is already there when this runs.
-  const restoreOnce = (
-    tab: { id: string; taskId?: TaskId; url?: string },
-    { orphaned = false }: { orphaned?: boolean } = {},
-  ) => {
-    if (
-      !tab.url ||
-      tab.url === "about:blank" ||
-      !(orphaned || bootTabIds.current?.has(tab.id)) ||
-      restored.current.has(tab.id)
-    ) {
-      return;
-    }
-    restored.current.add(tab.id);
-    // A recreated guest has no native history from the preceding launch.
-    setAllTabs((current) => ({
-      ...current,
-      tabs: current.tabs.map((entry) =>
-        entry.id === tab.id ? { ...entry, pageBackSteps: 0 } : entry,
-      ),
-    }));
-    void rpcClient.workspace.browser.open.call({
-      id: tab.taskId ?? WINDOW_ID,
-      sessionId: StoreId.SessionSchema.parse(tab.id),
-      url: tab.url,
-    });
-  };
-  useEffect(() => {
-    if (active) {
-      restoreOnce(active);
-    }
-    // Fired once per restored tab, when it first comes up.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, activeUrl]);
-  // A tab whose page is gone while the tab stays, such as a task's page after
-  // the task's browser closed, comes up with nothing to draw it, and reload
-  // and the address field have nothing to act on. Given a moment to attach,
-  // one still without a guest is opened again where it was, once.
-  const isActiveAttached = active ? attached.has(targetOf(active)) : false;
-  useEffect(() => {
-    if (!active || isActiveAttached) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      restoreOnce(active, { orphaned: true });
-    }, ORPHAN_GRACE_MS);
-    return () => {
-      window.clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, isActiveAttached]);
-
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
-  const latest = useRef({ active, activeByGroup, allTabs, group, tabs });
+  const latest = useRef({
+    active,
+    activeByGroup,
+    allTabs,
+    group: groupOnScreen,
+    tabs,
+  });
   useEffect(() => {
-    latest.current = { active, activeByGroup, allTabs, group, tabs };
+    latest.current = {
+      active,
+      activeByGroup,
+      allTabs,
+      group: groupOnScreen,
+      tabs,
+    };
   });
 
   // A tab closed anywhere takes its guest with it, and a task browsing in a
@@ -452,14 +360,13 @@ export function BrowserTabs({
       return;
     }
     const openedAt = Date.now();
-    setAllTabs((current) => ({
-      ...current,
-      tabs: [
-        ...current.tabs,
-        ...add.map((tab) => ({ ...tab, kind: "page" as const, openedAt })),
-      ],
-    }));
-  }, [attached, everyTabId, setAllTabs, chatOfTask]);
+    change((current) =>
+      addPages(
+        current,
+        add.map((tab) => ({ ...tab, openedAt })),
+      ),
+    );
+  }, [attached, everyTabId, change, chatOfTask]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -467,26 +374,11 @@ export function BrowserTabs({
   // has attached, and again for a tab that arrives later.
   const tabIds = tabs.map((tab) => `${tab.taskId ?? ""}:${tab.id}`).join(",");
   useEffect(() => {
-    const patch = (id: string, changes: Partial<BrowserTab>) => {
-      setAllTabs(
-        withPageTabs((current) => {
-          const tab = current.tabs.find((entry) => entry.id === id);
-          if (
-            !tab ||
-            Object.entries(changes).every(
-              ([key, value]) => tab[key as keyof BrowserTab] === value,
-            )
-          ) {
-            return current;
-          }
-          return {
-            ...current,
-            tabs: current.tabs.map((entry) =>
-              entry.id === id ? { ...entry, ...changes } : entry,
-            ),
-          };
-        }),
-      );
+    const patch = (
+      id: string,
+      changes: Partial<Pick<BrowserTab, "favicon" | "title" | "url">>,
+    ) => {
+      change((current) => patchPage(current, id, changes));
     };
     const cleanups = tabIds.split(",").map((key) => {
       const [owner, id] = key.split(":");
@@ -500,73 +392,68 @@ export function BrowserTabs({
       if (!attached.has(target)) {
         return;
       }
-      const webview = getWebviewElement(target);
-      if (!webview) {
+      const guest = getGuest(target);
+      if (!guest) {
         return;
       }
       const onNavigate = () => {
-        try {
-          const url = webview.getURL();
-          // A page's file in Edit is loaded at the file's address with the
-          // Edit parameter added; the tab is still at the file.
-          if (isPageEditAddress(url)) {
-            return;
+        const url = guest.url();
+        // A guest gone since it was read has no page to report.
+        if (url === "") {
+          return;
+        }
+        // A page's file in Edit is loaded at the file's address with the
+        // Edit parameter added; the tab is still at the file.
+        if (isPageEditAddress(url)) {
+          return;
+        }
+        const isHistoryStep = takeGuestTraversal(target);
+        if (
+          !isHistoryStep &&
+          url !== latest.current.tabs.find((tab) => tab.id === id)?.url
+        ) {
+          change((current) => pageNavigated(current, id));
+        }
+        if (url && url !== "about:blank") {
+          const title = guest.title() || undefined;
+          const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
+          patch(id, {
+            title,
+            url,
+            // A page on another site lets go of the last one's icon at
+            // once, so the tab wears the new site's straight away (from
+            // the site-icon cache) rather than the old page's until the
+            // new one announces its own.
+            ...(originOf(was) === originOf(url) && was?.startsWith("http")
+              ? {}
+              : { favicon: undefined }),
+          });
+          const filePath = hostPathOfFileUrl(url);
+          if (filePath === undefined) {
+            // The new-tab page lists where the browser has been.
+            setVisited((current) =>
+              [
+                { at: Date.now(), title: title ?? "", url },
+                ...current.filter((page) => page.url !== url),
+              ].slice(0, VISITED_MAX),
+            );
+          } else {
+            // A file shown as a page was a file the user opened, and it
+            // comes back as one: by the address a file tab opens at, which
+            // shows it as a page again.
+            const href = fileHref(filePath);
+            setRecents((current) =>
+              [
+                {
+                  at: Date.now(),
+                  href,
+                  kind: "file" as const,
+                  title: segmentsOf(filePath).at(-1) ?? filePath,
+                },
+                ...current.filter((recent) => recent.href !== href),
+              ].slice(0, RECENTS_MAX),
+            );
           }
-          const isHistoryStep = historySteps.current.delete(id);
-          if (
-            !isHistoryStep &&
-            url !== latest.current.tabs.find((tab) => tab.id === id)?.url
-          ) {
-            setAllTabs((current) => ({
-              ...current,
-              tabs: current.tabs.map((tab) =>
-                tab.id === id ? { ...tab, future: [], pageBackSteps: 0 } : tab,
-              ),
-            }));
-          }
-          if (url && url !== "about:blank") {
-            const title = webview.getTitle() || undefined;
-            const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
-            patch(id, {
-              title,
-              url,
-              // A page on another site lets go of the last one's icon at
-              // once, so the tab wears the new site's straight away (from
-              // the site-icon cache) rather than the old page's until the
-              // new one announces its own.
-              ...(originOf(was) === originOf(url) && was?.startsWith("http")
-                ? {}
-                : { favicon: undefined }),
-            });
-            const filePath = hostPathOfFileUrl(url);
-            if (filePath === undefined) {
-              // The new-tab page lists where the browser has been.
-              setVisited((current) =>
-                [
-                  { at: Date.now(), title: title ?? "", url },
-                  ...current.filter((page) => page.url !== url),
-                ].slice(0, VISITED_MAX),
-              );
-            } else {
-              // A file shown as a page was a file the user opened, and it
-              // comes back as one: by the address a file tab opens at, which
-              // shows it as a page again.
-              const href = fileHref(filePath);
-              setRecents((current) =>
-                [
-                  {
-                    at: Date.now(),
-                    href,
-                    kind: "file" as const,
-                    title: segmentsOf(filePath).at(-1) ?? filePath,
-                  },
-                  ...current.filter((recent) => recent.href !== href),
-                ].slice(0, RECENTS_MAX),
-              );
-            }
-          }
-        } catch {
-          // Not attached yet; the events that follow attachment re-run this.
         }
       };
       // A local page's own `history.pushState` moves its address without
@@ -575,16 +462,11 @@ export function BrowserTabs({
       // the file the page loaded: the new address is never kept, shown as
       // the file, or loaded for real, and Edit never opens the file it names.
       const onNavigateInPage = () => {
-        try {
-          if (hostPathOfFileUrl(webview.getURL()) === undefined) {
-            onNavigate();
-          }
-        } catch {
-          // Not attached yet; the events that follow attachment re-run this.
+        if (hostPathOfFileUrl(guest.url()) === undefined) {
+          onNavigate();
         }
       };
-      const onTitle = (event: Event) => {
-        const { title } = event as Event & { title?: string };
+      const onTitle = ({ title }: { title: string }) => {
         if (title) {
           patch(id, { title });
           const url = latest.current.tabs.find((tab) => tab.id === id)?.url;
@@ -597,9 +479,8 @@ export function BrowserTabs({
           }
         }
       };
-      const onFavicon = (event: Event) => {
-        const { favicons } = event as Event & { favicons?: string[] };
-        const favicon = favicons?.[0];
+      const onFavicon = ({ favicons }: { favicons: string[] }) => {
+        const favicon = favicons[0];
         patch(id, { favicon });
         if (!favicon) {
           return;
@@ -607,12 +488,9 @@ export function BrowserTabs({
         // Under the page the tab is on now, and nothing else: a tab that
         // wandered off a visited page must not hand it the icon of wherever
         // it went.
-        let url: string | undefined;
-        try {
-          url = webview.getURL();
-        } catch {
-          url = latest.current.tabs.find((entry) => entry.id === id)?.url;
-        }
+        const url =
+          guest.url() ||
+          latest.current.tabs.find((entry) => entry.id === id)?.url;
         if (originOf(url)) {
           setVisited((current) =>
             current.map((page) =>
@@ -635,15 +513,16 @@ export function BrowserTabs({
         }
       };
       onNavigate();
-      webview.addEventListener("did-navigate", onNavigate);
-      webview.addEventListener("did-navigate-in-page", onNavigateInPage);
-      webview.addEventListener("page-title-updated", onTitle);
-      webview.addEventListener("page-favicon-updated", onFavicon);
+      const stops = [
+        guest.on("did-navigate", onNavigate),
+        guest.on("did-navigate-in-page", onNavigateInPage),
+        guest.on("page-title-updated", onTitle),
+        guest.on("page-favicon-updated", onFavicon),
+      ];
       return () => {
-        webview.removeEventListener("did-navigate", onNavigate);
-        webview.removeEventListener("did-navigate-in-page", onNavigateInPage);
-        webview.removeEventListener("page-title-updated", onTitle);
-        webview.removeEventListener("page-favicon-updated", onFavicon);
+        for (const stop of stops) {
+          stop();
+        }
       };
     });
     return () => {
@@ -651,7 +530,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setAllTabs, setRecents, setVisited, tabIds]);
+  }, [attached, change, setRecents, setVisited, tabIds]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -665,20 +544,9 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
-  /**
-   * The new-tab page a group has up, when that is what it has up: the tab
-   * it last showed, or its first, the way the group comes on screen.
-   */
-  const newTabUpIn = (key: string): undefined | WindowTab => {
-    const own = latest.current.allTabs.filter((tab) => tab.group === key);
-    const remembered = latest.current.activeByGroup?.[key];
-    const up = own.find((tab) => tab.id === remembered) ?? own[0];
-    return up && isHomeTab(up) ? up : undefined;
-  };
-
   const openTab = (
     url?: string,
-    { group: into, replacing }: OpenOptions = {},
+    { group: into, replacing, show = false }: OpenOptions = {},
   ) => {
     const id = StoreId.newSessionId();
     const page = {
@@ -686,62 +554,19 @@ export function BrowserTabs({
       openedAt: Date.now(),
       ...(url ? { openedUrl: url, url } : {}),
     };
-    if (replacing) {
-      // In the replaced tab's place and under its strip key, so the strip
-      // sees a tab change rather than one leave and another arrive: a new
-      // tab becoming the page that was typed into it.
-      setAllTabs((current) => {
-        const index = current.tabs.findIndex((tab) => tab.id === replacing.id);
-        const tab = visitInTab(replacing, {
-          ...page,
-          kind: "page",
-        });
-        // On screen, the page is what is up; in a group waiting behind, it
-        // is what that group has up when it next comes on screen.
-        const waitingIn =
-          replacing.group === current.group ? undefined : replacing.group;
-        return {
-          ...current,
-          ...(waitingIn === undefined
-            ? { activeId: id }
-            : {
-                activeByGroup: { ...current.activeByGroup, [waitingIn]: id },
-              }),
-          tabs:
-            index === -1
-              ? [...current.tabs, tab]
-              : [
-                  ...current.tabs.slice(0, index),
-                  tab,
-                  ...current.tabs.slice(index + 1),
-                ],
-        };
-      });
-    } else {
-      // In the group on screen, or the group asked for: a page opened while
-      // a chat is up is the chat's, and one a chat asked for while
-      // another was up is still that chat's, waiting behind.
-      setAllTabs((current) => ({
-        ...current,
-        activeId:
-          into === undefined || into === current.group ? id : current.activeId,
-        tabs: [
-          ...current.tabs,
-          {
-            ...page,
-            group: into ?? current.group,
-            kind: "page",
-            past: [
-              {
-                href: newTabHrefOf(into ?? current.group),
-                id: `screen-${crypto.randomUUID()}`,
-                kind: "screen",
-              },
-            ],
-          },
-        ],
-      }));
-    }
+    // In the group on screen, or the group asked for: a page opened while a
+    // chat is up is the chat's, and one a chat asked for while another was
+    // up is still that chat's, waiting behind. In a tab's place, the page is
+    // what that tab's group has up.
+    change((current, onScreen) =>
+      openPageIn(current, {
+        group: into ?? onScreen,
+        homeId: newScreenId(),
+        page,
+        ...(replacing ? { replacing } : {}),
+        select: show || into === undefined || into === onScreen,
+      }),
+    );
     void rpcClient.workspace.browser.open.call({
       id: WINDOW_ID,
       sessionId: StoreId.SessionSchema.parse(id),
@@ -753,45 +578,25 @@ export function BrowserTabs({
   useImperativeHandle(
     ref,
     () => ({
-      canGoBack,
-      canGoForward,
-      goBack: () => {
-        stepGuest("back");
-      },
-      goForward: () => {
-        stepGuest("forward");
-      },
       navigate: (url) => {
-        const webview = activeTarget && getWebviewElement(activeTarget);
-        if (webview) {
-          setAllTabs((current) => ({
-            ...current,
-            tabs: current.tabs.map((tab) =>
-              tab.id === current.activeId
-                ? { ...tab, future: [], pageBackSteps: 0 }
-                : tab,
-            ),
-          }));
-          void webview.loadURL(url);
+        const guest = activeTarget && getGuest(activeTarget);
+        if (guest) {
+          change((current, onScreen) => {
+            const shown = upIn(current, onScreen);
+            return shown ? pageNavigated(current, shown.id) : current;
+          });
+          void guest.load(url);
         }
       },
       navigateTab: (tabId, url) => {
-        const tab = latest.current.allTabs.find(
-          (entry): entry is Extract<WindowTab, { kind: "page" }> =>
-            entry.kind === "page" && entry.id === tabId,
-        );
+        const tab = latest.current.tabs.find((entry) => entry.id === tabId);
         if (!tab) {
           return;
         }
-        setAllTabs((current) => ({
-          ...current,
-          tabs: current.tabs.map((entry) =>
-            entry.id === tabId ? { ...entry, future: [], url } : entry,
-          ),
-        }));
-        const webview = getWebviewElement(targetOf(tab));
-        if (webview) {
-          void webview.loadURL(url);
+        change((current) => pageNavigated(current, tabId, url));
+        const guest = getGuest(targetOf(tab));
+        if (guest) {
+          void guest.load(url);
           return;
         }
         void rpcClient.workspace.browser.open.call({
@@ -803,19 +608,16 @@ export function BrowserTabs({
       open: (url, options) => openTab(url, options),
       openBehind: (url, into) => {
         const id = StoreId.newSessionId();
-        setAllTabs((current) => ({
-          ...current,
-          tabs: [
-            ...current.tabs,
+        change((current) =>
+          addPages(current, [
             {
               group: into,
               id,
-              kind: "page",
               openedAt: Date.now(),
               ...(url ? { openedUrl: url, url } : {}),
             },
-          ],
-        }));
+          ]),
+        );
         void rpcClient.workspace.browser.open.call({
           id: WINDOW_ID,
           sessionId: id,
@@ -838,27 +640,26 @@ export function BrowserTabs({
                   tab.group === key && !tab.taskId && sameAddress(tab.url, url),
               );
         if (atFile) {
-          restoreOnce(atFile);
           if (options?.show || key === latest.current.group) {
-            setAllTabs((current) => selectTab(current, atFile.id));
+            change((current) => selectTab(current, atFile.id));
           }
           return atFile.id;
         }
         // A group waiting behind with its new tab up gets the page in that
         // tab, the way the group on screen does: the tab that was there to
         // be told where to go is told, rather than left beside the page.
-        const fresh =
+        const waitingUp =
           key === undefined || key === latest.current.group
             ? undefined
-            : newTabUpIn(key);
-        const id = openTab(
-          url,
-          fresh ? { ...options, replacing: fresh } : options,
-        );
-        if (options?.show) {
-          setAllTabs((current) => selectTab(current, id));
-        }
-        return id;
+            : upIn(
+                {
+                  activeByGroup: latest.current.activeByGroup,
+                  tabs: latest.current.allTabs,
+                },
+                key,
+              );
+        const fresh = waitingUp && isHomeTab(waitingUp) ? waitingUp : undefined;
+        return openTab(url, fresh ? { ...options, replacing: fresh } : options);
       },
       pageInPlaceOf: (tab, url) => {
         const id = StoreId.newSessionId();
@@ -869,18 +670,7 @@ export function BrowserTabs({
           openedUrl: url,
           url,
         });
-        setAllTabs((current) => ({
-          ...current,
-          activeByGroup:
-            tab.group !== undefined &&
-            current.activeByGroup?.[tab.group] === tab.id
-              ? { ...current.activeByGroup, [tab.group]: id }
-              : current.activeByGroup,
-          activeId: current.activeId === tab.id ? id : current.activeId,
-          tabs: current.tabs.map((entry) =>
-            entry.id === tab.id ? page : entry,
-          ),
-        }));
+        change((current) => replaceTab(current, tab.id, page));
         void rpcClient.workspace.browser.open.call({
           id: WINDOW_ID,
           sessionId: id,
@@ -895,15 +685,10 @@ export function BrowserTabs({
         if (!current) {
           return;
         }
-        const webview = getWebviewElement(targetOf(current));
-        let url: string | undefined;
-        let title = current.title ?? "";
-        try {
-          url = webview?.getURL();
-          title = webview?.getTitle() || title;
-        } catch {
-          // Not attached: what the tab remembers of the page is the answer.
-        }
+        // A guest not ready yet: what the tab remembers of the page is the answer.
+        const guest = getGuest(targetOf(current));
+        let url = guest?.url();
+        const title = guest?.title() || (current.title ?? "");
         if (!url || url === "about:blank") {
           url = current.url;
         }
@@ -927,12 +712,12 @@ export function BrowserTabs({
           title,
           url,
         };
-        if (!webview) {
+        if (!guest) {
           return base;
         }
         let raw: unknown;
         try {
-          raw = await webview.executeJavaScript(READ_PAGE_WORDS);
+          raw = await guest.run(READ_PAGE_WORDS);
         } catch {
           // A page mid-navigation, or one that blocks scripts: its address and
           // title still say what the user was looking at.
@@ -969,10 +754,9 @@ export function BrowserTabs({
       },
     }),
     // The handle reads the strip through `latest` at call time; the guest on
-    // screen and what its history allows are read here, so the handle is
-    // remade, and the row above told, whenever either changes.
+    // screen is read here, so the handle is remade whenever it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTarget, canGoBack, canGoForward],
+    [activeTarget],
   );
 
   const taskIdsWithTabs = [
@@ -1085,6 +869,7 @@ export function BrowserTabs({
                   });
                 },
               })}
+          restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
           taskId={active.taskId ?? WINDOW_ID}
         />
@@ -1097,25 +882,13 @@ export function BrowserTabs({
       {compose?.map((host) => {
         // The page the draft window has up, when what it has up is a page:
         // the tab its group remembers, or its first.
-        const own = allTabs.filter((tab) => tab.group === host.group);
-        const up =
-          own.find((tab) => tab.id === activeByGroup?.[host.group]) ?? own[0];
-        return up?.kind === "page" ? (
+        const hostUp = windowTabs.tabUpIn(host.group);
+        return hostUp?.kind === "page" ? (
           <ComposePagePanel
-            attached={attached.has(targetOf(up))}
+            attached={attached.has(targetOf(hostUp))}
             host={host}
             key={host.group}
-            onReopen={() => {
-              // A recreated guest has no native history from the preceding
-              // launch.
-              setAllTabs((current) => ({
-                ...current,
-                tabs: current.tabs.map((tab) =>
-                  tab.id === up.id ? { ...tab, pageBackSteps: 0 } : tab,
-                ),
-              }));
-            }}
-            tab={up}
+            tab={hostUp}
             taskId={WINDOW_ID}
           />
         ) : null;
@@ -1175,30 +948,14 @@ function BrowserHold({ taskId }: { taskId: TaskId }) {
 function ComposePagePanel({
   attached,
   host,
-  onReopen,
   tab,
   taskId,
 }: {
   attached: boolean;
   host: ComposeHost;
-  onReopen: () => void;
   tab: BrowserTab;
   taskId: TaskId;
 }) {
-  const url = tab.url;
-  useEffect(() => {
-    if (attached || !url) {
-      return;
-    }
-    onReopen();
-    void rpcClient.workspace.browser.open.call({
-      id: tab.taskId ?? taskId,
-      sessionId: StoreId.SessionSchema.parse(tab.id),
-      url,
-    });
-    // Once per tab coming back, not per render while it attaches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id, taskId]);
   if (!host.into) {
     return null;
   }
@@ -1215,6 +972,7 @@ function ComposePagePanel({
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
         relayoutKey={host.place}
+        restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         taskId={tab.taskId ?? taskId}
       />
@@ -1249,15 +1007,11 @@ function FilePageReload({
       return;
     }
     if (shown.current !== undefined && shown.current !== modifiedAt) {
-      const webview = getWebviewElement(target);
-      try {
-        webview?.reload();
-      } catch {
-        // A guest not yet attached and ready refuses a reload, and needs
-        // none: its first load, still to come or under way, reads the file
-        // as it is. A change reported that early is a cached version from
-        // an earlier visit being brought up to date.
-      }
+      // A guest not yet ready needs no reload: its first load, still to
+      // come or under way, reads the file as it is. A change reported that
+      // early is a cached version from an earlier visit being brought up to
+      // date.
+      getGuest(target)?.reload();
     }
     shown.current = modifiedAt;
   }, [modifiedAt, target]);
@@ -1281,34 +1035,4 @@ function sameAddress(a: string | undefined, b: string) {
 
 function trimAddress(url: string) {
   return url.replace(/#.*$/, "").replace(/\/+$/, "");
-}
-
-/**
- * An update to the page tabs, applied to the window's list: the pages are
- * taken out, changed, and put back where they were, with any new one at the
- * end and the screens untouched.
- */
-function withPageTabs(update: PageTabsUpdate) {
-  return (current: WindowTabs): WindowTabs => {
-    const pages = current.tabs.filter((tab) => tab.kind === "page");
-    const next = update({ activeId: current.activeId, tabs: pages });
-    const byId = new Map(next.tabs.map((tab) => [tab.id, tab]));
-    const merged: WindowTab[] = [];
-    for (const tab of current.tabs) {
-      if (tab.kind !== "page") {
-        merged.push(tab);
-        continue;
-      }
-      const updated = byId.get(tab.id);
-      if (updated) {
-        merged.push({ ...updated, kind: "page" });
-      }
-    }
-    for (const tab of next.tabs) {
-      if (!current.tabs.some((entry) => entry.id === tab.id)) {
-        merged.push({ ...tab, kind: "page" });
-      }
-    }
-    return { ...current, activeId: next.activeId, tabs: merged };
-  };
 }

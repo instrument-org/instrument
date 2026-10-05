@@ -1,20 +1,23 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppCommand } from "@/shared/app-command";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
-  "auth.login-error": {
-    error: {
-      code?: string | undefined;
-      message?: string | undefined;
-      status: number;
-      statusText: string;
-    };
-  };
-  "auth.login-success": {
-    success: true;
-  };
+  // How the Google sign-in to Instrument that came back through the browser
+  // ended, for the sign-in waiting on it in the window.
+  "auth.sign-in-outcome":
+    | {
+        error: {
+          code?: string | undefined;
+          message?: string | undefined;
+          status: number;
+          statusText: string;
+        };
+        outcome: Extract<SignInOutcome, "failed">;
+      }
+    | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
   // A download a person started in a task's browser panel has ended, in their
   // Downloads folder or not at all. The app window says so; the
   // agent's own downloads report through agent-browser instead. `folder` is
@@ -57,6 +60,13 @@ interface PublisherEvents {
     size: null | { height: number; width: number };
     targetId: BrowserTargetId;
   };
+  // A page's own menu asked to step back or forward. The window walks the
+  // tab the page is in, the way its arrows and thumb buttons do, rather
+  // than the guest stepping its own history alone.
+  "browser.step-page": {
+    direction: "back" | "forward";
+    targetId: BrowserTargetId;
+  };
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;
@@ -80,6 +90,8 @@ interface PublisherEvents {
   // chord, or a link from outside the app, all of which reach the main process
   // rather than the page: history either way, the close of the tab on screen,
   // the caret in the window's field, a screen to put up, or a file to open.
+  // The chords that can mean a page (history, reload, find, zoom) come as they
+  // were pressed, and the window decides which page, if any, they mean.
   "window.command":
     | "back"
     | "closeTab"
@@ -98,6 +110,9 @@ interface PublisherEvents {
     | "reopenTab"
     | "search"
     | "toggleInbox"
+    | "zoomIn"
+    | "zoomOut"
+    | "zoomReset"
     | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };

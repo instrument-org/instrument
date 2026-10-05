@@ -1,4 +1,3 @@
-import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
@@ -85,13 +84,9 @@ const VIEW_CHORDS: WindowChord[] = [
   chord("toggleInbox"),
   chord("editPage"),
   // The page in front of the user, never the window: reloading the window
-  // takes every browser guest down with its document. A focused guest reloads
-  // itself; otherwise the window reloads the page on screen, if there is one.
-  chord("reloadPage", () => {
-    if (!getBrowserViewManager()?.reloadFocusedGuest()) {
-      publisher.publish("window.command", "reloadPage");
-    }
-  }),
+  // takes every browser guest down with its document. The window decides
+  // which page that is (page-chords.ts).
+  chord("reloadPage"),
 ];
 
 /**
@@ -208,8 +203,13 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
 
   // The other windows' View menu with the inbox's chord at its head, less
   // its reload roles, which would reload the window and every page in it
-  // (Reload Page above takes Cmd+R; the Developer menu reloads the app).
-  const shared = createOtherWindowViewMenu();
+  // (Reload Page above takes Cmd+R; the Developer menu reloads the app). Its
+  // zoom chords go to the window, which decides whether they mean a page.
+  const shared = createOtherWindowViewMenu({
+    zoom: (type) => {
+      publisher.publish("window.command", type);
+    },
+  });
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [

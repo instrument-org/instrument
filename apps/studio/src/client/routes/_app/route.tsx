@@ -8,11 +8,9 @@ import {
   inboxOpenAtom,
   inboxWidthAtom,
   paneOpenByGroupAtom,
-  type ScreenView,
-  screenViewAtom,
+  screenViewsAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
-  windowTabsAtom,
 } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -33,26 +31,32 @@ import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatRail } from "@/client/components/window/chat-rail";
 import { ChatScreen } from "@/client/components/window/chat-screen";
-import { GroupItem } from "@/client/components/window/compose-window";
+import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
-import { useShell } from "@/client/components/window/shell-context";
+import {
+  pageSlotByTabAtom,
+  useShell,
+} from "@/client/components/window/shell-context";
 import { tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import {
   chatOfHref,
-  useWindowTabs,
-} from "@/client/components/window/window-tabs";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+  chatSessionOfHref,
+} from "@/client/components/window/window-href";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
+import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import {
+  type ChatId,
   encodeBrowserTargetId,
   StoreId,
   WINDOW_ID,
@@ -63,6 +67,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -131,7 +136,7 @@ function ChatColumn({
  * what it holds down its right edge. Choosing another chat in the inbox
  * moves this tab there, one step on in its history.
  */
-function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
+function ChatView({ chat }: { chat: ChatId | undefined }) {
   const shell = useShell();
   const appWindow = useWindow();
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
@@ -182,9 +187,12 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     rowWidth > 0 &&
     beside <
       floors + RAIL_WIDTH + RAIL_FOLD_SLACK + (isRailCompact ? ROOM_MARGIN : 0);
-  useEffect(() => {
+  // Kept with the render that decides it, not an effect after it, so the
+  // rail never draws one frame at the width it is leaving; settling takes one
+  // more pass at most, since the margin only widens the fold it decided.
+  if (railFolds !== isRailCompact) {
     setRailCompact(railFolds);
-  }, [railFolds]);
+  }
 
   /** Puts the chat away: the inbox is shown again if it was hidden, with the empty side beside it. */
   const leaveChat = () => {
@@ -193,7 +201,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   };
 
   const isFloating = shell.compose.entries.some(
-    (entry) => entry.kind === "chat" && entry.sessionId === chat,
+    (entry) => entry.kind === "chat" && entry.chatId === chat,
   );
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
@@ -202,8 +210,6 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     pageChrome,
     showsPane && up.kind === "page",
   );
-  const reportView = useScreenViewOfTab();
-
   const chatRecord = chats?.find((entry) => entry.id === chat);
 
   return (
@@ -253,7 +259,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.
-                          windowTabs.forgetGroup(chat);
+                          windowTabs.dropGroup(chat);
                           appTabs.navigate(INBOX_HREF, { replace: true });
                           setInboxOpen(true);
                         }}
@@ -289,18 +295,18 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                             onGone={() => {
                               // As for a deleted chat: its tabs go, and the
                               // inbox takes the tab back.
-                              windowTabs.forgetGroup(chat);
+                              windowTabs.dropGroup(chat);
                               appTabs.navigate(INBOX_HREF, { replace: true });
                               setInboxOpen(true);
                             }}
                             sendContext={() =>
                               shell.sendContext({
+                                chatId: chat,
                                 isViewOpen: showsPane,
-                                sessionId: chat,
                               })
                             }
                             sentPrompt={shell.sentWords.get(chat)}
-                            sessionId={chat}
+                            chatId={chat}
                           />
                         </div>
                       </div>
@@ -338,7 +344,6 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                       }}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
-                      onScreenView={reportView}
                       up={up}
                     />
                   )}
@@ -355,15 +360,15 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                 isViewOpen={showsPane}
                 onAddComputer={() => {
                   windowTabs.openScreen(instrumentFolderHref(), {
-                    activate: true,
                     group: chat,
+                    select: true,
                   });
                   setPaneOpen(chat, true);
                 }}
                 onAddWeb={() => {
                   windowTabs.openScreen(BROWSER_HREF, {
-                    activate: true,
                     group: chat,
+                    select: true,
                   });
                   setPaneOpen(chat, true);
                 }}
@@ -372,7 +377,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                   windowTabs.reorder(keys, chat);
                 }}
                 onSelect={(id) => {
-                  windowTabs.selectIn(chat, id);
+                  windowTabs.select(id);
                   setPaneOpen(chat, true);
                 }}
                 tabs={tabs}
@@ -422,7 +427,7 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewAtom);
+  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -506,48 +511,25 @@ function SiteView({ group }: { group: string }) {
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);
-  const reportView = useScreenViewOfTab();
   // A tab reopened after its page was put away brings the page back, at
   // the address it had.
   const [putAway, setPutAway] = useAtom(putAwaySitesAtom);
-  const setWindowTabs = useSetAtom(windowTabsAtom);
   const stashed = up === undefined ? putAway[group] : undefined;
   useEffect(() => {
     if (!stashed) {
       return;
     }
-    // Its guest went with it, and is opened again at the page it held the
-    // way a launch opens a restored tab's: from blank, so with none of the
-    // page's own history behind it.
-    const pages = stashed.map((tab) =>
-      tab.kind === "page" ? { ...tab, pageBackSteps: 0 } : tab,
-    );
-    setWindowTabs((current) => ({
-      ...current,
-      // Up at once when its group is the one on screen, which it is, being
-      // this tab's.
-      activeId:
-        current.group === group
-          ? (pages[0]?.id ?? current.activeId)
-          : current.activeId,
-      tabs: [...current.tabs.filter((tab) => tab.group !== group), ...pages],
-    }));
-    for (const tab of pages) {
-      if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
-        void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
-          url: tab.url,
-        });
-      }
-    }
+    // Its guest went with it, and comes back when the page shows, at the
+    // address it held, the way a launch brings a tab's page back: from
+    // blank, so with none of the page's own history behind it.
+    windowTabs.restoreGroup(group, stashed);
     setPutAway((current) => {
       const { [group]: _restored, ...rest } = current;
       return rest;
     });
     // Once per group put back; the task it opens under does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group, setPutAway, setWindowTabs, stashed]);
+  }, [group, setPutAway, stashed]);
   // Back from the page's start is the window tab's own back, to where the
   // site was opened from.
   const router = useRouter();
@@ -572,7 +554,6 @@ function SiteView({ group }: { group: string }) {
         isFramed={false}
         onPageChrome={setPageChrome}
         onPageHost={setPageHost}
-        onScreenView={reportView}
         up={up}
       />
     </div>
@@ -583,12 +564,21 @@ function SiteView({ group }: { group: string }) {
  * One of the window's tabs, as its address has it: the chat, a site opened
  * at the window's level, or a screen that is its own route under the row
  * that says where it stands. The window around the tabs is drawn once, by
- * the window, whatever tab is up.
+ * the window, whatever tab is up. A tab of a chat's or a draft's group is
+ * the screen alone, under the row its group's view draws.
  */
 function TabContent() {
   const href = useRouterState({
     select: (routerState) => routerState.location.href,
   });
+  const groupTab = useGroupTab();
+  if (groupTab) {
+    return <Outlet />;
+  }
+  const session = chatSessionOfHref(href);
+  if (session) {
+    return <ChatOfSession sessionId={session} />;
+  }
   if (isChatHref(href)) {
     return <ChatView chat={chatOfHref(href)} />;
   }
@@ -600,41 +590,55 @@ function TabContent() {
 }
 
 /**
- * Where this tab wants the window's page drawn, told to the window while the
- * tab is the one up: a tab behind leaves the page to the tab in front.
+ * A chat named by its session, the way addresses were written before a
+ * chat had an id of its own: the tab moves to the chat's own address once
+ * the workspace says which chat that session is, or to the inbox when it is
+ * none's.
+ */
+function ChatOfSession({ sessionId }: { sessionId: StoreId.Session }) {
+  const router = useRouter();
+  const chat = useQuery(
+    rpcClient.workspace.chats.ofSession.queryOptions({
+      input: { sessionId },
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const answer = chat.data;
+  useEffect(() => {
+    if (answer) {
+      router.history.replace(
+        answer.id ? `${CHATS_HREF}/${answer.id}` : INBOX_HREF,
+      );
+    }
+  }, [answer, router]);
+  return <ChatView chat={undefined} />;
+}
+
+/**
+ * Where this tab wants the window's page drawn, told to the window under the
+ * tab's id; the window draws the page where the tab up wants it.
  */
 function usePageSlot(
   host: HTMLElement | null,
   chrome: PageChromeSlots | undefined,
   isShown: boolean,
 ) {
-  const { reportPageSlot } = useShell();
-  const isActive = useIsActiveTab();
+  const setSlots = useSetAtom(pageSlotByTabAtom);
+  const tabId = useTabId();
   useEffect(() => {
-    if (!isActive) {
+    if (!host) {
       return;
     }
-    reportPageSlot(host ? { chrome, host, isShown } : null);
-  }, [chrome, host, isActive, isShown, reportPageSlot]);
-}
-
-/**
- * What a screen in this tab has up, told to the window while the tab is the
- * one up, for what goes with a message.
- */
-function useScreenViewOfTab() {
-  const isActive = useIsActiveTab();
-  const setScreenView = useSetAtom(screenViewAtom);
-  const [view, setView] = useState<null | ScreenView>(null);
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    setScreenView(view);
-    // Only its own answer is cleared, so the next tab's is not cleared with it.
+    const slot = { chrome, host, isShown };
+    setSlots((current) => ({ ...current, [tabId]: slot }));
     return () => {
-      setScreenView((current) => (current === view ? null : current));
+      setSlots((current) => {
+        if (current[tabId] !== slot) {
+          return current;
+        }
+        const { [tabId]: _gone, ...rest } = current;
+        return rest;
+      });
     };
-  }, [isActive, setScreenView, view]);
-  return setView;
+  }, [chrome, host, isShown, setSlots, tabId]);
 }

@@ -15,7 +15,14 @@ import { outputFolderPath } from "../chat/output-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runFolder as run, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { folderSubcommand } from "./task/folder";
+import { newSubcommand } from "./task/new";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const run = subcommandRunner(folderSubcommand, "task folder");
+const runNew = subcommandRunner(newSubcommand, "task new");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
@@ -24,7 +31,7 @@ const CHAT_SESSION = StoreId.SessionSchema.parse(
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.
 let counter = 0;
-let CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
+let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 let CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -114,7 +121,7 @@ async function heldBy(taskId: TaskId) {
 
 beforeEach(async () => {
   counter += 1;
-  CHAT_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
+  CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   CHILD_ID = TaskIdSchema.parse(`find-the-vault-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   working.value = false;
@@ -124,7 +131,9 @@ beforeEach(async () => {
   await fs.mkdir(path.join(home, "Downloads"), { recursive: true });
   await fs.mkdir(path.join(home, "Desktop"), { recursive: true });
   for (const id of [CHILD_ID]) {
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", id), {
+      unplaced: true,
+    });
   }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -243,12 +252,18 @@ describe("task folder", () => {
   });
 
   it.each([
-    ["/skills/workspace:rw", /needs no --folder: every task writes skills to \/skills\/workspace\//],
-    ["/task/work", /is not one of this conversation's folders: --folder takes \/mnt\/<mount>/],
+    [
+      "/skills/workspace:rw",
+      /needs no --folder: every task writes skills to \/skills\/workspace\//,
+    ],
+    [
+      "/task/work",
+      /is not one of this conversation's folders: --folder takes \/mnt\/<mount>/,
+    ],
   ])("names what %s is rather than an empty folder", async (spec, message) => {
-    await expect(
-      runFolder([CHILD_ID, "--add", spec], context),
-    ).rejects.toThrow(message);
+    await expect(runFolder([CHILD_ID, "--add", spec], context)).rejects.toThrow(
+      message,
+    );
   });
 
   it("refuses a folder that is not on disk", async () => {
@@ -293,7 +308,7 @@ describe("task folder", () => {
     await expect(
       runFolder([CHILD_ID, "--add", "/mnt/home/Downloads:rw"], {
         ...context,
-        chatId: TaskIdSchema.parse("someone-else"),
+        chatId: ChatIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(`"${CHILD_ID}" was started in another chat`);
   });
@@ -314,7 +329,7 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "You were handed the folder Downloads at /mnt/Downloads, read and write.",
+        "You were handed the folder Downloads at /mnt/home/Downloads, read and write.",
       ]
     `);
   });
@@ -334,9 +349,9 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "You were handed the folder Desktop at /mnt/Desktop, read-only.
+        "You were handed the folder Desktop at /mnt/home/Desktop, read-only.
 
-      The invoices you were missing are in /mnt/Desktop/invoices.",
+      The invoices you were missing are in /mnt/home/Desktop/invoices.",
       ]
     `);
   });
@@ -381,7 +396,7 @@ describe("task folder, telling the task", () => {
     `);
     expect(delivered()).toMatchInlineSnapshot(`
       [
-        "The folder Downloads at /mnt/Downloads was taken back from you. The folder Desktop at /mnt/Desktop was taken back from you.",
+        "The folder Downloads at /mnt/home/Downloads was taken back from you. The folder Desktop at /mnt/home/Desktop was taken back from you.",
       ]
     `);
     expect(Object.keys(await heldBy(CHILD_ID))).toEqual([outputFolderPath()]);
@@ -397,6 +412,149 @@ describe("task folder, telling the task", () => {
     ).rejects.toThrow(/add it on this command with --add <path>/);
     expect(await heldBy(CHILD_ID)).toEqual({});
     expect(delivered()).toEqual([]);
+  });
+});
+
+// A task mounts each folder at the path its chat reaches it by, so what the
+// two say about a folder needs no translating.
+describe("the paths a task shares with its chat", () => {
+  /** The name each folder a task holds is mounted under, by its path. */
+  async function namesHeldBy(taskId: TaskId) {
+    const state = await getTaskState(taskDir(taskId));
+    return Object.fromEntries(
+      Object.values(state.attachedFolders ?? {}).map((folder) => [
+        folder.path,
+        folder.mountName,
+      ]),
+    );
+  }
+
+  it("mounts a folder at the chat's path for it", async () => {
+    await runFolder([CHILD_ID, "--add", "/mnt/home/Downloads/"], context);
+
+    expect(await namesHeldBy(CHILD_ID)).toEqual({
+      [path.join(home, "Downloads")]: "home/Downloads",
+    });
+  });
+
+  it("refuses a folder inside one the task has, changing nothing", async () => {
+    await runFolder([CHILD_ID, "--add", "/mnt/home:ro"], context);
+    const before = await heldBy(CHILD_ID);
+
+    await expect(
+      runFolder([CHILD_ID, "--add", "/mnt/home/Desktop:rw"], context),
+    ).rejects.toThrow(
+      "folder: /mnt/home/Desktop:rw is inside /mnt/home, and a task cannot be handed both",
+    );
+    expect(await heldBy(CHILD_ID)).toEqual(before);
+  });
+
+  it("swaps a name of the task's own for the chat's path on the way in", async () => {
+    // Granted before names were shared: the task holds Downloads by its own
+    // name for it.
+    await attachFolder({
+      access: "read-write",
+      path: path.join(home, "Downloads"),
+      taskId: CHILD_ID,
+    });
+    expect(await namesHeldBy(CHILD_ID)).toEqual({
+      [path.join(home, "Downloads")]: "Downloads",
+    });
+
+    await runFolder(
+      [CHILD_ID, "--add", "/mnt/home/Desktop"],
+      context,
+      "Compare it with /mnt/home/Downloads/list.csv.",
+    );
+
+    expect(delivered()).toMatchInlineSnapshot(`
+      [
+        "You were handed the folder Desktop at /mnt/home/Desktop, read and write.
+
+      Compare it with /mnt/Downloads/list.csv.",
+      ]
+    `);
+  });
+});
+
+describe("task new", () => {
+  /** The task the last `new` made, by the id it printed. */
+  function createdBy(stdout: string): TaskId {
+    return TaskIdSchema.parse(/^Created (\S+)/.exec(stdout)?.[1]);
+  }
+
+  it("hands each folder at the chat's path, with the access asked for", async () => {
+    const result = await runNew(
+      ["--name", "Sort", "--folder", "/mnt/home/Downloads:ro"],
+      context,
+      encodeUtf8ToBytes("Sort the PDFs in /mnt/home/Downloads by year."),
+      "/task",
+    );
+    const taskId = createdBy(result.stdout);
+
+    const state = await getTaskState(taskDir(taskId));
+    const folders = Object.values(state.attachedFolders ?? {});
+    expect(
+      folders.find((folder) => folder.path === path.join(home, "Downloads")),
+    ).toMatchObject({ access: "read-only", mountName: "home/Downloads" });
+    expect(result.stdout).toContain(
+      "Its folders: /mnt/home/Downloads (read-only),",
+    );
+    const brief = sent.events.flatMap((event) =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "createSession"
+        ? [JSON.stringify(event)]
+        : [],
+    );
+    expect(brief.join("")).toContain(
+      "Sort the PDFs in /mnt/home/Downloads by year.",
+    );
+  });
+
+  // Read as a word, a misspelled flag became part of the brief.
+  it("refuses a flag it does not take rather than reading it into the brief", async () => {
+    await expect(
+      runNew(
+        ["--nam", "Sort", "--folder", "/mnt/home/Downloads"],
+        context,
+        encodeUtf8ToBytes("Sort the PDFs by year."),
+      ),
+    ).rejects.toThrow("unknown flag --nam on `task new`.");
+  });
+
+  it("refuses a brief naming a folder it is not handed", async () => {
+    await expect(
+      runNew(
+        ["--name", "Sort", "--folder", "/mnt/home/Downloads"],
+        context,
+        encodeUtf8ToBytes("Move /mnt/home/Desktop/a.pdf into place."),
+        "/task",
+      ),
+    ).rejects.toThrow(
+      "new: the brief names /mnt/home/Desktop/a.pdf, which this task is not handed.",
+    );
+  });
+
+  it("refuses a folder beside one around it", async () => {
+    await expect(
+      runNew(
+        [
+          "--name",
+          "Sort",
+          "--folder",
+          "/mnt/home:ro",
+          "--folder",
+          "/mnt/home/Desktop:rw",
+        ],
+        context,
+        encodeUtf8ToBytes("Tidy the desktop."),
+        "/task",
+      ),
+    ).rejects.toThrow(
+      "new: /mnt/home/Desktop:rw is inside /mnt/home:ro, and a task cannot be handed both",
+    );
   });
 });
 

@@ -23,6 +23,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  classifyHostPath,
   effectiveFolderAccess,
   folderHoldsWorkspace,
 } from "./workspace-fs-layout";
@@ -432,5 +433,104 @@ describe("effectiveFolderAccess", () => {
     expect(folderHoldsWorkspace(path.join(tmpDir, "workspace", "tasks"))).toBe(
       false,
     );
+  });
+});
+
+describe("classifyHostPath", () => {
+  let tmpDir: string;
+  let home: string;
+  let task: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), `${APP_NAME_SLUG}-classify-`)),
+    );
+    // A task folder inside the home folder, which the layout also mounts:
+    // the shape of a chat whose home mount holds its own record.
+    home = path.join(tmpDir, "home");
+    task = path.join(home, "workspace", "task");
+    await fs.mkdir(path.join(task, ".instrument"), { recursive: true });
+    await fs.mkdir(path.join(home, "Docs"), { recursive: true });
+    await fs.symlink("/etc", path.join(home, "Docs", "out"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  function layout() {
+    return buildWorkspaceFsLayout({
+      attachedFolders: {
+        Home: {
+          access: "read-only",
+          createdAt: 0,
+          id: FolderAttachment.IdSchema.parse("home-id"),
+          mountName: "Home",
+          path: AbsolutePathSchema.parse(home),
+          source: "user",
+        },
+      },
+      taskHostRoot: TaskDirSchema.parse(task),
+    });
+  }
+
+  it("names the deepest mount holding a path, by its path there", () => {
+    const found = classifyHostPath(layout(), path.join(task, "work", "a.md"));
+    expect(found?.virtualPath).toBe("/task/work/a.md");
+    expect(found?.masked).toBeUndefined();
+    expect(found?.escapes).toBe(false);
+  });
+
+  it("masks the private dir through a mount that holds it whole", () => {
+    const built = layout();
+    const homeMount = built.attached[0];
+    const found = classifyHostPath(
+      built,
+      path.join(task, ".instrument", "state.json"),
+      homeMount,
+    );
+    expect(found?.virtualPath).toBe(
+      "/mnt/Home/workspace/task/.instrument/state.json",
+    );
+    expect(found?.masked).toBe(".instrument");
+  });
+
+  it("says a path that leaves its mount through a symlink escapes", () => {
+    const found = classifyHostPath(
+      layout(),
+      path.join(home, "Docs", "out", "hosts"),
+    );
+    expect(found?.virtualPath).toBe("/mnt/Home/Docs/out/hosts");
+    expect(found?.escapes).toBe(true);
+  });
+
+  it("follows a path that does not exist yet as far as it does", () => {
+    const found = classifyHostPath(
+      layout(),
+      path.join(home, "Docs", "new", "deeper.md"),
+    );
+    expect(found).toMatchObject({
+      escapes: false,
+      virtualPath: "/mnt/Home/Docs/new/deeper.md",
+    });
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "reads another case of a name as the same folder on a disk that ignores case",
+    () => {
+      const found = classifyHostPath(
+        layout(),
+        path.join(task, ".INSTRUMENT", "state.json"),
+      );
+      expect(found?.masked).toBe(".instrument");
+      expect(
+        classifyHostPath(layout(), path.join(home.toUpperCase(), "Docs"))
+          ?.virtualPath,
+      ).toBe("/mnt/Home/Docs");
+    },
+  );
+
+  it("knows nothing of a path outside every mount", () => {
+    expect(classifyHostPath(layout(), tmpDir)).toBeNull();
   });
 });

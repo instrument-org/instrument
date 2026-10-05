@@ -1,5 +1,5 @@
 import { type ChosenItem } from "@/client/atoms/window";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -57,7 +57,7 @@ export interface WindowContextValue {
   /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
   rowTail?: HTMLElement | null;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
-  sessionId?: StoreId.Session;
+  chatId?: ChatId;
 }
 
 export const WindowContext = createContext<null | WindowContextValue>(null);

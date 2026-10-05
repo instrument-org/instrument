@@ -52,6 +52,7 @@ import {
   resolveRegistryDir,
   write,
 } from "./utils";
+import { resolveChat } from "../src/lib/record-folders";
 
 export interface Assertion {
   check: (ctx: AssertionContext) => AssertionResult | Promise<AssertionResult>;
@@ -800,7 +801,8 @@ async function treeTaskIds(rootTaskId: TaskId): Promise<TaskId[]> {
     if (next === undefined) {
       break;
     }
-    for (const child of await listChildTasks(next)) {
+    const chatId = resolveChat(next);
+    for (const child of chatId ? await listChildTasks(chatId) : []) {
       found.push(child.id);
       frontier.push(child.id);
     }

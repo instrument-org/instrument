@@ -1,52 +1,43 @@
-import { type ScreenView, screenViewAtom } from "@/client/atoms/window";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { type ScreenView, screenViewsAtom } from "@/client/atoms/window";
+import { useTabId } from "@/client/hooks/use-active-tab";
 import { useSetAtom } from "jotai";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
-import { useScreenTab } from "./screen-tab";
+import { useGroupTab } from "./group-tab";
 
 /**
- * Says what this screen has on it, for as long as it is up. Every screen of
- * the window calls this with what it shows, and the layout sends the current
- * answer with each message, so the conversation is told about what is on
- * screen and never about a screen the user left.
+ * Says what this screen has on it, for as long as it is up, under the tab it
+ * is drawn in: a group's tab beside a chat or in a draft's band, or one of
+ * the window's own. The layout reads the tab in view when a message is sent,
+ * so the conversation is told about what is on screen and never about a
+ * screen the user left.
  *
  * Null registers nothing and clears nothing: a layout route with a child
  * screen inside it passes null so the child's answer stands.
  */
 export function useOnScreen(view: null | ScreenView) {
-  const setView = useSetAtom(screenViewAtom);
-  // A screen drawn in a tab of a draft or a popped-out chat says so to that
-  // tab rather than to the window, whose screen it is not.
-  const screenTab = useScreenTab();
-  // Held by reference, so a host that makes its tab afresh each render does
-  // not report again on every one: only the tab's id says it changed.
-  const screenTabRef = useRef(screenTab);
-  useEffect(() => {
-    screenTabRef.current = screenTab;
-  });
-  const screenTabId = screenTab?.id;
-  // A screen in a tab of the window's behind the one up is not on screen.
-  const isActiveTab = useIsActiveTab();
+  const setViews = useSetAtom(screenViewsAtom);
+  const groupTabId = useGroupTab()?.id;
+  const appTabId = useTabId();
+  const key = groupTabId ?? appTabId;
   // By value: the screens build a fresh object each render.
-  const key = JSON.stringify(view);
+  const said = JSON.stringify(view);
   useEffect(() => {
-    if (view === null || !isActiveTab) {
+    if (view === null) {
       return;
     }
-    const tab = screenTabRef.current;
-    if (tab) {
-      tab.report(view);
-      return () => {
-        tab.report(null);
-      };
-    }
-    setView(view);
+    setViews((current) => ({ ...current, [key]: view }));
     return () => {
-      // Only its own answer is cleared, so a screen arriving as this one
-      // leaves is not cleared with it.
-      setView((current) => (current === view ? null : current));
+      // Only its own answer is cleared, so a screen arriving in the same tab
+      // as this one leaves is not cleared with it.
+      setViews((current) => {
+        if (current[key] !== view) {
+          return current;
+        }
+        const { [key]: _gone, ...rest } = current;
+        return rest;
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, setView, screenTabId, isActiveTab]);
+  }, [said, key, setViews]);
 }

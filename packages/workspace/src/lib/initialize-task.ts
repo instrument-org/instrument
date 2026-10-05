@@ -1,7 +1,9 @@
 import { ok, Result, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
+import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { type TaskId } from "../schemas/task-id";
 import { type TaskSettingsUpdate } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
@@ -9,16 +11,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import {
-  chatsDir,
-  chatTasksDir,
-  forgetChat,
-  forgetChatTask,
-  isChatId,
-  placeChat,
-  placeChatTask,
-} from "./record-folders";
-import { taskDir } from "./task-dir-utils";
+import { forgetRecord, placeChat, placeTask } from "./record-folders";
 import { updateTaskSettings } from "./task-settings";
 
 export async function initializeTask(
@@ -29,7 +22,7 @@ export async function initializeTask(
     workspaceConfig,
   }: {
     /** The chat that starts the task, whose `tasks/` folder it goes in. */
-    chatId?: TaskId;
+    chatId?: ChatId;
     initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
     workspaceConfig: WorkspaceConfig;
@@ -41,43 +34,24 @@ export async function initializeTask(
   let release: (() => void) | undefined;
   return safeTry(async function* () {
     // A chat's folder goes under `chats/`, a task a chat started goes inside
-    // that chat, and any other task goes flat under `tasks/`. Either id is
+    // that chat, and any other task goes flat under `tasks/`. The id is
     // reserved in the index before its folder exists, which is what refuses
     // a name another chat just took.
     const { chatSessionId } = initialSettings;
     const isChat = chatSessionId !== undefined;
-    const inChat = !isChat && chatId !== undefined;
-    const reserved = yield* Result.fromThrowable(
-      () => {
-        if (inChat && !isChatId(chatId)) {
-          throw new Error(`No chat has the id ${chatId}.`);
-        }
-        if (isChat) {
-          placeChat(taskId, chatSessionId);
-        } else if (inChat) {
-          placeChatTask(taskId, chatId);
-        }
-        return isChat || inChat;
-      },
+    const dir = yield* Result.fromThrowable(
+      () =>
+        isChat
+          ? placeChat(ChatIdSchema.parse(taskId), chatSessionId)
+          : placeTask(taskId, chatId),
       (error) =>
         new TypedError.Conflict(
           error instanceof Error ? error.message : String(error),
         ),
     )();
-    const parentDir = isChat
-      ? chatsDir()
-      : inChat
-        ? chatTasksDir(chatId)
-        : workspaceConfig.tasksDir;
+    const parentDir = path.dirname(dir);
     release = () => {
-      if (!reserved) {
-        return;
-      }
-      if (isChat) {
-        forgetChat(taskId);
-      } else {
-        forgetChatTask(taskId);
-      }
+      forgetRecord(taskId);
     };
 
     // Ensure the parent dir exists (idempotent), then create the task
@@ -93,12 +67,10 @@ export async function initializeTask(
         ),
     );
     yield* ResultAsync.fromPromise(
-      fs.mkdir(taskDir(taskId), { recursive: false }),
+      fs.mkdir(dir, { recursive: false }),
       (error) =>
         error instanceof Error && "code" in error && error.code === "EEXIST"
-          ? new TypedError.Conflict(
-              `Task directory already exists: ${taskDir(taskId)}`,
-            )
+          ? new TypedError.Conflict(`Task directory already exists: ${dir}`)
           : new TypedError.FileSystem(
               error instanceof Error ? error.message : "Unknown error",
               { cause: error },
@@ -110,7 +82,7 @@ export async function initializeTask(
       yield* copyTask({
         includePrivateFolder: false,
         sourceDir: workspaceConfig.defaultTaskTemplateDir,
-        targetDir: taskDir(taskId),
+        targetDir: dir,
       });
     }
 
@@ -137,7 +109,7 @@ export async function initializeTask(
     ];
     for (const dirName of standardDirs) {
       yield* ResultAsync.fromPromise(
-        fs.mkdir(absolutePathJoin(taskDir(taskId), dirName), {
+        fs.mkdir(absolutePathJoin(dir, dirName), {
           recursive: true,
         }),
         (error) =>

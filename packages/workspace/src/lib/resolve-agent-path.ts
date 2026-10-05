@@ -10,7 +10,6 @@ import {
   AbsolutePathSchema,
   RelativePathSchema,
 } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { type MaskedEntry } from "./mask-private-dir-fs";
@@ -20,8 +19,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
-  hostPathEscapesMount,
-  maskedEntryAt,
+  classifyHostPath,
   nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
@@ -202,7 +200,7 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
     return executeError(`Path escapes the task directory: ${inputPath}`);
   }
 
-  const masked = taskMaskedEntryAt(layout.task, absolutePath);
+  const masked = classifyHostPath(layout, absolutePath, layout.task)?.masked;
   if (masked !== undefined) {
     return maskedEntryError(displayPath, masked);
   }
@@ -316,9 +314,9 @@ function resolveVirtualAbsolutePath(
   // Asked of the mount that owns the path rather than of the task mount alone:
   // a chat's task mounts mask a private dir too, and the file tools reach them
   // by a route the bash sandbox's mask does not cover.
-  const masked = maskedEntryAt(mount, virtualPath);
-  if (masked !== null) {
-    return maskedEntryError(normalizePath(virtualPath), masked);
+  const found = classifyHostPath(layout, hostPath, mount);
+  if (found?.masked !== undefined) {
+    return maskedEntryError(normalizePath(virtualPath), found.masked);
   }
 
   if (mount === layout.task) {
@@ -335,7 +333,7 @@ function resolveVirtualAbsolutePath(
   // The bash sandbox refuses to traverse symlinks out of a mount; the file
   // tools go through node fs directly, so enforce the same containment here or
   // a symlink inside the folder could read host files.
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+  if (found === null || found.escapes) {
     return executeError(
       `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
     );
@@ -345,23 +343,5 @@ function resolveVirtualAbsolutePath(
     absolutePath: hostPath,
     displayPath: normalizePath(virtualPath),
     mount,
-  });
-}
-
-// The private dir (.instrument) holds task internals -- the task db, state.json
-// (attached-folder host paths), and settings -- that the agent must never read
-// through the file tools. Agent-facing byproducts live under work/ instead. A
-// chat's `tasks/` dir holds its tasks, which it reaches read-only at
-// /tasks/<id> and never through its own folder.
-function taskMaskedEntryAt(
-  task: WorkspaceFsLayout["task"],
-  hostPath: string,
-): MaskedEntry | undefined {
-  // Compared without case: on a case-insensitive disk `.INSTRUMENT` opens the
-  // same directory.
-  const candidate = hostPath.toLowerCase();
-  return task.maskedEntries.find((entry) => {
-    const dir = absolutePathJoin(task.hostRoot, entry).toLowerCase();
-    return candidate === dir || pathIsWithin(candidate, dir);
   });
 }

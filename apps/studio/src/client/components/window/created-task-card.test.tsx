@@ -19,7 +19,6 @@ vi.mock("@/client/rpc/client", () => ({
     workspace: {
       chats: {
         live: { tasks: { experimental_liveOptions: childrenOptions } },
-        taskStatus: { queryOptions: childStatusOptions },
       },
       session: {
         stop: {
@@ -28,12 +27,13 @@ vi.mock("@/client/rpc/client", () => ({
       },
       // The task's record, which names the chat whose list it is read from.
       task: {
+        live: { status: { experimental_liveOptions: childStatusOptions } },
         byId: {
           queryOptions: () => ({
             queryFn: () =>
               Promise.resolve({
                 id: "lisbon-hotel",
-                parentTaskId: "instrument",
+                chatId: "instrument",
               }),
             queryKey: ["task", "lisbon-hotel"],
           }),

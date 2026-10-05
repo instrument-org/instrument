@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { createFfprobeCommand } from "./ffprobe";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 
@@ -27,7 +28,7 @@ async function mockExeca() {
 
 describe("ffprobeCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createFfprobeCommand(taskId);
+  const command = createFfprobeCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
     vi.resetAllMocks();

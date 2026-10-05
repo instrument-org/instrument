@@ -136,13 +136,13 @@ Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held c
 
 ```bash
 node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
-node $DRIVE rpc workspace.task.agentStatus.byIds '{"ids":["generated-pdf"]}'
+node $DRIVE rpc workspace.task.status '{"id":"generated-pdf"}'
 node $DRIVE rpc gateway.models.list
 ```
 
 The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
 
-Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/`, and no route lists every chat's tasks. `workspace.chats.of '{"sessionId":"ses_..."}'` turns a chat's session (the id in a `/chats/<session>` address) into it.
+Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/` (the id in a `/chats/<id>` address), and no route lists every chat's tasks. `workspace.chats.session '{"id":"<chat-id>"}'` gives a chat's session, for the routes that read its transcript; `workspace.chats.ofSession '{"sessionId":"ses_..."}'` turns a session back into its chat.
 
 Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
 
@@ -178,7 +178,7 @@ node $DRIVE rpc workspace.message.list '{"id":"<task-id>","sessionId":"<session-
 
 ### Waiting for a turn
 
-`wait --idle` polls `task.agentStatus.byIds` until the task has no live agent, which is the signal the app itself uses. Without `--task` it takes the task the active tab is showing.
+`wait --idle` polls `task.status` until the task has no live agent, which is the signal the app itself uses. Without `--task` it takes the task the active tab is showing.
 
 ```bash
 node $DRIVE wait --idle --task <task-id>     # blocks for the turn, default timeout 10m
@@ -186,8 +186,8 @@ node $DRIVE wait --idle --task <task-id>     # blocks for the turn, default time
 
 Two things about that status are worth knowing before trusting a wait built on it by hand:
 
-- Busy is the `agent.alive` tag, carried by every non-final state of the session machine. A task whose turn is over reports **no sessions at all** rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
-- Which makes "no sessions" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
+- Busy is `isWorking`: some session carries the `agent.alive` tag, which every non-final state of the session machine does. A task whose turn is over reports not working rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
+- Which makes "not working" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
 
 ## Page model
 

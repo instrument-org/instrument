@@ -1,7 +1,6 @@
 import { type ByteString, defineCommand } from "just-bash";
 
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { recordMemoryReported } from "../create-memory-part";
 import {
   forgetMemory,
@@ -15,7 +14,9 @@ import {
 } from "../memory/store";
 import { Store } from "../store";
 import { MEMORY_COMMAND } from "./memory-command";
+import { defineSubcommands, subcommand } from "./subcommands";
 import { subprocessStdin } from "./utils";
+import { type ChatId } from "../../schemas/chat-id";
 
 export { MEMORY_COMMAND } from "./memory-command";
 
@@ -43,7 +44,7 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 
 /** What `memory` needs from the `bash` call it runs inside. */
 export interface MemoryCommandContext {
-  chatId: TaskId;
+  chatId: ChatId;
   /** The chat the call runs in: named on what it saves, and spared the note about its own change. */
   sessionId: StoreId.Session;
 }
@@ -55,40 +56,29 @@ export interface MemoryCommandContext {
  * should be able to keep without starting a task.
  */
 export function createMemoryCommand(context: MemoryCommandContext) {
-  return defineCommand(NAME, async (args, ctx) => {
-    const [subcommand, ...rest] = args;
-    if (rest.includes("--help") || rest.includes("-h")) {
-      return ok(USAGE);
-    }
-    try {
-      switch (subcommand) {
-        case "--help":
-        case "-h":
-        case "help": {
-          return ok(USAGE);
-        }
-        case "forget": {
-          return await runForget(rest, context);
-        }
-        case "list":
-        case undefined: {
-          return await runList();
-        }
-        case "save": {
-          return await runSave(rest, ctx.stdin, context);
-        }
-        case "show": {
-          return await runShow(rest);
-        }
-        default: {
-          return fail(`unknown subcommand "${subcommand}".\n\n${USAGE}`);
-        }
-      }
-    } catch (error) {
-      return fail(error instanceof Error ? error.message : String(error));
-    }
-  });
+  return defineCommand(NAME, (args, ctx) => runMemory(args, context, ctx));
 }
+
+const runMemory = defineSubcommands<MemoryCommandContext>({
+  bare: "list",
+  name: NAME,
+  subcommands: {
+    forget: subcommand({
+      positional: 1,
+      run: ({ positional }, context) => runForget(positional, context),
+    }),
+    list: subcommand({ positional: 0, run: () => runList() }),
+    save: subcommand({
+      run: ({ positional }, context, { stdin }) =>
+        runSave(positional, stdin, context),
+    }),
+    show: subcommand({
+      positional: 1,
+      run: ({ positional }) => runShow(positional),
+    }),
+  },
+  usage: USAGE,
+});
 
 /** The chat a memory is learned in, by title, so a reader knows where it came from. */
 async function chatOf({
@@ -106,16 +96,9 @@ function day(at: number): string {
   return new Date(at).toISOString().slice(0, 10);
 }
 
-function fail(text: string) {
-  return { exitCode: 1, stderr: `${NAME}: ${text}\n`, stdout: "" };
-}
-
+/** What a subcommand prints, ending in a line break whether or not it was written with one. */
 function ok(text: string) {
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout: text.endsWith("\n") ? text : `${text}\n`,
-  };
+  return text.endsWith("\n") ? text : `${text}\n`;
 }
 
 function origin(memory: Memory): string {
@@ -139,11 +122,11 @@ async function rememberTold({ chatId, sessionId }: MemoryCommandContext) {
 async function runForget(args: string[], context: MemoryCommandContext) {
   const name = args[0];
   if (!name) {
-    return fail(`forget: which memory? ${NAME} list names them.`);
+    throw new Error(`forget: which memory? ${NAME} list names them.`);
   }
   const memory = await forgetMemory(memoryDir(), name);
   if (!memory) {
-    return fail(`no memory named "${name}". ${NAME} list names them.`);
+    throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
   await rememberTold(context);
   return ok(`Forgot "${memory.name}": ${memoryHeadline(memory.text)}`);
@@ -170,18 +153,18 @@ async function runSave(
 ) {
   const [name, ...inline] = args;
   if (!name) {
-    return fail(`save: a name is required.\n\n${USAGE}`);
+    throw new Error(`save: a name is required.\n\n${USAGE}`);
   }
   const parsedName = MemoryNameSchema.safeParse(name);
   if (!parsedName.success) {
-    return fail(
+    throw new Error(
       `save: "${name}" is not a name a memory can have. ${parsedName.error.issues[0]?.message ?? ""}`.trim(),
     );
   }
   const piped = subprocessStdin(stdin)?.toString("utf8").trim();
   const text = piped || inline.join(" ").trim();
   if (!text) {
-    return fail(
+    throw new Error(
       `save: the memory is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
     );
   }
@@ -199,11 +182,11 @@ async function runSave(
 async function runShow(args: string[]) {
   const name = args[0];
   if (!name) {
-    return fail(`show: which memory? ${NAME} list names them.`);
+    throw new Error(`show: which memory? ${NAME} list names them.`);
   }
   const memory = await readMemory(memoryDir(), name);
   if (!memory) {
-    return fail(`no memory named "${name}". ${NAME} list names them.`);
+    throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
   return ok(`${memory.name}  ${origin(memory)}\n\n${memory.text}`);
 }

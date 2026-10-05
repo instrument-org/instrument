@@ -1,6 +1,5 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 
-import { publisher } from "../rpc/publisher";
 import { type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import {
@@ -68,13 +67,6 @@ export function updateTaskSettings(
         ),
     );
 
-    // Only the settings view publishes this. A model pick or a tab is a change to
-    // the same file and no business of the task list, so its writers publish
-    // `task.stateUpdated` instead and the list is not woken by them.
-    publisher.publish("task.updated", {
-      id: taskId,
-    });
-
     return ok(undefined);
   });
 }
@@ -83,7 +75,7 @@ async function writeMergedSettings(
   taskId: TaskId,
   updates: TaskSettingsUpdate,
 ): Promise<void> {
-  await updateTaskRecord(taskDir(taskId), (record) => {
+  await updateTaskRecord(taskDir(taskId), "settings", (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings so their defaults apply, then the change.
     //

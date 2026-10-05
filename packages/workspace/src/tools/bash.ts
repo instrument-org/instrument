@@ -41,7 +41,6 @@ import {
   HandOffSchema,
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
-import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import {
@@ -54,6 +53,7 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
 import { chatRefusal } from "./chat-shell-policy";
+import { resolveChat } from "../lib/record-folders";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -177,9 +177,10 @@ export const BashTool = setupTool({
     const attachedFolders = await folderReach(taskId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
-    const childMounts =
-      agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
-    const chat = childMounts ? { childMounts } : undefined;
+    const chatId = agentName === "instrument" ? resolveChat(taskId) : undefined;
+    const chat = chatId
+      ? { childMounts: await childTaskMounts(chatId), id: chatId }
+      : undefined;
     const bash = await createBashEnv({
       attachedFolders,
       chat,
@@ -190,9 +191,9 @@ export const BashTool = setupTool({
       sessionId,
       taskId,
     });
-    // The mounts the native shims map their own output through, so the live
-    // copy a promoted command streams names them the way the foreground copy
-    // does.
+    // The layout the native shims write their own output's host paths back
+    // against, so the live copy a promoted command streams names them the way
+    // the foreground copy does.
     const layout = shellLayout({ attachedFolders, chat, taskId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
@@ -234,8 +235,8 @@ export const BashTool = setupTool({
           };
         }
       },
+      layout,
       taskId,
-      virtualizePaths: (text) => virtualizeOutput(text, layout),
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);

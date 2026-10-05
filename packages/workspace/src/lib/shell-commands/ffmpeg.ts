@@ -3,7 +3,7 @@ import { defineCommand } from "just-bash";
 import { type TaskId } from "../../schemas/task-id";
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
-import { taskDir } from "../task-dir-utils";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   collapseProgress,
@@ -23,7 +23,7 @@ export const FFMPEG_COMMAND = {
   name: "ffmpeg",
 } as const;
 
-export function createFfmpegCommand(taskId: TaskId) {
+export function createFfmpegCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
     const unreachable = unreachablePathArgError(
       FFMPEG_COMMAND.name,
@@ -68,7 +68,7 @@ export function createFfmpegCommand(taskId: TaskId) {
       // ffmpeg redraws one `frame=... speed=...` line per second with a
       // carriage return, so a long encode is tens of kilobytes on a single
       // line. Only its final state says anything.
-      (text) => filterShellOutput(collapseProgress(text), taskDir(taskId)),
+      (text) => filterShellOutput(collapseProgress(text), layout),
     );
     return {
       exitCode: result.exitCode ?? 1,

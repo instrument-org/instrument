@@ -58,6 +58,7 @@ export { type SessionMessagePart } from "./schemas/session/message-part";
 export { StoreId } from "./schemas/store-id";
 export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
+export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export { WINDOW_ID } from "./schemas/window-id";
 export type { WindowTabRequest } from "./schemas/window-tab";

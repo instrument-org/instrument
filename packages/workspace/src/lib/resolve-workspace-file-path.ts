@@ -5,7 +5,7 @@ import { childTaskMounts, windowTaskMounts } from "./chat/children";
 import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
-import { isChatId } from "./record-folders";
+import { resolveChat } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
@@ -64,10 +64,11 @@ export async function resolveWorkspaceFilePaths({
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   const taskHostRoot = taskDir(taskId);
+  const chatId = resolveChat(taskId);
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
-    extraMounts: isChatId(taskId)
-      ? await childTaskMounts(taskId)
+    extraMounts: chatId
+      ? await childTaskMounts(chatId)
       : taskId === WINDOW_ID
         ? windowTaskMounts()
         : undefined,

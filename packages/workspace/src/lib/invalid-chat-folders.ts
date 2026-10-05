@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { TASKS_DIR_NAME } from "../constants";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
@@ -14,8 +15,7 @@ import {
 } from "./invalid-task-folders";
 import {
   chatsDir,
-  forgetChat,
-  forgetChatTask,
+  forgetRecord,
   sessionOfChat,
   storedChatSession,
 } from "./record-folders";
@@ -48,7 +48,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   const root = chatsDir();
   const invalid: InvalidChatFolder[] = [];
   for (const name of listDirs(root)) {
-    const id = TaskIdSchema.safeParse(name);
+    const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
       invalid.push({
         kind: "chat",
@@ -124,11 +124,7 @@ export async function trashInvalidChatFolder(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),
       );
       if (recordId.success) {
-        if (isChatTask) {
-          forgetChatTask(recordId.data);
-        } else {
-          forgetChat(recordId.data);
-        }
+        forgetRecord(recordId.data);
       }
     })(),
     (error) =>

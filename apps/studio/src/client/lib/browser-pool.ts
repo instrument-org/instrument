@@ -72,6 +72,9 @@ interface PooledWebview {
   // Last size reported to main, so a park/show cycle that lands on the same
   // number doesn't re-send it.
   lastReportedSurface: null | { height: number; width: number };
+  // The guest as everything outside the pool drives it, from the element's
+  // dom-ready on: before it, every one of the element's methods throws.
+  handle: GuestHandle | null;
   // Last size the guest was shown at, so paint-host keeps it that size while
   // hidden (avoids a jarring resize when re-shown).
   lastVisibleBounds: Bounds | null;
@@ -79,8 +82,66 @@ interface PooledWebview {
   webview: WebviewElement;
 }
 
-// Subset of Electron's `<webview>` tag API the browser panel drives so the user
-// can take over navigation.
+/** What each `<webview>` event a host listens to carries, as Electron fires it. */
+export interface GuestEventMap {
+  "did-fail-load": {
+    errorCode: number;
+    errorDescription: string;
+    isMainFrame: boolean;
+    validatedURL: string;
+  };
+  "did-navigate": { url: string };
+  "did-navigate-in-page": { isMainFrame: boolean; url: string };
+  "did-start-loading": object;
+  "did-stop-loading": object;
+  "found-in-page": { result: { activeMatchOrdinal: number; matches: number } };
+  "ipc-message": { args: unknown[]; channel: string };
+  "page-favicon-updated": { favicons: string[] };
+  "page-title-updated": { title: string };
+}
+
+/**
+ * A tab's guest once it can be driven, the one way anything outside the pool
+ * reaches it: `getGuest` hands one back only after the guest is ready, and
+ * every method is safe to call after that. A guest gone since answers as an
+ * empty page (no address, no history) and ignores what it is asked to do.
+ */
+export interface GuestHandle {
+  canGoBack(): boolean;
+  canGoForward(): boolean;
+  /** The page as it looks now, as a data URL; null when nothing could be taken. */
+  capture(): Promise<null | string>;
+  /** Forgets every entry but the one the guest is at. */
+  clearHistory(): void;
+  find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
+  /** Loads `url`, settling once it has, and rejecting for a load that failed. */
+  load(url: string): Promise<void>;
+  on<K extends keyof GuestEventMap>(
+    event: K,
+    listener: (event: GuestEventMap[K]) => void,
+  ): () => void;
+  reload(options?: { ignoreCache?: boolean }): void;
+  /** Runs `code` in the page and settles with what it returns. */
+  run(code: string): Promise<unknown>;
+  /** A message to the guest's preload, on a channel it listens on. */
+  send(channel: string, ...args: unknown[]): void;
+  setZoom(factor: number): void;
+  /** A step through the page's own history; false when it has none that way. */
+  step(direction: "back" | "forward"): boolean;
+  stopFind(
+    action: "activateSelection" | "clearSelection" | "keepSelection",
+  ): void;
+  readonly targetId: BrowserTargetId;
+  title(): string;
+  /** The page's address; empty when it has none to give. */
+  url(): string;
+  readonly webContentsId: number;
+  zoom(): number;
+}
+
+// Subset of Electron's `<webview>` tag API the pool drives. Only the pool
+// holds the element; everything else reaches the guest through its
+// GuestHandle.
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
@@ -132,7 +193,7 @@ let lastHostFocusedElement: HTMLElement | null = null;
 // `document.activeElement` survives losing and regaining focus, so this alone
 // puts typing back into whatever the agent last clicked.
 function focusGuest(targetId: BrowserTargetId) {
-  getWebviewElement(targetId)?.focus({ preventScroll: true });
+  pool.get(targetId)?.webview.focus({ preventScroll: true });
 }
 
 function recordHostFocus(event: FocusEvent) {
@@ -204,8 +265,9 @@ const desiredSurfaces = new Map<
 
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
-// polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
-// stable reference for useSyncExternalStore between changes.
+// polled endpoint, and whose element here is ready to drive (see
+// publishAttached).
+let attachedFromMain: ReadonlySet<BrowserTargetId> = new Set();
 let attachedTargets: ReadonlySet<BrowserTargetId> = new Set();
 const targetListeners = new Set<() => void>();
 
@@ -220,17 +282,55 @@ export function getGuestGeneration(
   return pool.get(targetId)?.generation;
 }
 
-/** Who walks each page's tab when a thumb button is pressed over it, by the page's target. */
+/**
+ * Who walks each page's tab when a step is asked of the page (a thumb button
+ * over it, a history chord in it, its menu's Back or Forward, its panel's
+ * arrows), by the page's target.
+ */
 const thumbHandlers = new Map<
   BrowserTargetId,
   (direction: "back" | "forward") => void
 >();
 
-/** The pooled guest element for a target, if it exists (for nav controls). */
-export function getWebviewElement(
+/**
+ * Guests the window stepped through their own history, by target, until the
+ * navigation the step makes is seen: a step is not a page going somewhere
+ * new, and does not drop what its tab had ahead of it.
+ */
+const traversals = new Set<BrowserTargetId>();
+
+/**
+ * Steps a guest through its own history, marked as a step for whoever hears
+ * the navigation it makes. False when the guest has nowhere to go that way
+ * or is not ready.
+ */
+export function goGuest(
   targetId: BrowserTargetId,
-): null | WebviewElement {
-  return pool.get(targetId)?.webview ?? null;
+  direction: "back" | "forward",
+): boolean {
+  const guest = getGuest(targetId);
+  if (
+    !guest ||
+    !(direction === "back" ? guest.canGoBack() : guest.canGoForward())
+  ) {
+    return false;
+  }
+  traversals.add(targetId);
+  if (guest.step(direction)) {
+    return true;
+  }
+  traversals.delete(targetId);
+  return false;
+}
+
+/** Whether the guest's latest navigation was a step `goGuest` made, which this answers once. */
+export function takeGuestTraversal(targetId: BrowserTargetId): boolean {
+  return traversals.delete(targetId);
+}
+
+/** A target's guest, once it is ready to be driven; null until then and once it is gone. */
+export function getGuest(targetId: BrowserTargetId): GuestHandle | null {
+  return pool.get(targetId)?.handle ?? null;
 }
 
 /**
@@ -319,6 +419,29 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runPageSteps() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.events.stepPage.call(
+          undefined,
+          { signal },
+        );
+        for await (const { direction, targetId } of subscription) {
+          stepPage(targetId, direction);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   async function runGuestSurfaces() {
     while (true) {
       if (signal.aborted) {
@@ -350,6 +473,7 @@ export function initBrowserPool(): () => void {
   void runFocusRestores();
   void runGuestFocusRequests();
   void runGuestSurfaces();
+  void runPageSteps();
 
   return () => {
     controller.abort();
@@ -359,24 +483,20 @@ export function initBrowserPool(): () => void {
 }
 
 /**
- * A step back or forward for the page that holds the keyboard, the way a
- * thumb press over it steps: a history chord pressed in a page reaches the
- * window rather than the page, and is answered here first. False when no page
- * holds the keyboard, and the window's own history is what steps.
+ * The page on screen that holds the keyboard, if one does: a parked guest
+ * hands the keyboard back as it goes, and one that kept it is no page the
+ * person is looking at.
  */
-export function stepFocusedPage(direction: "back" | "forward"): boolean {
+export function pageHoldingKeyboard(): BrowserTargetId | null {
   for (const [targetId, pooled] of pool) {
-    // Only a page on screen: a parked guest hands the keyboard back as it
-    // goes, and one that kept it is no page the person is looking at.
     if (
       document.activeElement === pooled.webview &&
       paintOwners.has(targetId)
     ) {
-      stepPage(targetId, direction);
-      return true;
+      return targetId;
     }
   }
-  return false;
+  return null;
 }
 
 /**
@@ -384,22 +504,16 @@ export function stepFocusedPage(direction: "back" | "forward"): boolean {
  * into the tab's own history at either end; with none, the page steps its
  * own history, as a browser would.
  */
-function stepPage(targetId: BrowserTargetId, direction: "back" | "forward") {
+export function stepPage(
+  targetId: BrowserTargetId,
+  direction: "back" | "forward",
+) {
   const handler = thumbHandlers.get(targetId);
   if (handler) {
     handler(direction);
     return;
   }
-  const webview = pool.get(targetId)?.webview;
-  try {
-    if (direction === "back" && webview?.canGoBack()) {
-      webview.goBack();
-    } else if (direction === "forward" && webview?.canGoForward()) {
-      webview.goForward();
-    }
-  } catch {
-    // Not attached yet: there is no history to step.
-  }
+  goGuest(targetId, direction);
 }
 
 /**
@@ -628,14 +742,123 @@ function ensureWebview(
     container,
     desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
+    handle: null,
     lastReportedSurface: null,
     lastVisibleBounds: null,
     targetId,
     webview,
   };
+  // The element's methods throw until its guest is dom-ready, so the guest is
+  // handed out only from then on.
+  webview.addEventListener(
+    "dom-ready",
+    () => {
+      if (pool.get(targetId) === pooled) {
+        pooled.handle = guestHandle(
+          webview,
+          targetId,
+          webview.getWebContentsId(),
+        );
+        publishAttached();
+      }
+    },
+    { once: true },
+  );
   pool.set(targetId, pooled);
   applyPaintHost(pooled);
   return pooled;
+}
+
+/**
+ * The handle over one element. Every read and act goes through `guard`, so
+ * a guest that has gone since it was handed out answers as an empty page
+ * rather than throwing at whoever asked.
+ */
+function guestHandle(
+  webview: WebviewElement,
+  targetId: BrowserTargetId,
+  webContentsId: number,
+): GuestHandle {
+  const guard = <T>(read: () => T, otherwise: T): T => {
+    try {
+      return read();
+    } catch {
+      return otherwise;
+    }
+  };
+  return {
+    canGoBack: () => guard(() => webview.canGoBack(), false),
+    canGoForward: () => guard(() => webview.canGoForward(), false),
+    capture: async () => {
+      try {
+        return (await webview.capturePage()).toDataURL();
+      } catch {
+        return null;
+      }
+    },
+    clearHistory: () => {
+      guard(() => {
+        webview.clearHistory();
+      }, undefined);
+    },
+    find: (text, options) => {
+      guard(() => webview.findInPage(text, options), 0);
+    },
+    load: (url) => webview.loadURL(url),
+    on: (event, listener) => {
+      // Electron fires these as DOM events carrying its own fields, which
+      // the DOM's types know nothing of; GuestEventMap names them.
+      const relay = (fired: Event) => {
+        listener(fired as unknown as Parameters<typeof listener>[0]);
+      };
+      webview.addEventListener(event, relay);
+      return () => {
+        webview.removeEventListener(event, relay);
+      };
+    },
+    reload: ({ ignoreCache = false } = {}) => {
+      guard(() => {
+        if (ignoreCache) {
+          webview.reloadIgnoringCache();
+        } else {
+          webview.reload();
+        }
+      }, undefined);
+    },
+    run: (code) => webview.executeJavaScript(code),
+    send: (channel, ...args) => {
+      guard(() => {
+        webview.send(channel, ...args);
+      }, undefined);
+    },
+    setZoom: (factor) => {
+      guard(() => {
+        webview.setZoomFactor(factor);
+      }, undefined);
+    },
+    step: (direction) =>
+      guard(() => {
+        if (direction === "back" && webview.canGoBack()) {
+          webview.goBack();
+          return true;
+        }
+        if (direction === "forward" && webview.canGoForward()) {
+          webview.goForward();
+          return true;
+        }
+        return false;
+      }, false),
+    stopFind: (action) => {
+      guard(() => {
+        webview.stopFindInPage(action);
+      }, undefined);
+    },
+    targetId,
+    title: () => guard(() => webview.getTitle(), ""),
+    url: () => guard(() => webview.getURL(), ""),
+    webContentsId,
+    zoom: () => guard(() => webview.getZoomFactor(), 1),
+  };
 }
 
 /** The largest guest, in CSS px, this window can rasterize in full. */
@@ -758,8 +981,20 @@ function reconcile(targets: BrowserGuestTarget[]) {
     disposeWebview(targetId);
   }
 
-  attachedTargets = new Set(
+  attachedFromMain = new Set(
     targets.filter((target) => target.attached).map((target) => target.id),
+  );
+  publishAttached();
+}
+
+/**
+ * The targets whose guest main reports attached and whose element is ready
+ * here, replaced rather than mutated so it is a stable snapshot between
+ * changes.
+ */
+function publishAttached() {
+  attachedTargets = new Set(
+    [...attachedFromMain].filter((targetId) => pool.get(targetId)?.handle),
   );
   for (const listener of targetListeners) {
     listener();

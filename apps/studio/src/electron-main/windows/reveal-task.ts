@@ -3,7 +3,7 @@ import {
   openAppScreen,
 } from "@/electron-main/windows/app-window";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import { type StoreId } from "@instrument-org/workspace/electron";
+import { type TaskId } from "@instrument-org/workspace/electron";
 
 /**
  * Bring a task into view from outside the app: today, a completion
@@ -13,12 +13,12 @@ import { type StoreId } from "@instrument-org/workspace/electron";
  * does for anything else.
  */
 export function revealTask({
+  id,
   isChat = false,
-  sessionId,
 }: {
-  /** A chat of the conversation rather than a task: the session is what the inbox lists. */
+  id: TaskId;
+  /** A chat of the conversation rather than a task: its id is the chat's address. */
   isChat?: boolean;
-  sessionId: StoreId.Session;
 }) {
   const target = getForegroundWindow();
   if (!target) {
@@ -31,6 +31,6 @@ export function revealTask({
   target.show();
   target.focus();
   if (isChat && target === getAppWindow()) {
-    openAppScreen(`/chats/${sessionId}`);
+    openAppScreen(`/chats/${id}`);
   }
 }

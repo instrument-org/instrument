@@ -2,22 +2,24 @@ import { promptDraftRefAtom } from "@/client/atoms/prompt-value";
 // Asks staged on files in this window: the places the person marked for
 // Instrument, held in memory until a composer sends them, with the hooks each
 // surface uses to stage, list, move and reveal them.
-import { windowTabsAtom } from "@/client/atoms/window";
 import {
+  type ChatId,
   type SessionMessageDataPart,
-  StoreId,
 } from "@instrument-org/workspace/client";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useContext, useEffect, useRef } from "react";
 
+import { groupOnScreenAtom } from "./window-tabs";
+
 import { WindowContext } from "./context";
 import { mountOfHostPath } from "./file-tabs";
 import { segmentsOf } from "./host-path";
+import { chatOfGroup } from "./window-href";
 
 /** The composer a staged ask was moved into: a chat's, or a draft's. */
 export type AskDestination =
   | { draftId: string; kind: "draft" }
-  | { kind: "chat"; sessionId: StoreId.Session };
+  | { chatId: ChatId; kind: "chat" };
 
 /**
  * One place in a file the person marked for Instrument, waiting to be sent:
@@ -180,7 +182,7 @@ function isFor(ask: StagedAsk, destination: AskDestination) {
   const at = ask.destination;
   return destination.kind === "draft"
     ? at?.kind === "draft" && at.draftId === destination.draftId
-    : at?.kind === "chat" && at.sessionId === destination.sessionId;
+    : at?.kind === "chat" && at.chatId === destination.chatId;
 }
 
 /**
@@ -241,9 +243,9 @@ export function useMoveAsks() {
       if (chat === undefined) {
         appWindow?.moveAsksToDraft?.(ids);
       } else {
-        moveTo(ids, { kind: "chat", sessionId: chat });
+        moveTo(ids, { chatId: chat, kind: "chat" });
         const editor = store.get(
-          promptDraftRefAtom({ scope: "chat", sessionId: chat }),
+          promptDraftRefAtom({ chatId: chat, scope: "chat" }),
         );
         editor?.focus();
         editor?.moveCaretToEnd();
@@ -256,8 +258,6 @@ export function useMoveAsks() {
  * The chat up beside what is on screen, whose composer takes what a file's
  * Ask moves; with none, a new draft takes it.
  */
-function useChatBeside(): StoreId.Session | undefined {
-  const { group } = useAtomValue(windowTabsAtom);
-  const parsed = StoreId.SessionSchema.safeParse(group);
-  return parsed.success ? parsed.data : undefined;
+function useChatBeside(): ChatId | undefined {
+  return chatOfGroup(useAtomValue(groupOnScreenAtom));
 }

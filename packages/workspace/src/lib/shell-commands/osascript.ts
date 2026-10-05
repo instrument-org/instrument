@@ -2,7 +2,7 @@ import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { taskDir } from "../task-dir-utils";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -28,7 +28,10 @@ export const OSASCRIPT_COMMAND = {
  */
 const OSASCRIPT_PATH = "/usr/bin/osascript";
 
-export function createOsascriptCommand(taskId: TaskId) {
+export function createOsascriptCommand(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {
     // The value after each `-e` is script source, not a path: it is checked
     // and bridged as code, and only the remaining arguments as paths.
@@ -57,25 +60,21 @@ export function createOsascriptCommand(taskId: TaskId) {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
-    const result = await execShim(
-      OSASCRIPT_PATH,
-      bridgedArgs,
-      {
-        cancelSignal: ctx.signal,
-        cwd: taskCwd,
-        env: {
-          ...getWorkspaceConfig().nodeExecEnv,
-          ...env,
-        },
-        // A script piped in (`osascript - <<'EOF'`) is read from stdin; with
-        // nothing piped, an ignored stdin keeps a bare `osascript` from waiting.
-        ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+    const result = await execShim(OSASCRIPT_PATH, bridgedArgs, {
+      cancelSignal: ctx.signal,
+      cwd: taskCwd,
+      env: {
+        ...getWorkspaceConfig().nodeExecEnv,
+        ...env,
       },
-    );
+      // A script piped in (`osascript - <<'EOF'`) is read from stdin; with
+      // nothing piped, an ignored stdin keeps a bare `osascript` from waiting.
+      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+    });
 
     const streams = mapStreams(
       shimOutput(result, OSASCRIPT_COMMAND.name),
-      (text) => filterShellOutput(text, taskDir(taskId)),
+      (text) => filterShellOutput(text, layout),
     );
     return {
       exitCode: result.exitCode ?? 1,

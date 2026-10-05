@@ -15,7 +15,7 @@ const HOME_DIR_BASENAME = path.basename(os.homedir());
 
 /**
  * Assigns every folder in `folders` the name it is mounted under, unique within
- * the task.
+ * the task and apart from every name in `taken`.
  *
  * This is the agent's handle for a folder, not the user's word for it: it ends
  * up as the `/mnt/<name>` path the model reads and writes through. A folder
@@ -35,14 +35,15 @@ const HOME_DIR_BASENAME = path.basename(os.homedir());
  * tie-breaker, so the earliest attachment keeps the bare name and later
  * namesakes take the qualified ones.
  *
- * Callers must re-derive every name here on any attach, not just the new
- * folder's -- attaching one folder can, rarely, force an already-attached
- * folder to mount elsewhere to stay distinguishable from it.
+ * A folder already mounted keeps its name: the agent reads and writes through
+ * it, and its transcript names it. So a caller passes the names already held
+ * as `taken` and only the new folders here (see grant-folders.ts).
  */
 export function assignMountNames(
   folders: { id: string; path: string }[],
+  taken: Iterable<string> = [],
 ): Map<string, string> {
-  const used = new Set<string>();
+  const used = new Set<string>(taken);
   const names = new Map<string, string>();
   for (const folder of folders) {
     const name = uniqueName(folder.path, used);

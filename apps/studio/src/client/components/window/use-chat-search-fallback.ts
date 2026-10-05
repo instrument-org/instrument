@@ -88,7 +88,7 @@ export function useChatSearchFallback({
             ),
           );
           return asked.reduce<Answers>(
-            (all, { answers }) => ({ ...all, ...answers }),
+            (merged, { answers }) => ({ ...merged, ...answers }),
             {},
           );
         }

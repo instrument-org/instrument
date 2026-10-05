@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
-import { createOsascriptCommand } from "./osascript";
+import { addressAppsById, createOsascriptCommand } from "./osascript";
 import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
@@ -46,6 +46,61 @@ describe("osascriptCommand", () => {
       ["-e", script],
       expect.objectContaining({ stdin: "ignore" }),
     );
+  });
+
+  // Mail's own extensions register under the name "Mail", so by name a
+  // script reaches an extension and none of Mail's words compile.
+  it("names Mail by its bundle id, inline and piped", async () => {
+    const execa = await mockExeca();
+    await command.execute(
+      ["-e", 'tell application "Mail" to get name of every account'],
+      mockCtx,
+    );
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      "/usr/bin/osascript",
+      [
+        "-e",
+        'tell application id "com.apple.mail" to get name of every account',
+      ],
+      expect.anything(),
+    );
+
+    await mockExeca();
+    await command.execute(["-l", "JavaScript", "-"], {
+      ...mockCtx,
+      stdin: encodeUtf8ToBytes(
+        "Application('Mail').inbox.messages[0].subject()",
+      ),
+    });
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      "/usr/bin/osascript",
+      ["-l", "JavaScript", "-"],
+      expect.objectContaining({
+        input: Buffer.from(
+          'Application("com.apple.mail").inbox.messages[0].subject()',
+        ),
+      }),
+    );
+  });
+
+  it.each([
+    ['tell app "Mail" to activate', 'tell app id "com.apple.mail" to activate'],
+    [
+      'using terms from application "Mail"',
+      'using terms from application id "com.apple.mail"',
+    ],
+    // System Events names a process, not an app, and the "Mail" here is text.
+    [
+      'tell application "System Events" to get process "Mail"',
+      'tell application "System Events" to get process "Mail"',
+    ],
+    ['display dialog "Mail"', 'display dialog "Mail"'],
+    [
+      'tell application "Mailplane" to quit',
+      'tell application "Mailplane" to quit',
+    ],
+  ])("addresses %j as %j", (code, expected) => {
+    expect(addressAppsById(code)).toBe(expected);
   });
 
   it("forwards a piped script", async () => {

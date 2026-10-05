@@ -28,6 +28,39 @@ export const OSASCRIPT_COMMAND = {
  */
 const OSASCRIPT_PATH = "/usr/bin/osascript";
 
+/**
+ * Apps a script cannot reach by name, by the bundle id that reaches them.
+ * Mail's own Quick Look and Share extensions register under the name "Mail",
+ * so `tell application "Mail"` lands on an extension: `version` answers 16.0,
+ * and every word of Mail's own (`inbox`, `account`, `message`) fails to
+ * compile. Its bundle id reaches Mail itself.
+ */
+const ADDRESSED_BY_ID: Record<string, string> = {
+  Mail: "com.apple.mail",
+};
+
+/**
+ * A script with each app in `ADDRESSED_BY_ID` named by its bundle id instead:
+ * AppleScript's `application "Mail"` (or `app "Mail"`) and JavaScript for
+ * Automation's `Application("Mail")`. Other quoted words, such as System
+ * Events' `process "Mail"`, are left alone.
+ */
+export function addressAppsById(code: string): string {
+  let out = code;
+  for (const [name, id] of Object.entries(ADDRESSED_BY_ID)) {
+    out = out
+      .replaceAll(
+        new RegExp(String.raw`\b(app(?:lication)?)\s+"${name}"`, "g"),
+        `$1 id "${id}"`,
+      )
+      .replaceAll(
+        new RegExp(String.raw`\bApplication\(\s*(["'])${name}\1\s*\)`, "g"),
+        `Application("${id}")`,
+      );
+  }
+  return out;
+}
+
 export function createOsascriptCommand(
   taskId: TaskId,
   layout: WorkspaceFsLayout,
@@ -54,11 +87,16 @@ export function createOsascriptCommand(
       if ("error" in bridged) {
         return { exitCode: 1, stderr: bridged.error, stdout: "" };
       }
-      bridgedArgs.push(bridged.code);
+      bridgedArgs.push(addressAppsById(bridged.code));
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
-    const stdin = subprocessStdin(ctx.stdin);
+    // A script piped in is ASCII where it names an app, so the rewrite reads
+    // it as the latin1 bytes it arrives as and leaves every other byte be.
+    const piped = subprocessStdin(ctx.stdin);
+    const stdin = piped
+      ? Buffer.from(addressAppsById(piped.toString("latin1")), "latin1")
+      : undefined;
 
     const result = await execShim(OSASCRIPT_PATH, bridgedArgs, {
       cancelSignal: ctx.signal,

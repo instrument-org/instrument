@@ -16,9 +16,15 @@ import { taskDir } from "../task-dir-utils";
 import { holdTask, taskHold } from "../task-hold";
 import { setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runSend, runStop, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { sendSubcommand } from "./task/send";
+import { stopSubcommand } from "./task/stop";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runSend = subcommandRunner(sendSubcommand, "task send");
+const runStop = subcommandRunner(stopSubcommand, "task stop");
 
 // A chat and a task of their own per test: a store handle is kept per record
 // id, and each test's workspace is a folder of its own.

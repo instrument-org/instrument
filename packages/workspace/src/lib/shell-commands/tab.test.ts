@@ -203,8 +203,15 @@ describe("tab close, replace and show", () => {
     expect(result.stderr).toContain("the window did not answer");
   });
 
+  // Bare, it is asked for its usage, as every command made of subcommands is.
+  it("prints the usage when run bare", async () => {
+    const result = await run({});
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Usage: tab open");
+  });
+
   it.each([
-    { args: [] },
     { args: ["list"] },
     { args: ["close"] },
     { args: ["show"] },

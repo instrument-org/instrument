@@ -23,8 +23,12 @@ import { setTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
-import { runApp as run, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { appSubcommand } from "./task/app";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const run = subcommandRunner(appSubcommand, "task app");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(

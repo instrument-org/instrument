@@ -14,8 +14,12 @@ import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runTab, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { tabSubcommand } from "./task/tab";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runTab = subcommandRunner(tabSubcommand, "task tab");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(

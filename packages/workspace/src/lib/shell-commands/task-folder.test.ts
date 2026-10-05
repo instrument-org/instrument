@@ -15,8 +15,14 @@ import { outputFolderPath } from "../chat/output-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runFolder as run, runNew, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { folderSubcommand } from "./task/folder";
+import { newSubcommand } from "./task/new";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const run = subcommandRunner(folderSubcommand, "task folder");
+const runNew = subcommandRunner(newSubcommand, "task new");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(
@@ -505,6 +511,17 @@ describe("task new", () => {
     expect(brief.join("")).toContain(
       "Sort the PDFs in /mnt/home/Downloads by year.",
     );
+  });
+
+  // Read as a word, a misspelled flag became part of the brief.
+  it("refuses a flag it does not take rather than reading it into the brief", async () => {
+    await expect(
+      runNew(
+        ["--nam", "Sort", "--folder", "/mnt/home/Downloads"],
+        context,
+        encodeUtf8ToBytes("Sort the PDFs by year."),
+      ),
+    ).rejects.toThrow("unknown flag --nam on `task new`.");
   });
 
   it("refuses a brief naming a folder it is not handed", async () => {

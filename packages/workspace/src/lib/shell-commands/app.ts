@@ -1,8 +1,4 @@
-import {
-  type ByteString,
-  defineCommand,
-  type ResolvedCommandContext,
-} from "just-bash";
+import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 
 import { MOUNT } from "../../mount-points";
@@ -57,7 +53,12 @@ import { getTaskSettings } from "../task-settings";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
-import { parseFlags } from "./task-args";
+import {
+  defineSubcommands,
+  type SubcommandInput,
+  type SubcommandShell,
+  subcommand,
+} from "./subcommands";
 import { subprocessStdin } from "./utils";
 
 export { APP_COMMAND } from "./app-command";
@@ -142,63 +143,77 @@ ${APP_MANIFEST_EXAMPLE}
 `;
 
 export function createAppCommand(context: AppCommandContext) {
-  return defineCommand(APP_COMMAND.name, async (args, ctx) => {
-    const [subcommand, ...rest] = args;
-    if (rest.includes("--help") || rest.includes("-h")) {
-      return ok(USAGE);
-    }
-    try {
-      switch (subcommand) {
-        case "--help":
-        case "-h":
-        case "help":
-        case undefined: {
-          return ok(USAGE);
-        }
-        case "call": {
-          return await runCall(rest, context, ctx.stdin, ctx.signal);
-        }
-        case "catalog": {
-          return runCatalog(rest);
-        }
-        case "disconnect": {
-          return await runDisconnect(rest, context);
-        }
-        case "guide": {
-          return await runGuide(rest, context, ctx.stdin);
-        }
-        case "icon": {
-          return await runIcon(rest, context, ctx);
-        }
-        case "list": {
-          return await runList(context);
-        }
-        case "new": {
-          return await runNew(rest, context);
-        }
-        case "request": {
-          return await runRequest(rest, context, ctx.stdin, ctx.signal);
-        }
-        case "test": {
-          return await runTest(rest, context, ctx.signal);
-        }
-        case "tool": {
-          return await runTools(rest, context, ctx.signal, rest[1]);
-        }
-        case "tools": {
-          // `app tools linear save_comment` is how the singular gets reached
-          // for, so it means the same thing.
-          return await runTools(rest, context, ctx.signal, rest[1]);
-        }
-        default: {
-          return fail(`unknown subcommand "${subcommand}".\n\n${USAGE}`);
-        }
-      }
-    } catch (error) {
-      return fail(error instanceof Error ? error.message : String(error));
-    }
-  });
+  return defineCommand(APP_COMMAND.name, (args, ctx) =>
+    runApp(args, context, ctx),
+  );
 }
+
+const runApp = defineSubcommands<AppCommandContext>({
+  name: APP_COMMAND.name,
+  subcommands: {
+    call: subcommand({
+      run: ({ positional }, context, { signal, stdin }) =>
+        runCall(positional, context, stdin, signal),
+    }),
+    catalog: subcommand({ run: ({ positional }) => runCatalog(positional) }),
+    disconnect: subcommand({
+      positional: 1,
+      run: ({ positional }, context) => runDisconnect(positional, context),
+    }),
+    guide: subcommand({
+      positional: 1,
+      run: ({ positional }, context, { stdin }) =>
+        runGuide(positional, context, stdin),
+    }),
+    icon: subcommand({
+      positional: 2,
+      run: ({ positional }, context, shell) =>
+        runIcon(positional, context, shell),
+    }),
+    list: subcommand({ positional: 0, run: (_, context) => runList(context) }),
+    new: subcommand({
+      booleans: ["force"],
+      flags: [
+        "api",
+        "arg",
+        "auth",
+        "header",
+        "local",
+        "mac-app",
+        "mcp",
+        "name",
+        "runtime",
+        "test",
+      ],
+      repeatable: ["arg", "header"],
+      run: (input, context) => runNew(input, context),
+    }),
+    request: subcommand({
+      flags: ["param"],
+      repeatable: ["param"],
+      run: (input, context, { signal, stdin }) =>
+        runRequest(input, context, stdin, signal),
+    }),
+    test: subcommand({
+      positional: 1,
+      run: ({ positional }, context, { signal }) =>
+        runTest(positional, context, signal),
+    }),
+    // `app tools linear save_comment` is how the singular gets reached for,
+    // so the two mean the same thing.
+    tool: subcommand({
+      positional: 2,
+      run: ({ positional }, context, { signal }) =>
+        runTools(positional, context, signal, positional[1]),
+    }),
+    tools: subcommand({
+      positional: 2,
+      run: ({ positional }, context, { signal }) =>
+        runTools(positional, context, signal, positional[1]),
+    }),
+  },
+  usage: USAGE,
+});
 
 /**
  * The apps a task may reach: the ones the chat handed it, by slug, or
@@ -310,14 +325,6 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     `  set up: ${howTo}`,
   ].join("\n");
-}
-
-function fail(message: string) {
-  return {
-    exitCode: 1,
-    stderr: `${APP_COMMAND.name}: ${message}\n`,
-    stdout: "",
-  };
 }
 
 /** The first sentence of a description, on one line, capped for a listing. */
@@ -628,7 +635,7 @@ async function runGuide(
 async function runIcon(
   args: string[],
   context: AppCommandContext,
-  ctx: ResolvedCommandContext,
+  ctx: SubcommandShell,
 ) {
   if (await allowedSlugs(context.taskId)) {
     throw new Error("only the conversation sets apps up; a task uses them.");
@@ -684,24 +691,9 @@ async function runList(context: AppCommandContext) {
   return ok(`${lines.join("\n")}\n`);
 }
 
-async function runNew(args: string[], context: AppCommandContext) {
-  const { positional, values } = parseFlags(args, {
-    flags: [
-      "api",
-      "arg",
-      "auth",
-      "header",
-      "local",
-      "mac-app",
-      "mcp",
-      "name",
-      "runtime",
-      "test",
-    ],
-    repeatable: ["arg", "header"],
-  });
-  const force = positional.includes("--force");
-  const rawSlug = positional.find((argument) => !argument.startsWith("--"));
+async function runNew(input: SubcommandInput, context: AppCommandContext) {
+  const force = input.has("force");
+  const rawSlug = input.positional[0];
   const slugResult = AppSlugSchema.safeParse(rawSlug ?? "");
   if (!slugResult.success) {
     throw new Error(
@@ -713,24 +705,24 @@ async function runNew(args: string[], context: AppCommandContext) {
   if (allowed) {
     throw new Error("only the conversation sets apps up; a task uses them.");
   }
-  const name = values.get("name")?.[0]?.trim();
+  const name = input.value("name")?.trim();
   if (!name) {
     throw new Error("new needs --name '<Name>', the service's own name.");
   }
-  const mcp = values.get("mcp")?.[0];
-  const api = values.get("api")?.[0];
-  const local = values.get("local")?.[0];
+  const mcp = input.value("mcp");
+  const api = input.value("api");
+  const local = input.value("local");
   if ([mcp, api, local].filter(Boolean).length !== 1) {
     throw new Error(
       "new takes exactly one of --mcp <url>, --api <base-url>, or --local <package>.",
     );
   }
   const auth = parseAuth(
-    values.get("auth")?.[0],
+    input.value("auth"),
     local ? "mcp-local" : mcp ? "mcp" : "api",
   );
   const headers = Object.fromEntries(
-    (values.get("header") ?? []).map((header) => {
+    input.all("header").map((header) => {
       const [key, ...valueParts] = header.split(":");
       const value = valueParts.join(":").trim();
       if (!key?.trim() || !value) {
@@ -739,15 +731,15 @@ async function runNew(args: string[], context: AppCommandContext) {
       return [key.trim(), value];
     }),
   );
-  const test = values.get("test")?.[0];
-  const serverArgs = values.get("arg") ?? [];
-  const runtime = values.get("runtime")?.[0]?.trim() ?? "node";
+  const test = input.value("test");
+  const serverArgs = input.all("arg");
+  const runtime = input.value("runtime")?.trim() ?? "node";
   if (local && runtime !== "node" && runtime !== "python") {
     throw new Error(
       `--runtime takes node (an npm package) or python (a PyPI one), and defaults to node (got "${runtime}").`,
     );
   }
-  const macApp = values.get("mac-app")?.[0]?.trim();
+  const macApp = input.value("mac-app")?.trim();
   if (macApp && !local) {
     throw new Error(
       "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
@@ -831,16 +823,12 @@ async function runNew(args: string[], context: AppCommandContext) {
 }
 
 async function runRequest(
-  args: string[],
+  input: SubcommandInput,
   context: AppCommandContext,
   stdin: ByteString,
   signal: AbortSignal | undefined,
 ) {
-  const { positional, values } = parseFlags(args, {
-    flags: ["param"],
-    repeatable: ["param"],
-  });
-  const [slug, rawMethod, requestPath, inlineBody] = positional;
+  const [slug, rawMethod, requestPath, inlineBody] = input.positional;
   const app = await requireApp(slug, context, { connected: true });
   if (app.manifest.type !== "api") {
     throw new Error(
@@ -874,7 +862,7 @@ async function runRequest(
     );
   }
   const params = Object.fromEntries(
-    (values.get("param") ?? []).map((param) => {
+    input.all("param").map((param) => {
       const index = param.indexOf("=");
       if (index <= 0) {
         throw new Error(`--param takes <key>=<value> (got "${param}").`);

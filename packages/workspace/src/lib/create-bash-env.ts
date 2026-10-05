@@ -79,7 +79,8 @@ import {
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createTabCommand } from "./shell-commands/tab";
 import { TAB_COMMAND } from "./shell-commands/tab-command";
-import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
+import { TASK_COMMAND } from "./shell-commands/task-command";
+import { createTaskCommand } from "./shell-commands/task/command";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
   createValidateSkillCommand,

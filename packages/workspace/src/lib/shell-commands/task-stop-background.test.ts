@@ -17,8 +17,14 @@ import {
 import { initializeTask } from "../initialize-task";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runLog, runStop, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { logSubcommand } from "./task/log";
+import { stopSubcommand } from "./task/stop";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runLog = subcommandRunner(logSubcommand, "task log");
+const runStop = subcommandRunner(stopSubcommand, "task stop");
 
 // Whether the child's turn is running; idle unless a test says otherwise.
 const working = vi.hoisted(() => ({ value: false }));

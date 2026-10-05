@@ -16,61 +16,12 @@ import {
   awaitAnswers,
   chatOnlyPathsIn,
   parseDelay,
-  parseFlags,
   parseFolderSpec,
   requireFilesNamedInBrief,
   requireFoldersOnDisk,
   resolveFileUploads,
   resolveFolders,
 } from "./task-args";
-
-describe("parseFlags", () => {
-  it("reads spaced and inline values, keeps the last of a flag given twice, and collects a repeatable one", () => {
-    const { positional, values } = parseFlags(
-      [
-        "--name",
-        "Lisbon",
-        "--folder",
-        "Home",
-        "--folder=Instrument:rw",
-        "--name=Porto",
-        "the",
-        "brief",
-      ],
-      { flags: ["folder", "model", "name"], repeatable: ["folder"] },
-    );
-    expect(positional).toEqual(["the", "brief"]);
-    expect(Object.fromEntries(values)).toEqual({
-      folder: ["Home", "Instrument:rw"],
-      name: ["Porto"],
-    });
-  });
-
-  it("leaves a flag it was not told about as a positional", () => {
-    const { positional, values } = parseFlags(["--running", "x"], {
-      flags: ["tail"],
-      repeatable: [],
-    });
-    expect(positional).toEqual(["--running", "x"]);
-    expect(values.size).toBe(0);
-  });
-
-  it("refuses a flag with nothing after it", () => {
-    expect(() =>
-      parseFlags(["--tail"], { flags: ["tail"], repeatable: [] }),
-    ).toThrow("--tail needs a value.");
-  });
-
-  it("reads a switch without taking the next token as its value", () => {
-    const { positional, values } = parseFlags(["--steps", "task-1"], {
-      boolean: ["steps"],
-      flags: ["tail"],
-      repeatable: [],
-    });
-    expect(positional).toEqual(["task-1"]);
-    expect(values.has("steps")).toBe(true);
-  });
-});
 
 describe("parseDelay", () => {
   it.each([

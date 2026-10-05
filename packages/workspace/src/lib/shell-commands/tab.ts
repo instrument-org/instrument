@@ -1,4 +1,4 @@
-import { type CommandContext, defineCommand } from "just-bash";
+import { defineCommand } from "just-bash";
 
 import { MOUNT } from "../../mount-points";
 import { StoreId } from "../../schemas/store-id";
@@ -15,6 +15,11 @@ import {
   WINDOW_TAB_TIMEOUT_MS,
 } from "../chat/window-tab";
 import { isUnder } from "../path-containment";
+import {
+  defineSubcommands,
+  type SubcommandShell,
+  subcommand,
+} from "./subcommands";
 import { TAB_COMMAND } from "./tab-command";
 import { type ChatId } from "../../schemas/chat-id";
 
@@ -52,105 +57,117 @@ export function createTabCommand({
       : "";
   };
 
-  return defineCommand(TAB_COMMAND.name, async (args, ctx) => {
-    const [verb, ...rest] = args;
-    switch (verb) {
-      case "close": {
-        if (rest.length === 0) {
-          return fail(`close needs the id of a tab. ${USAGE}`);
-        }
-        const lines: string[] = [];
-        const failures: string[] = [];
-        for (const tabId of rest) {
-          const holder = await holderClause(tabId);
-          const answer = await ask({ kind: "close", tabId });
-          if (!answer) {
-            failures.push(`${TAB_NAME}: ${NO_WINDOW}`);
-          } else if (answer.error) {
-            failures.push(`${TAB_NAME}: ${answer.error}`);
-          } else {
-            lines.push(`Closed tab ${tabId}.${holder}`);
-          }
-        }
-        return report(lines, failures);
-      }
-      case "open": {
-        if (rest.length === 0) {
-          return fail(`nothing to open. ${USAGE}`);
-        }
-        const lines: string[] = [];
-        const failures: string[] = [];
-        for (const arg of rest) {
-          const target = await targetOf(arg, ctx);
-          if ("error" in target) {
-            failures.push(target.error);
-            continue;
-          }
-          const answer = await ask({ kind: "open", show: true, target });
-          if (answer?.error) {
-            failures.push(`${TAB_NAME}: ${answer.error}`);
-            continue;
-          }
-          const tabId = answer?.tabId;
-          noteOpenedPage(tabId);
-          // With no window to answer the page still counts as opened: it is
-          // the tab's id that is missing, not the page.
-          lines.push(
-            `Opened ${describeTarget(target)}${tabId ? ` (tab ${tabId})` : ""}`,
-          );
-        }
-        return report(lines, failures);
-      }
-      case "replace": {
-        const [tabId, arg, ...extra] = rest;
-        if (!tabId || !arg || extra.length > 0) {
-          return fail(`replace takes one tab id and one url or path. ${USAGE}`);
-        }
-        const target = await targetOf(arg, ctx);
-        if ("error" in target) {
-          return { exitCode: 1, stderr: `${target.error}\n`, stdout: "" };
-        }
-        const holder = await holderClause(tabId);
-        const answer = await ask({ kind: "replace", tabId, target });
-        if (!answer) {
-          return fail(NO_WINDOW);
-        }
-        if (answer.error) {
-          return fail(answer.error);
-        }
-        return {
-          exitCode: 0,
-          stderr: "",
-          // A tab that changes kind, a page becoming a file's tab or the
-          // reverse, comes back under a new id, which is the one to use next.
-          stdout: `Tab ${tabId} now shows ${describeTarget(target)}${answer.tabId && answer.tabId !== tabId ? `, as tab ${answer.tabId}` : ""}.${holder}\n`,
-        };
-      }
-      case "show": {
-        const [tabId, ...extra] = rest;
-        if (!tabId || extra.length > 0) {
-          return fail(`show takes one tab id. ${USAGE}`);
-        }
-        const answer = await ask({ kind: "show", tabId });
-        if (!answer) {
-          return fail(NO_WINDOW);
-        }
-        if (answer.error) {
-          return fail(answer.error);
-        }
-        return {
-          exitCode: 0,
-          stderr: "",
-          stdout: `Tab ${tabId} is on the user's screen.\n`,
-        };
-      }
-      default: {
-        return fail(
-          verb === undefined ? USAGE : `no such action "${verb}". ${USAGE}`,
-        );
+  const runTab = defineSubcommands<undefined>({
+    name: TAB_NAME,
+    subcommands: {
+      close: subcommand({ run: ({ positional }) => close(positional) }),
+      open: subcommand({
+        run: ({ positional }, _, ctx) => open(positional, ctx),
+      }),
+      replace: subcommand({
+        run: ({ positional }, _, ctx) => replace(positional, ctx),
+      }),
+      show: subcommand({ run: ({ positional }) => show(positional) }),
+    },
+    usage: USAGE,
+  });
+
+  async function close(rest: string[]) {
+    if (rest.length === 0) {
+      return fail(`close needs the id of a tab. ${USAGE}`);
+    }
+    const lines: string[] = [];
+    const failures: string[] = [];
+    for (const tabId of rest) {
+      const holder = await holderClause(tabId);
+      const answer = await ask({ kind: "close", tabId });
+      if (!answer) {
+        failures.push(`${TAB_NAME}: ${NO_WINDOW}`);
+      } else if (answer.error) {
+        failures.push(`${TAB_NAME}: ${answer.error}`);
+      } else {
+        lines.push(`Closed tab ${tabId}.${holder}`);
       }
     }
-  });
+    return report(lines, failures);
+  }
+
+  async function open(rest: string[], ctx: SubcommandShell) {
+    if (rest.length === 0) {
+      return fail(`nothing to open. ${USAGE}`);
+    }
+    const lines: string[] = [];
+    const failures: string[] = [];
+    for (const arg of rest) {
+      const target = await targetOf(arg, ctx);
+      if ("error" in target) {
+        failures.push(target.error);
+        continue;
+      }
+      const answer = await ask({ kind: "open", show: true, target });
+      if (answer?.error) {
+        failures.push(`${TAB_NAME}: ${answer.error}`);
+        continue;
+      }
+      const tabId = answer?.tabId;
+      noteOpenedPage(tabId);
+      // With no window to answer the page still counts as opened: it is
+      // the tab's id that is missing, not the page.
+      lines.push(
+        `Opened ${describeTarget(target)}${tabId ? ` (tab ${tabId})` : ""}`,
+      );
+    }
+    return report(lines, failures);
+  }
+
+  async function replace(rest: string[], ctx: SubcommandShell) {
+    const [tabId, arg, ...extra] = rest;
+    if (!tabId || !arg || extra.length > 0) {
+      return fail(`replace takes one tab id and one url or path. ${USAGE}`);
+    }
+    const target = await targetOf(arg, ctx);
+    if ("error" in target) {
+      return { exitCode: 1, stderr: `${target.error}\n`, stdout: "" };
+    }
+    const holder = await holderClause(tabId);
+    const answer = await ask({ kind: "replace", tabId, target });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    if (answer.error) {
+      return fail(answer.error);
+    }
+    return {
+      exitCode: 0,
+      stderr: "",
+      // A tab that changes kind, a page becoming a file's tab or the
+      // reverse, comes back under a new id, which is the one to use next.
+      stdout: `Tab ${tabId} now shows ${describeTarget(target)}${answer.tabId && answer.tabId !== tabId ? `, as tab ${answer.tabId}` : ""}.${holder}\n`,
+    };
+  }
+
+  async function show(rest: string[]) {
+    const [tabId, ...extra] = rest;
+    if (!tabId || extra.length > 0) {
+      return fail(`show takes one tab id. ${USAGE}`);
+    }
+    const answer = await ask({ kind: "show", tabId });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    if (answer.error) {
+      return fail(answer.error);
+    }
+    return {
+      exitCode: 0,
+      stderr: "",
+      stdout: `Tab ${tabId} is on the user's screen.\n`,
+    };
+  }
+
+  return defineCommand(TAB_COMMAND.name, (args, ctx) =>
+    runTab(args, undefined, ctx),
+  );
 }
 
 function describeTarget(target: WindowTabTarget) {
@@ -194,7 +211,7 @@ function report(lines: string[], failures: string[]) {
  */
 async function targetOf(
   arg: string,
-  ctx: CommandContext,
+  ctx: SubcommandShell,
 ): Promise<WindowTabTarget | { error: string }> {
   if (isUrl(arg)) {
     return { kind: "page", url: arg };

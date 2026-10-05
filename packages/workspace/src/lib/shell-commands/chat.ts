@@ -5,6 +5,11 @@ import { type Chat, listChats, setChatTopics } from "../chat/chats";
 import { listTopics, type Topic, topicByName } from "../chat/topics";
 import { Store } from "../store";
 import { CHAT_COMMAND } from "./chat-command";
+import {
+  defineSubcommands,
+  type SubcommandInput,
+  subcommand,
+} from "./subcommands";
 
 export { CHAT_COMMAND } from "./chat-command";
 
@@ -25,34 +30,23 @@ const SEARCH_MAX = 20;
  * in the prompt.
  */
 export function createChatCommand() {
-  return defineCommand(CHAT_COMMAND.name, async (args) => {
-    const [subcommand, ...rest] = args;
-    switch (subcommand) {
-      case "list": {
-        return await runList(rest);
-      }
-      case "read": {
-        return await runRead(rest);
-      }
-      case "search": {
-        return await runSearch(rest);
-      }
-      case "tag": {
-        return await runTag(rest);
-      }
-      case "topics": {
-        return await runTopics();
-      }
-      default: {
-        return {
-          exitCode: 1,
-          stderr: `${CHAT_NAME}: ${subcommand ? `unknown subcommand "${subcommand}"` : "no subcommand"}. ${CHAT_COMMAND.description}\n`,
-          stdout: "",
-        };
-      }
-    }
-  });
+  return defineCommand(CHAT_COMMAND.name, (args, ctx) =>
+    runChat(args, undefined, ctx),
+  );
 }
+
+const runChat = defineSubcommands<undefined>({
+  errorPrefix: "subcommand",
+  name: CHAT_NAME,
+  subcommands: {
+    list: subcommand({ flags: ["n", "topic"], positional: 0, run: runList }),
+    read: subcommand({ flags: ["tail"], run: runRead }),
+    search: subcommand({ run: ({ positional }) => runSearch(positional) }),
+    tag: subcommand({ run: ({ positional }) => runTag(positional) }),
+    topics: subcommand({ positional: 0, run: () => runTopics() }),
+  },
+  usage: `${CHAT_COMMAND.description}\n`,
+});
 
 /** One chat as a listing prints it. */
 function chatRow(chat: Chat, names: Map<string, string>): string {
@@ -82,10 +76,6 @@ function chatRow(chat: Chat, names: Map<string, string>): string {
 function cut(text: string, max = LINE_MAX): string {
   const line = text.replaceAll(/\s+/g, " ").trim();
   return line.length > max ? `${line.slice(0, max)}…` : line;
-}
-
-function failure(text: string) {
-  return { exitCode: 1, stderr: `${text}\n`, stdout: "" };
 }
 
 /**
@@ -158,23 +148,17 @@ async function lines(chat: Chat): Promise<string[]> {
   );
 }
 
-/** The value after a flag, or none when the flag is absent or has no value. */
-function option(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag);
-  return index === -1 ? undefined : args[index + 1];
-}
-
-async function runList(args: string[]) {
-  const topicWord = option(args, "--topic");
-  const count = Number(option(args, "-n") ?? DEFAULT_CHATS);
+async function runList(input: SubcommandInput) {
+  const topicWord = input.value("topic");
+  const count = Number(input.value("n") ?? DEFAULT_CHATS);
   const topics = await listTopics();
   const names = new Map(topics.map((topic) => [topic.id, topic.name]));
   let chats = await listChats();
   if (topicWord !== undefined) {
     const topic = await topicByName(topicWord);
     if (!topic) {
-      return failure(
-        `${CHAT_NAME} list: no topic called "${topicWord}". ${CHAT_NAME} topics names them.`,
+      throw new Error(
+        `no topic called "${topicWord}". ${CHAT_NAME} topics names them.`,
       );
     }
     chats = chats.filter((chat) => chat.topics.includes(topic.id));
@@ -183,39 +167,28 @@ async function runList(args: string[]) {
   const shown = chats.slice(
     -(Number.isFinite(count) && count > 0 ? count : DEFAULT_CHATS),
   );
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout:
-      shown.length > 0
-        ? `${shown.map((chat) => chatRow(chat, names)).join("\n")}\n`
-        : `${topicWord === undefined ? "No chats yet." : `No chats under #${topicWord}.`}\n`,
-  };
+  return shown.length > 0
+    ? `${shown.map((chat) => chatRow(chat, names)).join("\n")}\n`
+    : `${topicWord === undefined ? "No chats yet." : `No chats under #${topicWord}.`}\n`;
 }
 
-async function runRead(args: string[]) {
-  const tailIndex = args.indexOf("--tail");
-  const words = tailIndex === -1 ? args : args.slice(0, tailIndex);
-  const found = findChat(await listChats(), words);
+async function runRead(input: SubcommandInput) {
+  const found = findChat(await listChats(), input.positional);
   if ("error" in found) {
-    return failure(`${CHAT_NAME} read: ${found.error}`);
+    throw new Error(found.error);
   }
-  const tail = Number(option(args, "--tail") ?? DEFAULT_TAIL);
+  const tail = Number(input.value("tail") ?? DEFAULT_TAIL);
   const said = await lines(found.chat);
   const shown = said.slice(
     -(Number.isFinite(tail) && tail > 0 ? tail : DEFAULT_TAIL),
   );
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout: `${found.chat.id}  "${found.chat.title}"\n${shown.join("\n")}\n`,
-  };
+  return `${found.chat.id}  "${found.chat.title}"\n${shown.join("\n")}\n`;
 }
 
 async function runSearch(args: string[]) {
   const words = args.join(" ").trim().toLowerCase();
   if (!words) {
-    return failure(`${CHAT_NAME} search: what words?`);
+    throw new Error("what words?");
   }
   const chats = await listChats();
   const hits: string[] = [];
@@ -226,68 +199,50 @@ async function runSearch(args: string[]) {
       }
     }
   }
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout:
-      hits.length > 0
-        ? `${hits.slice(0, SEARCH_MAX).join("\n")}\n`
-        : `Nothing in any chat matches "${words}".\n`,
-  };
+  return hits.length > 0
+    ? `${hits.slice(0, SEARCH_MAX).join("\n")}\n`
+    : `Nothing in any chat matches "${words}".\n`;
 }
 
 async function runTag(args: string[]) {
   const topicWord = args.at(-1);
   const chatWords = args.slice(0, -1);
   if (!topicWord || chatWords.length === 0) {
-    return failure(
-      `${CHAT_NAME} tag: which chat, and which topic? ${CHAT_NAME} tag <chat> <topic>.`,
+    throw new Error(
+      `which chat, and which topic? ${CHAT_NAME} tag <chat> <topic>.`,
     );
   }
   const topic = await topicByName(topicWord);
   if (!topic) {
     const topics = await listTopics();
     const known = topics.filter((entry) => !entry.retired);
-    return failure(
-      `${CHAT_NAME} tag: no topic called "${topicWord}". ${known.length > 0 ? `The topics: ${known.map((entry) => `#${entry.name}`).join(", ")}.` : "There are no topics yet; the user makes them."}`,
+    throw new Error(
+      `no topic called "${topicWord}". ${known.length > 0 ? `The topics: ${known.map((entry) => `#${entry.name}`).join(", ")}.` : "There are no topics yet; the user makes them."}`,
     );
   }
   const found = findChat(await listChats(), chatWords);
   if ("error" in found) {
-    return failure(`${CHAT_NAME} tag: ${found.error}`);
+    throw new Error(found.error);
   }
   if (found.chat.topics.includes(topic.id)) {
-    return {
-      exitCode: 0,
-      stderr: "",
-      stdout: `"${found.chat.title}" is already under #${topic.name}.\n`,
-    };
+    return `"${found.chat.title}" is already under #${topic.name}.\n`;
   }
   const written = await setChatTopics(found.chat.id, [
     ...found.chat.topics,
     topic.id,
   ]);
   if (!written) {
-    return failure(`${CHAT_NAME} tag: could not write the chat's topics.`);
+    throw new Error("could not write the chat's topics.");
   }
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout: `Filed "${found.chat.title}" under #${topic.name}.\n`,
-  };
+  return `Filed "${found.chat.title}" under #${topic.name}.\n`;
 }
 
 async function runTopics() {
   const every = await listTopics();
   const topics = every.filter((topic) => !topic.retired);
-  return {
-    exitCode: 0,
-    stderr: "",
-    stdout:
-      topics.length > 0
-        ? `${topics.map(topicRow).join("\n")}\n`
-        : "No topics yet; the user makes them.\n",
-  };
+  return topics.length > 0
+    ? `${topics.map(topicRow).join("\n")}\n`
+    : "No topics yet; the user makes them.\n";
 }
 
 function topicRow(topic: Topic): string {

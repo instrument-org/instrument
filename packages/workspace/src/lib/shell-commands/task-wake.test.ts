@@ -11,8 +11,12 @@ import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config"
 import { initializeTask } from "../initialize-task";
 import { cancelAskedWake } from "../chat/wake";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runWake, type TaskCommandContext } from "./task";
+import { type TaskCommandContext } from "./task/context";
+import { wakeSubcommand } from "./task/wake";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { subcommandRunner } from "../../test/helpers/run-subcommand";
+
+const runWake = subcommandRunner(wakeSubcommand, "task wake");
 
 // The chat the tasks were started in: a record of its own under `chats/`.
 const CHAT_SESSION = StoreId.SessionSchema.parse(

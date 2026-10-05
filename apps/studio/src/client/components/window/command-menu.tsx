@@ -26,7 +26,6 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useDecisionModelAvailable } from "@/client/components/window/use-decision-model-available";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
@@ -60,7 +59,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -70,7 +69,6 @@ const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
-const MEANING_DEBOUNCE_MS = 300;
 /** Chats listed before anything is typed, newest first. */
 const RECENT_CHATS_SHOWN = 30;
 
@@ -409,34 +407,12 @@ export function CommandMenu({
     candidates: chats,
     search: words,
   });
-  const appsByMeaning = useAppsByMeaning({
-    active: asksMeaning,
-    words,
-  });
   if (chatsByMeaning.chats.length > 0) {
     sections.push({
       items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
       label: "Chats about this",
     });
   }
-  const meantApps = appsByMeaning.apps;
-  if (meantApps.length > 0) {
-    sections.push({
-      items: meantApps.map((entry) =>
-        appItem(
-          entry.slug,
-          {
-            icon: entry.icon,
-            name: entry.name,
-            site: `https://${entry.domain}`,
-          },
-          null,
-        ),
-      ),
-      label: "Apps for this",
-    });
-  }
-  const isLooking = chatsByMeaning.isLooking || appsByMeaning.isLooking;
 
   function appItem(
     slug: string,
@@ -509,15 +485,15 @@ export function CommandMenu({
           // where cmdk's pick of the first row then lands, rather than at
           // wherever the last search's list was scrolled to.
           <ResultRows key={words} rows={rows} />
-        ) : isLooking ? (
+        ) : chatsByMeaning.isLooking ? (
           <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
-            Looking by meaning…
+            Looking through your chats…
           </div>
         ) : words !== "" && !(isBang && words.length < 3) ? (
           <div className="flex min-h-48 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
             Nothing matches “{words}”
-            {chatsByMeaning.failed || appsByMeaning.failed ? (
+            {chatsByMeaning.failed ? (
               <span className="text-xs">
                 The decision model could not be reached
               </span>
@@ -662,42 +638,4 @@ function fuzzyMatch<T>(
     const [ranges] = fields.splitRanges(info.ranges[orderIndex] ?? null);
     return [{ item, ranges: ranges ?? null }];
   });
-}
-
-/**
- * The directory's services a search means without naming them, asked once
- * typing settles and only when the decision model could answer.
- */
-function useAppsByMeaning({
-  active,
-  words,
-}: {
-  active: boolean;
-  words: string;
-}) {
-  const [settled, setSettled] = useState(words);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSettled(words);
-    }, MEANING_DEBOUNCE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [words]);
-  const available = useDecisionModelAvailable(active);
-  const askable = active && available !== false;
-  const asking = askable && available === true && settled === words;
-  const meant = useQuery(
-    rpcClient.apps.catalogByMeaning.queryOptions({
-      enabled: asking,
-      input: { query: settled },
-      retry: false,
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
-  return {
-    apps: asking ? (meant.data ?? []) : [],
-    failed: asking && meant.isError,
-    isLooking: askable && (!asking || meant.isFetching),
-  };
 }

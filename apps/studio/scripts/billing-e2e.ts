@@ -140,11 +140,15 @@ const PageSchema = z.object({
 
 /** `pnpm billing <args> --json` against the target. */
 async function billing(...args: string[]): Promise<unknown> {
-  const { stdout } = await run("pnpm", ["-s", "billing", ...args, "--json"], {
-    cwd: API_DIR,
-    env: { ...process.env, BILLING_BASE_URL: BASE_URL },
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const { stdout } = await run(
+    "pnpm",
+    ["--silent", "billing", ...args, "--json"],
+    {
+      cwd: API_DIR,
+      env: { ...process.env, BILLING_BASE_URL: BASE_URL },
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
   return JSON.parse(stdout);
 }
 
@@ -538,7 +542,7 @@ async function main() {
       await billing("user", "ledger", userId, "--limit", String(limit)),
     );
   /** A real turn that the platform refuses: one error, classified, carded. */
-  const refusedTurn = async (cardText: string, slug: string) => {
+  const refusedTurn = async (stopLine: string, slug: string) => {
     const turn = await chatTurn(
       app,
       modelURI,
@@ -555,7 +559,7 @@ async function main() {
     );
     await app.goto(`/tasks/${turn.id}`);
     await app.waitFor(
-      `document.body.innerText.includes(${JSON.stringify(cardText)})`,
+      `document.body.innerText.includes(${JSON.stringify(stopLine)})`,
       {
         timeout: 20_000,
       },
@@ -662,12 +666,15 @@ async function main() {
   );
 
   await step(
-    "a chat turn after it stops at one error card naming the plan",
+    "a chat turn after it stops on one line naming the trial",
     async () => {
       if (!flags["real-calls"]) {
         return "skipped (--no-real-calls)";
       }
-      const error = await refusedTurn("Free trial ended", "chat-402-card");
+      const error = await refusedTurn(
+        "Stopped: your free trial has ended.",
+        "chat-402-stop-line",
+      );
       assert(
         error.responseBody?.includes("subscription-required"),
         "body lacks the code",
@@ -679,7 +686,7 @@ async function main() {
         refusal?.code === "subscription-required",
         `last refusal ${JSON.stringify(refusal)}`,
       );
-      return `classified ${String(error.classification)}, card shown, gateway hook saw ${refusal.path}`;
+      return `classified ${String(error.classification)}, stop line shown, gateway hook saw ${refusal.path}`;
     },
   );
 
@@ -778,17 +785,16 @@ async function main() {
   );
 
   await step(
-    "a chat turn into the full window stops at one usage-limit card",
+    "a chat turn into the full window stops on one usage-limit line",
     async () => {
       if (!flags["real-calls"]) {
         return "skipped (--no-real-calls)";
       }
-      await refusedTurn("Usage limit reached", "chat-429-card");
-      await app.expect(
-        'document.body.innerText.includes("It resets")',
-        "the card to say when it resets",
+      await refusedTurn(
+        "Stopped: you've reached your plan's limit for now.",
+        "chat-429-stop-line",
       );
-      return "card shows the reset time";
+      return "stop line shown";
     },
   );
 

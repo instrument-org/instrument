@@ -27,6 +27,7 @@ import {
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
+import { ChatActivity } from "./chat-activity";
 import { ChatHeading } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
 import { ChatTiles } from "./chat-tiles";
@@ -458,6 +459,16 @@ export function ChatWindow({
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
             {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
           </h2>
+        )}
+        {chat && (
+          <ChatActivity
+            chatId={chat.id}
+            isCompact
+            onOpen={(id) => {
+              openTasksHere(taskHref(id, chatId));
+            }}
+            tasks={chat.runningTasks}
+          />
         )}
         <div className="flex shrink-0 items-center gap-0.5">
           <WindowButton label="Minimize" onClick={onMinimize}>

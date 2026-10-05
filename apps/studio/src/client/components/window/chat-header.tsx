@@ -14,6 +14,7 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
@@ -25,6 +26,7 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
+import { ChatActivity } from "./chat-activity";
 import { TopicPill } from "./chat-row";
 import { ChatTitle } from "./chat-title";
 import { type Chat, type Topic } from "./chats";
@@ -38,8 +40,8 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
  * The head over a chat's conversation, the way a task's page heads its
  * chat: its title at the left, which renames the chat when clicked, the
  * topics it is filed under after it, and the chat's own menu hugging them,
- * and at the right the glyph that pops the conversation out into its small
- * view in the corner (lit while it is out, when pressing it brings the
+ * and at the right what the chat has in flight while its tasks work, then
+ * the glyph that pops the conversation out into its small view in the corner (lit while it is out, when pressing it brings the
  * conversation back), then the pane toggle while the pane is closed. No way out of the chat here: the
  * chat stays beside the inbox until the inbox is dragged over it. Nothing
  * under the head but air: the transcript starts below.
@@ -49,6 +51,7 @@ export function ChatHeader({
   leading,
   onDeleted,
   onNewTopic,
+  onOpenTask,
   onSetTopics,
   onViewTasks,
   popOut,
@@ -62,6 +65,8 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
+  /** Opens one of the chat's tasks beside it, from the work in flight at the head's right. */
+  onOpenTask: (taskId: TaskId) => void;
   onSetTopics: (topics: string[]) => void;
   /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
   onViewTasks?: () => void;
@@ -73,7 +78,7 @@ export function ChatHeader({
 }) {
   const [isDeleting, setDeleting] = useState(false);
   return (
-    <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
+    <div className="@container/head flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       {chat && (
         <DeleteChatDialog
           chat={chat}
@@ -100,6 +105,13 @@ export function ChatHeader({
           <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
         )}
       </div>
+      {chat && (
+        <ChatActivity
+          chatId={chat.id}
+          onOpen={onOpenTask}
+          tasks={chat.runningTasks}
+        />
+      )}
       {(popOut !== undefined || Boolean(trailing)) && (
         <div className="flex shrink-0 items-center gap-x-1">
           {popOut && (

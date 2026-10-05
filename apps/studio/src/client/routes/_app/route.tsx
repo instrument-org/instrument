@@ -270,6 +270,14 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                           setInboxOpen(true);
                         }}
                         onNewTopic={shell.onNewTopic}
+                        // A task opens beside the chat, in the pane.
+                        onOpenTask={(id) => {
+                          appWindow.openScreen(`/tasks/${id}`, {
+                            group: chat,
+                            ownTab: true,
+                            show: true,
+                          });
+                        }}
                         onSetTopics={(next) => {
                           shell.setChatTopics(chat, next);
                         }}

@@ -19,7 +19,6 @@ import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
-import { ChatWork } from "./chat-work";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { WorkingRow } from "./working-row";
@@ -45,7 +44,7 @@ interface ChatScreenProps {
   >;
   /** The words that open the chat, while the message they make is on its way. */
   sentPrompt?: string;
-  /** What the chat holds, as a row of tiles over what it is working on. */
+  /** What the chat holds, as a row of tiles over its composer. */
   tiles?: ReactNode;
 }
 
@@ -225,20 +224,8 @@ function ChatScreenOfRecord({
                           },
                         }
                   }
-                  // What the chat holds, then what it is working on, over
-                  // the composer: a task pressed opens beside the chat, in
-                  // the pane.
-                  beforeComposer={
-                    <>
-                      {tiles}
-                      <ChatWork
-                        onOpen={(id) => {
-                          appWindow.openScreen(`/tasks/${id}`, into);
-                        }}
-                        tasks={chat?.runningTasks ?? []}
-                      />
-                    </>
-                  }
+                  // What the chat holds, over the composer.
+                  beforeComposer={tiles}
                   composerLead={composerLead}
                   composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox

@@ -78,6 +78,18 @@ afterEach(async () => {
 });
 
 describe("python inside the sandbox", () => {
+  it("refuses to append to a file over the read limit rather than replace it", async () => {
+    const result = await run(
+      `python3 -c "open('/mnt/Docs/big.bin', 'a').write('x')"`,
+      "read-write",
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("File too large");
+    expect((await fs.stat(path.join(attachedDir, "big.bin"))).size).toBe(
+      9 * 1024 * 1024,
+    );
+  });
+
   it("walks a folder tree with Path.rglob", async () => {
     await fs.mkdir(path.join(attachedDir, "a", "b"), { recursive: true });
     await fs.writeFile(path.join(attachedDir, "a", "one.pdf"), "");
@@ -139,10 +151,10 @@ describe("python inside the sandbox", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
       "Traceback (most recent call last):
-        File "work/report.py", line 8, in <module>
+        File "/task/work/report.py", line 8, in <module>
           fail()
           ~~~~^^
-        File "work/report.py", line 6, in fail
+        File "/task/work/report.py", line 6, in fail
           raise ValueError('boom')
       ValueError: boom
       "

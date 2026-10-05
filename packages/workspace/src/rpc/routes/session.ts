@@ -257,7 +257,6 @@ const answerToolCall = base
 export const session = {
   answerToolCall,
   byIdWithMessagesAndParts,
-  contextTokens,
   list,
   live,
   run,

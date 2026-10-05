@@ -305,5 +305,4 @@ export const task = {
   },
   state: taskState,
   status: taskStatus.status,
-  usageSummary,
 };

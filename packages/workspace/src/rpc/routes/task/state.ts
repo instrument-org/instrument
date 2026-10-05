@@ -3,7 +3,7 @@ import { z } from "zod";
 import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
 import { folderReach } from "../../../lib/chat/folder-reach";
 import { taskDir } from "../../../lib/task-dir-utils";
-import { getTaskState, setTaskState } from "../../../lib/task-record";
+import { getTaskState } from "../../../lib/task-record";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskStateSchema } from "../../../schemas/task-state";
@@ -16,20 +16,6 @@ const get = base
     const state = await getTaskState(taskDir(input.id));
     // A chat's folders as it reaches them, which is more than it holds.
     return { ...state, attachedFolders: await folderReach(input.id, state) };
-  });
-
-const set = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      state: TaskStateSchema.partial(),
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ input }) => {
-    const taskId = input.id;
-
-    await setTaskState(taskDir(taskId), input.state);
   });
 
 /**
@@ -58,5 +44,4 @@ const attachFolder = base
 export const taskState = {
   attachFolder,
   get,
-  set,
 };

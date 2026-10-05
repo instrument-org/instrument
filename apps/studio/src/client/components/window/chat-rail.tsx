@@ -230,9 +230,8 @@ function AddTile({
 }
 
 /**
- * A picture whole inside its tile, the room it leaves at its sides filled
- * with a blurred, dimmed copy of itself rather than bars, so a dark page
- * does not sit between two bands of the tile's own color.
+ * A picture filling its tile, cropped from the top down: the head of a page
+ * or a document is what says what it is, so that is the part kept.
  */
 function FittedPicture({
   onError,
@@ -242,22 +241,13 @@ function FittedPicture({
   src: string;
 }) {
   return (
-    <span className="relative size-full overflow-hidden">
-      <img
-        alt=""
-        aria-hidden
-        className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-md"
-        draggable={false}
-        src={src}
-      />
-      <img
-        alt=""
-        className="relative size-full object-contain"
-        draggable={false}
-        onError={onError}
-        src={src}
-      />
-    </span>
+    <img
+      alt=""
+      className="size-full object-cover object-top"
+      draggable={false}
+      onError={onError}
+      src={src}
+    />
   );
 }
 

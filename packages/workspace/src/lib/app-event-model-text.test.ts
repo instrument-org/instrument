@@ -24,4 +24,20 @@ describe("the note an app event wakes the chat with", () => {
       </instrument-system-note>"
     `);
   });
+
+  it("says a change carried on the user's message is only for knowing", () => {
+    expect(
+      appEventModelNote({
+        carried: true,
+        events: [{ event: "removed", name: "Slack", slug: "slack" }],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      An app changed:
+      - Slack (slack) was removed: its folder is gone along with its sign-in or key. Set it up again with \`app new\` only if the user asks for it.
+      This changed outside the conversation since your last turn. It is only so you know: answer what the user wrote.
+      </instrument-system-note>"
+    `);
+  });
 });

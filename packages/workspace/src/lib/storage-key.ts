@@ -91,4 +91,12 @@ export namespace StorageKey {
   export function taskAppsBaseline(sessionId: StoreId.Session) {
     return ["task-apps-baseline", sessionId].join(SEPARATOR);
   }
+
+  // Per-session record of the workspace's apps and whether each was connected,
+  // as a chat's agent last heard: diffed when the user next writes, so a
+  // disconnect or a removal made outside the conversation reaches it then,
+  // never by waking the chat.
+  export function chatAppsBaseline(sessionId: StoreId.Session) {
+    return ["chat-apps-baseline", sessionId].join(SEPARATOR);
+  }
 }

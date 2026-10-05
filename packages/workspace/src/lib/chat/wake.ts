@@ -17,6 +17,7 @@ import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
+import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { chatOfTask } from "./attribution";
 import { listChatIds } from "./chat-records";
 import { listChildTasks } from "./children";
@@ -174,29 +175,36 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
 }
 
 /**
- * Wakes one chat with an app's event: the one the app was asked for in, or,
- * for an app nobody asked for, the newest chat that has run, since the user
- * acted on the app rather than on any one conversation. A chat that has never
- * been messaged has no model to wake with and nothing waiting on the news.
+ * Wakes the chat an app was asked for in with the user's answer to that ask:
+ * a sign-in finished, a key saved, a decline, a failure. Only that chat, and
+ * only while it is still there: a change nobody in a conversation asked
+ * for (a disconnect or a removal on the app's page) wakes nothing, and
+ * reaches each chat on the next message the user writes there
+ * (`detectChatAppChanges`). Waking leaves that chat's baseline at the apps
+ * as they now stand, so its next message does not say the same thing again.
  */
 export async function wakeChatForApp(
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
   asked: ChatId | undefined,
 ): Promise<void> {
-  // The chat that asked, when it is still there, and then the newest first,
-  // so an event for a chat since deleted still reaches someone.
-  const candidates = [
-    ...(asked && resolveChat(asked) ? [asked] : []),
-    ...listChatIds()
-      .toReversed()
-      .filter((id) => id !== asked),
-  ];
-  for (const chatId of candidates) {
-    const state = await getTaskState(taskDir(chatId));
-    if (state.selectedModelURI) {
-      await wakeWith(chatId, part, workspaceRef, sessionOfChat(chatId));
-      return;
+  if (asked === undefined || !resolveChat(asked)) {
+    return;
+  }
+  const state = await getTaskState(taskDir(asked));
+  if (!state.selectedModelURI) {
+    return;
+  }
+  const sessionId = sessionOfChat(asked);
+  await wakeWith(asked, part, workspaceRef, sessionId);
+  if (sessionId !== undefined) {
+    const baseline = await setChatAppsBaseline(
+      asked,
+      sessionId,
+      await currentChatApps(),
+    );
+    if (baseline.isErr()) {
+      getWorkspaceConfig().captureException(baseline.error);
     }
   }
 }

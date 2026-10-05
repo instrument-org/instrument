@@ -6,10 +6,10 @@ import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
 /**
- * The note that wakes a chat about an app: the user finished a
- * sign-in, saved a key, declined, or took an app away. What to do next is in
- * the note, since nobody typed anything and the agent has to know why it is
- * awake.
+ * The note about an app: on its own, it wakes the chat that asked, because
+ * the user finished a sign-in, saved a key, or declined, and says what to do
+ * next, since nobody typed anything; carried on a message the user wrote, it
+ * says what changed outside the conversation, and only that.
  */
 export function appEventModelNote(
   data: SessionMessageDataPart.AppEventDataPart,
@@ -45,6 +45,10 @@ export function appEventModelNote(
   return systemNote`
     ${data.events.length === 1 ? "An app changed:" : "Apps changed:"}
     ${lines.join("\n")}
-    Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+    ${
+      data.carried
+        ? "This changed outside the conversation since your last turn. It is only so you know: answer what the user wrote."
+        : "Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this."
+    }
   `;
 }

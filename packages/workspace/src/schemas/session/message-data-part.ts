@@ -533,6 +533,11 @@ export namespace SessionMessageDataPart {
    * a product-event line in the transcript.
    */
   export const AppEventDataPartSchema = z.object({
+    /**
+     * Carried on a message the user wrote, for changes made outside the
+     * conversation since the agent's last turn, rather than waking the chat.
+     */
+    carried: z.boolean().optional(),
     events: z
       .array(
         z.object({

@@ -14,6 +14,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
@@ -294,6 +295,21 @@ export async function newMessage({
     getWorkspaceConfig().captureException(appChanges.error);
   } else if (appChanges.value) {
     parts.push(appChanges.value);
+  }
+
+  // A chat's apps are listed in its session context, written once; one
+  // connected, disconnected, or removed since arrives on this message.
+  if (isChat) {
+    const chatAppChanges = await detectChatAppChanges({
+      messageId,
+      sessionId,
+      taskId,
+    });
+    if (chatAppChanges.isErr()) {
+      getWorkspaceConfig().captureException(chatAppChanges.error);
+    } else if (chatAppChanges.value) {
+      parts.push(chatAppChanges.value);
+    }
   }
 
   // Notify agent of folders added, removed, or renamed since last turn

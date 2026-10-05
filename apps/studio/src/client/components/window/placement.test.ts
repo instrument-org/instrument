@@ -1,8 +1,15 @@
-import { ChatIdSchema } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  encodeBrowserTargetId,
+  StoreId,
+  TaskIdSchema,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
 import {
+  chatOfAskingPage,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -202,5 +209,38 @@ describe("where a chat's tasks open", () => {
     expect(
       tasksPlacementOf(CHAT, options, { groupOnScreen, upInOwner }),
     ).toEqual(expected);
+  });
+});
+
+describe("chatOfAskingPage", () => {
+  const chatPage = StoreId.newSessionId();
+  const taskPage = StoreId.newSessionId();
+  const sitePage = StoreId.newSessionId();
+  const tabs = [
+    { group: CHAT, id: chatPage },
+    { group: CHAT, id: taskPage },
+    { group: "site:abc", id: sitePage },
+  ];
+
+  it.each([
+    ["a chat's own page", encodeBrowserTargetId(WINDOW_ID, chatPage), CHAT],
+    [
+      "a task's page in a chat",
+      encodeBrowserTargetId(TaskIdSchema.parse("roofer-quote"), taskPage),
+      CHAT,
+    ],
+    [
+      "a page of the window's own",
+      encodeBrowserTargetId(WINDOW_ID, sitePage),
+      undefined,
+    ],
+    [
+      "a page no tab holds",
+      encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+      undefined,
+    ],
+    ["an unreadable target", "nonsense", undefined],
+  ])("names the chat for %s", (_case, targetId, expected) => {
+    expect(chatOfAskingPage(targetId, tabs)).toBe(expected);
   });
 });

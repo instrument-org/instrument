@@ -19,6 +19,7 @@ import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
 import {
+  chatOfAskingPage,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -458,9 +459,34 @@ export function useOpeners({
     }
   };
 
-  const openers = useRef({ actOnTab, openPage });
+  /**
+   * A tab a page asked for (a `target=_blank` link, a sign-in button, a
+   * middle- or Cmd-click, the page's menu) opens beside the page that asked:
+   * in its chat when the page is a chat's, so a sign-in started there stays
+   * there, and across the window's own bar otherwise.
+   */
+  const openFromPage = ({
+    background,
+    targetId,
+    url,
+  }: {
+    background: boolean;
+    targetId: string;
+    url: string;
+  }) => {
+    const chat = chatOfAskingPage(targetId, windowTabs.allTabs);
+    if (chat === undefined) {
+      openPage(url, { behind: background, newTab: true });
+    } else if (background) {
+      browser?.openBehind(url, chat);
+    } else {
+      openPage(url, { group: chat, ownTab: true, show: true });
+    }
+  };
+
+  const openers = useRef({ actOnTab, openFromPage, openPage });
   useEffect(() => {
-    openers.current = { actOnTab, openPage };
+    openers.current = { actOnTab, openFromPage, openPage };
   });
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
@@ -482,9 +508,7 @@ export function useOpeners({
       controller.abort();
     };
   }, []);
-  // A link a person asked a page for in a tab of its own (a middle- or
-  // Cmd-click, a link that targets a new window, the page's menu) gets a tab
-  // of the window's own, whichever page it was on.
+  // A link a person asked a page for in a tab of its own.
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
@@ -494,10 +518,7 @@ export function useOpeners({
           { signal: controller.signal },
         );
         for await (const ask of asks) {
-          openers.current.openPage(ask.url, {
-            behind: ask.background,
-            newTab: true,
-          });
+          openers.current.openFromPage(ask);
         }
       } catch {
         // The window closing ends the stream.

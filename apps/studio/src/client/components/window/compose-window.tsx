@@ -647,7 +647,6 @@ export function ComposeWindow({
           >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
-                <FeatherIcon className="size-4 shrink-0 text-muted-foreground" />
                 <OutputHead
                   onChange={(name) => {
                     onChange((current) => {

@@ -3,20 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RelativePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { publisher } from "../../rpc/publisher";
+import {
+  AbsolutePathSchema,
+  RelativePathSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { placeTask, sessionOfChat } from "../record-folders";
+import { recordChanged, recordRemoved } from "../record-changes";
+import { forgetRecord, placeTask, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
   archiveChat,
+  type Chat,
   chatById,
   listChats,
   markChatSeen,
@@ -26,6 +33,7 @@ import {
   setChatTopics,
   unarchiveChat,
 } from "./chats";
+import { liveChatList } from "./live-chat-list";
 import { createTopic } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
 
@@ -873,5 +881,148 @@ describe("listChats", () => {
       ],
       sites: ["www.instacart.com", "www.costco.com"],
     });
+  });
+});
+
+describe("liveChatList", () => {
+  /**
+   * The live list, followed: `next` answers with the list's next answer, or
+   * none if nothing comes within a moment.
+   */
+  async function open() {
+    const controller = new AbortController();
+    const answers: Chat[][] = [];
+    let wake: (() => void) | undefined;
+    // Ends with the abort's error, as a live route does when its request goes.
+    void (async () => {
+      for await (const answer of liveChatList(controller.signal)) {
+        answers.push(answer);
+        wake?.();
+      }
+    })().catch(() => undefined);
+    const next = async () => {
+      if (answers.length === 0) {
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+          setTimeout(resolve, 200);
+        });
+      }
+      return answers.shift();
+    };
+    return {
+      first: await next(),
+      next,
+      stop: () => {
+        controller.abort();
+      },
+    };
+  }
+
+  it("drops a deleted chat's row, though the index forgot the chat before anything heard", async () => {
+    const taskId = await freshTask();
+    const kept = await session(taskId, "Groceries", 1);
+    await userSays(taskId, kept, "make me a grocery list", 1);
+    const deleted = await session(taskId, "Taxes", 2);
+    await userSays(taskId, deleted, "file my taxes", 2);
+    const { first, next, stop } = await open();
+    expect(first?.map((chat) => chat.id)).toEqual([kept, deleted]);
+
+    const gone = chatFor(deleted);
+    forgetRecord(gone);
+    recordRemoved({ id: gone, kind: "chat" });
+
+    expect((await next())?.map((chat) => chat.id)).toEqual([kept]);
+    stop();
+  });
+
+  it("says a chat is idle once its turn ends, which writes nothing", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    alive.value = new Set([sessionId]);
+    const { first, next, stop } = await open();
+    expect(first?.[0]?.state).toBe("working");
+
+    alive.value = new Set();
+    recordChanged(chatFor(sessionId), "agent");
+
+    expect((await next())?.[0]?.state).toBe("idle");
+    stop();
+  });
+
+  it("moves a row's apps when the workspace's apps change", async () => {
+    const taskId = await freshTask();
+    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      appsDir: AbsolutePathSchema.parse(appsDir),
+    });
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(
+      taskId,
+      sessionId,
+      "file it in [Linear](instrument://app/linear)",
+      1,
+    );
+    const { first, next, stop } = await open();
+    // No apps folder yet: nothing is known, so nothing is filtered.
+    expect(first?.[0]?.holds.apps).toEqual(["linear"]);
+
+    fs.mkdirSync(path.join(appsDir, "drafts"), { recursive: true });
+    fs.writeFileSync(
+      path.join(appsDir, "drafts", "app.json"),
+      JSON.stringify({
+        auth: { kind: "none" },
+        name: "Drafts",
+        package: "@agiletortoise/drafts-mcp-server",
+        runtime: "node",
+        type: "mcp-local",
+      }),
+    );
+    publisher.publish("app.updated", null);
+
+    expect((await next())?.[0]?.holds.apps).toEqual([]);
+    stop();
+  });
+
+  it("reads a rename and a star into the row", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const { next, stop } = await open();
+
+    await renameChat(chatFor(sessionId), "Weekly shop");
+    expect((await next())?.[0]?.title).toBe("Weekly shop");
+    await setChatStarred(chatFor(sessionId), true);
+    expect((await next())?.[0]?.starred).toBe(true);
+    stop();
+  });
+
+  it("reads a filed task's step into its chat's row, and sends nothing for a change no row shows", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const child = TaskIdSchema.parse("live-grocery-list");
+    fileTask(sessionId, child);
+    const { next, stop } = await open();
+
+    recordChanged(chatFor(sessionId), "settings");
+    expect(await next()).toBeUndefined();
+
+    running.value = [
+      {
+        chat: sessionId,
+        step: "Checking the pantry",
+        taskId: child,
+        title: "Grocery list",
+        updatedAt: at(3).getTime(),
+      },
+    ];
+    recordChanged(child, "messages");
+    expect((await next())?.[0]?.runningTasks).toEqual([
+      { id: child, step: "Checking the pantry", title: "Grocery list" },
+    ]);
+    stop();
   });
 });

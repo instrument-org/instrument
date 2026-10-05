@@ -49,15 +49,6 @@ export const publisher = new EventPublisher<{
     targetId: BrowserTargetId;
   };
   /**
-   * A chat was deleted with everything in it. Its own event rather than
-   * `session.removed`, because by the time anything hears that the index has
-   * already forgotten the chat, so a listener cannot tell it was one.
-   */
-  "chat.removed": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  /**
    * A memory was saved, corrected, or forgotten. Carries no payload because
    * every listener re-reads the folder.
    */
@@ -88,23 +79,7 @@ export const publisher = new EventPublisher<{
   "runtime.log.updated": {
     id: TaskId;
   };
-  "session.added": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
   "session.done": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.removed": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.tagsChanged": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "session.updated": {
     id: TaskId;
     sessionId: StoreId.Session;
   };
@@ -113,23 +88,6 @@ export const publisher = new EventPublisher<{
    * deleted. Carries no payload because every listener re-reads the list.
    */
   "skill.changed": null;
-  "task.removed": {
-    id: TaskId;
-  };
-  /**
-   * A task's own state file changed: the held tabs, the draft, the selected model.
-   *
-   * Deliberately not `task.updated`, which the task list subscribes to. The
-   * list is ordered by a filesystem timestamp, so every re-read is a chance for
-   * a task to jump to the top on a change nobody made -- and opening a panel is
-   * not activity in a task. Anything that only wants the state reads this.
-   */
-  "task.stateUpdated": {
-    id: TaskId;
-  };
-  "task.updated": {
-    id: TaskId;
-  };
   /**
    * An agent asking the window to act on its tabs: open one (on screen, or
    * behind whatever is up), point one at something else, close one, or bring

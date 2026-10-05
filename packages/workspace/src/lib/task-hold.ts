@@ -1,4 +1,3 @@
-import { publisher } from "../rpc/publisher";
 import { type TaskId } from "../schemas/task-id";
 import { recordChanged } from "./record-changes";
 
@@ -39,7 +38,6 @@ export function cancelHold(taskId: TaskId): TaskHold | undefined {
     return undefined;
   }
   holds.delete(taskId);
-  publisher.publish("task.updated", { id: taskId });
   recordChanged(taskId, "agent");
   return {
     reason: held.reason,
@@ -77,7 +75,6 @@ export function holdTask<T>(
     userReason,
   };
   holds.set(taskId, held);
-  publisher.publish("task.updated", { id: taskId });
   recordChanged(taskId, "agent");
   void until.then(
     (value) => {
@@ -90,8 +87,6 @@ export function holdTask<T>(
       for (const deliver of held.queued) {
         deliver();
       }
-      publisher.publish("task.updated", { id: taskId });
-      recordChanged(taskId, "agent");
       recordChanged(taskId, "agent");
     },
     () => {

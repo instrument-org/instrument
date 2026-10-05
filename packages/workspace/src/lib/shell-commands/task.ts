@@ -11,7 +11,6 @@ import path from "node:path";
 import { z } from "zod";
 
 import { MOUNT } from "../../mount-points";
-import { publisher } from "../../rpc/publisher";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -665,7 +664,6 @@ async function runNew(
     ),
   };
 
-  publisher.publish("task.updated", { id: taskId });
   const start = (brief: SessionMessage.UserWithParts) => {
     getWorkspaceActorRef().send({
       type: "createSession",
@@ -1081,7 +1079,6 @@ export async function runTab(args: string[], context: TaskCommandContext) {
       return ok(`${task.id} holds no tabs; it opens one of its own already.\n`);
     }
     await setTaskState(taskDir(task.id), { browserTabs: undefined });
-    publisher.publish("task.stateUpdated", { id: task.id });
     return ok(
       `${task.id} let go of every tab it held; they stay open. It opens a tab of its own from here.\n`,
     );
@@ -1102,7 +1099,6 @@ export async function runTab(args: string[], context: TaskCommandContext) {
   await setTaskState(taskDir(task.id), {
     browserTabs: next.length > 0 ? next : undefined,
   });
-  publisher.publish("task.stateUpdated", { id: task.id });
   const shared = await tabsHeldElsewhere(handed, context.chatId, task.id);
   return ok(
     `${task.id} now holds ${next.length > 0 ? `tabs ${next.map((held) => tabIdOf(held.id)).join(", ")}` : "no tabs"}. It acts on them from its next browser command.\n${shared}`,
@@ -1869,7 +1865,6 @@ async function runRename(args: string[], context: TaskCommandContext) {
   if (result.isErr()) {
     throw result.error;
   }
-  publisher.publish("task.updated", { id: task.id });
   return ok(`Renamed ${task.id} to "${title}".\n`);
 }
 

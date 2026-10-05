@@ -259,19 +259,11 @@ export const sessionMachine = setup({
       const currentTags = alphabetical([...snapshot.tags], (tag) => tag);
 
       if (!isEqual(currentTags, previousTags)) {
-        publisher.publish("session.tagsChanged", {
-          id: input.taskId,
-          sessionId: input.sessionId,
-        });
         recordChanged(input.taskId, "agent");
         previousTags = currentTags;
       }
     });
 
-    publisher.publish("session.added", {
-      id: input.taskId,
-      sessionId: input.sessionId,
-    });
     recordChanged(input.taskId, "agent");
 
     return {

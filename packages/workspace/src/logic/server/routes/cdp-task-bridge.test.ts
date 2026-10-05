@@ -435,7 +435,7 @@ describe("a task's browser", () => {
     const handed = tab();
     appears(handed.held.id);
     record.browserTabs = [...record.browserTabs, handed.held];
-    publisher.publish("task.stateUpdated", { id: TASK_ID });
+    publisher.publish("record.changed", { id: TASK_ID, kind: "state" });
     await flush();
 
     expect(

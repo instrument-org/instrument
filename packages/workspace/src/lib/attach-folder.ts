@@ -1,6 +1,5 @@
 import { ulid } from "ulid";
 
-import { publisher } from "../rpc/publisher";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
@@ -55,7 +54,6 @@ export async function attachFolder({
     next[mountName] = { ...folder, mountName };
   }
   await setTaskState(dir, { attachedFolders: next });
-  publisher.publish("task.updated", { id: taskId });
 
   const attached = Object.values(next).find(
     (folder) => folder.path === folderPath,
@@ -89,5 +87,4 @@ export async function detachFolder({
     ([, folder]) => folder.path !== wanted,
   );
   await setTaskState(dir, { attachedFolders: Object.fromEntries(remaining) });
-  publisher.publish("task.updated", { id: taskId });
 }

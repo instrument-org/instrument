@@ -1,4 +1,5 @@
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { isEqual } from "radashi";
 
 /**
  * A `live.*` answer: one read, then a read again after each burst of
@@ -26,6 +27,20 @@ export async function* liveRead<T>({
     }
   } finally {
     await fired.return(undefined);
+  }
+}
+
+/**
+ * The answers of a live read that differ from the one before, so a change
+ * that moved nothing a reader shows sends it nothing.
+ */
+export async function* distinct<T>(source: AsyncIterable<T>): AsyncGenerator<T> {
+  let last: { value: T } | undefined;
+  for await (const value of source) {
+    if (last === undefined || !isEqual(value, last.value)) {
+      last = { value };
+      yield value;
+    }
   }
 }
 

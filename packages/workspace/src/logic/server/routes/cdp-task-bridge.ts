@@ -462,8 +462,8 @@ export function handleTaskCdpClient(
   });
 
   // A tab handed over, or taken back, while the agent is connected.
-  const stopWatching = publisher.subscribe("task.stateUpdated", (update) => {
-    if (update.id === taskId && !closed) {
+  const stopWatching = publisher.subscribe("record.changed", (change) => {
+    if (change.id === taskId && change.kind === "state" && !closed) {
       queue = queue
         .then(async () => {
           await reconcile();

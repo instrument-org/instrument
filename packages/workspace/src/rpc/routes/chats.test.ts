@@ -4,20 +4,20 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { forgetRecord, placeTask } from "../../lib/record-folders";
+import { placeTask } from "../../lib/record-folders";
+import { updateTaskSettings } from "../../lib/task-settings";
+import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
 import { WorkspaceDirSchema } from "../../schemas/paths";
-import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { type WorkspaceRPCContext } from "../base";
-import { publisher } from "../publisher";
-import { announceChatRemoved, chatChanges, chats } from "./chats";
+import { chats } from "./chats";
 import { ChatIdSchema } from "../../schemas/chat-id";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
@@ -35,129 +35,6 @@ beforeAll(() => {
 });
 const otherTaskId = TaskIdSchema.parse("chat-other");
 const childTaskId = TaskIdSchema.parse("chat-child");
-
-/** A child's bash call as it lands, in the state a tool part reaches. */
-const toolPart = (
-  state: "input-available" | "input-streaming",
-): SessionMessagePart.Type => {
-  const base = {
-    input: { command: "ls", explanation: "Listing", yieldMs: 30_000 },
-    metadata: {
-      createdAt: new Date(),
-      id: StoreId.newPartId(),
-      messageId: StoreId.newMessageId(),
-      sessionId: StoreId.newSessionId(),
-    },
-    toolCallId: "call_1",
-    type: "tool-bash" as const,
-  };
-  return state === "input-available"
-    ? { ...base, state: "input-available" }
-    : { ...base, state: "input-streaming" };
-};
-
-/** Whether the stream fires within a tick, so a silence can be asserted too. */
-async function fired(
-  pending: Promise<IteratorResult<null, void>>,
-): Promise<boolean> {
-  return Promise.race([
-    pending.then(() => true),
-    new Promise<boolean>((resolve) => {
-      setTimeout(() => {
-        resolve(false);
-      }, 50);
-    }),
-  ]);
-}
-
-describe("chatChanges", () => {
-  it("fires when the workspace's apps change, since a chat's holds name only the apps the workspace has", async () => {
-    const controller = new AbortController();
-    const changes = chatChanges(controller.signal);
-    const next = changes.next();
-    publisher.publish("app.updated", null);
-    expect(await fired(next)).toBe(true);
-    controller.abort();
-    await changes.return();
-  });
-
-  it.each([
-    ["session.tagsChanged", { id: taskId, sessionId: StoreId.newSessionId() }],
-    ["session.done", { id: taskId, sessionId: StoreId.newSessionId() }],
-  ] as const)(
-    "fires on %s, since a chat's state is read off its agent's actor rather than the store",
-    async (topic, payload) => {
-      const controller = new AbortController();
-      const changes = chatChanges(controller.signal);
-      const next = changes.next();
-      publisher.publish(topic, payload);
-      expect(await fired(next)).toBe(true);
-      controller.abort();
-      await changes.return();
-    },
-  );
-
-  it("fires when a chat is deleted, though the index forgot it before anyone was told", async () => {
-    const sessionId = StoreId.newSessionId();
-    const deleted = chatFor(sessionId);
-    const controller = new AbortController();
-    const changes = chatChanges(controller.signal);
-    const next = changes.next();
-    forgetRecord(deleted);
-    announceChatRemoved({ chatTasks: [], id: deleted, sessionId });
-    expect(await fired(next)).toBe(true);
-    controller.abort();
-    await changes.return();
-  });
-
-  it.each([
-    ["session.updated", { id: otherTaskId, sessionId: StoreId.newSessionId() }],
-    [
-      "session.tagsChanged",
-      { id: otherTaskId, sessionId: StoreId.newSessionId() },
-    ],
-  ] as const)(
-    "stays quiet on %s from a task that is not a chat",
-    async (topic, payload) => {
-      const controller = new AbortController();
-      const changes = chatChanges(controller.signal);
-      const next = changes.next();
-      publisher.publish(topic, payload);
-      expect(await fired(next)).toBe(false);
-      controller.abort();
-      await changes.return();
-    },
-  );
-
-  it.each([
-    [
-      "fires when a task filed from it starts a call",
-      childTaskId,
-      "input-available",
-      true,
-    ],
-    [
-      "stays quiet while a child's call is still streaming in",
-      childTaskId,
-      "input-streaming",
-      false,
-    ],
-    [
-      "stays quiet on a call in a task it did not file",
-      otherTaskId,
-      "input-available",
-      false,
-    ],
-  ] as const)("%s", async (_name, id, state, expected) => {
-    const controller = new AbortController();
-    const changes = chatChanges(controller.signal);
-    const next = changes.next();
-    publisher.publish("part.updated", { id, part: toolPart(state) });
-    expect(await fired(next)).toBe(expected);
-    controller.abort();
-    await changes.return();
-  });
-});
 
 describe("chats.tasks", () => {
   const context: WorkspaceRPCContext = {
@@ -185,5 +62,36 @@ describe("chats.tasks", () => {
       childTaskId,
     );
     expect(fs.readdirSync(childDir)).toEqual([]);
+  });
+});
+
+describe("chats.live.tasks", () => {
+  it("answers again when a task the chat filed changes", async () => {
+    // No agent is alive in a test; the list asks the machine whether one is.
+    setWorkspaceActorRef({
+      getSnapshot: () => ({ context: { sessionRefsByTaskId: new Map() } }),
+    } as never);
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: undefined as never,
+    };
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.tasks,
+      { id: taskId },
+      { context, signal: controller.signal },
+    );
+    expect((await live.next()).value).toEqual([]);
+
+    expect(
+      (await updateTaskSettings(childTaskId, { name: "Child" })).isOk(),
+    ).toBe(true);
+
+    const next = await live.next();
+    expect(next.done ? [] : next.value.map((task) => task.title)).toEqual([
+      "Child",
+    ]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
   });
 });

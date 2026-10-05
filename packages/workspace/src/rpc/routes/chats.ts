@@ -1,8 +1,6 @@
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
 import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
@@ -10,7 +8,6 @@ import {
   archiveChat,
   chatById,
   ChatSchema,
-  listChats,
   markChatSeen,
   markChatUnseen,
   renameChat,
@@ -20,11 +17,12 @@ import {
   unarchiveChat,
 } from "../../lib/chat/chats";
 import { listChildTasks } from "../../lib/chat/children";
+import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { taskStanding } from "../../lib/chat/standing";
+import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
-  chatTaskIds,
   owningChat,
   resolveChat,
 } from "../../lib/record-folders";
@@ -33,10 +31,9 @@ import { taskHold } from "../../lib/task-hold";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
-import { collapsed, everyOne, liveRead } from "../live-read";
-import { publisher } from "../publisher";
+import { distinct, liveRead } from "../live-read";
 import { type ChatId } from "../../schemas/chat-id";
 
 /** Where one task the chat created stands this moment, for a card that follows it. */
@@ -101,52 +98,14 @@ async function childTasks(id: ChatId) {
 }
 
 /**
- * Fires whenever something a filed task's row shows may have moved: a task
- * filed, retitled, held or let go (`task.updated`), a message landing in one,
- * a turn starting a tool call (its step), a turn or session ending, a task
- * or chat deleted, or a chat retitled. Tokens streaming do not fire it, since
- * no row shows them.
+ * Whether a change is to a task the chat filed: what one of its rows shows
+ * (its title, its standing, its step) is all in the task's own record.
  */
-function childTaskChanges(signal: AbortSignal | undefined) {
-  const messages = changedMessageBatches({ id: () => true }, signal);
-  const subscriptions = [
-    publisher.subscribe("task.updated", { signal }),
-    publisher.subscribe("task.removed", { signal }),
-    publisher.subscribe("chat.removed", { signal }),
-    publisher.subscribe("session.added", { signal }),
-    publisher.subscribe("session.done", { signal }),
-    publisher.subscribe("session.removed", { signal }),
-    publisher.subscribe("session.updated", { signal }),
-  ];
-  const partUpdates = publisher.subscribe("part.updated", { signal });
-  async function* steps() {
-    for await (const { part } of partUpdates) {
-      if (
-        part.type.startsWith("tool-") &&
-        "state" in part &&
-        part.state === "input-available"
-      ) {
-        yield null;
-      }
-    }
-  }
-  async function* changed() {
-    for await (const _batch of messages) {
-      yield null;
-    }
-  }
-  async function* merged() {
-    try {
-      yield* mergeGenerators([
-        changed(),
-        steps(),
-        ...subscriptions.map((subscription) => everyOne(subscription)),
-      ]);
-    } finally {
-      await messages.return();
-    }
-  }
-  return collapsed(merged());
+function inChat(chatId: ChatId) {
+  return (change: RecordChanged) =>
+    change.kind === "removed"
+      ? change.ref.kind === "task" && change.ref.chatId === chatId
+      : owningChat(change.id) === chatId;
 }
 
 /**
@@ -173,10 +132,12 @@ const liveChildTasksRoute = base
     if (!chatId) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
-    yield* liveRead({
-      changes: [childTaskChanges(signal)],
-      read: () => childTasks(chatId),
-    });
+    yield* distinct(
+      liveRead({
+        changes: [recordChanges(signal, inChat(chatId))],
+        read: () => childTasks(chatId),
+      }),
+    );
   });
 
 /**
@@ -202,91 +163,11 @@ const chatByIdRoute = base
     return chatId ? chatById(chatId) : undefined;
   });
 
-/**
- * Fires whenever anything lands in any chat of the task, a chat's
- * record changes, a chat's agent starts, moves, or ends, or the
- * workspace's apps change: a chat's holds name only the apps the workspace
- * has, so an app set up or removed from the Apps screen moves a row's marks
- * and the column's app rows without a message landing anywhere. The agent's
- * state is read off its actor rather than the store, so a turn ending, which
- * writes nothing after its last reply, is heard from the actor itself; read
- * only on writes, a list would say working for as long as it took the next
- * one to land. A task filed from a chat is heard when it starts a tool
- * call, since that is when the step its row shows changes, and not on every
- * token it streams; the rest of what it does reaches the list with the
- * chat's own writes, its wake among them. A deleted chat is heard from
- * `chat.removed`, since the index has forgotten it before anything is told. Subscribed the moment it is called rather than when it is
- * first pulled, so a read taken right after has nothing land unobserved
- * between the two; an event the read already covered only costs one re-read.
- * A burst of events collapses into one firing per pull, since the next batch
- * is only taken once the consumer has come back for it.
- */
-export function chatChanges(signal: AbortSignal | undefined) {
-  const batches = changedMessageBatches(
-    { id: (id) => resolveChat(id) !== undefined },
-    signal,
-  );
-  const sessionUpdates = publisher.subscribe("session.updated", { signal });
-  const sessionRemoved = publisher.subscribe("session.removed", { signal });
-  const chatRemoved = publisher.subscribe("chat.removed", { signal });
-  const sessionTags = publisher.subscribe("session.tagsChanged", { signal });
-  const sessionDone = publisher.subscribe("session.done", { signal });
-  const appUpdates = publisher.subscribe("app.updated", { signal });
-  const partUpdates = publisher.subscribe("part.updated", { signal });
-  async function* changed() {
-    for await (const _batch of batches) {
-      yield null;
-    }
-  }
-  async function* forThisTask(
-    generator:
-      | typeof sessionDone
-      | typeof sessionRemoved
-      | typeof sessionTags
-      | typeof sessionUpdates,
-  ) {
-    for await (const payload of generator) {
-      if (resolveChat(payload.id)) {
-        yield null;
-      }
-    }
-  }
-  async function* childSteps() {
-    for await (const { id: childId, part } of partUpdates) {
-      if (
-        part.type.startsWith("tool-") &&
-        "state" in part &&
-        part.state === "input-available" &&
-        owningChat(childId) !== undefined
-      ) {
-        yield null;
-      }
-    }
-  }
-  async function* merged() {
-    try {
-      yield* mergeGenerators([
-        changed(),
-        forThisTask(sessionUpdates),
-        forThisTask(sessionRemoved),
-        forThisTask(sessionTags),
-        forThisTask(sessionDone),
-        everyOne(appUpdates),
-        everyOne(chatRemoved),
-        childSteps(),
-      ]);
-    } finally {
-      await batches.return();
-    }
-  }
-  return collapsed(merged());
-}
-
-/** The chats, oldest first, re-read on every change in any chat, bursts collapsed. */
+/** The chats, oldest first, kept current: see `liveChatList`. */
 const liveListChatsRoute = base
   .output(eventIterator(ChatSchema.array()))
   .handler(async function* ({ signal }) {
-    yield* liveRead({ changes: [chatChanges(signal)], read: listChats });
+    yield* liveChatList(signal);
   });
 
 /** What the user has seen in a chat, so its count can clear. */
@@ -417,7 +298,6 @@ const trashChatRoute = base
     if (!id) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
-    const chatTasks = chatTaskIds(id);
     const result = await trashChat({
       id,
       workspaceConfig: context.workspaceConfig,
@@ -427,30 +307,7 @@ const trashChatRoute = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
-    announceChatRemoved({ chatTasks, id, sessionId: input.sessionId });
   });
-
-/**
- * Tells every listener a chat is gone, once the index has already forgotten
- * it: its tasks and itself as removed tasks, its session as removed, and
- * `chat.removed`, the one a listener can still tell was a chat's.
- */
-export function announceChatRemoved({
-  chatTasks,
-  id,
-  sessionId,
-}: {
-  chatTasks: TaskId[];
-  id: ChatId;
-  sessionId: StoreId.Session;
-}) {
-  for (const child of chatTasks) {
-    publisher.publish("task.removed", { id: child });
-  }
-  publisher.publish("task.removed", { id });
-  publisher.publish("session.removed", { id, sessionId });
-  publisher.publish("chat.removed", { id, sessionId });
-}
 
 export const chats = {
   archive: archiveChatRoute,

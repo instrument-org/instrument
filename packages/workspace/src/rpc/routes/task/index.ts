@@ -4,6 +4,7 @@ import { ok, type Result } from "neverthrow";
 import { z } from "zod";
 
 import { agentNameForTask } from "../../../lib/agent-name-for-task";
+import { recordChanges } from "../../../lib/record-changes";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
@@ -30,8 +31,7 @@ import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
-import { publisher } from "../../publisher";
-import { liveRead, where } from "../../live-read";
+import { liveRead } from "../../live-read";
 import { liveTaskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
@@ -221,10 +221,6 @@ const create = base
         });
       }
 
-      publisher.publish("task.updated", {
-        id: taskId,
-      });
-
       context.workspaceRef.send({
         type: "createSession",
         value: {
@@ -256,9 +252,11 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield* liveRead({
         changes: [
-          where(
-            publisher.subscribe("task.updated", { signal }),
-            (payload) => payload.id === input.id,
+          recordChanges(
+            signal,
+            (change) =>
+              change.id === input.id &&
+              (change.kind === "settings" || change.kind === "removed"),
           ),
         ],
         read: () => call(byId, input, { context, signal }),

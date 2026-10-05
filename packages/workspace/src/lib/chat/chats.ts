@@ -135,53 +135,28 @@ export const ChatSchema = z.object({
 export type Chat = z.output<typeof ChatSchema>;
 
 /**
- * Each chat's messages as last read, oldest first, by task and session.
- * Reading every part of every chat is most of what building the list
- * costs, and most rebuilds follow a change in one chat (a reply streaming)
- * or in none (an archive, a star, a chat marked seen). An entry goes as
- * soon as the store announces a change to its session, so the read after a
- * write is always a fresh one; a read already on its way when the change
- * lands is dropped with it rather than kept.
+ * Each chat's messages as last read, oldest first. Reading every part of
+ * every chat is most of what building the list costs, and most rebuilds
+ * follow a change in one chat (a reply streaming) or in none (an archive, a
+ * star, a chat marked seen). An entry goes as soon as the chat's transcript
+ * is written, so the read after a write is always a fresh one; a read
+ * already on its way when the change lands is dropped with it rather than
+ * kept.
  */
-const messagesBySession = new Map<
-  string,
+const messagesByChat = new Map<
+  TaskId,
   Promise<SessionMessage.WithParts[] | undefined>
 >();
 
-/**
- * The apps a filed task was given, as last read from its settings. Every
- * write to them announces `task.updated`, which drops the entry.
- */
+/** The apps a filed task was given, as last read from its settings, until they are written. */
 const filedAppsByTask = new Map<TaskId, Promise<string[]>>();
-publisher.subscribe("task.updated", ({ id }) => {
-  filedAppsByTask.delete(id);
-});
 
-function forgetSession({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}) {
-  messagesBySession.delete(sessionKey(id, sessionId));
-}
-
-function sessionKey(taskId: TaskId, sessionId: StoreId.Session): string {
-  return `${taskId}\n${sessionId}`;
-}
-publisher.subscribe("message.updated", forgetSession);
-publisher.subscribe("message.removed", forgetSession);
-publisher.subscribe("session.removed", forgetSession);
-publisher.subscribe("part.updated", ({ id, part }) => {
-  forgetSession({ id, sessionId: part.metadata.sessionId });
-});
-publisher.subscribe("task.removed", ({ id }) => {
-  filedAppsByTask.delete(id);
-  for (const key of messagesBySession.keys()) {
-    if (key.startsWith(`${id}\n`)) {
-      messagesBySession.delete(key);
-    }
+publisher.subscribe("record.changed", (change) => {
+  if (change.kind === "messages" || change.kind === "removed") {
+    messagesByChat.delete(change.id);
+  }
+  if (change.kind === "settings" || change.kind === "removed") {
+    filedAppsByTask.delete(change.id);
   }
 });
 
@@ -189,15 +164,12 @@ publisher.subscribe("task.removed", ({ id }) => {
 const markQueue = createWriteQueue();
 
 /**
- * What was seen is a fact about the chat as the window shows it, and the live
- * list re-reads on its session's events, so the count clears the moment the
- * chat is opened rather than the next time something is said.
+ * What was seen is where the user left off in the chat, kept in the
+ * window's file rather than the chat's, so it is said on the change feed
+ * here: the count clears the moment the chat is opened rather than the next
+ * time something is said.
  */
 function announceMark(chatId: ChatId) {
-  const sessionId = sessionOfChat(chatId);
-  if (sessionId) {
-    publisher.publish("session.updated", { id: chatId, sessionId });
-  }
   recordChanged(chatId, "state");
 }
 
@@ -252,20 +224,33 @@ export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
  * by a send that failed partway, say) is left out.
  */
 export async function listChats(): Promise<Chat[]> {
+  const ids = listChatIds();
+  const rows = await listedChats(ids);
+  return ids.flatMap((id) => rows.get(id) ?? []);
+}
+
+/**
+ * The rows of the chats named, as `listChats` would list them, read against
+ * one load of what every row shares: a chat it would leave out has no row.
+ * What the live list reads again for the chats a change moved.
+ */
+export async function listedChats(
+  ids: readonly ChatId[],
+): Promise<Map<ChatId, Chat>> {
   const shared = await loadShared();
-  const chats = await parallel(
-    { limit: READ_LIMIT },
-    listChatIds(),
-    async (chatId) => {
-      const sessionId = sessionOfChat(chatId);
-      if (!sessionId) {
-        return;
-      }
-      const digest = await chatDigest(chatId, sessionId);
-      return digest ? chatFor(digest, chatId, shared) : undefined;
-    },
+  const rows = await parallel({ limit: READ_LIMIT }, ids, async (chatId) => {
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      return;
+    }
+    const digest = await chatDigest(chatId, sessionId);
+    return digest ? chatFor(digest, chatId, shared) : undefined;
+  });
+  return new Map(
+    rows.flatMap((row): [ChatId, Chat][] =>
+      row === undefined ? [] : [[row.taskId, row]],
+    ),
   );
-  return chats.filter((chat) => chat !== undefined);
 }
 
 /**
@@ -359,16 +344,10 @@ export async function setChatTopics(
   topics: string[],
 ): Promise<boolean> {
   const known = new Set((await listTopics()).map((topic) => topic.id));
-  const saved = await saveMark(chatId, (session) => ({
+  return saveMark(chatId, (session) => ({
     ...session,
     topics: unique(topics.filter((id) => known.has(id))),
   }));
-  // The chat reaches its topics' folders (folder-reach.ts), so its state's
-  // readers hear of a change of topic.
-  if (saved) {
-    publisher.publish("task.updated", { id: chatId });
-  }
-  return saved;
 }
 
 /** Records that the app is done naming a chat, leaving any rename after it to the user. */
@@ -675,8 +654,7 @@ function chatMessages(
   if (!sessionId) {
     return Promise.resolve(undefined);
   }
-  const key = sessionKey(chatId, sessionId);
-  const cached = messagesBySession.get(key);
+  const cached = messagesByChat.get(chatId);
   if (cached) {
     return cached;
   }
@@ -685,14 +663,14 @@ function chatMessages(
   ).then((result) => {
     if (result.isErr()) {
       // A failed read is not remembered: the next list tries again.
-      if (messagesBySession.get(key) === read) {
-        messagesBySession.delete(key);
+      if (messagesByChat.get(chatId) === read) {
+        messagesByChat.delete(chatId);
       }
       return;
     }
     return alphabetical(result.value, (message) => message.id);
   });
-  messagesBySession.set(key, read);
+  messagesByChat.set(chatId, read);
   return read;
 }
 

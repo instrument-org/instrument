@@ -32,10 +32,10 @@ function updatesFor(taskId: string) {
   const seen: string[] = [];
   const controller = new AbortController();
   void (async () => {
-    for await (const event of publisher.subscribe("task.updated", {
+    for await (const event of publisher.subscribe("record.changed", {
       signal: controller.signal,
     })) {
-      if (event.id === taskId) {
+      if (event.id === taskId && event.kind === "agent") {
         seen.push(event.id);
       }
     }

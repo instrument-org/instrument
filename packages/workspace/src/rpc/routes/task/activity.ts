@@ -9,7 +9,7 @@ import {
   TaskAgentStatusSchema,
 } from "../../../schemas/task-agent-status";
 import { base } from "../../base";
-import { publisher } from "../../publisher";
+import { recordChanges } from "../../../lib/record-changes";
 
 function getTaskActivity(workspaceRef: WorkspaceActorRef) {
   const activity: TaskAgentStatus[] = [];
@@ -36,11 +36,7 @@ export const liveTaskActivity = base
   .handler(async function* ({ context, signal }) {
     let previousState: TaskAgentStatus[] | undefined;
     for await (const currentState of liveRead({
-      changes: [
-        publisher.subscribe("session.added", { signal }),
-        publisher.subscribe("session.done", { signal }),
-        publisher.subscribe("session.tagsChanged", { signal }),
-      ],
+      changes: [recordChanges(signal, (change) => change.kind === "agent")],
       read: () => getTaskActivity(context.workspaceRef),
     })) {
       if (

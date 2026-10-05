@@ -1,6 +1,5 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 
-import { publisher } from "../rpc/publisher";
 import { type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import {
@@ -67,13 +66,6 @@ export function updateTaskSettings(
           { cause: error },
         ),
     );
-
-    // Only the settings view publishes this. A model pick or a tab is a change to
-    // the same file and no business of the task list, so its writers publish
-    // `task.stateUpdated` instead and the list is not woken by them.
-    publisher.publish("task.updated", {
-      id: taskId,
-    });
 
     return ok(undefined);
   });

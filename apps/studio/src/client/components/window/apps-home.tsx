@@ -1,11 +1,8 @@
-import { visitedPagesAtom } from "@/client/atoms/window";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { visitsWithin } from "@/client/components/window/app-visits";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
-import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { appMentionToken } from "@/client/lib/app-mention";
@@ -19,17 +16,10 @@ import {
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
-
-/**
- * How many pages visited across the apps the page lists: enough to find the
- * one from this morning, few enough that the apps stay the head of the page.
- */
-const RECENT_SHOWN = 9;
 
 /**
  * A search that names this few services by its words, and is this long, is
@@ -62,10 +52,9 @@ export function AppsHome({
   /** Whether the services still to connect, and the broken ones to fix, are offered. */
   showsConnect?: boolean;
 }) {
-  const { ask, openPage } = useWindow();
+  const { ask } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
-  const visited = useAtomValue(visitedPagesAtom);
   const [query, setQuery] = useState("");
 
   const apps = list.data?.apps ?? [];
@@ -82,16 +71,6 @@ export function AppsHome({
     (entry) => !known.has(entry.slug),
   );
   const more = directoryByUse(unconnected);
-  // Across every app the page knows: the workspace's own first, so a page
-  // on one of them is filed under it, then the directory's, since a site
-  // opened from its front is an app here whether or not it is connected.
-  const visits = visitsWithin(visited, [
-    ...apps,
-    ...more.map((entry) => ({
-      name: entry.name,
-      site: `https://${entry.domain}`,
-    })),
-  ]).slice(0, RECENT_SHOWN);
   const typed = query.trim();
   const matches = typed === "" ? more : searchDirectory(unconnected, typed);
   // Unsearched, the featured services lead as Popular and every other one
@@ -161,14 +140,6 @@ export function AppsHome({
             </p>
           </header>
         ) : null}
-        {/* Where the person was lately comes first, as a browser's new tab
-            puts it; the apps themselves under it. */}
-        {visits.length > 0 ? (
-          <PageSection title="Recent pages">
-            <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-          </PageSection>
-        ) : null}
-
         {list.data === undefined ? (
           <PageSection title="Your apps">
             <MarkSkeletons />
@@ -191,10 +162,7 @@ export function AppsHome({
           </PageSection>
         ) : null}
 
-        {!showsConnect &&
-        list.data !== undefined &&
-        own.length === 0 &&
-        visits.length === 0 ? (
+        {!showsConnect && list.data !== undefined && own.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Apps you connect show up here.
           </p>

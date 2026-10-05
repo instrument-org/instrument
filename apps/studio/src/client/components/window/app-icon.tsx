@@ -20,7 +20,7 @@ import { isDirectoryIconUrl } from "@/shared/directory-icon";
  * in place of its site's favicon. An app whose
  * server drives an app installed here has that app's own icon, which stands
  * in for the site's: a desktop app's icon carries its own shape and is drawn
- * whole, with no plate behind it.
+ * whole, with no plate behind it, its corners cut to the plate's.
  */
 export function AppIcon({
   className,
@@ -84,11 +84,15 @@ export function AppIcon({
         alt={name ?? ""}
         className={cn(
           "shrink-0 object-contain",
+          // Cut to the plate's corners, so an icon drawn edge to edge (store
+          // artwork, which leaves the corners to the system, or a square the
+          // agent drew) has the plate's outline. A Mac app's icon keeps a
+          // margin of its own and loses nothing.
           {
-            lg: "size-12",
-            md: "size-9",
-            sm: "size-4",
-            xl: "size-16",
+            lg: "size-12 rounded-xl",
+            md: "size-9 rounded-lg",
+            sm: "size-4 rounded-[3px]",
+            xl: "size-16 rounded-2xl",
           }[size],
           className,
         )}

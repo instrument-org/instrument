@@ -22,6 +22,10 @@ vi.mock("@/electron-main/lib/electron-logger", () => {
   return { logger: { scope: () => scoped } };
 });
 
+vi.mock("@/electron-main/platform-api/headers", () => ({
+  getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),
+}));
+
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
@@ -49,6 +53,8 @@ const TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token";
 const DISCOVERY_URL =
   "https://auth.openai.com/.well-known/openid-configuration";
 const REVOKE_URL = "https://auth.openai.com/oauth/revoke";
+const API_BASE_URL = "https://api.test";
+const SETUP_URL = `${API_BASE_URL}/chatgpt/sign-in-setup`;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -95,15 +101,26 @@ function storedAccount(id = ACCOUNT_ID) {
 let plan: typeof ChatGPTPlanModule;
 let tokenResponse: ReturnType<typeof deferred<Response>>;
 const revoked: string[] = [];
+// What our API answers for the sign-in setup; undefined fails the request.
+let servedSetup: unknown;
+let setupRequest: RequestInit | undefined;
 
 beforeEach(async () => {
   vi.resetModules();
   plan = await import("./chatgpt-plan");
   tokenResponse = deferred<Response>();
   revoked.length = 0;
+  servedSetup = undefined;
+  setupRequest = undefined;
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string, init?: RequestInit) => {
+      if (url === SETUP_URL) {
+        setupRequest = init;
+        return servedSetup === undefined
+          ? Promise.reject(new Error("offline"))
+          : Promise.resolve(json(servedSetup));
+      }
       if (url === TOKEN_URL) {
         return tokenResponse.promise;
       }
@@ -127,6 +144,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 /** Starts the refresh that reading a nearly expired token sets off. */
@@ -451,5 +469,100 @@ describe("refreshDelayMs", () => {
     ],
   ])("%s", (_label, account, failures, expected) => {
     expect(plan.refreshDelayMs({ account, failures, now })).toBe(expected);
+  });
+});
+
+describe("the sign-in setup our API serves", () => {
+  const MOVED_TOKEN_URL = "https://auth.openai.com/api/v2/oauth/token";
+
+  function servedWith(overrides: Record<string, unknown>) {
+    return {
+      authorizeUrl: "https://auth.openai.com/api/v2/authorize",
+      discoveryUrl: DISCOVERY_URL,
+      dynamicClientId: "dynamic_agent_client",
+      issuer: "https://auth.openai.com",
+      planScope: "chatgpt.tokens.use.direct",
+      resource: "https://api.openai.com/v1",
+      scopes: ["openid", "chatgpt.tokens.use.direct"],
+      tokenUrl: MOVED_TOKEN_URL,
+      ...overrides,
+    };
+  }
+
+  /** Starts a sign-in and returns the authorize URL it opened. */
+  async function authorizeURL() {
+    openExternal.mockClear();
+    void plan.signInWithChatGPT({ callbackPort: 1455 });
+    await vi.waitFor(() => {
+      expect(openExternal).toHaveBeenCalled();
+    });
+    plan.cancelChatGPTSignIn();
+    return new URL(String(openExternal.mock.calls[0]?.[0]));
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", API_BASE_URL);
+    stored = { registrations: {} };
+  });
+
+  it("opens the authorize URL it serves, with its extra parameters, and keeps the app's own", async () => {
+    servedSetup = servedWith({
+      authorizeParams: { originator: "instrument", state: "not-ours" },
+    });
+    const url = await authorizeURL();
+    expect(url.origin + url.pathname).toBe(
+      "https://auth.openai.com/api/v2/authorize",
+    );
+    expect(url.searchParams.get("originator")).toBe("instrument");
+    expect(url.searchParams.get("state")).not.toBe("not-ours");
+    expect(url.searchParams.get("scope")).toBe(
+      "openid chatgpt.tokens.use.direct",
+    );
+  });
+
+  it("asks without the account token", async () => {
+    servedSetup = servedWith({});
+    await authorizeURL();
+    expect(setupRequest?.headers).toEqual({ "user-agent": "Instrument/test" });
+  });
+
+  it("refuses a setup that points anywhere but OpenAI, and signs in with the built-in one", async () => {
+    servedSetup = servedWith({
+      authorizeUrl: "https://auth.openai.com.example/authorize",
+    });
+    const url = await authorizeURL();
+    expect(url.origin + url.pathname).toBe(
+      "https://auth.openai.com/api/accounts/authorize",
+    );
+    expect(stored.signInSetup).toBeUndefined();
+  });
+
+  it("signs in with the built-in setup when our API cannot be reached", async () => {
+    const url = await authorizeURL();
+    expect(url.origin + url.pathname).toBe(
+      "https://auth.openai.com/api/accounts/authorize",
+    );
+  });
+
+  it("refreshes tokens where the last served setup says, after a restart", async () => {
+    stored = {
+      registrations: { [ACCOUNT_ID]: registration() },
+      signInSetup: servedWith({}),
+    };
+    const tokenURLs: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        tokenURLs.push(url);
+        return Promise.resolve(
+          json({ access_token: "access-2", expires_in: 3600 }),
+        );
+      }),
+    );
+    startRefresh();
+    await vi.waitFor(() => {
+      expect(storedAccount()?.accessToken).toBe("access-2");
+    });
+    expect(tokenURLs).toEqual([MOVED_TOKEN_URL]);
   });
 });

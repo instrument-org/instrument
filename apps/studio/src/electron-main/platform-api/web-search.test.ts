@@ -6,6 +6,7 @@ import { searchWeb } from "./web-search";
 vi.mock(import("./headers"), () => ({
   getPlatformApiHeaders: () => ({
     authorization: "Bearer test-token",
+    "user-agent": "Instrument/1.4.2",
     "x-client-arch": process.arch,
     "x-client-name": "studio",
     "x-client-os-version": "15.6",
@@ -75,6 +76,7 @@ describe("searchWeb", () => {
       headers: {
         authorization: "Bearer test-token",
         "content-type": "application/json",
+        "user-agent": "Instrument/1.4.2",
         "x-client-arch": process.arch,
         "x-client-name": "studio",
         "x-client-os-version": "15.6",

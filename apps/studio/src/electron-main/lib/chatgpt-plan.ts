@@ -24,6 +24,12 @@ import { type Actor, createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
 
 import { grantMachine, type RefreshOutcome } from "./chatgpt-grant";
+import {
+  BUILT_IN_SIGN_IN_SETUP,
+  fetchSignInSetup,
+  type SignInSetup,
+  SignInSetupSchema,
+} from "./chatgpt-sign-in-setup";
 
 /**
  * Sign in with ChatGPT for the user's own plans: an OAuth public client that
@@ -43,21 +49,6 @@ import { grantMachine, type RefreshOutcome } from "./chatgpt-grant";
 
 const log = logger.scope("chatgpt-plan");
 
-const ISSUER = "https://auth.openai.com";
-const AUTHORIZE_URL = `${ISSUER}/api/accounts/authorize`;
-const TOKEN_URL = `${ISSUER}/api/accounts/oauth/token`;
-const DISCOVERY_URL = `${ISSUER}/.well-known/openid-configuration`;
-const RESOURCE = "https://api.openai.com/v1";
-const DYNAMIC_CLIENT_ID = "dynamic_agent_client";
-const PLAN_SCOPE = "chatgpt.tokens.use.direct";
-const SCOPES = [
-  "openid",
-  "profile",
-  "email",
-  "offline_access",
-  "resource.invoke",
-  PLAN_SCOPE,
-];
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
@@ -98,6 +89,10 @@ const StoreSchema = z.object({
   // tokens, so signing in to it again reuses its client id; signing out
   // removes it.
   registrations: z.record(z.string(), RegistrationSchema).default({}),
+  // The last setup our API served, kept so refreshes and checks follow it
+  // after a restart. One that no longer validates is dropped rather than
+  // failing the whole store.
+  signInSetup: SignInSetupSchema.optional().catch(undefined),
 });
 type StoreShape = z.output<typeof StoreSchema>;
 
@@ -152,7 +147,7 @@ export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
   return all.flatMap((registration) => {
     if (
       !registration.accessToken ||
-      !registration.scopes.includes(PLAN_SCOPE)
+      !registration.scopes.includes(currentSetup().planScope)
     ) {
       return [];
     }
@@ -238,7 +233,7 @@ async function verifyAccount(id: string): Promise<void> {
     }
   }
   try {
-    const response = await fetch(`${RESOURCE}/models`, {
+    const response = await fetch(`${currentSetup().resource}/models`, {
       headers: { Authorization: `Bearer ${registration.accessToken}` },
     });
     if (response.status === 401) {
@@ -264,7 +259,7 @@ function accountStatus(
     label: labelFor(registration, all),
     state: !registration.refreshToken
       ? "signed-out"
-      : registration.scopes.includes(PLAN_SCOPE)
+      : registration.scopes.includes(currentSetup().planScope)
         ? "signed-in"
         : "plan-disabled",
   };
@@ -352,6 +347,23 @@ function hostId(): string {
   const created = `urn:uuid:${randomUUID()}`;
   store.set("hostId", created);
   return created;
+}
+
+/** The setup to follow now: the last one our API served, or the built-in one. */
+function currentSetup(): SignInSetup {
+  return getStore().get("signInSetup") ?? BUILT_IN_SIGN_IN_SETUP;
+}
+
+/**
+ * Asks our API for the current setup before a sign-in, keeping what it serves
+ * for later refreshes. When it cannot answer, the last one it served stands.
+ */
+async function loadSignInSetup(): Promise<SignInSetup> {
+  const fetched = await fetchSignInSetup();
+  if (fetched) {
+    getStore().set("signInSetup", fetched);
+  }
+  return fetched ?? currentSetup();
 }
 
 /**
@@ -533,8 +545,8 @@ function noop() {
   // Stands in until the sign-in promise hands over its own.
 }
 
-async function postToken(form: Record<string, string>) {
-  const response = await fetch(TOKEN_URL, {
+async function postToken(tokenUrl: string, form: Record<string, string>) {
+  const response = await fetch(tokenUrl, {
     body: new URLSearchParams(form),
     headers: { "content-type": "application/x-www-form-urlencoded" },
     method: "POST",
@@ -557,34 +569,47 @@ async function runSignIn({
   state: string;
   target: Registration | undefined;
 }): Promise<ChatGPTSignInResult> {
-  const clientId = target?.clientId ?? DYNAMIC_CLIENT_ID;
+  // A sign-in given up while the setup was on its way opens no browser. The
+  // timeout's rejection is caught here as well as below, where it is reported.
+  const setup = await Promise.race([
+    loadSignInSetup(),
+    received.then(
+      () => undefined,
+      () => undefined,
+    ),
+  ]);
+  if (!setup) {
+    return { outcome: "canceled" };
+  }
+  const clientId = target?.clientId ?? setup.dynamicClientId;
   const nonce = base64url(randomBytes(32));
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(createHash("sha256").update(verifier).digest());
 
   const params = new URLSearchParams({
+    ...setup.authorizeParams,
     client_id: clientId,
     code_challenge: challenge,
     code_challenge_method: "S256",
     ext_agent_host_id: hostId(),
     nonce,
     redirect_uri: redirectURI,
-    resource: RESOURCE,
+    resource: setup.resource,
     response_type: "code",
-    scope: SCOPES.join(" "),
+    scope: setup.scopes.join(" "),
     state,
   });
-  if (clientId === DYNAMIC_CLIENT_ID) {
+  if (clientId === setup.dynamicClientId) {
     params.set("agent_name_hint", APP_NAME);
   } else if (target?.email) {
     params.set("login_hint", target.email);
   }
-  if (target?.scopes.length && !target.scopes.includes(PLAN_SCOPE)) {
+  if (target?.scopes.length && !target.scopes.includes(setup.planScope)) {
     // Asked again after the plan was declined: show the consent screen.
     params.set("prompt", "consent");
   }
   // Opened directly rather than through openExternal, which logs the URL.
-  await shell.openExternal(`${AUTHORIZE_URL}?${params.toString()}`);
+  await shell.openExternal(`${setup.authorizeUrl}?${params.toString()}`);
 
   const callback = await received;
   if (!callback) {
@@ -605,7 +630,7 @@ async function runSignIn({
   }
   const callbackClientId = callback.get("client_id");
   let issuedClientId = clientId;
-  if (clientId === DYNAMIC_CLIENT_ID) {
+  if (clientId === setup.dynamicClientId) {
     if (!callbackClientId) {
       throw new Error("ChatGPT did not finish registering this app");
     }
@@ -614,13 +639,13 @@ async function runSignIn({
     throw new Error("The sign-in came back for a different registration");
   }
 
-  const tokens = await postToken({
+  const tokens = await postToken(setup.tokenUrl, {
     client_id: issuedClientId,
     code,
     code_verifier: verifier,
     grant_type: "authorization_code",
     redirect_uri: redirectURI,
-    resource: RESOURCE,
+    resource: setup.resource,
   });
   if (!tokens.id_token) {
     throw new Error("ChatGPT returned no ID token");
@@ -628,6 +653,7 @@ async function runSignIn({
   const claims = await validateIdToken(tokens.id_token, {
     clientId: issuedClientId,
     nonce,
+    setup,
   });
   if (target && claims.sub !== target.subject) {
     throw new Error(
@@ -829,7 +855,7 @@ async function forgetAndRevoke(id: string): Promise<{ revoked: boolean }> {
     return { revoked: true };
   }
   try {
-    const discovery = await openIdConfiguration();
+    const discovery = await openIdConfiguration(currentSetup().discoveryUrl);
     const response = await fetch(discovery.revocation_endpoint, {
       body: new URLSearchParams({
         client_id: registration.clientId,
@@ -859,11 +885,12 @@ async function refreshTokens(id: string): Promise<RefreshOutcome> {
     return "not-yet";
   }
   try {
-    const tokens = await postToken({
+    const { resource, tokenUrl } = currentSetup();
+    const tokens = await postToken(tokenUrl, {
       client_id: registration.clientId,
       grant_type: "refresh_token",
       refresh_token: registration.refreshToken,
-      resource: RESOURCE,
+      resource,
     });
     return saveUnlessReplaced(
       registration,
@@ -906,17 +933,26 @@ const DiscoverySchema = z.object({
   revocation_endpoint: z.string(),
 });
 
-let discoveryCache: null | Promise<z.output<typeof DiscoverySchema>> = null;
+// Keyed by its URL, so a setup that moves discovery is followed.
+let discoveryCache: null | {
+  promise: Promise<z.output<typeof DiscoverySchema>>;
+  url: string;
+} = null;
 
-function openIdConfiguration() {
-  discoveryCache ??= fetch(DISCOVERY_URL)
-    .then((response) => response.json())
-    .then((body) => DiscoverySchema.parse(body))
-    .catch((error: unknown) => {
-      discoveryCache = null;
-      throw error;
-    });
-  return discoveryCache;
+function openIdConfiguration(url: string) {
+  if (discoveryCache?.url !== url) {
+    const promise = fetch(url)
+      .then((response) => response.json())
+      .then((body) => DiscoverySchema.parse(body))
+      .catch((error: unknown) => {
+        if (discoveryCache?.promise === promise) {
+          discoveryCache = null;
+        }
+        throw error;
+      });
+    discoveryCache = { promise, url };
+  }
+  return discoveryCache.promise;
 }
 
 const IdTokenClaimsSchema = z.object({
@@ -935,7 +971,11 @@ function base64url(buffer: Buffer): string {
 
 async function validateIdToken(
   token: string,
-  { clientId, nonce }: { clientId: string; nonce: string },
+  {
+    clientId,
+    nonce,
+    setup,
+  }: { clientId: string; nonce: string; setup: SignInSetup },
 ) {
   const [headerPart, payloadPart, signaturePart] = token.split(".");
   if (!headerPart || !payloadPart || !signaturePart) {
@@ -947,7 +987,7 @@ async function validateIdToken(
   if (header.alg !== "RS256") {
     throw new Error(`Unexpected ID token algorithm ${header.alg}`);
   }
-  const discovery = await openIdConfiguration();
+  const discovery = await openIdConfiguration(setup.discoveryUrl);
   const jwks = z
     .object({ keys: z.array(z.looseObject({ kid: z.string().optional() })) })
     .parse(await fetch(discovery.jwks_uri).then((response) => response.json()));
@@ -969,7 +1009,7 @@ async function validateIdToken(
     JSON.parse(Buffer.from(payloadPart, "base64url").toString()),
   );
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (claims.iss !== discovery.issuer && claims.iss !== ISSUER) {
+  if (claims.iss !== discovery.issuer && claims.iss !== setup.issuer) {
     throw new Error("The ID token came from an unexpected issuer");
   }
   if (!audiences.includes(clientId)) {

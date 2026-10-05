@@ -7,6 +7,7 @@ import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
@@ -31,7 +32,7 @@ export function ProviderSetupScreen({
   onAddProvider?: () => void;
   onBack?: () => void;
   onContinue: () => void;
-  onLogin: () => Promise<"canceled" | "signed-in">;
+  onLogin: () => Promise<SignInOutcome>;
   onLoginSuccess: () => void;
   onPageChange: (page: ProviderSetupPage) => void;
   page: ProviderSetupPage;

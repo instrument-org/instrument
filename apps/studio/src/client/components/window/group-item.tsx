@@ -1,5 +1,5 @@
 import { screenViewsAtom, type WindowTab } from "@/client/atoms/window";
-import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
+import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import {
@@ -95,7 +95,7 @@ export function GroupItem({
           StoreId.SessionSchema.parse(up.id),
         )
       : undefined;
-  const webview = targetId ? getWebviewElement(targetId) : null;
+  const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
   // the window's own, where the window's tab was before the site. The row's
@@ -135,8 +135,8 @@ export function GroupItem({
         {...(onClose ? { onClose } : {})}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
-          if (up.kind === "page" && webview) {
-            void webview.loadURL(url);
+          if (up.kind === "page" && page) {
+            void page.load(url);
           } else {
             browser?.open(url, { group, replacing: up });
           }

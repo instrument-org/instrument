@@ -1,4 +1,7 @@
-import { committedDocumentOf } from "@/electron-main/browser-view/frame-documents";
+import {
+  type GuestRecord,
+  guests,
+} from "@/electron-main/browser-view/guest-registry";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
@@ -8,13 +11,7 @@ import {
   PAGE_EDIT_PARAM,
   withoutPageEditParam,
 } from "@instrument-org/shared";
-import {
-  ipcMain,
-  net,
-  type Session,
-  type WebContents,
-  webContents,
-} from "electron";
+import { ipcMain, net, type Session, type WebContents } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -40,38 +37,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * load is an edit; when it is, the answer carries the editor bundle and the
  * exact text that was stamped, so what the editor indexes is byte for byte
  * what the page was built from.
+ *
+ * A guest's Edit is the `edit` of its record in the guest registry, so it
+ * goes with the guest.
  */
-interface EditSession {
-  /** Which load this is: `stop` names the one it ends, so a late stop never ends a later Edit. */
-  generation: number;
-  /** The browser session the guest loads in, whose `file://` requests serve the copy. */
-  guestSession: Session;
-  /** The file on this computer the guest shows. */
-  path: string;
-  /** The text the stamped copy was made from. */
-  src: string;
-  /** The copy the guest is handed: `src` with an id on every element. */
-  stamped: string;
-  /** What the editor handed over when it asked to be reloaded: its undo stack, selection, scroll. */
-  state: unknown;
-  /**
-   * The exact address the stamped copy was loaded at, its nonce included. Only
-   * a document at this address is this edit: history, a page's own navigation
-   * or a reload of an older copy lands anywhere else, and gets no editor.
-   */
-  url: string;
-  version: string;
-}
 
-const sessions = new Map<number, EditSession>();
-
-/** Guests whose navigations and end are watched, once each for their lifetime. */
-const watched = new Set<number>();
-
+/** The last load's generation, across every guest. */
 let generations = 0;
 
-/** Browser sessions whose `file://` requests go through {@link serveEditedPages} now. */
-const servedSessions = new Set<Session>();
+/** The browser session whose `file://` requests go through {@link serveEditedPages} now. */
+let served: null | Session = null;
 
 /** Same fingerprint as `files.read` / `files.write` give, so versions compare across them. */
 function versionOf(text: string) {
@@ -117,40 +92,38 @@ export async function loadEditablePage({
     );
   }
   const src = text ?? disk;
-  const url = editAddress(guest, filePath);
-  watch(guest);
+  const url = editAddress(guest.contents, filePath);
   generations += 1;
   const generation = generations;
-  serveEditedPages(guest.session);
-  sessions.set(guest.id, {
+  serveEditedPages(guest.contents.session);
+  guest.edit = {
     generation,
-    guestSession: guest.session,
     path: filePath,
     src,
     stamped: stampPageSource(src),
     state: state ?? null,
     url,
     version: versionOf(disk),
-  });
+  };
   try {
-    await guest.loadURL(url);
+    await guest.contents.loadURL(url);
   } catch (error) {
     // A copy that never showed ends its Edit here, and with the last one the
     // session's `file://` handler, rather than being left to a navigation that
     // may never come.
-    if (sessions.get(guest.id)?.generation === generation) {
-      endEdit(guest.id);
+    if (guest.edit?.generation === generation) {
+      endEdit(guest);
     }
     throw error;
   }
   // Each reload replaces the copy before it, so Back never lands on one.
-  forgetStampedCopies(guest);
+  forgetStampedCopies(guest.contents);
   return { generation };
 }
 
 export function servePageEditorBoot() {
   ipcMain.on(PAGE_EDITOR_BOOT_CHANNEL, (event) => {
-    const session = sessions.get(event.sender.id);
+    const session = guests.get(event.sender.id)?.edit;
     const frame = event.senderFrame;
     if (
       !session ||
@@ -191,15 +164,15 @@ export async function stopEditingPage({
   path: string;
   webContentsId: number;
 }) {
-  const guest = guestOf(webContentsId);
-  if (!guest) {
+  const record = guestOf(webContentsId);
+  if (!record) {
     return;
   }
-  const session = sessions.get(guest.id);
-  if (session && session.generation !== generation) {
+  if (record.edit && record.edit.generation !== generation) {
     return;
   }
-  endEdit(guest.id);
+  endEdit(record);
+  const guest = record.contents;
   const shown = guest.getURL();
   if (isPageEditAddress(shown)) {
     const href = withoutPageEditParam(shown);
@@ -239,15 +212,10 @@ function editAddress(guest: WebContents, filePath: string) {
   return address.href;
 }
 
-/** Ends a guest's Edit, and stops serving a browser session no Edit is live in. */
-function endEdit(guestId: number) {
-  sessions.delete(guestId);
-  for (const guestSession of servedSessions) {
-    if (![...sessions.values()].some((s) => s.guestSession === guestSession)) {
-      guestSession.protocol.unhandle("file");
-      servedSessions.delete(guestSession);
-    }
-  }
+/** Ends a guest's Edit, and stops serving the browser session once no Edit is live in it. */
+function endEdit(record: GuestRecord) {
+  record.edit = null;
+  stopServingWhenIdle();
 }
 
 /** Every stamped copy in a guest's history but the one it shows. */
@@ -285,10 +253,12 @@ async function fromDisk(request: Request) {
   }
 }
 
-/** A browser guest by id; never a window or anything else a caller could name. */
+/** A browser guest's record by its id; never a popup or anything else a caller could name. */
 function guestOf(webContentsId: number) {
-  const wc = webContents.fromId(webContentsId);
-  return wc && !wc.isDestroyed() && wc.getType() === "webview" ? wc : undefined;
+  const record = guests.get(webContentsId);
+  return record?.role === "webview" && !record.contents.isDestroyed()
+    ? record
+    : undefined;
 }
 
 async function rangeFromDisk(hostPath: string, from: string, to: string) {
@@ -337,26 +307,25 @@ function readBundle() {
 }
 
 /**
- * Answers a guest session's `file://` requests while an Edit is live in it:
- * the stamped copy for the address that Edit loaded, the file from disk for
- * everything else. Every guest shares a session and a request does not say
- * which guest made it, so the address's nonce is what picks the copy. The
- * folder rule (`local-file-policy.ts`) runs before this, on the same address.
- * Registered by the first Edit in a session and removed with the last
- * ({@link endEdit}), so the browser's own file loading serves every page
- * nobody is editing.
+ * Answers the guest session's `file://` requests while an Edit is live in
+ * it: the stamped copy for the address that Edit loaded, the file from disk
+ * for everything else. A protocol request does not say which guest made it,
+ * so the address's nonce is what picks the copy. The folder rule
+ * (`local-file-policy.ts`) runs before this, on the same address. Registered
+ * by the first Edit and removed with the last ({@link endEdit}), so the
+ * browser's own file loading serves every page nobody is editing.
  */
 function serveEditedPages(guestSession: Session) {
-  if (servedSessions.has(guestSession)) {
+  if (served) {
     return;
   }
-  servedSessions.add(guestSession);
+  served = guestSession;
   guestSession.protocol.handle("file", (request) => {
     const url = withoutFragment(request.url);
     if (isPageEditAddress(url)) {
-      for (const session of sessions.values()) {
-        if (withoutFragment(session.url) === url) {
-          return new Response(session.stamped, {
+      for (const { edit } of guests.records()) {
+        if (edit && withoutFragment(edit.url) === url) {
+          return new Response(edit.stamped, {
             headers: { "content-type": "text/html; charset=utf-8" },
           });
         }
@@ -377,13 +346,13 @@ function serveEditedPages(guestSession: Session) {
  * that address names. A guest already editing this file shows its stamped
  * copy, which is the file too.
  */
-function showsFile(guest: WebContents, filePath: string) {
-  const committed = committedDocumentOf(guest.id, guest.mainFrame);
+function showsFile(guest: GuestRecord, filePath: string) {
+  const committed = guests.documentOf(guest.id, guest.contents.mainFrame);
   if (committed === undefined) {
     return false;
   }
   if (isPageEditAddress(committed)) {
-    return sessions.get(guest.id)?.path === filePath;
+    return guest.edit?.path === filePath;
   }
   try {
     return path.resolve(fileURLToPath(committed)) === path.resolve(filePath);
@@ -393,25 +362,21 @@ function showsFile(guest: WebContents, filePath: string) {
 }
 
 /**
- * The guest's session ends with the guest, and with the guest leaving the
- * stamped copy for any other address: a link, the page's own script, or a
- * step through history.
+ * Ends a guest's Edit when it leaves the stamped copy for any other address
+ * (a link, the page's own script, a step through history), and with the
+ * guest itself. Called once for each guest, by the session's setup.
  */
-function watch(guest: WebContents) {
-  if (watched.has(guest.id)) {
-    return;
-  }
-  watched.add(guest.id);
-  const id = guest.id;
+export function followPageEdits(guest: WebContents) {
+  const { id } = guest;
   guest.on("did-navigate", (_event, url) => {
-    const session = sessions.get(id);
-    if (session && url !== session.url) {
-      endEdit(id);
+    const record = guests.get(id);
+    if (record?.edit && url !== record.edit.url) {
+      endEdit(record);
     }
     // An Edit address with no Edit behind it (a reload that raced the end of
     // one, or a stale history entry) goes to the file's own address, so the
     // tab never shows the file under an address that still says Edit.
-    if (isPageEditAddress(url) && sessions.get(id)?.url !== url) {
+    if (isPageEditAddress(url) && guests.get(id)?.edit?.url !== url) {
       setImmediate(() => {
         if (!guest.isDestroyed() && guest.getURL() === url) {
           guest.loadURL(withoutPageEditParam(url)).then(
@@ -427,10 +392,17 @@ function watch(guest: WebContents) {
       });
     }
   });
-  guest.once("destroyed", () => {
-    endEdit(id);
-    watched.delete(id);
-  });
+  // After the registry's own listener, so the guest's record is gone.
+  guest.once("destroyed", stopServingWhenIdle);
+}
+
+/** Stops serving the browser session's `file://` requests once no guest is editing. */
+function stopServingWhenIdle() {
+  if (!served || [...guests.records()].some(({ edit }) => edit !== null)) {
+    return;
+  }
+  served.protocol.unhandle("file");
+  served = null;
 }
 
 function withoutFragment(url: string) {

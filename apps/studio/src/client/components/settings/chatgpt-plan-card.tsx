@@ -15,7 +15,6 @@ import { Card } from "@/client/components/ui/card";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { isDefinedError } from "@orpc/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -26,7 +25,9 @@ const USAGE_URL = "https://chatgpt.com/settings/usage";
 /** Which button opened the browser: an account's, or the one adding a new one. */
 const NEW_ACCOUNT = "new";
 
-type Account = NonNullable<RPCOutput["chatgptPlan"]["signIn"]>;
+type Account = NonNullable<
+  Exclude<RPCOutput["chatgptPlan"]["signIn"], { outcome: "failed" }>["account"]
+>;
 
 /**
  * The ChatGPT plan as a row among the providers, laid out like
@@ -44,15 +45,7 @@ export function ChatGPTPlanCard() {
   // leaves the buttons to the newer one.
   const attempts = useRef(0);
 
-  const signIn = useMutation(
-    rpcClient.chatgptPlan.signIn.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't sign in with ChatGPT", {
-          description: isDefinedError(error) ? error.message : undefined,
-        });
-      },
-    }),
-  );
+  const signIn = useMutation(rpcClient.chatgptPlan.signIn.mutationOptions());
   const signOut = useMutation(rpcClient.chatgptPlan.signOut.mutationOptions());
   // Sign out forgets the account, and its button sits where a pass through
   // Settings can catch it, so it asks first.
@@ -63,14 +56,26 @@ export function ChatGPTPlanCard() {
   const continueWithChatGPT = async (accountId?: string) => {
     const attempt = ++attempts.current;
     setWaiting(accountId ?? NEW_ACCOUNT);
-    const account = await signIn
+    const result = await signIn
       .mutateAsync({ accountId })
-      .catch(() => undefined);
+      .catch((error: unknown) => ({
+        error: error instanceof Error ? error.message : "Sign-in failed",
+        outcome: "failed" as const,
+      }));
     if (attempt !== attempts.current) {
       return;
     }
     setWaiting(null);
-    if (account?.state !== "signed-in") {
+    if (result.outcome === "failed") {
+      toast.error("Couldn't sign in with ChatGPT", {
+        description: result.error,
+      });
+      return;
+    }
+    // Declined, canceled, or signed in without the plan, which the account's
+    // row says.
+    const { account } = result;
+    if (result.outcome !== "signed-in" || !account) {
       return;
     }
     // Said as soon as the sign-in lands; the model it picks follows in

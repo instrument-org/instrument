@@ -17,8 +17,10 @@
 import {
   type PageEditorGuestMessage,
   type PageEditorHostMessage,
+  type PageEditorSaveRequest,
   type PageEditorSaveResult,
 } from "@/shared/page-editor-messages";
+import { answerRequest, createRequests } from "@/shared/page-editor-requests";
 
 import { type PageEditorBridge } from "../bridge";
 import { createAsks } from "./asks";
@@ -55,6 +57,9 @@ declare global {
     __pageEditor?: object;
   }
 }
+
+/** How long a save waits for the window's answer before it counts as failed. */
+const SAVE_ANSWER_TIMEOUT_MS = 30_000;
 
 const sleep = (ms: number) =>
   new Promise<void>((r) => {
@@ -158,26 +163,21 @@ export async function startEditor(bridge: PageEditorBridge) {
   // through the window unchanged.
   const handed = (boot.state ?? {}) as Partial<EditorSnapshot>;
 
-  // The window's answers to saves, by request id.
-  const replies = new Map<
-    number,
-    {
-      reject: (error: Error) => void;
-      resolve: (result: PageEditorSaveResult) => void;
-    }
-  >();
-  let nextReply = 1;
+  // Saves asked of the window. One it never answers fails at the deadline,
+  // and the serial chain reports it and moves on rather than holding every
+  // later save behind it.
+  const saves = createRequests<PageEditorSaveRequest, PageEditorSaveResult>({
+    send: (message) => {
+      bridge.send(message);
+    },
+    timeoutMs: SAVE_ANSWER_TIMEOUT_MS,
+  });
   const doc = createDoc(
     {
       content: handed.doc?.content ?? boot.src,
       version: handed.doc?.version ?? boot.version,
     },
-    (message) =>
-      new Promise((resolve, reject) => {
-        const id = nextReply++;
-        replies.set(id, { reject, resolve });
-        bridge.send({ ...message, id, type: "save" });
-      }),
+    (save) => saves.request({ ...save, kind: "save" }),
   );
 
   const state: EditorState = {
@@ -239,31 +239,33 @@ export async function startEditor(bridge: PageEditorBridge) {
         ed.reload.onExternalChange();
         break;
       }
-      case "flush": {
-        // The window is about to read the file another way: the text being
-        // typed is committed, and the answer waits behind every write queued.
-        if (state.editing) {
-          ed.text.commitEdit();
-        }
-        void ed.serial(() => {
-          ed.send({ id: message.id, type: "flushed" });
-        });
-        break;
-      }
       case "placement": {
         applyPlacement(message.placement);
         break;
       }
-      case "reply": {
-        replies.get(message.id)?.resolve(message.result);
-        replies.delete(message.id);
+      case "request": {
+        // A flush: the window is about to read the file another way, so the
+        // text being typed is committed, and the answer waits behind every
+        // write queued.
+        void answerRequest(
+          message,
+          async () => {
+            if (state.editing) {
+              ed.text.commitEdit();
+            }
+            await ed.serial(() => null);
+            return null;
+          },
+          (response) => {
+            ed.send(response);
+          },
+        );
         break;
       }
-      case "replyFailed": {
-        // Thrown into the step that saved, whose failure the serial chain
-        // reports before the next step runs.
-        replies.get(message.id)?.reject(new Error(message.error));
-        replies.delete(message.id);
+      case "response": {
+        // A failed save is thrown into the step that saved, whose failure
+        // the serial chain reports before the next step runs.
+        saves.settle(message);
         break;
       }
       case "reveal": {

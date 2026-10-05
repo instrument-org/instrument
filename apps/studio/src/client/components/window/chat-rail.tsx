@@ -17,7 +17,7 @@ import {
   useTargetAgentActivity,
   useTargetAgentLastAt,
 } from "@/client/hooks/use-target-agent-activity";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getGuest } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -295,14 +295,8 @@ function PagePicture({
   // asked for never replaces it.
   const requested = useRef(0);
   const capture = () => {
-    const webview = getWebviewElement(targetId);
-    let webContentsId: number | undefined;
-    try {
-      webContentsId = webview?.getWebContentsId();
-    } catch {
-      // Not attached yet: there is nothing drawn to take.
-      return;
-    }
+    // A guest not ready yet has nothing drawn to take.
+    const webContentsId = getGuest(targetId)?.webContentsId;
     if (webContentsId === undefined) {
       return;
     }
@@ -323,8 +317,8 @@ function PagePicture({
   // itself. A guest off screen that draws nothing leaves the last picture in
   // place.
   useEffect(() => {
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
+    const guest = getGuest(targetId);
+    if (!guest) {
       return;
     }
     let pending: ReturnType<typeof setTimeout> | undefined;
@@ -338,12 +332,10 @@ function PagePicture({
       "did-navigate-in-page",
       "page-title-updated",
     ] as const;
-    for (const event of events) {
-      webview.addEventListener(event, soon);
-    }
+    const stops = events.map((event) => guest.on(event, soon));
     return () => {
-      for (const event of events) {
-        webview.removeEventListener(event, soon);
+      for (const stop of stops) {
+        stop();
       }
       clearTimeout(pending);
     };

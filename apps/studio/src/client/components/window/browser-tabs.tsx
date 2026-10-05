@@ -12,10 +12,7 @@ import { PageFavicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import {
-  getWebviewElement,
-  takeGuestTraversal,
-} from "@/client/lib/browser-pool";
+import { getGuest, takeGuestTraversal } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -395,68 +392,68 @@ export function BrowserTabs({
       if (!attached.has(target)) {
         return;
       }
-      const webview = getWebviewElement(target);
-      if (!webview) {
+      const guest = getGuest(target);
+      if (!guest) {
         return;
       }
       const onNavigate = () => {
-        try {
-          const url = webview.getURL();
-          // A page's file in Edit is loaded at the file's address with the
-          // Edit parameter added; the tab is still at the file.
-          if (isPageEditAddress(url)) {
-            return;
+        const url = guest.url();
+        // A guest gone since it was read has no page to report.
+        if (url === "") {
+          return;
+        }
+        // A page's file in Edit is loaded at the file's address with the
+        // Edit parameter added; the tab is still at the file.
+        if (isPageEditAddress(url)) {
+          return;
+        }
+        const isHistoryStep = takeGuestTraversal(target);
+        if (
+          !isHistoryStep &&
+          url !== latest.current.tabs.find((tab) => tab.id === id)?.url
+        ) {
+          change((current) => pageNavigated(current, id));
+        }
+        if (url && url !== "about:blank") {
+          const title = guest.title() || undefined;
+          const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
+          patch(id, {
+            title,
+            url,
+            // A page on another site lets go of the last one's icon at
+            // once, so the tab wears the new site's straight away (from
+            // the site-icon cache) rather than the old page's until the
+            // new one announces its own.
+            ...(originOf(was) === originOf(url) && was?.startsWith("http")
+              ? {}
+              : { favicon: undefined }),
+          });
+          const filePath = hostPathOfFileUrl(url);
+          if (filePath === undefined) {
+            // The new-tab page lists where the browser has been.
+            setVisited((current) =>
+              [
+                { at: Date.now(), title: title ?? "", url },
+                ...current.filter((page) => page.url !== url),
+              ].slice(0, VISITED_MAX),
+            );
+          } else {
+            // A file shown as a page was a file the user opened, and it
+            // comes back as one: by the address a file tab opens at, which
+            // shows it as a page again.
+            const href = fileHref(filePath);
+            setRecents((current) =>
+              [
+                {
+                  at: Date.now(),
+                  href,
+                  kind: "file" as const,
+                  title: segmentsOf(filePath).at(-1) ?? filePath,
+                },
+                ...current.filter((recent) => recent.href !== href),
+              ].slice(0, RECENTS_MAX),
+            );
           }
-          const isHistoryStep = takeGuestTraversal(target);
-          if (
-            !isHistoryStep &&
-            url !== latest.current.tabs.find((tab) => tab.id === id)?.url
-          ) {
-            change((current) => pageNavigated(current, id));
-          }
-          if (url && url !== "about:blank") {
-            const title = webview.getTitle() || undefined;
-            const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
-            patch(id, {
-              title,
-              url,
-              // A page on another site lets go of the last one's icon at
-              // once, so the tab wears the new site's straight away (from
-              // the site-icon cache) rather than the old page's until the
-              // new one announces its own.
-              ...(originOf(was) === originOf(url) && was?.startsWith("http")
-                ? {}
-                : { favicon: undefined }),
-            });
-            const filePath = hostPathOfFileUrl(url);
-            if (filePath === undefined) {
-              // The new-tab page lists where the browser has been.
-              setVisited((current) =>
-                [
-                  { at: Date.now(), title: title ?? "", url },
-                  ...current.filter((page) => page.url !== url),
-                ].slice(0, VISITED_MAX),
-              );
-            } else {
-              // A file shown as a page was a file the user opened, and it
-              // comes back as one: by the address a file tab opens at, which
-              // shows it as a page again.
-              const href = fileHref(filePath);
-              setRecents((current) =>
-                [
-                  {
-                    at: Date.now(),
-                    href,
-                    kind: "file" as const,
-                    title: segmentsOf(filePath).at(-1) ?? filePath,
-                  },
-                  ...current.filter((recent) => recent.href !== href),
-                ].slice(0, RECENTS_MAX),
-              );
-            }
-          }
-        } catch {
-          // Not attached yet; the events that follow attachment re-run this.
         }
       };
       // A local page's own `history.pushState` moves its address without
@@ -465,16 +462,11 @@ export function BrowserTabs({
       // the file the page loaded: the new address is never kept, shown as
       // the file, or loaded for real, and Edit never opens the file it names.
       const onNavigateInPage = () => {
-        try {
-          if (hostPathOfFileUrl(webview.getURL()) === undefined) {
-            onNavigate();
-          }
-        } catch {
-          // Not attached yet; the events that follow attachment re-run this.
+        if (hostPathOfFileUrl(guest.url()) === undefined) {
+          onNavigate();
         }
       };
-      const onTitle = (event: Event) => {
-        const { title } = event as Event & { title?: string };
+      const onTitle = ({ title }: { title: string }) => {
         if (title) {
           patch(id, { title });
           const url = latest.current.tabs.find((tab) => tab.id === id)?.url;
@@ -487,9 +479,8 @@ export function BrowserTabs({
           }
         }
       };
-      const onFavicon = (event: Event) => {
-        const { favicons } = event as Event & { favicons?: string[] };
-        const favicon = favicons?.[0];
+      const onFavicon = ({ favicons }: { favicons: string[] }) => {
+        const favicon = favicons[0];
         patch(id, { favicon });
         if (!favicon) {
           return;
@@ -497,12 +488,9 @@ export function BrowserTabs({
         // Under the page the tab is on now, and nothing else: a tab that
         // wandered off a visited page must not hand it the icon of wherever
         // it went.
-        let url: string | undefined;
-        try {
-          url = webview.getURL();
-        } catch {
-          url = latest.current.tabs.find((entry) => entry.id === id)?.url;
-        }
+        const url =
+          guest.url() ||
+          latest.current.tabs.find((entry) => entry.id === id)?.url;
         if (originOf(url)) {
           setVisited((current) =>
             current.map((page) =>
@@ -525,15 +513,16 @@ export function BrowserTabs({
         }
       };
       onNavigate();
-      webview.addEventListener("did-navigate", onNavigate);
-      webview.addEventListener("did-navigate-in-page", onNavigateInPage);
-      webview.addEventListener("page-title-updated", onTitle);
-      webview.addEventListener("page-favicon-updated", onFavicon);
+      const stops = [
+        guest.on("did-navigate", onNavigate),
+        guest.on("did-navigate-in-page", onNavigateInPage),
+        guest.on("page-title-updated", onTitle),
+        guest.on("page-favicon-updated", onFavicon),
+      ];
       return () => {
-        webview.removeEventListener("did-navigate", onNavigate);
-        webview.removeEventListener("did-navigate-in-page", onNavigateInPage);
-        webview.removeEventListener("page-title-updated", onTitle);
-        webview.removeEventListener("page-favicon-updated", onFavicon);
+        for (const stop of stops) {
+          stop();
+        }
       };
     });
     return () => {
@@ -590,13 +579,13 @@ export function BrowserTabs({
     ref,
     () => ({
       navigate: (url) => {
-        const webview = activeTarget && getWebviewElement(activeTarget);
-        if (webview) {
+        const guest = activeTarget && getGuest(activeTarget);
+        if (guest) {
           change((current, onScreen) => {
             const shown = upIn(current, onScreen);
             return shown ? pageNavigated(current, shown.id) : current;
           });
-          void webview.loadURL(url);
+          void guest.load(url);
         }
       },
       navigateTab: (tabId, url) => {
@@ -605,9 +594,9 @@ export function BrowserTabs({
           return;
         }
         change((current) => pageNavigated(current, tabId, url));
-        const webview = getWebviewElement(targetOf(tab));
-        if (webview) {
-          void webview.loadURL(url);
+        const guest = getGuest(targetOf(tab));
+        if (guest) {
+          void guest.load(url);
           return;
         }
         void rpcClient.workspace.browser.open.call({
@@ -696,15 +685,10 @@ export function BrowserTabs({
         if (!current) {
           return;
         }
-        const webview = getWebviewElement(targetOf(current));
-        let url: string | undefined;
-        let title = current.title ?? "";
-        try {
-          url = webview?.getURL();
-          title = webview?.getTitle() || title;
-        } catch {
-          // Not attached: what the tab remembers of the page is the answer.
-        }
+        // A guest not ready yet: what the tab remembers of the page is the answer.
+        const guest = getGuest(targetOf(current));
+        let url = guest?.url();
+        const title = guest?.title() || (current.title ?? "");
         if (!url || url === "about:blank") {
           url = current.url;
         }
@@ -728,12 +712,12 @@ export function BrowserTabs({
           title,
           url,
         };
-        if (!webview) {
+        if (!guest) {
           return base;
         }
         let raw: unknown;
         try {
-          raw = await webview.executeJavaScript(READ_PAGE_WORDS);
+          raw = await guest.run(READ_PAGE_WORDS);
         } catch {
           // A page mid-navigation, or one that blocks scripts: its address and
           // title still say what the user was looking at.
@@ -1023,15 +1007,11 @@ function FilePageReload({
       return;
     }
     if (shown.current !== undefined && shown.current !== modifiedAt) {
-      const webview = getWebviewElement(target);
-      try {
-        webview?.reload();
-      } catch {
-        // A guest not yet attached and ready refuses a reload, and needs
-        // none: its first load, still to come or under way, reads the file
-        // as it is. A change reported that early is a cached version from
-        // an earlier visit being brought up to date.
-      }
+      // A guest not yet ready needs no reload: its first load, still to
+      // come or under way, reads the file as it is. A change reported that
+      // early is a cached version from an earlier visit being brought up to
+      // date.
+      getGuest(target)?.reload();
     }
     shown.current = modifiedAt;
   }, [modifiedAt, target]);

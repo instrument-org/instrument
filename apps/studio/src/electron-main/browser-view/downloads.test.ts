@@ -18,8 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyDownloadBehavior,
-  attachDownloadHandler,
   captureDownloadWillBeginGuid,
+  routeGuestDownloads,
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
@@ -45,12 +45,6 @@ vi.mock("electron", () => ({
     },
   },
 }));
-// The document a guest loaded, which the download rule judges a page by, as
-// the fake guest's main frame names it.
-vi.mock("./frame-documents", () => ({
-  committedDocumentOf: (_id: number, frame?: { url?: string }) => frame?.url,
-}));
-
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
 }));
@@ -155,9 +149,20 @@ describe("captureDownloadWillBeginGuid", () => {
     );
   });
 });
-// Every listener runs on every event, as on a real Session: a second copy of
-// the handler is a second vote on every download, which is the failure the
-// per-session registration exists to rule out.
+// What the guest registry answers for the downloads: the entry bound to a
+// guest, found by its contents id, and the document a guest loaded, as the
+// fake guest's main frame names it.
+function lookupIn(entries: Map<BrowserTargetId, BrowserEntry>) {
+  const entryOf = (id: number | undefined) =>
+    [...entries.values()].find((entry) => entry.webContents?.id === id);
+  return {
+    documentOf: (id: number | undefined) =>
+      entryOf(id)?.webContents?.mainFrame.url,
+    entryOf,
+  };
+}
+
+// Every listener runs on every event, as on a real Session.
 function makeSession() {
   type Listener = (
     event: unknown,
@@ -183,21 +188,17 @@ function makeSession() {
       cb({}, item, from.webContents);
     }
   }
-  return {
-    listenerCount: () => listeners["will-download"]?.length ?? 0,
-    session,
-    trigger,
-  };
+  return { session, trigger };
 }
 
-describe("attachDownloadHandler", () => {
+describe("routeGuestDownloads", () => {
   describe("a download the person started", () => {
     it("lands in their Downloads folder under its own name", () => {
       const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -213,7 +214,7 @@ describe("attachDownloadHandler", () => {
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       trigger(makeFakeItem(), entry);
 
@@ -228,7 +229,7 @@ describe("attachDownloadHandler", () => {
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -244,7 +245,7 @@ describe("attachDownloadHandler", () => {
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -263,7 +264,7 @@ describe("attachDownloadHandler", () => {
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -291,7 +292,7 @@ describe("attachDownloadHandler", () => {
         const entry = makeEntry();
         entries.set(TARGET_ID, entry);
         const { session, trigger } = makeSession();
-        attachDownloadHandler({ entries, session });
+        routeGuestDownloads(session, lookupIn(entries));
 
         const item = makeFakeItem();
         trigger(item, entry);
@@ -314,7 +315,7 @@ describe("attachDownloadHandler", () => {
       entry.eventListeners.add(onEvent);
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -322,17 +323,6 @@ describe("attachDownloadHandler", () => {
 
       expect(onEvent).not.toHaveBeenCalled();
     });
-  });
-
-  it("registers one listener per session however many guests bind to it", () => {
-    const entries = new Map<BrowserTargetId, BrowserEntry>();
-    const { listenerCount, session } = makeSession();
-
-    attachDownloadHandler({ entries, session });
-    attachDownloadHandler({ entries, session });
-    attachDownloadHandler({ entries, session });
-
-    expect(listenerCount()).toBe(1);
   });
 
   it("routes a download by the guest that started it when several share the session", () => {
@@ -353,8 +343,7 @@ describe("attachDownloadHandler", () => {
     entries.set(otherTargetId, other);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     const fromAuthorized = makeFakeItem();
     trigger(fromAuthorized, authorized);
@@ -389,7 +378,7 @@ describe("attachDownloadHandler", () => {
     );
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     const item = makeFakeItem();
     trigger(item, gone);
@@ -411,7 +400,7 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     const item = makeFakeItem();
     trigger(item, entry);
@@ -444,7 +433,7 @@ describe("attachDownloadHandler", () => {
       entry.eventListeners.add(onEvent);
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem({
         filename: "hosts",
@@ -485,7 +474,7 @@ describe("attachDownloadHandler", () => {
       entry.eventListeners.add(onEvent);
       entries.set(TARGET_ID, entry);
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem({
         filename: "hosts",
@@ -505,7 +494,7 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     vi.spyOn(crypto, "randomUUID").mockReturnValue(
       "00000000-0000-0000-0000-000000000001",
@@ -535,7 +524,7 @@ describe("attachDownloadHandler", () => {
       entries.set(TARGET_ID, entry);
 
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session });
+      routeGuestDownloads(session, lookupIn(entries));
 
       const item = makeFakeItem();
       trigger(item, entry);
@@ -561,7 +550,7 @@ describe("attachDownloadHandler", () => {
     entry.authorizedDownloadPath = "/tmp/dl";
     entries.set(TARGET_ID, entry);
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     const agentItem = makeFakeItem();
     trigger(agentItem, entry);
@@ -584,7 +573,7 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+    routeGuestDownloads(session, lookupIn(entries));
 
     const item = makeFakeItem();
     trigger(item, entry);

@@ -1,24 +1,17 @@
 import type { Protocol } from "devtools-protocol";
-import type { DownloadItem, Session, WebContents } from "electron";
+import type { DownloadItem, Session } from "electron";
 
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { displayHostPath } from "@instrument-org/shared";
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
 import type { BrowserEntry } from "./entry";
 
-import { committedDocumentOf } from "./frame-documents";
+import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
-
-// Sessions that already carry the will-download listener. Every task guest
-// opens the one workspace profile, so they all share a Session, and a listener
-// added per guest would stack: each copy runs on every download, and any copy
-// whose own target has no authorized path cancels the item for all of them.
-const wiredSessions = new WeakSet<Session>();
 
 export function applyDownloadBehavior(
   entry: BrowserEntry,
@@ -34,28 +27,21 @@ export function applyDownloadBehavior(
   return {};
 }
 
-// Register the will-download handler for this session, once. A download is
-// attributed to the guest that started it, and routed by that guest's entry.
-// With a path the agent authorized via setDownloadBehavior, the file lands
-// there under the GUID as filename (what agent-browser's `download` command
-// expects from "allowAndName"), with a fresh GUID when no downloadWillBegin
-// captured one. Without one, the download is the person's own, from a click in
-// the browser panel, and lands in their Downloads folder under its own name.
-// Only a download from a guest no entry owns is canceled.
-export function attachDownloadHandler({
-  entries,
-  session,
-}: {
-  entries: Map<BrowserTargetId, BrowserEntry>;
-  session: Session;
-}) {
-  if (wiredSessions.has(session)) {
-    return;
-  }
-  wiredSessions.add(session);
-
+// The guest session's one will-download listener. Every guest shares the
+// session, so the event names only the contents a download came from, and the
+// guest registry says which tab's entry that is. With a path the agent
+// authorized via setDownloadBehavior, the file lands there under the GUID as
+// filename (what agent-browser's `download` command expects from
+// "allowAndName"), with a fresh GUID when no downloadWillBegin captured one.
+// Without one, the download is the person's own, from a click in the browser
+// panel, and lands in their Downloads folder under its own name. Only a
+// download from a contents no tab's entry owns is canceled.
+export function routeGuestDownloads(
+  session: Session,
+  registry: Pick<GuestRegistry, "documentOf" | "entryOf">,
+) {
   session.on("will-download", (_event, item, webContents) => {
-    const entry = findEntryByWebContents(entries, webContents);
+    const entry = registry.entryOf(webContents.id);
     if (!entry) {
       item.cancel();
       return;
@@ -64,7 +50,7 @@ export function attachDownloadHandler({
       /^file:/i.test(item.getURL()) &&
       !isAllowedLocalDownload(
         item.getURL(),
-        committedDocumentOf(webContents.id, webContents.mainFrame),
+        registry.documentOf(webContents.id, webContents.mainFrame),
       )
     ) {
       item.cancel();
@@ -73,8 +59,9 @@ export function attachDownloadHandler({
       }
       return;
     }
+    const stillOwned = () => registry.entryOf(webContents.id) === entry;
     if (entry.authorizedDownloadPath) {
-      saveForAgent(entries, entry, item, entry.authorizedDownloadPath);
+      saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
     } else {
       saveForPerson(entry, item);
     }
@@ -113,21 +100,6 @@ function availableFilename(dir: string, filename: string): string {
 // way the app shows every path of the person's.
 function displayFolder(dir: string): string {
   return displayHostPath(dir, app.getPath("home"));
-}
-
-// By the guest's identity rather than a captured target id: the entry map is
-// keyed by target, and the download event names only the WebContents it came
-// from. Matched on id, which is stable for the life of a live guest.
-function findEntryByWebContents(
-  entries: Map<BrowserTargetId, BrowserEntry>,
-  webContents: WebContents,
-): BrowserEntry | undefined {
-  for (const entry of entries.values()) {
-    if (entry.webContents?.id === webContents.id) {
-      return entry;
-    }
-  }
-  return undefined;
 }
 
 // The person's own Downloads folder, proved writable before it is chosen.
@@ -183,11 +155,13 @@ function refuseForAgent(entry: BrowserEntry, item: DownloadItem) {
   }
 }
 
+// `stillOwned` says whether the guest the download came from is still this
+// entry's when it finishes; a guest gone by then has nobody left to tell.
 function saveForAgent(
-  entries: Map<BrowserTargetId, BrowserEntry>,
   entry: BrowserEntry,
   item: DownloadItem,
   authorizedDownloadPath: string,
+  stillOwned: () => boolean,
 ) {
   const { targetId } = entry;
 
@@ -209,15 +183,14 @@ function saveForAgent(
   }
 
   item.once("done", (_doneEvent, state) => {
-    const currentEntry = entries.get(targetId);
-    if (!currentEntry) {
+    if (!stillOwned()) {
       return;
     }
     // The authorization was for this one transfer: agent-browser sends a
     // fresh setDownloadBehavior ahead of every `download` and never rescinds
     // one, so left in place it would claim the person's next click on this
     // guest too, saving it under a GUID where they cannot find it.
-    currentEntry.authorizedDownloadPath = null;
+    entry.authorizedDownloadPath = null;
     // Synthesize Page.downloadProgress so agent-browser resolves or errors.
     const progress: Protocol.Browser.DownloadProgressEvent = {
       guid,
@@ -225,7 +198,7 @@ function saveForAgent(
       state: state === "completed" ? "completed" : "canceled",
       totalBytes: item.getTotalBytes(),
     };
-    for (const listener of currentEntry.eventListeners) {
+    for (const listener of entry.eventListeners) {
       listener("Page.downloadProgress", progress);
     }
   });

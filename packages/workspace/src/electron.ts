@@ -67,6 +67,11 @@ export {
   warmBashWorker,
 } from "./lib/bash-worker/client";
 export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
+export {
+  type CdpMethod,
+  cdpMethodsHandled,
+  isKnownCdpMethod,
+} from "./lib/cdp-methods";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";

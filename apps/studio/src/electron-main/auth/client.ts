@@ -4,7 +4,7 @@ import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import * as arctic from "arctic";
 import { createAuthClient } from "better-auth/client";
 import { z } from "zod";
@@ -62,7 +62,9 @@ let cancelPendingSignIn: (() => void) | undefined;
  * Starting again while one waits cancels that one, so only the newest tab can
  * land. Resolves "canceled" when the user gives up from the app.
  */
-export async function signInSocial(): Promise<"canceled" | "signed-in"> {
+export async function signInSocial(): Promise<
+  Extract<SignInOutcome, "canceled" | "declined" | "signed-in">
+> {
   cancelPendingSignIn?.();
   const authServerPort = getAuthServerPort();
   if (authServerPort === null) {
@@ -87,7 +89,9 @@ export async function signInSocial(): Promise<"canceled" | "signed-in"> {
   );
 
   const controller = new AbortController();
-  const outcome = new Promise<"canceled" | "signed-in">((resolve, reject) => {
+  const outcome = new Promise<
+    Extract<SignInOutcome, "canceled" | "declined" | "signed-in">
+  >((resolve, reject) => {
     const cancel = () => {
       // The callback for this sign-in is refused from here on.
       store.state = null;
@@ -100,14 +104,14 @@ export async function signInSocial(): Promise<"canceled" | "signed-in"> {
     async function waitForAuthUpdate() {
       const { signal } = controller;
       try {
-        for await (const payload of mergeGenerators([
-          publisher.subscribe("auth.login-error", { signal }),
-          publisher.subscribe("auth.login-success", { signal }),
-        ])) {
-          if ("error" in payload) {
+        for await (const payload of publisher.subscribe(
+          "auth.sign-in-outcome",
+          { signal },
+        )) {
+          if (payload.outcome === "failed") {
             reject(new Error("Login failed", { cause: payload.error }));
           } else {
-            resolve("signed-in");
+            resolve(payload.outcome);
           }
           break;
         }

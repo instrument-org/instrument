@@ -71,37 +71,30 @@ const log = logger.scope("content-blocking");
 let engine: FiltersEngine | null = null;
 let loading: Promise<void> | null = null;
 let blockAds: boolean | null = null;
-let ipcHandlersRegistered = false;
 let isExempt: (webContentsId: number) => boolean = () => false;
-const blockingSessions = new WeakSet<Session>();
+/** The guest session, whose pages alone ask the engine for anything. */
+let blockingSession: null | Session = null;
 
 /**
  * Block in `guestSession` from now on, except in the pages `exempt` names by
- * their web contents id. Idempotent, since every page's session comes through
- * here: the preload is registered once per session and the IPC handlers once
- * per process.
+ * their web contents id. Called once, by the session's setup: the preload is
+ * registered on the session and the IPC handlers in the process.
  */
 export function enableContentBlocking(
   guestSession: Session,
   exempt: (webContentsId: number) => boolean,
 ) {
   isExempt = exempt;
+  blockingSession = guestSession;
   loading ??= loadEngine();
-  if (blockingSessions.has(guestSession)) {
-    return;
-  }
-  if (!ipcHandlersRegistered) {
-    ipcHandlersRegistered = true;
-    ipcMain.handle(INJECT_CHANNEL, injectCosmeticFilters);
-    ipcMain.handle(
-      MUTATION_OBSERVER_CHANNEL,
-      (event) =>
-        blockingSessions.has(event.sender.session) &&
-        !isExempt(event.sender.id) &&
-        engine?.config.enableMutationObserver === true,
-    );
-  }
-  blockingSessions.add(guestSession);
+  ipcMain.handle(INJECT_CHANNEL, injectCosmeticFilters);
+  ipcMain.handle(
+    MUTATION_OBSERVER_CHANNEL,
+    (event) =>
+      event.sender.session === blockingSession &&
+      !isExempt(event.sender.id) &&
+      engine?.config.enableMutationObserver === true,
+  );
   guestSession.registerPreloadScript({
     filePath: createRequire(import.meta.url).resolve(
       "@ghostery/adblocker-electron-preload",
@@ -189,7 +182,7 @@ function injectCosmeticFilters(
     !engine ||
     !isBlocking() ||
     typeof url !== "string" ||
-    !blockingSessions.has(event.sender.session) ||
+    event.sender.session !== blockingSession ||
     isExempt(event.sender.id)
   ) {
     return;

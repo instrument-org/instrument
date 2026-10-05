@@ -1,5 +1,6 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pageThumbnailsDirOf } from "@/electron-main/lib/settings-migration";
+import { captureFrame } from "@/electron-main/browser-view/capture-frame";
 import { webContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -8,6 +9,9 @@ import path from "node:path";
 /** How wide a thumbnail is kept: sharp in a rail tile at 2x, a few KB as a JPEG. */
 const WIDTH = 360;
 const QUALITY = 72;
+
+/** How long a picture is waited for; a guest that draws nothing by then gets none. */
+const CAPTURE_DEADLINE_MS = 3000;
 
 /** How many pictures are held in memory; the rest are read back from disk when drawn. */
 const HELD = 48;
@@ -43,13 +47,16 @@ export async function capturePageThumbnail({
   latest.set(key, mine);
   let image: Electron.NativeImage;
   try {
-    image = await guest.capturePage();
+    image = await captureFrame(guest, {
+      deadlineMs: CAPTURE_DEADLINE_MS,
+      rejectEmpty: true,
+    });
   } catch {
-    // A guest closing as the picture is taken refuses it; there is nothing
-    // left to keep.
+    // A guest closing as the picture is taken refuses it, and one that drew
+    // nothing has nothing to keep.
     return null;
   }
-  if (image.isEmpty() || latest.get(key) !== mine) {
+  if (latest.get(key) !== mine) {
     return null;
   }
   const jpeg = image.resize({ quality: "good", width: WIDTH }).toJPEG(QUALITY);

@@ -36,6 +36,7 @@ import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
 import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
+import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
 import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
@@ -187,6 +188,11 @@ const DebugComponentsAlertsRoute = DebugComponentsAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsAppIconsRoute = DebugComponentsAppIconsRouteImport.update({
+  id: '/app-icons',
+  path: '/app-icons',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
   id: '/colors',
   path: '/colors',
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
@@ -381,6 +389,7 @@ export interface FileRoutesById {
   '/_app/tasks/$id': typeof AppTasksIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
+  '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
+    | '/debug/components/app-icons'
     | '/debug/components/colors'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
+    | '/debug/components/app-icons'
     | '/debug/components/colors'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/_app/tasks/$id'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
+    | '/debug/components/app-icons'
     | '/debug/components/colors'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
@@ -729,6 +741,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsAlertsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/app-icons': {
+      id: '/debug/components/app-icons'
+      path: '/app-icons'
+      fullPath: '/debug/components/app-icons'
+      preLoaderRoute: typeof DebugComponentsAppIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/colors': {
       id: '/debug/components/colors'
       path: '/colors'
@@ -897,6 +916,7 @@ const DebugComponentsOnboardingRouteWithChildren =
 
 interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
+  DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
   DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
@@ -912,6 +932,7 @@ interface DebugComponentsRouteChildren {
 
 const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
+  DebugComponentsAppIconsRoute: DebugComponentsAppIconsRoute,
   DebugComponentsColorsRoute: DebugComponentsColorsRoute,
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,

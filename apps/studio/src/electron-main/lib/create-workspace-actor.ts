@@ -30,6 +30,7 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
@@ -64,6 +65,27 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
+/** Where `pnpm build:eventkit` leaves the helper in a checkout. */
+const UNPACKAGED_EVENTKIT_BIN = path.resolve(
+  import.meta.dirname,
+  "../../native/eventkit/.build/out/Products/Release/instrument-eventkit",
+);
+const EVENTKIT_BIN_NAME = "instrument-eventkit";
+
+/**
+ * The EventKit helper behind the agent's `calendar` command: in the app's
+ * resources when packaged, from the Swift build in a checkout that has run
+ * it, and on macOS only.
+ */
+function eventKitBinPath(): string | undefined {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+  const bin = app.isPackaged
+    ? path.join(process.resourcesPath, "bin", EVENTKIT_BIN_NAME)
+    : UNPACKAGED_EVENTKIT_BIN;
+  return existsSync(bin) ? bin : undefined;
+}
 
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
@@ -139,6 +161,7 @@ export function createWorkspaceActor() {
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       ensureOutputFolderIcon,
+      eventKitBinPath: eventKitBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // Beside the other per-machine state rather than in the workspace: the

@@ -232,6 +232,14 @@ const config: Configuration = {
       ? "build/entitlements.mac.preview.plist"
       : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
+    // The EventKit helper behind the agent's `calendar` command, built by
+    // `pnpm build:eventkit` before packaging.
+    extraResources: [
+      {
+        from: "native/eventkit/.build/out/Products/Release/instrument-eventkit",
+        to: "bin/instrument-eventkit",
+      },
+    ],
     extendInfo: {
       // A preview claims no document types: installing one must not change
       // what opens a file on the machine it is tried on.
@@ -242,6 +250,12 @@ const config: Configuration = {
       // each protected folder with generic text. Each is raised the first time
       // a task is handed the folder.
       NSAppDataUsageDescription: `${APP_NAME} reads another app's files when you ask it to work with them.`,
+      // Asked the first time a task reads or adds to each, through the
+      // bundled EventKit helper behind the agent's `calendar` command.
+      NSCalendarsFullAccessUsageDescription: `${APP_NAME} reads and adds to your calendars when you ask it to, like checking tomorrow or adding a meeting.`,
+      NSCalendarsUsageDescription: `${APP_NAME} reads and adds to your calendars when you ask it to, like checking tomorrow or adding a meeting.`,
+      NSRemindersFullAccessUsageDescription: `${APP_NAME} reads and adds to your reminders when you ask it to, like what is due today or a new reminder.`,
+      NSRemindersUsageDescription: `${APP_NAME} reads and adds to your reminders when you ask it to, like what is due today or a new reminder.`,
       // Asked the first time a task controls each app, named in the ask.
       NSAppleEventsUsageDescription: `${APP_NAME} works in this app when you ask it to, like adding a reminder or a calendar event.`,
       // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.

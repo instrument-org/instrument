@@ -15,5 +15,11 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- Lets the bundled EventKit helper (the agent's `calendar` command)
+         read and add to Calendar and Reminders. Under the hardened runtime
+         EventKit is refused without it; with it, macOS asks the user once
+         for each. A hardened-runtime key, not one a profile grants. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
   </dict>
 </plist>

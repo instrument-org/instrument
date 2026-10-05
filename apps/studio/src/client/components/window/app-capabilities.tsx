@@ -2,7 +2,8 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { PageSection } from "@/client/components/window/page-section";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
-import { ListMagnifyingGlassIcon } from "@phosphor-icons/react/ListMagnifyingGlass";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -28,8 +29,8 @@ export function AppCapabilities({
   name: string;
   /** Opens a draft that starts the request, for the person to finish. */
   onAsk: (action: string) => void;
-  /** Opens every action with what each one answers. */
-  onInspect: () => void;
+  /** Opens every action with what each one answers, on one when named. */
+  onInspect: (action?: string) => void;
   slug: string;
 }) {
   const tools = useQuery({
@@ -66,14 +67,7 @@ export function AppCapabilities({
 
   return (
     <div className="mt-10">
-      <PageSection
-        action={{
-          icon: <ListMagnifyingGlassIcon className="size-3.5" />,
-          label: "See every action",
-          onPress: onInspect,
-        }}
-        title={`${name} actions`}
-      >
+      <PageSection title={`${name} actions`}>
         <div className="grid gap-x-10 gap-y-6 @2xl/app-content:grid-cols-2">
           {capabilities ? (
             <>
@@ -82,10 +76,18 @@ export function AppCapabilities({
                   items={capabilities.finds}
                   label="Look up"
                   onAsk={onAsk}
+                  onOpen={onInspect}
+                  opens="try"
                 />
               ) : null}
               {capabilities.does.length > 0 ? (
-                <Group items={capabilities.does} label="Change" onAsk={onAsk} />
+                <Group
+                  items={capabilities.does}
+                  label="Change"
+                  onAsk={onAsk}
+                  onOpen={onInspect}
+                  opens="details"
+                />
               ) : null}
             </>
           ) : (
@@ -104,10 +106,15 @@ function Group({
   items,
   label,
   onAsk,
+  onOpen,
+  opens,
 }: {
   items: Capability[];
   label: string;
   onAsk: (action: string) => void;
+  onOpen: (action: string) => void;
+  /** What the second button does: run a look-up, or describe a change. */
+  opens: "details" | "try";
 }) {
   const [isAll, setIsAll] = useState(false);
   const shown = isAll ? items : items.slice(0, SHOWN);
@@ -116,31 +123,46 @@ function Group({
       <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
       <ul className="flex flex-col gap-2">
         {shown.map((item) => (
+          // A card per action with what a person can do with it in plain
+          // sight: ask Instrument to use it, or open it to see more.
           <li
-            className="group/action flex min-w-0 items-start gap-2 text-[13px] leading-5"
+            className="min-w-0 rounded-xl border border-border/60 bg-foreground/2 px-3.5 py-3"
             key={item.name}
           >
-            <div className="min-w-0 flex-1">
-              <p className="truncate">{item.label}</p>
-              {item.detail ? (
-                <p className="truncate text-xs leading-4 text-muted-foreground">
-                  {item.detail}
-                </p>
-              ) : null}
+            <p className="truncate text-[13px] leading-5 font-medium">
+              {item.label}
+            </p>
+            {item.detail ? (
+              <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">
+                {item.detail}
+              </p>
+            ) : null}
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <button
+                className="-ml-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  onAsk(item.label);
+                }}
+                type="button"
+              >
+                <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
+                Ask
+              </button>
+              <button
+                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  onOpen(item.name);
+                }}
+                type="button"
+              >
+                {opens === "try" ? (
+                  <PlayIcon className="size-3.5" />
+                ) : (
+                  <InfoIcon className="size-3.5" />
+                )}
+                {opens === "try" ? "Try it" : "Details"}
+              </button>
             </div>
-            {/* Under the pointer, the way to start a request with it: a
-                draft that names the action and leaves the rest to say. */}
-            <button
-              aria-label={`Ask Instrument to use ${item.label}`}
-              className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md opacity-0 transition-opacity group-hover/action:opacity-100 hover:bg-accent focus-visible:opacity-100"
-              onClick={() => {
-                onAsk(item.label);
-              }}
-              title={`Ask Instrument to use ${item.label}`}
-              type="button"
-            >
-              <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
-            </button>
           </li>
         ))}
       </ul>

@@ -81,6 +81,8 @@ export function AppFront({
   // Every action the app lists, open to try, behind the menu by its name:
   // there to look into, not what the page leads with.
   const [isInspecting, setIsInspecting] = useState(false);
+  // The action the list opens on, when a card opened it.
+  const [inspectingAction, setInspectingAction] = useState<string>();
   useBlockTabNavigation(isInspecting);
   const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
@@ -310,28 +312,27 @@ export function AppFront({
         {/* Requests a person might make of the app, each one press from
           the conversation. */}
         {examples.length > 0 ? (
-          <section className="mt-8">
-            <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-              Try asking
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {examples.map((example) => (
-                <button
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
-                  key={example}
-                  onClick={() => {
-                    ask(`${appMentionToken({ name, slug })}: ${example}`);
-                  }}
-                  type="button"
-                >
-                  {/* The glyph every button that opens a prefilled draft
+          <div className="mt-8">
+            <PageSection title="Try asking">
+              <div className="flex flex-wrap gap-2">
+                {examples.map((example) => (
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
+                    key={example}
+                    onClick={() => {
+                      ask(`${appMentionToken({ name, slug })}: ${example}`);
+                    }}
+                    type="button"
+                  >
+                    {/* The glyph every button that opens a prefilled draft
                       carries, so these read as asking Instrument. */}
-                  <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                  {example}
-                </button>
-              ))}
-            </div>
-          </section>
+                    <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </PageSection>
+          </div>
         ) : null}
 
         {isBrowsable ? (
@@ -340,7 +341,8 @@ export function AppFront({
             onAsk={(action) => {
               ask(`Use ${action} in ${appMentionToken({ name, slug })} to `);
             }}
-            onInspect={() => {
+            onInspect={(action) => {
+              setInspectingAction(action);
               setIsInspecting(true);
             }}
             slug={slug}
@@ -369,6 +371,7 @@ export function AppFront({
                 </DialogDescription>
               </DialogHeader>
               <AppInspector
+                initialAction={inspectingAction}
                 name={name}
                 onReading={setReading}
                 runsHere={runsHere}

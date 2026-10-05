@@ -64,11 +64,14 @@ export interface InspectorReading {
  * drawn per app.
  */
 export function AppInspector({
+  initialAction,
   name,
   onReading,
   runsHere,
   slug,
 }: {
+  /** The action to open on, when it was opened from that action's card. */
+  initialAction?: string | undefined;
   name: string;
   /** Told what record is open, for the note the agent reads with the next message. */
   onReading: (reading: InspectorReading | undefined) => void;
@@ -81,7 +84,7 @@ export function AppInspector({
     staleTime: STALE_MS,
   });
   const isSlow = useSlowAfter(tools.isPending, SLOW_AFTER_MS);
-  const [kind, setKind] = useState<string>();
+  const [kind, setKind] = useState<string | undefined>(initialAction);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<number>();
 

@@ -29,6 +29,7 @@ import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
+import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { zoomMaxSize } from "@/client/hooks/use-app-zoom";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
@@ -295,34 +296,15 @@ export function AppFront({
           </div>
         </div>
 
-        {/* Where you were in the app, first and always: a recent page is a
-          row you press, not a name you have to type back into the field,
-          and the best way back into a service is the page you were on. */}
-        {/* Where you have been in the app, one row under the head: the
-          quick way back in belongs to the page, not to the browser below. */}
+        {/* Where you have been in the app, laid out the way the browser's
+          start page lays out its own: the quick way back into a service is
+          the page you were on. */}
         {visits.length > 0 ? (
-          isBrowsable ? (
-            <section className="mt-4 flex items-center gap-3">
-              <p className="shrink-0 text-[13px] font-medium text-muted-foreground">
-                Recent pages
-              </p>
-              <div className="min-w-0 flex-1">
-                <VisitedPageRows
-                  isCompact
-                  isOneRow
-                  onOpen={openPage}
-                  visits={visits}
-                />
-              </div>
-            </section>
-          ) : (
-            <section className="mt-6">
-              <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
-                Recent pages
-              </p>
+          <div className="mt-8">
+            <PageSection title="Recent pages">
               <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-            </section>
-          )
+            </PageSection>
+          </div>
         ) : null}
 
         {/* Requests a person might make of the app, each one press from
@@ -352,7 +334,18 @@ export function AppFront({
           </section>
         ) : null}
 
-        {isBrowsable ? <AppCapabilities name={name} slug={slug} /> : null}
+        {isBrowsable ? (
+          <AppCapabilities
+            name={name}
+            onAsk={(action) => {
+              ask(`Use ${action} in ${appMentionToken({ name, slug })} to `);
+            }}
+            onInspect={() => {
+              setIsInspecting(true);
+            }}
+            slug={slug}
+          />
+        ) : null}
 
         {isBrowsable ? (
           <Dialog

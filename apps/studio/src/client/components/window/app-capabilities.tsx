@@ -1,5 +1,8 @@
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { PageSection } from "@/client/components/window/page-section";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
+import { ListMagnifyingGlassIcon } from "@phosphor-icons/react/ListMagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -18,9 +21,15 @@ const KEPT_MS = 30 * 60_000;
  */
 export function AppCapabilities({
   name,
+  onAsk,
+  onInspect,
   slug,
 }: {
   name: string;
+  /** Opens a draft that starts the request, for the person to finish. */
+  onAsk: (action: string) => void;
+  /** Opens every action with what each one answers. */
+  onInspect: () => void;
   slug: string;
 }) {
   const tools = useQuery({
@@ -56,32 +65,50 @@ export function AppCapabilities({
   }
 
   return (
-    <section className="mt-8">
-      <p className="mb-3 text-[13px] font-medium text-muted-foreground">
-        What Instrument can do in {name}
-      </p>
-      <div className="grid gap-x-10 gap-y-6 @2xl/app-content:grid-cols-2">
-        {capabilities ? (
-          <>
-            {capabilities.finds.length > 0 ? (
-              <Group items={capabilities.finds} label="Finds" />
-            ) : null}
-            {capabilities.does.length > 0 ? (
-              <Group items={capabilities.does} label="Does" />
-            ) : null}
-          </>
-        ) : (
-          <>
-            <SkeletonGroup />
-            <SkeletonGroup />
-          </>
-        )}
-      </div>
-    </section>
+    <div className="mt-10">
+      <PageSection
+        action={{
+          icon: <ListMagnifyingGlassIcon className="size-3.5" />,
+          label: "See every action",
+          onPress: onInspect,
+        }}
+        title={`${name} actions`}
+      >
+        <div className="grid gap-x-10 gap-y-6 @2xl/app-content:grid-cols-2">
+          {capabilities ? (
+            <>
+              {capabilities.finds.length > 0 ? (
+                <Group
+                  items={capabilities.finds}
+                  label="Look up"
+                  onAsk={onAsk}
+                />
+              ) : null}
+              {capabilities.does.length > 0 ? (
+                <Group items={capabilities.does} label="Change" onAsk={onAsk} />
+              ) : null}
+            </>
+          ) : (
+            <>
+              <SkeletonGroup />
+              <SkeletonGroup />
+            </>
+          )}
+        </div>
+      </PageSection>
+    </div>
   );
 }
 
-function Group({ items, label }: { items: Capability[]; label: string }) {
+function Group({
+  items,
+  label,
+  onAsk,
+}: {
+  items: Capability[];
+  label: string;
+  onAsk: (action: string) => void;
+}) {
   const [isAll, setIsAll] = useState(false);
   const shown = isAll ? items : items.slice(0, SHOWN);
   return (
@@ -89,13 +116,31 @@ function Group({ items, label }: { items: Capability[]; label: string }) {
       <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
       <ul className="flex flex-col gap-2">
         {shown.map((item) => (
-          <li className="min-w-0 text-[13px] leading-5" key={item.name}>
-            <p className="truncate">{item.label}</p>
-            {item.detail ? (
-              <p className="truncate text-xs leading-4 text-muted-foreground">
-                {item.detail}
-              </p>
-            ) : null}
+          <li
+            className="group/action flex min-w-0 items-start gap-2 text-[13px] leading-5"
+            key={item.name}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate">{item.label}</p>
+              {item.detail ? (
+                <p className="truncate text-xs leading-4 text-muted-foreground">
+                  {item.detail}
+                </p>
+              ) : null}
+            </div>
+            {/* Under the pointer, the way to start a request with it: a
+                draft that names the action and leaves the rest to say. */}
+            <button
+              aria-label={`Ask Instrument to use ${item.label}`}
+              className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md opacity-0 transition-opacity group-hover/action:opacity-100 hover:bg-accent focus-visible:opacity-100"
+              onClick={() => {
+                onAsk(item.label);
+              }}
+              title={`Ask Instrument to use ${item.label}`}
+              type="button"
+            >
+              <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
+            </button>
           </li>
         ))}
       </ul>

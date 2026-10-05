@@ -50,7 +50,6 @@ import { chatOfHref } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
@@ -511,19 +510,10 @@ function SiteView({ group }: { group: string }) {
     if (!stashed) {
       return;
     }
-    // Its guest went with it, and is opened again at the page it held the
-    // way a launch opens a restored tab's: from blank, so with none of the
-    // page's own history behind it.
+    // Its guest went with it, and comes back when the page shows, at the
+    // address it held, the way a launch brings a tab's page back: from
+    // blank, so with none of the page's own history behind it.
     windowTabs.restoreGroup(group, stashed);
-    for (const tab of stashed) {
-      if (tab.kind === "page" && tab.url && tab.url !== "about:blank") {
-        void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
-          url: tab.url,
-        });
-      }
-    }
     setPutAway((current) => {
       const { [group]: _restored, ...rest } = current;
       return rest;

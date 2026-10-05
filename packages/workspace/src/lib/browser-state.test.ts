@@ -197,6 +197,38 @@ describe("restoring a reopened tab", () => {
     });
   });
 
+  it("navigates a blank tab to the page the caller remembers when the session recorded none", async () => {
+    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    const fresh = StoreId.newSessionId();
+
+    await restoreLastPage({
+      fallbackUrl: "https://example.org/remembered",
+      sessionId: fresh,
+      targetId,
+      taskId,
+    });
+
+    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
+      url: "https://example.org/remembered",
+    });
+  });
+
+  it("prefers the page the session recorded to the one the caller remembers", async () => {
+    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+
+    await restoreLastPage({
+      fallbackUrl: "https://example.org/remembered",
+      sessionId,
+      targetId,
+      taskId,
+    });
+
+    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
+      url: "https://example.com",
+    });
+  });
+
   it("leaves a tab that already has a page alone", async () => {
     // The ordinary case: this runs on every panel mount, and most find a
     // browser that was never reaped and is still on the page the user left.

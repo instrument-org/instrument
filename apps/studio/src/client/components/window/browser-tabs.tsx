@@ -69,9 +69,6 @@ export interface BrowserPage {
   url: string;
 }
 
-/** How long a tab on screen is given to attach its guest before it is taken for one whose page is gone. */
-const ORPHAN_GRACE_MS = 1500;
-
 export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
@@ -314,65 +311,6 @@ export function BrowserTabs({
       targetId: activeTarget,
     });
   }, [activeTarget]);
-
-  // The tabs a launch restored, taken once: only these are sent back to the
-  // page they held, and a tab opened later is navigated by its own open.
-  const bootTabIds = useRef<null | Set<string>>(null);
-  bootTabIds.current ??= new Set(allTabs.map((tab) => tab.id));
-  // Each restored tab is opened at most once, the first time it comes up.
-  const restored = useRef(new Set<string>());
-  const activeUrl = active?.url;
-  // A tab that comes back after a launch opens where it was: the workspace
-  // recreates the guest blank and this sends it to the page it last held,
-  // once, the first time the tab is shown. Shown means up in the window or
-  // handed back by `openOrFocus`, which is how a page drawn inside another
-  // screen (a file tab's page, Quick Look, a popped-out chat) comes up
-  // without ever being the window's active tab. Keyed on the tab coming up
-  // rather than on its guest being absent, because a local file's guest
-  // attaches to about:blank so fast it is already there when this runs.
-  const restoreOnce = (
-    tab: { id: string; taskId?: TaskId; url?: string },
-    { orphaned = false }: { orphaned?: boolean } = {},
-  ) => {
-    if (
-      !tab.url ||
-      tab.url === "about:blank" ||
-      !(orphaned || bootTabIds.current?.has(tab.id)) ||
-      restored.current.has(tab.id)
-    ) {
-      return;
-    }
-    restored.current.add(tab.id);
-    void rpcClient.workspace.browser.open.call({
-      id: tab.taskId ?? WINDOW_ID,
-      sessionId: StoreId.SessionSchema.parse(tab.id),
-      url: tab.url,
-    });
-  };
-  useEffect(() => {
-    if (active) {
-      restoreOnce(active);
-    }
-    // Fired once per restored tab, when it first comes up.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, activeUrl]);
-  // A tab whose page is gone while the tab stays, such as a task's page after
-  // the task's browser closed, comes up with nothing to draw it, and reload
-  // and the address field have nothing to act on. Given a moment to attach,
-  // one still without a guest is opened again where it was, once.
-  const isActiveAttached = active ? attached.has(targetOf(active)) : false;
-  useEffect(() => {
-    if (!active || isActiveAttached) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      restoreOnce(active, { orphaned: true });
-    }, ORPHAN_GRACE_MS);
-    return () => {
-      window.clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, isActiveAttached]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -713,7 +651,6 @@ export function BrowserTabs({
                   tab.group === key && !tab.taskId && sameAddress(tab.url, url),
               );
         if (atFile) {
-          restoreOnce(atFile);
           if (options?.show || key === latest.current.group) {
             change((current) => selectTab(current, atFile.id));
           }
@@ -948,6 +885,7 @@ export function BrowserTabs({
                   });
                 },
               })}
+          restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
           taskId={active.taskId ?? WINDOW_ID}
         />
@@ -1034,19 +972,6 @@ function ComposePagePanel({
   tab: BrowserTab;
   taskId: TaskId;
 }) {
-  const url = tab.url;
-  useEffect(() => {
-    if (attached || !url) {
-      return;
-    }
-    void rpcClient.workspace.browser.open.call({
-      id: tab.taskId ?? taskId,
-      sessionId: StoreId.SessionSchema.parse(tab.id),
-      url,
-    });
-    // Once per tab coming back, not per render while it attaches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id, taskId]);
   if (!host.into) {
     return null;
   }
@@ -1063,6 +988,7 @@ function ComposePagePanel({
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
         relayoutKey={host.place}
+        restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         taskId={tab.taskId ?? taskId}
       />

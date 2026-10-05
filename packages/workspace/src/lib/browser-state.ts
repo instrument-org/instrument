@@ -235,7 +235,9 @@ export function recordVisitedHosts({
 }
 
 /**
- * Put a freshly opened tab back on the page its session was last on.
+ * Put a freshly opened tab back on the page its session was last on, or, for
+ * a session that never recorded one, on the page the caller remembers the tab
+ * at (a window tab the person browsed in, which no agent command recorded).
  *
  * Only ever acts on a blank target, so it cannot disturb a live page: this runs
  * on every panel mount, and most of those find a browser that was never reaped
@@ -244,17 +246,25 @@ export function recordVisitedHosts({
  * ever saying so.
  */
 export function restoreLastPage({
+  fallbackUrl,
   sessionId,
   targetId,
   taskId,
 }: {
+  /** Where the tab goes when its session recorded no page. */
+  fallbackUrl?: string;
   sessionId: StoreId.Session;
   targetId: BrowserTargetId;
   taskId: TaskId;
 }) {
   return safeTry(async function* () {
     const current = yield* getBrowserState(taskId, sessionId);
-    if (!current?.lastUrl || current.lastUrl === BLANK_PAGE_URL) {
+    const recorded =
+      current?.lastUrl && current.lastUrl !== BLANK_PAGE_URL
+        ? current.lastUrl
+        : undefined;
+    const url = recorded ?? fallbackUrl;
+    if (!url || url === BLANK_PAGE_URL) {
       return ok(undefined);
     }
 
@@ -268,9 +278,7 @@ export function restoreLastPage({
       if (!target || target.url !== BLANK_PAGE_URL) {
         return ok(undefined);
       }
-      await browser.sendCommand(targetId, "Page.navigate", {
-        url: current.lastUrl,
-      });
+      await browser.sendCommand(targetId, "Page.navigate", { url });
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }

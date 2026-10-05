@@ -36,13 +36,15 @@ const open = base
   .input(
     z.object({
       id: TaskIdSchema,
+      /** Where a tab that comes up blank goes when its session recorded no page: the address the window remembers it at. */
+      restoreUrl: z.string().min(1).optional(),
       sessionId: StoreId.SessionSchema,
       url: z.string().min(1).optional(),
     }),
   )
   .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const { id, sessionId, url } = input;
+    const { id, restoreUrl, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
     const target = await context.workspaceConfig.browser
       .createTarget(id, sessionId, partitionDir)
@@ -65,6 +67,7 @@ const open = base
     const navigated = url
       ? await navigateTarget({ targetId: target.targetId, url })
       : await restoreLastPage({
+          ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
           sessionId,
           targetId: target.targetId,
           taskId: id,

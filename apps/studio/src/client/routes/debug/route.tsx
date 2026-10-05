@@ -17,7 +17,7 @@ export const Route = createFileRoute("/debug")({
 
 function RouteComponent() {
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <header className="sticky top-0 z-10 w-full shrink-0 border-b bg-background px-4 py-3">
         <nav className="flex min-w-0 items-center">
           <div className="flex min-w-0 flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">

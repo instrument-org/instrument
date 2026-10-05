@@ -1,17 +1,12 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
-import { call, eventIterator } from "@orpc/server";
+import { eventIterator } from "@orpc/server";
 import { shell } from "electron";
 import { z } from "zod";
 
 import { base } from "../base";
 import { publisher } from "../publisher";
-
-const getAll = base.output(FeaturesSchema).handler(() => {
-  const store = getFeaturesStore();
-  return store.store;
-});
 
 const setEnabled = base
   .input(z.object({ enabled: z.boolean(), feature: FeatureNameSchema }))
@@ -65,18 +60,16 @@ const openFilesAndFoldersSettings = base
 
 const live = {
   getAll: base.output(eventIterator(FeaturesSchema)).handler(async function* ({
-    context,
     signal,
   }) {
     yield* liveRead({
       changes: [publisher.subscribe("features.updated", { signal })],
-      read: () => call(getAll, {}, { context, signal }),
+      read: () => getFeaturesStore().store,
     });
   }),
 };
 
 export const features = {
-  getAll,
   live,
   openAppManagementSettings,
   openFilesAndFoldersSettings,

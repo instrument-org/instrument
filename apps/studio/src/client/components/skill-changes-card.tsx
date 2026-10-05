@@ -7,7 +7,7 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 
@@ -103,7 +103,7 @@ function SkillChangeRow({
   const body = (
     <>
       <div className={cn(TILE_CLASS_NAME, isMissing && "opacity-50")}>
-        <GraduationCapIcon className="size-5 text-muted-foreground" />
+        <CubeIcon className="size-5 text-muted-foreground" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
         <span

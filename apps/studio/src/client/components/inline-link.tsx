@@ -20,9 +20,9 @@ import {
 } from "@/shared/instrument-link";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
@@ -237,7 +237,7 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
       return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     case "skill": {
-      return <GraduationCapIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+      return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     // A task wears the app's own mark, the way the tab's location row draws
     // one: a task is the app at work rather than a thing it holds.

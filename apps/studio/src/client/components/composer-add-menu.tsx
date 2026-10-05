@@ -17,9 +17,9 @@ import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
@@ -331,7 +331,7 @@ export function ComposerAddMenu({
                     onViewChange("skills");
                   }}
                 >
-                  <GraduationCapIcon className="size-4" />
+                  <CubeIcon className="size-4" />
                   <span className="min-w-0 flex-1">Skill</span>
                   <CaretRightIcon className="size-3.5 text-muted-foreground" />
                 </DropdownMenuItem>

@@ -32,10 +32,10 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -233,7 +233,7 @@ function useNavItems(): NavItem[] {
     ...(features.skills
       ? [
           {
-            icon: GraduationCapIcon,
+            icon: CubeIcon,
             tab: "Skills" as const,
             title: "Skills",
           },

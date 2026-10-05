@@ -85,3 +85,36 @@ describe("a local MCP app's manifest", () => {
     ).toBe(false);
   });
 });
+
+describe("a web app's manifest", () => {
+  it("takes a site and an optional sign-in page, and is not an MCP app", () => {
+    const parsed = AppManifestSchema.parse({
+      name: "Zoom",
+      signIn: "https://zoom.us/signin",
+      type: "web",
+      url: "https://zoom.us",
+    });
+    expect(parsed).toEqual({
+      name: "Zoom",
+      signIn: "https://zoom.us/signin",
+      type: "web",
+      url: "https://zoom.us",
+    });
+    expect(isMcpManifest(parsed)).toBe(false);
+  });
+
+  it.each([
+    ["a plain http site", { url: "http://zoom.us" }],
+    ["a url with credentials", { url: "https://me:pw@zoom.us" }],
+    ["an auth binding", { auth: { kind: "none" }, url: "https://zoom.us" }],
+    [
+      "a bad sign-in page",
+      { signIn: "zoom.us/signin", url: "https://zoom.us" },
+    ],
+  ])("refuses %s", (_what, fields) => {
+    expect(
+      AppManifestSchema.safeParse({ name: "Zoom", type: "web", ...fields })
+        .success,
+    ).toBe(false);
+  });
+});

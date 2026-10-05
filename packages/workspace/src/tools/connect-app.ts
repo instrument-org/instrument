@@ -42,9 +42,10 @@ export const ConnectApp = setupTool({
     z.object({
       /**
        * What the card asks for: a browser sign-in, a key, leave to run a
-       * server on this machine, or nothing.
+       * server on this machine, a sign-in on the service's own site, or
+       * nothing.
        */
-      kind: z.enum(["key", "none", "run", "sign-in"]),
+      kind: z.enum(["key", "none", "run", "sign-in", "web"]),
       name: z.string(),
       /** For a local app, what would run: the package, in words. */
       runs: z.string().optional(),
@@ -52,6 +53,8 @@ export const ConnectApp = setupTool({
       site: z.string().optional(),
       slug: z.string(),
       state: z.literal("asked"),
+      /** For a web app, the site the work happens on. */
+      url: z.string().optional(),
     }),
     z.object({
       message: z.string(),
@@ -61,7 +64,7 @@ export const ConnectApp = setupTool({
   ]),
 }).create({
   description: dedent`
-    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, and for an app whose server runs on this machine, what would run and a button to allow it. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
   execute: async ({ input, taskId }) => {
     const config = getWorkspaceConfig();
@@ -93,13 +96,15 @@ export const ConnectApp = setupTool({
       });
     }
     const kind =
-      manifest.type === "mcp-local"
-        ? "run"
-        : manifest.auth.kind === "oauth"
-          ? "sign-in"
-          : manifest.auth.kind === "none"
-            ? "none"
-            : "key";
+      manifest.type === "web"
+        ? "web"
+        : manifest.type === "mcp-local"
+          ? "run"
+          : manifest.auth.kind === "oauth"
+            ? "sign-in"
+            : manifest.auth.kind === "none"
+              ? "none"
+              : "key";
     if (kind === "sign-in" && !config.apps.oauth) {
       return ok({
         message: "Sign-in is not available in this context.",
@@ -132,6 +137,7 @@ export const ConnectApp = setupTool({
       site: appSiteFor(slug, manifest),
       slug,
       state: "asked" as const,
+      ...(manifest.type === "web" ? { url: manifest.url } : {}),
     });
   },
   readOnly: false,
@@ -163,6 +169,12 @@ export const ConnectApp = setupTool({
         return {
           type: "text",
           value: `A card asking the user to sign in to ${output.name} is in the conversation. Say one line and end your turn: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.`,
+        };
+      }
+      case "web": {
+        return {
+          type: "text",
+          value: `A card asking the user to sign in to ${output.name} on the web is in the conversation: it opens the sign-in in the window's browser. Say one line and end your turn: you will be woken with a note when they say they are signed in or decline, and the app is connected then. Do not poll, and do not test before the note.`,
         };
       }
     }

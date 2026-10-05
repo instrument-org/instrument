@@ -1,52 +1,35 @@
-import { visitedPagesAtom } from "@/client/atoms/window";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { visitsWithin } from "@/client/components/window/app-visits";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
-import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import {
+  APP_CATEGORIES,
+  directoryByUse,
+  searchDirectory,
+} from "@instrument-org/shared/app-directory";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
 
 /**
- * How many pages visited across the apps the page lists: enough to find the
- * one from this morning, few enough that the apps stay the head of the page.
+ * A search that names this few services by its words, and is this long, is
+ * also asked of the decision model for the services it means.
  */
-const RECENT_SHOWN = 9;
+const MEANING_BELOW_MATCHES = 3;
+const MEANING_MIN_LENGTH = 3;
 
-/** How many of the directory's services are offered before the rest are behind the head's button. */
-const MORE_SHOWN = 12;
-
-/**
- * The services offered first among the directory's, since the directory is
- * alphabetical and its first dozen say nothing about what connecting is for:
- * the ones most people already use, in the order they are most likely to.
- */
-const FEATURED = [
-  "notion",
-  "linear",
-  "slack",
-  "github",
-  "figma",
-  "google-workspace",
-  "todoist",
-  "asana",
-  "dropbox",
-  "spotify",
-  "zoom",
-  "stripe",
-];
+/** How many tiles hold the directory's place while it is on its way. */
+const SKELETONS_SHOWN = 12;
 
 /**
  * The Apps place's new tab: the apps this workspace reaches as marks, the
@@ -69,12 +52,10 @@ export function AppsHome({
   /** Whether the services still to connect, and the broken ones to fix, are offered. */
   showsConnect?: boolean;
 }) {
-  const { ask, openPage } = useWindow();
+  const { ask } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
-  const visited = useAtomValue(visitedPagesAtom);
   const [query, setQuery] = useState("");
-  const [showsAll, setShowsAll] = useState(false);
 
   const apps = list.data?.apps ?? [];
   // Connected first, since theirs are the fronts worth opening; the ones
@@ -84,29 +65,57 @@ export function AppsHome({
     ...apps.filter((app) => app.standing !== "connected"),
   ];
   const known = new Set(apps.map((app) => app.slug));
-  const more = featuredFirst(
-    (catalog.data ?? []).filter((entry) => !known.has(entry.slug)),
+  // Still to connect, most used first; the documentation servers and the
+  // like are left out until a search names one.
+  const unconnected = (catalog.data ?? []).filter(
+    (entry) => !known.has(entry.slug),
   );
-  // Across every app the page knows: the workspace's own first, so a page
-  // on one of them is filed under it, then the directory's, since a site
-  // opened from its front is an app here whether or not it is connected.
-  const visits = visitsWithin(visited, [
-    ...apps,
-    ...more.map((entry) => ({
-      name: entry.name,
-      site: `https://${entry.domain}`,
-    })),
-  ]).slice(0, RECENT_SHOWN);
+  const more = directoryByUse(unconnected);
   const typed = query.trim();
-  const matches =
-    typed === "" ? more : more.filter((entry) => matchesWords(entry, typed));
-  const shown =
-    typed === "" ? (showsAll ? more : more.slice(0, MORE_SHOWN)) : matches;
+  const matches = typed === "" ? more : searchDirectory(unconnected, typed);
+  // Unsearched, the featured services lead as Popular and every other one
+  // follows under its category, so the whole directory is a scroll away.
+  const popular = more.filter((entry) => entry.tier === "featured");
+  const rest = more.filter((entry) => entry.tier !== "featured");
+  // A search the words barely answer ("text my mom") also goes to the
+  // decision model, once the typing settles; what it finds is added under
+  // the matches when it arrives, leaving out any already shown.
+  const settled = useDebouncedValue(typed, 300);
+  const asksMeaning =
+    showsConnect &&
+    settled.length >= MEANING_MIN_LENGTH &&
+    searchDirectory(unconnected, settled).length < MEANING_BELOW_MATCHES;
+  const byMeaning = useQuery(
+    rpcClient.apps.catalogByMeaning.queryOptions({
+      enabled: asksMeaning,
+      input: { query: settled },
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const shownSlugs = new Set(matches.map((entry) => entry.slug));
+  const meant =
+    asksMeaning && settled === typed
+      ? (byMeaning.data ?? []).filter(
+          (entry) => !known.has(entry.slug) && !shownSlugs.has(entry.slug),
+        )
+      : [];
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
   };
   const openApp = onOpenApp;
+  const tileFor = (entry: CatalogEntry) => (
+    <CatalogTile
+      entry={entry}
+      key={entry.slug}
+      onConnect={() => {
+        ask(`Connect ${appMentionToken(entry)}`);
+      }}
+      onOpen={() => {
+        openApp(entry.slug);
+      }}
+    />
+  );
 
   return (
     <div className="@container/apps h-full min-h-0 overflow-y-auto">
@@ -131,14 +140,6 @@ export function AppsHome({
             </p>
           </header>
         ) : null}
-        {/* Where the person was lately comes first, as a browser's new tab
-            puts it; the apps themselves under it. */}
-        {visits.length > 0 ? (
-          <PageSection title="Recent pages">
-            <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-          </PageSection>
-        ) : null}
-
         {list.data === undefined ? (
           <PageSection title="Your apps">
             <MarkSkeletons />
@@ -161,26 +162,21 @@ export function AppsHome({
           </PageSection>
         ) : null}
 
-        {!showsConnect &&
-        list.data !== undefined &&
-        own.length === 0 &&
-        visits.length === 0 ? (
+        {!showsConnect && list.data !== undefined && own.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Apps you connect show up here.
           </p>
         ) : null}
 
-        {/* The services still to connect, searchable: a dozen most people
-            know until something is typed, then whatever matches, and for a
-            name the directory does not have, the way to ask for it anyway.
-            Every Connect is a message to the conversation, since Instrument
-            does the connecting. */}
+        {/* The services still to connect, searchable: the popular ones and
+            then all the rest by category until something is typed, then
+            whatever matches, and for a name the directory does not have,
+            the way to ask for it anyway. Every Connect is a message to the
+            conversation, since Instrument does the connecting. */}
         {showsConnect && (
-          <PageSection
-            title={own.length > 0 ? "Connect more apps" : "Connect an app"}
-          >
+          <div className="space-y-10">
             <form
-              className="group/search relative mb-4"
+              className="group/search relative"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (typed !== "" && matches.length === 0) {
@@ -203,41 +199,53 @@ export function AppsHome({
             </form>
             {catalog.data === undefined ? (
               <TileSkeletons />
-            ) : shown.length > 0 || typed !== "" ? (
-              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                {shown.map((entry) => (
-                  <CatalogTile
-                    entry={entry}
-                    key={entry.slug}
-                    onConnect={() => {
-                      ask(`Connect ${appMentionToken(entry)}`);
-                    }}
-                    onOpen={() => {
-                      openApp(entry.slug);
-                    }}
-                  />
-                ))}
-                {typed === "" ? null : (
-                  <UnlistedTile
-                    isOnlyOne={matches.length === 0}
-                    name={typed}
-                    onConnect={connectTyped}
-                  />
+            ) : typed === "" ? (
+              <>
+                {popular.length > 0 ? (
+                  <PageSection title="Popular">
+                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                      {popular.map(tileFor)}
+                    </div>
+                  </PageSection>
+                ) : null}
+                {rest.length > 0 ? (
+                  <PageSection title="By category">
+                    <CategoryGroups entries={rest} renderTile={tileFor} />
+                  </PageSection>
+                ) : null}
+              </>
+            ) : (
+              <div className="space-y-6">
+                {matches.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                    {matches.map(tileFor)}
+                  </div>
+                ) : null}
+                {meant.length > 0 ? (
+                  <div>
+                    <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
+                      Might be what you mean
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                      {meant.map(tileFor)}
+                    </div>
+                  </div>
+                ) : null}
+                {/* A service the words name exactly, listed or already
+                    yours, is the one meant, so "connect it anyway" would
+                    only offer it a second time. */}
+                {namesOne(matches, typed) || namesOne(own, typed) ? null : (
+                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                    <UnlistedTile
+                      isOnlyOne={matches.length === 0 && meant.length === 0}
+                      name={typed}
+                      onConnect={connectTyped}
+                    />
+                  </div>
                 )}
               </div>
-            ) : null}
-            {typed === "" && more.length > MORE_SHOWN ? (
-              <button
-                className="mt-4 text-[13px] font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setShowsAll(!showsAll);
-                }}
-                type="button"
-              >
-                {showsAll ? "Show fewer" : `Show all ${more.length}`}
-              </button>
-            ) : null}
-          </PageSection>
+            )}
+          </div>
         )}
 
         {showsConnect && list.data && list.data.invalid.length > 0 ? (
@@ -369,16 +377,6 @@ function CatalogTile({
   );
 }
 
-function featuredFirst(entries: CatalogEntry[]): CatalogEntry[] {
-  const bySlug = new Map(entries.map((entry) => [entry.slug, entry]));
-  const front = FEATURED.flatMap((slug) => {
-    const entry = bySlug.get(slug);
-    return entry ? [entry] : [];
-  });
-  const featured = new Set(front.map((entry) => entry.slug));
-  return [...front, ...entries.filter((entry) => !featured.has(entry.slug))];
-}
-
 /** Marks holding the section's place while the apps are still on their way. */
 function MarkSkeletons() {
   return (
@@ -396,28 +394,11 @@ function MarkSkeletons() {
   );
 }
 
-/** Whether every word typed is somewhere in the entry's name, domain, tagline, or categories. */
-function matchesWords(entry: CatalogEntry, typed: string): boolean {
-  const haystack = [
-    entry.slug,
-    entry.name,
-    entry.domain,
-    entry.tagline,
-    ...entry.categories,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return typed
-    .toLowerCase()
-    .split(/\s+/)
-    .every((word) => haystack.includes(word));
-}
-
 /** Tiles holding the directory's place while it is still on its way. */
 function TileSkeletons() {
   return (
     <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-      {Array.from({ length: MORE_SHOWN }, (_, index) => (
+      {Array.from({ length: SKELETONS_SHOWN }, (_, index) => (
         <div
           className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
           key={index}
@@ -503,4 +484,67 @@ function waitingLine(app: App): string {
       return "Not tested yet";
     }
   }
+}
+
+/**
+ * Every service still to connect, under its category, most used first in
+ * each. Developer tools hold a quarter of the directory and few of the
+ * people it is for, so they wait behind their own button rather than
+ * making the page read as a developer product.
+ */
+function CategoryGroups({
+  entries,
+  renderTile,
+}: {
+  entries: CatalogEntry[];
+  renderTile: (entry: CatalogEntry) => ReactNode;
+}) {
+  const [showsDeveloper, setShowsDeveloper] = useState(false);
+  return (
+    <div className="space-y-8">
+      {APP_CATEGORIES.map(({ id, label }) => {
+        const inCategory = entries.filter((entry) => entry.category === id);
+        if (inCategory.length === 0) {
+          return null;
+        }
+        const collapsed = id === "developer" && !showsDeveloper;
+        return (
+          <div key={id}>
+            <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
+              {label}
+            </h3>
+            {collapsed ? (
+              <button
+                className="text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setShowsDeveloper(true);
+                }}
+                type="button"
+              >
+                {`Show ${inCategory.length} developer tools`}
+              </button>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                {inCategory.map(renderTile)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Whether the words are some app's own name, slug, or alias. */
+function namesOne(
+  matches: { aliases?: string[] | undefined; name: string; slug: string }[],
+  typed: string,
+): boolean {
+  const words = typed.trim().toLowerCase();
+  return matches.some(
+    (entry) =>
+      entry.name.toLowerCase() === words ||
+      entry.slug === words ||
+      (entry.aliases ?? []).some((alias) => alias.toLowerCase() === words),
+  );
 }

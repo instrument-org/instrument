@@ -304,7 +304,7 @@ function describeSignInFailure(failure: unknown): string {
         ? failure
         : "the server refused the sign-in without saying why";
   if (/^HTTP 403\b/.test(message)) {
-    return "the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a sign-in on the Browser screen, or a server the service ships for this machine, is the way in.";
+    return "the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a web app (the user signs in to the site in Instrument's browser), or a server the service ships for this machine, is the way in.";
   }
   return message;
 }

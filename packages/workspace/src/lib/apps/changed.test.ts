@@ -68,6 +68,29 @@ describe("appChanged", () => {
     expect(await heard(() => appChanged("drafts"))).toEqual(["app.updated"]);
   });
 
+  it("tells the chat the site a web app is worked on", async () => {
+    await fs.mkdir(path.join(appsDir, "drive"));
+    await fs.writeFile(
+      path.join(appsDir, "drive", "app.json"),
+      JSON.stringify({
+        name: "Google Drive",
+        type: "web",
+        url: "https://drive.google.com",
+      }),
+    );
+    expect(
+      await heard(() => appChanged("drive", { event: "connected" })),
+    ).toEqual([
+      "app.updated",
+      {
+        event: "connected",
+        name: "Google Drive",
+        slug: "drive",
+        web: "https://drive.google.com",
+      },
+    ]);
+  });
+
   it("names an app whose folder is gone by its slug", async () => {
     expect(await heard(() => appChanged("gone", { event: "removed" }))).toEqual(
       ["app.updated", { event: "removed", name: "gone", slug: "gone" }],

@@ -1,5 +1,8 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { APP_NAME } from "@instrument-org/shared";
+
 import { APP_COMMAND } from "./shell-commands/app-command";
+import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
 /**
@@ -17,13 +20,18 @@ export function appEventModelNote(
     const detail = event.detail?.replace(/\.$/, "");
     switch (event.event) {
       case "connected": {
+        if (event.web !== undefined) {
+          return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: brief a task with ${event.web}, which it opens in a tab of its own where the sign-in holds, or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`. No \`${APP_COMMAND.name}\` call reaches it.`;
+        }
         return `- The user signed in to ${event.name} (${event.slug}). It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.`;
       }
       case "declined": {
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
       }
       case "disconnected": {
-        return `- ${event.name} (${event.slug}) was disconnected. Its tools and requests will refuse until it is connected again.`;
+        return event.web === undefined
+          ? `- ${event.name} (${event.slug}) was disconnected. Its tools and requests will refuse until it is connected again.`
+          : `- ${event.name} (${event.slug}) was disconnected. Do not work its site until the user signs in again.`;
       }
       case "failed": {
         return `- Connecting ${event.name} (${event.slug}) failed${detail ? `: ${detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;

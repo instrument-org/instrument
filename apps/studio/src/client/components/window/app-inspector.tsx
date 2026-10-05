@@ -1,7 +1,6 @@
 import { MarkdownCodeBlock } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { Markdown } from "@/client/components/markdown";
-import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { thisComputer } from "@/client/components/window/computer-name";
 import { useWindow } from "@/client/components/window/context";
@@ -65,15 +64,15 @@ export interface InspectorReading {
  * drawn per app.
  */
 export function AppInspector({
+  initialAction,
   name,
-  onHide,
   onReading,
   runsHere,
   slug,
 }: {
+  /** The action to open on, when it was opened from that action's card. */
+  initialAction?: string | undefined;
   name: string;
-  /** Puts the browser away, so nothing reads the app until it is asked for again. */
-  onHide: () => void;
   /** Told what record is open, for the note the agent reads with the next message. */
   onReading: (reading: InspectorReading | undefined) => void;
   /** Whether the app's server is on this computer, which is what an unreachable one most often means. */
@@ -85,7 +84,7 @@ export function AppInspector({
     staleTime: STALE_MS,
   });
   const isSlow = useSlowAfter(tools.isPending, SLOW_AFTER_MS);
-  const [kind, setKind] = useState<string>();
+  const [kind, setKind] = useState<string | undefined>(initialAction);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<number>();
 
@@ -94,7 +93,7 @@ export function AppInspector({
   // which is all that leaves again if it has nothing to browse.
   if (tools.isPending) {
     return isSlow ? (
-      <Section loaded={{ name, onHide }}>
+      <Section>
         <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
           <ArrowClockwiseIcon className="size-3.5 animate-spin" />
           Reading what {name} can do…
@@ -104,7 +103,7 @@ export function AppInspector({
   }
   if (tools.isError) {
     return (
-      <Section loaded={{ name, onHide }}>
+      <Section>
         <div className="flex min-h-[16rem] flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border px-6 text-center">
           <PlugsIcon className="size-6 text-muted-foreground" />
           <div>
@@ -153,7 +152,7 @@ export function AppInspector({
   }
 
   return (
-    <Section loaded={{ name, onHide }}>
+    <Section>
       <div className={FRAME_CLASS_NAME}>
         <div className="min-w-0 overflow-y-auto border-r border-border bg-muted/40 p-1.5">
           {groups.map((group) => (
@@ -199,57 +198,6 @@ export function AppInspector({
         ) : (
           <ToolSheet appName={name} tool={current} />
         )}
-      </div>
-    </Section>
-  );
-}
-
-/**
- * The inspector before anything is loaded: its card drawn empty and still,
- * with what it shows and the one control that loads it laid over the middle.
- * Loading reaches the app's server, which for an app on this computer starts
- * it, so nothing is read until the button is pressed.
- */
-export function AppInspectorPreview({
-  name,
-  onLoad,
-}: {
-  name: string;
-  onLoad: () => void;
-}) {
-  return (
-    <Section>
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <div
-          aria-hidden
-          className={cn(
-            FRAME_CLASS_NAME,
-            "opacity-50 [&_[data-slot=skeleton]]:animate-none",
-          )}
-        >
-          <div className="min-w-0 border-r border-border bg-muted/40 p-1.5">
-            <SkeletonRows count={6} />
-          </div>
-          <div className="min-w-0 border-r border-border p-1.5">
-            <SkeletonRows count={10} />
-          </div>
-          <div className="min-w-0 p-4">
-            <SkeletonFields />
-          </div>
-        </div>
-        <div className="absolute inset-0 grid place-items-center p-6">
-          <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-5 text-center shadow-sm">
-            <div>
-              <p className="text-sm font-medium">What’s in {name}?</p>
-              <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
-                See what Instrument can find and do in {name}.
-              </p>
-            </div>
-            <Button onClick={onLoad} size="sm">
-              Take a look
-            </Button>
-          </div>
-        </div>
       </div>
     </Section>
   );
@@ -659,30 +607,9 @@ function Records({
   );
 }
 
-function Section({
-  children,
-  loaded,
-}: {
-  children: React.ReactNode;
-  /** Once loaded, a heading naming the app and the control that puts it away; before, the preview's own card says what it is. */
-  loaded?: { name: string; onHide: () => void };
-}) {
+function Section({ children }: { children: React.ReactNode }) {
   return (
-    <section className="mt-6 flex min-h-0 min-w-0 flex-1 animate-in flex-col duration-300 fade-in-0">
-      {loaded ? (
-        <div className="mb-2.5 flex items-center justify-between gap-3">
-          <p className="text-[13px] font-medium text-muted-foreground">
-            In {loaded.name}
-          </p>
-          <button
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={loaded.onHide}
-            type="button"
-          >
-            Hide
-          </button>
-        </div>
-      ) : null}
+    <section className="flex min-h-0 min-w-0 flex-1 animate-in flex-col duration-300 fade-in-0">
       {children}
     </section>
   );

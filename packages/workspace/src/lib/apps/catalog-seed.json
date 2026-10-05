@@ -7,7 +7,6 @@
       "tagline": "Backlinks, keywords, and site audits.",
       "description": "Research keywords, analyze backlinks, track rankings, and monitor brand visibility across traditional search and AI platforms.",
       "domain": "ahrefs.com",
-      "categories": ["marketing", "analytics"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -23,15 +22,22 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.ahrefs.com"
+      "home": "https://app.ahrefs.com",
+      "category": "marketing",
+      "tier": "listed",
+      "rank": 61
     },
     {
       "slug": "airtable",
       "name": "Airtable",
-      "tagline": "Bases, tables, and records, with the schema an agent reads first.",
+      "tagline": "Bases, tables, and records.",
+      "examples": [
+        "How many orders came in this week?",
+        "Add Jordan Lee to my contacts base",
+        "Which records are marked overdue?"
+      ],
       "description": "You can ask questions, create and update records, and analyze your data—all through conversation.",
       "domain": "airtable.com",
-      "categories": ["data", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -46,7 +52,38 @@
           "endpoint": "https://mcp.airtable.com/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "data",
+      "tier": "featured",
+      "rank": 16,
+      "registryName": "com.airtable/mcp"
+    },
+    {
+      "slug": "akiflow",
+      "name": "Akiflow",
+      "tagline": "Tasks and time blocks in one inbox.",
+      "description": "Tasks and time blocks in one inbox.",
+      "domain": "akiflow.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Akiflow MCP server",
+          "endpoint": "https://mcp.akiflow.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "tasks",
+      "tier": "listed",
+      "registryName": "com.akiflow/akiflow",
+      "home": "https://web.akiflow.com",
+      "rank": 390
     },
     {
       "slug": "algolia",
@@ -54,7 +91,6 @@
       "tagline": "Search indices, records, and the analytics behind them.",
       "description": "Algolia's MCP server reads the indices an app searches, the records inside them, and the analytics that say what people typed.",
       "domain": "algolia.com",
-      "categories": ["search", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -70,7 +106,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://dashboard.algolia.com"
+      "home": "https://dashboard.algolia.com",
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "io.github.algolia/algolia-productivity"
     },
     {
       "slug": "alltrails",
@@ -78,7 +117,6 @@
       "tagline": "Trails, with their length, difficulty, and reviews.",
       "description": "Trails, with their length, difficulty, and reviews.",
       "domain": "alltrails.com",
-      "categories": ["outdoors", "travel"],
       "authMethods": [],
       "interfaces": [
         {
@@ -88,7 +126,10 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.alltrails.com"
+      "home": "https://www.alltrails.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 175
     },
     {
       "slug": "amplitude",
@@ -96,7 +137,6 @@
       "tagline": "Product analytics: charts, cohorts, and experiments.",
       "description": "Connect your AI workflows to Amplitude's powerful behavior analytics and experimentation platform.",
       "domain": "amplitude.com",
-      "categories": ["analytics", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -112,15 +152,18 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.amplitude.com"
+      "home": "https://app.amplitude.com",
+      "category": "data",
+      "tier": "listed",
+      "rank": 69,
+      "registryName": "com.amplitude/mcp-server"
     },
     {
       "slug": "apify",
       "name": "Apify",
-      "tagline": "Scrapers and automation actors, run from the agent.",
+      "tagline": "Scrapers and automation actors.",
       "description": "Apify is a cloud platform and marketplace for running web scraping, automation, and data extraction tools called Actors. It also provides hosted storage, scheduling, and related tooling for building and operating those workflows.",
       "domain": "apify.com",
-      "categories": ["web-scraping", "automation"],
       "authMethods": [
         {
           "type": "api_key",
@@ -136,7 +179,11 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://console.apify.com"
+      "home": "https://console.apify.com",
+      "category": "research",
+      "tier": "listed",
+      "rank": 246,
+      "registryName": "com.apify/apify-mcp-server"
     },
     {
       "slug": "apollo",
@@ -144,7 +191,6 @@
       "tagline": "Contact and company data for prospecting.",
       "description": "Search Apollo's database to find the right people and companies, then enrich records to reveal verified contact details when you're ready.",
       "domain": "apollo.io",
-      "categories": ["sales", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -160,15 +206,130 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.apollo.io"
+      "home": "https://app.apollo.io",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 34,
+      "registryName": "io.github.apolloio/apollo-mcp"
+    },
+    {
+      "slug": "apple-calendar",
+      "name": "Apple Calendar",
+      "tagline": "Events from every calendar added to this Mac.",
+      "description": "The Mac's own Calendar app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Covers every account added to Calendar, Google and Exchange ones included.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Calendar",
+          "bundleId": "com.apple.iCal"
+        }
+      ],
+      "category": "calendar",
+      "aliases": ["ical"],
+      "family": "apple",
+      "tier": "listed",
+      "rank": 40
+    },
+    {
+      "slug": "apple-mail",
+      "name": "Apple Mail",
+      "tagline": "Mail from every account added to this Mac.",
+      "description": "The Mac's own Mail app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Covers every account added to Mail, Gmail and Exchange ones included.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Mail",
+          "bundleId": "com.apple.mail"
+        }
+      ],
+      "category": "mail",
+      "family": "apple",
+      "tier": "listed",
+      "rank": 50
+    },
+    {
+      "slug": "apple-messages",
+      "name": "Apple Messages",
+      "tagline": "iMessage and text conversations.",
+      "description": "The Mac's own Messages app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Sends and reads conversations in Messages on this Mac.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Messages",
+          "bundleId": "com.apple.MobileSMS"
+        }
+      ],
+      "category": "mail",
+      "aliases": ["imessage", "text messages", "sms"],
+      "family": "apple",
+      "tier": "listed",
+      "rank": 45
+    },
+    {
+      "slug": "apple-notes",
+      "name": "Apple Notes",
+      "tagline": "Notes and folders on this Mac and iCloud.",
+      "examples": [
+        "Find my note with the Wi-Fi password",
+        "Add milk and eggs to my grocery list",
+        "What did I write down yesterday?"
+      ],
+      "description": "The Mac's own Notes app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the notes synced to this Mac, iCloud's included.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Notes",
+          "bundleId": "com.apple.Notes"
+        }
+      ],
+      "category": "notes",
+      "family": "apple",
+      "tier": "featured",
+      "rank": 20
+    },
+    {
+      "slug": "apple-reminders",
+      "name": "Apple Reminders",
+      "tagline": "Reminders and lists on this Mac and iCloud.",
+      "examples": [
+        "Remind me to call the dentist tomorrow at 9",
+        "What’s on my reminders for today?",
+        "Add buying a birthday card to my Errands list"
+      ],
+      "description": "The Mac's own Reminders app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the lists synced to this Mac.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Reminders",
+          "bundleId": "com.apple.reminders"
+        }
+      ],
+      "category": "tasks",
+      "family": "apple",
+      "tier": "featured",
+      "rank": 24
     },
     {
       "slug": "asana",
       "name": "Asana",
       "tagline": "Tasks, projects, and goals across the workspace.",
+      "examples": [
+        "What tasks are due this week?",
+        "Ask Maria to review the launch plan by Friday",
+        "How is the website redesign project going?"
+      ],
       "description": "Coordinate work across teams while connecting AI insights to real deliverables.",
       "domain": "asana.com",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -195,7 +356,10 @@
           "auth": "pat"
         }
       ],
-      "home": "https://app.asana.com"
+      "home": "https://app.asana.com",
+      "category": "tasks",
+      "tier": "featured",
+      "rank": 10
     },
     {
       "slug": "astro-docs",
@@ -203,7 +367,6 @@
       "tagline": "The Astro documentation.",
       "description": "The Astro documentation.",
       "domain": "astro.build",
-      "categories": ["documentation", "developer-tools"],
       "authMethods": [],
       "interfaces": [
         {
@@ -213,7 +376,9 @@
           "auth": "none"
         }
       ],
-      "home": "https://docs.astro.build"
+      "home": "https://docs.astro.build",
+      "category": "developer",
+      "tier": "hidden"
     },
     {
       "slug": "atlassian",
@@ -221,7 +386,6 @@
       "tagline": "Jira issues and Confluence pages over one sign-in.",
       "description": "Jira issues and Confluence pages over one sign-in.",
       "domain": "atlassian.com",
-      "categories": ["productivity", "project-management", "documentation"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -233,19 +397,24 @@
         {
           "format": "mcp",
           "name": "Atlassian MCP server",
-          "endpoint": "https://mcp.atlassian.com/v1/mcp",
+          "endpoint": "https://mcp.atlassian.com/v2/mcp",
           "auth": "oauth"
         }
       ],
-      "home": "https://home.atlassian.com"
+      "home": "https://home.atlassian.com",
+      "category": "tasks",
+      "aliases": ["jira", "confluence", "compass", "loom"],
+      "family": "atlassian",
+      "tier": "listed",
+      "rank": 41,
+      "registryName": "com.atlassian/atlassian-mcp-server"
     },
     {
       "slug": "attio",
       "name": "Attio",
-      "tagline": "A CRM of records and lists an agent can query and update.",
+      "tagline": "A CRM of records and lists.",
       "description": "Look up contacts and companies, find decision makers, and discover email addresses. Log notes from calls and meetings, track engagement history, and create follow-up tasks with deadlines.",
       "domain": "attio.com",
-      "categories": ["crm", "sales"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -261,7 +430,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.attio.com"
+      "home": "https://app.attio.com",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 137
     },
     {
       "slug": "audible",
@@ -269,7 +441,6 @@
       "tagline": "Audiobooks and podcasts in the catalog.",
       "description": "Ask by genre, mood, topic or anything else that comes to mind. Note: If you're outside the United States, results may redirect you to your local marketplace.",
       "domain": "audible.com",
-      "categories": ["media"],
       "authMethods": [],
       "interfaces": [
         {
@@ -279,7 +450,10 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.audible.com"
+      "home": "https://www.audible.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 189
     },
     {
       "slug": "aws-knowledge",
@@ -287,7 +461,6 @@
       "tagline": "AWS documentation, API references, and best practices.",
       "description": "AWS documentation, API references, and best practices.",
       "domain": "aws.amazon.com",
-      "categories": ["documentation", "infrastructure"],
       "authMethods": [],
       "interfaces": [
         {
@@ -297,7 +470,9 @@
           "auth": "none"
         }
       ],
-      "home": "https://docs.aws.amazon.com"
+      "home": "https://docs.aws.amazon.com",
+      "category": "developer",
+      "tier": "hidden"
     },
     {
       "slug": "axiom",
@@ -305,7 +480,6 @@
       "tagline": "Logs, traces, and events, queried with APL.",
       "description": "Axiom's API lets agents ingest and query machine data and manage observability resources. Its hosted MCP server exposes query, monitor, notifier, and dashboard tools.",
       "domain": "axiom.co",
-      "categories": ["observability", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -321,7 +495,37 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.axiom.co"
+      "home": "https://app.axiom.co",
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "co.axiom/mcp"
+    },
+    {
+      "slug": "bitly",
+      "name": "Bitly",
+      "tagline": "Short links, QR codes, and click counts.",
+      "description": "Short links, QR codes, and click counts.",
+      "domain": "bitly.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Bitly MCP server",
+          "endpoint": "https://api-ssl.bitly.com/v4/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "registryName": "com.bitly/mcp",
+      "home": "https://app.bitly.com",
+      "rank": 215
     },
     {
       "slug": "box",
@@ -329,7 +533,6 @@
       "tagline": "Files, folders, and the metadata an enterprise drive keeps on them.",
       "description": "Box's MCP server is not reachable from here: it only accepts OAuth clients Box has issued in advance and refuses one registered on the spot. The way in is the REST API, with a developer token from a Box app or that app's own OAuth client.",
       "domain": "box.com",
-      "categories": ["documents", "productivity"],
       "authMethods": [
         {
           "type": "token",
@@ -356,7 +559,10 @@
         "conventions": "- IDs are numeric strings; the root folder is always `\"0\"`. Keep IDs as strings in JSON bodies.\n- Folder listings return mini objects; fetch `GET /files/{id}` or pass `fields=` for anything beyond id, type, name.\n- Names are unique per folder, case-insensitively: a clash returns 409 `item_name_in_use`.\n- Dates in filters are RFC 3339 (`2026-09-01T00:00:00Z`); a range is `start,end` with either side omissible (`2026-09-01T00:00:00Z,`).\n- File uploads live on `upload.box.com`, outside this base URL, so they are not reachable here.\n- A developer token expires 60 minutes after it is made and cannot be refreshed: a 401 after that means asking the user for a new one, not a different placement.",
         "endpoints": "- `GET /users/me`: the account the token belongs to (name, login, space used).\n- `GET /folders/{id}/items`: a folder's files, folders, and web links. `limit` (max 1000), `offset`, `fields`, `sort` (`name`, `date`, `size`), `direction`. The root folder is `0`.\n- `GET /folders/{id}`, `GET /files/{id}`: metadata (name, size, parent, path_collection, modified_at, shared_link). Add `fields=` to request extras such as `shared_link` or `description`.\n- `GET /search`: `query` (supports `\"exact\"`, `AND`, `OR`, `NOT`), `type` (`file`|`folder`|`web_link`), `file_extensions=pdf,docx`, `ancestor_folder_ids`, `content_types`, `created_at_range`/`updated_at_range`, `limit` (default 30, max 200), `offset`.\n- `GET /recent_items`: files the user recently opened or edited.\n- `GET /files/{id}/content`: downloads the file; Box answers 302 to a `dl.boxcloud.com` URL (202 with `retry-after` if not ready yet).\n- `GET /files/{id}/comments`: comments on a file.\n- `POST /folders`: body `{\"name\": \"...\", \"parent\": {\"id\": \"0\"}}`.\n- `PUT /files/{id}` (or `/folders/{id}`): rename or move with `{\"name\": \"...\"}` or `{\"parent\": {\"id\": \"...\"}}`. Create a shared link with `--param fields=shared_link` and body `{\"shared_link\": {\"access\": \"open\"}}` (`company`, `collaborators` also valid).\n- `POST /comments`: body `{\"item\": {\"type\": \"file\", \"id\": \"...\"}, \"message\": \"...\"}`.\n\nPagination: most lists use `offset`/`limit` and return `total_count`; folder items also accept `usemarker=true` and then return `next_marker`. Search rejects `offset` above 10000.\n\nRate limits: 1000 requests per minute per user, 240 uploads per minute, search 6 per second and 60 per minute. A 429 carries `retry-after` in seconds.\n\nHeaders: none required. `box-version` is optional and defaults to `2024.0`.",
         "test": "/users/me"
-      }
+      },
+      "category": "files",
+      "tier": "listed",
+      "rank": 14
     },
     {
       "slug": "brex",
@@ -364,7 +570,6 @@
       "tagline": "Expenses, cards, and budgets.",
       "description": "Finance monitors compliance and runs powerful queries. Employees get personalized memo guidance, policy answers, and status updates.",
       "domain": "brex.com",
-      "categories": ["finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -380,7 +585,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://dashboard.brex.com"
+      "home": "https://dashboard.brex.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 197
     },
     {
       "slug": "brightdata",
@@ -388,7 +596,6 @@
       "tagline": "Web data at scale: search results, pages, and crawls.",
       "description": "Bright Data's MCP server returns search-engine results, scrapes pages that block ordinary requests, and crawls the sites it covers into structured data.",
       "domain": "brightdata.com",
-      "categories": ["web-scraping", "search", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -404,7 +611,9 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://brightdata.com/cp"
+      "home": "https://brightdata.com/cp",
+      "category": "research",
+      "tier": "listed"
     },
     {
       "slug": "browserbase",
@@ -412,7 +621,6 @@
       "tagline": "A cloud browser driven by describing the step, not the selector.",
       "description": "Browserbase runs headless browsers in the cloud. Its MCP server drives one through act, observe, and extract, so a page is worked in the words of what to do rather than in selectors that break.",
       "domain": "browserbase.com",
-      "categories": ["web-scraping", "automation", "developer-tools"],
       "authMethods": [
         {
           "type": "api_key",
@@ -428,7 +636,9 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://www.browserbase.com/overview"
+      "home": "https://www.browserbase.com/overview",
+      "category": "research",
+      "tier": "listed"
     },
     {
       "slug": "buildkite",
@@ -436,7 +646,6 @@
       "tagline": "Pipelines, builds, and their logs.",
       "description": "Pipelines, builds, and their logs.",
       "domain": "buildkite.com",
-      "categories": ["developer-tools", "ci"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -451,15 +660,21 @@
           "endpoint": "https://mcp.buildkite.com/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "listed"
     },
     {
       "slug": "calendly",
       "name": "Calendly",
       "tagline": "Event types, scheduled events, and availability.",
+      "examples": [
+        "Who booked time with me this week?",
+        "Send me my link for 30-minute meetings",
+        "Did anyone cancel a meeting today?"
+      ],
       "description": "Event types, scheduled events, and availability.",
       "domain": "calendly.com",
-      "categories": ["scheduling", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -475,15 +690,22 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://calendly.com/app"
+      "home": "https://calendly.com/app",
+      "category": "calendar",
+      "tier": "featured",
+      "rank": 14
     },
     {
       "slug": "canva",
       "name": "Canva",
       "tagline": "Designs, brand kits, and exports.",
+      "examples": [
+        "Find the poster I made last month",
+        "Make an Instagram post announcing our sale",
+        "Export my latest presentation as a PDF"
+      ],
       "description": "Make Canva a native part of your AI workflow—an AI-powered design agent that helps you create polished visuals faster, with less friction.",
       "domain": "canva.com",
-      "categories": ["design"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -499,7 +721,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.canva.com"
+      "home": "https://www.canva.com",
+      "category": "design",
+      "tier": "featured",
+      "rank": 4,
+      "registryName": "com.canva.mcp/mcp"
     },
     {
       "slug": "clay",
@@ -507,7 +733,6 @@
       "tagline": "Enrichment tables and go-to-market workflows.",
       "description": "Enrichment tables and go-to-market workflows.",
       "domain": "clay.com",
-      "categories": ["sales", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -523,7 +748,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.clay.com"
+      "home": "https://app.clay.com",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 66
     },
     {
       "slug": "clerk",
@@ -531,7 +759,6 @@
       "tagline": "Clerk SDK snippets for the framework in hand.",
       "description": "Clerk's MCP server hands back the SDK snippet for a task and framework. It reaches no account, so it helps write the auth code rather than manage the users behind it.",
       "domain": "clerk.com",
-      "categories": ["documentation", "developer-tools", "security"],
       "authMethods": [],
       "interfaces": [
         {
@@ -541,7 +768,11 @@
           "auth": "none"
         }
       ],
-      "home": "https://dashboard.clerk.com"
+      "home": "https://dashboard.clerk.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 418,
+      "registryName": "io.github.clerk/mcp-server"
     },
     {
       "slug": "clickup",
@@ -549,7 +780,6 @@
       "tagline": "Tasks, docs, and spaces.",
       "description": "Unlock powerful AI-driven automation by connecting your favorite AI tools directly to ClickUp tasks, docs, Chat, and more.",
       "domain": "clickup.com",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -565,7 +795,37 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.clickup.com"
+      "home": "https://app.clickup.com",
+      "category": "tasks",
+      "tier": "listed",
+      "rank": 30
+    },
+    {
+      "slug": "close",
+      "name": "Close",
+      "tagline": "Leads, calls, and email for small sales teams.",
+      "description": "Leads, calls, and email for small sales teams.",
+      "domain": "close.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Close MCP server",
+          "endpoint": "https://mcp.close.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "sales",
+      "tier": "listed",
+      "registryName": "com.close/close-mcp",
+      "home": "https://app.close.com",
+      "rank": 80
     },
     {
       "slug": "cloudflare",
@@ -573,7 +833,6 @@
       "tagline": "Workers, bindings, docs, and observability over one sign-in.",
       "description": "Cloudflare runs a separate MCP server per product: Workers bindings, documentation, observability, Radar and more. Each registers a client on the spot and signs in with OAuth in the browser. The server covering the whole API is not reachable from here, since it only accepts clients Cloudflare has issued in advance, so use a product-scoped one or the REST API, which takes an API token.",
       "domain": "cloudflare.com",
-      "categories": ["infrastructure", "developer-tools", "dns"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -613,7 +872,10 @@
         }
       ],
       "docsUrl": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
-      "home": "https://dash.cloudflare.com"
+      "home": "https://dash.cloudflare.com",
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "com.cloudflare.mcp/mcp"
     },
     {
       "slug": "cloudinary",
@@ -621,7 +883,6 @@
       "tagline": "Upload, transform, and manage images and video.",
       "description": "The Cloudinary MCP servers enable you to upload, manage, transform, and analyze your media assets.",
       "domain": "cloudinary.com",
-      "categories": ["media", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -633,11 +894,15 @@
         {
           "format": "mcp",
           "name": "Cloudinary MCP server",
-          "endpoint": "https://asset-management.mcp.cloudinary.com/sse",
+          "endpoint": "https://asset-management.mcp.cloudinary.com/mcp",
           "auth": "oauth"
         }
       ],
-      "home": "https://console.cloudinary.com"
+      "home": "https://console.cloudinary.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 247,
+      "registryName": "io.github.cloudinary/asset-management-mcp"
     },
     {
       "slug": "consensus",
@@ -645,7 +910,6 @@
       "tagline": "Search the scientific literature and read what the papers found.",
       "description": "Consensus enables AI assistants to search through 200+ million peer-reviewed research papers from leading academic databases including Semantic Scholar, PubMed, and ArXiv.",
       "domain": "consensus.app",
-      "categories": ["research"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -660,15 +924,17 @@
           "endpoint": "https://mcp.consensus.app/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "research",
+      "tier": "listed",
+      "rank": 50
     },
     {
       "slug": "context7",
       "name": "Context7",
-      "tagline": "Current documentation for any library, in the agent's context.",
+      "tagline": "Current documentation for any library.",
       "description": "Context7 fetches up-to-date code examples and documentation right into your LLM's context. No tab-switching, no hallucinated APIs that don't exist, no outdated code generation.",
       "domain": "context7.com",
-      "categories": ["documentation", "developer-tools"],
       "authMethods": [],
       "interfaces": [
         {
@@ -677,7 +943,11 @@
           "endpoint": "https://mcp.context7.com/mcp",
           "auth": "none"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "hidden",
+      "rank": 57,
+      "registryName": "io.github.upstash/context7"
     },
     {
       "slug": "convex",
@@ -685,7 +955,6 @@
       "tagline": "Starting a Convex backend, and scaling one.",
       "description": "Convex's MCP server scaffolds an app, adds Convex to a project that already exists, and answers with the runbook for scaling one. It advises rather than reaching a deployment.",
       "domain": "convex.dev",
-      "categories": ["database", "developer-tools", "documentation"],
       "authMethods": [],
       "interfaces": [
         {
@@ -695,7 +964,36 @@
           "auth": "none"
         }
       ],
-      "home": "https://dashboard.convex.dev"
+      "home": "https://dashboard.convex.dev",
+      "category": "developer",
+      "tier": "listed"
+    },
+    {
+      "slug": "craft",
+      "name": "Craft",
+      "tagline": "Docs, notes, and daily pages.",
+      "description": "Docs, notes, and daily pages.",
+      "domain": "craft.do",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Craft MCP server",
+          "endpoint": "https://mcp.craft.do/my/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "do.craft.mcp/server",
+      "home": "https://docs.craft.do",
+      "rank": 222
     },
     {
       "slug": "crossbeam",
@@ -703,7 +1001,6 @@
       "tagline": "Account overlaps with your partners, and the pipeline they feed.",
       "description": "Crossbeam compares your accounts against your partners' and reports where they overlap; its MCP server puts that comparison in reach of an agent.",
       "domain": "crossbeam.com",
-      "categories": ["sales", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -719,7 +1016,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.crossbeam.com"
+      "home": "https://app.crossbeam.com",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 219
     },
     {
       "slug": "deepwiki",
@@ -727,7 +1027,6 @@
       "tagline": "Ask questions of any public repository's generated wiki.",
       "description": "DeepWiki's public MCP server lets agents inspect a repository's wiki structure, read generated documentation, and ask questions grounded in a codebase.",
       "domain": "deepwiki.com",
-      "categories": ["documentation", "developer-tools"],
       "authMethods": [],
       "interfaces": [
         {
@@ -736,7 +1035,9 @@
           "endpoint": "https://mcp.deepwiki.com/mcp",
           "auth": "none"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "hidden"
     },
     {
       "slug": "dovetail",
@@ -744,7 +1045,6 @@
       "tagline": "Customer research: interviews, highlights, and insights.",
       "description": "Search your Dovetail workspace for relevant projects, notes, docs, and themes, and get results back instantly.",
       "domain": "dovetail.com",
-      "categories": ["research", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -759,15 +1059,42 @@
           "endpoint": "https://dovetail.com/api/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "research",
+      "tier": "listed",
+      "rank": 207
+    },
+    {
+      "slug": "drawio",
+      "name": "draw.io",
+      "tagline": "Diagrams drawn from a description.",
+      "description": "Diagrams drawn from a description.",
+      "domain": "draw.io",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "draw.io MCP server",
+          "endpoint": "https://mcp.draw.io/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.draw/mcp",
+      "home": "https://app.diagrams.net"
     },
     {
       "slug": "dropbox",
       "name": "Dropbox",
       "tagline": "Files and folders, searched and read.",
+      "examples": [
+        "Find the contract I saved last week",
+        "What’s in my Taxes folder?",
+        "Summarize the latest file Alex shared with me"
+      ],
       "description": "Dropbox's MCP server searches a Dropbox, reads what it finds, and follows the sharing a file already carries.",
       "domain": "dropbox.com",
-      "categories": ["documents", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -783,15 +1110,44 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.dropbox.com/home"
+      "home": "https://www.dropbox.com/home",
+      "category": "files",
+      "tier": "featured",
+      "rank": 52
+    },
+    {
+      "slug": "elevenlabs",
+      "name": "ElevenLabs",
+      "tagline": "Voices, speech, and sound effects.",
+      "description": "Voices, speech, and sound effects.",
+      "domain": "elevenlabs.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server reads the client's published metadata, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "ElevenLabs MCP server",
+          "endpoint": "https://api.us.elevenlabs.io/v1/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.elevenlabs/mcp",
+      "home": "https://elevenlabs.io/app",
+      "rank": 108
     },
     {
       "slug": "exa",
       "name": "Exa",
-      "tagline": "Web search built for agents.",
+      "tagline": "Web search.",
       "description": "Exa gives agents web search and page contents through its Search API, structured collection building through Websets, and live search tools through a hosted MCP server.",
       "domain": "exa.ai",
-      "categories": ["search"],
       "authMethods": [],
       "interfaces": [
         {
@@ -801,7 +1157,11 @@
           "auth": "none"
         }
       ],
-      "home": "https://dashboard.exa.ai"
+      "home": "https://dashboard.exa.ai",
+      "category": "research",
+      "tier": "hidden",
+      "rank": 96,
+      "registryName": "ai.exa/exa"
     },
     {
       "slug": "excalidraw",
@@ -809,7 +1169,6 @@
       "tagline": "Whiteboard diagrams drawn from a description.",
       "description": "Whiteboard diagrams drawn from a description.",
       "domain": "excalidraw.com",
-      "categories": ["design"],
       "authMethods": [],
       "interfaces": [
         {
@@ -818,7 +1177,10 @@
           "endpoint": "https://mcp.excalidraw.com/mcp",
           "auth": "none"
         }
-      ]
+      ],
+      "category": "design",
+      "tier": "listed",
+      "rank": 60
     },
     {
       "slug": "expo",
@@ -826,7 +1188,6 @@
       "tagline": "React Native builds, updates, and store submissions.",
       "description": "Expo's MCP server reaches EAS: the builds a project has run, the over-the-air updates it has shipped, and the submissions that followed.",
       "domain": "expo.dev",
-      "categories": ["developer-tools", "ci"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -842,7 +1203,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://expo.dev"
+      "home": "https://expo.dev",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 362
     },
     {
       "slug": "fal",
@@ -850,7 +1214,6 @@
       "tagline": "Run image, video, and audio models and collect the file.",
       "description": "fal hosts generative models behind one API; its MCP server finds a model, runs it, and returns what it produced.",
       "domain": "fal.ai",
-      "categories": ["ai", "media"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -866,7 +1229,9 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://fal.ai/dashboard"
+      "home": "https://fal.ai/dashboard",
+      "category": "design",
+      "tier": "listed"
     },
     {
       "slug": "fathom",
@@ -874,7 +1239,6 @@
       "tagline": "Meeting recordings, transcripts, and summaries.",
       "description": "Access your meeting summaries, transcripts, and action items so you can ask questions and build deliverables grounded in what was actually said on your calls. No copy-pasting summaries. No context switching. Just better outputs, faster.",
       "domain": "fathom.ai",
-      "categories": ["meetings", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -890,15 +1254,23 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://fathom.video"
+      "home": "https://fathom.video",
+      "category": "calendar",
+      "tier": "listed",
+      "rank": 55,
+      "registryName": "ai.fathom.api/mcp"
     },
     {
       "slug": "figma",
       "name": "Figma",
-      "tagline": "Design files, components, and variables, read by an agent.",
-      "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in on the Browser screen and a task works there.",
+      "tagline": "Design files, components, and variables.",
+      "examples": [
+        "What changed in our design file this week?",
+        "List the components in our design system",
+        "Describe the checkout screen in our app design"
+      ],
+      "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in to the site in Instrument's browser, as a web app, and a task works there.",
       "domain": "figma.com",
-      "categories": ["design", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -920,15 +1292,18 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.figma.com/files"
+      "home": "https://www.figma.com/files",
+      "category": "design",
+      "tier": "featured",
+      "rank": 7,
+      "registryName": "com.figma.mcp/mcp"
     },
     {
       "slug": "firecrawl",
       "name": "Firecrawl",
-      "tagline": "Turn any site into clean text an agent can read.",
+      "tagline": "Any site as clean text.",
       "description": "Firecrawl's hosted MCP server gives agents tools to search the web, scrape pages, and parse supported files. Its keyless session exposes a limited tool set, with API-key access available for higher limits and more tools.",
       "domain": "firecrawl.dev",
-      "categories": ["web-scraping", "search"],
       "authMethods": [
         {
           "type": "api_key",
@@ -940,11 +1315,15 @@
         {
           "format": "mcp",
           "name": "Firecrawl MCP server",
-          "endpoint": "https://mcp.firecrawl.dev/mcp",
+          "endpoint": "https://mcp.firecrawl.dev/v2/mcp",
           "auth": "api_key"
         }
       ],
-      "home": "https://www.firecrawl.dev/app"
+      "home": "https://www.firecrawl.dev/app",
+      "category": "research",
+      "tier": "listed",
+      "rank": 80,
+      "registryName": "io.github.firecrawl/firecrawl-mcp-server"
     },
     {
       "slug": "fireflies",
@@ -952,7 +1331,6 @@
       "tagline": "Meeting transcripts, summaries, and action items.",
       "description": "Extract valuable insights from meeting transcripts and summaries.",
       "domain": "fireflies.ai",
-      "categories": ["meetings", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -968,7 +1346,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.fireflies.ai"
+      "home": "https://app.fireflies.ai",
+      "category": "calendar",
+      "tier": "listed",
+      "rank": 67,
+      "registryName": "ai.fireflies/fireflies"
     },
     {
       "slug": "front",
@@ -976,7 +1358,6 @@
       "tagline": "Shared inboxes, conversations, and drafts.",
       "description": "Front's MCP server only accepts OAuth clients Front has issued in advance, so the way in is the REST API with an API token from the app's developer settings.",
       "domain": "front.com",
-      "categories": ["support", "communication", "email"],
       "authMethods": [
         {
           "type": "api_key",
@@ -998,7 +1379,10 @@
         "conventions": "- IDs carry prefixes: `cnv_` conversation, `msg_` message, `tea_` teammate, `inb_` inbox, `cha_` channel, `tag_` tag. Search filters (`inbox:`, `tag:`, `assignee:`) take these IDs, never display names; look them up first.\n- Teammates can also be referenced by alias, e.g. `alt:email:jane@acme.com` for `author_id`.\n- Search dates (`before:`, `after:`, `during:`) are Unix timestamps in seconds. Max 15 filters per query.\n- `tag_ids` in `PATCH` replaces the whole tag set. Updating `custom_fields` erases any field you leave out.\n- A merged conversation answers 301; follow to the new ID.",
         "endpoints": "- `GET /me`: the company the token belongs to.\n- `GET /inboxes`, `GET /teammates`, `GET /tags`, `GET /channels`: look up the IDs every other call needs.\n- `GET /conversations/search/{query}`: search with Front's syntax, URL-encoded into the path (`is:open tag:tag_123` becomes `is%3Aopen%20tag%3Atag_123`). Returns `_total` and `_results`, newest activity first.\n- `GET /conversations`: `q[statuses][]=assigned|unassigned|archived|trashed`, `limit`, `page_token`.\n- `GET /inboxes/{inbox_id}/conversations`: one inbox's conversations.\n- `GET /conversations/{id}`: subject, status, assignee, tags, recipient.\n- `GET /conversations/{id}/messages`: messages with `body` (HTML) and `text`. `sort_order=asc|desc`.\n- `GET /conversations/{id}/comments`: internal comments, newest first.\n- `POST /conversations/{id}/comments`: `{\"body\": \"...\"}`; optional `author_id` (else posts as the token).\n- `POST /conversations/{id}/drafts`: draft reply, `{\"body\": \"...\", \"channel_id\": \"cha_...\"}` required. Prefer this over sending unless the user asked to send.\n- `POST /conversations/{id}/messages`: send a reply, `{\"body\": \"...\", \"author_id\": \"tea_...\"}`; `channel_id`, `to`, `cc` optional.\n- `PATCH /conversations/{id}`: `status` (`archived`, `open`, `deleted`, `spam`), `assignee_id` (`null` unassigns), `inbox_id`, `tag_ids`. Returns 204.\n\nPagination: `limit` (default 50, max 100) and `page_token`, taken from `_pagination.next`; stop when `next` is null, not when a page is short.\n\nRate limits: per company, 50/100/200 requests per minute on Starter/Professional/Enterprise plus a burst allowance. Search counts at 40% of the company limit. A 429 carries `retry-after` in seconds.",
         "test": "/me"
-      }
+      },
+      "category": "mail",
+      "tier": "listed",
+      "rank": 253
     },
     {
       "slug": "gamma",
@@ -1006,7 +1390,6 @@
       "tagline": "Presentations, documents, and sites generated from an outline.",
       "description": "Gamma generates beautifully designed content from prompts or notes, with smart layouts, customizable themes, and AI visuals.",
       "domain": "gamma.app",
-      "categories": ["productivity", "design"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1021,15 +1404,22 @@
           "endpoint": "https://mcp.gamma.app/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "rank": 21
     },
     {
       "slug": "github",
       "name": "GitHub",
-      "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",
+      "tagline": "Repos, issues, pull requests, and Actions.",
+      "examples": [
+        "What pull requests are waiting on my review?",
+        "Open an issue for the broken sign-up link",
+        "What changed in our main repo this week?"
+      ],
       "description": "GitHub exposes more agent-callable surface area than almost any service: a fully-specified REST API, a GraphQL API, the `gh` CLI, and a remote MCP server. The MCP server is not reachable from here: it only accepts OAuth clients GitHub has issued in advance and refuses one registered on the spot, so the way in is the REST API with a fine-grained personal access token.",
       "domain": "github.com",
-      "categories": ["developer-tools", "version-control"],
       "authMethods": [
         {
           "type": "pat",
@@ -1067,7 +1457,12 @@
         "conventions": "- A fine-grained token sees only the repos and permissions the user granted; a repo outside that set returns 404, not 403. Say so rather than concluding the repo does not exist.\n- `/notifications` does not work with fine-grained tokens (classic only).\n- Issues and PRs share one number space; comment on a PR through the issues comments endpoint. Review comments on diff lines are a separate API.\n- Timestamps are ISO 8601 UTC (`2026-09-01T00:00:00Z`); search qualifiers take dates like `created:>=2026-09-01`.\n- In `q`, `author:@me` is the token's user.",
         "endpoints": "- `GET /user`: the token's user.\n- `GET /user/repos`: repos the token can reach. `sort=updated`, `affiliation`, `per_page`.\n- `GET /repos/{owner}/{repo}`: repo metadata, default branch.\n- `GET /repos/{owner}/{repo}/issues`: `state=open|closed|all`, `labels`, `assignee`, `since` (ISO 8601). Includes pull requests; they carry a `pull_request` key.\n- `GET /repos/{owner}/{repo}/pulls`: `state`, `head`, `base`. `GET .../pulls/{number}/files` lists changed files.\n- `GET /repos/{owner}/{repo}/issues/{number}/comments`: the conversation on an issue or PR.\n- `GET /search/issues`: `q` such as `repo:o/r is:issue is:open author:me label:bug`. Include `is:issue` or `is:pr`. Up to 1000 results.\n- `GET /repos/{owner}/{repo}/contents/{path}`: file content, base64 in `content`; `ref` picks a branch or sha. A directory returns a list.\n- `GET /repos/{owner}/{repo}/commits`: `sha`, `path`, `since`, `until`, `author`.\n- `POST /repos/{owner}/{repo}/issues`: `{\"title\": \"...\", \"body\": \"...\", \"labels\": [], \"assignees\": []}`.\n- `POST /repos/{owner}/{repo}/issues/{number}/comments`: `{\"body\": \"...\"}`; also comments on a PR.\n- `PATCH /repos/{owner}/{repo}/issues/{number}`: `state` (`closed`, `open`), `title`, `body`, `labels`.\n\nPagination: `per_page` (max 100, default 30) and `page`; the `Link` response header names the next page. Search caps at 1000 results.\n\nRate limits: 5000 requests per hour; search 30 per minute; at most 80 content-creating requests per minute and 500 per hour. A 403 or 429 with `x-ratelimit-remaining: 0` means wait for `x-ratelimit-reset` (epoch seconds).\n\nHeaders: `X-GitHub-Api-Version` is optional; without it GitHub uses `2022-11-28`, which everything above targets. `Accept: application/vnd.github+json` is recommended but not required.",
         "test": "/user"
-      }
+      },
+      "category": "developer",
+      "aliases": ["gh"],
+      "tier": "listed",
+      "rank": 104,
+      "registryName": "io.github.github/github-mcp-server"
     },
     {
       "slug": "gitlab",
@@ -1075,7 +1470,6 @@
       "tagline": "Repos, merge requests, issues, and pipelines.",
       "description": "GitLab's MCP server is part of the platform's own API and takes a client registered on the spot, which is where it parts company with GitHub's: an agent reaches projects, merge requests, issues, and CI over a browser sign-in with no token pasted anywhere.",
       "domain": "gitlab.com",
-      "categories": ["developer-tools", "version-control", "ci"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1090,7 +1484,11 @@
           "endpoint": "https://gitlab.com/api/v4/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "listed",
+      "rank": 465,
+      "registryName": "com.gitlab/mcp"
     },
     {
       "slug": "globalping",
@@ -1098,7 +1496,6 @@
       "tagline": "Ping, traceroute, DNS, and HTTP from probes around the world.",
       "description": "Ping, traceroute, DNS, and HTTP from probes around the world.",
       "domain": "globalping.io",
-      "categories": ["developer-tools", "networking"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1113,47 +1510,126 @@
           "endpoint": "https://mcp.globalping.dev/sse",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "io.globalping/mcp"
     },
     {
-      "slug": "google-workspace",
-      "name": "Google Workspace",
-      "tagline": "Gmail, Calendar, Drive, Docs, and Sheets from one credential.",
-      "description": "Google Workspace exposes its services through per-product REST APIs built on the Google Discovery Service, per-product remote MCP servers in developer preview (gmailmcp.googleapis.com and the like), a vendor-published CLI (`gws`), and a popular community CLI (`gog`). Every one of them, the MCP servers included, authenticates with an OAuth client from a Google Cloud project of the user's own, which the sign-in card cannot make: the MCP servers answer a stranger's tools/list and refuse the first call. Not reachable as an app from here; the user signs in on the Browser screen and a task works there.",
-      "domain": "workspace.google.com",
-      "categories": ["productivity", "email", "documents"],
+      "slug": "gmail",
+      "name": "Gmail",
+      "tagline": "Mail, threads, labels, and drafts.",
+      "examples": [
+        "What emails need a reply from me today?",
+        "Draft a reply to the last email from Dana",
+        "Find the receipt from my last Amazon order"
+      ],
+      "description": "Google's email. Reached through Google's Gmail MCP server once Instrument's Google client clears review; until then through Mail on this Mac when the account is added there, or the web app.",
+      "domain": "gmail.com",
+      "home": "https://mail.google.com",
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0 (Desktop client)",
-          "note": "Bring your own Google Cloud project; both CLIs and the APIs use it."
-        },
-        {
-          "type": "token",
-          "label": "Service account",
-          "note": "For headless and Workspace-admin scenarios via domain-wide delegation."
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then Mail on this Mac reads a Gmail account added there, or the user signs in on the web."
         }
       ],
       "interfaces": [
         {
-          "format": "cli",
-          "name": "gws",
-          "auth": "oauth"
+          "format": "mcp",
+          "name": "Gmail MCP server",
+          "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client"
         },
         {
-          "format": "openapi",
-          "name": "Workspace REST APIs",
-          "endpoint": "https://gmail.googleapis.com",
-          "auth": "oauth"
-        },
-        {
-          "format": "cli",
-          "name": "gog",
-          "auth": "oauth"
+          "format": "mac-app",
+          "name": "Mail",
+          "bundleId": "com.apple.mail"
         }
       ],
-      "docsUrl": "https://developers.google.com/workspace",
-      "home": "https://mail.google.com"
+      "category": "mail",
+      "aliases": ["google mail"],
+      "family": "google",
+      "tier": "featured",
+      "rank": 2
+    },
+    {
+      "slug": "google-calendar",
+      "name": "Google Calendar",
+      "tagline": "Events, invites, and availability.",
+      "examples": [
+        "What’s on my calendar tomorrow?",
+        "Find a free hour with Sam next week",
+        "Move my 3pm meeting to Friday"
+      ],
+      "description": "Google's calendar. Reached through Google's Calendar MCP server once Instrument's Google client clears review; until then through Calendar on this Mac when the account is added there, or the web app.",
+      "domain": "calendar.google.com",
+      "home": "https://calendar.google.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then Calendar on this Mac reads a Google account added there, or the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Google Calendar MCP server",
+          "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client"
+        },
+        {
+          "format": "mac-app",
+          "name": "Calendar",
+          "bundleId": "com.apple.iCal"
+        }
+      ],
+      "category": "calendar",
+      "aliases": ["gcal"],
+      "family": "google",
+      "tier": "featured",
+      "rank": 3
+    },
+    {
+      "slug": "google-drive",
+      "name": "Google Drive",
+      "tagline": "Files, Docs, Sheets, and Slides.",
+      "examples": [
+        "Find the budget spreadsheet I worked on last week",
+        "Summarize the newest doc shared with me",
+        "What’s in my Q3 planning folder?"
+      ],
+      "description": "Google's file storage and the Docs, Sheets, and Slides editors. Reached through Google's Drive MCP server once Instrument's Google client clears review; until then the web app.",
+      "domain": "drive.google.com",
+      "home": "https://drive.google.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Google Drive MCP server",
+          "endpoint": "https://drivemcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client"
+        }
+      ],
+      "category": "files",
+      "aliases": [
+        "google docs",
+        "google sheets",
+        "google slides",
+        "docs",
+        "sheets",
+        "slides"
+      ],
+      "family": "google",
+      "tier": "featured",
+      "rank": 1
     },
     {
       "slug": "grafana",
@@ -1161,7 +1637,6 @@
       "tagline": "Dashboards, datasource queries, and alerts.",
       "description": "Grafana's MCP server queries the datasources a stack already has, reads its dashboards and alert rules, and searches the incidents attached to them.",
       "domain": "grafana.com",
-      "categories": ["observability", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1177,15 +1652,17 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://grafana.com/orgs"
+      "home": "https://grafana.com/orgs",
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "io.github.grafana/mcp-grafana"
     },
     {
       "slug": "granola",
       "name": "Granola",
-      "tagline": "Meeting notes, searchable by an agent.",
+      "tagline": "Meeting notes, searchable.",
       "description": "Ask questions about your work and use your conversation context to get things done.",
       "domain": "granola.ai",
-      "categories": ["meetings", "notes"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1200,7 +1677,10 @@
           "endpoint": "https://mcp.granola.ai/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "rank": 23
     },
     {
       "slug": "greenhouse",
@@ -1208,7 +1688,6 @@
       "tagline": "Open roles, candidates, and interview scorecards.",
       "description": "Greenhouse's MCP server reaches the applicant tracking system: which roles are open, who is in them, and what the interviewers wrote down.",
       "domain": "greenhouse.io",
-      "categories": ["hiring", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1224,7 +1703,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.greenhouse.io"
+      "home": "https://app.greenhouse.io",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 704
     },
     {
       "slug": "heroku",
@@ -1232,7 +1714,6 @@
       "tagline": "Apps, dynos, add-ons, and logs.",
       "description": "Heroku's MCP server manages apps and the dynos under them, reads config and add-ons, and pulls the logs behind a release that went wrong.",
       "domain": "heroku.com",
-      "categories": ["hosting", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1248,7 +1729,9 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://dashboard.heroku.com"
+      "home": "https://dashboard.heroku.com",
+      "category": "developer",
+      "tier": "listed"
     },
     {
       "slug": "hex",
@@ -1256,7 +1739,6 @@
       "tagline": "Notebooks, data apps, and semantic models.",
       "description": "Find Hex projects and answer questions with the Hex agent.",
       "domain": "hex.tech",
-      "categories": ["data", "analytics"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1272,15 +1754,22 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.hex.tech"
+      "home": "https://app.hex.tech",
+      "category": "data",
+      "tier": "listed",
+      "rank": 181
     },
     {
       "slug": "hubspot",
       "name": "HubSpot",
       "tagline": "Contacts, companies, deals, and tickets.",
+      "examples": [
+        "Which deals are closing this month?",
+        "Add Jordan Lee from Acme as a contact",
+        "When did we last talk to Acme?"
+      ],
       "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts.",
       "domain": "hubspot.com",
-      "categories": ["crm", "sales", "marketing"],
       "authMethods": [
         {
           "type": "token",
@@ -1302,7 +1791,10 @@
           "auth": "token"
         }
       ],
-      "home": "https://app.hubspot.com"
+      "home": "https://app.hubspot.com",
+      "category": "sales",
+      "tier": "featured",
+      "rank": 6
     },
     {
       "slug": "hugging-face",
@@ -1310,7 +1802,6 @@
       "tagline": "Models, datasets, papers, and Spaces.",
       "description": "Provides access to Hugging Face Hub information and Gradio AI Applications.",
       "domain": "huggingface.co",
-      "categories": ["ai", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1325,7 +1816,39 @@
           "endpoint": "https://huggingface.co/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "aliases": ["huggingface"],
+      "tier": "listed",
+      "rank": 71,
+      "registryName": "co.huggingface/hf-mcp-server"
+    },
+    {
+      "slug": "ifttt",
+      "name": "IFTTT",
+      "tagline": "Applets that connect apps and devices.",
+      "description": "Applets that connect apps and devices.",
+      "domain": "ifttt.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "IFTTT MCP server",
+          "endpoint": "https://ifttt.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "automation",
+      "tier": "listed",
+      "registryName": "com.ifttt/mcp",
+      "home": "https://ifttt.com/my_applets",
+      "rank": 262
     },
     {
       "slug": "incident-io",
@@ -1333,7 +1856,6 @@
       "tagline": "Incidents, who responded, and what was left to do.",
       "description": "incident.io's MCP server reads live and past incidents, the responders on them, and the follow-up actions they left behind.",
       "domain": "incident.io",
-      "categories": ["observability", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1349,7 +1871,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.incident.io"
+      "home": "https://app.incident.io",
+      "category": "developer",
+      "aliases": ["incident.io"],
+      "tier": "listed",
+      "rank": 146
     },
     {
       "slug": "instacart",
@@ -1357,7 +1883,6 @@
       "tagline": "Grocery carts and orders.",
       "description": "Find nearby stores, check product availability, turn meal ideas and recipes into groceries delivered.",
       "domain": "instacart.com",
-      "categories": ["shopping"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1373,7 +1898,36 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.instacart.com"
+      "home": "https://www.instacart.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 216
+    },
+    {
+      "slug": "interactive-brokers",
+      "name": "Interactive Brokers",
+      "tagline": "Portfolio, positions, and market data.",
+      "description": "Portfolio, positions, and market data.",
+      "domain": "ibkr.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Interactive Brokers MCP server",
+          "endpoint": "https://api.ibkr.com/v1/api/mcp-public",
+          "auth": "oauth"
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "registryName": "com.ibkr/interactive-brokers-ibkr",
+      "rank": 75
     },
     {
       "slug": "intercom",
@@ -1381,7 +1935,6 @@
       "tagline": "Conversations, contacts, and help center articles.",
       "description": "The Intercom MCP Server gives your AI tools access to customer data—conversations, tickets, and user data.",
       "domain": "intercom.com",
-      "categories": ["support", "communication"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1397,7 +1950,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.intercom.com"
+      "home": "https://app.intercom.com",
+      "category": "mail",
+      "tier": "listed",
+      "rank": 13
     },
     {
       "slug": "jam",
@@ -1405,7 +1961,6 @@
       "tagline": "Bug reports with the console, network, and steps attached.",
       "description": "Jam's MCP is the fast lane between Jam recordings and your dev tools.",
       "domain": "jam.dev",
-      "categories": ["developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1420,7 +1975,64 @@
           "endpoint": "https://mcp.jam.dev/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "listed",
+      "rank": 263
+    },
+    {
+      "slug": "jotform",
+      "name": "Jotform",
+      "tagline": "Forms, submissions, and approvals.",
+      "description": "Forms, submissions, and approvals.",
+      "domain": "jotform.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Jotform MCP server",
+          "endpoint": "https://mcp.jotform.com/",
+          "auth": "oauth"
+        }
+      ],
+      "category": "data",
+      "tier": "listed",
+      "registryName": "com.jotform/mcp",
+      "home": "https://www.jotform.com/myforms",
+      "rank": 20
+    },
+    {
+      "slug": "kajabi",
+      "name": "Kajabi",
+      "tagline": "Courses, memberships, and a storefront.",
+      "description": "Courses, memberships, and a storefront.",
+      "domain": "kajabi.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Kajabi MCP server",
+          "endpoint": "https://mcp.kajabi.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "registryName": "com.kajabi/kajabi",
+      "home": "https://app.kajabi.com",
+      "rank": 50
     },
     {
       "slug": "kiwi",
@@ -1428,7 +2040,6 @@
       "tagline": "Flight search and fares.",
       "description": "Flight search and fares.",
       "domain": "kiwi.com",
-      "categories": ["travel"],
       "authMethods": [],
       "interfaces": [
         {
@@ -1438,7 +2049,11 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.kiwi.com"
+      "home": "https://www.kiwi.com",
+      "category": "life",
+      "aliases": ["kiwi.com"],
+      "tier": "listed",
+      "rank": 76
     },
     {
       "slug": "klaviyo",
@@ -1446,7 +2061,6 @@
       "tagline": "Email and SMS marketing: profiles, segments, and campaigns.",
       "description": "Chat directly with Klaviyo to report, strategize, and launch faster. Ask for performance summaries, content and copy, optimization opportunities, and profile insights – AI responds with the full context of your Klaviyo data.",
       "domain": "klaviyo.com",
-      "categories": ["marketing", "email"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1462,15 +2076,22 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.klaviyo.com"
+      "home": "https://www.klaviyo.com",
+      "category": "marketing",
+      "tier": "listed",
+      "rank": 48
     },
     {
       "slug": "linear",
       "name": "Linear",
-      "tagline": "Issues, projects, and cycles — agent-native from day one.",
+      "tagline": "Issues, projects, and cycles.",
+      "examples": [
+        "What issues are assigned to me?",
+        "File a bug: the login page won’t load in Safari",
+        "What’s left in the current cycle?"
+      ],
       "description": "Linear's entire product runs on its public GraphQL API, and its hosted MCP server gives agents the same tools the official integrations use: create and update issues, manage projects, and coordinate cycles.",
       "domain": "linear.app",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1498,7 +2119,38 @@
         }
       ],
       "docsUrl": "https://linear.app/developers",
-      "home": "https://linear.app"
+      "home": "https://linear.app",
+      "category": "tasks",
+      "tier": "listed",
+      "rank": 11,
+      "registryName": "app.linear/linear"
+    },
+    {
+      "slug": "lovable",
+      "name": "Lovable",
+      "tagline": "Apps and websites built from a description.",
+      "description": "Apps and websites built from a description.",
+      "domain": "lovable.dev",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Lovable MCP server",
+          "endpoint": "https://mcp.lovable.dev",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "dev.lovable/mcp",
+      "home": "https://lovable.dev",
+      "rank": 42
     },
     {
       "slug": "lucid",
@@ -1506,7 +2158,6 @@
       "tagline": "Lucidchart diagrams and Lucidspark boards.",
       "description": "Lucidchart diagrams and Lucidspark boards.",
       "domain": "lucid.app",
-      "categories": ["design", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1521,7 +2172,11 @@
           "endpoint": "https://mcp.lucid.app/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "design",
+      "tier": "listed",
+      "rank": 31,
+      "registryName": "app.lucid.mcp/lucid"
     },
     {
       "slug": "make",
@@ -1529,7 +2184,6 @@
       "tagline": "Run and inspect Make scenarios.",
       "description": "Run and inspect Make scenarios.",
       "domain": "make.com",
-      "categories": ["automation"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1545,15 +2199,19 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.make.com"
+      "home": "https://www.make.com",
+      "category": "automation",
+      "aliases": ["integromat"],
+      "tier": "listed",
+      "rank": 73,
+      "registryName": "com.make/mcp-server"
     },
     {
       "slug": "mem",
       "name": "Mem",
-      "tagline": "Notes that organize themselves, searched by an agent.",
+      "tagline": "Notes that organize themselves.",
       "description": "Notes that organize themselves, searched by an agent.",
       "domain": "mem.ai",
-      "categories": ["notes", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1568,7 +2226,11 @@
           "endpoint": "https://mcp.mem.ai/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "rank": 293,
+      "registryName": "io.github.mem-labs/mem"
     },
     {
       "slug": "mercury",
@@ -1576,7 +2238,6 @@
       "tagline": "Business accounts, transactions, and statements.",
       "description": "Mercury's MCP server reads accounts and the transactions in them. Its sign-in asks for read scope, so an agent reports on the money rather than moving it.",
       "domain": "mercury.com",
-      "categories": ["finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1592,7 +2253,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.mercury.com"
+      "home": "https://app.mercury.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 270
     },
     {
       "slug": "mermaid-chart",
@@ -1600,7 +2264,6 @@
       "tagline": "Mermaid diagrams, validated and rendered before they ship.",
       "description": "Mermaid Chart's MCP server validates a Mermaid diagram and renders it, searches the icon sets a diagram can draw from, and reads the syntax reference for the diagram type in hand.",
       "domain": "mermaidchart.com",
-      "categories": ["design", "documentation", "developer-tools"],
       "authMethods": [],
       "interfaces": [
         {
@@ -1610,7 +2273,12 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.mermaidchart.com"
+      "home": "https://www.mermaidchart.com",
+      "category": "design",
+      "aliases": ["mermaid"],
+      "tier": "listed",
+      "rank": 83,
+      "registryName": "com.mermaidchart/mermaid-mcp"
     },
     {
       "slug": "microsoft-learn",
@@ -1618,7 +2286,6 @@
       "tagline": "Microsoft and Azure documentation, searched and read.",
       "description": "The Microsoft Learn MCP Server enables clients like GitHub Copilot and other AI agents to bring trusted and up-to-date information directly from Microsoft's official documentation. It is a remote MCP server that uses streamable http.",
       "domain": "learn.microsoft.com",
-      "categories": ["documentation"],
       "authMethods": [],
       "interfaces": [
         {
@@ -1627,7 +2294,11 @@
           "endpoint": "https://learn.microsoft.com/api/mcp",
           "auth": "none"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "hidden",
+      "rank": 25,
+      "registryName": "com.microsoft/microsoft-learn-mcp"
     },
     {
       "slug": "miro",
@@ -1635,7 +2306,6 @@
       "tagline": "Boards, frames, and sticky notes.",
       "description": "Use your teams workshops, technical specs and more in your AI workflows.",
       "domain": "miro.com",
-      "categories": ["design", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1651,7 +2321,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://miro.com/app"
+      "home": "https://miro.com/app",
+      "category": "design",
+      "tier": "listed",
+      "rank": 16,
+      "registryName": "io.github.miroapp/mcp-server"
     },
     {
       "slug": "mixpanel",
@@ -1659,7 +2333,6 @@
       "tagline": "Events, funnels, and retention, asked for in plain words.",
       "description": "Run segmentation, funnel, and retention analyses, explore your event taxonomy, manage Lexicon metadata, analyze session replays, and resolve data quality issues.",
       "domain": "mixpanel.com",
-      "categories": ["analytics", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1674,15 +2347,22 @@
           "endpoint": "https://mcp.mixpanel.com/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "data",
+      "tier": "listed",
+      "rank": 104
     },
     {
       "slug": "monday",
       "name": "monday.com",
       "tagline": "Boards, items, and updates.",
+      "examples": [
+        "What items are assigned to me?",
+        "Add the client kickoff to our Projects board",
+        "What’s stuck on the Marketing board?"
+      ],
       "description": "monday.com's GraphQL API lets agents query and update workspaces, boards, items, columns, and users. Its hosted MCP server wraps the platform API with agent-oriented tools.",
       "domain": "monday.com",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1697,7 +2377,12 @@
           "endpoint": "https://mcp.monday.com/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "tasks",
+      "aliases": ["monday.com"],
+      "tier": "featured",
+      "rank": 12,
+      "registryName": "com.monday/monday.com"
     },
     {
       "slug": "mongodb",
@@ -1705,7 +2390,6 @@
       "tagline": "Projects, clusters, and the database users on them.",
       "description": "MongoDB's MCP server only accepts OAuth clients MongoDB has issued in advance. The way in is the Atlas Administration API with a service account, which manages projects, clusters, and database users.",
       "domain": "mongodb.com",
-      "categories": ["database", "infrastructure"],
       "authMethods": [
         {
           "type": "token",
@@ -1722,7 +2406,10 @@
         }
       ],
       "docsUrl": "https://www.mongodb.com/docs/atlas/reference/api-resources-spec/",
-      "home": "https://cloud.mongodb.com"
+      "home": "https://cloud.mongodb.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 352
     },
     {
       "slug": "motherduck",
@@ -1730,7 +2417,6 @@
       "tagline": "DuckDB in the cloud: databases and SQL.",
       "description": "Connect AI assistants to your MotherDuck data warehouse. Explore, visualize, and manage data using natural language–no SQL skills required.",
       "domain": "motherduck.com",
-      "categories": ["database", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1746,7 +2432,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.motherduck.com"
+      "home": "https://app.motherduck.com",
+      "category": "data",
+      "tier": "listed",
+      "rank": 363
     },
     {
       "slug": "neon",
@@ -1754,7 +2443,6 @@
       "tagline": "Serverless Postgres: projects, branches, and SQL.",
       "description": "Neon's public API manages projects, branches, databases, and compute endpoints. The hosted MCP server exposes the same management surface over OAuth. API keys are Bearer tokens created in the console.",
       "domain": "neon.com",
-      "categories": ["database", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1770,7 +2458,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://console.neon.tech"
+      "home": "https://console.neon.tech",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 297,
+      "registryName": "com.neon/mcp"
     },
     {
       "slug": "netlify",
@@ -1778,7 +2470,6 @@
       "tagline": "Sites, deploys, and environment variables.",
       "description": "Create, deploy, and manage websites on Netlify. You'll be able to control all aspects of your site from creating secrets to enforcing access controls to aggregating your form submissions.",
       "domain": "netlify.com",
-      "categories": ["hosting", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1794,15 +2485,22 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.netlify.com"
+      "home": "https://app.netlify.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 54
     },
     {
       "slug": "notion",
       "name": "Notion",
-      "tagline": "Pages, databases, and comments as agent-editable workspace memory.",
+      "tagline": "Pages, databases, and comments.",
+      "examples": [
+        "Find my notes from Monday’s team meeting",
+        "Add this article to my reading list page",
+        "What’s on our roadmap this quarter?"
+      ],
       "description": "Notion's hosted MCP server lets agents search, create, and reorganize workspace content. The REST API underneath uses internal integrations with explicit page-level sharing — a natural permission boundary for agents.",
       "domain": "notion.com",
-      "categories": ["productivity", "knowledge-base"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1830,7 +2528,90 @@
         }
       ],
       "docsUrl": "https://developers.notion.com",
-      "home": "https://app.notion.com"
+      "home": "https://app.notion.com",
+      "category": "notes",
+      "tier": "featured",
+      "rank": 6,
+      "registryName": "com.notion/mcp"
+    },
+    {
+      "slug": "onedrive",
+      "name": "OneDrive",
+      "tagline": "Files, plus Word, Excel, and PowerPoint documents.",
+      "examples": [
+        "Find the slide deck I edited yesterday",
+        "Summarize my Project Plan document",
+        "What’s in my Documents folder?"
+      ],
+      "description": "Microsoft's file storage, SharePoint, and Office documents. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then the web app.",
+      "domain": "onedrive.live.com",
+      "home": "https://onedrive.live.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Microsoft sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Microsoft Graph",
+          "endpoint": "https://graph.microsoft.com/v1.0",
+          "auth": "oauth-client"
+        }
+      ],
+      "category": "files",
+      "aliases": ["sharepoint", "excel", "word", "powerpoint"],
+      "family": "microsoft",
+      "tier": "featured",
+      "rank": 38
+    },
+    {
+      "slug": "openweather",
+      "name": "OpenWeather",
+      "tagline": "Current weather and forecasts.",
+      "description": "Current weather and forecasts.",
+      "domain": "openweathermap.org",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "OpenWeather MCP server",
+          "endpoint": "https://mcp.openweathermap.org/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "registryName": "org.openweathermap/agents"
+    },
+    {
+      "slug": "opusclip",
+      "name": "OpusClip",
+      "tagline": "Short clips cut from long videos.",
+      "description": "Short clips cut from long videos.",
+      "domain": "opus.pro",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "OpusClip MCP server",
+          "endpoint": "https://mcp.opus.pro/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "io.github.opus-pro/opusclip",
+      "home": "https://clip.opus.pro",
+      "rank": 225
     },
     {
       "slug": "otter",
@@ -1838,7 +2619,6 @@
       "tagline": "Meeting notes and transcripts.",
       "description": "Otter's MCP Server integrates with Otter.ai's meeting intelligence platform, enabling users to search meeting transcripts, retrieve conversation records, and extract insights.",
       "domain": "otter.ai",
-      "categories": ["meetings", "notes"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1853,7 +2633,53 @@
           "endpoint": "https://mcp.otter.ai/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "rank": 105
+    },
+    {
+      "slug": "outlook",
+      "name": "Outlook",
+      "tagline": "Mail and calendar on Microsoft 365.",
+      "examples": [
+        "What came in from my manager today?",
+        "Draft a reply to the last email from Dana",
+        "What meetings do I have this afternoon?"
+      ],
+      "description": "Microsoft's mail and calendar, for work and personal accounts. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then through the Outlook or Mail app on this Mac, or the web app.",
+      "domain": "outlook.com",
+      "home": "https://outlook.office.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Microsoft sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the Outlook or Mail app on this Mac, or the web app."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Microsoft Graph",
+          "endpoint": "https://graph.microsoft.com/v1.0",
+          "auth": "oauth-client"
+        },
+        {
+          "format": "mac-app",
+          "name": "Microsoft Outlook",
+          "bundleId": "com.microsoft.Outlook"
+        },
+        {
+          "format": "mac-app",
+          "name": "Mail",
+          "bundleId": "com.apple.mail"
+        }
+      ],
+      "category": "mail",
+      "aliases": ["microsoft outlook", "hotmail", "outlook.com"],
+      "family": "microsoft",
+      "tier": "featured",
+      "rank": 13
     },
     {
       "slug": "oxylabs",
@@ -1861,7 +2687,6 @@
       "tagline": "Scrape a page, crawl a site, or read a marketplace listing.",
       "description": "Oxylabs' MCP server scrapes a URL, maps and crawls a site, and returns search-engine and marketplace results as structured data.",
       "domain": "oxylabs.io",
-      "categories": ["web-scraping", "search", "data"],
       "authMethods": [
         {
           "type": "api_key",
@@ -1877,7 +2702,10 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://dashboard.oxylabs.io"
+      "home": "https://dashboard.oxylabs.io",
+      "category": "research",
+      "tier": "listed",
+      "registryName": "io.oxylabs/oxylabs-mcp"
     },
     {
       "slug": "paddle",
@@ -1885,7 +2713,6 @@
       "tagline": "Subscriptions, transactions, and payouts.",
       "description": "Paddle is a merchant of record for software; its MCP server reads the subscriptions, transactions, and payouts that come with that arrangement.",
       "domain": "paddle.com",
-      "categories": ["payments", "finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1901,7 +2728,36 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://vendors.paddle.com"
+      "home": "https://vendors.paddle.com",
+      "category": "money",
+      "tier": "listed"
+    },
+    {
+      "slug": "padlet",
+      "name": "Padlet",
+      "tagline": "Boards for classes and teams.",
+      "description": "Boards for classes and teams.",
+      "domain": "padlet.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Padlet MCP server",
+          "endpoint": "https://mcp.padlet.com/",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "com.padlet/padlet",
+      "home": "https://padlet.com",
+      "rank": 618
     },
     {
       "slug": "pagerduty",
@@ -1909,7 +2765,6 @@
       "tagline": "Incidents, services, and on-call schedules.",
       "description": "Incidents, services, and on-call schedules.",
       "domain": "pagerduty.com",
-      "categories": ["observability", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1925,7 +2780,37 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.pagerduty.com"
+      "home": "https://www.pagerduty.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 174
+    },
+    {
+      "slug": "pandadoc",
+      "name": "PandaDoc",
+      "tagline": "Proposals, quotes, and e-signatures.",
+      "description": "Proposals, quotes, and e-signatures.",
+      "domain": "pandadoc.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "PandaDoc MCP server",
+          "endpoint": "https://mcp.pandadoc.com/v1/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "registryName": "com.pandadoc.mcp/mcp",
+      "home": "https://app.pandadoc.com",
+      "rank": 79
     },
     {
       "slug": "paper",
@@ -1933,7 +2818,6 @@
       "tagline": "The design canvas that is open right now, read and edited in place.",
       "description": "Paper's MCP server runs inside Paper Desktop rather than in the cloud, so it reaches the file open on this machine instead of an account somewhere. An agent reads the selection, the node tree, and the computed styles, writes HTML into an artboard, moves and restyles nodes, and exports PNG, SVG, or MP4. There is nothing to sign in to and nothing to install: Paper Desktop has to be running with the file open, and nothing answers when it is not.",
       "domain": "paper.design",
-      "categories": ["design"],
       "authMethods": [],
       "interfaces": [
         {
@@ -1944,7 +2828,9 @@
         }
       ],
       "docsUrl": "https://paper.design/docs/mcp",
-      "home": "https://paper.design"
+      "home": "https://paper.design",
+      "category": "design",
+      "tier": "listed"
     },
     {
       "slug": "paypal",
@@ -1952,7 +2838,6 @@
       "tagline": "Invoices, payments, and disputes.",
       "description": "The PayPal MCP server enables AI agents to interact with the PayPal platform.",
       "domain": "paypal.com",
-      "categories": ["payments", "finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -1968,7 +2853,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.paypal.com"
+      "home": "https://www.paypal.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 122,
+      "registryName": "com.paypal.mcp/mcp"
     },
     {
       "slug": "peloton",
@@ -1976,7 +2865,6 @@
       "tagline": "Classes, and a training plan built out of them.",
       "description": "Peloton's MCP server searches the class catalog and schedules what it finds into a training plan.",
       "domain": "onepeloton.com",
-      "categories": ["fitness", "media"],
       "authMethods": [],
       "interfaces": [
         {
@@ -1986,15 +2874,16 @@
           "auth": "none"
         }
       ],
-      "home": "https://members.onepeloton.com"
+      "home": "https://members.onepeloton.com",
+      "category": "life",
+      "tier": "listed"
     },
     {
       "slug": "posthog",
       "name": "PostHog",
-      "tagline": "Product analytics an agent can query in natural language.",
+      "tagline": "Product analytics, asked in plain words.",
       "description": "PostHog's MCP server exposes 50+ tools: run HogQL, build insights and dashboards, manage feature flags. Agents can answer 'what changed in signups last week?' against real product data.",
       "domain": "posthog.com",
-      "categories": ["analytics", "developer-tools"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2017,7 +2906,11 @@
         }
       ],
       "docsUrl": "https://posthog.com/docs",
-      "home": "https://app.posthog.com"
+      "home": "https://app.posthog.com",
+      "category": "data",
+      "tier": "listed",
+      "rank": 85,
+      "registryName": "io.github.PostHog/mcp"
     },
     {
       "slug": "postman",
@@ -2025,7 +2918,6 @@
       "tagline": "Collections, environments, and requests.",
       "description": "With Postman's MCP server, you can prompt AI to automate work across your Postman collections, environments, workspaces, and more.",
       "domain": "postman.com",
-      "categories": ["developer-tools", "api"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2041,7 +2933,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://web.postman.co"
+      "home": "https://web.postman.co",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 53,
+      "registryName": "com.postman/postman-mcp-server"
     },
     {
       "slug": "prisma",
@@ -2049,7 +2945,6 @@
       "tagline": "Prisma Postgres databases and their schemas.",
       "description": "Prisma provides developer tools and services around databases and TypeScript applications, including its ORM, managed Postgres offering, and Compute platform.",
       "domain": "prisma.io",
-      "categories": ["database", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2065,7 +2960,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://console.prisma.io"
+      "home": "https://console.prisma.io",
+      "category": "developer",
+      "tier": "listed",
+      "registryName": "io.prisma/mcp"
     },
     {
       "slug": "productboard",
@@ -2073,7 +2971,6 @@
       "tagline": "Customer insights, features, and the roadmap over them.",
       "description": "Productboard's MCP server reads the notes customers sent, the features they were attached to, and the roadmap that ordered them.",
       "domain": "productboard.com",
-      "categories": ["product-management", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2089,7 +2986,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.productboard.com"
+      "home": "https://app.productboard.com",
+      "category": "tasks",
+      "tier": "listed",
+      "rank": 430
     },
     {
       "slug": "quickbooks",
@@ -2097,7 +2997,6 @@
       "tagline": "Invoices, expenses, and reports.",
       "description": "Turn your business's raw financial data into clear financial insights. Analyze profitability, cash flow, and compare your performance against similar businesses in your industry and region.",
       "domain": "quickbooks.intuit.com",
-      "categories": ["finance", "accounting"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2113,7 +3012,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.qbo.intuit.com"
+      "home": "https://app.qbo.intuit.com",
+      "category": "money",
+      "aliases": ["intuit"],
+      "tier": "listed",
+      "rank": 45
     },
     {
       "slug": "railway",
@@ -2121,7 +3024,6 @@
       "tagline": "Services, deploys, variables, and logs.",
       "description": "Railway's MCP server creates and inspects projects, reads the logs of a deploy, and manages the variables a service runs with.",
       "domain": "railway.com",
-      "categories": ["hosting", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2133,11 +3035,15 @@
         {
           "format": "mcp",
           "name": "Railway MCP server",
-          "endpoint": "https://mcp.railway.com/mcp",
+          "endpoint": "https://mcp.railway.com/",
           "auth": "oauth"
         }
       ],
-      "home": "https://railway.com/dashboard"
+      "home": "https://railway.com/dashboard",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 188,
+      "registryName": "com.railway/mcp"
     },
     {
       "slug": "ramp",
@@ -2145,7 +3051,6 @@
       "tagline": "Cards, transactions, and spend policies.",
       "description": "Enables secure, read-only access to Ramp data for customer-defined logic.",
       "domain": "ramp.com",
-      "categories": ["finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2161,7 +3066,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.ramp.com"
+      "home": "https://app.ramp.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 97
     },
     {
       "slug": "razorpay",
@@ -2169,7 +3077,6 @@
       "tagline": "Payments, payment links, and settlements.",
       "description": "Query payments, orders, refunds, and settlements instantly through natural conversation.",
       "domain": "razorpay.com",
-      "categories": ["payments", "finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2185,7 +3092,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://dashboard.razorpay.com"
+      "home": "https://dashboard.razorpay.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 343
     },
     {
       "slug": "render",
@@ -2193,7 +3103,6 @@
       "tagline": "Services, deploys, and logs.",
       "description": "Render is a cloud platform for deploying and managing applications, background jobs, databases, and related infrastructure. It provides hosted services, developer tooling, and operational controls for running apps and workloads.",
       "domain": "render.com",
-      "categories": ["hosting", "developer-tools"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2209,7 +3118,10 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://dashboard.render.com"
+      "home": "https://dashboard.render.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 252
     },
     {
       "slug": "replicate",
@@ -2217,7 +3129,6 @@
       "tagline": "Run published models and collect the output.",
       "description": "Replicate runs open models on demand; its MCP server searches them, starts a prediction, and returns what came back.",
       "domain": "replicate.com",
-      "categories": ["ai", "media"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2232,15 +3143,16 @@
           "endpoint": "https://mcp.replicate.com/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "design",
+      "tier": "listed"
     },
     {
       "slug": "resend",
       "name": "Resend",
-      "tagline": "Send email from any agent with one API key.",
+      "tagline": "Email sent through one API key.",
       "description": "Resend is an email API built for developers. The official MCP server exposes sending, contacts, audiences, broadcasts, and domain management; the REST API is small enough for an agent to learn in one read.",
       "domain": "resend.com",
-      "categories": ["email", "communication", "developer-tools"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2262,7 +3174,10 @@
         }
       ],
       "docsUrl": "https://resend.com/docs",
-      "home": "https://resend.com/emails"
+      "home": "https://resend.com/emails",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 147
     },
     {
       "slug": "sanity",
@@ -2270,7 +3185,6 @@
       "tagline": "Structured content: documents, schemas, and datasets.",
       "description": "Sanity's MCP server queries a dataset with GROQ, reads the schema behind it, and writes documents back through the same shape.",
       "domain": "sanity.io",
-      "categories": ["cms", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2282,11 +3196,15 @@
         {
           "format": "mcp",
           "name": "Sanity MCP server",
-          "endpoint": "https://mcp.sanity.io/mcp",
+          "endpoint": "https://mcp.sanity.io",
           "auth": "oauth"
         }
       ],
-      "home": "https://www.sanity.io/manage"
+      "home": "https://www.sanity.io/manage",
+      "category": "stores",
+      "tier": "listed",
+      "rank": 198,
+      "registryName": "io.sanity.www/mcp"
     },
     {
       "slug": "scite",
@@ -2294,7 +3212,6 @@
       "tagline": "Citations in context: how a paper has been cited.",
       "description": "Scite delivers answers grounded in peer-reviewed research you can verify. Each response is backed by real scientific sources, with citations that show how studies have been supported, disputed, or contextualized by other researchers.",
       "domain": "scite.ai",
-      "categories": ["research"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2309,7 +3226,11 @@
           "endpoint": "https://api.scite.ai/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "research",
+      "tier": "listed",
+      "rank": 126,
+      "registryName": "ai.scite/mcp"
     },
     {
       "slug": "semgrep",
@@ -2317,7 +3238,6 @@
       "tagline": "Scan code for bugs and security issues.",
       "description": "Scan code for bugs and security issues.",
       "domain": "semgrep.dev",
-      "categories": ["security", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2332,15 +3252,16 @@
           "endpoint": "https://mcp.semgrep.ai/mcp",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "listed"
     },
     {
       "slug": "sentry",
       "name": "Sentry",
-      "tagline": "Errors, traces, and root-cause analysis for debugging agents.",
+      "tagline": "Errors, traces, and what caused them.",
       "description": "Sentry's hosted MCP server gives agents direct access to issues, events, releases, and Seer root-cause runs — the context a coding agent needs to fix what's actually broken in production.",
       "domain": "sentry.io",
-      "categories": ["observability", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2373,7 +3294,38 @@
         }
       ],
       "docsUrl": "https://docs.sentry.io",
-      "home": "https://sentry.io"
+      "home": "https://sentry.io",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 37,
+      "registryName": "io.github.getsentry/sentry-mcp"
+    },
+    {
+      "slug": "shippo",
+      "name": "Shippo",
+      "tagline": "Shipping labels, rates, and tracking.",
+      "description": "Shipping labels, rates, and tracking.",
+      "domain": "shippo.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Shippo MCP server",
+          "endpoint": "https://mcp.shippo.com",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "registryName": "com.shippo/shippo-mcp",
+      "home": "https://apps.goshippo.com",
+      "rank": 380
     },
     {
       "slug": "shopify",
@@ -2381,7 +3333,6 @@
       "tagline": "Storefronts and commerce data, GraphQL-first.",
       "description": "Shopify is GraphQL-first: the Admin API for store management and the Storefront API for shopping experiences. Agents authenticate with per-store access tokens from a custom app.",
       "domain": "shopify.com",
-      "categories": ["commerce", "e-commerce"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2409,7 +3360,10 @@
         }
       ],
       "docsUrl": "https://shopify.dev",
-      "home": "https://admin.shopify.com"
+      "home": "https://admin.shopify.com",
+      "category": "stores",
+      "tier": "listed",
+      "rank": 24
     },
     {
       "slug": "shortcut",
@@ -2417,7 +3371,6 @@
       "tagline": "Stories, epics, and iterations.",
       "description": "Shortcut's MCP server creates and updates stories, reads the epics and iterations holding them, and searches across the lot.",
       "domain": "shortcut.com",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2433,7 +3386,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.shortcut.com"
+      "home": "https://app.shortcut.com",
+      "category": "tasks",
+      "tier": "listed",
+      "rank": 791
     },
     {
       "slug": "signnow",
@@ -2441,7 +3397,6 @@
       "tagline": "Send documents for e-signature and track them.",
       "description": "Get documents signed faster without switching between tools.",
       "domain": "signnow.com",
-      "categories": ["documents", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2457,7 +3412,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.signnow.com"
+      "home": "https://app.signnow.com",
+      "category": "notes",
+      "tier": "listed",
+      "rank": 228
     },
     {
       "slug": "similarweb",
@@ -2465,7 +3423,6 @@
       "tagline": "Traffic and audience estimates for any site.",
       "description": "Similarweb estimates how much traffic a site gets and where it comes from; its MCP server answers that for a domain an agent names, including one it does not own.",
       "domain": "similarweb.com",
-      "categories": ["analytics", "marketing", "research"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2481,15 +3438,42 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://pro.similarweb.com"
+      "home": "https://pro.similarweb.com",
+      "category": "marketing",
+      "tier": "listed",
+      "rank": 124
+    },
+    {
+      "slug": "skiplagged",
+      "name": "Skiplagged",
+      "tagline": "Cheap flights and hotels.",
+      "description": "Cheap flights and hotels.",
+      "domain": "skiplagged.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Skiplagged MCP server",
+          "endpoint": "https://mcp.skiplagged.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "registryName": "com.skiplagged/mcp",
+      "home": "https://skiplagged.com"
     },
     {
       "slug": "slack",
       "name": "Slack",
       "tagline": "Read, search, and send messages where your team already works.",
+      "examples": [
+        "What did I miss in #general today?",
+        "Summarize the threads where I was mentioned",
+        "Tell Priya I’m running five minutes late"
+      ],
       "description": "Slack's hosted MCP server covers messaging, search, and canvases. The underlying Web API is one of the most battle-tested REST surfaces anywhere — token-based, method-oriented, and fully documented.",
       "domain": "slack.com",
-      "categories": ["communication", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2517,15 +3501,17 @@
         }
       ],
       "docsUrl": "https://docs.slack.dev",
-      "home": "https://app.slack.com"
+      "home": "https://app.slack.com",
+      "category": "mail",
+      "tier": "featured",
+      "rank": 3
     },
     {
       "slug": "spotify",
       "name": "Spotify",
-      "tagline": "Playlists, search, and playback for music-aware agents.",
+      "tagline": "Playlists, search, and playback.",
       "description": "Spotify's Web API covers search, playlists, libraries, and playback control. OAuth is mandatory for anything user-specific, with the client-credentials flow available for catalog-only access.",
       "domain": "spotify.com",
-      "categories": ["media", "entertainment"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2542,7 +3528,10 @@
         }
       ],
       "docsUrl": "https://developer.spotify.com",
-      "home": "https://open.spotify.com"
+      "home": "https://open.spotify.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 20
     },
     {
       "slug": "square",
@@ -2550,7 +3539,6 @@
       "tagline": "Payments, catalog, orders, and customers.",
       "description": "Access Square’s commerce platform to view transaction data, manage customer profiles, track inventory, process payments, and analyze sales patterns.",
       "domain": "squareup.com",
-      "categories": ["payments", "commerce"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2566,7 +3554,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://squareup.com/dashboard"
+      "home": "https://squareup.com/dashboard",
+      "category": "money",
+      "tier": "listed",
+      "rank": 57
     },
     {
       "slug": "squarespace",
@@ -2574,7 +3565,6 @@
       "tagline": "Domain search and name ideas.",
       "description": "Squarespace's MCP server covers domains and nothing else: whether a name is free, and what else is close to it.",
       "domain": "squarespace.com",
-      "categories": ["dns", "services"],
       "authMethods": [],
       "interfaces": [
         {
@@ -2584,15 +3574,16 @@
           "auth": "none"
         }
       ],
-      "home": "https://account.squarespace.com"
+      "home": "https://account.squarespace.com",
+      "category": "stores",
+      "tier": "listed"
     },
     {
       "slug": "stack-overflow",
       "name": "Stack Overflow",
-      "tagline": "Questions and answers, searched from the agent.",
+      "tagline": "Questions and answers.",
       "description": "Questions and answers, searched from the agent.",
       "domain": "stackoverflow.com",
-      "categories": ["developer-tools", "documentation"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2607,7 +3598,11 @@
           "endpoint": "https://mcp.stackoverflow.com",
           "auth": "oauth"
         }
-      ]
+      ],
+      "category": "developer",
+      "tier": "hidden",
+      "rank": 453,
+      "registryName": "com.stackoverflow.mcp/mcp"
     },
     {
       "slug": "strava",
@@ -2615,7 +3610,6 @@
       "tagline": "Activities, routes, and segments.",
       "description": "Strava's MCP server reads activities and the routes and segments under them. The sign-in asks for read scope over the profile's own data.",
       "domain": "strava.com",
-      "categories": ["fitness", "outdoors"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2631,15 +3625,17 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://www.strava.com/dashboard"
+      "home": "https://www.strava.com/dashboard",
+      "category": "life",
+      "tier": "listed",
+      "rank": 35
     },
     {
       "slug": "stripe",
       "name": "Stripe",
-      "tagline": "Payments infrastructure with first-class agent tooling.",
+      "tagline": "Payments, customers, and invoices.",
       "description": "Stripe ships an official MCP server with documentation search and account tools, a meticulously specified REST API, and the Stripe CLI. Restricted API keys make it one of the safest services to hand to an autonomous agent.",
       "domain": "stripe.com",
-      "categories": ["payments", "financial-services"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2672,7 +3668,11 @@
         }
       ],
       "docsUrl": "https://docs.stripe.com",
-      "home": "https://dashboard.stripe.com"
+      "home": "https://dashboard.stripe.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 11,
+      "registryName": "com.stripe/mcp"
     },
     {
       "slug": "supabase",
@@ -2680,7 +3680,6 @@
       "tagline": "Projects, tables, SQL, and edge functions.",
       "description": "Execute SQL queries on PostgreSQL databases, design and modify table schemas, deploy serverless edge functions, and configure user authentication.",
       "domain": "supabase.com",
-      "categories": ["database", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2696,7 +3695,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://supabase.com/dashboard"
+      "home": "https://supabase.com/dashboard",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 18,
+      "registryName": "com.supabase/mcp"
     },
     {
       "slug": "superhuman",
@@ -2704,7 +3707,6 @@
       "tagline": "The inbox: search, read, and draft.",
       "description": "The inbox: search, read, and draft.",
       "domain": "superhuman.com",
-      "categories": ["email", "productivity"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2720,7 +3722,9 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://mail.superhuman.com"
+      "home": "https://mail.superhuman.com",
+      "category": "mail",
+      "tier": "listed"
     },
     {
       "slug": "supermetrics",
@@ -2728,7 +3732,6 @@
       "tagline": "Marketing data from every ad platform at once.",
       "description": "Supermetrics collects marketing data from the ad and analytics platforms a team runs on; its MCP server queries that collection rather than each platform in turn.",
       "domain": "supermetrics.com",
-      "categories": ["marketing", "analytics", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2744,7 +3747,10 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://team.supermetrics.com"
+      "home": "https://team.supermetrics.com",
+      "category": "marketing",
+      "tier": "listed",
+      "registryName": "com.supermetrics/supermetrics"
     },
     {
       "slug": "svelte",
@@ -2752,7 +3758,6 @@
       "tagline": "The Svelte and SvelteKit documentation.",
       "description": "Svelte's MCP server lists the documentation's sections and returns the one an answer needs, builds a playground link for a snippet, and checks a component against the compiler.",
       "domain": "svelte.dev",
-      "categories": ["documentation", "developer-tools"],
       "authMethods": [],
       "interfaces": [
         {
@@ -2762,15 +3767,17 @@
           "auth": "none"
         }
       ],
-      "home": "https://svelte.dev/docs"
+      "home": "https://svelte.dev/docs",
+      "category": "developer",
+      "tier": "hidden",
+      "registryName": "dev.svelte/mcp"
     },
     {
       "slug": "tavily",
       "name": "Tavily",
-      "tagline": "Web search and page extraction built for agents.",
+      "tagline": "Web search and page extraction.",
       "description": "One API for search, extraction, and research. Built for the accuracy, speed, and security production agents require.",
       "domain": "tavily.com",
-      "categories": ["search"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2786,7 +3793,43 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://app.tavily.com"
+      "home": "https://app.tavily.com",
+      "category": "research",
+      "tier": "hidden",
+      "rank": 168
+    },
+    {
+      "slug": "teams",
+      "name": "Microsoft Teams",
+      "tagline": "Chats, channels, and meetings.",
+      "description": "Microsoft's team chat and meetings. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then the Teams app on this Mac or the web app.",
+      "domain": "teams.microsoft.com",
+      "home": "https://teams.microsoft.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Microsoft sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the Teams app on this Mac, or the web app."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Microsoft Graph",
+          "endpoint": "https://graph.microsoft.com/v1.0",
+          "auth": "oauth-client"
+        },
+        {
+          "format": "mac-app",
+          "name": "Microsoft Teams",
+          "bundleId": "com.microsoft.teams2"
+        }
+      ],
+      "category": "mail",
+      "aliases": ["microsoft teams"],
+      "family": "microsoft",
+      "tier": "listed",
+      "rank": 70
     },
     {
       "slug": "thumbtack",
@@ -2794,7 +3837,6 @@
       "tagline": "Local pros for a job, with quotes.",
       "description": "Ask questions about repairs, maintenance, or improvements and get matched with local pros.",
       "domain": "thumbtack.com",
-      "categories": ["services"],
       "authMethods": [],
       "interfaces": [
         {
@@ -2804,15 +3846,22 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.thumbtack.com"
+      "home": "https://www.thumbtack.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 575
     },
     {
       "slug": "todoist",
       "name": "Todoist",
-      "tagline": "Tasks, projects, and reminders your agent can manage.",
+      "tagline": "Tasks, projects, and reminders.",
+      "examples": [
+        "What’s due today?",
+        "Add renew my passport for next Monday",
+        "What did I finish this week?"
+      ],
       "description": "Todoist is a task manager with a mature developer platform. Agents can create and complete tasks, organize projects, and query filters through the unified v1 REST API or the official hosted MCP server.",
       "domain": "todoist.com",
-      "categories": ["productivity", "project-management"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2840,7 +3889,43 @@
         }
       ],
       "docsUrl": "https://developer.todoist.com",
-      "home": "https://app.todoist.com"
+      "home": "https://app.todoist.com",
+      "category": "tasks",
+      "tier": "featured",
+      "rank": 45,
+      "registryName": "net.todoist/mcp"
+    },
+    {
+      "slug": "trello",
+      "name": "Trello",
+      "tagline": "Boards, lists, and cards.",
+      "examples": [
+        "What cards are assigned to me?",
+        "Add a Book the venue card to the Planning board",
+        "Move the website copy card to Done"
+      ],
+      "description": "Atlassian's boards for tracking work. Its MCP server signs in with an Atlassian account and registers a client on the spot.",
+      "domain": "trello.com",
+      "home": "https://trello.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Trello MCP server",
+          "endpoint": "https://mcp.trello.com/v1",
+          "auth": "oauth"
+        }
+      ],
+      "category": "tasks",
+      "family": "atlassian",
+      "tier": "featured",
+      "rank": 17
     },
     {
       "slug": "trivago",
@@ -2848,7 +3933,6 @@
       "tagline": "Hotel prices compared across booking sites.",
       "description": "the trivago MCP server enables users to search for hotels and other accommodations using coordinates or broader geographic areas such as cities and countries.",
       "domain": "trivago.com",
-      "categories": ["travel"],
       "authMethods": [],
       "interfaces": [
         {
@@ -2858,7 +3942,64 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.trivago.com"
+      "home": "https://www.trivago.com",
+      "category": "life",
+      "tier": "listed",
+      "rank": 141
+    },
+    {
+      "slug": "typeform",
+      "name": "Typeform",
+      "tagline": "Forms, responses, and insights.",
+      "description": "Forms, responses, and insights.",
+      "domain": "typeform.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Typeform MCP server",
+          "endpoint": "https://api.typeform.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "data",
+      "tier": "listed",
+      "registryName": "com.typeform/typeform",
+      "home": "https://admin.typeform.com",
+      "rank": 15
+    },
+    {
+      "slug": "typefully",
+      "name": "Typefully",
+      "tagline": "Social posts, drafted and scheduled.",
+      "description": "Social posts, drafted and scheduled.",
+      "domain": "typefully.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Typefully MCP server",
+          "endpoint": "https://mcp.typefully.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "registryName": "com.typefully/mcp",
+      "home": "https://typefully.com",
+      "rank": 371
     },
     {
       "slug": "vanta",
@@ -2866,7 +4007,6 @@
       "tagline": "Compliance controls, tests, and evidence.",
       "description": "Vanta's MCP server reads the controls a framework asks for, the tests that check them, and the evidence collected against each one.",
       "domain": "vanta.com",
-      "categories": ["security", "compliance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2882,15 +4022,17 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.vanta.com"
+      "home": "https://app.vanta.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 231
     },
     {
       "slug": "vercel",
       "name": "Vercel",
-      "tagline": "Deployments, projects, and logs your agent can ship with.",
+      "tagline": "Deployments, projects, and logs.",
       "description": "Vercel's official MCP server covers documentation search, project management, and deployment analysis. The REST API and CLI give agents full control of the deploy loop — push, inspect, roll back.",
       "domain": "vercel.com",
-      "categories": ["hosting", "developer-tools"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2923,7 +4065,11 @@
         }
       ],
       "docsUrl": "https://vercel.com/docs",
-      "home": "https://vercel.com/dashboard"
+      "home": "https://vercel.com/dashboard",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 22,
+      "registryName": "com.vercel/vercel-mcp"
     },
     {
       "slug": "wakatime",
@@ -2931,7 +4077,6 @@
       "tagline": "Coding time, by project, language, and editor.",
       "description": "WakaTime records time spent coding from an editor plugin and reports it as day-level summaries. Read them at /users/current/summaries with range=Today or range=Last 7 Days, or explicit start and end dates; /users/current is the cheapest GET that proves a key. The key rides as HTTP Basic credentials, the key alone rather than a user and password, which is what --auth basic sends; ?api_key= is documented as an alternative and puts the key in the URL.",
       "domain": "wakatime.com",
-      "categories": ["analytics", "developer-tools", "productivity"],
       "authMethods": [
         {
           "type": "api_key",
@@ -2958,7 +4103,9 @@
         "conventions": "- `range` on summaries uses display phrases (`Today`, `Yesterday`, `Last 7 Days`, `This Week`, `Last Month`), while `stats/{range}` uses snake case (`last_7_days`). Mixing them fails.\n- `summaries` requires both `start` and `end` unless `range` is given.\n- Stats and insights may answer 202 with `is_up_to_date: false` while computing; wait and retry rather than reporting zeros.\n- Durations are in seconds; `text` fields carry a human-readable form.\n- `project` matches the project name exactly as WakaTime recorded it; list projects first if unsure.",
         "endpoints": "- `GET /users/current`: profile, timezone, `has_premium_features`.\n- `GET /users/current/status_bar/today`: today's total and breakdown.\n- `GET /users/current/summaries`: per-day totals by project, language, editor, and more. `start` and `end` (`YYYY-MM-DD`) or `range`; `project`, `timezone`. Includes `cumulative_total` and `daily_average`.\n- `GET /users/current/stats/{range}`: aggregate stats for `last_7_days`, `last_30_days`, `last_6_months`, `last_year`, `all_time`, `YYYY`, or `YYYY-MM`.\n- `GET /users/current/durations`: coding sessions for one day. `date` (required), `project`, `slice_by` (`project`, `language`, `editor`, `entity`, and more), `timezone`.\n- `GET /users/current/all_time_since_today`: total time since the account started; `project` optional.\n- `GET /users/current/projects`: project names.\n- `GET /users/current/goals`: goals and progress.\n- `GET /users/current/insights/{insight_type}/{range}`: `insight_type` one of `weekdays`, `days`, `best_day`, `daily_average`, `projects`, `languages`, `editors`, and more.\n\nPagination: paged lists take `page` and return `page`, `total_pages`, `next_page`.\n\nRate limits: under 10 requests per second averaged over 5 minutes; a 429 means back off.",
         "test": "/users/current"
-      }
+      },
+      "category": "developer",
+      "tier": "listed"
     },
     {
       "slug": "webflow",
@@ -2966,7 +4113,6 @@
       "tagline": "Sites, CMS collections, and pages.",
       "description": "Webflow MCP lets AI tools design pages, manage CMS content. Browse and update collections, create and edit pages, modify layouts and styles, and automate site-level tasks through natural language prompts.",
       "domain": "webflow.com",
-      "categories": ["cms", "design"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -2982,7 +4128,38 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://webflow.com/dashboard"
+      "home": "https://webflow.com/dashboard",
+      "category": "stores",
+      "tier": "listed",
+      "rank": 24,
+      "registryName": "com.webflow/mcp"
+    },
+    {
+      "slug": "whimsical",
+      "name": "Whimsical",
+      "tagline": "Flowcharts, mind maps, and wireframes.",
+      "description": "Flowcharts, mind maps, and wireframes.",
+      "domain": "whimsical.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Whimsical MCP server",
+          "endpoint": "https://mcp.whimsical.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "registryName": "com.whimsical/mcp",
+      "home": "https://whimsical.com",
+      "rank": 183
     },
     {
       "slug": "wix",
@@ -2990,7 +4167,6 @@
       "tagline": "Sites, stores, bookings, and CMS collections.",
       "description": "The Wix MCP provides users with the ability to manage their account's websites and apps (Stores, Bookings, Blog etc.). In addition, the MCP also helps devs create new sites using Wix Headless, the Wix Design system and more.",
       "domain": "wix.com",
-      "categories": ["cms", "commerce"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -3006,7 +4182,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://manage.wix.com"
+      "home": "https://manage.wix.com",
+      "category": "stores",
+      "tier": "listed",
+      "rank": 52,
+      "registryName": "com.wix/mcp"
     },
     {
       "slug": "wolfram",
@@ -3014,7 +4194,6 @@
       "tagline": "Computation, math, and curated data.",
       "description": "Computation, math, and curated data.",
       "domain": "wolfram.com",
-      "categories": ["research", "data"],
       "authMethods": [],
       "interfaces": [
         {
@@ -3024,7 +4203,11 @@
           "auth": "none"
         }
       ],
-      "home": "https://www.wolframalpha.com"
+      "home": "https://www.wolframalpha.com",
+      "category": "research",
+      "tier": "listed",
+      "rank": 268,
+      "registryName": "com.wolfram/mcp"
     },
     {
       "slug": "workos",
@@ -3032,7 +4215,6 @@
       "tagline": "Enterprise auth: organizations, directories, and SSO.",
       "description": "WorkOS's MCP server reads and manages the organizations, directory connections, and SSO setups an app authenticates against.",
       "domain": "workos.com",
-      "categories": ["developer-tools", "security"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -3048,15 +4230,18 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://dashboard.workos.com"
+      "home": "https://dashboard.workos.com",
+      "category": "developer",
+      "tier": "listed",
+      "rank": 415,
+      "registryName": "com.workos/mcp"
     },
     {
       "slug": "xero",
       "name": "Xero",
       "tagline": "Invoices, bills, and the ledger behind them.",
-      "description": "Xero authenticates every path, its MCP server included, with an OAuth client from an app registered in Xero's developer portal, which the sign-in card cannot be. There is no API key. Not reachable as an app from here; the user signs in on the Browser screen and a task works there.",
+      "description": "Xero authenticates every path, its MCP server included, with an OAuth client from an app registered in Xero's developer portal, which the sign-in card cannot be. There is no API key. Reachable as a web app: the user signs in to the site in Instrument's browser and a task works there.",
       "domain": "xero.com",
-      "categories": ["accounting", "finance"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -3073,7 +4258,10 @@
         }
       ],
       "docsUrl": "https://developer.xero.com/documentation/api/accounting/overview",
-      "home": "https://go.xero.com"
+      "home": "https://go.xero.com",
+      "category": "money",
+      "tier": "listed",
+      "rank": 62
     },
     {
       "slug": "zapier",
@@ -3081,7 +4269,6 @@
       "tagline": "Thousands of app actions through one server.",
       "description": "Thousands of app actions through one server.",
       "domain": "zapier.com",
-      "categories": ["automation"],
       "authMethods": [
         {
           "type": "api_key",
@@ -3097,15 +4284,23 @@
           "auth": "api_key"
         }
       ],
-      "home": "https://zapier.com/app"
+      "home": "https://zapier.com/app",
+      "category": "automation",
+      "tier": "listed",
+      "rank": 27,
+      "registryName": "com.zapier/mcp"
     },
     {
       "slug": "zoom",
       "name": "Zoom",
       "tagline": "Meetings, recordings, and summaries.",
+      "examples": [
+        "Summarize my last meeting",
+        "What Zoom calls do I have tomorrow?",
+        "Find the recording of Tuesday’s all-hands"
+      ],
       "description": "Meetings, recordings, and summaries.",
       "domain": "zoom.us",
-      "categories": ["meetings", "communication"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -3120,7 +4315,11 @@
           "endpoint": "https://mcp.zoom.us/mcp/zoom/streamable",
           "auth": "oauth-client"
         }
-      ]
+      ],
+      "category": "calendar",
+      "tier": "featured",
+      "rank": 31,
+      "registryName": "io.github.zoom/zoom-workspace"
     },
     {
       "slug": "zoominfo",
@@ -3128,7 +4327,6 @@
       "tagline": "Company and contact data for prospecting.",
       "description": "ZoomInfo's MCP server searches its company and contact database and enriches records an agent already holds.",
       "domain": "zoominfo.com",
-      "categories": ["sales", "data"],
       "authMethods": [
         {
           "type": "oauth2",
@@ -3144,7 +4342,11 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://app.zoominfo.com"
+      "home": "https://app.zoominfo.com",
+      "category": "sales",
+      "tier": "listed",
+      "rank": 47,
+      "registryName": "io.github.Zoominfo/zoominfo-mcp"
     }
   ]
 }

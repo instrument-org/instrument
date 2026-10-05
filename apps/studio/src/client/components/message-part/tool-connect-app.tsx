@@ -14,7 +14,7 @@ type ConnectAppPart = Extract<
 
 /**
  * The card that asks the user for the one thing only they can give an app: a
- * sign-in, or a key. Drawn from the call that asked, but its state is the
+ * sign-in (on the service's own site, for a web app), or a key. Drawn from the call that asked, but its state is the
  * app's connection record, so it says what happened wherever it is seen and
  * long after the call returned. The agent hears the outcome as a note, never
  * the credential.
@@ -79,11 +79,13 @@ function ConnectCard({
             <p className="text-sm font-medium">
               {kind === "sign-in"
                 ? `Sign in to ${name}`
-                : kind === "key"
-                  ? `${name} needs a key`
-                  : kind === "run"
-                    ? `${name} runs on ${thisComputer()}`
-                    : `Connect ${name}`}
+                : kind === "web"
+                  ? `Sign in to ${name} on the web`
+                  : kind === "key"
+                    ? `${name} needs a key`
+                    : kind === "run"
+                      ? `${name} runs on ${thisComputer()}`
+                      : `Connect ${name}`}
             </p>
             <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
           </div>

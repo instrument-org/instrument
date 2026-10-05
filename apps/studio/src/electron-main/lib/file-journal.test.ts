@@ -73,7 +73,10 @@ describe("undoing a rename", () => {
   it("refuses when the renamed thing has been replaced since", async () => {
     await fs.writeFile(at("plans.txt"), "renamed");
     const before = await identity("plans.txt");
-    await fs.rm(at("plans.txt"));
+    // Moved away rather than deleted, so the new file cannot be handed the
+    // inode the old one freed, which Linux filesystems do at once.
+    const movedAway = `${dir}-moved-away.txt`;
+    await fs.rename(at("plans.txt"), movedAway);
     await fs.writeFile(at("plans.txt"), "a new file under the same name");
 
     await expect(
@@ -85,6 +88,7 @@ describe("undoing a rename", () => {
       }),
     ).rejects.toThrow("has been moved or replaced");
     expect(await listed()).toEqual(["plans.txt"]);
+    await fs.rm(movedAway);
   });
 });
 

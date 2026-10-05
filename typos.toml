@@ -58,6 +58,8 @@ extend-exclude = [
   ".git/",
   # Git submodule, owned upstream.
   "registry/",
+  # Brand icons copied from their collections, ids and all.
+  "packages/workspace/directory-icons/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
   "patches/",

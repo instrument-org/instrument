@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 
@@ -7,9 +9,11 @@ import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
   catalogEntryLocalServer,
+  catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   findCatalogEntry,
   searchAppCatalog,
+  searchAppCatalogByMeaning,
 } from "../apps/catalog";
 import {
   describeConnection,
@@ -22,6 +26,7 @@ import {
   APP_MANIFEST_FILE_NAME,
   type AppManifest,
   AppManifestSchema,
+  type CalledAppManifest,
   AppSlugSchema,
   isMcpManifest,
 } from "../apps/manifest";
@@ -59,6 +64,7 @@ import {
   type SubcommandShell,
   subcommand,
 } from "./subcommands";
+import { TASK_COMMAND } from "./task-command";
 import { subprocessStdin } from "./utils";
 
 export { APP_COMMAND } from "./app-command";
@@ -73,7 +79,8 @@ export interface AppCommandContext {
 type CatalogWayIn =
   | { auth: string; endpoint: string; kind: "api"; test?: string }
   | { auth?: string; endpoint: string; kind: "mcp" }
-  | { kind: "browser"; where: string }
+  | { kind: "mac-app"; name: string }
+  | { kind: "web"; url: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -91,7 +98,7 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
       Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} when there is
       none, from the directory's entry for the service when it has one. An
       MCP app's guide is done as written; an API app's may leave prompts to
@@ -107,7 +114,10 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       and the user has to allow it to run before it does. When it drives an
       app on this Mac, --mac-app takes that app's bundle identifier
       (\`osascript -e 'id of app "Drafts"'\` prints it), and the app is drawn
-      with that app's icon. Refuses to overwrite
+      with that app's icon. --web names a service worked on its own site in
+      ${APP_NAME}'s browser, for one with no sign-in the card can open: the
+      user signs in there (at --sign-in, when the login page is not the
+      url), and a task works the site in a tab. Refuses to overwrite
       an existing manifest without --force. You can also write the two files
       yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
@@ -155,7 +165,9 @@ const runApp = defineSubcommands<AppCommandContext>({
       run: ({ positional }, context, { signal, stdin }) =>
         runCall(positional, context, stdin, signal),
     }),
-    catalog: subcommand({ run: ({ positional }) => runCatalog(positional) }),
+    catalog: subcommand({
+      run: ({ positional }, _, { signal }) => runCatalog(positional, signal),
+    }),
     disconnect: subcommand({
       positional: 1,
       run: ({ positional }, context) => runDisconnect(positional, context),
@@ -183,7 +195,9 @@ const runApp = defineSubcommands<AppCommandContext>({
         "mcp",
         "name",
         "runtime",
+        "sign-in",
         "test",
+        "web",
       ],
       repeatable: ["arg", "header"],
       run: (input, context) => runNew(input, context),
@@ -253,8 +267,9 @@ function catalogKeyPlacement(auth: string | undefined): string | undefined {
  * How a service is reached, decided once so the index and the detail cannot
  * disagree about it. An API a key opens is the third way in; a service with
  * none of the three (every way in wants a sign-in client of the user's own,
- * which the card cannot make) is told so, rather than handed a set-up line of
- * placeholders that no --auth the command takes can fill.
+ * which the card cannot make) is set up as a web app at its home, rather than
+ * handed a set-up line of placeholders that no --auth the command takes can
+ * fill.
  */
 function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   const mcp = catalogEntryMcpEndpoint(entry);
@@ -289,7 +304,11 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
       };
     }
   }
-  return { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
+  const macApp = catalogEntryMacApp(entry);
+  if (macApp) {
+    return { kind: "mac-app", name: macApp.name };
+  }
+  return { kind: "web", url: entry.home ?? `https://${entry.domain}` };
 }
 
 /** The catalog, as lines: what each service is and how it is reached. */
@@ -316,7 +335,9 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         ? `${start} --local ${way.package} --runtime ${way.runtime}`
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
-          : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
+          : way.kind === "mac-app"
+            ? `nothing to connect: a task works in ${way.name} on this Mac with osascript, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            : `${start} --web ${way.url}  (on the web: every other way in needs a sign-in client ${APP_NAME} does not have yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,
@@ -376,7 +397,7 @@ function ok(stdout: string) {
 function parseAuth(
   raw: string | undefined,
   type: "api" | "mcp" | "mcp-local",
-): AppManifest["auth"] {
+): CalledAppManifest["auth"] {
   const value =
     raw?.trim() ||
     (type === "mcp" ? "oauth" : type === "mcp-local" ? "none" : "bearer");
@@ -517,6 +538,9 @@ async function runCall(
   const [slug, tool, inline] = args;
   const app = await requireApp(slug, context, { connected: true });
   const manifest = app.manifest;
+  if (manifest.type === "web") {
+    throw new Error(webAppRefusal(app.slug, manifest.url));
+  }
   if (!isMcpManifest(manifest)) {
     throw new Error(
       `"${app.slug}" is an API app; make requests with \`${APP_COMMAND.name} request\`.`,
@@ -559,10 +583,20 @@ async function runCall(
     : ok(`${text}\n`);
 }
 
-function runCatalog(args: string[]) {
+async function runCatalog(args: string[], signal: AbortSignal | undefined) {
   const query = args.join(" ").trim();
   const entries = searchAppCatalog(query);
   if (entries.length === 0) {
+    // The words name nothing listed, but they may still say what it is for.
+    const meant = await searchAppCatalogByMeaning(query, {
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
+      signal,
+    });
+    if (meant.length > 0) {
+      return ok(
+        `Nothing in the directory is called "${query}". By what it is for, these may be what is meant, most likely first; ask the user which before setting one up unless one plainly fits.\n\n${meant.map(describeCatalogEntry).join("\n\n")}\n`,
+      );
+    }
     return ok(
       `Nothing in the directory matches "${query}". Set it up by hand. A service you do not know is a short research task first, and the brief has to name what you can actually write, or what comes back is a manifest shape this command does not take: ask it for the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
     );
@@ -572,10 +606,14 @@ function runCatalog(args: string[]) {
   // the alphabet from "consensus" to "slack". So a listing nobody narrowed is
   // one line each, which fits, and a word brings back the detail.
   if (query === "") {
+    const groups = APP_CATEGORIES.flatMap(({ id, label }) => {
+      const inCategory = entries.filter((entry) => entry.category === id);
+      return inCategory.length === 0
+        ? []
+        : [`${label}\n${inCategory.map(summarizeCatalogEntry).join("\n")}`];
+    });
     return ok(
-      `${entries.length} services. \`${APP_COMMAND.name} catalog <words>\` for what one is, how it is reached, and the line that sets it up.\n\n${entries
-        .map(summarizeCatalogEntry)
-        .join("\n")}\n`,
+      `${entries.length} services, by category, most used first. \`${APP_COMMAND.name} catalog <words>\` for what one is, how it is reached, and the line that sets it up.\n\n${groups.join("\n\n")}\n`,
     );
   }
   const detailed = entries
@@ -712,15 +750,26 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
   const mcp = input.value("mcp");
   const api = input.value("api");
   const local = input.value("local");
-  if ([mcp, api, local].filter(Boolean).length !== 1) {
+  const web = input.value("web");
+  if ([mcp, api, local, web].filter(Boolean).length !== 1) {
     throw new Error(
-      "new takes exactly one of --mcp <url>, --api <base-url>, or --local <package>.",
+      "new takes exactly one of --mcp <url>, --api <base-url>, --local <package>, or --web <url>.",
     );
   }
-  const auth = parseAuth(
-    input.value("auth"),
-    local ? "mcp-local" : mcp ? "mcp" : "api",
-  );
+  const signIn = input.value("sign-in")?.trim();
+  if (signIn && !web) {
+    throw new Error(
+      "--sign-in goes with --web: only a web app signs in on a page of its own.",
+    );
+  }
+  if (web && input.value("auth") !== undefined) {
+    throw new Error(
+      "a web app takes no --auth: the user signs in on the site itself.",
+    );
+  }
+  const auth = web
+    ? undefined
+    : parseAuth(input.value("auth"), local ? "mcp-local" : mcp ? "mcp" : "api");
   const headers = Object.fromEntries(
     input.all("header").map((header) => {
       const [key, ...valueParts] = header.split(":");
@@ -745,26 +794,28 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
       "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
     );
   }
-  const candidate: unknown = local
-    ? {
-        ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
-        auth,
-        ...(macApp ? { macApp } : {}),
-        name,
-        package: local,
-        runtime,
-        type: "mcp-local",
-      }
-    : mcp
-      ? { auth, name, type: "mcp", url: mcp }
-      : {
+  const candidate: unknown = web
+    ? { name, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    : local
+      ? {
+          ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
           auth,
-          baseUrl: api,
-          ...(Object.keys(headers).length > 0 ? { headers } : {}),
+          ...(macApp ? { macApp } : {}),
           name,
-          test: { path: test ?? "" },
-          type: "api",
-        };
+          package: local,
+          runtime,
+          type: "mcp-local",
+        }
+      : mcp
+        ? { auth, name, type: "mcp", url: mcp }
+        : {
+            auth,
+            baseUrl: api,
+            ...(Object.keys(headers).length > 0 ? { headers } : {}),
+            name,
+            test: { path: test ?? "" },
+            type: "api",
+          };
   if (api && !test) {
     throw new Error(
       "an API app needs --test <path>: a cheap GET, relative to the base URL, that proves the key (a /me or /users/me is usual).",
@@ -804,19 +855,23 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
   // bound to the origin it was saved for, so only a manifest that still sends
   // requests there reuses it; one pointed elsewhere asks the user again.
   const stored =
-    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
+    manifest.type === "web" ||
+    manifest.auth.kind === "none" ||
+    manifest.auth.kind === "oauth"
       ? undefined
       : await lookupAppCredential(slug, manifest);
   const next =
-    manifest.auth.kind === "none"
-      ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
-      : manifest.auth.kind === "oauth"
-        ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
-        : stored?.kind === "ok"
-          ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`
-          : stored?.kind === "moved"
-            ? credentialMovedMessage({ noun: "key", ...stored })
-            : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
+    manifest.type === "web"
+      ? `Ask the user to sign in with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`
+      : manifest.auth.kind === "none"
+        ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
+        : manifest.auth.kind === "oauth"
+          ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
+          : stored?.kind === "ok"
+            ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`
+            : stored?.kind === "moved"
+              ? credentialMovedMessage({ noun: "key", ...stored })
+              : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
   return ok(
     `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
@@ -830,6 +885,9 @@ async function runRequest(
 ) {
   const [slug, rawMethod, requestPath, inlineBody] = input.positional;
   const app = await requireApp(slug, context, { connected: true });
+  if (app.manifest.type === "web") {
+    throw new Error(webAppRefusal(app.slug, app.manifest.url));
+  }
   if (app.manifest.type !== "api") {
     throw new Error(
       `"${app.slug}" is an MCP app; use \`${APP_COMMAND.name} tools\` and \`${APP_COMMAND.name} call\`.`,
@@ -927,6 +985,9 @@ async function runTools(
 ) {
   const app = await requireApp(args[0], context, { connected: true });
   const manifest = app.manifest;
+  if (manifest.type === "web") {
+    throw new Error(webAppRefusal(app.slug, manifest.url));
+  }
   if (!isMcpManifest(manifest)) {
     throw new Error(
       `"${app.slug}" is an API app and has no tools; read its guide with \`${APP_COMMAND.name} guide ${app.slug}\` and make requests.`,
@@ -984,8 +1045,15 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
         ? "mcp:local"
         : way.kind === "api"
           ? "api:key"
-          : "browser";
+          : way.kind === "mac-app"
+            ? "mac-app"
+            : "web";
   return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
+}
+
+/** Why `call`, `tools`, and `request` refuse a web app, and how it is worked instead. */
+function webAppRefusal(slug: string, url: string): string {
+  return `"${slug}" is a web app: the user is signed in to it in ${APP_NAME}'s browser, and no \`${APP_COMMAND.name}\` call reaches it. Work it in a tab: brief a task with ${url}, or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`.`;
 }
 
 /** The call's own signal, bounded by a timeout so a hung service cannot hold a turn. */

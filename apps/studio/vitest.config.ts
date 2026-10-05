@@ -51,12 +51,18 @@ const SHARED_EXCLUDE = [
 ];
 
 export default defineConfig({
-  define: Object.fromEntries(
-    Object.entries(GLOBAL_DEFINES).map(([key, value]) => [
-      key,
-      JSON.stringify(value),
-    ]),
-  ),
+  define: {
+    ...Object.fromEntries(
+      Object.entries(GLOBAL_DEFINES).map(([key, value]) => [
+        key,
+        JSON.stringify(value),
+      ]),
+    ),
+    // The build inlines a preview's name into the shared constants
+    // (electron.vite.config.ts); the browser project has no `process` to read
+    // it from, and the suite runs as the regular app.
+    "process.env.INSTRUMENT_PREVIEW_NAME": JSON.stringify(""),
+  },
   // A measured test that renders without the app's stylesheet is measuring a
   // different app, so the browser project loads `globals.css` for real and
   // needs the plugin that compiles it. Inert for the other two projects, which

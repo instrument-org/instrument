@@ -31,6 +31,7 @@
     "script:query-task-db": "tsx scripts/query-task-db.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",
     "script:refresh-directory-icons": "tsx scripts/refresh-directory-icons.ts",
+    "script:sync-directory-registry": "tsx scripts/sync-directory-registry.ts",
     "script:run-bash": "node --import tsx scripts/run-bash.ts",
     "script:run-workspace": "cross-env NODE_ENV=development tsx scripts/run-workspace.ts",
     "script:seed-workspace": "cross-env NODE_ENV=development tsx scripts/seed-workspace.ts",

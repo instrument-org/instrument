@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
+import { loadApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { knowTask } from "../../test/helpers/mock-task-config";
@@ -422,5 +423,72 @@ describe("app icon", () => {
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("an icon is square");
+  });
+});
+
+describe("app new --web", () => {
+  it("writes a web app with its sign-in page and points at connect_app", async () => {
+    const result = await app(
+      "new",
+      "zoom-web",
+      "--name",
+      "Zoom",
+      "--web",
+      "https://zoom.us",
+      "--sign-in",
+      "https://zoom.us/signin",
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(
+      "Ask the user to sign in with connect_app: the card opens https://zoom.us/signin in Instrument's browser",
+    );
+    expect(await manifestOf("zoom-web")).toEqual({
+      name: "Zoom",
+      signIn: "https://zoom.us/signin",
+      type: "web",
+      url: "https://zoom.us",
+    });
+    expect(await guideOf("zoom-web")).toContain(
+      "Worked on the web at https://zoom.us",
+    );
+  });
+
+  it.each([
+    [["--web", "https://zoom.us", "--auth", "bearer"], "takes no --auth"],
+    [
+      [
+        "--mcp",
+        "https://mcp.zoom.us/mcp",
+        "--sign-in",
+        "https://zoom.us/signin",
+      ],
+      "--sign-in goes with --web",
+    ],
+    [
+      ["--web", "https://zoom.us", "--mcp", "https://mcp.zoom.us/mcp"],
+      "exactly one of",
+    ],
+  ])("refuses %j", async (extra, message) => {
+    const result = await app("new", "zoom-bad", "--name", "Zoom", ...extra);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(message);
+  });
+
+  it("refuses a call, saying how a web app is worked", async () => {
+    await app("new", "zoom-call", "--name", "Zoom", "--web", "https://zoom.us");
+    const { manifestHash } = (
+      await loadApp(getWorkspaceConfig().appsDir, "zoom-call")
+    )._unsafeUnwrap();
+    await getWorkspaceConfig().apps.connections.set("zoom-call", {
+      manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+    const result = await app("call", "zoom-call", "list_meetings");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: brief a task with https://zoom.us, or hand it a tab already open there with \`task new --tab <id>\`.
+      "
+    `);
   });
 });

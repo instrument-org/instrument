@@ -4,10 +4,12 @@ export {
 } from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,
+  catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
   findCatalogEntry,
   getAppCatalog,
+  searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export {

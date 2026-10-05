@@ -24,6 +24,8 @@ export const publisher = new EventPublisher<{
     event: AppEvent;
     name: string;
     slug: string;
+    /** For a web app, the site the work happens on. */
+    web?: string;
   };
   /**
    * An app's folder or connection record changed. Carries no payload because

@@ -25,6 +25,7 @@ import {
   beginMcpOAuth,
   cancelMcpOAuth,
   describeLocalLaunch,
+  catalogEntryMacApp,
   findCatalogEntry,
   getAppCatalog,
   isConnected,
@@ -37,6 +38,7 @@ import {
   removeLocalServer,
   requireAppCredential,
   runAppTest,
+  searchAppCatalogByMeaning,
   withAppMcpClient,
   appChanged,
   appListChanges,
@@ -84,11 +86,13 @@ const AppListItemSchema = z.object({
   name: z.string(),
   /** For an app whose server runs here, what runs, in words. */
   runs: z.string().optional(),
+  /** For a web app, the page its sign-in opens in the window's browser. */
+  signIn: z.string().optional(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
   standing: AppStandingSchema,
-  type: z.enum(["api", "mcp", "mcp-local"]),
+  type: z.enum(["api", "mcp", "mcp-local", "web"]),
 });
 
 /**
@@ -121,6 +125,21 @@ async function iconFor(app: {
   return directory ? { icon: directory } : {};
 }
 
+/**
+ * The Mac's own app's icon for an entry that is that app (Apple Notes is
+ * drawn as Notes), never for a service a Mac app merely reads, so Gmail is
+ * not drawn as Mail.
+ */
+async function macAppIconFor(
+  entry: ReturnType<typeof getAppCatalog>[number],
+): Promise<string | undefined> {
+  const macApp =
+    entry.family === "apple" ? catalogEntryMacApp(entry) : undefined;
+  return macApp
+    ? ((await getMacAppIconUrl(macApp.bundleId).catch(() => null)) ?? undefined)
+    : undefined;
+}
+
 const AppListSchema = z.object({
   apps: z.array(AppListItemSchema),
   invalid: z.array(z.object({ message: z.string(), slug: z.string() })),
@@ -142,13 +161,15 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
                 : "stale"
               : connection.status;
         return {
-          authKind: app.manifest.auth.kind,
+          // A web app has no auth binding: the user signs in on the site.
+          authKind:
+            app.manifest.type === "web" ? "web" : app.manifest.auth.kind,
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
           endpoint:
             app.manifest.type === "api"
               ? app.manifest.baseUrl
-              : app.manifest.type === "mcp"
+              : app.manifest.type === "mcp" || app.manifest.type === "web"
                 ? app.manifest.url
                 : app.manifest.package,
           hasCredential: hasAppCredential(app.slug),
@@ -158,6 +179,9 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           name: app.manifest.name,
           ...(app.manifest.type === "mcp-local"
             ? { runs: describeLocalLaunch(app.manifest) }
+            : {}),
+          ...(app.manifest.type === "web"
+            ? { signIn: app.manifest.signIn ?? app.manifest.url }
             : {}),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
@@ -186,14 +210,30 @@ const live = {
  * The directory: what the product knows how to reach before anyone connects
  * it, each service with the icon the build ships for it, if any.
  */
-const catalog = base.handler(() =>
-  Promise.all(
-    getAppCatalog().map(async (entry) => ({
-      ...entry,
-      icon: await directoryIconFor(entry.slug),
-    })),
-  ),
-);
+const catalog = base.handler(() => Promise.all(getAppCatalog().map(withIcon)));
+
+/**
+ * The directory's services a search means without naming them, most likely
+ * first, each with its icon as `catalog` gives it. Empty when no provider
+ * reaches the decision model.
+ */
+const catalogByMeaning = base
+  .input(z.object({ query: z.string() }))
+  .handler(async ({ context, input, signal }) => {
+    const meant = await searchAppCatalogByMeaning(input.query, {
+      configs: context.workspaceConfig.getAIProviderConfigs(),
+      signal,
+    });
+    return Promise.all(meant.map(withIcon));
+  });
+
+/** A directory entry with the icon the build ships for it, or its Mac app's. */
+async function withIcon(entry: ReturnType<typeof getAppCatalog>[number]) {
+  return {
+    ...entry,
+    icon: (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry)),
+  };
+}
 
 /**
  * Whether a tool may be pressed from the inspector: the server says it only
@@ -574,6 +614,34 @@ const allow = base
     return report;
   });
 
+/**
+ * "I'm signed in" on a web app's card or page: the user's word is the whole
+ * of the connection, since nothing here can see a session in the browser.
+ * Pinned to the manifest as it stands, so a site the agent moves the app to
+ * later asks again; the chat is woken the way a finished sign-in wakes it.
+ */
+const markWebSignedIn = base
+  .input(z.object({ slug: AppSlugSchema }))
+  .handler(async ({ context, errors, input }) => {
+    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    const { manifest, manifestHash } = loaded.value;
+    if (manifest.type !== "web") {
+      throw errors.NOT_FOUND({
+        message: `${input.slug} is not a web app.`,
+      });
+    }
+    await recordConnection(input.slug, {
+      connectedAt: Date.now(),
+      error: undefined,
+      manifestHash,
+      status: "connected",
+    });
+    await appChanged(input.slug, { event: "connected" });
+  });
+
 /** "Not now" on the card. */
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
@@ -623,11 +691,13 @@ export const apps = {
   allow,
   cancelOAuth,
   catalog,
+  catalogByMeaning,
   disconnect,
   dismiss,
   inspect,
   list,
   live,
+  markWebSignedIn,
   read,
   remove,
   setCredential,

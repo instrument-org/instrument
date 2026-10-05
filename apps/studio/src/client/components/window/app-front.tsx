@@ -2,21 +2,25 @@ import { visitedPagesAtom } from "@/client/atoms/window";
 import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
+import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
+import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   AppInspector,
-  AppInspectorPreview,
   type InspectorReading,
 } from "@/client/components/window/app-inspector";
 import { visitsWithin } from "@/client/components/window/app-visits";
@@ -25,9 +29,11 @@ import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
+import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
+import { zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { appMentionToken } from "@/client/lib/app-mention";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -69,9 +75,15 @@ export function AppFront({
   const icon = app?.icon ?? entry?.icon;
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
-  // The inspector reads the app's server, which for a local app starts it on
-  // this computer, so it loads when asked rather than with the page.
-  const [isBrowsing, setIsBrowsing] = useState(false);
+  // Worked on its own site in the window's browser: the site is the app, so
+  // opening it is what the page leads with.
+  const isWeb = app?.type === "web";
+  // Every action the app lists, open to try, behind the menu by its name:
+  // there to look into, not what the page leads with.
+  const [isInspecting, setIsInspecting] = useState(false);
+  // The action the list opens on, when a card opened it.
+  const [inspectingAction, setInspectingAction] = useState<string>();
+  useBlockTabNavigation(isInspecting);
   const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
   const runsHere =
@@ -158,16 +170,18 @@ export function AppFront({
   }
 
   const domain = home ? new URL(home).host : undefined;
-  const description = entry?.description ?? entry?.tagline;
+  const examples = isConnected ? (entry?.examples ?? []) : [];
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
   const needs = app
-    ? app.type === "mcp-local"
-      ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
-      : app.type === "mcp" && app.authKind === "oauth"
-        ? `Sign in to ${name} once.`
-        : app.authKind === "none"
-          ? "No sign-in needed."
-          : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
+    ? app.type === "web"
+      ? `Sign in to ${name} in Instrument’s browser, then say so here.`
+      : app.type === "mcp-local"
+        ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
+        : app.type === "mcp" && app.authKind === "oauth"
+          ? `Sign in to ${name} once.`
+          : app.authKind === "none"
+            ? "No sign-in needed."
+            : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
     : methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
       : "";
@@ -179,12 +193,7 @@ export function AppFront({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6">
-      <div
-        className={cn(
-          "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          isBrowsable ? "max-w-6xl" : "max-w-3xl",
-        )}
-      >
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">
           <AppIcon icon={icon} name={name} site={site} size="lg" />
@@ -203,6 +212,15 @@ export function AppFront({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
+                    {isBrowsable ? (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setIsInspecting(true);
+                        }}
+                      >
+                        See every action
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       disabled={test.isPending}
                       onSelect={() => {
@@ -234,26 +252,11 @@ export function AppFront({
                 </DropdownMenu>
               ) : null}
             </div>
-            {/* The directory's line about the app folded into the head: one
-              line under the name, the whole of it in a popover so opening it
-              moves nothing on the page. */}
-            {description ? (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    className="block w-full max-w-2xl truncate text-left text-xs leading-5 text-muted-foreground hover:text-foreground"
-                    type="button"
-                  >
-                    {description}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-md text-[13px] leading-5"
-                >
-                  {description}
-                </PopoverContent>
-              </Popover>
+            {/* The directory's one line about the app under its name. */}
+            {entry?.tagline ? (
+              <p className="truncate text-xs leading-5 text-muted-foreground">
+                {entry.tagline}
+              </p>
             ) : (
               <p className="truncate text-xs leading-5 text-muted-foreground">
                 {domain ?? (app ? app.endpoint : "")}
@@ -265,7 +268,12 @@ export function AppFront({
               way to it is always here, wearing the app's own mark;
               connecting is what the agent needs, not what a person needs to
               open a page. */}
-            {home && browser ? (
+            {home && browser && isWeb && isConnected ? (
+              <Button onClick={openHome} size="sm">
+                <AppIcon icon={icon} name={name} site={site} size="sm" />
+                <span className="truncate">Open {name}</span>
+              </Button>
+            ) : home && browser ? (
               <button
                 className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-xs hover:bg-accent"
                 onClick={openHome}
@@ -290,56 +298,87 @@ export function AppFront({
           </div>
         </div>
 
-        {/* Where you were in the app, first and always: a recent page is a
-          row you press, not a name you have to type back into the field,
-          and the best way back into a service is the page you were on. */}
-        {/* Where you have been in the app, one row under the head: the
-          quick way back in belongs to the page, not to the browser below. */}
+        {/* Where you have been in the app, laid out the way the browser's
+          start page lays out its own: the quick way back into a service is
+          the page you were on. */}
         {visits.length > 0 ? (
-          isBrowsable ? (
-            <section className="mt-4 flex items-center gap-3">
-              <p className="shrink-0 text-[13px] font-medium text-muted-foreground">
-                Recent pages
-              </p>
-              <div className="min-w-0 flex-1">
-                <VisitedPageRows
-                  isCompact
-                  isOneRow
-                  onOpen={openPage}
-                  visits={visits}
-                />
-              </div>
-            </section>
-          ) : (
-            <section className="mt-6">
-              <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
-                Recent pages
-              </p>
+          <div className="mt-8">
+            <PageSection title="Recent pages">
               <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-            </section>
-          )
+            </PageSection>
+          </div>
+        ) : null}
+
+        {/* Requests a person might make of the app, each one press from
+          the conversation. */}
+        {examples.length > 0 ? (
+          <div className="mt-8">
+            <PageSection title="Try asking">
+              <div className="flex flex-wrap gap-2">
+                {examples.map((example) => (
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
+                    key={example}
+                    onClick={() => {
+                      ask(`${appMentionToken({ name, slug })}: ${example}`);
+                    }}
+                    type="button"
+                  >
+                    {/* The glyph every button that opens a prefilled draft
+                      carries, so these read as asking Instrument. */}
+                    <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </PageSection>
+          </div>
         ) : null}
 
         {isBrowsable ? (
-          isBrowsing ? (
-            <AppInspector
-              name={name}
-              onHide={() => {
-                setIsBrowsing(false);
+          <AppCapabilities
+            name={name}
+            onAsk={(action) => {
+              ask(`Use ${action} in ${appMentionToken({ name, slug })} to `);
+            }}
+            onInspect={(action) => {
+              setInspectingAction(action);
+              setIsInspecting(true);
+            }}
+            slug={slug}
+          />
+        ) : null}
+
+        {isBrowsable ? (
+          <Dialog
+            onOpenChange={(isOpen) => {
+              setIsInspecting(isOpen);
+              if (!isOpen) {
                 setReading(undefined);
-              }}
-              onReading={setReading}
-              runsHere={runsHere}
-              slug={slug}
-            />
-          ) : (
-            <AppInspectorPreview
-              name={name}
-              onLoad={() => {
-                setIsBrowsing(true);
-              }}
-            />
-          )
+              }
+            }}
+            open={isInspecting}
+          >
+            <DialogContent
+              className="flex flex-col"
+              maxWidth="72rem"
+              style={{ height: zoomMaxSize("height", "46rem") }}
+            >
+              <DialogHeader>
+                <DialogTitle>Every action in {name}</DialogTitle>
+                <DialogDescription>
+                  Press anything that only reads to see what {name} answers.
+                </DialogDescription>
+              </DialogHeader>
+              <AppInspector
+                initialAction={inspectingAction}
+                name={name}
+                onReading={setReading}
+                runsHere={runsHere}
+                slug={slug}
+              />
+            </DialogContent>
+          </Dialog>
         ) : null}
 
         {/* While the app is still being set up, the one thing that
@@ -356,7 +395,9 @@ export function AppFront({
               {needs ? (
                 <p className="mb-3 text-sm text-muted-foreground">{needs}</p>
               ) : null}
-              {app?.standing === "needs-sign-in" ? (
+              {isWeb ? (
+                <ConnectControls kind="web" name={name} slug={slug} />
+              ) : app?.standing === "needs-sign-in" ? (
                 <ConnectControls kind="sign-in" name={name} slug={slug} />
               ) : app?.standing === "needs-approval" ? (
                 <ConnectControls

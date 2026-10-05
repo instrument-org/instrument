@@ -623,7 +623,7 @@ const allow = base
   });
 
 /**
- * "I'm signed in" on a web app's card or page: the user's word is the whole
+ * "Done signing in" on a web app's card or page: the user's word is the whole
  * of the connection, since nothing here can see a session in the browser.
  * Pinned to the manifest as it stands, so a site the agent moves the app to
  * later asks again; the chat is woken the way a finished sign-in wakes it.

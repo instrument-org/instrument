@@ -49,6 +49,9 @@ export function ConnectControls({
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   const [waiting, setWaiting] = useState(false);
+  // Whether a web app's site has been opened from here, after which the
+  // controls ask for the word that the sign-in there is done.
+  const [openedSite, setOpenedSite] = useState(false);
   // The default browser, for the button that sends the sign-in there.
   const browser = useQuery(
     rpcClient.utils.browserOpenTarget.queryOptions({
@@ -205,34 +208,55 @@ export function ConnectControls({
   }
 
   // A site's own sign-in, in the window's browser where the work happens:
-  // nothing here can see the session, so the user says when it is done.
+  // nothing here can see the session, so once the site is open the user says
+  // when they are done there.
   if (kind === "web") {
     const signInPage = listed?.signIn;
+    const openSite = () => {
+      if (signInPage !== undefined) {
+        appWindow?.openPage(signInPage);
+        setOpenedSite(true);
+      }
+    };
     return (
       <div className="flex flex-col gap-2">
-        <Destination origin={origin}>Signs in at</Destination>
+        {openedSite ? (
+          <p className="text-xs text-muted-foreground">
+            Sign in on the {name} page that opened, then press Done.
+          </p>
+        ) : (
+          <Destination origin={origin}>Signs in at</Destination>
+        )}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-          <Button
-            disabled={busy || !appWindow?.browser || signInPage === undefined}
-            onClick={() => {
-              if (signInPage !== undefined) {
-                appWindow?.openPage(signInPage);
-              }
-            }}
-            size="sm"
-          >
-            {label ?? `Open ${name}`}
-          </Button>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              markWebSignedIn.mutate({ slug });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            I’m signed in
-          </Button>
+          {openedSite ? (
+            <>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  markWebSignedIn.mutate({ slug });
+                }}
+                size="sm"
+              >
+                Done signing in
+              </Button>
+              <Button
+                disabled={busy || !appWindow?.browser}
+                onClick={openSite}
+                size="sm"
+                variant="outline"
+              >
+                {`Open ${name} again`}
+              </Button>
+            </>
+          ) : (
+            <Button
+              disabled={busy || !appWindow?.browser || signInPage === undefined}
+              onClick={openSite}
+              size="sm"
+            >
+              {label ?? `Open ${name}`}
+            </Button>
+          )}
           {dismissible ? (
             <Button
               disabled={busy}

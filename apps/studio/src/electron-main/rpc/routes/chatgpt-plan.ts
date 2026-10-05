@@ -1,7 +1,9 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelChatGPTSignIn,
+  type ChatGPTSignInResult,
   chatGPTPlanStatus,
   signInWithChatGPT,
   signOutOfChatGPT,
@@ -24,37 +26,47 @@ const live = {
 
 /**
  * Signs in to the account `accountId` names, or, without one, to whichever
- * account the browser signs in to, adding it when it is new.
+ * account the browser signs in to, adding it when it is new. Answers how it
+ * ended, with what went wrong when it failed.
  */
 const signIn = base
   .input(z.object({ accountId: z.string().optional() }))
-  .handler(async ({ context, errors, input }) => {
-    try {
-      const server = await startAuthCallbackServer();
-      if (!server) {
-        throw new Error("The sign-in callback server isn't running");
-      }
-      const account = await signInWithChatGPT({
-        accountId: input.accountId,
-        callbackPort: server.port,
-      });
-      if (account?.state === "signed-in") {
-        // A plan is a way to run models like a provider or an account, so the
-        // app opens on the window from now on, as it does after either of
-        // those.
-        getWorkspaceState().set("hasCompletedProviderSetup", true);
-        context.workspaceConfig.captureEvent("provider.created", {
-          provider_type: "chatgpt",
+  .handler(
+    async ({
+      context,
+      input,
+    }): Promise<ChatGPTSignInResult | { error: string; outcome: "failed" }> => {
+      try {
+        const server = await startAuthCallbackServer();
+        if (!server) {
+          throw new Error("The sign-in callback server isn't running");
+        }
+        const result = await signInWithChatGPT({
+          accountId: input.accountId,
+          callbackPort: server.port,
         });
+        if (result.outcome === "signed-in") {
+          // A plan is a way to run models like a provider or an account, so
+          // the app opens on the window from now on, as it does after either
+          // of those.
+          getWorkspaceState().set("hasCompletedProviderSetup", true);
+          context.workspaceConfig.captureEvent("provider.created", {
+            provider_type: "chatgpt",
+          });
+        }
+        return result;
+      } catch (error) {
+        captureServerException(
+          new Error("ChatGPT sign-in failed", { cause: error }),
+          { scopes: ["auth"] },
+        );
+        return {
+          error: error instanceof Error ? error.message : "Sign-in failed",
+          outcome: "failed",
+        };
       }
-      return account;
-    } catch (error) {
-      throw errors.API_ERROR({
-        cause: error,
-        message: error instanceof Error ? error.message : "Sign-in failed",
-      });
-    }
-  });
+    },
+  );
 
 /**
  * Makes the account's everyday model the default when it is the only account

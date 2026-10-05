@@ -194,6 +194,7 @@ async function start() {
       state !== undefined &&
       state === store.state
     ) {
+      publisher.publish("auth.sign-in-outcome", { outcome: "declined" });
       focusAppWindow();
       return c.html(
         renderAuthPage({
@@ -252,8 +253,9 @@ async function start() {
 
       if (res.error) {
         const page = failed(new Error("Login failed", { cause: res.error }));
-        publisher.publish("auth.login-error", {
+        publisher.publish("auth.sign-in-outcome", {
           error: res.error,
+          outcome: "failed",
         });
         focusAppWindow();
         return await c.html(page, 400);
@@ -265,19 +267,20 @@ async function start() {
     } catch (error) {
       const page = failed(new Error("Error signing in", { cause: error }));
       // The button in the app holds until it hears how the sign-in went.
-      publisher.publish("auth.login-error", {
+      publisher.publish("auth.sign-in-outcome", {
         error: {
           message: error instanceof Error ? error.message : undefined,
           status: 500,
           statusText: "Error signing in",
         },
+        outcome: "failed",
       });
       focusAppWindow();
       return c.html(page, 400);
     }
 
     void setDefaultModel();
-    publisher.publish("auth.login-success", { success: true });
+    publisher.publish("auth.sign-in-outcome", { outcome: "signed-in" });
     // Delay focus so the renderer has time to navigate to the success screen
     // before the window comes to front -- keeps the entrance animation visible.
     setTimeout(focusAppWindow, 400);
@@ -401,42 +404,36 @@ async function start() {
     if (!("value" in status)) {
       return c.html(status, 400);
     }
-    const account = status.value;
-    if (account === undefined) {
-      // Canceled on OpenAI's page, or a newer sign-in took this one's place.
-      return params.get("error") === "access_denied"
-        ? c.html(
-            renderAuthPage({
-              kind: "declined",
-              service: chatGPT,
-            }),
-          )
-        : c.html(renderAuthPage({ kind: "expired" }), 400);
+    const { account, outcome } = status.value;
+    switch (outcome) {
+      case "canceled": {
+        // A newer sign-in took this one's place, or it was given up in the app.
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "declined": {
+        return c.html(renderAuthPage({ kind: "declined", service: chatGPT }));
+      }
+      case "plan-off": {
+        // Signed in, with plan access left unchecked on OpenAI's page.
+        return c.html(
+          renderAuthPage({
+            headline: "ChatGPT plan access is off",
+            kind: "declined",
+            service: chatGPT,
+          }),
+        );
+      }
+      case "signed-in": {
+        return c.html(
+          renderAuthPage({
+            email: account?.email,
+            inFront: true,
+            kind: "connected",
+            service: chatGPT,
+          }),
+        );
+      }
     }
-    if (account.state === "plan-disabled") {
-      // Signed in, with plan access left unchecked on OpenAI's page.
-      return c.html(
-        renderAuthPage({
-          headline: "ChatGPT plan access is off",
-          kind: "declined",
-          service: chatGPT,
-        }),
-      );
-    }
-    if (account.state !== "signed-in") {
-      return c.html(
-        failedPage(new Error(`ChatGPT sign-in ended ${account.state}`)),
-        400,
-      );
-    }
-    return c.html(
-      renderAuthPage({
-        email: account.email,
-        inFront: true,
-        kind: "connected",
-        service: chatGPT,
-      }),
-    );
   });
 
   app.get("/test", (c) =>

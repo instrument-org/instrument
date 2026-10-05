@@ -1,20 +1,23 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppCommand } from "@/shared/app-command";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
-  "auth.login-error": {
-    error: {
-      code?: string | undefined;
-      message?: string | undefined;
-      status: number;
-      statusText: string;
-    };
-  };
-  "auth.login-success": {
-    success: true;
-  };
+  // How the Google sign-in to Instrument that came back through the browser
+  // ended, for the sign-in waiting on it in the window.
+  "auth.sign-in-outcome":
+    | {
+        error: {
+          code?: string | undefined;
+          message?: string | undefined;
+          status: number;
+          statusText: string;
+        };
+        outcome: Extract<SignInOutcome, "failed">;
+      }
+    | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
   // A download a person started in a task's browser panel has ended, in their
   // Downloads folder or not at all. The app window says so; the
   // agent's own downloads report through agent-browser instead. `folder` is

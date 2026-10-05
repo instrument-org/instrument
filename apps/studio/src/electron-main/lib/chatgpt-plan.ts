@@ -8,6 +8,7 @@ import {
   APP_NAME,
   CHATGPT_PLAN_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
+import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { safeStorage, shell } from "electron";
 import Store from "electron-store";
 import {
@@ -129,8 +130,14 @@ export interface ChatGPTPlanStatus {
   signingIn: boolean;
 }
 
-/** The account a sign-in landed on, or undefined when it was canceled or replaced. */
-export type ChatGPTSignInResult = ChatGPTAccountStatus | undefined;
+/**
+ * How a sign-in ended, and the account it landed on when it signed in. A
+ * sign-in that went wrong rejects instead, with what went wrong.
+ */
+export interface ChatGPTSignInResult {
+  account?: ChatGPTAccountStatus;
+  outcome: Exclude<SignInOutcome, "expired" | "failed">;
+}
 
 /**
  * A provider config for each account that may use its plan. The token in each
@@ -571,7 +578,7 @@ async function runSignIn({
 
   const callback = await received;
   if (!callback) {
-    return undefined;
+    return { outcome: "canceled" };
   }
   if (callback.get("state") !== state) {
     throw new Error("The sign-in response did not match this attempt");
@@ -579,7 +586,7 @@ async function runSignIn({
   const error = callback.get("error");
   if (error) {
     if (error === "access_denied") {
-      return undefined;
+      return { outcome: "declined" };
     }
     throw new Error(
       `ChatGPT sign-in failed: ${callback.get("error_description") ?? error}`,
@@ -642,7 +649,15 @@ async function runSignIn({
   // still out for the tokens it replaces.
   saveUnlessReplaced(registrationById(registration.id), registration);
   grantOf(registration.id).send({ type: "signedIn" });
-  return accountStatus(registration, registrations());
+  const account = accountStatus(registration, registrations());
+  if (account.state === "signed-out") {
+    // Tokens with no refresh token: a session that ends within the hour.
+    throw new Error("ChatGPT sign-in left the account without a session");
+  }
+  return {
+    account,
+    outcome: account.state === "plan-disabled" ? "plan-off" : "signed-in",
+  };
 }
 
 const UNUSABLE_REFRESH_CODES = new Set([

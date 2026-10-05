@@ -358,6 +358,56 @@ describe("several ChatGPT accounts", () => {
   });
 });
 
+describe("how a ChatGPT sign-in ends", () => {
+  /** Starts a sign-in and answers with the state its authorize URL carries. */
+  async function start() {
+    const { shell } = await import("electron");
+    const opened = vi.mocked(shell.openExternal);
+    opened.mockClear();
+    const ended = plan.signInWithChatGPT({ callbackPort: 1455 });
+    await vi.waitFor(() => {
+      expect(opened).toHaveBeenCalled();
+    });
+    const url = new URL(String(opened.mock.calls[0]?.[0]));
+    return { ended, state: url.searchParams.get("state") ?? "" };
+  }
+
+  it("is declined when the person says no on OpenAI's page", async () => {
+    stored = { registrations: {} };
+    const { ended, state } = await start();
+    void plan.receiveChatGPTCallback(
+      new URLSearchParams({ error: "access_denied", state }),
+    );
+    await expect(ended).resolves.toEqual({ outcome: "declined" });
+  });
+
+  it("is canceled when given up in the app", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    plan.cancelChatGPTSignIn();
+    await expect(ended).resolves.toEqual({ outcome: "canceled" });
+  });
+
+  it("is canceled when a newer sign-in takes its place", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    void plan.signInWithChatGPT({ callbackPort: 1455 });
+    await expect(ended).resolves.toEqual({ outcome: "canceled" });
+    plan.cancelChatGPTSignIn();
+  });
+
+  it("fails on a callback for some other attempt", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    void plan
+      .receiveChatGPTCallback(
+        new URLSearchParams({ code: "c", state: "not-this-one" }),
+      )
+      ?.catch(() => undefined);
+    await expect(ended).rejects.toThrow("did not match");
+  });
+});
+
 describe("refreshDelayMs", () => {
   const now = 1_000_000_000;
   const minutes = (n: number) => n * 60_000;

@@ -1,4 +1,5 @@
 import {
+  APP_CATEGORIES,
   APP_CATEGORY_IDS,
   APP_FAMILY_IDS,
   searchDirectory,
@@ -235,16 +236,24 @@ export function catalogEntryMacApp(
 }
 
 /** Below this chance a service is not offered as what a search meant. */
-const MEANT_AT_LEAST = 0.1;
+const MEANT_AT_LEAST = 0.6;
+/**
+ * How far below the best fit a service may score and still be offered: the
+ * scale each model scores on drifts with the query, so what counts as a fit
+ * is judged against the best one rather than alone.
+ */
+const MEANT_WITHIN = 0.2;
 /** How many services a search by meaning offers. */
-const MEANT_SHOWN = 4;
+const MEANT_SHOWN = 8;
 
 /**
  * Services a search means without naming them, asked of the decision model:
- * "text my mom" is Apple Messages, "track my runs" Strava, "word documents"
- * OneDrive, none of which the words spell. Most likely first, only those it
- * gives a real chance, and nothing when no provider reaches the model or the
- * call fails, so a caller treats it as a bonus over the search by words.
+ * "text my mom" is Apple Messages, "track my runs" Strava, "design tool"
+ * Figma and Canva and the whiteboards, none of which the words spell. Each
+ * service is asked about on its own, so a search several of them fit offers
+ * them all rather than the single likeliest. Best fit first, only those
+ * close to it, and nothing when no provider reaches the model or the call
+ * fails, so a caller treats it as a bonus over the search by words.
  */
 export async function searchAppCatalogByMeaning(
   query: string,
@@ -261,37 +270,55 @@ export async function searchAppCatalogByMeaning(
   try {
     const asked = await askDecisionModel({
       body: {
-        questions: {
-          service: {
-            criteria: {
-              ...Object.fromEntries(
-                browsed.map((entry) => [
-                  entry.slug,
-                  `${entry.name}: ${entry.tagline}`,
-                ]),
-              ),
-              none: "None of these: no listed service is what the person means.",
+        questions: Object.fromEntries(
+          browsed.map((entry) => [
+            entry.slug,
+            {
+              criteria: {
+                false: "It does not fit what they typed",
+                true: "It is a service the person could be looking for, by name or by what it does",
+              },
+              // The tagline and category, not the longer description: in
+              // trials the description's detail pulled scores toward
+              // incidental words and away from what the service is.
+              instructions: `Would ${describeForMeaning(entry)} be a useful result for what the person typed into an app directory's search box?`,
+              type: "noul",
             },
-            instructions:
-              "A person typed this into the search box of an app directory. Which listed service do they most likely mean or need? Pick none when no listed service fits.",
-            type: "choice",
-          },
-        },
+          ]),
+        ),
         state: { query },
       },
       configs,
       signal,
     });
-    const probabilities = asked?.response.answers.service?.probabilities ?? {};
-    return Object.entries(probabilities)
-      .filter(([slug, chance]) => slug !== "none" && chance >= MEANT_AT_LEAST)
-      .sort((a, b) => b[1] - a[1])
+    const fits = Object.entries(asked?.response.answers ?? {})
+      .flatMap(([slug, answer]) =>
+        answer.noul === undefined ? [] : [{ chance: answer.noul, slug }],
+      )
+      .sort((a, b) => b.chance - a.chance);
+    const best = fits[0]?.chance ?? 0;
+    return fits
+      .filter(
+        ({ chance }) =>
+          chance >= MEANT_AT_LEAST && chance >= best - MEANT_WITHIN,
+      )
       .slice(0, MEANT_SHOWN)
-      .flatMap(([slug]) => {
+      .flatMap(({ slug }) => {
         const entry = bySlug.get(slug);
         return entry ? [entry] : [];
       });
   } catch {
     return [];
   }
+}
+
+/** A service as the decision model weighs it: name, category, what it is for, and what else it is called. */
+function describeForMeaning(entry: AppCatalogEntry): string {
+  const category =
+    APP_CATEGORIES.find(({ id }) => id === entry.category)?.label ??
+    entry.category;
+  const aliases = entry.aliases?.length
+    ? ` Also called ${entry.aliases.join(", ")}.`
+    : "";
+  return `${entry.name} (${category}): ${entry.tagline}${aliases}`;
 }

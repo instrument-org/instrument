@@ -16,7 +16,7 @@ import {
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useDeferredValue, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
@@ -30,6 +30,8 @@ const MEANING_MIN_LENGTH = 3;
 
 /** How many tiles hold the directory's place while it is on its way. */
 const SKELETONS_SHOWN = 12;
+/** How many tiles hold the related services' place while the model is asked: one row. */
+const RELATED_SKELETONS = 2;
 
 /**
  * The Apps place's new tab: the apps this workspace reaches as marks, the
@@ -71,34 +73,37 @@ export function AppsHome({
     (entry) => !known.has(entry.slug),
   );
   const more = directoryByUse(unconnected);
-  const typed = query.trim();
+  // The field answers every key at once; the tiles follow a beat behind
+  // when a keystroke's render would hold the next one up.
+  const typed = useDeferredValue(query.trim());
   const matches = typed === "" ? more : searchDirectory(unconnected, typed);
   // Unsearched, the featured services lead as Popular and every other one
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
   const rest = more.filter((entry) => entry.tier !== "featured");
   // A search the words barely answer ("text my mom") also goes to the
-  // decision model, once the typing settles; what it finds is added under
-  // the matches when it arrives, leaving out any already shown.
-  const settled = useDebouncedValue(typed, 300);
+  // decision model, once the typing settles. Its place at the foot of the
+  // results is held from the first key that asks, so what it finds lands
+  // where nothing is to be pressed and moves nothing that is.
   const asksMeaning =
     showsConnect &&
-    settled.length >= MEANING_MIN_LENGTH &&
-    searchDirectory(unconnected, settled).length < MEANING_BELOW_MATCHES;
+    typed.length >= MEANING_MIN_LENGTH &&
+    matches.length < MEANING_BELOW_MATCHES;
+  const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({
-      enabled: asksMeaning,
+      enabled: asksMeaning && settled === typed,
       input: { query: settled },
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
   const shownSlugs = new Set(matches.map((entry) => entry.slug));
-  const meant =
-    asksMeaning && settled === typed
-      ? (byMeaning.data ?? []).filter(
-          (entry) => !known.has(entry.slug) && !shownSlugs.has(entry.slug),
-        )
-      : [];
+  const answered = asksMeaning && settled === typed && byMeaning.isFetched;
+  const meant = answered
+    ? (byMeaning.data ?? []).filter(
+        (entry) => !known.has(entry.slug) && !shownSlugs.has(entry.slug),
+      )
+    : [];
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
@@ -221,28 +226,32 @@ export function AppsHome({
                     {matches.map(tileFor)}
                   </div>
                 ) : null}
-                {meant.length > 0 ? (
-                  <div>
-                    <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
-                      Might be what you mean
-                    </h3>
-                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                      {meant.map(tileFor)}
-                    </div>
-                  </div>
-                ) : null}
                 {/* A service the words name exactly, listed or already
                     yours, is the one meant, so "connect it anyway" would
                     only offer it a second time. */}
                 {namesOne(matches, typed) || namesOne(own, typed) ? null : (
                   <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
                     <UnlistedTile
-                      isOnlyOne={matches.length === 0 && meant.length === 0}
+                      isOnlyOne={matches.length === 0}
                       name={typed}
                       onConnect={connectTyped}
                     />
                   </div>
                 )}
+                {asksMeaning && !(answered && meant.length === 0) ? (
+                  <div>
+                    <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
+                      Related
+                    </h3>
+                    {answered ? (
+                      <div className="grid animate-in grid-cols-1 gap-3 duration-200 fade-in-0 @xl/apps:grid-cols-2">
+                        {meant.map(tileFor)}
+                      </div>
+                    ) : (
+                      <TileSkeletons count={RELATED_SKELETONS} />
+                    )}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -394,11 +403,11 @@ function MarkSkeletons() {
   );
 }
 
-/** Tiles holding the directory's place while it is still on its way. */
-function TileSkeletons() {
+/** Tiles holding the directory's place, or the related services', while they are still on their way. */
+function TileSkeletons({ count = SKELETONS_SHOWN }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-      {Array.from({ length: SKELETONS_SHOWN }, (_, index) => (
+      {Array.from({ length: count }, (_, index) => (
         <div
           className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
           key={index}
@@ -488,9 +497,7 @@ function waitingLine(app: App): string {
 
 /**
  * Every service still to connect, under its category, most used first in
- * each. Developer tools hold a quarter of the directory and few of the
- * people it is for, so they wait behind their own button rather than
- * making the page read as a developer product.
+ * each. Developer tools come last, where the categories' order puts them.
  */
 function CategoryGroups({
   entries,
@@ -499,7 +506,6 @@ function CategoryGroups({
   entries: CatalogEntry[];
   renderTile: (entry: CatalogEntry) => ReactNode;
 }) {
-  const [showsDeveloper, setShowsDeveloper] = useState(false);
   return (
     <div className="space-y-8">
       {APP_CATEGORIES.map(({ id, label }) => {
@@ -507,27 +513,14 @@ function CategoryGroups({
         if (inCategory.length === 0) {
           return null;
         }
-        const collapsed = id === "developer" && !showsDeveloper;
         return (
           <div key={id}>
             <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
               {label}
             </h3>
-            {collapsed ? (
-              <button
-                className="text-[13px] font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setShowsDeveloper(true);
-                }}
-                type="button"
-              >
-                {`Show ${inCategory.length} developer tools`}
-              </button>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                {inCategory.map(renderTile)}
-              </div>
-            )}
+            <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+              {inCategory.map(renderTile)}
+            </div>
           </div>
         );
       })}

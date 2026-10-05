@@ -408,7 +408,6 @@ export function CommandMenu({
     active: asksMeaning,
     candidates: chats,
     search: words,
-    topicNames: new Map(shell.topics.map((topic) => [topic.id, topic.name])),
   });
   const appsByMeaning = useAppsByMeaning({
     active: asksMeaning,

@@ -108,7 +108,6 @@ export function ChatPane({
       matchesFilters(chat, { ...filters, search: "" }, topicNames),
     ),
     search: filters.search,
-    topicNames,
   });
   const isAISearch = aiSearch.isLooking || aiSearch.chats.length > 0;
   const shown = matched.length > 0 ? matched : aiSearch.chats;

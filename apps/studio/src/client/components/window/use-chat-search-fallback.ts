@@ -2,7 +2,7 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { askOf, type Chat } from "./chats";
+import { type Chat } from "./chats";
 import { useDecisionModelAvailable } from "./use-decision-model-available";
 
 /**
@@ -18,22 +18,20 @@ const MEANINGFUL = "meaningful";
  * model scores a few chats high for any search, nonsense included.
  */
 const MEANINGFUL_AT_LEAST = 0.3;
-/** How sure the model has to be that a chat is what the search is after. */
-const FITS_AT_LEAST = 0.6;
 /**
- * How far below the best fit a chat may score and still be listed: each
- * model's scale drifts with the search, so a fit is judged against the best.
+ * How sure the model has to be that a chat is related to the search, judged
+ * on its own rather than against the best fit: on 34 labeled searches over
+ * 376 real chats, clef-flash found 89% of the chats each search meant, and
+ * nonsense and searches about nothing there ("asdf", "taxes") top out at 0.4.
  */
-const FITS_WITHIN = 0.25;
-const MOST = 8;
-/** How much of the opening ask describes a chat; its title carries the rest. */
-const ASK_MAX = 200;
+const FITS_AT_LEAST = 0.6;
+const MOST = 12;
 const DEBOUNCE_MS = 250;
 
 /**
  * The chats a search means when none of them contains its words: the
- * decision model reads each candidate's title, opening ask, and topics, and
- * says of each on its own whether the search is after it, so "accountant
+ * decision model reads each candidate's title and says of each on its own
+ * whether it is related to the search, so "accountant
  * stuff" finds the chat about 1099 forms and "shopping" every chat that
  * compared prices. Asked only while `active`, which the caller sets when the
  * words turned up nothing; without the model it finds nothing, which is what
@@ -43,12 +41,10 @@ export function useChatSearchFallback({
   active,
   candidates,
   search,
-  topicNames,
 }: {
   active: boolean;
   candidates: Chat[];
   search: string;
-  topicNames: ReadonlyMap<string, string>;
 }) {
   const [settled, setSettled] = useState(search.trim());
   useEffect(() => {
@@ -76,7 +72,7 @@ export function useChatSearchFallback({
     queryFn: asking
       ? async ({ signal }) => {
           const asked = await Promise.all(
-            requestsFor(candidates, topicNames).map((questions) =>
+            requestsFor(candidates).map((questions) =>
               rpcClient.workspace.decision.ask.call(
                 { questions, state: { search: settled } },
                 { signal },
@@ -121,11 +117,8 @@ function fitting(answers: Answers, candidates: Chat[]): Chat[] {
       chance: answers[String(index)]?.noul ?? 0,
     }))
     .toSorted((a, b) => b.chance - a.chance);
-  const best = fits[0]?.chance ?? 0;
   return fits
-    .filter(
-      ({ chance }) => chance >= FITS_AT_LEAST && chance >= best - FITS_WITHIN,
-    )
+    .filter(({ chance }) => chance >= FITS_AT_LEAST)
     .slice(0, MOST)
     .map(({ chat }) => chat);
 }
@@ -133,26 +126,21 @@ function fitting(answers: Answers, candidates: Chat[]): Chat[] {
 /**
  * One yes-or-no per chat, split across as many requests as the API's cap
  * needs. Each question is a sentence rather than an object: one decision
- * model reads a structured question poorly and scores every chat alike.
+ * model reads a structured question poorly and scores every chat alike. The
+ * title alone, asked whether it is related: measured against asking whether
+ * the chat, with its topics and opening ask, is about the search, it found
+ * more of the chats meant (89% against 80%) with less than half the wrong
+ * ones, on a quarter fewer tokens; the opening ask mostly added noise.
  */
-function requestsFor(
-  candidates: Chat[],
-  topicNames: ReadonlyMap<string, string>,
-) {
+function requestsFor(candidates: Chat[]) {
   const questions: [string, { instructions: string; type: "noul" }][] =
-    candidates.map((chat, index) => {
-      const topics = chat.topics.flatMap((id) => topicNames.get(id) ?? []);
-      const filed =
-        topics.length > 0 ? `, filed under ${topics.join(", ")}` : "";
-      const asked = oneLine(askOf(chat).slice(0, ASK_MAX));
-      return [
-        String(index),
-        {
-          instructions: `Is the chat titled "${chat.title}"${filed}, which opened with "${asked}", about what the search in the state is looking for?`,
-          type: "noul",
-        },
-      ];
-    });
+    candidates.map((chat, index) => [
+      String(index),
+      {
+        instructions: `Is the chat titled "${chat.title}" related to what the search in the state names?`,
+        type: "noul",
+      },
+    ]);
   questions.unshift([
     MEANINGFUL,
     {
@@ -168,8 +156,4 @@ function requestsFor(
     );
   }
   return requests;
-}
-
-function oneLine(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
 }

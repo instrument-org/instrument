@@ -396,15 +396,19 @@ describe("how a ChatGPT sign-in ends", () => {
     plan.cancelChatGPTSignIn();
   });
 
-  it("fails on a callback for some other attempt", async () => {
+  it("turns away a callback for some other attempt and keeps waiting for its own", async () => {
     stored = { registrations: {} };
-    const { ended } = await start();
-    void plan
-      .receiveChatGPTCallback(
+    const { ended, state } = await start();
+    expect(
+      plan.receiveChatGPTCallback(
         new URLSearchParams({ code: "c", state: "not-this-one" }),
-      )
-      ?.catch(() => undefined);
-    await expect(ended).rejects.toThrow("did not match");
+      ),
+    ).toBeUndefined();
+    expect(plan.receiveChatGPTCallback(new URLSearchParams())).toBeUndefined();
+    void plan.receiveChatGPTCallback(
+      new URLSearchParams({ error: "access_denied", state }),
+    );
+    await expect(ended).resolves.toEqual({ outcome: "declined" });
   });
 });
 

@@ -106,6 +106,9 @@ let STORE: null | Store<StoreShape> = null;
 interface PendingSignIn {
   deliver: (params: URLSearchParams) => void;
   promise: Promise<ChatGPTSignInResult>;
+  // The `state` the authorize URL carried; a redirect without it is not this
+  // sign-in's.
+  state: string;
   supersede: () => void;
 }
 
@@ -419,12 +422,15 @@ class TokenError extends Error {
 /**
  * Hand ChatGPT's redirect to the sign-in waiting for it. Resolves once the
  * sign-in has finished, so the page the browser lands on can say how it went;
- * undefined when no sign-in is waiting.
+ * undefined when no sign-in is waiting or the redirect carries another
+ * `state`. Any page or local process can reach the callback port, so a
+ * redirect that is not this sign-in's is turned away and the sign-in keeps
+ * waiting for its own.
  */
 export function receiveChatGPTCallback(
   params: URLSearchParams,
 ): Promise<ChatGPTSignInResult> | undefined {
-  if (!pendingSignIn) {
+  if (!pendingSignIn || params.get("state") !== pendingSignIn.state) {
     return undefined;
   }
   pendingSignIn.deliver(params);
@@ -467,11 +473,13 @@ export function signInWithChatGPT({
   const target = accountId ? registrationById(accountId) : undefined;
   const grant = target ? grantOf(target.id) : undefined;
   grant?.send({ type: "signInStarted" });
+  const state = base64url(randomBytes(32));
   const entry: PendingSignIn = {
     ...controls,
     promise: runSignIn({
       received,
       redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
+      state,
       target,
     }).finally(() => {
       // A sign-in that landed has told its grant; this one ended without.
@@ -481,6 +489,7 @@ export function signInWithChatGPT({
       }
       publisher.publish("chatgpt-plan.updated", null);
     }),
+    state,
   };
   pendingSignIn = entry;
   publisher.publish("chatgpt-plan.updated", null);
@@ -540,14 +549,15 @@ async function postToken(form: Record<string, string>) {
 async function runSignIn({
   received,
   redirectURI,
+  state,
   target,
 }: {
   received: Promise<null | URLSearchParams>;
   redirectURI: string;
+  state: string;
   target: Registration | undefined;
 }): Promise<ChatGPTSignInResult> {
   const clientId = target?.clientId ?? DYNAMIC_CLIENT_ID;
-  const state = base64url(randomBytes(32));
   const nonce = base64url(randomBytes(32));
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(createHash("sha256").update(verifier).digest());
@@ -579,9 +589,6 @@ async function runSignIn({
   const callback = await received;
   if (!callback) {
     return { outcome: "canceled" };
-  }
-  if (callback.get("state") !== state) {
-    throw new Error("The sign-in response did not match this attempt");
   }
   const error = callback.get("error");
   if (error) {

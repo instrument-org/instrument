@@ -56,7 +56,6 @@ agent-reference.local.json
 # is a link nobody else can follow. Ask for one to be committed if it should
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
-/docs/plans/**/wireframes-index.txt
 
 # What an agent leaves at the checkout root while checking its own work: a
 # capture from `studio-drive shot`, whose file argument is resolved against the

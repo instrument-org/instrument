@@ -121,16 +121,3 @@ A page about how two surfaces share the screen names the pair (_Page and chat: c
 ## Where the files go
 
 Wireframes are working artifacts, not history: write them outside the repository, wherever your own setup keeps pages, and never commit one. A decision a wireframe settled belongs in the plan's prose or a decision record, where the next reader will find it.
-
-## Walking a set
-
-Several wireframes usually get made for one proposal. [`build-index.ts`](build-index.ts) builds one page that plays a whole set: a rail of titles, the selected wireframe filling the rest, arrow keys or `j`/`k` between them, `f` to hide the rail. Run it from the folder the wireframes are in:
-
-```bash
-node <repo>/.agents/wireframe-kit/build-index.ts                  # every wireframes-*.html, in name order
-node <repo>/.agents/wireframe-kit/build-index.ts a.html b.html    # exactly these, in this order
-```
-
-It writes `wireframes-index.html` beside them. A `wireframes-index.txt` there curates the set: one `file.html | Title` per line, `# Heading` to start a group. A line naming a file that is gone is skipped with a warning.
-
-Every wireframe is inlined into the output with `srcdoc`, because Chrome refuses to load a sibling `file://` document into an iframe and renders it blank with no error. So the index holds copies: rerun it after changing any wireframe in the set.

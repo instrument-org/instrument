@@ -6,5 +6,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "build.mjs"]
+  "include": ["build.mjs"]
 }

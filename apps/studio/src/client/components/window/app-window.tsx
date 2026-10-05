@@ -908,7 +908,14 @@ function WindowShell({
                   onDeleteDraft={deleteDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();
-                    openScreen(`${CHATS_HREF}/${entry.id}`);
+                    // Peeked out over another place, the chat pops out over
+                    // it, so the place stays where it was; in Chat, with the
+                    // inbox put away, it opens beside where the inbox was.
+                    if (isChat) {
+                      openScreen(`${CHATS_HREF}/${entry.id}`);
+                    } else {
+                      compose.float(entry.id);
+                    }
                   }}
                   onOpenDraft={(id) => {
                     inboxPeek.close();

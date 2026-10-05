@@ -22,6 +22,7 @@ import {
   selectTab,
   type TabsModel,
 } from "@/client/lib/tabs-model";
+import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
@@ -176,6 +177,13 @@ export function useAppTabs() {
     }
   };
   const close = (id: TabId) => {
+    // The last tab closing closes the window, which quits the app on every
+    // platform, asking first about running agents. The tab stays in the model
+    // so a canceled quit leaves the window as it was.
+    if (model.tabs.length === 1 && model.tabs[0]?.id === id) {
+      void rpcClient.utils.closeWindow.call();
+      return;
+    }
     setModel((current) =>
       closeTab(current, {
         id,

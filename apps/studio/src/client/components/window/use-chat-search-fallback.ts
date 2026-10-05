@@ -3,6 +3,7 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { askOf, type Chat } from "./chats";
+import { useDecisionModelAvailable } from "./use-decision-model-available";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
@@ -59,11 +60,19 @@ export function useChatSearchFallback({
     };
   }, [search]);
 
-  const askable = active && candidates.length > 0 && search.trim().length > 1;
-  // Asked once typing pauses; until then the list says it is looking, so it
-  // does not say "Nothing matches" a moment before an answer arrives.
-  const asking = askable && settled === search.trim();
-  const { data, isFetching } = useQuery({
+  // Not asked when no provider could answer, so the list says straight away
+  // that nothing matched rather than looking first.
+  const available = useDecisionModelAvailable(active);
+  const askable =
+    active &&
+    available !== false &&
+    candidates.length > 0 &&
+    search.trim().length > 1;
+  // Asked once typing pauses and the model is known to be there; until then
+  // the list says it is looking, so it does not say "Nothing matches" a
+  // moment before an answer arrives.
+  const asking = askable && available === true && settled === search.trim();
+  const { data, isError, isFetching } = useQuery({
     queryFn: asking
       ? async ({ signal }) => {
           const asked = await Promise.all(
@@ -91,6 +100,8 @@ export function useChatSearchFallback({
 
   return {
     chats: asking && data ? fitting(data, candidates) : [],
+    /** Whether the model was asked and could not be reached, which is not the same as finding nothing. */
+    failed: asking && isError,
     /** Whether the model is being asked, so the list can say it is looking rather than that nothing matched. */
     isLooking: askable && (!asking || isFetching),
   };

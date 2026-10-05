@@ -26,6 +26,7 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
+import { useDecisionModelAvailable } from "@/client/components/window/use-decision-model-available";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
@@ -59,7 +60,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -67,6 +68,14 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
+/**
+ * Below this many chats or apps found by name, the search also asks the
+ * decision model for the ones it means, from this many letters on: the
+ * Apps page's numbers.
+ */
+const FEW = 3;
+const MEANING_MIN_LENGTH = 3;
+const MEANING_DEBOUNCE_MS = 300;
 /** Chats listed before anything is typed, newest first. */
 const RECENT_CHATS_SHOWN = 30;
 
@@ -305,6 +314,17 @@ export function CommandMenu({
     (page) => page.url,
   );
 
+  const isSearch = words !== "" && !isBang;
+  const chatMatches = isSearch
+    ? fuzzyMatch(byActivity(chats), (chat) => [chat.title], words)
+    : [];
+  const appMatches = isSearch
+    ? fuzzyMatch([...appsBySlug], ([, app]) => [app.name], words).slice(
+        0,
+        APPS_SHOWN,
+      )
+    : [];
+
   const sections: { items: Item[]; label: string }[] = isBang
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
@@ -334,33 +354,13 @@ export function CommandMenu({
             label: "Commands",
           },
           {
-            items: fuzzyMatch(
-              byActivity(chats),
-              (chat) => [chat.title],
-              words,
-            ).map(({ item, ranges }) => chatItem(item, ranges)),
+            items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
             label: "Chats",
           },
           {
-            items: fuzzyMatch([...appsBySlug], ([, app]) => [app.name], words)
-              .slice(0, APPS_SHOWN)
-              .map(({ item: [slug, app], ranges }) => ({
-                icon: (
-                  <AppIcon
-                    icon={app.icon}
-                    name={app.name}
-                    site={app.site}
-                    size="sm"
-                  />
-                ),
-                id: `app:${slug}`,
-                label: app.name,
-                ranges,
-                run: () => {
-                  openScreen(`${APPS_HREF}/${slug}`);
-                },
-                type: "item",
-              })),
+            items: appMatches.map(({ item: [slug, app], ranges }) =>
+              appItem(slug, app, ranges),
+            ),
             label: "Apps",
           },
           {
@@ -402,21 +402,68 @@ export function CommandMenu({
           },
         ];
 
-  const hasMatches = sections.some((section) => section.items.length > 0);
-  const topicNames = new Map(
-    shell.topics.map((topic) => [topic.id, topic.name]),
-  );
-  const fallback = useChatSearchFallback({
-    active: open && !isBang && words !== "" && !hasMatches,
-    candidates: chats,
+  // Words that find few chats or apps by name also go to the decision
+  // model, as the Apps page does, so a search like "taxes" or "design tool"
+  // finds what it means. What it finds goes at the foot, below everything
+  // the words matched, so it moves nothing already there.
+  const asksMeaning = (matched: number) =>
+    open && isSearch && words.length >= MEANING_MIN_LENGTH && matched < FEW;
+  const shownChats = new Set(chatMatches.map(({ item }) => item.id));
+  const chatsByMeaning = useChatSearchFallback({
+    active: asksMeaning(chatMatches.length),
+    candidates: chats.filter((chat) => !shownChats.has(chat.id)),
     search: words,
-    topicNames,
+    topicNames: new Map(shell.topics.map((topic) => [topic.id, topic.name])),
   });
-  if (!hasMatches && fallback.chats.length > 0) {
+  const appsByMeaning = useAppsByMeaning({
+    active: asksMeaning(appMatches.length),
+    words,
+  });
+  if (chatsByMeaning.chats.length > 0) {
     sections.push({
-      items: fallback.chats.map((chat) => chatItem(chat, null)),
-      label: "Chats that might be it",
+      items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
+      label: "Chats about this",
     });
+  }
+  const shownApps = new Set(appMatches.map(({ item: [slug] }) => slug));
+  const meantApps = appsByMeaning.apps.filter(
+    (entry) => !shownApps.has(entry.slug),
+  );
+  if (meantApps.length > 0) {
+    sections.push({
+      items: meantApps.map((entry) =>
+        appItem(
+          entry.slug,
+          {
+            icon: entry.icon,
+            name: entry.name,
+            site: `https://${entry.domain}`,
+          },
+          null,
+        ),
+      ),
+      label: "Apps for this",
+    });
+  }
+  const isLooking = chatsByMeaning.isLooking || appsByMeaning.isLooking;
+
+  function appItem(
+    slug: string,
+    app: { icon?: string | undefined; name: string; site: string | undefined },
+    ranges: null | number[],
+  ): Item {
+    return {
+      icon: (
+        <AppIcon icon={app.icon} name={app.name} site={app.site} size="sm" />
+      ),
+      id: `app:${slug}`,
+      label: app.name,
+      ranges,
+      run: () => {
+        openScreen(`${APPS_HREF}/${slug}`);
+      },
+      type: "item",
+    };
   }
 
   function chatItem(chat: Chat, ranges: null | number[]): Item {
@@ -467,18 +514,31 @@ export function CommandMenu({
       />
       <CommandList className="max-h-none! min-h-48 overflow-visible!">
         {rows.length > 0 ? (
-          // A list of its own per search: a fresh scroller starts at the top,
-          // where cmdk's pick of the first row then lands, rather than at
-          // wherever the last search's list was scrolled to.
-          <ResultRows key={words} rows={rows} />
-        ) : fallback.isLooking ? (
+          <>
+            {/* A list of its own per search: a fresh scroller starts at the
+                top, where cmdk's pick of the first row then lands, rather
+                than at wherever the last search's list was scrolled to. */}
+            <ResultRows key={words} rows={rows} />
+            {isLooking ? (
+              <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+                <Spinner className="size-3" />
+                Looking for more by meaning…
+              </div>
+            ) : null}
+          </>
+        ) : isLooking ? (
           <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
-            Looking through your chats…
+            Looking by meaning…
           </div>
         ) : words !== "" && !(isBang && words.length < 3) ? (
-          <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
+          <div className="flex min-h-48 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
             Nothing matches “{words}”
+            {chatsByMeaning.failed || appsByMeaning.failed ? (
+              <span className="text-xs">
+                The decision model could not be reached
+              </span>
+            ) : null}
           </div>
         ) : null}
       </CommandList>
@@ -588,4 +648,42 @@ function fuzzyMatch<T>(
     const [ranges] = fields.splitRanges(info.ranges[orderIndex] ?? null);
     return [{ item, ranges: ranges ?? null }];
   });
+}
+
+/**
+ * The directory's services a search means without naming them, asked once
+ * typing settles and only when the decision model could answer.
+ */
+function useAppsByMeaning({
+  active,
+  words,
+}: {
+  active: boolean;
+  words: string;
+}) {
+  const [settled, setSettled] = useState(words);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSettled(words);
+    }, MEANING_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [words]);
+  const available = useDecisionModelAvailable(active);
+  const askable = active && available !== false;
+  const asking = askable && available === true && settled === words;
+  const meant = useQuery(
+    rpcClient.apps.catalogByMeaning.queryOptions({
+      enabled: asking,
+      input: { query: settled },
+      retry: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  return {
+    apps: asking ? (meant.data ?? []) : [],
+    failed: asking && meant.isError,
+    isLooking: askable && (!asking || meant.isFetching),
+  };
 }

@@ -113,10 +113,9 @@ const RAIL = [
   ["files", "Files", "ph-folder"],
   ["browser", "Browser", "ph-globe"],
   ["apps", "Apps", "ph-shapes"],
-  ["discover", "Discover", "ph-map-trifold"],
 ];
 
-/** The 76px app rail on the ground. `on` is chat | files | browser | apps | discover | "" (nothing lit). `user` draws the signed-in avatar in place of Settings. */
+/** The 76px app rail on the ground. `on` is chat | files | browser | apps | "" (nothing lit). `user` draws the signed-in avatar in place of Settings. */
 const rail = (on = "chat", { mark = {}, user = false } = {}) => `
   <nav class="flex w-[76px] shrink-0 flex-col items-center gap-3 pt-1 pb-2">
     <div class="flex w-15 flex-col items-center gap-0.5 py-1.5">
@@ -463,7 +462,7 @@ const page = (t) =>
 
 // ---- places --------------------------------------------------------------------
 
-/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps and Discover). Its tabs are the window's, in the bar. */
+/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
 const placeCard = ({ tab, body, loc = true }) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${loc ? locRow(tab) : ""}

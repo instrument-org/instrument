@@ -117,6 +117,7 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 | [One browser abstraction, many tabs](completed/one-browser-many-tabs.md) | superseded |
 | [Lazy browser targets, and multiple tabs](completed/lazy-browser-targets-and-multiple-tabs.md) | superseded |
 | [Browser popups as agent-drivable tabs](completed/browser-popups-as-agent-drivable-tabs.md) | not built; the starting point for popups |
+| [One owner for each fact about a browser guest](completed/guest-plumbing.md): guest registry, guest handle, captureFrame, CDP table, page chords, ChatGPT grant machine | done |
 | [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |

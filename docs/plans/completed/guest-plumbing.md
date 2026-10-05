@@ -1,6 +1,6 @@
 # Plan: one owner for each fact about a browser guest
 
-Status: in progress.
+Status: done. Where a step landed differently from the shape below, the commit says why: the page editor's nonce stays, since a `file` protocol request names no contents; its saves run on the disk queue under `createSaveQueue` rather than its debounce, which belongs to the editor in the guest; agent-browser's commands are read from its source and pinned to the release, since its binary does not hold them whole; and the sign-in machine is one per account, with the single pending sign-in kept beside it.
 
 Every guest of the in-app browser shares one Electron session, so each feature that hooks the session (the local-file policy, downloads, ad blocking, the page editor's `file` handler) has worked out on its own which guest a request or a download came from, and each wired itself onto the session behind its own "already done" set. The renderer hands the raw `<webview>` to a dozen callers that each guard "not attached" by hand, keyboard chords for a page are routed by three different rules, the page editor speaks a hand-rolled protocol, four paths capture a frame, CDP overrides are split across two processes with no list of them, and the ChatGPT sign-in has been fixed on top of fixes. The shared profile itself is a decision ([workspace-browser-profile](../decisions/2026-07-13-workspace-browser-profile.md)) and stays.
 

@@ -16,17 +16,6 @@ export interface BillingRefusal {
   window?: string;
 }
 
-/** A plan key as a person reads it: the offer's product name when it has one. */
-export function planLabel(planKey: string, offer: Offer | undefined) {
-  if (planKey === "trial") {
-    return "Free trial";
-  }
-  if (planKey === "none") {
-    return "No plan";
-  }
-  return offer?.plans.find((plan) => plan.key === planKey)?.name ?? planKey;
-}
-
 /** `$10/month`, or nothing while Stripe's price has not been cached yet. */
 export function formatPlanPrice(price: OfferPlan["price"]) {
   const amount = formatAmount(price);
@@ -222,7 +211,7 @@ export type BillingNotice =
   | { kind: "payment-failed" }
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
   | { kind: "plan-required"; reason?: string }
-  | { kind: "resumed"; planName?: string }
+  | { kind: "resumed"; subscribed: boolean }
   | { kind: "trial-ended" };
 
 /**
@@ -253,10 +242,7 @@ export function refusalNotice({
       // calls active was refused on what this request would have cost, so it
       // is as over as the refusal says.
       if (current?.subscription && canUseHostedModels(current)) {
-        return {
-          kind: "resumed",
-          planName: planLabel(current.plan, offer),
-        };
+        return { kind: "resumed", subscribed: true };
       }
       if (refusal.reason === "payment-failed" || hasPaymentFailed(current)) {
         return { kind: "payment-failed" };
@@ -277,7 +263,7 @@ export function refusalNotice({
           canUseHostedModels(current) &&
           current.windows.every((window) => window.percentUsed < 100));
       if (hasReset) {
-        return { kind: "resumed" };
+        return { kind: "resumed", subscribed: false };
       }
       const upgradeTo = upgradePlan(offer, status);
       return {
@@ -312,7 +298,7 @@ export function noticeCopy(
     case "payment-failed": {
       return {
         action: { kind: "update-card", label: "Update card" },
-        line: `Update your card to keep using ${APP_NAME}'s AI.`,
+        line: "Update your card to keep going.",
         title: "Your payment didn't go through",
       };
     }
@@ -322,14 +308,9 @@ export function noticeCopy(
         : "It resets soon.";
       return {
         ...(notice.upgradeTo && {
-          action: {
-            kind: "upgrade" as const,
-            label: `Upgrade to ${notice.upgradeTo.name}`,
-          },
+          action: { kind: "upgrade" as const, label: "Upgrade" },
         }),
-        line: notice.upgradeTo
-          ? `${resets} ${notice.upgradeTo.name} has more room.`
-          : resets,
+        line: resets,
         title: "You've reached your plan's limit for now",
       };
     }
@@ -338,8 +319,8 @@ export function noticeCopy(
         action: choosePlan,
         line:
           notice.reason === "card-required"
-            ? `Add a card to start your free trial, or switch to your own model.`
-            : `Choose a plan to keep using ${APP_NAME}'s AI, or switch to your own model.`,
+            ? "Add a card to start it, or switch to your own model."
+            : "Choose a plan, or switch to your own model.",
         title:
           notice.reason === "card-required"
             ? "Start your free trial"
@@ -350,15 +331,13 @@ export function noticeCopy(
       return {
         action: { kind: "continue", label: "Continue" },
         line: "Pick up where this chat stopped.",
-        title: notice.planName
-          ? `You're on ${notice.planName}`
-          : "Your plan has room again",
+        title: notice.subscribed ? "You're subscribed" : "Your limit has reset",
       };
     }
     case "trial-ended": {
       return {
         action: choosePlan,
-        line: `Choose a plan to keep using ${APP_NAME}'s AI, or switch to your own model.`,
+        line: "Choose a plan, or switch to your own model.",
         title: "Your free trial has ended",
       };
     }

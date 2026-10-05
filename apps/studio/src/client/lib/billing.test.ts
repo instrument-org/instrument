@@ -29,16 +29,16 @@ const offer: Offer = {
       allowance: { multiple: 1, windows },
       description: null,
       features: [],
-      key: "plan_10",
-      name: "Instrument",
+      key: "basic",
+      name: "Basic",
       price: { currency: "usd", interval: "month", unitAmount: 1000 },
     },
     {
       allowance: { multiple: 4, windows },
       description: null,
       features: [],
-      key: "plan_40",
-      name: "Instrument Plus",
+      key: "pro",
+      name: "Pro",
       price: { currency: "usd", interval: "month", unitAmount: 4000 },
     },
   ],
@@ -148,7 +148,7 @@ describe("refusalNotice", () => {
       expected: "payment-failed",
       name: "a renewal that failed",
       reason: "no-plan",
-      status: onPlan("plan_10", { status: "past_due" }),
+      status: onPlan("basic", { status: "past_due" }),
     },
     {
       expected: "payment-failed",
@@ -160,7 +160,7 @@ describe("refusalNotice", () => {
       expected: "resumed",
       name: "a plan bought since",
       reason: "trial-ended",
-      status: onPlan("plan_10"),
+      status: onPlan("basic"),
     },
   ])("subscription-required, $name: $expected", ({ expected, reason, status }) => {
     expect(notice({ code: "subscription-required", reason }, status)?.kind).toBe(
@@ -194,19 +194,19 @@ describe("refusalNotice", () => {
         resetsAt: new Date(2026, 9, 5, 15, 40).toISOString(),
         window: "5h",
       },
-      onPlan("plan_10", {}, [100, 40, 20]),
+      onPlan("basic", {}, [100, 40, 20]),
     );
     expect(limit).toMatchObject({
       kind: "plan-limit",
-      upgradeTo: { key: "plan_40" },
+      upgradeTo: { key: "pro" },
     });
     expect(limit && noticeCopy(limit, NOW)).toMatchInlineSnapshot(`
       {
         "action": {
           "kind": "upgrade",
-          "label": "Upgrade to Instrument Plus",
+          "label": "Upgrade",
         },
-        "line": "It resets at 3:40 PM. Instrument Plus has more room.",
+        "line": "It resets at 3:40 PM.",
         "title": "You've reached your plan's limit for now",
       }
     `);
@@ -219,7 +219,7 @@ describe("refusalNotice", () => {
         resetsAt: new Date(2026, 9, 12, 9, 12).toISOString(),
         window: "week",
       },
-      onPlan("plan_40", {}, [30, 100, 20]),
+      onPlan("pro", {}, [30, 100, 20]),
     );
     expect(limit && noticeCopy(limit, NOW)).toMatchInlineSnapshot(`
       {
@@ -290,13 +290,13 @@ describe("planCardAction", () => {
       expected: "current",
       name: "the plan they are on",
       plan: standard,
-      status: onPlan("plan_10"),
+      status: onPlan("basic"),
     },
     {
       expected: "switch",
       name: "the other plan",
       plan: plus,
-      status: onPlan("plan_10"),
+      status: onPlan("basic"),
     },
   ])("$name: $expected", ({ expected, plan, status, trial }) => {
     expect(plan && planCardAction(plan, status, { trial })).toBe(expected);
@@ -310,15 +310,15 @@ describe("planCardAction", () => {
   });
 
   it("has no plan above the biggest", () => {
-    expect(upgradePlan(offer, onPlan("plan_40"))).toBeUndefined();
-    expect(upgradePlan(offer, onPlan("plan_10"))?.key).toBe("plan_40");
+    expect(upgradePlan(offer, onPlan("pro"))).toBeUndefined();
+    expect(upgradePlan(offer, onPlan("basic"))?.key).toBe("pro");
   });
 });
 
 describe("usageWarning", () => {
   it("says nothing under 80%", () => {
     expect(usageWarning(trialActive)).toBeUndefined();
-    expect(usageWarning(onPlan("plan_10", {}, [79, 50, 10]))).toBeUndefined();
+    expect(usageWarning(onPlan("basic", {}, [79, 50, 10]))).toBeUndefined();
   });
 
   it("warns at 80% of the trial", () => {
@@ -330,18 +330,18 @@ describe("usageWarning", () => {
   });
 
   it("warns about the fullest window at 80% or more", () => {
-    const warning = usageWarning(onPlan("plan_10", {}, [81, 93, 10]));
+    const warning = usageWarning(onPlan("basic", {}, [81, 93, 10]));
     expect(warning).toMatchObject({ kind: "window", window: "week" });
     expect(warning && usageWarningText(warning, NOW)).toMatchInlineSnapshot(`"You've used 93% of your plan for this week. It resets at 3:41 PM."`);
   });
 
   it("leaves a full window to the refusal notice", () => {
-    expect(usageWarning(onPlan("plan_10", {}, [100, 50, 10]))).toBeUndefined();
+    expect(usageWarning(onPlan("basic", {}, [100, 50, 10]))).toBeUndefined();
   });
 
   it("keys a warning by its period, so dismissing it lasts until the next", () => {
-    const first = usageWarning(onPlan("plan_10", {}, [85, 50, 10]));
-    const second = usageWarning(onPlan("plan_10", {}, [90, 50, 10]));
+    const first = usageWarning(onPlan("basic", {}, [85, 50, 10]));
+    const second = usageWarning(onPlan("basic", {}, [90, 50, 10]));
     expect(first?.key).toBe(second?.key);
   });
 });

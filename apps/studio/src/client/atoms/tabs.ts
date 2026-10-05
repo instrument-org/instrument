@@ -6,7 +6,6 @@ import {
   type TabsModel,
   TabsModelSchema,
 } from "@/client/lib/tabs-model";
-import { type KeptKey } from "@/shared/kept-state";
 
 function freshTabsModel(pathname: string): TabsModel {
   return addTab(emptyTabsModel(), { id: freshTabId(), pathname });
@@ -18,8 +17,9 @@ function freshTabsModel(pathname: string): TabsModel {
  * tabs, opens on that one tab instead, so a stale or hand-edited value
  * cannot leave the window with nothing to show.
  */
-export function tabsAtomOf(key: KeptKey, pathname: string) {
+export function tabsAtomOf(key: string, pathname: string) {
   return keptAtom<TabsModel>(
+    "layout",
     key,
     freshTabsModel(pathname),
     (value, initial) => {

@@ -28,6 +28,8 @@ export interface WindowTabs {
 /**
  * What an earlier build kept: the group on screen and the tab it had up
  * beside the rest, and a screen's steps as a trail with a mark on it.
+ * Beta-only: every field here past `WindowTabs` is a 2.0 beta's, and goes
+ * with the matching branches of `normalizeWindowTabs` once betas are gone.
  */
 export type StoredWindowTabs = Partial<Omit<WindowTabs, "tabs">> & {
   activeId?: null | string;

@@ -1,6 +1,10 @@
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 /**
+ * Beta-only: 2.0 betas before beta.48 kept window state naming chats by their
+ * session. Delete this file and `convertKeptChatState` in `main.tsx`, along
+ * with `import-local-storage.ts`, which runs after it.
+ *
  * The window's kept state that named chats by their session, each key with
  * the key its value moved to once chats were named by their own ids. The
  * version in a key is what keeps an old value from being read as a new one.

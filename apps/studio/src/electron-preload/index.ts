@@ -2,7 +2,12 @@ import {
   RESOLVE_THEME_CHANNEL,
   START_FILE_DRAG_CHANNEL,
 } from "@/shared/constants";
-import { KEPT_STATE_CHANNEL } from "@/shared/kept-state";
+import {
+  isKeptFile,
+  KEPT_STATE_CHANNEL,
+  type KeptFile,
+  type KeptSnapshot,
+} from "@/shared/kept-state";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import os from "node:os";
@@ -58,16 +63,23 @@ applyInitialTheme();
  * the tabs and drafts it was left with rather than defaults it swaps out. A
  * failed read starts from the defaults, and the window's writes still land.
  */
-function loadKeptState(): Record<string, unknown> {
+function loadKeptState(): KeptSnapshot {
+  let value: unknown;
   try {
-    const value: unknown = ipcRenderer.sendSync(KEPT_STATE_CHANNEL.load);
-    if (value !== null && typeof value === "object") {
-      return Object.fromEntries(Object.entries(value));
-    }
+    value = ipcRenderer.sendSync(KEPT_STATE_CHANNEL.load);
   } catch {
-    // Starts from the defaults.
+    return {};
   }
-  return {};
+  if (value === null || typeof value !== "object") {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([file, keys]: [string, unknown]) =>
+      isKeptFile(file) && keys !== null && typeof keys === "object"
+        ? [[file, Object.fromEntries(Object.entries(keys))]]
+        : [],
+    ),
+  );
 }
 
 const api: Window["api"] = {
@@ -76,16 +88,21 @@ const api: Window["api"] = {
   keptState: {
     initial: loadKeptState(),
     onChange: (listener) => {
-      const forward = (_event: unknown, key: string, value: unknown) => {
-        listener(key, value);
+      const forward = (
+        _event: unknown,
+        file: KeptFile,
+        key: string,
+        value: unknown,
+      ) => {
+        listener(file, key, value);
       };
       ipcRenderer.on(KEPT_STATE_CHANNEL.changed, forward);
       return () => {
         ipcRenderer.off(KEPT_STATE_CHANNEL.changed, forward);
       };
     },
-    set: (key, value) => {
-      ipcRenderer.send(KEPT_STATE_CHANNEL.set, key, value);
+    set: (file, key, value) => {
+      ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },
   },
   // One-way bridge for forwarding renderer errors to the main-process dev log.

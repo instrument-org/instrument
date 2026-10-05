@@ -1,10 +1,10 @@
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import {
-  isKeptKey,
+  isKeptFile,
+  KEPT_FILES,
   KEPT_STATE_CHANNEL,
-  KEPT_STATE_FILES,
   type KeptFile,
-  type KeptKey,
+  type KeptSnapshot,
 } from "@/shared/kept-state";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
@@ -16,17 +16,16 @@ import { logger } from "../../lib/electron-logger";
 const WRITE_DELAY_MS = 250;
 
 /**
- * The windows' kept state over a folder of JSON files, one object per file
- * keyed as `KEPT_STATE_FILES` says. Read whole on first use; a write lands
- * in memory at once and on disk a beat later, each file replaced by rename so
- * a crash mid-write leaves the old file rather than half of the new one.
+ * The windows' kept state over a folder of JSON files, one object of keys
+ * per file in `KEPT_FILES`. Read whole on first use; a write lands in memory
+ * at once and on disk a beat later, each file replaced by rename so a crash
+ * mid-write leaves the old file rather than half of the new one.
  */
 export function createKeptStateStore(dir: string) {
   let files: Map<KeptFile, Record<string, unknown>> | null = null;
   const dirty = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const fileNames = new Set<KeptFile>(Object.values(KEPT_STATE_FILES));
   const pathOf = (file: KeptFile) => path.join(dir, `${file}.json`);
 
   const loaded = () => {
@@ -34,7 +33,7 @@ export function createKeptStateStore(dir: string) {
       return files;
     }
     files = new Map();
-    for (const file of fileNames) {
+    for (const file of KEPT_FILES) {
       files.set(file, readObject(pathOf(file)));
     }
     return files;
@@ -65,9 +64,8 @@ export function createKeptStateStore(dir: string) {
 
   return {
     flush,
-    get: (key: KeptKey): unknown => loaded().get(KEPT_STATE_FILES[key])?.[key],
-    set: (key: KeptKey, value: unknown) => {
-      const file = KEPT_STATE_FILES[key];
+    get: (file: KeptFile, key: string): unknown => loaded().get(file)?.[key],
+    set: (file: KeptFile, key: string, value: unknown) => {
       const current = loaded().get(file) ?? {};
       if (value === undefined) {
         const { [key]: _removed, ...rest } = current;
@@ -78,11 +76,8 @@ export function createKeptStateStore(dir: string) {
       dirty.add(file);
       timer ??= setTimeout(flush, WRITE_DELAY_MS);
     },
-    /** Every key's value, for a window loading. */
-    snapshot: (): Record<string, unknown> =>
-      Object.fromEntries(
-        [...loaded().values()].flatMap((object) => Object.entries(object)),
-      ),
+    /** Every file's keys, for a window loading. */
+    snapshot: (): KeptSnapshot => Object.fromEntries(loaded()),
   };
 }
 
@@ -114,8 +109,8 @@ function getStore() {
 }
 
 /** One kept value, for the main process's own use of what a window keeps. */
-export function getKeptState(key: KeptKey): unknown {
-  return getStore().get(key);
+export function getKeptState(file: KeptFile, key: string): unknown {
+  return getStore().get(file, key);
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */
@@ -124,24 +119,28 @@ export function flushKeptState() {
 }
 
 /**
- * Answers the windows: the whole state, synchronously, for a preload that is
+ * Answers the windows: every file, synchronously, for a preload that is
  * loading; and each write, which goes to the other windows too so a window
  * already open keeps up (the onboarding window and the app window share the
- * zoom). Registered before any window exists.
+ * zoom). A write names one of the kept files, never a path. Registered before
+ * any window exists.
  */
 export function serveKeptState() {
   ipcMain.on(KEPT_STATE_CHANNEL.load, (event) => {
     event.returnValue = getStore().snapshot();
   });
-  ipcMain.on(KEPT_STATE_CHANNEL.set, (event, key: unknown, value: unknown) => {
-    if (!isKeptKey(key)) {
-      return;
-    }
-    getStore().set(key, value);
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed() && window.webContents !== event.sender) {
-        window.webContents.send(KEPT_STATE_CHANNEL.changed, key, value);
+  ipcMain.on(
+    KEPT_STATE_CHANNEL.set,
+    (event, file: unknown, key: unknown, value: unknown) => {
+      if (!isKeptFile(file) || typeof key !== "string") {
+        return;
       }
-    }
-  });
+      getStore().set(file, key, value);
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed() && window.webContents !== event.sender) {
+          window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);
+        }
+      }
+    },
+  );
 }

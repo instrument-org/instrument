@@ -20,9 +20,9 @@ const read = (file: string): unknown =>
 
 it("writes each key to its file on flush, and reads them back in a new store", () => {
   const store = createKeptStateStore(dir);
-  store.set("app-tabs.v2", { tabs: [] });
-  store.set("drafts.v2", [{ id: "d" }]);
-  store.set("zoom.v1", 1.25);
+  store.set("layout", "app-tabs.v2", { tabs: [] });
+  store.set("drafts", "drafts.v2", [{ id: "d" }]);
+  store.set("view", "zoom.v1", 1.25);
   expect(fs.readdirSync(dir)).toEqual([]);
 
   store.flush();
@@ -36,21 +36,23 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   `);
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
   expect(createKeptStateStore(dir).snapshot()).toEqual({
-    "app-tabs.v2": { tabs: [] },
-    "drafts.v2": [{ id: "d" }],
-    "zoom.v1": 1.25,
+    bookmarks: {},
+    drafts: { "drafts.v2": [{ id: "d" }] },
+    history: {},
+    layout: { "app-tabs.v2": { tabs: [] } },
+    view: { "zoom.v1": 1.25 },
   });
 });
 
 it("rewrites only the files that changed", () => {
   const store = createKeptStateStore(dir);
-  store.set("drafts.v2", []);
+  store.set("drafts", "drafts.v2", []);
   store.flush();
-  store.set("zoom.v1", 2);
+  store.set("view", "zoom.v1", 2);
   store.flush();
   fs.rmSync(path.join(dir, "drafts.json"));
 
-  store.set("zoom.v1", 1);
+  store.set("view", "zoom.v1", 1);
   store.flush();
 
   expect(fs.existsSync(path.join(dir, "drafts.json"))).toBe(false);
@@ -58,9 +60,9 @@ it("rewrites only the files that changed", () => {
 
 it("removes a key set to undefined", () => {
   const store = createKeptStateStore(dir);
-  store.set("zoom.v1", 2);
-  store.set("pane-share.v1", 0.5);
-  store.set("zoom.v1", undefined);
+  store.set("view", "zoom.v1", 2);
+  store.set("view", "pane-share.v1", 0.5);
+  store.set("view", "zoom.v1", undefined);
   store.flush();
 
   expect(read("view.json")).toEqual({ "pane-share.v1": 0.5 });
@@ -76,12 +78,15 @@ it.each([
     JSON.stringify({ "zoom.v1": 1.5 }),
   );
 
-  expect(createKeptStateStore(dir).snapshot()).toEqual({ "zoom.v1": 1.5 });
+  expect(createKeptStateStore(dir).snapshot()).toMatchObject({
+    layout: {},
+    view: { "zoom.v1": 1.5 },
+  });
 });
 
 it("leaves no temporary file behind", () => {
   const store = createKeptStateStore(dir);
-  store.set("bookmarks.v1", []);
+  store.set("bookmarks", "bookmarks.v1", []);
   store.flush();
 
   expect(fs.readdirSync(dir)).toEqual(["bookmarks.json"]);

@@ -19,10 +19,14 @@ function clampZoom(value: number) {
  * the main process (macOS traffic-light position) so this stays a plain
  * view-state atom with no import-time side effects.
  */
-export const zoomAtom = keptAtom<number>("zoom.v1", 1, (value, initial) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? clampZoom(value)
-    : initial,
+export const zoomAtom = keptAtom<number>(
+  "view",
+  "zoom.v1",
+  1,
+  (value, initial) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? clampZoom(value)
+      : initial,
 );
 
 /** The app's zoom after a zoom chord, from `factor`. */

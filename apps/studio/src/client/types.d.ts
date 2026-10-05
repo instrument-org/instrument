@@ -1,3 +1,4 @@
+import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 
 declare module "*.md" {
@@ -17,11 +18,11 @@ declare global {
       // every key as the window loaded, writes back to the main process, and
       // the writes other windows make. Absent outside Electron.
       keptState?: {
-        initial: Record<string, unknown>;
+        initial: KeptSnapshot;
         onChange: (
-          listener: (key: string, value: unknown) => void,
+          listener: (file: KeptFile, key: string, value: unknown) => void,
         ) => () => void;
-        set: (key: string, value: unknown) => void;
+        set: (file: KeptFile, key: string, value: unknown) => void;
       };
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;

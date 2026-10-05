@@ -15,7 +15,7 @@ import {
   sessionsInChatKeyedState,
 } from "./lib/chat-keyed-state";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
-import { importLocalStorage } from "./lib/kept-state";
+import { importLocalStorage } from "./lib/import-local-storage";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
 import { initStudioDrive } from "./lib/studio-drive";
 import { rpcClient } from "./rpc/client";
@@ -28,8 +28,8 @@ initDebugRpcBridge();
 initRendererLogForwarding();
 
 /**
- * Moves the app window's kept state off chat sessions before anything reads
- * it: each session it names is asked once which chat it is. A session the
+ * Beta-only (see `chat-keyed-state.ts`): moves the app window's kept state
+ * off chat sessions before anything reads it: each session it names is asked once which chat it is. A session the
  * workspace cannot answer for stays as it was.
  */
 async function convertKeptChatState() {
@@ -66,6 +66,7 @@ async function start() {
   if (isAppWindow) {
     await convertKeptChatState();
   }
+  // Beta-only: see `import-local-storage.ts`.
   importLocalStorage(localStorage);
 
   let root = globalThis.__studioRoot;

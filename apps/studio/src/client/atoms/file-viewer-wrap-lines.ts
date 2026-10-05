@@ -8,6 +8,7 @@ import { keptAtom } from "@/client/lib/kept-state";
  * again on every open would be the annoying half of a toggle.
  */
 export const fileViewerWrapLinesAtom = keptAtom(
+  "view",
   "file-viewer-wrap-lines.v1",
   true,
 );

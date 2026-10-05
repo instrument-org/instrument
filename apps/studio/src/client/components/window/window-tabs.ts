@@ -40,6 +40,7 @@ import { sameHref } from "./window-href";
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptAtom<WindowTabs>(
+  "layout",
   "window-tabs.v9",
   { activeByGroup: {}, tabs: [] },
   // Read as this build keeps them, whatever an earlier one wrote.

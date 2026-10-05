@@ -69,7 +69,7 @@ const learnedWorkAreas = new Map<number, { height: number; width: number }>();
  * creation, rather than waiting for the renderer to mount and report it.
  */
 export function getAppZoom() {
-  const zoom = getKeptState("zoom.v1");
+  const zoom = getKeptState("view", "zoom.v1");
   return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
     ? zoom
     : 1;

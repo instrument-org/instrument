@@ -97,9 +97,15 @@ export async function notificationStatus(): Promise<NotificationStatus> {
 
 /**
  * Asks macOS to let the app notify: the system's prompt when nobody has
- * answered it, the standing answer otherwise.
+ * answered it, the standing answer otherwise. A refusal macOS gives without
+ * asking anyone (an unsigned build, notifications managed by a profile) is
+ * an answer too, with its reason, not an error: the page that asked has
+ * something to say about it.
  */
-export async function requestNotifications(): Promise<{ granted: boolean }> {
+export async function requestNotifications(): Promise<{
+  error?: string;
+  granted: boolean;
+}> {
   const native = loadModule();
   if (!native) {
     return { granted: false };
@@ -110,10 +116,7 @@ export async function requestNotifications(): Promise<{ granted: boolean }> {
       z.object({ error: z.string() }),
     ])
     .parse(JSON.parse(await native.requestNotifications()));
-  if ("error" in answer) {
-    throw new Error(answer.error);
-  }
-  return answer;
+  return "error" in answer ? { error: answer.error, granted: false } : answer;
 }
 
 export type DataKind = "calendars" | "contacts" | "reminders";

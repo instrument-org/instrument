@@ -44,6 +44,7 @@ import {
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -664,12 +665,23 @@ function Notifications() {
   const requestPermission = useMutation(
     rpcClient.mac.notifications.request.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't ask macOS to turn on notifications.", {
+        toast.error("Couldn't ask macOS about notifications.", {
           description: error.message,
         });
       },
       onSettled: () => {
         void permission.refetch();
+      },
+      onSuccess: ({ error }) => {
+        // macOS refused without asking anyone: in development because the
+        // build is not signed, which is the one case worth explaining.
+        if (error !== undefined) {
+          toast.error("macOS didn't allow notifications.", {
+            description: import.meta.env.DEV
+              ? "Development builds aren't signed, and macOS lets only a signed app notify."
+              : error,
+          });
+        }
       },
     }),
   );
@@ -706,6 +718,27 @@ function Notifications() {
     }
   };
 
+  // Until macOS lets the app notify, the setting would read as working when
+  // nothing can appear, so the section asks for that first.
+  if (status === "not-asked" || status === "denied" || isQuiet) {
+    return (
+      <SettingsSection title="Notifications">
+        <NotificationsPermission
+          isPending={requestPermission.isPending}
+          onAllow={() => {
+            requestPermission.mutate(undefined);
+          }}
+          onOpenSettings={() => {
+            openNotificationSettingsMutation.mutate(undefined);
+          }}
+          state={
+            status === "not-asked" ? "not-asked" : isQuiet ? "quiet" : "off"
+          }
+        />
+      </SettingsSection>
+    );
+  }
+
   return (
     <SettingsSection title="Notifications">
       <Card className="p-4">
@@ -717,44 +750,14 @@ function Notifications() {
             <p className="text-xs text-muted-foreground">
               Show a desktop notification when a task finishes.
             </p>
-            {status === "not-asked" ? (
-              <PermissionLine
-                action="Turn on"
-                disabled={requestPermission.isPending}
-                onAction={() => {
-                  requestPermission.mutate(undefined);
-                }}
-              >
-                Not turned on yet; macOS asks once.
-              </PermissionLine>
-            ) : status === "denied" ? (
-              <PermissionLine
-                action="Open System Settings"
-                onAction={() => {
-                  openNotificationSettingsMutation.mutate(undefined);
-                }}
-              >
-                Off for {APP_NAME} in System Settings.
-              </PermissionLine>
-            ) : isQuiet ? (
-              <PermissionLine
-                action="Open System Settings"
-                onAction={() => {
-                  openNotificationSettingsMutation.mutate(undefined);
-                }}
-              >
-                Allowed, but delivered quietly: nothing appears on screen.
-              </PermissionLine>
-            ) : (
-              <Button
-                className="h-auto p-0 text-xs font-normal text-foreground"
-                disabled={sendTestNotificationMutation.isPending}
-                onClick={handleSendTest}
-                variant="link"
-              >
-                Send a test notification
-              </Button>
-            )}
+            <Button
+              className="h-auto p-0 text-xs font-normal text-foreground"
+              disabled={sendTestNotificationMutation.isPending}
+              onClick={handleSendTest}
+              variant="link"
+            >
+              Send a test notification
+            </Button>
           </div>
           <Select
             disabled={setAgentCompletionNotificationsMutation.isPending}
@@ -789,32 +792,47 @@ function Notifications() {
 }
 
 /**
- * Where macOS stands on the app's notifications, in a line, with the one
- * thing that changes it.
+ * Notifications before macOS lets the app show any: what they are for and
+ * the one thing that gets them going, asking macOS the first time and
+ * opening System Settings once it has an answer.
  */
-function PermissionLine({
-  action,
-  children,
-  disabled = false,
-  onAction,
+function NotificationsPermission({
+  isPending,
+  onAllow,
+  onOpenSettings,
+  state,
 }: {
-  action: string;
-  children: ReactNode;
-  disabled?: boolean;
-  onAction: () => void;
+  isPending: boolean;
+  onAllow: () => void;
+  onOpenSettings: () => void;
+  state: "not-asked" | "off" | "quiet";
 }) {
+  const detail = {
+    "not-asked": `${APP_NAME} keeps working while you do other things. Allow notifications to hear when something's ready or needs you.`,
+    off: `Notifications are off for ${APP_NAME} in System Settings. Turn them on to hear when something's ready or needs you.`,
+    quiet: `Notifications reach Notification Center but don't show on screen. Choose banners in System Settings to see them.`,
+  }[state];
   return (
-    <p className="text-xs text-muted-foreground">
-      {children}{" "}
-      <Button
-        className="h-auto p-0 text-xs font-normal text-foreground"
-        disabled={disabled}
-        onClick={onAction}
-        variant="link"
-      >
-        {action}
-      </Button>
-    </p>
+    <Card className="p-4">
+      <div className="flex items-center gap-3.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-600 text-white">
+          <BellSimpleIcon className="size-5" weight="fill" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm font-medium">Know when it's done</p>
+          <p className="text-xs text-muted-foreground">{detail}</p>
+        </div>
+        <Button
+          className="shrink-0 rounded-full px-5"
+          disabled={isPending}
+          onClick={state === "not-asked" ? onAllow : onOpenSettings}
+          size="sm"
+          variant={state === "not-asked" ? "brand" : "outline"}
+        >
+          {state === "not-asked" ? "Allow" : "Open System Settings"}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

@@ -313,6 +313,7 @@ async function start() {
       await recordConnection(slug, { status: "declined" });
       await appChanged(slug, { event: "declined" });
       const name = await appName(appsDir, slug);
+      focusAppWindow();
       return c.html(
         renderAuthPage({
           kind: "declined",
@@ -345,6 +346,7 @@ async function start() {
           event: "failed",
         });
       }
+      focusAppWindow();
       return c.html(page, 400);
     }
     const name = appsDir
@@ -356,13 +358,15 @@ async function start() {
     // A sign-in that ran in the window's own browser lands on the service
     // itself, signed in: the connection is visible where it matters, and no
     // page of ours is left in the tab. One that ran in the user's browser
-    // gets a page that says what happened and the way back into the app.
+    // gets a page that says what happened and the way back into the app,
+    // and the window comes to the front so that way back is already taken.
     const home = appsDir
       ? await appHome(appsDir, result.value.slug)
       : undefined;
     if (result.value.opensIn === "app" && home) {
       return c.redirect(home);
     }
+    focusAppWindow();
     return c.html(
       renderAuthPage({
         kind: "connected",

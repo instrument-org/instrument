@@ -51,7 +51,7 @@ import { copySkill } from "../src/lib/copy-skill";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
-import { taskDir } from "../src/lib/task-dir-utils";
+import { placeTask } from "../src/lib/record-folders";
 import { taskVenvPython } from "../src/lib/uv";
 import { buildWorkspaceFsLayout } from "../src/lib/workspace-fs-layout";
 import {
@@ -123,7 +123,8 @@ async function installSkill({
   }
 
   const taskId = TaskIdSchema.parse(ulid().toLowerCase());
-  const dir = taskDir(taskId);
+  // Recorded as a task no chat owns, so every later lookup of the id finds it.
+  const dir = placeTask(taskId);
   await fs.mkdir(dir, { recursive: true });
   // The scaffold initializeTask lays down. `work/` has to arrive from the
   // template: its package.json and pnpm-workspace.yaml are what make the

@@ -176,20 +176,28 @@ export function useAppTabs() {
       navigate(href);
     }
   };
-  const close = (id: TabId) => {
-    // The last tab closing closes the window, which quits the app on every
-    // platform, asking first about running agents. The tab stays in the model
-    // so a canceled quit leaves the window as it was.
-    if (model.tabs.length === 1 && model.tabs[0]?.id === id) {
-      void rpcClient.utils.closeWindow.call();
-      return;
-    }
+  const closeInModel = (id: TabId) => {
     setModel((current) =>
       closeTab(current, {
         id,
         newTab: { id: freshTabId(), pathname: INBOX_HREF },
       }),
     );
+  };
+  const close = (id: TabId) => {
+    if (model.tabs.length !== 1 || model.tabs[0]?.id !== id) {
+      closeInModel(id);
+      return;
+    }
+    // The last tab closing quits the app on every platform, once the person
+    // has said yes about running agents. Only then does the tab go, leaving
+    // the inbox for next launch; a canceled quit leaves the window as it was.
+    void rpcClient.utils.approveQuit.call().then(({ approved }) => {
+      if (approved) {
+        closeInModel(id);
+        void rpcClient.utils.closeWindow.call();
+      }
+    });
   };
   return {
     activeRouter,

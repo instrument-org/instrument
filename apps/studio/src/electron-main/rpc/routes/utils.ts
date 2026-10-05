@@ -15,6 +15,7 @@ import {
   effectiveDisplayProtocol,
   resolveOzonePlatform,
 } from "@/electron-main/lib/ozone-platform";
+import { requestQuitApproval } from "@/electron-main/lib/quit";
 import {
   clearServerExceptions,
   getServerExceptions,
@@ -467,6 +468,15 @@ const closeWindow = base.input(z.void()).handler(({ context }) => {
   getCallingWindow(context.webContentsId)?.close();
 });
 
+/**
+ * Asks about running agents ahead of a quit the window is about to start, so
+ * it can settle what it keeps for next launch only once the quit is certain.
+ * The approval latches, so the close that follows does not ask again.
+ */
+const approveQuit = base.input(z.void()).handler(async () => ({
+  approved: await requestQuitApproval(),
+}));
+
 const events = {
   // Fires whenever the window gains or loses focus. The payload is a timestamp
   // rather than the focus state: subscribers refetch on it, and a value that
@@ -628,6 +638,7 @@ const showFolderPicker = base
   });
 
 export const utils = {
+  approveQuit,
   browserOpenTarget,
   clearExceptions,
   closeWindow,

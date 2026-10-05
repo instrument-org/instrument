@@ -16,6 +16,7 @@ import {
   openAppScreen,
   openAppWindow,
   updateAppWindowBackgroundColor,
+  warmAppWindowBehind,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
@@ -26,7 +27,11 @@ import {
 import { revealTask } from "@/electron-main/windows/reveal-task";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  APP_PREVIEW_NAME,
+  APP_PROTOCOL,
+} from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,
@@ -129,9 +134,11 @@ async function bootstrapPrimaryInstance() {
     return;
   }
 
+  // A preview is meant to be tried where it was unzipped and thrown away.
   if (
     process.platform === "darwin" &&
     !is.dev &&
+    APP_PREVIEW_NAME === undefined &&
     !app.isInApplicationsFolder() &&
     process.env.SKIP_MOVE_TO_APPLICATIONS !== "true"
   ) {
@@ -236,7 +243,7 @@ async function bootstrapPrimaryInstance() {
   });
 
   if (shouldShowOnboarding()) {
-    openOnboardingWindow();
+    openOnboarding();
   } else {
     openAppWindow();
   }
@@ -258,7 +265,7 @@ async function bootstrapPrimaryInstance() {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
       if (shouldShowOnboarding()) {
-        openOnboardingWindow();
+        openOnboarding();
       } else {
         openAppWindow();
       }
@@ -293,7 +300,7 @@ function focusForegroundWindow() {
     return;
   }
   if (shouldShowOnboarding()) {
-    openOnboardingWindow();
+    openOnboarding();
     return;
   }
   ensureForegroundWindowVisible();
@@ -310,6 +317,11 @@ function handleDeepLink(url: string) {
   if (link) {
     openAppScreen(link.href);
   }
+}
+
+/** Onboarding, with the app window loading off screen behind it. */
+function openOnboarding() {
+  warmAppWindowBehind(openOnboardingWindow());
 }
 
 function shouldShowOnboarding(): boolean {

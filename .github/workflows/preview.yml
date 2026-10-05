@@ -1,0 +1,108 @@
+name: Preview Build
+
+# A signed, notarized macOS build with an identity of its own (bundle id,
+# product name, protocol), so it runs beside Instrument and its first launch is
+# a real first launch: no userData, no keychain item, no privacy grants. Shipped
+# as a zip, so it can be unzipped, tried, and deleted without installing. Pick the branch in "Use workflow from"; the name labels the build and
+# defaults to the branch. See APP_PREVIEW_NAME in packages/shared.
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Preview name (letters, digits, dashes); defaults to the branch name
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Preview (${{ inputs.name || github.ref_name }})
+    runs-on: macos-26
+    permissions:
+      contents: read
+    env:
+      INSTRUMENT_PREVIEW_NAME: ${{ inputs.name || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-binary-caches
+      - uses: ./.github/actions/prepare
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The same reduction APP_PREVIEW_NAME applies, to fail early on a name
+      # that reduces to nothing and to label the summary.
+      - name: Resolve preview name
+        id: preview
+        run: |
+          slug=$(printf '%s' "$INSTRUMENT_PREVIEW_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)
+          if [ -z "$slug" ]; then
+            echo "::error::The preview name has no letters or digits in it."
+            exit 1
+          fi
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      - name: setup-signing
+        run: |
+          mkdir -p ~/.private_keys
+          echo '${{ secrets.APPLE_API_KEY_DATA }}' > ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      - name: Build (vite)
+        run: pnpm turbo run build:vite --filter=@instrument-org/studio
+        env:
+          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
+          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
+          MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
+          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
+          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
+
+      # Retried for the same reason as the release job's Package Mac step: the
+      # notary service drops the connection now and then.
+      - name: Package
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @instrument-org/studio exec electron-builder --mac zip --arm64 --publish never; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Packaging attempt $attempt failed, retrying"
+              sleep 30
+            fi
+          done
+          exit 1
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY: ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          APPLE_NOTARIZATION_ENABLED: ${{ vars.APPLE_NOTARIZATION_ENABLED }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          ARCH: arm64
+
+      - name: Verify the signed app starts
+        run: pnpm --filter @instrument-org/studio run verify-packaged-app
+
+      - name: Cleanup Signing
+        if: always()
+        run: rm -f ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      # Uploaded as the zip itself rather than wrapped in another one, so a
+      # download is one unzip away from the app. The file names the artifact.
+      - name: Upload preview
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist/*.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summarize
+        run: |
+          {
+            echo "### Instrument Preview (${{ steps.preview.outputs.slug }})"
+            echo
+            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download the zip under Artifacts below, unzip it, and open the app wherever it landed."
+            echo
+            echo "It runs beside Instrument and never updates itself. **Preview › Reset to First Run…** in its menu bar erases its data, keychain item, and macOS permissions and reopens it as a first launch."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,5 +1,4 @@
 import { APP_NAME, APP_PROTOCOL, SUPPORT_URL } from "@instrument-org/shared";
-import { app } from "electron";
 import { html, raw } from "hono/html";
 import { randomBytes } from "node:crypto";
 
@@ -16,16 +15,8 @@ interface AuthService {
 export type AuthOutcome =
   /** Signed in to Instrument itself. */
   | { email?: string; kind: "signed-in"; service: AuthService }
-  /**
-   * A provider or an app is connected. `inFront` says the window already came
-   * forward, so the tab has nothing left to do.
-   */
-  | {
-      email?: string;
-      inFront: boolean;
-      kind: "connected";
-      service: AuthService;
-    }
+  /** A provider or an app is connected. */
+  | { email?: string; kind: "connected"; service: AuthService }
   /**
    * The user said no on the service's own page: to connecting it, or with
    * `signIn`, to signing in with it. `headline` when what was declined was
@@ -42,7 +33,7 @@ export type AuthOutcome =
   /** The service said yes and the rest went wrong. `connecting` names what was being connected; absent, it was signing in. */
   | { connecting?: string; kind: "failed"; reference: string };
 
-/** A short code for a failure, logged with it, that the page offers to copy for support. */
+/** A short code for a failure, logged with it, that the page shows in small print for support. */
 export function newAuthReference() {
   return `AUTH-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
@@ -74,8 +65,6 @@ const CLOCK_COUNTDOWN =
   "M232,136.66A104.12,104.12,0,1,1,119.34,24,8,8,0,0,1,120.66,40,88.12,88.12,0,1,0,216,135.34,8,8,0,0,1,232,136.66ZM120,72v56a8,8,0,0,0,8,8h56a8,8,0,0,0,0-16H136V72a8,8,0,0,0-16,0Zm40-24a12,12,0,1,0-12-12A12,12,0,0,0,160,48Zm36,24a12,12,0,1,0-12-12A12,12,0,0,0,196,72Zm24,36a12,12,0,1,0-12-12A12,12,0,0,0,220,108Z";
 const WARNING_CIRCLE =
   "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z";
-const COPY =
-  "M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z";
 
 const baseBtn = [
   "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5",
@@ -146,7 +135,7 @@ const pairedMarks = (service: AuthService) =>
 
 const accountChip = (email: string, service: AuthService) =>
   html`<div
-    class="flex items-center gap-2.5 rounded-full bg-white/70 py-1.5 pr-4 pl-1.5 text-sm text-stone-800 ring-1 ring-black/5 dark:bg-white/10 dark:text-white/85 dark:ring-white/10"
+    class="flex items-center gap-2.5 rounded-full border border-stone-900/10 py-1.5 pr-4 pl-1.5 text-sm text-stone-800 dark:border-white/15 dark:text-white/85"
   >
     ${
       service.mark
@@ -160,21 +149,34 @@ const accountChip = (email: string, service: AuthService) =>
     <span>${email}</span>
   </div>`;
 
-const closeTab = subline("You can close this tab.");
-
 const group = (...children: unknown[]) =>
-  html`<div class="flex flex-col items-center gap-3">${children}</div>`;
+  html`<div class="flex flex-col items-center gap-5">${children}</div>`;
 
-const supportFooter = html`<p
-  class="absolute inset-x-0 bottom-6 text-center text-xs text-stone-500 dark:text-white/45"
+// A success page's button sits further down than the others, past the
+// account it names.
+const openAppSpaced = html`<div class="pt-6">${openApp}</div>`;
+
+// A failure's reference rides along in small print, for support to match
+// against the logged error; nobody is asked to do anything with it.
+const supportFooter = (reference?: string) => html`<div
+  class="absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-center text-xs text-stone-500 dark:text-white/45"
 >
-  Need help?
-  <a
-    class="underline decoration-stone-300 underline-offset-4 hover:text-stone-900 dark:decoration-white/25 dark:hover:text-white"
-    href="${SUPPORT_URL}"
-    >Contact support</a
-  >
-</p>`;
+  <p>
+    Need help?
+    <a
+      class="underline decoration-stone-300 underline-offset-4 hover:text-stone-900 dark:decoration-white/25 dark:hover:text-white"
+      href="${SUPPORT_URL}"
+      >Contact support</a
+    >
+  </p>
+  ${
+    reference
+      ? html`<p class="font-mono text-stone-400 dark:text-white/30">
+          ${reference}
+        </p>`
+      : ""
+  }
+</div>`;
 
 function renderOutcome(outcome: AuthOutcome) {
   switch (outcome.kind) {
@@ -185,19 +187,19 @@ function renderOutcome(outcome: AuthOutcome) {
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
         )}
-        ${closeTab} ${openApp}`,
+        ${openAppSpaced}`,
         title: "Signed in",
       };
     }
     case "connected": {
-      const { email, inFront, service } = outcome;
+      const { email, service } = outcome;
       return {
         body: html`${pairedMarks(service)}
         ${group(
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
         )}
-        ${inFront ? closeTab : ""} ${openApp}`,
+        ${openAppSpaced}`,
         title: `${service.name} connected`,
       };
     }
@@ -209,7 +211,9 @@ function renderOutcome(outcome: AuthOutcome) {
         }
         ${heading(
           headline ??
-            (signIn ? "Sign-in canceled" : `${service.name} wasn't connected`),
+            (signIn
+              ? "There was a problem signing in"
+              : `There was a problem connecting to ${service.name}`),
         )}
         ${openApp}`,
         title: signIn ? "Sign-in canceled" : "Not connected",
@@ -219,38 +223,26 @@ function renderOutcome(outcome: AuthOutcome) {
       return {
         body: html`${glyph(
           CLOCK_COUNTDOWN,
-          "size-14 text-stone-400 dark:text-white/40",
+          "size-12 text-stone-400 dark:text-white/40",
         )}
-        ${heading("This sign-in link has expired")} ${openApp}`,
+        ${heading("This sign-in link expired")} ${openApp}`,
         title: "Link expired",
       };
     }
     case "failed": {
       const { connecting, reference } = outcome;
-      const details = [
-        `Reference ${reference}`,
-        `${APP_NAME} ${app.getVersion()}`,
-        new Date().toISOString(),
-      ].join("\n");
       return {
-        body: html`${glyph(WARNING_CIRCLE, "size-14 text-amber-600")}
-          ${heading(
-            connecting ? `Couldn't connect ${connecting}` : "Couldn't sign in",
-          )}
-          <button
-            type="button"
-            data-copy="${details}"
-            class="flex items-center gap-3 rounded-lg bg-white/70 px-3 py-2 text-xs text-stone-600 ring-1 ring-black/5 hover:bg-white dark:bg-white/10 dark:text-white/60 dark:ring-white/10"
-          >
-            <span>Reference</span>
-            <code class="font-mono text-stone-900 dark:text-white"
-              >${reference}</code
-            >
-            <span data-copy-label class="flex items-center gap-1"
-              >${glyph(COPY, "size-3.5")}Copy</span
-            >
-          </button>
-          ${openApp}`,
+        body: html`${glyph(
+          WARNING_CIRCLE,
+          "size-12 text-stone-400 dark:text-white/40",
+        )}
+        ${heading(
+          connecting
+            ? `There was a problem connecting to ${connecting}`
+            : "There was a problem signing in",
+        )}
+        ${openApp}`,
+        reference,
         title: "Sign-in failed",
       };
     }
@@ -276,7 +268,6 @@ export const previewOutcomes = (
     label: "ChatGPT connected",
     outcome: {
       email: "alex@example.com",
-      inFront: true,
       kind: "connected",
       service: { mark: OPENAI_MARK, name: "ChatGPT" },
     },
@@ -284,7 +275,6 @@ export const previewOutcomes = (
   {
     label: "App connected",
     outcome: {
-      inFront: false,
       kind: "connected",
       service: { mark: sampleMark, name: "Linear" },
     },
@@ -324,7 +314,11 @@ function renderIndex(links: { href: string; label: string }[]) {
 export function renderAuthPage(
   page: AuthOutcome | { index: { href: string; label: string }[] },
 ) {
-  const { body, title }: { body: unknown; title: string } =
+  const {
+    body,
+    reference,
+    title,
+  }: { body: unknown; reference?: string; title: string } =
     "index" in page ? renderIndex(page.index) : renderOutcome(page);
 
   return html`
@@ -369,7 +363,7 @@ export function renderAuthPage(
         <main
           class="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
         >
-          ${body} ${supportFooter}
+          ${body} ${supportFooter(reference)}
         </main>
         <script>
           for (const mark of document.querySelectorAll("[data-app-mark]")) {
@@ -379,12 +373,6 @@ export function renderAuthPage(
                 "text-3xl font-normal auth-serif text-stone-900 dark:text-white";
               name.textContent = ${raw(JSON.stringify(APP_NAME))};
               mark.replaceWith(name);
-            });
-          }
-          for (const copy of document.querySelectorAll("[data-copy]")) {
-            copy.addEventListener("click", async function () {
-              await navigator.clipboard.writeText(copy.dataset.copy);
-              copy.querySelector("[data-copy-label]").textContent = "Copied";
             });
           }
         </script>

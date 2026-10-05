@@ -1,4 +1,4 @@
-import { APP_BUNDLE_ID } from "@instrument-org/shared";
+import { APP_BUNDLE_ID, APP_PREVIEW_NAME } from "@instrument-org/shared";
 import { app, dialog, type Session } from "electron";
 
 import { createScopedLogger } from "./electron-logger";
@@ -44,7 +44,9 @@ export const WEBAUTHN_KEYCHAIN_ACCESS_GROUP = `${APPLE_TEAM_ID}.${APP_BUNDLE_ID}
  * authenticator it cannot serve.
  */
 export function configurePlatformAuthenticator(): void {
-  if (process.platform !== "darwin") {
+  // A preview is signed without the provisioning profile that grants the
+  // access group (entitlements.mac.preview.plist).
+  if (process.platform !== "darwin" || APP_PREVIEW_NAME !== undefined) {
     return;
   }
   try {

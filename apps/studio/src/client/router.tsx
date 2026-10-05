@@ -29,10 +29,8 @@ function createRouter(options?: { history?: RouterHistory }) {
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: NotFoundRouteComponent,
     defaultOnCatch: captureComponentError,
-    // Preload is opt-in per link: task links pass preload="intent" so hover
-    // warms the task route's loader (local data is fast, not instant). A
-    // global default would also preload routes with mutating loaders, e.g.
-    // /tutorial-task. JS for certain routes is preloaded in _app/route.tsx.
+    // Preload is opt-in per link (`preload="intent"`); a global default would
+    // also run loaders with side effects on hover.
     defaultPreload: false,
     history: options?.history,
     routeTree,

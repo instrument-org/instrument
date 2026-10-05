@@ -1,7 +1,6 @@
 import {
   dataAccess,
   notificationStatus,
-  openNotificationSettings,
   requestNotifications,
 } from "@/electron-main/lib/mac-native";
 import { base } from "@/electron-main/rpc/base";
@@ -21,8 +20,6 @@ const notifications = {
   status: base.handler(() => notificationStatus()),
   /** The system's prompt when nobody has answered it; the standing answer otherwise. */
   request: base.handler(() => requestNotifications()),
-  /** System Settings at Instrument's notification row, where a "no" is undone. */
-  openSettings: base.handler(() => openNotificationSettings()),
 };
 
 const access = {

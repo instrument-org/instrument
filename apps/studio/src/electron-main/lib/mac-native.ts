@@ -1,5 +1,4 @@
-import { APP_BUNDLE_ID } from "@instrument-org/shared";
-import { app, shell } from "electron";
+import { app } from "electron";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -115,17 +114,6 @@ export async function requestNotifications(): Promise<{ granted: boolean }> {
     throw new Error(answer.error);
   }
   return answer;
-}
-
-/**
- * System Settings at Instrument's own row under Notifications, where a
- * "no" is changed. The `id` is undocumented; without it the pane still
- * opens, one scroll from the row.
- */
-export async function openNotificationSettings(): Promise<void> {
-  await shell.openExternal(
-    `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=${APP_BUNDLE_ID}`,
-  );
 }
 
 export type DataKind = "calendars" | "contacts" | "reminders";

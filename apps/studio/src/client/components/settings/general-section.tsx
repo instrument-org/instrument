@@ -653,6 +653,31 @@ function Notifications() {
   const openNotificationSettingsMutation = useMutation(
     rpcClient.preferences.openNotificationSettings.mutationOptions(),
   );
+  // What macOS says about the app's notifications. Read again whenever the
+  // window comes back to the front, which is when someone returns from
+  // System Settings having changed it.
+  const permission = useQuery(
+    rpcClient.mac.notifications.status.queryOptions({
+      refetchOnWindowFocus: "always",
+    }),
+  );
+  const requestPermission = useMutation(
+    rpcClient.mac.notifications.request.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't ask macOS to turn on notifications.", {
+          description: error.message,
+        });
+      },
+      onSettled: () => {
+        void permission.refetch();
+      },
+    }),
+  );
+  const status = permission.data?.status;
+  // Where the app is allowed but banners are off, nothing shows on screen.
+  const isQuiet =
+    status === "provisional" ||
+    (status === "allowed" && permission.data?.alerts === false);
 
   const mode = preferences?.agentCompletionNotifications ?? "unfocused";
   const triggerLabel =
@@ -692,14 +717,44 @@ function Notifications() {
             <p className="text-xs text-muted-foreground">
               Show a desktop notification when a task finishes.
             </p>
-            <Button
-              className="h-auto p-0 text-xs font-normal text-foreground"
-              disabled={sendTestNotificationMutation.isPending}
-              onClick={handleSendTest}
-              variant="link"
-            >
-              Send a test notification
-            </Button>
+            {status === "not-asked" ? (
+              <PermissionLine
+                action="Turn on"
+                disabled={requestPermission.isPending}
+                onAction={() => {
+                  requestPermission.mutate(undefined);
+                }}
+              >
+                Not turned on yet; macOS asks once.
+              </PermissionLine>
+            ) : status === "denied" ? (
+              <PermissionLine
+                action="Open System Settings"
+                onAction={() => {
+                  openNotificationSettingsMutation.mutate(undefined);
+                }}
+              >
+                Off for {APP_NAME} in System Settings.
+              </PermissionLine>
+            ) : isQuiet ? (
+              <PermissionLine
+                action="Open System Settings"
+                onAction={() => {
+                  openNotificationSettingsMutation.mutate(undefined);
+                }}
+              >
+                Allowed, but delivered quietly: nothing appears on screen.
+              </PermissionLine>
+            ) : (
+              <Button
+                className="h-auto p-0 text-xs font-normal text-foreground"
+                disabled={sendTestNotificationMutation.isPending}
+                onClick={handleSendTest}
+                variant="link"
+              >
+                Send a test notification
+              </Button>
+            )}
           </div>
           <Select
             disabled={setAgentCompletionNotificationsMutation.isPending}
@@ -730,6 +785,36 @@ function Notifications() {
         </div>
       </Card>
     </SettingsSection>
+  );
+}
+
+/**
+ * Where macOS stands on the app's notifications, in a line, with the one
+ * thing that changes it.
+ */
+function PermissionLine({
+  action,
+  children,
+  disabled = false,
+  onAction,
+}: {
+  action: string;
+  children: ReactNode;
+  disabled?: boolean;
+  onAction: () => void;
+}) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {children}{" "}
+      <Button
+        className="h-auto p-0 text-xs font-normal text-foreground"
+        disabled={disabled}
+        onClick={onAction}
+        variant="link"
+      >
+        {action}
+      </Button>
+    </p>
   );
 }
 

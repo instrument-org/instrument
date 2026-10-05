@@ -1,3 +1,4 @@
+import { selectDecisionConfigs } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import {
@@ -47,4 +48,18 @@ const ask = base
     return { ...asked.response, ms: asked.ms, provider: asked.provider };
   });
 
-export const decision = { ask };
+/**
+ * Whether any provider the workspace has could reach the decision model: an
+ * Instrument sign-in or an OpenRouter key. Read off the configs alone, so a
+ * caller can skip asking, and skip saying it is looking, when nothing could
+ * answer; a provider that is set up but down still only shows on `ask`.
+ */
+const available = base
+  .output(z.boolean())
+  .handler(
+    ({ context }) =>
+      selectDecisionConfigs(context.workspaceConfig.getAIProviderConfigs())
+        .length > 0,
+  );
+
+export const decision = { ask, available };

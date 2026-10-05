@@ -49,7 +49,6 @@ import { steppedZoom } from "@/shared/zoom";
 import { PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
-import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
 import { DatabaseIcon } from "@phosphor-icons/react/Database";
 import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
 import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
@@ -557,15 +556,6 @@ export function DevPanel() {
                   >
                     <DatabaseIcon className="size-3" />
                     Query
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("analytics-toolbar");
-                    }}
-                  >
-                    <ChartBarIcon className="size-3" />
-                    Analytics
                   </MenubarItem>
                   <MenubarItem
                     className="font-mono text-xs"

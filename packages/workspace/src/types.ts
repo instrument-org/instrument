@@ -4,10 +4,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type AppConnectionStore } from "./lib/apps/connection";
@@ -174,7 +171,6 @@ export interface WorkspaceConfig {
   appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
-  captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */

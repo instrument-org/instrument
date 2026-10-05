@@ -202,7 +202,6 @@ async function runNew(
   const message = await newMessage({
     files,
     folders,
-    model,
     modelURI,
     prompt,
     sessionId,

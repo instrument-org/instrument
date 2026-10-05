@@ -10,7 +10,6 @@ import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState } from "./task-record";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
   agentName,
@@ -125,12 +124,6 @@ export async function runToolCall({
               taskId,
               { signal },
             ));
-        getWorkspaceConfig().captureEvent("llm.tool_executed", {
-          modelId: model.canonicalId,
-          providerId: model.params.provider,
-          success: output.isOk(),
-          tool_name: part.type,
-        });
       }
     }
   } catch (error) {

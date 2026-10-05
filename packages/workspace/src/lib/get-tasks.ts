@@ -70,7 +70,7 @@ export async function getTasks(
   // Folders whose name isn't a valid task id are skipped silently. They are a
   // recoverable, user-visible condition (surfaced via listInvalidTaskFolders
   // and the Storage settings tab), not a bug -- previously every scan reported
-  // one telemetry exception per folder, flooding error reporting.
+  // one exception per folder, flooding error reporting.
   const tasks = taskResults
     .filter((result) => result.isOk())
     .map((result) => result.value);

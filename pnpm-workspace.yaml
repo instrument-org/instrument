@@ -4,7 +4,6 @@ packages:
 
 allowBuilds:
   "@parcel/watcher": false
-  "@posthog/cli": true
   "@swc/core": true
   "@vscode/ripgrep": true
   agent-browser: true
@@ -108,8 +107,8 @@ overrides:
   # vite variants, making Plugin types "unrelated" and breaking tsgo on
   # electron.vite.config.ts.
   jiti: 2.7.0
-  # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown and
-  # posthog-js bundle it too; 3.4.5 carries several sanitizer-bypass advisories.
+  # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown
+  # bundles it too; 3.4.5 carries several sanitizer-bypass advisories.
   dompurify: ^3.4.16
   # better-auth merges options with defu; 6.1.4 lets a __proto__ key in the
   # defaults pollute the prototype.

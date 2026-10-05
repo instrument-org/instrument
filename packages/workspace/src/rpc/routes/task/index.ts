@@ -152,7 +152,6 @@ const create = base
         files,
         folders: userFolders.length > 0 ? userFolders : undefined,
         intent,
-        model,
         modelURI,
         prompt,
         sessionId: sessionResult.value.id,
@@ -231,12 +230,6 @@ const create = base
           model,
           sessionId: message.metadata.sessionId,
         },
-      });
-
-      context.workspaceConfig.captureEvent("task.created", {
-        files_count: files?.length ?? 0,
-        modelId: model.canonicalId,
-        providerId: model.params.provider,
       });
 
       return {

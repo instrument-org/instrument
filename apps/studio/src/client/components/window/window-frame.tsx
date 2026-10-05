@@ -21,7 +21,7 @@ const LazyFilePreviewModal = lazy(() =>
 );
 
 // The developer panel's Tools: the router's and the query cache's devtools,
-// the analytics toolbar, and page annotation, loaded only once asked for.
+// and page annotation, loaded only once asked for.
 const DevTools = lazy(() =>
   import("@/client/components/dev-tools").then((m) => ({
     default: m.DevTools,

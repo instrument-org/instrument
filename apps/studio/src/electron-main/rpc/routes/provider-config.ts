@@ -35,7 +35,7 @@ const list = base.output(z.array(ClientAIProviderConfigSchema)).handler(() => {
 
 const remove = base
   .input(z.object({ id: AIProviderConfigIdSchema }))
-  .handler(({ context, errors, input }) => {
+  .handler(({ errors, input }) => {
     const providersStore = getProviderConfigsStore();
 
     const providerConfig = providersStore
@@ -50,10 +50,6 @@ const remove = base
       "providers",
       providersStore.get("providers").filter((p) => p.id !== input.id),
     );
-
-    context.workspaceConfig.captureEvent("provider.removed", {
-      provider_type: providerConfig.type,
-    });
   });
 
 const update = base
@@ -97,78 +93,64 @@ const create = base
       skipValidation: z.boolean().optional(),
     }),
   )
-  .handler(
-    async ({
-      context,
-      errors,
-      input: { config: newConfig, skipValidation },
-    }) => {
-      const providersStore = getProviderConfigsStore();
-      const existingConfigs = providersStore.get("providers");
+  .handler(async ({ errors, input: { config: newConfig, skipValidation } }) => {
+    const providersStore = getProviderConfigsStore();
+    const existingConfigs = providersStore.get("providers");
 
-      const duplicateProviderByName = existingConfigs.find(
-        (p) =>
-          p.type === newConfig.type && p.displayName === newConfig.displayName,
-      );
+    const duplicateProviderByName = existingConfigs.find(
+      (p) =>
+        p.type === newConfig.type && p.displayName === newConfig.displayName,
+    );
 
-      if (duplicateProviderByName) {
-        throw errors.BAD_REQUEST({
-          message: `A provider of type "${newConfig.type}" with the name "${newConfig.displayName ?? ""}" already exists`,
-        });
-      }
-
-      const providerMetadata = getProviderMetadata(newConfig.type);
-
-      if (!providerMetadata.requiresAPIKey) {
-        const newConfigBaseURL = baseURLWithDefault(newConfig);
-        const duplicateProviderByBaseURL = existingConfigs.find((p) => {
-          const existingBaseURL = baseURLWithDefault(p);
-          return (
-            p.type === newConfig.type && existingBaseURL === newConfigBaseURL
-          );
-        });
-
-        if (duplicateProviderByBaseURL) {
-          throw errors.BAD_REQUEST({
-            message: `A provider of type "${providerMetadata.name}" with the base URL "${newConfigBaseURL}" already exists.`,
-          });
-        }
-      }
-
-      if (!skipValidation) {
-        const result = await verifyAPIKey(newConfig);
-
-        if (!result.ok) {
-          context.workspaceConfig.captureEvent("provider.verification_failed", {
-            provider_type: newConfig.type,
-          });
-
-          throw errors.UNAUTHORIZED({
-            cause: result.error,
-            message: result.error.message,
-          });
-        }
-      }
-
-      const configToSave = {
-        ...newConfig,
-        // OpenRouter uses `user` for per-client cache keys; keep one stable id per config.
-        // Prefix with app domain so their dashboard shows which product it is, not a bare uuid.
-        cacheIdentifier: `${APP_DOMAIN}-${crypto.randomUUID()}`,
-        id: AIProviderConfigIdSchema.parse(ulid()),
-      };
-
-      providersStore.set("providers", [...existingConfigs, configToSave]);
-
-      getWorkspaceState().set("hasCompletedProviderSetup", true);
-
-      void setDefaultModel({ onlyIfUnset: true });
-
-      context.workspaceConfig.captureEvent("provider.created", {
-        provider_type: configToSave.type,
+    if (duplicateProviderByName) {
+      throw errors.BAD_REQUEST({
+        message: `A provider of type "${newConfig.type}" with the name "${newConfig.displayName ?? ""}" already exists`,
       });
-    },
-  );
+    }
+
+    const providerMetadata = getProviderMetadata(newConfig.type);
+
+    if (!providerMetadata.requiresAPIKey) {
+      const newConfigBaseURL = baseURLWithDefault(newConfig);
+      const duplicateProviderByBaseURL = existingConfigs.find((p) => {
+        const existingBaseURL = baseURLWithDefault(p);
+        return (
+          p.type === newConfig.type && existingBaseURL === newConfigBaseURL
+        );
+      });
+
+      if (duplicateProviderByBaseURL) {
+        throw errors.BAD_REQUEST({
+          message: `A provider of type "${providerMetadata.name}" with the base URL "${newConfigBaseURL}" already exists.`,
+        });
+      }
+    }
+
+    if (!skipValidation) {
+      const result = await verifyAPIKey(newConfig);
+
+      if (!result.ok) {
+        throw errors.UNAUTHORIZED({
+          cause: result.error,
+          message: result.error.message,
+        });
+      }
+    }
+
+    const configToSave = {
+      ...newConfig,
+      // OpenRouter uses `user` for per-client cache keys; keep one stable id per config.
+      // Prefix with app domain so their dashboard shows which product it is, not a bare uuid.
+      cacheIdentifier: `${APP_DOMAIN}-${crypto.randomUUID()}`,
+      id: AIProviderConfigIdSchema.parse(ulid()),
+    };
+
+    providersStore.set("providers", [...existingConfigs, configToSave]);
+
+    getWorkspaceState().set("hasCompletedProviderSetup", true);
+
+    void setDefaultModel({ onlyIfUnset: true });
+  });
 
 const credits = base
   .use(async ({ next }) => {

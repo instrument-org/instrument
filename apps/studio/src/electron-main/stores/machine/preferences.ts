@@ -5,12 +5,10 @@ import Store from "electron-store";
 import { z } from "zod";
 
 /**
- * What a person chose for this computer, whichever workspace is open: whether
- * it reports usage, and which builds it updates to. Per-workspace choices are
- * in `workspace/preferences.ts`.
+ * What a person chose for this computer, whichever workspace is open: which
+ * builds it updates to. Per-workspace choices are in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
-  enableUsageMetrics: z.boolean().catch(true),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z
     .enum(["latest", "beta", "alpha"])

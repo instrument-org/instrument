@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import { shouldRestoreScroll } from "./lib/scroll-restoration";
-import { captureComponentError, capturePageView } from "./lib/telemetry";
+import { captureComponentError } from "./lib/capture-exception";
 import { routeTree } from "./routeTree.gen";
 
 function createRouter(options?: { history?: RouterHistory }) {
@@ -35,10 +35,6 @@ function createRouter(options?: { history?: RouterHistory }) {
     history: options?.history,
     routeTree,
     scrollRestoration: shouldRestoreScroll,
-  });
-
-  router.subscribe("onRendered", () => {
-    capturePageView();
   });
 
   return {

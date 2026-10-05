@@ -167,7 +167,6 @@ const create = base
           chatContext,
           files,
           folders,
-          model,
           modelURI,
           output,
           prompt,

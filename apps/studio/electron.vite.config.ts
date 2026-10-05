@@ -244,19 +244,13 @@ function createValidateProductionEnv(
     renderer: [] as string[],
   };
 
-  // Variables available to all contexts
-  const sharedRequiredVars = ["VITE_POSTHOG_API_HOST", "VITE_POSTHOG_API_KEY"];
-
   return {
     configResolved(config) {
       if (config.mode !== "production") {
         return;
       }
 
-      const contextVars = requiredVarsByContext[context];
-      const allRequiredVars = [...sharedRequiredVars, ...contextVars];
-
-      for (const key of allRequiredVars) {
+      for (const key of requiredVarsByContext[context]) {
         if (!config.env[key]) {
           throw new Error(
             `Missing environment variable for ${context}: ${key}`,

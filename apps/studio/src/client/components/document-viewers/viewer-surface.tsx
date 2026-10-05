@@ -1,4 +1,4 @@
-import { captureException } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import {
   CatchBoundary,

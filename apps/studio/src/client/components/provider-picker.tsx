@@ -14,7 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -41,9 +40,6 @@ export function ProviderPicker({
   const { sortedProviderMetadata } = useAtomValue(providerMetadataAtom);
 
   const handleSelect = (providerType: AIProviderType) => {
-    captureClientEvent("provider.selected", {
-      provider_type: providerType,
-    });
     onSelect(providerType);
     setOpen(false);
   };
@@ -53,15 +49,7 @@ export function ProviderPicker({
     : null;
 
   return (
-    <Popover
-      onOpenChange={(newOpen) => {
-        if (newOpen) {
-          captureClientEvent("provider.picker_opened");
-        }
-        setOpen(newOpen);
-      }}
-      open={open}
-    >
+    <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}

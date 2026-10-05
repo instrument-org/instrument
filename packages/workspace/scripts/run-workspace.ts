@@ -114,9 +114,6 @@ const actor = createActor(workspaceMachine, {
     apps: createMemoryAppsConfig(),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: (...args: unknown[]) => {
-      console.log("captureEvent", args);
-    },
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },

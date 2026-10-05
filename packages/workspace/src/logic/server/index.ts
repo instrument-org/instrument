@@ -65,12 +65,6 @@ export const workspaceServerLogic = fromCallback<
       server = startedServer;
       setWorkspaceServerPort(port);
 
-      if (port !== DEFAULT_APPS_SERVER_PORT) {
-        input.workspaceConfig.captureEvent("workspace.non_default_port", {
-          apps_server_port: port,
-        });
-      }
-
       // A socket error on a listening server is otherwise unhandled, and an
       // unhandled one in the main process takes the app down with it.
       startedServer.on("error", (error) => {

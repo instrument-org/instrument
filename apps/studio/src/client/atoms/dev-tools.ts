@@ -1,9 +1,5 @@
 import { atom } from "jotai";
 
-type DevToolsPanel =
-  | "agentation"
-  | "analytics-toolbar"
-  | "query-devtools"
-  | "router-devtools";
+type DevToolsPanel = "agentation" | "query-devtools" | "router-devtools";
 
 export const devToolsPanelAtom = atom<DevToolsPanel | null>(null);

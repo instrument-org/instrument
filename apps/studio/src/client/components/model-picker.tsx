@@ -55,8 +55,6 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
  */
 const PANEL_MAX_HEIGHT = "27rem";
 
-import { captureClientEvent } from "@/client/lib/capture-client-event";
-
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
 import { ModelBadges } from "./model-badges";
@@ -232,7 +230,6 @@ export function ModelPicker({
       onOpenChange={(newOpen) => {
         if (newOpen) {
           setOpen(true);
-          captureClientEvent("model_picker.opened");
         } else {
           closePopover();
         }
@@ -387,10 +384,6 @@ export function ModelPicker({
                         duration: 7000,
                       });
                     } else {
-                      captureClientEvent("model_picker.model_selected", {
-                        modelId: model.canonicalId,
-                        providerId: model.params.provider,
-                      });
                       onValueChange(model.uri);
                     }
                     closePopover();

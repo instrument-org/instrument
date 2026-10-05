@@ -19,7 +19,6 @@ import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
-import { telemetry } from "./telemetry";
 import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
@@ -47,7 +46,6 @@ export const router = {
   releases,
   stripe,
   syntax,
-  telemetry,
   transcript,
   updates,
   user,

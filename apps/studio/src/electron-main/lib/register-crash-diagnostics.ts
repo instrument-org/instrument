@@ -38,9 +38,8 @@ let isWritingCrashRecord = false;
  * torn down mid-flight -- and Node's default is to promote it to an uncaught
  * exception.
  *
- * Both are reported through `captureServerException`, so they carry the app
- * version and the install's telemetry id like every other report, except the
- * network drops `isExpectedNetworkError` recognizes. Those are a property of
+ * Both are reported through `captureServerException` like every other
+ * exception, except the network drops `isExpectedNetworkError` recognizes. Those are a property of
  * the user's connection: a dependency that downloads without an error listener
  * turns a network change into an uncaught throw, and nothing about it is a bug
  * here.

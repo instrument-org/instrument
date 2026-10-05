@@ -501,18 +501,20 @@ describe("Studio Smoke Test", () => {
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
 
-    // Validate machine-state.json was written at boot: the first launch
-    // generates this computer's telemetry id there.
+    // Validate machine-state.json was written at boot: a packaged launch
+    // records the version it ran. It holds no identifier for this computer.
     const appStateContent = await fs.readFile(
       path.join(tempUserDataDir, "machine-state.json"),
       "utf8",
     );
-    const appState = JSON.parse(appStateContent) as {
-      telemetryId?: string;
-    };
+    const appState = JSON.parse(appStateContent) as Record<string, unknown>;
     expect(
-      appState.telemetryId,
-      "machine-state.json: telemetryId is generated on first launch",
-    ).toMatch(/^anon-/);
+      appState.lastLaunchedVersion,
+      "machine-state.json: lastLaunchedVersion is recorded on first launch",
+    ).toEqual(expect.any(String));
+    expect(
+      Object.keys(appState),
+      "machine-state.json: no install identifier",
+    ).not.toContain("telemetryId");
   });
 });

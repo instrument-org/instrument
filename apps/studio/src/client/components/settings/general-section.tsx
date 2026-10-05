@@ -24,7 +24,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
-import { Switch } from "@/client/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -78,7 +77,6 @@ export function GeneralSection() {
       <Notifications />
       <About />
       <SettingsSection title="Advanced">
-        <UsageMetrics />
         <DiagnosticLog />
       </SettingsSection>
     </div>
@@ -863,41 +861,4 @@ function toLogLines(text: string): { level: LogLevel; text: string }[] {
       }
       return { level: "plain" as const, text: line };
     });
-}
-
-function UsageMetrics() {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-
-  const setUsageMetricsMutation = useMutation(
-    rpcClient.preferences.setEnableUsageMetrics.mutationOptions(),
-  );
-
-  const handleToggleUsageMetrics = async (checked: boolean) => {
-    try {
-      await setUsageMetricsMutation.mutateAsync({ enabled: checked });
-      toast.success(
-        checked ? "Usage metrics enabled" : "Usage metrics disabled",
-      );
-    } catch {
-      toast.error("Failed to update usage metrics preference");
-    }
-  };
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-center space-x-2">
-        <Switch
-          checked={preferences?.enableUsageMetrics ?? false}
-          disabled={setUsageMetricsMutation.isPending}
-          id="usage-metrics"
-          onCheckedChange={handleToggleUsageMetrics}
-        />
-        <Label className="inline" htmlFor="usage-metrics">
-          Help {APP_NAME} improve by submitting usage metrics
-        </Label>
-      </div>
-    </Card>
-  );
 }

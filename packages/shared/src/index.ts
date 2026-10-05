@@ -6,5 +6,5 @@ export * from "./is-network-error";
 export * from "./listen-with-port-fallback";
 export * from "./page-edit-address";
 export * from "./schemas";
-export type * from "./types/telemetry";
+export type * from "./types/exceptions";
 export * from "./types/workspace";

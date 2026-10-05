@@ -52,7 +52,6 @@ setWorkspaceConfig({
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },
-  captureEvent: noop,
   captureException: noop,
   defaultTaskTemplateDir: AbsolutePathSchema.parse(
     path.join(rootDir, "default-task-template"),

@@ -36,7 +36,7 @@ const location = base
 
 // Folders on disk that the app can't open as a chat or task (bad
 // name, missing/corrupt settings, or an unreadable store). Surfaced so the user can discover and trash them,
-// rather than reported as a telemetry exception on every scan.
+// rather than reported as an exception on every scan.
 const listInvalidFolders = base
   .output(InvalidFolderSchema.array())
   .handler(async ({ context }) => {
@@ -71,10 +71,6 @@ const trashInvalidFolder = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
-    // A task inside a chat is counted with the tasks.
-    context.workspaceConfig.captureEvent(
-      `${kind === "chat" ? "chat" : "task"}.invalid_folder_trashed`,
-    );
   });
 
 export const storage = {

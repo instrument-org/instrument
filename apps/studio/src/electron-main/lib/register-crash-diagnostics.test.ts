@@ -209,7 +209,7 @@ describe("registerCrashDiagnostics", () => {
     },
   );
 
-  it("handles process-level errors for every install, whatever the analytics preference", () => {
+  it("handles process-level errors for every install", () => {
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(addedMonitorListeners()).toHaveLength(1);
@@ -238,7 +238,7 @@ describe("registerCrashDiagnostics", () => {
   it("survives a report that throws", () => {
     registerCrashDiagnostics(createFakeApp().app);
     captureServerException.mockImplementationOnce(() => {
-      throw new Error("telemetry is down");
+      throw new Error("reporting is down");
     });
 
     expect(() =>

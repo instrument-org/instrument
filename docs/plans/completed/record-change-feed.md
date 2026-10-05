@@ -1,6 +1,6 @@
 # Plan: one change feed for records
 
-Status: active.
+Status: completed. Steps 1 to 6 landed; the per-row wire format is the next step below.
 
 ## Problem
 
@@ -22,6 +22,10 @@ Each step is one commit that keeps both packages' types and suites green.
 ## Checks at the end
 
 Both full suites; both packages' types; a fixture booted from this worktree with `studio-drive`, renaming and starring a chat over RPC and seeing its row move, `sweep-screens.mjs` clean.
+
+## Outcome
+
+Beyond the plan: trashing one task with the `task` command now reaches listeners (no topic said so before); the running-task step is read from the newest message back rather than the whole transcript; `task.agentStatus.byIds` went with `chats.taskStatus`, and `studio-drive wait --idle` polls `task.status`. In a fixture booted from this branch, a rename and a star sent over RPC reached the chat row in about 100 ms (the poll interval of the check), and `sweep-screens.mjs` was clean. Main-thread stalls were not measured.
 
 ## Next, not in this plan
 

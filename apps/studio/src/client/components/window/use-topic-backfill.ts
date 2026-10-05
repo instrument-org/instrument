@@ -14,11 +14,11 @@ export interface BackfillCandidate {
 type Answer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
- * How sure the decision model has to be that a chat belongs. Measured, chats
- * that fit a topic's name land at 0.7 to 0.95 and the rest at 0.2 or under,
- * so the bar sits in the gap.
+ * How sure the decision model has to be that a chat belongs. Measured on
+ * both decision models, chats that fit a topic's name land at 0.75 to 0.98
+ * and the rest at 0.6 or under, so the bar sits in the gap.
  */
-const BELONGS = 0.6;
+const BELONGS = 0.7;
 /** The newest this many are read: one request, a fraction of a cent, well inside the model's context. */
 const MOST_READ = 200;
 const ASK_MAX = 200;
@@ -93,11 +93,10 @@ export function useTopicBackfill({
                 candidates.map((chat, index) => [
                   String(index),
                   {
-                    instructions: {
-                      chat: { asked: chat.asked, title: chat.title },
-                      question:
-                        "Does `chat` belong under the topic in the state?",
-                    },
+                    // A sentence rather than an object: one decision model
+                    // reads a structured question poorly and scores every
+                    // chat alike.
+                    instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
                     type: "noul",
                   },
                 ]),

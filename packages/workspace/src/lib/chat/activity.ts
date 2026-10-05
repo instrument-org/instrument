@@ -148,8 +148,15 @@ async function* newestFirst(
 }
 
 /**
- * The label on the newest tool call in a transcript: the explanation on the
- * call, or the activity it belongs to when it gave no explanation.
+ * The line a task at work is read by: the phase its newest call belongs to,
+ * or that call's explanation when it named none. The phase comes first
+ * because it changes once every few calls and says why the work is
+ * happening, where the explanation changes on every call.
+ *
+ * A call still streaming in is saved as its input arrives, and the activity
+ * is written first, so a new phase would show a word at a time. Its activity
+ * counts once another field has started after it; until then the line stays
+ * on the call before.
  */
 export function latestStepIn(
   messages: SessionMessage.WithParts[],
@@ -163,14 +170,21 @@ export function latestStepIn(
         continue;
       }
       const input: unknown = part.input;
+      if (typeof input !== "object" || input === null) {
+        continue;
+      }
+      const isActivityComplete =
+        part.state !== "input-streaming" ||
+        Object.keys(input).some((key) => key !== "activity");
       const label =
-        typeof input === "object" && input !== null
-          ? "explanation" in input && typeof input.explanation === "string"
+        "activity" in input &&
+        typeof input.activity === "string" &&
+        input.activity.trim() &&
+        isActivityComplete
+          ? input.activity
+          : "explanation" in input && typeof input.explanation === "string"
             ? input.explanation
-            : "activity" in input && typeof input.activity === "string"
-              ? input.activity
-              : undefined
-          : undefined;
+            : undefined;
       if (label?.trim()) {
         return label.length > STEP_MAX_LENGTH
           ? `${label.slice(0, STEP_MAX_LENGTH)}…`

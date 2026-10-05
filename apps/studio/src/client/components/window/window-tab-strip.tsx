@@ -10,7 +10,7 @@ import {
   type TaskId,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
@@ -35,7 +35,6 @@ export function WindowTabStrip({
   onSelect,
   selectedId,
   tabs,
-  trailing,
 }: {
   /** Each chat's title by its id, for a tab standing on one. */
   chatTitles: Map<ChatId, string>;
@@ -48,8 +47,6 @@ export function WindowTabStrip({
   onSelect: (id: string) => void;
   selectedId: string | undefined;
   tabs: WindowTab[];
-  /** What sits at the end of the row, past the tabs: the window's top right. */
-  trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
   const volumes = useComputerVolumes();
@@ -173,7 +170,6 @@ export function WindowTabStrip({
                 ...(volumes ? { volumes } : {}),
               })),
         }))}
-        trailing={trailing}
       />
       {menu && menuTab && (
         <div

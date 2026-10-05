@@ -108,7 +108,6 @@ export function TabStrip({
   onSelect,
   selectedKey,
   tabs,
-  trailing,
 }: {
   className?: string;
   /** Drawn as a plus at the end of the row when given. */
@@ -124,8 +123,6 @@ export function TabStrip({
   onSelect: (key: string) => void;
   selectedKey: string | undefined;
   tabs: StripTab[];
-  /** Drawn at the right end, past the tabs. */
-  trailing?: ReactNode;
 }) {
   const hasNew = onNew !== undefined;
   const fixedTabs = tabs.filter((tab) => tab.isFixed);
@@ -406,7 +403,6 @@ export function TabStrip({
           ) : null}
         </Reorder.Group>
       </div>
-      {trailing}
     </div>
   );
 }

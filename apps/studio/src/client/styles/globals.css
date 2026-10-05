@@ -764,10 +764,6 @@ body {
   -webkit-mask-image: var(--tab-title-fade);
 }
 
-@utility inset-shadow-toolbar {
-  box-shadow: inset 0 0px 4px var(--tw-inset-shadow-color, rgb(0 0 0 / 0.05));
-}
-
 /* Hairline closing the file viewer's chrome band, inset so it costs no height.
  * Worn by whichever row is last: the document toolbar where the format has one,
  * and the title row where it does not. Which of the two that is comes from the
@@ -883,19 +879,6 @@ body {
 
   &[open]::details-content {
     block-size: auto;
-  }
-}
-
-/* Opens a `details-animated` disclosure and keeps it open, for layouts wide
- * enough to show its content outright. Pair with a container query and hide the
- * `<summary>` at the same width, so the toggle disappears with the need for it.
- * The disclosure's own open state is untouched and applies again when the rule
- * stops matching. */
-@utility details-always-open {
-  &::details-content {
-    block-size: auto;
-    content-visibility: visible;
-    overflow: visible;
   }
 }
 

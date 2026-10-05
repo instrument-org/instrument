@@ -1,3 +1,4 @@
+import { alphabetical } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
@@ -103,8 +104,47 @@ export async function latestMessages(
   return messages.isOk() ? messages.value : [];
 }
 
+/**
+ * The label on the newest tool call of the task's latest session, read from
+ * the newest message back and stopping at the first that has one, so a
+ * task at work is not read whole on every change.
+ */
 export async function latestStep(taskId: TaskId): Promise<string | undefined> {
-  return latestStepIn(await latestMessages(taskId));
+  for await (const message of newestFirst(taskId)) {
+    const step = latestStepIn([message]);
+    if (step !== undefined) {
+      return step;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The messages of the task's latest session, newest first, each read only
+ * when the one after it has been looked at. Nothing for a task with no
+ * session; a message that cannot be read is skipped, as a whole read does.
+ */
+async function* newestFirst(
+  taskId: TaskId,
+): AsyncGenerator<SessionMessage.WithParts> {
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return;
+  }
+  const ids = await Store.getMessageIds(sessionId.value, taskId);
+  if (ids.isErr()) {
+    return;
+  }
+  for (const messageId of alphabetical(ids.value, (id) => id).toReversed()) {
+    const message = await Store.getMessageWithParts({
+      messageId,
+      sessionId: sessionId.value,
+      taskId,
+    });
+    if (message.isOk()) {
+      yield message.value;
+    }
+  }
 }
 
 /**
@@ -198,9 +238,21 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
 export async function runningLines(
   taskId: TaskId,
 ): Promise<{ step?: string; waiting?: string }> {
-  const messages = await latestMessages(taskId);
-  const step = latestStepIn(messages);
-  const waiting = askIn(messages);
+  // Newest first, as far back as the step: the ask is only ever in the
+  // newest assistant message, which comes first.
+  let waiting: string | undefined;
+  let askRead = false;
+  let step: string | undefined;
+  for await (const message of newestFirst(taskId)) {
+    if (!askRead && message.role === "assistant") {
+      waiting = askIn([message]);
+      askRead = true;
+    }
+    step = latestStepIn([message]);
+    if (step !== undefined) {
+      break;
+    }
+  }
   return { ...(step ? { step } : {}), ...(waiting ? { waiting } : {}) };
 }
 

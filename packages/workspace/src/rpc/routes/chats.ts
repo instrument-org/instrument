@@ -1,8 +1,7 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { getTask } from "../../lib/get-tasks";
-import { isWorking, latestStep } from "../../lib/chat/activity";
+import { isWorking } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
@@ -35,36 +34,6 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
 import { type ChatId } from "../../schemas/chat-id";
-
-/** Where one task the chat created stands this moment, for a card that follows it. */
-const childStatus = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(
-    z.object({
-      /** Why it has not started yet, in the user's words, while it is held. */
-      held: z.string().optional(),
-      isWorking: z.boolean(),
-      step: z.string().optional(),
-      title: z.string(),
-      updatedAt: z.number(),
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const task = await getTask(input.id);
-    if (task.isErr()) {
-      throw toORPCError(task.error, errors);
-    }
-    const working = isWorking(input.id);
-    const step = working ? await latestStep(input.id) : undefined;
-    const held = taskHold(input.id);
-    return {
-      ...(held ? { held: held.userReason } : {}),
-      isWorking: working,
-      ...(step ? { step } : {}),
-      title: task.value.title,
-      updatedAt: task.value.updatedAt.getTime(),
-    };
-  });
 
 /** A task the window filed, as its tasks screen lists it. */
 const ChildTaskSchema = TaskSchema.extend({
@@ -321,7 +290,6 @@ export const chats = {
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
   tasks: childTasksRoute,
-  taskStatus: childStatus,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
   unseen: unseenChatRoute,

@@ -33,6 +33,7 @@ import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { liveRead } from "../../live-read";
 import { liveTaskActivity } from "./activity";
+import { taskStatus } from "./status";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
@@ -299,8 +300,10 @@ export const task = {
   live: {
     ...live,
     activity: liveTaskActivity,
+    status: taskStatus.live,
     usageSummary: liveUsageSummary,
   },
   state: taskState,
+  status: taskStatus.status,
   usageSummary,
 };

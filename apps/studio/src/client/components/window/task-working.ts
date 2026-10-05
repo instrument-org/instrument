@@ -1,37 +1,30 @@
-import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import ms from "ms";
-
-/** How often a task's standing is re-read while it is on screen. */
-const REFRESH_MS = ms("2 seconds");
 
 /**
- * Whether the task has an agent at work, re-read while it is on screen. The
- * task page's header and its transcript ask with the same query, so they agree.
+ * Where a task stands, kept current by the workspace as it moves rather than
+ * asked for again on a timer: whether it works, what holds it, the step it
+ * is on, the session it talks in. Every reader of one task passes the same
+ * options, so they share one subscription and agree.
  */
-export function useIsTaskWorking(taskId: TaskId) {
-  const status = useQuery(
-    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: { ids: [taskId] },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  return status.data?.some(hasLiveAgent) ?? false;
+export function taskStatusOptions(taskId: TaskId) {
+  return rpcClient.workspace.task.live.status.experimental_liveOptions({
+    input: { id: taskId },
+  });
 }
 
-/**
- * Why the task has not started yet, in the user's words, while something holds
- * it from starting; re-read while it is on screen. The same query the task's
- * card in the chat follows, so the two say the same thing.
- */
+/** The task's status; none until the first answer lands. */
+export function useTaskStatus(taskId: TaskId) {
+  return useQuery(taskStatusOptions(taskId)).data;
+}
+
+/** Whether the task has an agent at work. */
+export function useIsTaskWorking(taskId: TaskId) {
+  return useTaskStatus(taskId)?.isWorking ?? false;
+}
+
+/** Why the task has not started yet, in the user's words, while something holds it. */
 export function useTaskHold(taskId: TaskId) {
-  const status = useQuery(
-    rpcClient.workspace.chats.taskStatus.queryOptions({
-      input: { id: taskId },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  return status.data?.held;
+  return useTaskStatus(taskId)?.held;
 }

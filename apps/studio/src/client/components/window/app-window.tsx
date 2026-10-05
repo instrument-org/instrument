@@ -533,7 +533,7 @@ function WindowShell({
       return;
     }
     const { taskId } = tab;
-    void rpcClient.workspace.chats.taskStatus
+    void rpcClient.workspace.task.status
       .call({ id: taskId })
       .then((status) => {
         if (status.isWorking) {

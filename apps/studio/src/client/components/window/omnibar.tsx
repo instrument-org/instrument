@@ -718,8 +718,13 @@ function useRows({
     // once the words end in it. Nothing is offered at a path with nothing at
     // it, and words that are not a path find names in the folder on screen.
     const isWhole = pathFromWords(words) !== undefined;
+    // A folder the system refused is still a folder, and opens to say so; it
+    // just has no names in it to offer.
     const listed = listing.data;
-    const entries = matchEntries(path.prefix, listed?.entries ?? []);
+    const entries = matchEntries(
+      path.prefix,
+      listed?.kind === "listing" ? listed.entries : [],
+    );
     // The name the field finishes a whole path as: the first the start typed
     // begins, letter for letter, so what it writes in is a real name's rest.
     // Bare words are a search of the folder on screen, and are left as typed.
@@ -775,9 +780,11 @@ function useRows({
       completion,
       ...(listing.isError
         ? { empty: `Nothing at “${folderName}”` }
-        : listed
-          ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
-          : {}),
+        : listed?.kind === "refused"
+          ? { empty: `Instrument can’t read “${folderName}”` }
+          : listed
+            ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
+            : {}),
       rows,
     };
   }

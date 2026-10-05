@@ -20,7 +20,11 @@ export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
-export type { ComputerListing } from "./lib/chat/computer";
+export type {
+  ComputerFolder,
+  ComputerListing,
+  ComputerRefusal,
+} from "./lib/chat/computer";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export {

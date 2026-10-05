@@ -87,11 +87,30 @@ describe("listComputerFolder", () => {
     );
 
     const listing = await listComputerFolder({ path: folder, taskId });
+    if (listing.kind !== "listing") {
+      throw new Error(`refused: ${listing.reason}`);
+    }
 
     expect(listing.truncated).toBe(true);
     expect(listing.entries).toHaveLength(2000);
     expect(listing.entries[0]).toMatchObject({ kind: "folder", name: "zzz" });
     expect(listing.entries[1]?.name).toBe("file 1");
     expect(listing.entries.at(-1)?.name).toBe("file 1999");
+  });
+
+  it("answers a folder its account cannot read with who refused", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+    const shut = path.join(folder, "shut");
+    await fs.mkdir(shut, { mode: 0o000 });
+
+    try {
+      expect(await listComputerFolder({ path: shut, taskId })).toMatchObject({
+        kind: "refused",
+        path: shut,
+        reason: "account",
+      });
+    } finally {
+      await fs.chmod(shut, 0o700);
+    }
   });
 });

@@ -303,11 +303,15 @@ export type FileSystemProps = {
   /**
    * What stands where a folder's contents would, for a folder the caller
    * cannot list (the system refused the read), given the folder; null for one
-   * it can. The folder on screen gives it the whole of the browser below the
-   * toolbar, in every view; a folder opened beside it in the columns gives it
-   * the place of that folder's column.
+   * it can. A `pane` is the whole of the browser below the toolbar for the
+   * folder on screen, in every view, and a column's place for a folder opened
+   * beside it in the columns. `inline` is one line of text under a folder
+   * opened in place in the list.
    */
-  renderUnreadable?: (folderPath: string) => React.ReactNode;
+  renderUnreadable?: (
+    folderPath: string,
+    place: "inline" | "pane",
+  ) => React.ReactNode;
   /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
@@ -2772,7 +2776,7 @@ export function FileSystem({
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
   const isLoadingCurrentFolder = loadingFolders.has(currentPath);
-  const currentUnreadable = renderUnreadable?.(currentPath) ?? null;
+  const currentUnreadable = renderUnreadable?.(currentPath, "pane") ?? null;
   // The list view keeps its open folders here, per folder on screen, so
   // returning to the list view — or to a previously visited folder — finds
   // them open again.
@@ -3810,7 +3814,7 @@ type FileSystemViewProps = {
   /** The name field for the row being renamed, with the view's own spacing. */
   renderNameField: RenderNameField;
   renderTrailing?: (folderPath: string) => React.ReactNode;
-  renderUnreadable?: (folderPath: string) => React.ReactNode;
+  renderUnreadable?: FileSystemProps["renderUnreadable"];
   /** What every row's press, click and double-click go through. */
   rowGestures: RowGestures;
   searchQuery: string;
@@ -4923,6 +4927,7 @@ function FileSystemListView({
   onSortColumnClick,
   renamingPath,
   renderNameField,
+  renderUnreadable,
   rowGestures,
   searchQuery,
   selectedPath,
@@ -4957,6 +4962,7 @@ function FileSystemListView({
     const visibleRows: Array<
       | { depth: number; entry: FileSystemEntry }
       | { depth: number; entry: null; loadingPath: string }
+      | { depth: number; entry: null; note: React.ReactNode; notePath: string }
     > = [];
     const walk = (folderPath: string, depth: number) => {
       for (const entry of index.children.get(folderPath) ?? []) {
@@ -4965,7 +4971,19 @@ function FileSystemListView({
           entry.kind === "folder" &&
           (isRevealing || expanded.has(entry.path))
         ) {
-          if (
+          // A folder that cannot be listed says so in a line of its own,
+          // where its contents would be.
+          const note = index.children.get(entry.path)?.length
+            ? null
+            : (renderUnreadable?.(entry.path, "inline") ?? null);
+          if (note !== null) {
+            visibleRows.push({
+              depth: depth + 1,
+              entry: null,
+              note,
+              notePath: entry.path,
+            });
+          } else if (
             slowFolders.has(entry.path) &&
             !index.children.get(entry.path)?.length
           ) {
@@ -4982,7 +5000,7 @@ function FileSystemListView({
     };
     walk(currentPath, 0);
     return visibleRows;
-  }, [currentPath, expanded, index, isRevealing, slowFolders]);
+  }, [currentPath, expanded, index, isRevealing, renderUnreadable, slowFolders]);
   // The rows that are items, which is what the keyboard walks.
   const entryRows = rows.filter(
     (row): row is { depth: number; entry: FileSystemEntry } =>
@@ -5162,6 +5180,17 @@ function FileSystemListView({
             >
               {rows.slice(start, end).map((row) => {
                 const { depth, entry } = row;
+                if (entry === null && "note" in row) {
+                  return (
+                    <div
+                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
+                      key={`note:${row.notePath}`}
+                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                    >
+                      <span className="ml-5.5 truncate">{row.note}</span>
+                    </div>
+                  );
+                }
                 if (entry === null) {
                   return (
                     <div
@@ -5472,7 +5501,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   // folder on screen, which the browser stands in for as a whole.
   const unreadableAt = columnPaths.findIndex(
     (columnPath, columnIndex) =>
-      columnIndex > 0 && (renderUnreadable?.(columnPath) ?? null) !== null,
+      columnIndex > 0 &&
+      (renderUnreadable?.(columnPath, "pane") ?? null) !== null,
   );
   const unreadableColumnPath =
     unreadableAt === -1 ? undefined : columnPaths[unreadableAt];
@@ -5580,7 +5610,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
         ))}
         {unreadableColumnPath !== undefined ? (
           <div className="min-w-72 flex-1 contain-inline-size">
-            {renderUnreadable?.(unreadableColumnPath)}
+            {renderUnreadable?.(unreadableColumnPath, "pane")}
           </div>
         ) : selectedFile ? (
           <InlineScrollArea2

@@ -1,3 +1,4 @@
+import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +9,7 @@ import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
+import { type ReadRefusal, readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
 import {
@@ -85,11 +87,34 @@ export const ComputerListingSchema = z.object({
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   entries: ComputerEntrySchema.array(),
+  kind: z.literal("listing"),
   /** The host path listed, `~` expanded. */
   path: z.string(),
   truncated: z.boolean(),
 });
 export type ComputerListing = z.output<typeof ComputerListingSchema>;
+
+/**
+ * A folder the operating system would not let this app read, and who
+ * refused (`ReadRefusal`), since only a refusal by the Mac's privacy controls
+ * is one the person can undo from here.
+ */
+export const ComputerRefusalSchema = z.object({
+  /** The path as a person writes it, the home folder as `~`. */
+  display: z.string(),
+  kind: z.literal("refused"),
+  /** The host path asked for, `~` expanded. */
+  path: z.string(),
+  reason: z.enum(["account", "system"]) satisfies z.ZodType<ReadRefusal>,
+});
+export type ComputerRefusal = z.output<typeof ComputerRefusalSchema>;
+
+/** A folder as a read of it answered: its entries, or a refusal. */
+export const ComputerFolderSchema = z.discriminatedUnion("kind", [
+  ComputerListingSchema,
+  ComputerRefusalSchema,
+]);
+export type ComputerFolder = z.output<typeof ComputerFolderSchema>;
 
 const ComputerPlaceSchema = z.object({
   name: z.string(),
@@ -214,12 +239,27 @@ export async function listComputerFolder({
 }: {
   path: string;
   taskId: TaskId;
-}): Promise<ComputerListing> {
+}): Promise<ComputerFolder> {
   const hostPath = expandHomePath(input);
-  const [dirents, hiddenNames] = await Promise.all([
-    fs.readdir(hostPath, { withFileTypes: true }),
-    hiddenEntryNames(hostPath),
-  ]);
+  let dirents: Dirent[];
+  let hiddenNames: ReadonlySet<string>;
+  try {
+    [dirents, hiddenNames] = await Promise.all([
+      fs.readdir(hostPath, { withFileTypes: true }),
+      hiddenEntryNames(hostPath),
+    ]);
+  } catch (error) {
+    const reason = readRefusalOf(error);
+    if (reason === undefined) {
+      throw error;
+    }
+    return {
+      display: displayHostPath(hostPath),
+      kind: "refused",
+      path: hostPath,
+      reason,
+    };
+  }
   const truncated = dirents.length > MAX_ENTRIES;
 
   // Ordered before the cut so the cut is the one the browser would make. A
@@ -244,6 +284,7 @@ export async function listComputerFolder({
     access: await computerAccess(taskId, hostPath),
     display: displayHostPath(hostPath),
     entries,
+    kind: "listing",
     path: hostPath,
     truncated,
   };

@@ -8,6 +8,7 @@ import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { type FileUpload } from "../../schemas/file-upload";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { getMimeType } from "../get-mime-type";
+import { readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import {
   effectiveFolderAccess,
@@ -347,7 +348,7 @@ export function parseDelay(raw: string): number | undefined {
 function refusal(error: unknown, spec: string) {
   const code =
     error instanceof Error && "code" in error ? String(error.code) : "";
-  return process.platform === "darwin" && code === "EPERM"
+  return readRefusalOf(error) === "system"
     ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
     : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`;
 }

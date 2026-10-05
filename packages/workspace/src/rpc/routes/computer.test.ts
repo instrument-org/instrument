@@ -74,6 +74,24 @@ describe("workspace.computer.list", () => {
       { context: createContext() },
     );
 
-    expect(listing.entries.map((entry) => entry.name)).toEqual(["notes.md"]);
+    expect(
+      listing.kind === "listing" && listing.entries.map((entry) => entry.name),
+    ).toEqual(["notes.md"]);
+  });
+
+  it("answers a folder it may not read as refused rather than failing", async () => {
+    const target = path.join(tmpDir, "shut");
+    await fs.mkdir(target, { mode: 0o000 });
+    try {
+      await expect(
+        call(
+          computer.list,
+          { id: taskId, path: target },
+          { context: createContext() },
+        ),
+      ).resolves.toMatchObject({ kind: "refused", reason: "account" });
+    } finally {
+      await fs.chmod(target, 0o700);
+    }
   });
 });

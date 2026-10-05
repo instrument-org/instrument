@@ -79,8 +79,12 @@ describe("FileSystem", () => {
       { hasChildren: true, kind: "folder", path: "locked/" },
       { kind: "file", path: "readme.md" },
     ];
-    const renderUnreadable = (folderPath: string) =>
-      folderPath === "locked/" ? <p>Refused {folderPath}</p> : null;
+    const renderUnreadable = (folderPath: string, place: "inline" | "pane") =>
+      folderPath === "locked/" ? (
+        <p>
+          Refused {folderPath} {place}
+        </p>
+      ) : null;
 
     it.each(["columns", "gallery", "icons", "list"] as const)(
       "stands in for the whole folder on screen in %s",
@@ -94,7 +98,7 @@ describe("FileSystem", () => {
           />,
         );
 
-        expect(screen.getByText("Refused locked/")).toBeTruthy();
+        expect(screen.getByText("Refused locked/ pane")).toBeTruthy();
         expect(screen.queryByText("This folder is empty")).toBeNull();
         expect(screen.queryByRole("option")).toBeNull();
       },
@@ -110,10 +114,31 @@ describe("FileSystem", () => {
         />,
       );
 
-      expect(screen.getByText("Refused locked/")).toBeTruthy();
+      expect(screen.getByText("Refused locked/ pane")).toBeTruthy();
       expect(
         screen.getAllByRole("option").map((option) => option.textContent),
       ).toEqual(["locked", "readme.md"]);
+    });
+
+    it("says so in a line under the folder opened in place in the list", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={ITEMS}
+          renderUnreadable={renderUnreadable}
+        />,
+      );
+
+      // The chevron, which opens the folder in place.
+      const chevron = screen
+        .getByRole("option", { name: /locked/ })
+        .querySelector("span[aria-hidden]");
+      if (!chevron) {
+        throw new Error("no chevron on the folder's row");
+      }
+      fireEvent.click(chevron);
+
+      expect(screen.getByText("Refused locked/ inline")).toBeTruthy();
     });
   });
 

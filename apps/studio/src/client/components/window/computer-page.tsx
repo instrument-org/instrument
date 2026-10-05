@@ -74,10 +74,10 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { folderNameFromPath } from "@instrument-org/shared";
 import {
-  type ComputerListing,
+  type ComputerFolder,
+  type ComputerRefusal,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
-import { ORPCError } from "@orpc/client";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -90,7 +90,6 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
-  queryOptions,
   useMutation,
   useQueries,
   useQuery,
@@ -367,8 +366,8 @@ export function ComputerPage({
     queries: isRecents
       ? []
       : prefixes.map((prefix) =>
-          ({
-            ...listingOptions(hostPathOf(prefix)),
+          rpcClient.workspace.computer.list.queryOptions({
+            input: { id: WINDOW_ID, path: hostPathOf(prefix) },
             refetchInterval: refreshInterval,
             retry: false,
           }),
@@ -394,11 +393,11 @@ export function ComputerPage({
   const goneFolder = prefixes.find(
     (prefix, index) => prefix !== "" && listings[index]?.isError === true,
   );
-  // Whether the system refused to let this app read a folder, by its prefix.
+  // The refusal the operating system gave for a folder, by its prefix.
   // Unknown until the folder has been read once, which the browser shows as
   // loading meanwhile.
-  const isRefused = (prefix: string) =>
-    listings[prefixes.indexOf(prefix)]?.isRefused === true;
+  const refusalOf = (prefix: string) =>
+    listings[prefixes.indexOf(prefix)]?.refusal;
   useEffect(() => {
     if (goneFolder === undefined) {
       return;
@@ -772,7 +771,7 @@ export function ComputerPage({
   // The folder on screen is one the operating system would not let this app
   // read. On a Mac the first read of a protected folder is the system's own
   // ask, so this is what a declined ask looks like, and where it is undone.
-  const isCurrentNotPermitted = isRefused(onScreen);
+  const isCurrentNotPermitted = refusalOf(onScreen) !== undefined;
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
@@ -1410,7 +1409,9 @@ export function ComputerPage({
                   // A listing read ahead on hover, and still fresh, is the
                   // answer as it stands rather than a second read.
                   await queryClient.fetchQuery({
-                    ...listingOptions(hostPathOf(prefix)),
+                    ...rpcClient.workspace.computer.list.queryOptions({
+                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+                    }),
                     staleTime: REFRESH_MS,
                   });
                   // The entries arrive through `items`, re-read on the clock
@@ -1451,7 +1452,9 @@ export function ComputerPage({
                     return;
                   }
                   void queryClient.prefetchQuery({
-                    ...listingOptions(hostPathOf(prefix)),
+                    ...rpcClient.workspace.computer.list.queryOptions({
+                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+                    }),
                     staleTime: REFRESH_MS,
                   });
                 }}
@@ -1551,22 +1554,25 @@ export function ComputerPage({
                 }
                 // Where the folder's contents would be: the whole browser for
                 // the folder on screen, its column's place beside the folder
-                // above it in the columns.
-                renderUnreadable={(prefix) => {
-                  if (!isRefused(prefix)) {
+                // above it in the columns, a line under it in the list.
+                renderUnreadable={(prefix, place) => {
+                  const refusal = refusalOf(prefix);
+                  if (!refusal) {
                     return null;
                   }
-                  const refused = hostPathOf(prefix, rootHostPath ?? root);
+                  if (place === "inline") {
+                    return refusalLine(refusal.reason);
+                  }
                   return (
                     <NotPermitted
-                      hostPath={refused}
-                      key={refused}
+                      key={refusal.path}
                       onGranted={(granted) => {
                         reread();
-                        if (granted !== refused) {
+                        if (granted !== refusal.path) {
                           rootTo(granted);
                         }
                       }}
+                      refusal={refusal}
                     />
                   );
                 }}
@@ -1906,50 +1912,17 @@ function FolderMenuItems({
  */
 function combineListings(
   results: {
-    data: Listing | undefined;
+    data: ComputerFolder | undefined;
     isError: boolean;
     isPending: boolean;
   }[],
 ) {
   return results.map((result) => ({
-    data: result.data === REFUSED ? undefined : result.data,
+    data: result.data?.kind === "listing" ? result.data : undefined,
     isError: result.isError,
     isPending: result.isPending,
-    isRefused: result.data === REFUSED,
+    refusal: result.data?.kind === "refused" ? result.data : undefined,
   }));
-}
-
-/** A folder the operating system would not let this app read. */
-const REFUSED = "refused";
-
-/** A folder's entries, or the operating system's refusal to let them be read. */
-type Listing = ComputerListing | typeof REFUSED;
-
-/**
- * A folder's listing, with a refusal kept as the answer rather than thrown.
- * A failed read holds no data, and a query with none goes back to pending
- * for every read on the clock: a refusal held as an error came and went
- * with each one, and so did everything drawn from it. Kept apart from the
- * plain listing other screens read, whose answer has the other shape.
- */
-function listingOptions(path: string) {
-  const input = { id: WINDOW_ID, path };
-  return queryOptions({
-    queryFn: async ({ signal }): Promise<Listing> => {
-      try {
-        return await rpcClient.workspace.computer.list.call(input, { signal });
-      } catch (error) {
-        if (isNotPermitted(error)) {
-          return REFUSED;
-        }
-        throw error;
-      }
-    },
-    queryKey: [
-      ...rpcClient.workspace.computer.list.queryKey({ input }),
-      REFUSED,
-    ],
-  });
 }
 
 /**
@@ -1975,33 +1948,37 @@ function hostPathOfItem(item: FileSystemItem | undefined) {
   return typeof hostPath === "string" ? hostPath : "";
 }
 
-/** Whether a listing failed because the operating system refused the read. */
-function isNotPermitted(error: unknown) {
-  return error instanceof ORPCError && error.code === "NOT_PERMITTED";
+/** A refusal in a line, under a folder opened in place in the list. */
+export function refusalLine(reason: ComputerRefusal["reason"]) {
+  return reason === "system"
+    ? "macOS hasn’t let Instrument read this folder"
+    : "Your account can’t read this folder";
 }
 
 /**
- * The folder the system would not let this app read, and the two ways to
- * let it. The system's own panel is the graceful one: a folder picked there
- * is the person's intent, which the Mac honors without asking again, so the
- * panel opens at the folder itself and the answer is one press. The settings
- * pane is where a declined ask is undone for good.
+ * The folder the system would not let this app read, and what can be done
+ * about it. A refusal by the Mac's privacy controls has two ways back. The
+ * system's own panel is the graceful one: a folder picked there is the
+ * person's intent, which the Mac honors from then on without asking again,
+ * so the panel opens at the folder itself and the answer is one press. The
+ * settings pane is where a declined ask is undone for good. A refusal by the
+ * folder's own permissions has neither, so it only says whose they are.
  */
 function NotPermitted({
-  hostPath,
   onGranted,
+  refusal,
 }: {
-  hostPath: string;
   /** The folder the person picked in the panel, which is usually this one. */
   onGranted: (hostPath: string) => void;
+  refusal: ComputerRefusal;
 }) {
-  const name = segmentsOf(hostPath).at(-1) ?? hostPath;
+  const name = segmentsOf(refusal.path).at(-1) ?? refusal.path;
   const choose = useMutation({
     mutationFn: () =>
       rpcClient.utils.showFolderPicker.call({
         buttonLabel: "Open",
         message: `Instrument can’t read “${name}” until you open it here.`,
-        startingAt: hostPath,
+        startingAt: refusal.path,
       }),
     onSuccess: (picked) => {
       if (picked) {
@@ -2012,32 +1989,33 @@ function NotPermitted({
   const openSettings = useMutation(
     rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
   );
+  const isSystem = refusal.reason === "system";
   return (
     <div className="flex size-full items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
         <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
         <div>
           <p className="text-sm font-medium">
-            {isMacOS() ? "macOS" : "Your computer"} hasn’t let Instrument read “
-            {name}”
+            {isSystem
+              ? `macOS hasn’t let Instrument read “${name}”`
+              : `Your account can’t read “${name}”`}
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Open the folder in the system’s own panel to read it now
-            {isMacOS()
-              ? ", or allow it under Files and Folders in System Settings."
-              : "."}
+            {isSystem
+              ? "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
+              : "Its permissions keep this account out. Whoever owns it can change them."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => {
-              choose.mutate();
-            }}
-            size="sm"
-          >
-            Choose the folder…
-          </Button>
-          {isMacOS() && (
+        {isSystem && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => {
+                choose.mutate();
+              }}
+              size="sm"
+            >
+              Choose the folder…
+            </Button>
             <Button
               onClick={() => {
                 openSettings.mutate(undefined);
@@ -2047,8 +2025,8 @@ function NotPermitted({
             >
               Open System Settings
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

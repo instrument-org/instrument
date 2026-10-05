@@ -28,7 +28,7 @@ import { ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { FolderMenu } from "./computer-page";
+import { FolderMenu, refusalLine } from "./computer-page";
 import { useWindow } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 
@@ -261,7 +261,9 @@ function Folder({
       input: { id: WINDOW_ID, path },
     }),
   );
-  const entries = (listing.data?.entries ?? [])
+  const refusal =
+    listing.data?.kind === "refused" ? listing.data.reason : undefined;
+  const entries = (listing.data?.kind === "listing" ? listing.data.entries : [])
     .filter(
       (entry) => showsHidden || (!entry.hidden && !entry.name.startsWith(".")),
     )
@@ -300,13 +302,15 @@ function Folder({
         }}
       />
       {open &&
-        (listing.data === undefined ? (
-          listing.isError ? (
+        (listing.data === undefined || refusal !== undefined ? (
+          listing.isError || refusal !== undefined ? (
             <p
               className="truncate py-1 text-xs text-muted-foreground"
               style={{ paddingLeft: (depth + 1) * INDENT + 44 }}
             >
-              Could not read this folder
+              {refusal === undefined
+                ? "Could not read this folder"
+                : refusalLine(refusal)}
             </p>
           ) : (
             <div className="h-6" style={{ paddingLeft: (depth + 1) * INDENT }}>

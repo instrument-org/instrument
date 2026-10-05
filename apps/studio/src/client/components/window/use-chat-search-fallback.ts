@@ -2,7 +2,7 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { type Chat } from "./chats";
+import { byActivity, type Chat } from "./chats";
 import { useDecisionModelAvailable } from "./use-decision-model-available";
 
 /**
@@ -26,6 +26,12 @@ const MEANINGFUL_AT_LEAST = 0.3;
  */
 const FITS_AT_LEAST = 0.6;
 const MOST = 12;
+/**
+ * The most chats one search asks about, the most recently active first: two
+ * requests, about 38 tokens a chat, so a search costs under a cent with
+ * clef-flash however long the history grows.
+ */
+const MOST_ASKED = 1000;
 const DEBOUNCE_MS = 250;
 
 /**
@@ -39,13 +45,15 @@ const DEBOUNCE_MS = 250;
  */
 export function useChatSearchFallback({
   active,
-  candidates,
+  candidates: all,
   search,
 }: {
   active: boolean;
   candidates: Chat[];
   search: string;
 }) {
+  const candidates =
+    all.length > MOST_ASKED ? byActivity(all).slice(0, MOST_ASKED) : all;
   const [settled, setSettled] = useState(search.trim());
   useEffect(() => {
     const timer = setTimeout(() => {

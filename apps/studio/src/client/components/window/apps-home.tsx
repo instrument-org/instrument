@@ -1,3 +1,10 @@
+import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useWindow } from "@/client/components/window/context";
@@ -13,6 +20,7 @@ import {
   directoryByUse,
   searchDirectory,
 } from "@instrument-org/shared/app-directory";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
@@ -66,17 +74,16 @@ export function AppsHome({
     ...apps.filter((app) => app.standing === "connected"),
     ...apps.filter((app) => app.standing !== "connected"),
   ];
-  const known = new Set(apps.map((app) => app.slug));
-  // Still to connect, most used first; the documentation servers and the
-  // like are left out until a search names one.
-  const unconnected = (catalog.data ?? []).filter(
-    (entry) => !known.has(entry.slug),
-  );
-  const more = directoryByUse(unconnected);
+  // Every service the directory lists stays in its place, the ones already
+  // here included, so a search finds an app whoever forgot it was set up;
+  // most used first, and the documentation servers and the like left out
+  // until a search names one.
+  const listed = catalog.data ?? [];
+  const more = directoryByUse(listed);
   // The field answers every key at once; the tiles follow a beat behind
   // when a keystroke's render would hold the next one up.
   const typed = useDeferredValue(query.trim());
-  const matches = typed === "" ? more : searchDirectory(unconnected, typed);
+  const matches = typed === "" ? more : searchDirectory(listed, typed);
   // Unsearched, the featured services lead as Popular and every other one
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
@@ -100,27 +107,38 @@ export function AppsHome({
   const shownSlugs = new Set(matches.map((entry) => entry.slug));
   const answered = asksMeaning && settled === typed && byMeaning.isFetched;
   const meant = answered
-    ? (byMeaning.data ?? []).filter(
-        (entry) => !known.has(entry.slug) && !shownSlugs.has(entry.slug),
-      )
+    ? (byMeaning.data ?? []).filter((entry) => !shownSlugs.has(entry.slug))
     : [];
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
   };
   const openApp = onOpenApp;
-  const tileFor = (entry: CatalogEntry) => (
-    <CatalogTile
-      entry={entry}
-      key={entry.slug}
-      onConnect={() => {
-        ask(`Connect ${appMentionToken(entry)}`);
-      }}
-      onOpen={() => {
-        openApp(entry.slug);
-      }}
-    />
-  );
+  const tileFor = (entry: CatalogEntry) => {
+    // An app of the workspace's is this service when it has its slug or
+    // its site, which is how a second account set up beside the first
+    // (gmail-work beside gmail) is found as the same service.
+    const mine = own.filter(
+      (app) =>
+        app.slug === entry.slug || app.site === `https://${entry.domain}`,
+    );
+    return (
+      <CatalogTile
+        entry={entry}
+        key={entry.slug}
+        mine={mine.map((app) => app.slug)}
+        onConnect={() => {
+          ask(`Connect ${appMentionToken(entry)}`);
+        }}
+        onConnectAnother={() => {
+          ask(`Connect another ${appMentionToken(entry)} account`);
+        }}
+        onOpen={(slug) => {
+          openApp(slug);
+        }}
+      />
+    );
+  };
 
   return (
     <div className="@container/apps h-full min-h-0 overflow-y-auto">
@@ -339,14 +357,23 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
  */
 function CatalogTile({
   entry,
+  mine,
   onConnect,
+  onConnectAnother,
   onOpen,
 }: {
   entry: CatalogEntry;
+  /** The workspace's own apps that are this service, when it has any. */
+  mine: string[];
   onConnect: () => void;
-  onOpen: () => void;
+  onConnectAnother: () => void;
+  onOpen: (slug: string) => void;
 }) {
-  const href = `/apps/${entry.slug}`;
+  const first = mine[0];
+  // A service already here opens its own page; one not yet here opens the
+  // directory's page for it, which says what connecting takes.
+  const target = first ?? entry.slug;
+  const href = `/apps/${target}`;
   const { onContextMenu, opening } = useOpenGestures({
     href,
     kind: "screen",
@@ -359,7 +386,9 @@ function CatalogTile({
     <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        {...opening(onOpen)}
+        {...opening(() => {
+          onOpen(target);
+        })}
         onContextMenu={onContextMenu}
         type="button"
       >
@@ -375,13 +404,47 @@ function CatalogTile({
             {entry.name}
           </span>
           <span className="block truncate text-[13px] leading-snug text-muted-foreground">
-            {entry.tagline}
+            {first === undefined
+              ? entry.tagline
+              : mine.length === 1
+                ? "In your apps"
+                : `${mine.length} accounts in your apps`}
           </span>
         </span>
       </button>
-      <GlyphButton onClick={onConnect} size="sm">
-        Connect
-      </GlyphButton>
+      {first === undefined ? (
+        <GlyphButton onClick={onConnect} size="sm">
+          Connect
+        </GlyphButton>
+      ) : (
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            onClick={() => {
+              onOpen(first);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Open
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={`More for ${entry.name}`}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <DotsThreeIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onConnectAnother}>
+                Connect another account
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 }

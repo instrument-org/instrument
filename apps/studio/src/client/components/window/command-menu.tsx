@@ -68,12 +68,7 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
-/**
- * Below this many chats or apps found by name, the search also asks the
- * decision model for the ones it means, from this many letters on: the
- * Apps page's numbers.
- */
-const FEW = 3;
+/** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
 const MEANING_DEBOUNCE_MS = 300;
 /** Chats listed before anything is typed, newest first. */
@@ -316,10 +311,10 @@ export function CommandMenu({
 
   const isSearch = words !== "" && !isBang;
   const chatMatches = isSearch
-    ? fuzzyMatch(byActivity(chats), (chat) => [chat.title], words)
+    ? nameMatch(byActivity(chats), (chat) => [chat.title], words)
     : [];
   const appMatches = isSearch
-    ? fuzzyMatch([...appsBySlug], ([, app]) => [app.name], words).slice(
+    ? nameMatch([...appsBySlug], ([, app]) => [app.name], words).slice(
         0,
         APPS_SHOWN,
       )
@@ -402,21 +397,21 @@ export function CommandMenu({
           },
         ];
 
-  // Words that find few chats or apps by name also go to the decision
-  // model, as the Apps page does, so a search like "taxes" or "design tool"
-  // finds what it means. What it finds goes at the foot, below everything
-  // the words matched, so it moves nothing already there.
-  const asksMeaning = (matched: number) =>
-    open && isSearch && words.length >= MEANING_MIN_LENGTH && matched < FEW;
-  const shownChats = new Set(chatMatches.map(({ item }) => item.id));
+  // Words that find nothing by name go to the decision model, so a search
+  // like "taxes" finds the chat about 1099 forms. Only then: a list that
+  // already shows something is never added to a beat later, and the model
+  // is not asked about searches the names answer.
+  const hasNameMatches = sections.some((section) => section.items.length > 0);
+  const asksMeaning =
+    open && isSearch && words.length >= MEANING_MIN_LENGTH && !hasNameMatches;
   const chatsByMeaning = useChatSearchFallback({
-    active: asksMeaning(chatMatches.length),
-    candidates: chats.filter((chat) => !shownChats.has(chat.id)),
+    active: asksMeaning,
+    candidates: chats,
     search: words,
     topicNames: new Map(shell.topics.map((topic) => [topic.id, topic.name])),
   });
   const appsByMeaning = useAppsByMeaning({
-    active: asksMeaning(appMatches.length),
+    active: asksMeaning,
     words,
   });
   if (chatsByMeaning.chats.length > 0) {
@@ -425,10 +420,7 @@ export function CommandMenu({
       label: "Chats about this",
     });
   }
-  const shownApps = new Set(appMatches.map(({ item: [slug] }) => slug));
-  const meantApps = appsByMeaning.apps.filter(
-    (entry) => !shownApps.has(entry.slug),
-  );
+  const meantApps = appsByMeaning.apps;
   if (meantApps.length > 0) {
     sections.push({
       items: meantApps.map((entry) =>
@@ -514,18 +506,10 @@ export function CommandMenu({
       />
       <CommandList className="max-h-none! min-h-48 overflow-visible!">
         {rows.length > 0 ? (
-          <>
-            {/* A list of its own per search: a fresh scroller starts at the
-                top, where cmdk's pick of the first row then lands, rather
-                than at wherever the last search's list was scrolled to. */}
-            <ResultRows key={words} rows={rows} />
-            {isLooking ? (
-              <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
-                <Spinner className="size-3" />
-                Looking for more by meaning…
-              </div>
-            ) : null}
-          </>
+          // A list of its own per search: a fresh scroller starts at the top,
+          // where cmdk's pick of the first row then lands, rather than at
+          // wherever the last search's list was scrolled to.
+          <ResultRows key={words} rows={rows} />
         ) : isLooking ? (
           <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
@@ -614,6 +598,37 @@ function ResultRows({ rows }: { rows: Row[] }) {
       </div>
     </div>
   );
+}
+
+/**
+ * The items the words match by name: every word, and when no item has every
+ * word, any one of them, items with more of the words first. The second is
+ * how "fart related" finds both "fart.com" and "farts" without asking the
+ * decision model; words under three letters do not count on their own.
+ */
+function nameMatch<T>(
+  items: T[],
+  fieldsOf: (item: T) => string[],
+  words: string,
+): { item: T; ranges: null | number[] }[] {
+  const all = fuzzyMatch(items, fieldsOf, words);
+  const terms = words.split(/\s+/).filter((term) => term.length >= 3);
+  if (all.length > 0 || terms.length < 2) {
+    return all;
+  }
+  const found = new Map<T, { count: number; ranges: null | number[] }>();
+  for (const term of terms) {
+    for (const { item, ranges } of fuzzyMatch(items, fieldsOf, term)) {
+      const seen = found.get(item);
+      found.set(item, {
+        count: (seen?.count ?? 0) + 1,
+        ranges: seen?.ranges ?? ranges,
+      });
+    }
+  }
+  return [...found]
+    .toSorted(([, a], [, b]) => b.count - a.count)
+    .map(([item, { ranges }]) => ({ item, ranges }));
 }
 
 /**

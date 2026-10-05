@@ -27,21 +27,6 @@ import { keptAtom } from "@/client/lib/kept-state";
  */
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
-/** A screen the window was on, so the sidebar can take the user back to it. */
-export interface RecentEntry {
-  at: number;
-  /** The page's icon, for a screen that is a page. */
-  favicon?: string;
-  /** Path and search together: the address of the screen, and its identity. */
-  href: string;
-  kind: "browser" | "file" | "folder" | "task";
-  title: string;
-}
-
-export const RECENTS_MAX = 15;
-
-export const recentsAtom = keptAtom<RecentEntry[]>("history", "recents.v4", []);
-
 /**
  * What each screen shows, by the tab it is drawn in (one of the window's own
  * tabs, or a group's tab beside a chat or in a draft's band), written by the

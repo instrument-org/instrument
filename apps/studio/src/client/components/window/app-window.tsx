@@ -116,7 +116,6 @@ import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
-import { useRecordRecents } from "./use-record-recents";
 import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
@@ -531,7 +530,6 @@ function WindowShell({
       });
   };
 
-  useRecordRecents();
   usePageThumbnailHousekeeping();
 
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());

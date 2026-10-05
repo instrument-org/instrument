@@ -1,8 +1,6 @@
 import {
   type BrowserTab,
   originOf,
-  RECENTS_MAX,
-  recentsAtom,
   VISITED_MAX,
   visitedPagesAtom,
   type WindowTab,
@@ -263,7 +261,6 @@ export function BrowserTabs({
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const setVisited = useSetAtom(visitedPagesAtom);
-  const setRecents = useSetAtom(recentsAtom);
   const attached = useBrowserTargets();
   // The chat each browsing task was filed from, which is the group its
   // browsing lands in; a task filed outside any chat is in the
@@ -430,30 +427,13 @@ export function BrowserTabs({
               ? {}
               : { favicon: undefined }),
           });
-          const filePath = hostPathOfFileUrl(url);
-          if (filePath === undefined) {
+          if (hostPathOfFileUrl(url) === undefined) {
             // The new-tab page lists where the browser has been.
             setVisited((current) =>
               [
                 { at: Date.now(), title: title ?? "", url },
                 ...current.filter((page) => page.url !== url),
               ].slice(0, VISITED_MAX),
-            );
-          } else {
-            // A file shown as a page was a file the user opened, and it
-            // comes back as one: by the address a file tab opens at, which
-            // shows it as a page again.
-            const href = fileHref(filePath);
-            setRecents((current) =>
-              [
-                {
-                  at: Date.now(),
-                  href,
-                  kind: "file" as const,
-                  title: segmentsOf(filePath).at(-1) ?? filePath,
-                },
-                ...current.filter((recent) => recent.href !== href),
-              ].slice(0, RECENTS_MAX),
             );
           }
         }
@@ -532,7 +512,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, change, setRecents, setVisited, tabIds]);
+  }, [attached, change, setVisited, tabIds]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {

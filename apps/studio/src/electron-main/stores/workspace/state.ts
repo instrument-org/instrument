@@ -8,6 +8,12 @@ import { getProviderConfigsStore } from "./provider-configs";
 /** What the app remembers about this workspace. Machine-wide state is in `machine/state.ts`. */
 const WorkspaceStateSchema = z.object({
   hasCompletedProviderSetup: z.boolean().catch(false),
+  /**
+   * The in-app onboarding last finished here (`IN_APP_ONBOARDING_VERSION`).
+   * Behind the current one, the app window opens on onboarding's in-app
+   * steps once, which is how people past the old onboarding see new steps.
+   */
+  onboardingVersion: z.number().catch(0),
 });
 
 type WorkspaceState = z.output<typeof WorkspaceStateSchema>;

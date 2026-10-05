@@ -1,5 +1,6 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
+import { InAppOnboarding } from "@/client/components/onboarding/in-app-onboarding";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
 import { UpdatedToast } from "@/client/components/updated-toast";
@@ -105,6 +106,7 @@ export function WindowFrame({
           the window's own foot and right edge rather than inside the card's
           margin, and a grown one is centered over the bar and the rail too. */}
         {overlay}
+        <InAppOnboarding />
         <StudioModals />
         {isFilePreviewOpen && (
           <Suspense fallback={null}>

@@ -25,7 +25,12 @@
       "home": "https://app.ahrefs.com",
       "category": "marketing",
       "tier": "listed",
-      "rank": 61
+      "rank": 61,
+      "examples": [
+        "What keywords does our homepage rank for?",
+        "Who started linking to our site this month?",
+        "Run a site audit and list the worst problems"
+      ]
     },
     {
       "slug": "airtable",
@@ -83,7 +88,12 @@
       "tier": "listed",
       "registryName": "com.akiflow/akiflow",
       "home": "https://web.akiflow.com",
-      "rank": 390
+      "rank": 390,
+      "examples": [
+        "What’s in my inbox to plan today?",
+        "Block two hours tomorrow morning for the report",
+        "Add call the landlord to my tasks for Thursday"
+      ]
     },
     {
       "slug": "algolia",
@@ -109,7 +119,12 @@
       "home": "https://dashboard.algolia.com",
       "category": "developer",
       "tier": "listed",
-      "registryName": "io.github.algolia/algolia-productivity"
+      "registryName": "io.github.algolia/algolia-productivity",
+      "examples": [
+        "What are people searching for most this week?",
+        "Which searches came back with no results?",
+        "Find the record for the blue denim jacket"
+      ]
     },
     {
       "slug": "alltrails",
@@ -129,7 +144,12 @@
       "home": "https://www.alltrails.com",
       "category": "life",
       "tier": "listed",
-      "rank": 175
+      "rank": 175,
+      "examples": [
+        "Find an easy hike near Asheville under 5 miles",
+        "What do recent reviews say about Angels Landing?",
+        "Show me dog-friendly trails close to Denver"
+      ]
     },
     {
       "slug": "amplitude",
@@ -156,7 +176,12 @@
       "category": "data",
       "tier": "listed",
       "rank": 69,
-      "registryName": "com.amplitude/mcp-server"
+      "registryName": "com.amplitude/mcp-server",
+      "examples": [
+        "How many people signed up last week?",
+        "Where do people drop off in our checkout funnel?",
+        "How is the new onboarding experiment doing?"
+      ]
     },
     {
       "slug": "apify",
@@ -183,7 +208,12 @@
       "category": "research",
       "tier": "listed",
       "rank": 246,
-      "registryName": "com.apify/apify-mcp-server"
+      "registryName": "com.apify/apify-mcp-server",
+      "examples": [
+        "Get the reviews from this Google Maps listing",
+        "Pull the latest posts from our competitor’s blog",
+        "Collect the prices from this product page"
+      ]
     },
     {
       "slug": "apollo",
@@ -210,7 +240,12 @@
       "category": "sales",
       "tier": "listed",
       "rank": 34,
-      "registryName": "io.github.apolloio/apollo-mcp"
+      "registryName": "io.github.apolloio/apollo-mcp",
+      "examples": [
+        "Find marketing heads at fintech companies in Austin",
+        "Get the work email for Elena Park at Brightwave",
+        "Which companies like Acme are hiring sales reps?"
+      ]
     },
     {
       "slug": "apple-calendar",
@@ -230,7 +265,12 @@
       "aliases": ["ical"],
       "family": "apple",
       "tier": "listed",
-      "rank": 40
+      "rank": 40,
+      "examples": [
+        "What do I have on Saturday?",
+        "Add lunch with Chris on Thursday at noon",
+        "When is my next dentist appointment?"
+      ]
     },
     {
       "slug": "apple-mail",
@@ -249,7 +289,12 @@
       "category": "mail",
       "family": "apple",
       "tier": "listed",
-      "rank": 50
+      "rank": 50,
+      "examples": [
+        "What emails came in from my boss today?",
+        "Find the shipping confirmation from last week",
+        "Draft a reply to Hannah’s email about the trip"
+      ]
     },
     {
       "slug": "apple-messages",
@@ -270,7 +315,12 @@
       "aliases": ["imessage", "text messages", "sms"],
       "family": "apple",
       "tier": "listed",
-      "rank": 45
+      "rank": 45,
+      "examples": [
+        "Tell Leo I’ll pick him up at six",
+        "Text Nina that I’m running ten minutes late",
+        "Let Sam know dinner moved to Friday"
+      ]
     },
     {
       "slug": "apple-notes",
@@ -410,7 +460,12 @@
       "family": "atlassian",
       "tier": "listed",
       "rank": 41,
-      "registryName": "com.atlassian/atlassian-mcp-server"
+      "registryName": "com.atlassian/atlassian-mcp-server",
+      "examples": [
+        "What Jira tickets are assigned to me?",
+        "Find the onboarding guide in Confluence",
+        "File a bug: the export button does nothing"
+      ]
     },
     {
       "slug": "attio",
@@ -436,7 +491,12 @@
       "home": "https://app.attio.com",
       "category": "sales",
       "tier": "listed",
-      "rank": 137
+      "rank": 137,
+      "examples": [
+        "Who did we last talk to at Northwind?",
+        "Log a note from my call with Omar today",
+        "Which deals have gone quiet for two weeks?"
+      ]
     },
     {
       "slug": "audible",
@@ -456,7 +516,12 @@
       "home": "https://www.audible.com",
       "category": "life",
       "tier": "listed",
-      "rank": 189
+      "rank": 189,
+      "examples": [
+        "Find a gripping mystery audiobook for a road trip",
+        "What are the best-reviewed history audiobooks?",
+        "Suggest something like Project Hail Mary"
+      ]
     },
     {
       "slug": "aws-knowledge",
@@ -501,7 +566,12 @@
       "home": "https://app.axiom.co",
       "category": "developer",
       "tier": "listed",
-      "registryName": "co.axiom/mcp"
+      "registryName": "co.axiom/mcp",
+      "examples": [
+        "Show me errors from the API in the last hour",
+        "How many 500s did we serve yesterday?",
+        "Which endpoints got slower this week?"
+      ]
     },
     {
       "slug": "bitly",
@@ -528,7 +598,12 @@
       "tier": "listed",
       "registryName": "com.bitly/mcp",
       "home": "https://app.bitly.com",
-      "rank": 215
+      "rank": 215,
+      "examples": [
+        "How many clicks did my newsletter link get?",
+        "Shorten this link for our spring sale",
+        "Make a QR code for our event sign-up page"
+      ]
     },
     {
       "slug": "box",
@@ -565,7 +640,12 @@
       },
       "category": "files",
       "tier": "listed",
-      "rank": 14
+      "rank": 14,
+      "examples": [
+        "Find the signed vendor agreement from June",
+        "What’s in our Legal folder?",
+        "Summarize the latest file Kevin shared with me"
+      ]
     },
     {
       "slug": "brex",
@@ -591,7 +671,12 @@
       "home": "https://dashboard.brex.com",
       "category": "money",
       "tier": "listed",
-      "rank": 197
+      "rank": 197,
+      "examples": [
+        "How much did we spend on travel this month?",
+        "Which of my expenses still need a receipt?",
+        "Am I allowed to expense a team dinner?"
+      ]
     },
     {
       "slug": "brightdata",
@@ -616,7 +701,12 @@
       ],
       "home": "https://brightdata.com/cp",
       "category": "research",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "What comes up on Google for best running shoes?",
+        "Get the text from this page that keeps blocking me",
+        "Pull the product listings from this store’s site"
+      ]
     },
     {
       "slug": "browserbase",
@@ -643,7 +733,12 @@
       ],
       "home": "https://www.browserbase.com/overview",
       "category": "research",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Check if this site has tickets for Saturday",
+        "Fill out the contact form on this page",
+        "Get the opening hours from this restaurant’s site"
+      ]
     },
     {
       "slug": "buildkite",
@@ -667,7 +762,12 @@
         }
       ],
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Why did the last build on main fail?",
+        "Which pipelines are failing right now?",
+        "Show me the logs from the latest deploy build"
+      ]
     },
     {
       "slug": "calendly",
@@ -756,7 +856,12 @@
       "home": "https://app.clay.com",
       "category": "sales",
       "tier": "listed",
-      "rank": 66
+      "rank": 66,
+      "examples": [
+        "Find the LinkedIn profiles for these leads",
+        "Which companies in my table raised money recently?",
+        "Add work emails to my prospects table"
+      ]
     },
     {
       "slug": "clerk",
@@ -777,7 +882,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 418,
-      "registryName": "io.github.clerk/mcp-server"
+      "registryName": "io.github.clerk/mcp-server",
+      "examples": [
+        "How do I add sign-in to my Next.js app?",
+        "Show me how to protect an API route",
+        "How do I get the signed-in user in React?"
+      ]
     },
     {
       "slug": "clickup",
@@ -803,7 +913,12 @@
       "home": "https://app.clickup.com",
       "category": "tasks",
       "tier": "listed",
-      "rank": 30
+      "rank": 30,
+      "examples": [
+        "What’s on my plate for this week?",
+        "Add a task to send the invoice by Friday",
+        "What’s blocked in the Website space?"
+      ]
     },
     {
       "slug": "close",
@@ -830,7 +945,12 @@
       "tier": "listed",
       "registryName": "com.close/close-mcp",
       "home": "https://app.close.com",
-      "rank": 80
+      "rank": 80,
+      "examples": [
+        "Which leads haven’t heard from us in a week?",
+        "Log a call with Rachel Kim from Bluebird",
+        "How many calls did I make yesterday?"
+      ]
     },
     {
       "slug": "cloudflare",
@@ -880,7 +1000,12 @@
       "home": "https://dash.cloudflare.com",
       "category": "developer",
       "tier": "listed",
-      "registryName": "com.cloudflare.mcp/mcp"
+      "registryName": "com.cloudflare.mcp/mcp",
+      "examples": [
+        "Why is my worker throwing errors?",
+        "What’s in my KV namespace for sessions?",
+        "How many requests did my site get today?"
+      ]
     },
     {
       "slug": "cloudinary",
@@ -907,7 +1032,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 247,
-      "registryName": "io.github.cloudinary/asset-management-mcp"
+      "registryName": "io.github.cloudinary/asset-management-mcp",
+      "examples": [
+        "Find the product photos I uploaded last week",
+        "Resize the hero image to 1200 pixels wide",
+        "Which videos take up the most space?"
+      ]
     },
     {
       "slug": "consensus",
@@ -932,7 +1062,12 @@
       ],
       "category": "research",
       "tier": "listed",
-      "rank": 50
+      "rank": 50,
+      "examples": [
+        "Does intermittent fasting help with weight loss?",
+        "What do studies say about screen time and sleep?",
+        "Find recent papers on creatine and memory"
+      ]
     },
     {
       "slug": "context7",
@@ -971,7 +1106,12 @@
       ],
       "home": "https://dashboard.convex.dev",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Set up a Convex backend for my React app",
+        "Add Convex to my existing Next.js project",
+        "How do I scale my Convex app for more traffic?"
+      ]
     },
     {
       "slug": "craft",
@@ -998,7 +1138,12 @@
       "tier": "listed",
       "registryName": "do.craft.mcp/server",
       "home": "https://docs.craft.do",
-      "rank": 222
+      "rank": 222,
+      "examples": [
+        "What’s on today’s daily note?",
+        "Find my notes from the offsite planning",
+        "Add pick up dry cleaning to today’s page"
+      ]
     },
     {
       "slug": "crossbeam",
@@ -1024,7 +1169,12 @@
       "home": "https://app.crossbeam.com",
       "category": "sales",
       "tier": "listed",
-      "rank": 219
+      "rank": 219,
+      "examples": [
+        "Which of our prospects are customers of our partners?",
+        "What accounts do we share with Segment?",
+        "Which partner overlaps could help this quarter?"
+      ]
     },
     {
       "slug": "deepwiki",
@@ -1067,7 +1217,12 @@
       ],
       "category": "research",
       "tier": "listed",
-      "rank": 207
+      "rank": 207,
+      "examples": [
+        "What did customers say about pricing?",
+        "Find interview highlights about onboarding",
+        "What themes came up in last month’s research?"
+      ]
     },
     {
       "slug": "drawio",
@@ -1087,7 +1242,12 @@
       "category": "design",
       "tier": "listed",
       "registryName": "io.draw/mcp",
-      "home": "https://app.diagrams.net"
+      "home": "https://app.diagrams.net",
+      "examples": [
+        "Draw a flowchart of our sign-up process",
+        "Make a diagram of our three-tier web app",
+        "Sketch an org chart for the sales team"
+      ]
     },
     {
       "slug": "dropbox",
@@ -1145,7 +1305,12 @@
       "tier": "listed",
       "registryName": "io.elevenlabs/mcp",
       "home": "https://elevenlabs.io/app",
-      "rank": 108
+      "rank": 108,
+      "examples": [
+        "Read this paragraph aloud in a warm voice",
+        "Make a sound effect of a door creaking open",
+        "Turn my blog post into an audio file"
+      ]
     },
     {
       "slug": "exa",
@@ -1185,7 +1350,12 @@
       ],
       "category": "design",
       "tier": "listed",
-      "rank": 60
+      "rank": 60,
+      "examples": [
+        "Sketch how our app talks to the database",
+        "Draw a whiteboard diagram of our hiring steps",
+        "Make a quick diagram of the weekly release cycle"
+      ]
     },
     {
       "slug": "expo",
@@ -1211,7 +1381,12 @@
       "home": "https://expo.dev",
       "category": "developer",
       "tier": "listed",
-      "rank": 362
+      "rank": 362,
+      "examples": [
+        "Did my latest iOS build finish?",
+        "What updates did we ship to production this week?",
+        "Has the Android submission gone through?"
+      ]
     },
     {
       "slug": "fal",
@@ -1236,7 +1411,12 @@
       ],
       "home": "https://fal.ai/dashboard",
       "category": "design",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Make an image of a cozy cabin in the snow",
+        "Turn this photo into a short video clip",
+        "Generate a calm piano track for my intro"
+      ]
     },
     {
       "slug": "fathom",
@@ -1263,7 +1443,12 @@
       "category": "calendar",
       "tier": "listed",
       "rank": 55,
-      "registryName": "ai.fathom.api/mcp"
+      "registryName": "ai.fathom.api/mcp",
+      "examples": [
+        "Summarize my call with the Acme team",
+        "What action items came out of today’s meetings?",
+        "What did Lucia say about the budget on Tuesday?"
+      ]
     },
     {
       "slug": "figma",
@@ -1330,7 +1515,12 @@
       "category": "research",
       "tier": "listed",
       "rank": 80,
-      "registryName": "io.github.firecrawl/firecrawl-mcp-server"
+      "registryName": "io.github.firecrawl/firecrawl-mcp-server",
+      "examples": [
+        "Get the text from this article",
+        "Search the web for reviews of the Framework laptop",
+        "Pull the pricing from this company’s website"
+      ]
     },
     {
       "slug": "fireflies",
@@ -1357,7 +1547,12 @@
       "category": "calendar",
       "tier": "listed",
       "rank": 67,
-      "registryName": "ai.fireflies/fireflies"
+      "registryName": "ai.fireflies/fireflies",
+      "examples": [
+        "Summarize my last sales call",
+        "What action items do I have from this week?",
+        "What did we decide in Monday’s planning meeting?"
+      ]
     },
     {
       "slug": "front",
@@ -1391,7 +1586,12 @@
       },
       "category": "mail",
       "tier": "listed",
-      "rank": 253
+      "rank": 253,
+      "examples": [
+        "What conversations are assigned to me?",
+        "Draft a reply to the latest message from Globex",
+        "Which support emails are still unanswered?"
+      ]
     },
     {
       "slug": "gamma",
@@ -1416,7 +1616,12 @@
       ],
       "category": "notes",
       "tier": "listed",
-      "rank": 21
+      "rank": 21,
+      "examples": [
+        "Make a presentation from my product launch notes",
+        "Turn this outline into a one-page site",
+        "Make a five-slide deck about our Q3 results"
+      ]
     },
     {
       "slug": "github",
@@ -1499,7 +1704,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 465,
-      "registryName": "com.gitlab/mcp"
+      "registryName": "com.gitlab/mcp",
+      "examples": [
+        "What merge requests are waiting on my review?",
+        "Why did the last pipeline on main fail?",
+        "Open an issue for the broken password reset"
+      ]
     },
     {
       "slug": "globalping",
@@ -1524,7 +1734,12 @@
       ],
       "category": "developer",
       "tier": "listed",
-      "registryName": "io.globalping/mcp"
+      "registryName": "io.globalping/mcp",
+      "examples": [
+        "Is my site reachable from Europe and Asia?",
+        "Ping example.com from a few countries",
+        "Check how DNS resolves my domain worldwide"
+      ]
     },
     {
       "slug": "gmail",
@@ -1666,7 +1881,12 @@
       "home": "https://grafana.com/orgs",
       "category": "developer",
       "tier": "listed",
-      "registryName": "io.github.grafana/mcp-grafana"
+      "registryName": "io.github.grafana/mcp-grafana",
+      "examples": [
+        "Which alerts are firing right now?",
+        "How did CPU usage look last night?",
+        "Find the dashboard for the payments service"
+      ]
     },
     {
       "slug": "granola",
@@ -1691,7 +1911,12 @@
       ],
       "category": "calendar",
       "tier": "listed",
-      "rank": 23
+      "rank": 23,
+      "examples": [
+        "Summarize my meeting with Theo this morning",
+        "What did I promise to follow up on this week?",
+        "What came up in my last call with Northwind?"
+      ]
     },
     {
       "slug": "greenhouse",
@@ -1717,7 +1942,12 @@
       "home": "https://app.greenhouse.io",
       "category": "sales",
       "tier": "listed",
-      "rank": 704
+      "rank": 704,
+      "examples": [
+        "Which roles are open right now?",
+        "Who’s in the final round for the designer role?",
+        "What did interviewers say about Marcus Bell?"
+      ]
     },
     {
       "slug": "heroku",
@@ -1742,7 +1972,12 @@
       ],
       "home": "https://dashboard.heroku.com",
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Show me the logs from the last deploy",
+        "How many dynos is my app running?",
+        "What add-ons does my production app use?"
+      ]
     },
     {
       "slug": "hex",
@@ -1768,7 +2003,12 @@
       "home": "https://app.hex.tech",
       "category": "data",
       "tier": "listed",
-      "rank": 181
+      "rank": 181,
+      "examples": [
+        "Find our weekly revenue dashboard",
+        "How many active users did we have last month?",
+        "Which projects use the orders table?"
+      ]
     },
     {
       "slug": "hubspot",
@@ -1832,7 +2072,12 @@
       "aliases": ["huggingface"],
       "tier": "listed",
       "rank": 71,
-      "registryName": "co.huggingface/hf-mcp-server"
+      "registryName": "co.huggingface/hf-mcp-server",
+      "examples": [
+        "Find a good model for summarizing text",
+        "What datasets are there for French speech?",
+        "What are the trending papers this week?"
+      ]
     },
     {
       "slug": "ifttt",
@@ -1859,7 +2104,12 @@
       "tier": "listed",
       "registryName": "com.ifttt/mcp",
       "home": "https://ifttt.com/my_applets",
-      "rank": 262
+      "rank": 262,
+      "examples": [
+        "What applets do I have turned on?",
+        "Turn off my lights automation for the weekend",
+        "Which applets ran today?"
+      ]
     },
     {
       "slug": "incident-io",
@@ -1886,7 +2136,12 @@
       "category": "developer",
       "aliases": ["incident.io"],
       "tier": "listed",
-      "rank": 146
+      "rank": 146,
+      "examples": [
+        "Are there any incidents open right now?",
+        "Who responded to last night’s outage?",
+        "What follow-ups are left from the database incident?"
+      ]
     },
     {
       "slug": "instacart",
@@ -1912,7 +2167,12 @@
       "home": "https://www.instacart.com",
       "category": "life",
       "tier": "listed",
-      "rank": 216
+      "rank": 216,
+      "examples": [
+        "Add everything for tacos to my cart",
+        "Is oat milk in stock at my nearest store?",
+        "Turn this lasagna recipe into a grocery list"
+      ]
     },
     {
       "slug": "interactive-brokers",
@@ -1938,7 +2198,12 @@
       "category": "money",
       "tier": "listed",
       "registryName": "com.ibkr/interactive-brokers-ibkr",
-      "rank": 75
+      "rank": 75,
+      "examples": [
+        "How is my portfolio doing today?",
+        "What are my biggest positions right now?",
+        "What’s the current price of Apple stock?"
+      ]
     },
     {
       "slug": "intercom",
@@ -1964,7 +2229,12 @@
       "home": "https://app.intercom.com",
       "category": "mail",
       "tier": "listed",
-      "rank": 13
+      "rank": 13,
+      "examples": [
+        "What conversations are waiting on a reply?",
+        "Find the help article about refunds",
+        "What has Sofia Ruiz asked us about before?"
+      ]
     },
     {
       "slug": "jam",
@@ -1989,7 +2259,12 @@
       ],
       "category": "developer",
       "tier": "listed",
-      "rank": 263
+      "rank": 263,
+      "examples": [
+        "What bugs were reported this week?",
+        "Show me the console errors from the latest Jam",
+        "What steps led to the checkout bug?"
+      ]
     },
     {
       "slug": "jotform",
@@ -2016,7 +2291,12 @@
       "tier": "listed",
       "registryName": "com.jotform/mcp",
       "home": "https://www.jotform.com/myforms",
-      "rank": 20
+      "rank": 20,
+      "examples": [
+        "How many people signed up through my event form?",
+        "Show me this week’s contact form submissions",
+        "Which approvals are waiting on me?"
+      ]
     },
     {
       "slug": "kajabi",
@@ -2043,7 +2323,12 @@
       "tier": "listed",
       "registryName": "com.kajabi/kajabi",
       "home": "https://app.kajabi.com",
-      "rank": 50
+      "rank": 50,
+      "examples": [
+        "How many people joined my course this month?",
+        "Which members haven’t logged in lately?",
+        "What were my sales last week?"
+      ]
     },
     {
       "slug": "kiwi",
@@ -2064,7 +2349,12 @@
       "category": "life",
       "aliases": ["kiwi.com"],
       "tier": "listed",
-      "rank": 76
+      "rank": 76,
+      "examples": [
+        "Find cheap flights from Chicago to Lisbon in May",
+        "What’s the cheapest weekend flight to Miami?",
+        "Are there direct flights from Boston to Dublin?"
+      ]
     },
     {
       "slug": "klaviyo",
@@ -2090,7 +2380,12 @@
       "home": "https://www.klaviyo.com",
       "category": "marketing",
       "tier": "listed",
-      "rank": 48
+      "rank": 48,
+      "examples": [
+        "How did last week’s email campaign do?",
+        "How many people are in my VIP segment?",
+        "Write subject lines for our holiday sale email"
+      ]
     },
     {
       "slug": "linear",
@@ -2161,7 +2456,12 @@
       "tier": "listed",
       "registryName": "dev.lovable/mcp",
       "home": "https://lovable.dev",
-      "rank": 42
+      "rank": 42,
+      "examples": [
+        "Build a landing page for my dog-walking business",
+        "Make a simple app to track my reading list",
+        "Add a contact form to my portfolio site"
+      ]
     },
     {
       "slug": "lucid",
@@ -2187,7 +2487,12 @@
       "category": "design",
       "tier": "listed",
       "rank": 31,
-      "registryName": "app.lucid.mcp/lucid"
+      "registryName": "app.lucid.mcp/lucid",
+      "examples": [
+        "Find our network diagram in Lucidchart",
+        "Draw a flowchart of our refund process",
+        "What’s on the brainstorm board from Tuesday?"
+      ]
     },
     {
       "slug": "make",
@@ -2215,7 +2520,12 @@
       "aliases": ["integromat"],
       "tier": "listed",
       "rank": 73,
-      "registryName": "com.make/mcp-server"
+      "registryName": "com.make/mcp-server",
+      "examples": [
+        "Which scenarios failed today?",
+        "Run my weekly report scenario now",
+        "What does my new-lead scenario do?"
+      ]
     },
     {
       "slug": "mem",
@@ -2241,7 +2551,12 @@
       "category": "notes",
       "tier": "listed",
       "rank": 293,
-      "registryName": "io.github.mem-labs/mem"
+      "registryName": "io.github.mem-labs/mem",
+      "examples": [
+        "What did I write about the Berlin trip?",
+        "Find my notes on the hiring plan",
+        "Save a note with today’s meeting takeaways"
+      ]
     },
     {
       "slug": "mercury",
@@ -2267,7 +2582,12 @@
       "home": "https://app.mercury.com",
       "category": "money",
       "tier": "listed",
-      "rank": 270
+      "rank": 270,
+      "examples": [
+        "What’s our balance across all accounts?",
+        "What did we spend on software last month?",
+        "Show me deposits from this week"
+      ]
     },
     {
       "slug": "mermaid-chart",
@@ -2289,7 +2609,12 @@
       "aliases": ["mermaid"],
       "tier": "listed",
       "rank": 83,
-      "registryName": "com.mermaidchart/mermaid-mcp"
+      "registryName": "com.mermaidchart/mermaid-mcp",
+      "examples": [
+        "Draw a sequence diagram of our login flow",
+        "Check why my Mermaid diagram won’t render",
+        "Make a flowchart of how we handle refunds"
+      ]
     },
     {
       "slug": "microsoft-learn",
@@ -2336,7 +2661,12 @@
       "category": "design",
       "tier": "listed",
       "rank": 16,
-      "registryName": "io.github.miroapp/mcp-server"
+      "registryName": "io.github.miroapp/mcp-server",
+      "examples": [
+        "Summarize the sticky notes from our retro board",
+        "What’s on the product planning board?",
+        "Add a frame for next week’s ideas"
+      ]
     },
     {
       "slug": "mixpanel",
@@ -2361,7 +2691,12 @@
       ],
       "category": "data",
       "tier": "listed",
-      "rank": 104
+      "rank": 104,
+      "examples": [
+        "How many people signed up yesterday?",
+        "Where do users drop off during onboarding?",
+        "How many new users come back after a week?"
+      ]
     },
     {
       "slug": "monday",
@@ -2420,7 +2755,12 @@
       "home": "https://cloud.mongodb.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 352
+      "rank": 352,
+      "examples": [
+        "Which clusters do we have running?",
+        "Add a read-only database user for analytics",
+        "What tier is our production cluster on?"
+      ]
     },
     {
       "slug": "motherduck",
@@ -2446,7 +2786,12 @@
       "home": "https://app.motherduck.com",
       "category": "data",
       "tier": "listed",
-      "rank": 363
+      "rank": 363,
+      "examples": [
+        "How many orders did we get each day last week?",
+        "What tables are in my sales database?",
+        "Which products sold best last month?"
+      ]
     },
     {
       "slug": "neon",
@@ -2473,7 +2818,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 297,
-      "registryName": "com.neon/mcp"
+      "registryName": "com.neon/mcp",
+      "examples": [
+        "What databases are in my Neon project?",
+        "Make a branch of production for testing",
+        "How many users signed up today?"
+      ]
     },
     {
       "slug": "netlify",
@@ -2499,7 +2849,12 @@
       "home": "https://app.netlify.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 54
+      "rank": 54,
+      "examples": [
+        "Did my latest deploy succeed?",
+        "What form submissions came in this week?",
+        "Add an API key variable to my site"
+      ]
     },
     {
       "slug": "notion",
@@ -2595,7 +2950,12 @@
       ],
       "category": "life",
       "tier": "listed",
-      "registryName": "org.openweathermap/agents"
+      "registryName": "org.openweathermap/agents",
+      "examples": [
+        "Will it rain in Seattle tomorrow?",
+        "What’s the weather like this weekend?",
+        "How cold will it get tonight?"
+      ]
     },
     {
       "slug": "opusclip",
@@ -2622,7 +2982,12 @@
       "tier": "listed",
       "registryName": "io.github.opus-pro/opusclip",
       "home": "https://clip.opus.pro",
-      "rank": 225
+      "rank": 225,
+      "examples": [
+        "Cut short clips from my latest podcast episode",
+        "Make three vertical clips from this webinar",
+        "Find the funniest moments in this video"
+      ]
     },
     {
       "slug": "otter",
@@ -2647,7 +3012,12 @@
       ],
       "category": "calendar",
       "tier": "listed",
-      "rank": 105
+      "rank": 105,
+      "examples": [
+        "Summarize my meeting with the design team",
+        "What did Ben say about the timeline yesterday?",
+        "Find the call where we discussed pricing"
+      ]
     },
     {
       "slug": "outlook",
@@ -2708,7 +3078,12 @@
       "home": "https://dashboard.oxylabs.io",
       "category": "research",
       "tier": "listed",
-      "registryName": "io.oxylabs/oxylabs-mcp"
+      "registryName": "io.oxylabs/oxylabs-mcp",
+      "examples": [
+        "Get the price and reviews from this Amazon listing",
+        "What comes up on Google for coffee grinders?",
+        "Crawl this site and list all its pages"
+      ]
     },
     {
       "slug": "paddle",
@@ -2733,7 +3108,12 @@
       ],
       "home": "https://vendors.paddle.com",
       "category": "money",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "How many new subscriptions did we get this month?",
+        "When is our next payout?",
+        "Which subscriptions were canceled this week?"
+      ]
     },
     {
       "slug": "padlet",
@@ -2760,7 +3140,12 @@
       "tier": "listed",
       "registryName": "com.padlet/padlet",
       "home": "https://padlet.com",
-      "rank": 618
+      "rank": 618,
+      "examples": [
+        "What did students post on the field trip board?",
+        "Add a post with this week’s reading",
+        "Summarize the ideas on our brainstorm padlet"
+      ]
     },
     {
       "slug": "pagerduty",
@@ -2786,7 +3171,12 @@
       "home": "https://www.pagerduty.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 174
+      "rank": 174,
+      "examples": [
+        "Who’s on call right now?",
+        "What incidents fired overnight?",
+        "When is my next on-call shift?"
+      ]
     },
     {
       "slug": "pandadoc",
@@ -2813,7 +3203,12 @@
       "tier": "listed",
       "registryName": "com.pandadoc.mcp/mcp",
       "home": "https://app.pandadoc.com",
-      "rank": 79
+      "rank": 79,
+      "examples": [
+        "Which proposals are still waiting to be signed?",
+        "Has Harbor Labs signed the quote yet?",
+        "Make a proposal for the Riverside project"
+      ]
     },
     {
       "slug": "paper",
@@ -2833,7 +3228,12 @@
       "docsUrl": "https://paper.design/docs/mcp",
       "home": "https://paper.design",
       "category": "design",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Describe the selected frame in my design",
+        "Make the heading on this screen larger",
+        "What fonts and colors does this design use?"
+      ]
     },
     {
       "slug": "paypal",
@@ -2860,7 +3260,12 @@
       "category": "money",
       "tier": "listed",
       "rank": 122,
-      "registryName": "com.paypal.mcp/mcp"
+      "registryName": "com.paypal.mcp/mcp",
+      "examples": [
+        "Which invoices haven’t been paid yet?",
+        "Send Aisha an invoice for $400",
+        "Do I have any open disputes?"
+      ]
     },
     {
       "slug": "peloton",
@@ -2879,7 +3284,12 @@
       ],
       "home": "https://members.onepeloton.com",
       "category": "life",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Find a 20-minute low-impact ride",
+        "Build me a four-week strength plan",
+        "What yoga classes are good for beginners?"
+      ]
     },
     {
       "slug": "posthog",
@@ -2913,7 +3323,12 @@
       "category": "data",
       "tier": "listed",
       "rank": 85,
-      "registryName": "io.github.PostHog/mcp"
+      "registryName": "io.github.PostHog/mcp",
+      "examples": [
+        "What changed in signups last week?",
+        "How many people used the new export feature?",
+        "Turn on the new-checkout flag for 10% of users"
+      ]
     },
     {
       "slug": "postman",
@@ -2940,7 +3355,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 53,
-      "registryName": "com.postman/postman-mcp-server"
+      "registryName": "com.postman/postman-mcp-server",
+      "examples": [
+        "What requests are in our payments collection?",
+        "Which environment has the staging API key?",
+        "Add a request for the new orders endpoint"
+      ]
     },
     {
       "slug": "prisma",
@@ -2966,7 +3386,12 @@
       "home": "https://console.prisma.io",
       "category": "developer",
       "tier": "listed",
-      "registryName": "io.prisma/mcp"
+      "registryName": "io.prisma/mcp",
+      "examples": [
+        "What tables are in my database?",
+        "Add a column for phone numbers to users",
+        "How many accounts were created this month?"
+      ]
     },
     {
       "slug": "productboard",
@@ -2992,7 +3417,12 @@
       "home": "https://app.productboard.com",
       "category": "tasks",
       "tier": "listed",
-      "rank": 430
+      "rank": 430,
+      "examples": [
+        "What are customers asking for most?",
+        "Which features are on the roadmap this quarter?",
+        "What feedback did we get about dark mode?"
+      ]
     },
     {
       "slug": "quickbooks",
@@ -3019,7 +3449,12 @@
       "category": "money",
       "aliases": ["intuit"],
       "tier": "listed",
-      "rank": 45
+      "rank": 45,
+      "examples": [
+        "Which invoices are overdue?",
+        "What were our biggest expenses last month?",
+        "How’s our cash flow looking this quarter?"
+      ]
     },
     {
       "slug": "railway",
@@ -3046,7 +3481,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 188,
-      "registryName": "com.railway/mcp"
+      "registryName": "com.railway/mcp",
+      "examples": [
+        "Why did my last Railway deploy crash?",
+        "Which services are in my project?",
+        "Add a variable for the Stripe key to the API"
+      ]
     },
     {
       "slug": "ramp",
@@ -3072,7 +3512,12 @@
       "home": "https://app.ramp.com",
       "category": "money",
       "tier": "listed",
-      "rank": 97
+      "rank": 97,
+      "examples": [
+        "How much did we spend on meals this month?",
+        "Which cards spent the most last week?",
+        "What did we pay for software in September?"
+      ]
     },
     {
       "slug": "razorpay",
@@ -3098,7 +3543,12 @@
       "home": "https://dashboard.razorpay.com",
       "category": "money",
       "tier": "listed",
-      "rank": 343
+      "rank": 343,
+      "examples": [
+        "How much did we collect in payments today?",
+        "Which payments were refunded this week?",
+        "When is our next settlement?"
+      ]
     },
     {
       "slug": "render",
@@ -3126,7 +3576,12 @@
       "home": "https://dashboard.render.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 252
+      "rank": 252,
+      "examples": [
+        "Why did my last deploy fail?",
+        "Show me the logs for the web service",
+        "Which services are running right now?"
+      ]
     },
     {
       "slug": "replicate",
@@ -3150,7 +3605,12 @@
         }
       ],
       "category": "design",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Make an image of a fox reading a book",
+        "Remove the background from this photo",
+        "Find a model that turns speech into text"
+      ]
     },
     {
       "slug": "resend",
@@ -3184,7 +3644,12 @@
       "home": "https://resend.com/emails",
       "category": "developer",
       "tier": "listed",
-      "rank": 147
+      "rank": 147,
+      "examples": [
+        "Did my welcome emails get delivered today?",
+        "Send a test email to myself",
+        "How many contacts are in my newsletter audience?"
+      ]
     },
     {
       "slug": "sanity",
@@ -3211,7 +3676,12 @@
       "category": "stores",
       "tier": "listed",
       "rank": 198,
-      "registryName": "io.sanity.www/mcp"
+      "registryName": "io.sanity.www/mcp",
+      "examples": [
+        "Which blog posts are still drafts?",
+        "Fix the typo in the About page title",
+        "What fields does a product document have?"
+      ]
     },
     {
       "slug": "scite",
@@ -3237,7 +3707,12 @@
       "category": "research",
       "tier": "listed",
       "rank": 126,
-      "registryName": "ai.scite/mcp"
+      "registryName": "ai.scite/mcp",
+      "examples": [
+        "Has this study on vitamin D been disputed?",
+        "Find well-supported research on sleep and memory",
+        "How has this paper been cited since it came out?"
+      ]
     },
     {
       "slug": "semgrep",
@@ -3261,7 +3736,12 @@
         }
       ],
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Scan my project for security issues",
+        "Are there any SQL injection risks in this code?",
+        "Check this file for common bugs"
+      ]
     },
     {
       "slug": "sentry",
@@ -3305,7 +3785,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 37,
-      "registryName": "io.github.getsentry/sentry-mcp"
+      "registryName": "io.github.getsentry/sentry-mcp",
+      "examples": [
+        "What new errors showed up today?",
+        "Why is the checkout page crashing?",
+        "Which issues got worse since the last release?"
+      ]
     },
     {
       "slug": "shippo",
@@ -3332,7 +3817,12 @@
       "tier": "listed",
       "registryName": "com.shippo/shippo-mcp",
       "home": "https://apps.goshippo.com",
-      "rank": 380
+      "rank": 380,
+      "examples": [
+        "Where is my package to Seattle right now?",
+        "Compare shipping rates for a 3 lb box to Ohio",
+        "Make a shipping label for order 1042"
+      ]
     },
     {
       "slug": "shopify",
@@ -3370,7 +3860,12 @@
       "home": "https://admin.shopify.com",
       "category": "stores",
       "tier": "listed",
-      "rank": 24
+      "rank": 24,
+      "examples": [
+        "How many orders came in today?",
+        "Which products are running low on stock?",
+        "Mark the summer tote as sold out"
+      ]
     },
     {
       "slug": "shortcut",
@@ -3396,7 +3891,12 @@
       "home": "https://app.shortcut.com",
       "category": "tasks",
       "tier": "listed",
-      "rank": 791
+      "rank": 791,
+      "examples": [
+        "What stories are assigned to me?",
+        "What’s left in this iteration?",
+        "Add a story to fix the slow search page"
+      ]
     },
     {
       "slug": "signnow",
@@ -3422,7 +3922,12 @@
       "home": "https://app.signnow.com",
       "category": "notes",
       "tier": "listed",
-      "rank": 228
+      "rank": 228,
+      "examples": [
+        "Who still needs to sign the lease?",
+        "Send the NDA to Rosa for her signature",
+        "Which documents did I sign this month?"
+      ]
     },
     {
       "slug": "similarweb",
@@ -3448,7 +3953,12 @@
       "home": "https://pro.similarweb.com",
       "category": "marketing",
       "tier": "listed",
-      "rank": 124
+      "rank": 124,
+      "examples": [
+        "How much traffic does notion.so get?",
+        "Where does our competitor’s traffic come from?",
+        "How does our site compare to rivals this month?"
+      ]
     },
     {
       "slug": "skiplagged",
@@ -3468,7 +3978,12 @@
       "category": "life",
       "tier": "listed",
       "registryName": "com.skiplagged/mcp",
-      "home": "https://skiplagged.com"
+      "home": "https://skiplagged.com",
+      "examples": [
+        "Find the cheapest flight to Denver next Friday",
+        "Show me cheap hotels in Austin this weekend",
+        "What are the cheapest flights to Tokyo in June?"
+      ]
     },
     {
       "slug": "slack",
@@ -3538,7 +4053,12 @@
       "home": "https://open.spotify.com",
       "category": "life",
       "tier": "listed",
-      "rank": 20
+      "rank": 20,
+      "examples": [
+        "Play my Discover Weekly",
+        "Make a playlist of upbeat songs for running",
+        "What have I been listening to most lately?"
+      ]
     },
     {
       "slug": "square",
@@ -3564,7 +4084,12 @@
       "home": "https://squareup.com/dashboard",
       "category": "money",
       "tier": "listed",
-      "rank": 57
+      "rank": 57,
+      "examples": [
+        "What were today’s sales?",
+        "Which items are running low?",
+        "Who are our most frequent customers?"
+      ]
     },
     {
       "slug": "squarespace",
@@ -3583,7 +4108,12 @@
       ],
       "home": "https://account.squarespace.com",
       "category": "stores",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "Is bluefinbakery.com available?",
+        "Suggest domain names for my yoga studio",
+        "What names are close to tidewater.com?"
+      ]
     },
     {
       "slug": "stack-overflow",
@@ -3635,7 +4165,12 @@
       "home": "https://www.strava.com/dashboard",
       "category": "life",
       "tier": "listed",
-      "rank": 35
+      "rank": 35,
+      "examples": [
+        "How far did I run this week?",
+        "What was my fastest 5K this year?",
+        "Show me my longest ride last month"
+      ]
     },
     {
       "slug": "stripe",
@@ -3679,7 +4214,12 @@
       "category": "money",
       "tier": "listed",
       "rank": 11,
-      "registryName": "com.stripe/mcp"
+      "registryName": "com.stripe/mcp",
+      "examples": [
+        "How much did we make this month?",
+        "Which payments failed this week?",
+        "Send Ryan Cole an invoice for $250"
+      ]
     },
     {
       "slug": "supabase",
@@ -3706,7 +4246,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 18,
-      "registryName": "com.supabase/mcp"
+      "registryName": "com.supabase/mcp",
+      "examples": [
+        "How many users signed up this week?",
+        "What tables are in my project?",
+        "Add a created_at column to the posts table"
+      ]
     },
     {
       "slug": "superhuman",
@@ -3731,7 +4276,12 @@
       ],
       "home": "https://mail.superhuman.com",
       "category": "mail",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "What’s still unread from this morning?",
+        "Draft a reply to Mateo’s email about the contract",
+        "Find the flight confirmation for my Denver trip"
+      ]
     },
     {
       "slug": "supermetrics",
@@ -3757,7 +4307,12 @@
       "home": "https://team.supermetrics.com",
       "category": "marketing",
       "tier": "listed",
-      "registryName": "com.supermetrics/supermetrics"
+      "registryName": "com.supermetrics/supermetrics",
+      "examples": [
+        "Which ad campaign had the best return last month?",
+        "How much did we spend on ads this week?",
+        "Compare our Google and Meta ad results"
+      ]
     },
     {
       "slug": "svelte",
@@ -3831,7 +4386,12 @@
       "aliases": ["microsoft teams"],
       "family": "microsoft",
       "tier": "listed",
-      "rank": 70
+      "rank": 70,
+      "examples": [
+        "What did I miss in the Marketing channel?",
+        "Tell Grace I’ll join the call in five minutes",
+        "Summarize yesterday’s project sync meeting"
+      ]
     },
     {
       "slug": "thumbtack",
@@ -3851,7 +4411,12 @@
       "home": "https://www.thumbtack.com",
       "category": "life",
       "tier": "listed",
-      "rank": 575
+      "rank": 575,
+      "examples": [
+        "Find a plumber near me for a leaky faucet",
+        "How much does it cost to paint a bedroom?",
+        "Get quotes from house cleaners this week"
+      ]
     },
     {
       "slug": "todoist",
@@ -3947,7 +4512,12 @@
       "home": "https://www.trivago.com",
       "category": "life",
       "tier": "listed",
-      "rank": 141
+      "rank": 141,
+      "examples": [
+        "Find a hotel in Rome for under $150 a night",
+        "Compare hotel prices in Chicago this weekend",
+        "What are the best-rated hotels near the beach?"
+      ]
     },
     {
       "slug": "typeform",
@@ -3974,7 +4544,12 @@
       "tier": "listed",
       "registryName": "com.typeform/typeform",
       "home": "https://admin.typeform.com",
-      "rank": 15
+      "rank": 15,
+      "examples": [
+        "How many responses did my survey get?",
+        "Summarize the feedback from this week’s responses",
+        "What did people say about our new menu?"
+      ]
     },
     {
       "slug": "typefully",
@@ -4001,7 +4576,12 @@
       "tier": "listed",
       "registryName": "com.typefully/mcp",
       "home": "https://typefully.com",
-      "rank": 371
+      "rank": 371,
+      "examples": [
+        "Schedule a post about our launch for Tuesday",
+        "Draft a thread from my latest blog post",
+        "What posts do I have scheduled this week?"
+      ]
     },
     {
       "slug": "vanta",
@@ -4027,7 +4607,12 @@
       "home": "https://app.vanta.com",
       "category": "developer",
       "tier": "listed",
-      "rank": 231
+      "rank": 231,
+      "examples": [
+        "Which controls are failing right now?",
+        "What evidence is missing for SOC 2?",
+        "Which tests started failing this week?"
+      ]
     },
     {
       "slug": "vercel",
@@ -4071,7 +4656,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 22,
-      "registryName": "com.vercel/vercel-mcp"
+      "registryName": "com.vercel/vercel-mcp",
+      "examples": [
+        "Did my latest deployment succeed?",
+        "Why did the last build fail?",
+        "Show me errors from production today"
+      ]
     },
     {
       "slug": "wakatime",
@@ -4109,7 +4699,12 @@
         "test": "/users/current"
       },
       "category": "developer",
-      "tier": "listed"
+      "tier": "listed",
+      "examples": [
+        "How much did I code today?",
+        "Which project took most of my time this week?",
+        "What languages did I use most last week?"
+      ]
     },
     {
       "slug": "webflow",
@@ -4136,7 +4731,12 @@
       "category": "stores",
       "tier": "listed",
       "rank": 24,
-      "registryName": "com.webflow/mcp"
+      "registryName": "com.webflow/mcp",
+      "examples": [
+        "Which CMS items haven’t been published yet?",
+        "Add a new team member to the Team collection",
+        "Update the headline on our home page"
+      ]
     },
     {
       "slug": "whimsical",
@@ -4163,7 +4763,12 @@
       "tier": "listed",
       "registryName": "com.whimsical/mcp",
       "home": "https://whimsical.com",
-      "rank": 183
+      "rank": 183,
+      "examples": [
+        "Make a mind map for our trip planning",
+        "Draw a flowchart of our support process",
+        "Sketch a wireframe for a sign-up screen"
+      ]
     },
     {
       "slug": "wix",
@@ -4190,7 +4795,12 @@
       "category": "stores",
       "tier": "listed",
       "rank": 52,
-      "registryName": "com.wix/mcp"
+      "registryName": "com.wix/mcp",
+      "examples": [
+        "How many bookings do I have this week?",
+        "Which products are out of stock?",
+        "Add a new post to my blog"
+      ]
     },
     {
       "slug": "wolfram",
@@ -4211,7 +4821,12 @@
       "category": "research",
       "tier": "listed",
       "rank": 268,
-      "registryName": "com.wolfram/mcp"
+      "registryName": "com.wolfram/mcp",
+      "examples": [
+        "What’s the integral of x squared times sin x?",
+        "How far is Mars from Earth right now?",
+        "Convert 350 Fahrenheit to Celsius"
+      ]
     },
     {
       "slug": "workos",
@@ -4238,7 +4853,12 @@
       "category": "developer",
       "tier": "listed",
       "rank": 415,
-      "registryName": "com.workos/mcp"
+      "registryName": "com.workos/mcp",
+      "examples": [
+        "Which organizations have SSO set up?",
+        "Is Initech’s directory sync working?",
+        "Add a new organization for Umbrella Corp"
+      ]
     },
     {
       "slug": "xero",
@@ -4265,7 +4885,12 @@
       "home": "https://go.xero.com",
       "category": "money",
       "tier": "listed",
-      "rank": 62
+      "rank": 62,
+      "examples": [
+        "Which customers owe us money right now?",
+        "What bills are due this week?",
+        "How much did we spend on rent this year?"
+      ]
     },
     {
       "slug": "zapier",
@@ -4292,7 +4917,12 @@
       "category": "automation",
       "tier": "listed",
       "rank": 27,
-      "registryName": "com.zapier/mcp"
+      "registryName": "com.zapier/mcp",
+      "examples": [
+        "Add this lead to my Google Sheet",
+        "Post a message in Slack when I finish this",
+        "Create a Trello card for the client request"
+      ]
     },
     {
       "slug": "zoom",
@@ -4350,7 +4980,12 @@
       "category": "sales",
       "tier": "listed",
       "rank": 47,
-      "registryName": "io.github.Zoominfo/zoominfo-mcp"
+      "registryName": "io.github.Zoominfo/zoominfo-mcp",
+      "examples": [
+        "Find IT directors at hospitals in Ohio",
+        "Get the phone number for Daniel Wu at Initrode",
+        "Which companies in Denver use Salesforce?"
+      ]
     }
   ]
 }

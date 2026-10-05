@@ -181,9 +181,12 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     rowWidth > 0 &&
     beside <
       floors + RAIL_WIDTH + RAIL_FOLD_SLACK + (isRailCompact ? ROOM_MARGIN : 0);
-  useEffect(() => {
+  // Kept with the render that decides it, not an effect after it, so the
+  // rail never draws one frame at the width it is leaving; settling takes one
+  // more pass at most, since the margin only widens the fold it decided.
+  if (railFolds !== isRailCompact) {
     setRailCompact(railFolds);
-  }, [railFolds]);
+  }
 
   /** Puts the chat away: the inbox is shown again if it was hidden, with the empty side beside it. */
   const leaveChat = () => {

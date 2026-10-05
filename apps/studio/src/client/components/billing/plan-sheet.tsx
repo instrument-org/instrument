@@ -192,7 +192,7 @@ function PlanSheetBody({
  * Checkout is open in the browser: where to finish, that the app is
  * listening, and the way back to it should the tab have closed.
  */
-export function WaitingForStripe({
+function WaitingForStripe({
   isOpening,
   onBack,
   onOpenAgain,
@@ -220,7 +220,7 @@ export function WaitingForStripe({
 }
 
 /** The listening half of the handoff, for a screen that has its own heading. */
-export function WaitingForStripeStatus({
+function WaitingForStripeStatus({
   isOpening,
   onBack,
   onOpenAgain,

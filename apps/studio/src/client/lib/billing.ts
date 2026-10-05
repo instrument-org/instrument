@@ -77,7 +77,7 @@ export function subscribedPlan(
 }
 
 /** Whether the next hosted request would be let through, by what status says. */
-export function canUseHostedModels(status: Status) {
+function canUseHostedModels(status: Status) {
   if (status.plan === "none" || hasPaymentFailed(status)) {
     return false;
   }
@@ -388,7 +388,7 @@ export function stopLineText(refusal: BillingRefusal) {
 }
 
 /** The share of an allowance at which the chat first mentions it. */
-export const USAGE_WARNING_PERCENT = 80;
+const USAGE_WARNING_PERCENT = 80;
 
 /**
  * The quiet line over the reply box once 80% of the trial or of any usage

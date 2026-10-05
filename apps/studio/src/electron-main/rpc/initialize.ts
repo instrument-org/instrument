@@ -74,6 +74,18 @@ function isHandledUnauthorized(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "UNAUTHORIZED";
 }
 
+// A platform API route that answers 5xx failed on the server, which reports its
+// own errors; the copy Studio would capture adds nothing it can act on. The
+// route wraps the client's error as API_ERROR, so the status is on the cause.
+function isPlatformApiServerError(error: unknown): boolean {
+  return (
+    error instanceof ORPCError &&
+    error.code === "API_ERROR" &&
+    error.cause instanceof ORPCError &&
+    error.cause.status >= 500
+  );
+}
+
 // Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
 // errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
 // still rethrow them to the client so the UI can show a retry, but skip the
@@ -86,6 +98,7 @@ function shouldSkipCapture(error: unknown): boolean {
     isHandledOpenError(error) ||
     isHandledInvalidUrl(error) ||
     isHandledInvalidInput(error) ||
+    isPlatformApiServerError(error) ||
     isExpectedNetworkError(error)
   );
 }

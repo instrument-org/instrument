@@ -43,7 +43,10 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
-import { configureAppSession } from "./lib/app-session";
+import {
+  configureAppSession,
+  waitForPreviousDevInstance,
+} from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
@@ -174,6 +177,8 @@ async function bootstrapPrimaryInstance() {
       }
     }
   }
+
+  await timeBootStep("waitForPreviousDevInstance", waitForPreviousDevInstance);
 
   // The app's windows run on the workspace's own session (getAppSession); the
   // default one still makes the main process's own requests.

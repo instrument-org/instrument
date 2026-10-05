@@ -43,7 +43,7 @@ import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
 import { folderOf, segmentsOf } from "./host-path";
-import { useHostedPageNavigation } from "./hosted-page";
+import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { useOnScreen } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
@@ -144,9 +144,14 @@ export function FilesScreen({
     );
   };
   const quickLook = useQuickLook({ openFile });
-  /** Another file in this tab's place: the tree and the crumbs follow it. */
-  const showFile = (hostPath: string) => {
+  /**
+   * Another file in this tab's place: the tree and the crumbs follow it.
+   * `replace` for a file the hosted page itself went to, whose step is in the
+   * page's own history and not a second time in the tab's.
+   */
+  const showFile = (hostPath: string, { replace = false } = {}) => {
     void navigate({
+      replace,
       search: {
         file: hostPath,
         path,
@@ -186,7 +191,7 @@ export function FilesScreen({
   // shows and closed when the tab moves off a page's file or goes. The
   // browser draws it into the slot the viewer gives it below.
   const tabId = groupTab?.id ?? appTabId;
-  const hostGroup = `page:${tabId}`;
+  const hostGroup = hostGroupOf(tabId);
   const hostedFile =
     isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
@@ -224,9 +229,10 @@ export function FilesScreen({
     hostedTabIdsNow.current = hostedTabIds;
   });
   // A link the page follows moves the tab: to another file, which the tab
-  // shows in this one's place, or off the computer, where the tab becomes
-  // the page at that address and back returns here. A step past either end
-  // of the page's history is the tab's own.
+  // shows in this one's place while the step stays in the page's own
+  // history (which back walks first), or off the computer, where the tab
+  // becomes the page at that address and back returns here. A step past
+  // either end of the page's history is the tab's own.
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
@@ -251,7 +257,7 @@ export function FilesScreen({
         return;
       }
       if (step.kind === "file") {
-        showFile(step.path);
+        showFile(step.path, { replace: true });
         return;
       }
       if (hostedTabId === undefined) {

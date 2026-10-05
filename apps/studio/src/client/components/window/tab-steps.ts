@@ -7,7 +7,8 @@ export type StepDirection = "back" | "forward";
 
 /**
  * The histories a tab can step through, innermost first: the page's own (its
- * guest's), the screen's own router, the visits across the boundary between pages
+ * guest's, whether the page is the tab or is drawn beside a file screen's
+ * tree), the screen's own router, the visits across the boundary between pages
  * and screens, and, for a site standing at the window's own level, the
  * window tab's history before the site.
  */
@@ -18,7 +19,8 @@ export type StepLayer = (typeof STEP_LAYERS)[number];
 /** Whether each history has anywhere to go, each way. */
 export type StepStack = Record<StepLayer, { back: boolean; forward: boolean }>;
 
-const NOWHERE = { back: false, forward: false };
+/** A history with nowhere to go either way. */
+export const NOWHERE = { back: false, forward: false };
 
 /**
  * The history a step walks: the innermost one with somewhere to go that way,
@@ -34,9 +36,10 @@ export function stepOf(
 }
 
 /**
- * What a tab can step through: its page's history as the guest reports it,
- * its screen's history, its visits, and the window tab's history behind a site.
- * A site of the window's own has nothing of its own before its page (the new
+ * What a tab can step through: its page's history as the guest reports it
+ * (the tab's own page, or the one a screen draws beside its tree, whose
+ * links leave the screen where it stands), its screen's history, its
+ * visits, and the window tab's history behind a site. A site of the window's own has nothing of its own before its page (the new
  * tab a page opens with is no stop there), so its visits never step back.
  */
 export function stepStackOf(
@@ -45,7 +48,10 @@ export function stepStackOf(
     guest,
     outer,
   }: {
-    /** What the page's guest reports; nothing while it has not attached. */
+    /**
+     * What the page's guest reports; nothing while it has not attached, or
+     * for a screen that draws no page.
+     */
     guest: { canGoBack: boolean; canGoForward: boolean } | undefined;
     /** The window tab's own history, for a site standing at its level. */
     outer?: { canGoBack: boolean };
@@ -61,10 +67,9 @@ export function stepStackOf(
   }
   const history = tab.kind === "screen" ? historyOf(tab) : undefined;
   return {
-    guest:
-      tab.kind === "page" && guest
-        ? { back: guest.canGoBack, forward: guest.canGoForward }
-        : NOWHERE,
+    guest: guest
+      ? { back: guest.canGoBack, forward: guest.canGoForward }
+      : NOWHERE,
     outer: { back: outer?.canGoBack ?? false, forward: false },
     screen: history
       ? {

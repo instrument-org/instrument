@@ -73,6 +73,20 @@ describe("which history a step walks", () => {
       "screen",
     ],
     [
+      "the page a screen draws beside its tree before the screen's own history",
+      SCREEN,
+      { guest: FULL_HISTORY },
+      "back",
+      "guest",
+    ],
+    [
+      "the screen's own history from the first entry of the page it draws",
+      SCREEN,
+      { guest: NO_HISTORY },
+      "back",
+      "screen",
+    ],
+    [
       "the tab's visits at the end of a screen's own history",
       {
         ...SCREEN,

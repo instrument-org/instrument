@@ -3,6 +3,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { goGuest } from "@/client/lib/browser-pool";
 import {
+  type BrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
   WINDOW_ID,
@@ -12,9 +13,17 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 
-import { groupOfHref, isSiteGroup } from "./app-tabs";
-import { type StepDirection, stepOf, stepStackOf } from "./tab-steps";
+import { appTabsAtom, groupOfHref, isSiteGroup } from "./app-tabs";
+import { hostGroupOf } from "./hosted-page";
+import {
+  NOWHERE,
+  type StepDirection,
+  stepOf,
+  type StepStack,
+  stepStackOf,
+} from "./tab-steps";
 import { useWindowTabs } from "./window-tabs";
 
 /** Back and forward for one tab, and whether each has anywhere to go. */
@@ -35,19 +44,12 @@ export function useTabSteps(
   up: undefined | WindowTab,
   { outer }: { outer?: { back: () => void; canGoBack: boolean } } = {},
 ): TabSteps {
-  const { stepTab, stepVisitOf } = useWindowTabs();
-  const attached = useBrowserTargets();
-  const target =
-    up?.kind === "page"
-      ? encodeBrowserTargetId(
-          up.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(up.id),
-        )
-      : undefined;
-  const isAttached = target !== undefined && attached.has(target);
-  const guest = useGuestNavigation(isAttached ? target : null);
+  const { allTabs, stepTab, stepVisitOf } = useWindowTabs();
+  const { guest, target } = usePageGuest(
+    up?.kind === "page" ? up : up && hostedPageOf(allTabs, up.id),
+  );
   const stack = stepStackOf(up, {
-    guest: isAttached ? guest : undefined,
+    guest,
     ...(outer ? { outer } : {}),
   });
   return {
@@ -90,10 +92,17 @@ export function useTabSteps(
  * Back and forward for the window's tab up, which its arrows and chords
  * walk: a site's page first and then the tab's history before the site, the
  * way a browser's back leaves a site at its start; anything else, the tab's
- * own router. Read under the tab up's router.
+ * own router, after the history of a page its file screen draws beside the
+ * tree. Read under the tab up's router.
  */
 export function useWindowSteps(): TabSteps {
   const router = useRouter();
+  const { allTabs, tabUpIn } = useWindowTabs();
+  // The page a file screen in the tab draws beside its tree.
+  const { selectedId } = useAtomValue(appTabsAtom);
+  const hosted = usePageGuest(
+    selectedId === null ? undefined : hostedPageOf(allTabs, selectedId),
+  );
   const routerCanGoBack = useCanGoBack();
   // Memory history, so its length is the real count of entries.
   const routerCanGoForward = useRouterState({
@@ -103,7 +112,6 @@ export function useWindowSteps(): TabSteps {
   const href = useRouterState({ select: (state) => state.location.href });
   const group = groupOfHref(href);
   const site = isSiteGroup(group) ? group : undefined;
-  const { tabUpIn } = useWindowTabs();
   const page = useTabSteps(site === undefined ? undefined : tabUpIn(site), {
     outer: {
       back: () => {
@@ -115,15 +123,55 @@ export function useWindowSteps(): TabSteps {
   if (site !== undefined) {
     return page;
   }
+  const stack: StepStack = {
+    guest: hosted.guest
+      ? { back: hosted.guest.canGoBack, forward: hosted.guest.canGoForward }
+      : NOWHERE,
+    outer: NOWHERE,
+    screen: { back: routerCanGoBack, forward: routerCanGoForward },
+    visits: NOWHERE,
+  };
   return {
-    canGoBack: routerCanGoBack,
-    canGoForward: routerCanGoForward,
+    canGoBack: stepOf(stack, "back") !== undefined,
+    canGoForward: stepOf(stack, "forward") !== undefined,
     go: (direction) => {
-      if (direction === "back") {
-        router.history.back();
-      } else {
-        router.history.forward();
+      const layer = stepOf(stack, direction);
+      if (layer === "guest" && hosted.target) {
+        goGuest(hosted.target, direction);
+      } else if (layer === "screen") {
+        if (direction === "back") {
+          router.history.back();
+        } else {
+          router.history.forward();
+        }
       }
     },
   };
+}
+
+/** The page a file screen in the tab with that id draws beside its tree, if any. */
+function hostedPageOf(
+  tabs: readonly WindowTab[],
+  tabId: string,
+): undefined | WindowTab {
+  const group = hostGroupOf(tabId);
+  return tabs.find((tab) => tab.group === group && tab.kind === "page");
+}
+
+/** A page's guest, once attached, and its history as the guest reports it. */
+function usePageGuest(page: undefined | WindowTab): {
+  guest: { canGoBack: boolean; canGoForward: boolean } | undefined;
+  target: BrowserTargetId | undefined;
+} {
+  const attached = useBrowserTargets();
+  const target =
+    page?.kind === "page"
+      ? encodeBrowserTargetId(
+          page.taskId ?? WINDOW_ID,
+          StoreId.SessionSchema.parse(page.id),
+        )
+      : undefined;
+  const isAttached = target !== undefined && attached.has(target);
+  const guest = useGuestNavigation(isAttached ? target : null);
+  return { guest: isAttached ? guest : undefined, target };
 }

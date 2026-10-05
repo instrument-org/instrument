@@ -193,7 +193,7 @@ const FIRMLINK_ROOTS = ["/var", "/tmp", "/etc"];
  * backslashes -- `path: 'C:\\Users\\...'` -- which the plain variants never
  * match), and each macOS firmlink spelling of all the above.
  */
-export function pathVariants(value: string): string[] {
+function pathVariants(value: string): string[] {
   const variants = new Set<string>();
   for (const spelling of firmlinkSpellings(value)) {
     const normalized = normalizePath(spelling);

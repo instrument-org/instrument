@@ -54,7 +54,7 @@ export function mountPathOf(
  * (`Downloads`), and so does one whose chat has since renamed a mount; for
  * those the chat's path is wherever the chat reaches the folder on disk.
  */
-export function chatPathOf(
+function chatPathOf(
   folder: { mountName: string; path: string },
   chatFolders: FolderMounts,
 ): string | undefined {

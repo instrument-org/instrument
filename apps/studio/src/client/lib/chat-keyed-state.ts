@@ -5,7 +5,7 @@ import { type ChatId, StoreId } from "@instrument-org/workspace/client";
  * the key its value moved to once chats were named by their own ids. The
  * version in a key is what keeps an old value from being read as a new one.
  */
-export const CHAT_KEYED_STATE = [
+const CHAT_KEYED_STATE = [
   ["studio.app-tabs.v1", "studio.app-tabs.v2"],
   ["studio.chat-group.v1", "studio.chat-group.v2"],
   ["studio.compose.v1", "studio.compose.v2"],

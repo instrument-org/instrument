@@ -70,7 +70,7 @@ export function hostPathWithin(root: string, hostPath: string): null | string {
   return `/${resolved.split(nodePath.sep).slice(-depth).join("/")}`;
 }
 
-export function isEnoent(error: unknown): boolean {
+function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 

@@ -20,7 +20,7 @@ import { getWorkspaceConfig } from "../../workspace-config";
  * opens, and a task reaches a file through its folders, never through a
  * browser standing on one.
  */
-export async function resolveTab(tab: string): Promise<BrowserTargetId> {
+async function resolveTab(tab: string): Promise<BrowserTargetId> {
   // The window's tabs are the window's, whichever chat names one.
   const windowId = WINDOW_ID;
   const sessionId = StoreId.SessionSchema.safeParse(tab);
@@ -60,7 +60,7 @@ export async function resolveTabs(
 }
 
 /** A tab id in the window's terms, open or not. */
-export async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
+async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
   const sessionId = StoreId.SessionSchema.safeParse(tab);
   if (!sessionId.success) {
     throw new Error(

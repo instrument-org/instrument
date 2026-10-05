@@ -12,7 +12,7 @@ export type StepDirection = "back" | "forward";
  * and screens, and, for a site standing at the window's own level, the
  * window tab's history before the site.
  */
-export const STEP_LAYERS = ["guest", "screen", "visits", "outer"] as const;
+const STEP_LAYERS = ["guest", "screen", "visits", "outer"] as const;
 
 export type StepLayer = (typeof STEP_LAYERS)[number];
 

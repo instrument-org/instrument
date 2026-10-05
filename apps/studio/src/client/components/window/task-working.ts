@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
  * is on, the session it talks in. Every reader of one task passes the same
  * options, so they share one subscription and agree.
  */
-export function taskStatusOptions(taskId: TaskId) {
+function taskStatusOptions(taskId: TaskId) {
   return rpcClient.workspace.task.live.status.experimental_liveOptions({
     input: { id: taskId },
   });

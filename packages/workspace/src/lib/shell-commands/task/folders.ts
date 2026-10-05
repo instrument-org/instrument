@@ -167,7 +167,7 @@ export function filePaths(specs: string[], cwd: string): string[] {
 }
 
 /** The folder paths among what a task is handed, for a refusal to list. */
-export function handedFolderPaths(handed: string[]): string {
+function handedFolderPaths(handed: string[]): string {
   return (
     handed
       .filter((handedPath) =>

@@ -88,7 +88,7 @@ export function soleColor(svg: string): string | undefined {
 }
 
 /** The mark with its one color, and any shape left to default to black, in `color`. */
-export function recolor(svg: string, color: string): string {
+function recolor(svg: string, color: string): string {
   const painted = svg
     .replaceAll(
       /(\s(?:fill|stroke|stop-color)\s*=\s*["'])([^"']*)(["'])/gi,
@@ -104,7 +104,7 @@ export function recolor(svg: string, color: string): string {
   return painted.replace(/^<svg\b(?![^>]*\sfill\s*=)/i, `<svg fill="${color}"`);
 }
 
-export function contrast(a: string, b: string): number {
+function contrast(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].toSorted((x, y) => y - x);
   return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }

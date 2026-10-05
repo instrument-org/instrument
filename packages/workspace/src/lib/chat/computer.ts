@@ -82,7 +82,7 @@ export const ComputerRecentSchema = ComputerEntrySchema.extend({
 });
 export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
 
-export const ComputerListingSchema = z.object({
+const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
@@ -99,7 +99,7 @@ export type ComputerListing = z.output<typeof ComputerListingSchema>;
  * refused (`ReadRefusal`), since only a refusal by the Mac's privacy controls
  * is one the person can undo from here.
  */
-export const ComputerRefusalSchema = z.object({
+const ComputerRefusalSchema = z.object({
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   kind: z.literal("refused"),

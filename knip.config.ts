@@ -53,6 +53,8 @@ const config: KnipConfig = {
       ],
       ignoreBinaries: [
         "magick", // System ImageMagick used to generate the Windows folder icon
+        "swift", // Xcode toolchain that builds the Mac helper (scripts/build-mac-helper.ts)
+        "clang", // Xcode toolchain that links the Mac helper's native module
         "tail",
         "op",
         "gh",
@@ -62,6 +64,7 @@ const config: KnipConfig = {
       ],
       ignoreDependencies: [
         "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues
+        "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path
         "@parcel/watcher", // Needed for electron.vite.config.ts to build

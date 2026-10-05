@@ -279,6 +279,8 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
           )
           .join("; ");
   const way = catalogWayIn(entry);
+  const native =
+    way.kind === "mac-app" ? nativeCommandFor(way.bundleId) : undefined;
   const start = `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}'`;
   const howTo =
     way.kind === "mcp"
@@ -288,7 +290,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it ${nativeCommandFor(way.bundleId) === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${nativeCommandFor(way.bundleId)}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
             : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
@@ -630,7 +632,7 @@ async function runAccount(input: SubcommandInput, context: AppCommandContext) {
   );
   await appChanged(app.slug);
   return ok(
-    `${app.slug} is ${manifest.name} (${manifest.account}) wherever it appears now.\n`,
+    `${app.slug} is ${manifest.name} (${named}) wherever it appears now.\n`,
   );
 }
 
@@ -871,7 +873,7 @@ async function refuseWhatCannotConnect(
     const entry = findCatalogEntry(slug, manifest.url);
     const site = entry ? (entry.home ?? `https://${entry.domain}`) : undefined;
     const instead = `Set it up on the web instead: \`${APP_COMMAND.name} new ${slug} --name '${name}' --web ${site ?? "<the service's site>"}\`${entry ? `, or the way \`${APP_COMMAND.name} catalog ${entry.slug}\` says` : ""}.`;
-    const listed = getAppCatalog().some((candidate) =>
+    const endpointListed = getAppCatalog().some((candidate) =>
       candidate.interfaces.some(
         (surface) =>
           surface.endpoint?.replace(/\/+$/, "") ===
@@ -880,7 +882,8 @@ async function refuseWhatCannotConnect(
     );
     if (
       catalogEndpointNeedsClient(manifest.url) ||
-      (!listed && (await mcpSignInSupport(manifest.url)) === "needs-client")
+      (!endpointListed &&
+        (await mcpSignInSupport(manifest.url)) === "needs-client")
     ) {
       throw new Error(
         `${manifest.url} signs in only with a client registered with its vendor ahead of time, which ${APP_NAME} does not have yet, so the sign-in card would fail. ${instead}`,

@@ -107,7 +107,7 @@ function timeOf(row: HTMLElement) {
 }
 
 describe("DraftRow", () => {
-  it("wears a feather, the topic, the first line of the words, Draft, and the time", async () => {
+  it("wears a dashed circle, the topic, the first line of the words, Draft, and the time", async () => {
     const { row } = await renderRow(draft({ topicId: "house" }));
     expect(gutterOf(row).querySelector("[aria-label]")?.ariaLabel).toBe(
       "Draft",

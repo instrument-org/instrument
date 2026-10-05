@@ -41,7 +41,7 @@ import { type FileUpload } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { FeatherIcon } from "@phosphor-icons/react/Feather";
+import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
@@ -196,7 +196,7 @@ export function ComposeBar({
         onClick={onOpen}
         type="button"
       >
-        <FeatherIcon className="size-3.5 shrink-0" />
+        <CircleDashedIcon className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate">
           {draftTitle(draft.words)}
         </span>

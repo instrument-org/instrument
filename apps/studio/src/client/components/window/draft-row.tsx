@@ -6,7 +6,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { FeatherIcon } from "@phosphor-icons/react/Feather";
+import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 import { TopicPill } from "./chat-row";
@@ -16,9 +16,9 @@ import { type RowAction, rowClassName } from "./row-shell";
 
 /**
  * One draft in the Drafts place, laid out the way a chat's row is so the
- * list reads the same whichever it holds: a feather in the gutter where a
- * chat wears its state, the topic it will be filed under as a pill, the
- * first line of its words as the title, "Draft" in muted where a chat's
+ * list reads the same whichever it holds: a dashed circle in the gutter
+ * where a chat wears its state, the topic it will be filed under as a pill,
+ * the first line of its words as the title, "Draft" in muted where a chat's
  * latest line goes, and when it was last touched at the far right. A plain
  * click, or Enter, opens the draft to go on writing; deleting it is the one
  * action at the row's edge and on its menu, and takes no confirming, since
@@ -79,7 +79,7 @@ export function DraftRow({
         >
           <span className="flex h-5 w-5 shrink-0 items-center justify-center">
             <span aria-label="Draft" className="flex text-muted-foreground">
-              <FeatherIcon className="size-3.5" />
+              <CircleDashedIcon className="size-3.5" />
             </span>
           </span>
           <div className="min-w-0 flex-1">

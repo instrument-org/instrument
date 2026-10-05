@@ -3,12 +3,9 @@ import type { Protocol } from "devtools-protocol";
 import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
+import { chatOf } from "../../../lib/record-folders";
 import { WINDOW_ID } from "../../../schemas/window-id";
-import {
-  askWindow,
-  chatSessionOfTask,
-  requestWindowTab,
-} from "../../../lib/chat/window-tab";
+import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import { getBrowserSessionDir, taskDir } from "../../../lib/task-dir-utils";
 import { getTaskState, setTaskState } from "../../../lib/task-record";
@@ -283,7 +280,7 @@ export function handleTaskCdpClient(
     }
     const tabId = await requestWindowTab({
       askedBy: taskId,
-      group: chatSessionOfTask(taskId),
+      group: chatOf(taskId),
       show: false,
       ...(address === undefined ? {} : { url: address }),
     });
@@ -327,7 +324,7 @@ export function handleTaskCdpClient(
       await askWindow({
         action: { kind: "close", tabId: tab.tabId },
         askedBy: taskId,
-        group: chatSessionOfTask(taskId),
+        group: chatOf(taskId),
       });
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);

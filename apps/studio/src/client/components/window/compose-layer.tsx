@@ -2,7 +2,7 @@ import { composeKeyOf, type Draft, draftGroupOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
-  type StoreId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
@@ -54,7 +54,7 @@ export function ComposeLayer({
   modelURI: AIGatewayModelURI.Type | undefined;
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
   /** A chat's small view closed: the window goes, and the chat is as it was in Chat. */
-  onCloseChat: (sessionId: StoreId.Session) => void;
+  onCloseChat: (chatId: ChatId) => void;
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string) => void;
   /** A tab closed from a chat window's rail: asks first while a task is working in it. */
@@ -62,20 +62,20 @@ export function ComposeLayer({
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
-  onNewChatTopic: (sessionId: StoreId.Session, name?: string) => void;
+  onNewChatTopic: (chatId: ChatId, name?: string) => void;
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
-  onOpenChat: (sessionId: StoreId.Session) => void;
-  onSetChatTopics: (sessionId: StoreId.Session, topics: string[]) => void;
+  onOpenChat: (chatId: ChatId) => void;
+  onSetChatTopics: (chatId: ChatId, topics: string[]) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
-    sessionId: StoreId.Session;
+    chatId: ChatId;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
-  sentWords: ReadonlyMap<StoreId.Session, string>;
+  sentWords: ReadonlyMap<ChatId, string>;
   topics: Topic[];
 }) {
   // A window whose draft is gone (thrown away from the Drafts place, or a
@@ -141,18 +141,18 @@ export function ComposeLayer({
         )}
         {compose.placed.map((entry) => {
           if (entry.kind === "chat") {
-            const { sessionId } = entry;
-            const chat = chats.find((candidate) => candidate.id === sessionId);
+            const { chatId } = entry;
+            const chat = chats.find((candidate) => candidate.id === chatId);
             if (entry.placement === "bar") {
               return (
                 <ChatBar
                   chat={chat}
-                  key={`bar:${sessionId}`}
+                  key={`bar:${chatId}`}
                   onClose={() => {
-                    onCloseChat(sessionId);
+                    onCloseChat(chatId);
                   }}
                   onOpen={() => {
-                    compose.setPlacement(sessionId, "docked");
+                    compose.setPlacement(chatId, "docked");
                   }}
                   right={entry.right}
                 />
@@ -165,39 +165,37 @@ export function ComposeLayer({
                 isRailCompact={entry.isRailCompact === true}
                 // The draft's key, for a chat that grew from one: the same
                 // element, so the window is not seen to leave and arrive.
-                key={entry.fromDraft ?? sessionId}
+                key={entry.fromDraft ?? chatId}
                 onClose={() => {
-                  onCloseChat(sessionId);
+                  onCloseChat(chatId);
                 }}
                 onCloseTab={onCloseTab}
                 onMinimize={() => {
-                  compose.setPlacement(sessionId, "bar");
+                  compose.setPlacement(chatId, "bar");
                 }}
                 onNewTopic={(name) => {
-                  onNewChatTopic(sessionId, name);
+                  onNewChatTopic(chatId, name);
                 }}
                 onOpenInChats={() => {
-                  onOpenChat(sessionId);
+                  onOpenChat(chatId);
                 }}
                 onPageChrome={(slots) => {
-                  compose.setChrome(sessionId, slots);
+                  compose.setChrome(chatId, slots);
                 }}
                 onPageHost={(element) => {
-                  compose.setHost(sessionId, element);
+                  compose.setHost(chatId, element);
                 }}
                 onPlacementChange={(placement) => {
-                  compose.setPlacement(sessionId, placement);
+                  compose.setPlacement(chatId, placement);
                 }}
                 onSetTopics={(next) => {
-                  onSetChatTopics(sessionId, next);
+                  onSetChatTopics(chatId, next);
                 }}
                 placement={entry.placement}
                 right={entry.right}
-                sendContext={(options) =>
-                  sendContext({ ...options, sessionId })
-                }
-                sentWords={sentWords.get(sessionId)}
-                sessionId={sessionId}
+                sendContext={(options) => sendContext({ ...options, chatId })}
+                sentWords={sentWords.get(chatId)}
+                chatId={chatId}
                 topics={topics}
                 width={entry.width}
               />

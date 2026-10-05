@@ -78,9 +78,9 @@ export function startAgentCompletionNotifications({
    * answer that from here would pull every window's machinery in behind them.
    */
   revealTask: (task: {
-    /** A chat of the conversation, which the inbox lists by its session. */
+    id: TaskId;
+    /** A chat of the conversation, which the inbox lists by its id. */
     isChat: boolean;
-    sessionId: StoreId.Session;
   }) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
@@ -135,7 +135,7 @@ export function startAgentCompletionNotifications({
       if (body === undefined) {
         return;
       }
-      const chat = await chatOf({ context, sessionId });
+      const chat = await chatOf({ context, id });
       // A reply while a task of the chat's is still at work is a step on
       // the way: the line said before a hand-off, a task sent back. The news
       // is the reply that leaves the chat at rest, with nothing of its own
@@ -155,7 +155,7 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ isChat, sessionId });
+        revealTask({ id, isChat });
       },
       title: taskTitle,
     });
@@ -168,16 +168,16 @@ export function startAgentCompletionNotifications({
    */
   async function chatOf({
     context,
-    sessionId,
+    id,
   }: {
     context: {
       workspaceConfig: WorkspaceConfig;
       workspaceRef: WorkspaceActorRef;
     };
-    sessionId: StoreId.Session;
+    id: TaskId;
   }): Promise<Chat | undefined> {
     try {
-      return await call(workspaceRouter.chats.byId, { sessionId }, { context });
+      return await call(workspaceRouter.chats.byId, { id }, { context });
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")

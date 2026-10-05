@@ -1,4 +1,4 @@
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
@@ -9,8 +9,8 @@ import {
   tasksPlacementOf,
 } from "./placement";
 
-const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
-const OTHER = StoreId.SessionSchema.parse("ses_01JBBBBBBBBBBBBBBBBBBBBBBB");
+const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
+const OTHER = ChatIdSchema.parse("2026-10-02-trip");
 
 const OWN_PAGE = { isFresh: false, isTasks: false, kind: "page" } as const;
 const TASK_PAGE = { isFresh: false, isTasks: true, kind: "page" } as const;

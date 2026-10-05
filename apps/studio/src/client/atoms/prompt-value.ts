@@ -1,5 +1,5 @@
 import { type PromptEditorRef } from "@/client/components/prompt-editor";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { draftWordsAtom } from "@/client/atoms/window";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
@@ -17,13 +17,13 @@ import { atomFamily } from "jotai/utils";
 export type PromptDraftKey =
   | { draftId: string; scope: "draft" }
   | { id: string; scope: "transient" }
-  | { scope: "chat"; sessionId: StoreId.Session };
+  | { chatId: ChatId; scope: "chat" };
 
 /** One string per draft, for keying anything that has to re-key with the scope. */
 export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
     case "chat": {
-      return `chat:${key.sessionId}`;
+      return `chat:${key.chatId}`;
     }
     case "draft": {
       return `draft:${key.draftId}`;
@@ -40,13 +40,13 @@ const transientDraftFamily = atomFamily((_id: string) => atom(""));
 // Chat replies, one per chat, kept as long as the window is: read by the
 // chat's composer and by its row in the inbox alike, so the atom for a
 // chat is always the same one, whether or not its composer is mounted.
-const chatDraftFamily = atomFamily((_sessionId: StoreId.Session) => atom(""));
+const chatDraftFamily = atomFamily((_chatId: ChatId) => atom(""));
 
 /** The value atom for a draft, resolving to the right backing store per scope. */
 export function promptDraftAtom(key: PromptDraftKey) {
   switch (key.scope) {
     case "chat": {
-      return chatDraftFamily(key.sessionId);
+      return chatDraftFamily(key.chatId);
     }
     case "draft": {
       return draftWordsAtom(key.draftId);

@@ -145,7 +145,7 @@ describe("storage.invalidFolders", () => {
       context: createContext(),
     });
 
-    expect(chats.map((chat) => chat.taskId)).toEqual(["2026-10-01-fine"]);
+    expect(chats.map((chat) => chat.id)).toEqual(["2026-10-01-fine"]);
     expect(
       invalid
         .map(({ kind, name, path: at, reason }) => ({

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/tasks/")({
   },
   component: TasksRoute,
   validateSearch: z.object({
-    /** The chat whose tasks are listed, by session id. */
+    /** The chat whose tasks are listed. */
     chat: z.string().optional(),
   }),
 });

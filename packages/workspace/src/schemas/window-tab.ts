@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { StoreId } from "./store-id";
+import { ChatIdSchema } from "./chat-id";
 
 /** What a tab is asked to show: a page by its address, or a file or folder of the user's by its path. */
 const WindowTabTargetSchema = z.discriminatedUnion("kind", [
@@ -45,8 +45,8 @@ export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
 export const WindowTabRequestSchema = z.object({
   action: WindowTabActionSchema,
   requestId: z.string(),
-  /** The chat the tab belongs to, by its session; absent outside one. */
-  sessionId: StoreId.SessionSchema.optional(),
+  /** The chat the tab belongs to; absent outside one. */
+  chatId: ChatIdSchema.optional(),
 });
 
 export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;

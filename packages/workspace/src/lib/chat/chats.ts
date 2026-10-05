@@ -55,8 +55,6 @@ export const ChatSchema = z.object({
   archived: z.boolean(),
   /** Whether the user starred it: a mark of the user's own, meaning whatever they mean by it. */
   starred: z.boolean(),
-  /** The chat's own record, which its transcript and its tasks are under. */
-  taskId: ChatIdSchema,
   /** When the chat began: its first message, or the session itself before one. */
   createdAt: z.number(),
   /**
@@ -77,10 +75,11 @@ export const ChatSchema = z.object({
     sites: z.array(z.string()),
   }),
   /**
-   * The chat's session, which is how the window and the agent name a chat
-   * (its tabs' group, its address, a link to it).
+   * The chat's own record, which its transcript and its tasks are under, and
+   * how the window and the agent name it (its tabs' group, its address, a
+   * link to it).
    */
-  id: StoreId.SessionSchema,
+  id: ChatIdSchema,
   /**
    * The one line saying where the chat stands: the step while it works,
    * the question while it waits, the first line of the last reply otherwise.
@@ -117,6 +116,8 @@ export const ChatSchema = z.object({
    * moving; waiting while a task filed from it is stopped on an ask, or its
    * own last turn ended on one; idle otherwise.
    */
+  /** The chat's session, which its transcript is read and its messages are sent through. */
+  sessionId: StoreId.SessionSchema,
   state: z.enum(["idle", "waiting", "working"]),
   title: z.string(),
   /**
@@ -248,7 +249,7 @@ export async function listedChats(
   });
   return new Map(
     rows.flatMap((row): [ChatId, Chat][] =>
-      row === undefined ? [] : [[row.taskId, row]],
+      row === undefined ? [] : [[row.id, row]],
     ),
   );
 }
@@ -593,9 +594,8 @@ async function chatFor(
       files: behind(sent.files, made.files),
       sites: behind(sent.sites, made.sites),
     },
-    id: session.id,
+    id: taskId,
     starred: session.starredAt !== undefined,
-    taskId,
     ...(digest.lastAsk ? { lastAsk: digest.lastAsk } : {}),
     ...(latest ? { latest } : {}),
     ...(digest.lastReplyAt === undefined
@@ -607,6 +607,7 @@ async function chatFor(
     replyCount: digest.replyCount,
     ...(root ? { root } : {}),
     runningTasks,
+    sessionId: session.id,
     state,
     // Until the agent names the chat, the ask's own first words stand for it
     // rather than the placeholder a session is born with.

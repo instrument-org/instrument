@@ -1,6 +1,6 @@
 import { BROWSER_HREF } from "@/client/atoms/window";
 import { TabIdSchema } from "@/shared/tabs";
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
@@ -13,8 +13,8 @@ import {
   windowTabsAtom,
 } from "./window-tabs";
 
-const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
-const OTHER = StoreId.SessionSchema.parse("ses_01JBBBBBBBBBBBBBBBBBBBBBBB");
+const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
+const OTHER = ChatIdSchema.parse("2026-10-02-trip");
 
 const TAB = TabIdSchema.parse("tab");
 

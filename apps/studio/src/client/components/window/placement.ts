@@ -1,5 +1,5 @@
 import { APPS_HREF } from "@/client/atoms/window";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
@@ -11,7 +11,7 @@ import { parseHref } from "./window-href";
  * before anything is opened. `useOpeners` applies the answer.
  */
 export interface PlacementContext {
-  /** The group on screen: the chat's session or the site's key the window's tab up stands on. */
+  /** The group on screen: the chat's id or the site's key the window's tab up stands on. */
   groupOnScreen: string | undefined;
   /** Whether the group on screen is a chat, whose tabs are beside it in a pane. */
   isChatOnScreen: boolean;
@@ -160,7 +160,7 @@ export type TasksPlacement =
  * window's tab up (or a tab of its own when asked) when it is not there.
  */
 export function tasksPlacementOf(
-  owner: StoreId.Session,
+  owner: ChatId,
   { newTab = false, ownTab = false }: OpenOptions,
   {
     groupOnScreen,

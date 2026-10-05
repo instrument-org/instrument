@@ -17,7 +17,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 vi.mock("execa");
 
@@ -31,7 +31,7 @@ const LONE_TASK_ID = TaskIdSchema.parse("lone-task");
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
-let asks: { group?: StoreId.Session; show: boolean }[];
+let asks: { group?: ChatId; show: boolean }[];
 let stopAnswering: () => void;
 
 const ctx = createCommandContext({
@@ -49,7 +49,7 @@ function answeringWindow() {
     }
     asks.push({
       show: ask.action.show,
-      ...(ask.sessionId ? { group: ask.sessionId } : {}),
+      ...(ask.chatId ? { group: ask.chatId } : {}),
     });
     publisher.publish("window.tabDone", {
       id: ask.id,

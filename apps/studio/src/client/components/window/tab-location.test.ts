@@ -1,4 +1,4 @@
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,7 +11,7 @@ import {
   tasksOfHref,
 } from "./tab-location";
 
-const CHAT = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 
 const HOME = "/Users/casey";
 
@@ -159,7 +159,7 @@ describe("locationCrumbs", () => {
     expect(readable({ chat: CHAT, kind: "task", title: "Book the hotel" }))
       .toMatchInlineSnapshot(`
       [
-        "Tasks -> /tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "Tasks -> /tasks?chat=2026-10-01-roofer",
         "Book the hotel",
       ]
     `);
@@ -233,7 +233,7 @@ describe("tasksOfHref", () => {
   it.each([
     ["/tasks", {}],
     [`/tasks?chat=${CHAT}`, { chat: CHAT }],
-    ["/tasks?chat=nonsense", {}],
+    ["/tasks?chat=Not%20a%20chat", {}],
     ["/tasks/book", { task: "book" }],
     [`/tasks/book?chat=${CHAT}`, { chat: CHAT, task: "book" }],
     ["/tasks/book/edit", undefined],
@@ -253,7 +253,7 @@ describe("chatOfTasksList", () => {
   // A list with no chat is no list: its address goes to the inbox.
   it.each([
     [undefined, undefined],
-    ["nonsense", undefined],
+    ["Not a chat", undefined],
     [CHAT, CHAT],
   ])("reads the list for %s as %s's", (chat, expected) => {
     expect(chatOfTasksList(chat)).toBe(expected);

@@ -3,8 +3,8 @@ import { CHATS_HREF } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
+  type ChatId,
   isFolderPath,
-  StoreId,
   WINDOW_ID,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
@@ -34,7 +34,14 @@ import {
   tasksOfHref,
 } from "./tab-location";
 import { isFreshTab } from "./tab-model";
-import { chatOfHref, chatOfHrefPrefix, parseHref } from "./window-href";
+import {
+  chatOfGroup,
+  chatOfHref,
+  chatOfHrefPrefix,
+  chatOfSessionPrefix,
+  chatSessionOfHref,
+  parseHref,
+} from "./window-href";
 import { newScreenId, type useWindowTabs } from "./window-tabs";
 
 /**
@@ -58,7 +65,7 @@ export function useOpeners({
   browser: BrowserTabsHandle | null;
   /** The chats the window has, once the list has been read. */
   chats: Chat[] | undefined;
-  chatTitles: Map<StoreId.Session, string>;
+  chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /** Brings the pane up for the group on screen, for something opened into it. */
@@ -71,8 +78,7 @@ export function useOpeners({
   /** The window as an open is placed against, read at the ask. */
   const placing: PlacementContext = {
     groupOnScreen: windowTabs.groupOnScreen,
-    isChatOnScreen: StoreId.SessionSchema.safeParse(windowTabs.groupOnScreen)
-      .success,
+    isChatOnScreen: chatOfGroup(windowTabs.groupOnScreen) !== undefined,
     up: active && {
       isFresh: isFreshTab(active),
       isTasks: active.kind === "page" && Boolean(active.taskId),
@@ -86,9 +92,9 @@ export function useOpeners({
    * shown waits in a group nobody is looking at.
    */
   const goToChatOf = (into: string) => {
-    const chat = StoreId.SessionSchema.safeParse(into);
-    if (chat.success) {
-      appTabs.go(`${CHATS_HREF}/${chat.data}`);
+    const chat = chatOfGroup(into);
+    if (chat) {
+      appTabs.go(`${CHATS_HREF}/${chat}`);
     }
   };
   /**
@@ -153,12 +159,37 @@ export function useOpeners({
     resolved = false,
   ): void => {
     const { behind = false, group: into, newTab = false } = options;
+    // A chat named by its session, as an older reply's link or a memory
+    // saved then names it, opens at the chat that session is.
+    const session = chatSessionOfHref(href);
+    if (session) {
+      void queryClient
+        .fetchQuery(
+          rpcClient.workspace.chats.ofSession.queryOptions({
+            input: { sessionId: session },
+            staleTime: Number.POSITIVE_INFINITY,
+          }),
+        )
+        .then(
+          ({ id }) => id,
+          () => null,
+        )
+        .then((chat) => {
+          if (chat) {
+            openScreen(`${CHATS_HREF}/${chat}`, options);
+          } else {
+            sayNoChat();
+          }
+        });
+      return;
+    }
     // A whole id, or the start of one the way a reply's link carries it,
     // among the chats the window has: a whole id that names none of them
     // is a link to a chat since deleted, not a chat with nothing in it.
     // Until the list has been read, a whole id is taken on its own.
     const chat = chats
-      ? chatOfHrefPrefix(href, chatTitles.keys())
+      ? (chatOfHrefPrefix(href, chatTitles.keys()) ??
+        chatOfSessionPrefix(href, chats))
       : chatOfHref(href);
     if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
@@ -169,10 +200,7 @@ export function useOpeners({
     if (parseHref(href).pathname.startsWith(`${CHATS_HREF}/`)) {
       // A chat's address that names none of the chats here: a screen
       // at it would be a chat with nothing in it.
-      toast("No chat at that address", {
-        description:
-          "It may have been deleted, or the link is not for this chat.",
-      });
+      sayNoChat();
       return;
     }
     // A memory is shown where all of them are, in Settings, brought to the
@@ -202,8 +230,7 @@ export function useOpeners({
       void queryClient
         .fetchQuery(taskRecordOptions(task))
         .then(
-          (record) =>
-            chats?.find((known) => known.taskId === record.chatId)?.id,
+          (record) => record.chatId,
           () => undefined,
         )
         .then((filedIn) => {
@@ -211,13 +238,10 @@ export function useOpeners({
         });
       return;
     }
-    const tasksChat = tasks
-      ? StoreId.SessionSchema.safeParse(
-          tasks.chat ?? into ?? windowTabs.groupOnScreen,
-        )
+    const owner = tasks
+      ? chatOfGroup(tasks.chat ?? into ?? windowTabs.groupOnScreen)
       : undefined;
-    if (tasks && tasksChat?.success) {
-      const owner = tasksChat.data;
+    if (tasks && owner) {
       const at =
         tasks.task === undefined
           ? tasksHref(owner)
@@ -302,25 +326,10 @@ export function useOpeners({
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
-    const session = StoreId.SessionSchema.safeParse(
-      group ?? windowTabs.groupOnScreen,
-    );
-    const record = session.success
-      ? await queryClient
-          .fetchQuery(
-            rpcClient.workspace.chats.of.queryOptions({
-              input: { sessionId: session.data },
-              staleTime: Number.POSITIVE_INFINITY,
-            }),
-          )
-          .catch(() => {
-            // No record for the chat: the path resolves against the task it names.
-          })
-      : undefined;
     const [error, hostPaths] = await safe(
       rpcClient.workspace.task.files.hostPaths.call({
         filePaths: [filePath],
-        taskId: record?.taskId ?? WINDOW_ID,
+        taskId: chatOfGroup(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];
@@ -358,7 +367,7 @@ export function useOpeners({
    */
   const actOnTab = async ({
     action,
-    sessionId: group,
+    chatId: group,
   }: WindowTabRequest): Promise<{ error?: string; tabId?: string }> => {
     if (action.kind === "open") {
       const { target } = action;
@@ -534,4 +543,11 @@ export function useOpeners({
       openScreen(href, options);
     },
   };
+}
+
+/** Says a chat's address named none of the chats here. */
+function sayNoChat() {
+  toast("No chat at that address", {
+    description: "It may have been deleted, or the link is not for this chat.",
+  });
 }

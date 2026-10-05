@@ -51,6 +51,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
+  type ChatId,
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
@@ -121,7 +122,7 @@ import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { chatOfHref } from "./window-href";
+import { chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -268,7 +269,7 @@ function WindowShell({
   const opened = ensure.data;
   const childTitles = useTaskTitles();
   const chats = useQuery(chatListOptions());
-  const chatTitles = new Map<StoreId.Session, string>(
+  const chatTitles = new Map<ChatId, string>(
     chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
@@ -461,9 +462,9 @@ function WindowShell({
    * Takes a chat out of the corner: the window goes and the chat comes
    * up in the tab on screen, whole, its pane as it was.
    */
-  const landChat = (sessionId: StoreId.Session) => {
-    compose.remove(sessionId);
-    appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
+  const landChat = (chatId: ChatId) => {
+    compose.remove(chatId);
+    appTabs.navigate(`${CHATS_HREF}/${chatId}`);
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -547,7 +548,7 @@ function WindowShell({
   // that draft.
   const [newTopic, setNewTopic] = useState<{
     /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
-    chatSessionId?: StoreId.Session;
+    chatId?: ChatId;
     draftId?: string;
     name?: string;
   }>();
@@ -567,7 +568,7 @@ function WindowShell({
     groupInView === undefined
       ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
       : groupUp?.kind === "screen" &&
-          (!StoreId.SessionSchema.safeParse(groupInView).success ||
+          (chatOfGroup(groupInView) === undefined ||
             (paneOpenByGroup[groupInView] ?? true))
         ? (screenViews[groupUp.id] ?? null)
         : null;
@@ -608,8 +609,8 @@ function WindowShell({
     draftContext,
     isOpen: opened !== undefined,
     isChat,
-    openChat: (sessionId) => {
-      appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
+    openChat: (chatId) => {
+      appTabs.navigate(`${CHATS_HREF}/${chatId}`);
     },
     saveDefaultModelURI,
     topics,
@@ -617,7 +618,7 @@ function WindowShell({
   });
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
-  const listedChats = useRef<StoreId.Session[]>([]);
+  const listedChats = useRef<ChatId[]>([]);
   useWindowCommands(
     {
       back: () => {
@@ -834,14 +835,14 @@ function WindowShell({
                     ),
                   );
                 }}
-                onCloseChat={(sessionId) => {
-                  compose.remove(sessionId);
+                onCloseChat={(chatId) => {
+                  compose.remove(chatId);
                 }}
                 onCloseDraft={closeDraft}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
-                onNewChatTopic={(chatSessionId, name) => {
-                  setNewTopic({ chatSessionId, ...(name ? { name } : {}) });
+                onNewChatTopic={(chatId, name) => {
+                  setNewTopic({ chatId, ...(name ? { name } : {}) });
                 }}
                 onNewTopic={(draftId, name) => {
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
@@ -975,7 +976,7 @@ function WindowShell({
             <NewTopicDialog
               candidates={backfillCandidates(
                 (chats.data ?? []).filter(
-                  (chat) => chat.id !== (newTopic?.chatSessionId ?? chatUp),
+                  (chat) => chat.id !== (newTopic?.chatId ?? chatUp),
                 ),
               )}
               {...(newTopic?.name ? { name: newTopic.name } : {})}
@@ -984,8 +985,7 @@ function WindowShell({
                 const filedOn =
                   forDraft === undefined
                     ? chats.data?.find(
-                        (chat) =>
-                          chat.id === (newTopic?.chatSessionId ?? chatUp),
+                        (chat) => chat.id === (newTopic?.chatId ?? chatUp),
                       )
                     : undefined;
                 createTopic.mutate(topic, {

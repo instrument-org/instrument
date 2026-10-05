@@ -9,7 +9,7 @@ import {
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
-import { chatOf, sessionOfChat } from "../record-folders";
+import { chatOf } from "../record-folders";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -30,7 +30,7 @@ export const WINDOW_TAB_TIMEOUT_MS = 2000;
  * answer is listened for before the ask goes out, so a window that answers at
  * once is not missed.
  *
- * `group` is the chat the tab belongs to, by its session.
+ * `group` is the chat the tab belongs to.
  */
 export async function askWindow({
   action,
@@ -40,7 +40,7 @@ export async function askWindow({
 }: {
   action: WindowTabAction;
   askedBy: TaskId;
-  group: StoreId.Session | undefined;
+  group: ChatId | undefined;
   timeoutMs?: number;
 }): Promise<undefined | WindowTabAnswer> {
   const requestId = ulid();
@@ -55,7 +55,7 @@ export async function askWindow({
     action,
     id: askedBy,
     requestId,
-    ...(group ? { sessionId: group } : {}),
+    ...(group ? { chatId: group } : {}),
   });
   try {
     for await (const answer of answers) {
@@ -70,16 +70,6 @@ export async function askWindow({
     controller.abort();
   }
   return undefined;
-}
-
-/**
- * The chat a record is or was started in, by the chat's session: a chat's
- * own, or the chat whose folder a task is in. Undefined for a task no chat
- * owns.
- */
-export function chatSessionOfTask(taskId: TaskId): StoreId.Session | undefined {
-  const chatId = chatOf(taskId);
-  return chatId === undefined ? undefined : sessionOfChat(chatId);
 }
 
 /**
@@ -105,7 +95,7 @@ export async function liveHeldTabs(
     const answer = await askWindow({
       action: { kind: "restore", tabId: decoded.sessionId },
       askedBy: taskId,
-      group: chatSessionOfTask(taskId),
+      group: chatOf(taskId),
     });
     if (answer?.tabId === undefined) {
       continue;
@@ -136,7 +126,7 @@ export async function requestWindowTab({
   url,
 }: {
   askedBy: TaskId;
-  group: StoreId.Session | undefined;
+  group: ChatId | undefined;
   show: boolean;
   timeoutMs?: number;
   url?: string;

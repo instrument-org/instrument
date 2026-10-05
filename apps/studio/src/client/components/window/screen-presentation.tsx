@@ -2,7 +2,11 @@ import { BROWSER_HREF, CHATS_HREF, NEW_TAB_HREF } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  ChatIdSchema,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
@@ -37,8 +41,8 @@ interface ScreenNames {
     string,
     { icon?: string | undefined; name: string; site: string | undefined }
   >;
-  /** Each chat's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
-  chatTitles?: Map<StoreId.Session, string>;
+  /** Each chat's title by its id, for a tab standing on one; a chat not in it is a "Chat". */
+  chatTitles?: Map<ChatId, string>;
   /**
    * What the home folder is called where it is not called by its own name,
    * which is to the model: the folder's name is the account name.
@@ -201,9 +205,7 @@ export function screenPresentation(
 
 /** The chat a screen address stands on, by the title the window has for it. */
 function chatTitleOf(pathname: string, chatTitles: ScreenNames["chatTitles"]) {
-  const id = StoreId.SessionSchema.safeParse(
-    pathname.slice(`${CHATS_HREF}/`.length),
-  );
+  const id = ChatIdSchema.safeParse(pathname.slice(`${CHATS_HREF}/`.length));
   return (id.success ? chatTitles?.get(id.data) : undefined) ?? "Chat";
 }
 

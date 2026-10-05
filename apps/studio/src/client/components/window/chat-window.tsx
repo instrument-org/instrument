@@ -4,6 +4,7 @@ import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import {
+  type ChatId,
   encodeBrowserTargetId,
   type SessionMessageDataPart,
   StoreId,
@@ -138,7 +139,7 @@ export function ChatWindow({
   right,
   sendContext,
   sentWords,
-  sessionId,
+  chatId,
   topics,
   width,
 }: {
@@ -170,7 +171,7 @@ export function ChatWindow({
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
-  sessionId: StoreId.Session;
+  chatId: ChatId;
   topics: Topic[];
   /** The window's width, rail and all, narrower than its own on a row with less room. */
   width?: number;
@@ -178,8 +179,8 @@ export function ChatWindow({
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const tabs = windowTabs.allTabs.filter((tab) => tab.group === sessionId);
-  const up = windowTabs.tabUpIn(sessionId);
+  const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
+  const up = windowTabs.tabUpIn(chatId);
   const isExpanded = placement === "expanded";
   // Whether the thing up is drawn large; only a grown window has the room.
   const [isViewOpen, setViewOpen] = useState(false);
@@ -188,7 +189,7 @@ export function ChatWindow({
     chat === undefined ? sentWords !== undefined : chat.state === "working";
   const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
-  const chatTitles = new Map<StoreId.Session, string>(
+  const chatTitles = new Map<ChatId, string>(
     chat === undefined ? [] : [[chat.id, chat.title]],
   );
 
@@ -219,7 +220,7 @@ export function ChatWindow({
   const behindTab = windowTabs.active;
   const behind =
     behindTab !== undefined &&
-    windowTabs.groupOnScreen !== sessionId &&
+    windowTabs.groupOnScreen !== chatId &&
     isGroupShown(windowTabs.groupOnScreen, paneOpenByGroup) &&
     isIncludable(behindTab)
       ? behindTab
@@ -260,7 +261,7 @@ export function ChatWindow({
   // chat already has open.
   const openHere = (href: string) => {
     windowTabs.openScreen(href, {
-      group: sessionId,
+      group: chatId,
       isOpened: true,
       select: true,
     });
@@ -269,14 +270,14 @@ export function ChatWindow({
   /** The chat's tasks or one of them, up large in this window: the tab already at that address, or a new one. */
   const openTasksHere = (href: string) => {
     windowTabs.openOrFocusScreen(href, {
-      group: sessionId,
+      group: chatId,
       isOpened: true,
       select: true,
     });
     showUp();
   };
   const openPage = (url: string) => {
-    const id = appWindow.browser?.openOrFocus(url, { group: sessionId });
+    const id = appWindow.browser?.openOrFocus(url, { group: chatId });
     if (id !== undefined) {
       select(id);
     }
@@ -298,7 +299,7 @@ export function ChatWindow({
       }}
       onClose={closeTab}
       onReorder={(keys) => {
-        windowTabs.reorder(keys, sessionId);
+        windowTabs.reorder(keys, chatId);
       }}
       onSelect={select}
       tabs={tabs}
@@ -370,7 +371,7 @@ export function ChatWindow({
               onArchived: onClose,
               onOpenInChats,
               onViewTasks: () => {
-                openTasksHere(tasksHref(sessionId));
+                openTasksHere(tasksHref(chatId));
               },
             }}
             onDelete={() => {
@@ -446,7 +447,7 @@ export function ChatWindow({
                 if (options?.show && !options.newTab) {
                   appWindow.openPath(path, {
                     activate: true,
-                    group: sessionId,
+                    group: chatId,
                     ownTab: true,
                   });
                   showUp();
@@ -467,8 +468,8 @@ export function ChatWindow({
                 if (options?.show && tasks) {
                   openTasksHere(
                     tasks.task === undefined
-                      ? tasksHref(sessionId)
-                      : taskHref(tasks.task, sessionId),
+                      ? tasksHref(chatId)
+                      : taskHref(tasks.task, chatId),
                   );
                   return;
                 }
@@ -486,7 +487,7 @@ export function ChatWindow({
                 }
                 appWindow.openPath(path, {
                   activate: true,
-                  group: sessionId,
+                  group: chatId,
                   ownTab: true,
                 });
                 showUp();
@@ -512,7 +513,7 @@ export function ChatWindow({
                     onGone={onClose}
                     sendContext={contextToSend}
                     sentPrompt={sentWords}
-                    sessionId={sessionId}
+                    chatId={chatId}
                   />
                 </ActiveTabProvider>
               </LinkSurface>
@@ -524,7 +525,7 @@ export function ChatWindow({
             <div className="min-h-0 flex-1">
               <GroupItem
                 closeTab={closeTab}
-                group={sessionId}
+                group={chatId}
                 isFramed={false}
                 // The row's Hide puts the view away; the thing stays in the
                 // chat, on the rail, as it does beside a chat in the window.

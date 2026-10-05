@@ -142,7 +142,7 @@ node $DRIVE rpc gateway.models.list
 
 The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
 
-Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/`, and no route lists every chat's tasks. `workspace.chats.of '{"sessionId":"ses_..."}'` turns a chat's session (the id in a `/chats/<session>` address) into it.
+Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/` (the id in a `/chats/<id>` address), and no route lists every chat's tasks. `workspace.chats.session '{"id":"<chat-id>"}'` gives a chat's session, for the routes that read its transcript; `workspace.chats.ofSession '{"sessionId":"ses_..."}'` turns a session back into its chat.
 
 Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
 

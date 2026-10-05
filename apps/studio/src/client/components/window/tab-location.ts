@@ -2,7 +2,8 @@ import { type OpenTarget } from "@/client/lib/open-target";
 import { folderHref } from "@/shared/computer-href";
 import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
-  StoreId,
+  type ChatId,
+  ChatIdSchema,
   type TaskId,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
@@ -28,14 +29,14 @@ export interface Volume {
 const TASKS_HREF = "/tasks";
 
 /** The address of one task's page, carrying the chat whose list it was opened from. */
-export function taskHref(id: TaskId, chat?: StoreId.Session): string {
+export function taskHref(id: TaskId, chat?: ChatId): string {
   return chat === undefined
     ? `${TASKS_HREF}/${id}`
     : `${TASKS_HREF}/${id}?chat=${chat}`;
 }
 
 /** The address of a chat's task list; there is no list of every chat's tasks. */
-export function tasksHref(chat: StoreId.Session): string {
+export function tasksHref(chat: ChatId): string {
   return `${TASKS_HREF}?chat=${chat}`;
 }
 
@@ -43,8 +44,8 @@ export function tasksHref(chat: StoreId.Session): string {
  * The chat a task list's address names, which every list is for; none for
  * no chat or one that is not a chat's id, an address with no list at it.
  */
-export function chatOfTasksList(chat: unknown): StoreId.Session | undefined {
-  const parsed = StoreId.SessionSchema.safeParse(chat);
+export function chatOfTasksList(chat: unknown): ChatId | undefined {
+  const parsed = ChatIdSchema.safeParse(chat);
   return parsed.success ? parsed.data : undefined;
 }
 
@@ -68,7 +69,7 @@ export type TabLocation =
     }
   | {
       /** The chat whose list the task was opened from, which is where its crumb goes back to. */
-      chat?: StoreId.Session;
+      chat?: ChatId;
       kind: "task";
       title: string;
     }
@@ -82,7 +83,7 @@ export type TabLocation =
   | { kind: "page"; url: string }
   | {
       /** The chat whose tasks these are; none only on the way to the inbox. */
-      chat?: StoreId.Session;
+      chat?: ChatId;
       kind: "tasks";
     };
 
@@ -159,10 +160,10 @@ export function locationCrumbs(
  */
 export function tasksOfHref(
   href: string,
-): undefined | { chat?: StoreId.Session; task?: TaskId } {
+): undefined | { chat?: ChatId; task?: TaskId } {
   const url = new URL(href, "http://tabs");
   const { pathname } = url;
-  const chat = StoreId.SessionSchema.safeParse(url.searchParams.get("chat"));
+  const chat = ChatIdSchema.safeParse(url.searchParams.get("chat"));
   const forChat = chat.success ? { chat: chat.data } : {};
   if (pathname === TASKS_HREF || pathname === `${TASKS_HREF}/`) {
     return forChat;

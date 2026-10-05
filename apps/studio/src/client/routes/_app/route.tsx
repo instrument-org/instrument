@@ -46,12 +46,17 @@ import {
 } from "@/client/components/window/shell-context";
 import { tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
-import { chatOfHref } from "@/client/components/window/window-href";
+import {
+  chatOfHref,
+  chatSessionOfHref,
+} from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import {
+  type ChatId,
   encodeBrowserTargetId,
   StoreId,
   WINDOW_ID,
@@ -62,6 +67,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -130,7 +136,7 @@ function ChatColumn({
  * what it holds down its right edge. Choosing another chat in the inbox
  * moves this tab there, one step on in its history.
  */
-function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
+function ChatView({ chat }: { chat: ChatId | undefined }) {
   const shell = useShell();
   const appWindow = useWindow();
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
@@ -195,7 +201,7 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   };
 
   const isFloating = shell.compose.entries.some(
-    (entry) => entry.kind === "chat" && entry.sessionId === chat,
+    (entry) => entry.kind === "chat" && entry.chatId === chat,
   );
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
@@ -295,12 +301,12 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                             }}
                             sendContext={() =>
                               shell.sendContext({
+                                chatId: chat,
                                 isViewOpen: showsPane,
-                                sessionId: chat,
                               })
                             }
                             sentPrompt={shell.sentWords.get(chat)}
-                            sessionId={chat}
+                            chatId={chat}
                           />
                         </div>
                       </div>
@@ -569,6 +575,10 @@ function TabContent() {
   if (groupTab) {
     return <Outlet />;
   }
+  const session = chatSessionOfHref(href);
+  if (session) {
+    return <ChatOfSession sessionId={session} />;
+  }
   if (isChatHref(href)) {
     return <ChatView chat={chatOfHref(href)} />;
   }
@@ -577,6 +587,31 @@ function TabContent() {
     return <SiteView group={group} />;
   }
   return <RouteScreen href={href} />;
+}
+
+/**
+ * A chat named by its session, the way addresses were written before a
+ * chat had an id of its own: the tab moves to the chat's own address once
+ * the workspace says which chat that session is, or to the inbox when it is
+ * none's.
+ */
+function ChatOfSession({ sessionId }: { sessionId: StoreId.Session }) {
+  const router = useRouter();
+  const chat = useQuery(
+    rpcClient.workspace.chats.ofSession.queryOptions({
+      input: { sessionId },
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const answer = chat.data;
+  useEffect(() => {
+    if (answer) {
+      router.history.replace(
+        answer.id ? `${CHATS_HREF}/${answer.id}` : INBOX_HREF,
+      );
+    }
+  }, [answer, router]);
+  return <ChatView chat={undefined} />;
 }
 
 /**

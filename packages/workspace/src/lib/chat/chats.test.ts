@@ -324,7 +324,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Untitled chat 4", 2);
 
     const [chat] = await listChats();
-    expect(chat?.id).toBe(sessionId);
+    expect(chat?.sessionId).toBe(sessionId);
     expect(chat?.createdAt).toBe(at(2).getTime());
   });
 
@@ -360,7 +360,7 @@ describe("listChats", () => {
     expect(saved.isOk()).toBe(true);
 
     const [chat] = await listChats();
-    expect(chat?.id).toBe(sessionId);
+    expect(chat?.sessionId).toBe(sessionId);
   });
 
   it("reads what was said since the last list, and a part rewritten in place", async () => {
@@ -925,13 +925,13 @@ describe("liveChatList", () => {
     const deleted = await session(taskId, "Taxes", 2);
     await userSays(taskId, deleted, "file my taxes", 2);
     const { first, next, stop } = await open();
-    expect(first?.map((chat) => chat.id)).toEqual([kept, deleted]);
+    expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
 
     const gone = chatFor(deleted);
     forgetRecord(gone);
     recordRemoved({ id: gone, kind: "chat" });
 
-    expect((await next())?.map((chat) => chat.id)).toEqual([kept]);
+    expect((await next())?.map((chat) => chat.sessionId)).toEqual([kept]);
     stop();
   });
 

@@ -5,13 +5,12 @@ import {
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type TabId } from "@/shared/tabs";
-import { StoreId } from "@instrument-org/workspace/client";
 
 import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
 import { isFreshTab } from "./tab-model";
-import { parseHref } from "./window-href";
+import { chatOfGroup, parseHref } from "./window-href";
 
 /**
  * What stands behind a draft now, when it is something other than what the
@@ -115,10 +114,7 @@ export function isGroupShown(
   if (group === undefined) {
     return false;
   }
-  return (
-    !StoreId.SessionSchema.safeParse(group).success ||
-    paneOpenByGroup[group] === true
-  );
+  return chatOfGroup(group) === undefined || paneOpenByGroup[group] === true;
 }
 
 /**

@@ -35,15 +35,13 @@ const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <i
  */
 export function createTabCommand({
   chatId,
-  sessionId,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
-  sessionId?: StoreId.Session;
   chatId: ChatId;
   timeoutMs?: number;
 }) {
   const ask = (action: WindowTabAction) =>
-    askWindow({ action, askedBy: chatId, group: sessionId, timeoutMs });
+    askWindow({ action, askedBy: chatId, group: chatId, timeoutMs });
 
   /** Which task is at work in a tab, as a clause for the line that reports what happened to it. */
   const holderClause = async (tabId: string) => {

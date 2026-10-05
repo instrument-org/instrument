@@ -7,8 +7,8 @@ import { type PromptInputDraft } from "@/client/components/prompt-input";
 import { type ChatFilters, NO_FILTERS } from "@/client/components/window/chats";
 import { type TabHistory as ScreenHistory, type TabId } from "@/shared/tabs";
 import {
+  type ChatId,
   type SessionMessageDataPart,
-  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom, type SetStateAction } from "jotai";
@@ -39,7 +39,7 @@ export interface RecentEntry {
 export const RECENTS_MAX = 15;
 
 export const recentsAtom = atomWithStorage<RecentEntry[]>(
-  "studio.recents.v3",
+  "studio.recents.v4",
   [],
   undefined,
   { getOnInit: true },
@@ -133,7 +133,7 @@ export function draftOfGroup(group: string | undefined): string | undefined {
  * launches the way the tabs are: a draft put away is still in Drafts.
  */
 export const draftsAtom = atomWithStorage<Draft[]>(
-  "studio.drafts.v1",
+  "studio.drafts.v2",
   [],
   undefined,
   { getOnInit: true },
@@ -204,7 +204,7 @@ export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
  */
 export type ComposeEntry = { placement: ComposePlacement } & (
   | { draftId: string; kind: "draft" }
-  | { fromDraft?: string; kind: "chat"; sessionId: StoreId.Session }
+  | { chatId: ChatId; fromDraft?: string; kind: "chat" }
 );
 
 /** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
@@ -212,7 +212,7 @@ export type ComposePlacement = "bar" | "docked" | "expanded";
 
 /** The group key of what a window shows: the draft's tabs, or the chat's. */
 export function composeKeyOf(entry: ComposeEntry): string {
-  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.sessionId;
+  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
 /**
@@ -224,7 +224,7 @@ export function composeKeyOf(entry: ComposeEntry): string {
  * themselves are in `draftsAtom`.
  */
 export const composeAtom = atomWithStorage<ComposeEntry[]>(
-  "studio.compose.v1",
+  "studio.compose.v2",
   [],
   undefined,
   { getOnInit: true },
@@ -238,7 +238,7 @@ export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
  * Null for the inbox alone.
  */
 export const chatGroupAtom = atomWithStorage<null | string>(
-  "studio.chat-group.v1",
+  "studio.chat-group.v2",
   null,
   undefined,
   { getOnInit: true },
@@ -257,13 +257,13 @@ export const inboxOpenAtom = atomWithStorage<boolean>(
 );
 
 /**
- * Whether each group's pane is open, by the chat's session id or the
- * draft's key: the tabs beside the conversation, put away and brought back
+ * Whether each group's pane is open, by the chat's id or the draft's
+ * key: the tabs beside the conversation, put away and brought back
  * by the toggle over it. A group not named here has its pane open, so a
  * chat whose agent opened something shows it on arrival.
  */
 export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
-  "studio.pane-open.v1",
+  "studio.pane-open.v2",
   {},
   undefined,
   { getOnInit: true },
@@ -347,7 +347,7 @@ export type WindowTab = TabHistory & TabVisit;
 interface TabHistory {
   future?: TabVisit[];
   /**
-   * The chat this tab belongs to, by its session id, or the draft's key:
+   * The chat this tab belongs to, by its id, or the draft's key:
    * what was opened while the chat was on screen stays with the chat.
    */
   group?: string;
@@ -396,7 +396,7 @@ export function newTabHrefOf(group: string | undefined): string {
   return draftOfGroup(group) === undefined ? BROWSER_HREF : NEW_TAB_HREF;
 }
 
-/** The route a chat's screen is at, followed by the chat's session id. */
+/** The route a chat's screen is at, followed by the chat's id. */
 export const CHATS_HREF = "/chats";
 
 export const SIDEBAR_WIDTH_MIN = 320;

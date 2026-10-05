@@ -2,11 +2,10 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
-import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { createTabCommand } from "./tab";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
 
@@ -20,7 +19,7 @@ vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   tabHolders: () => Promise.resolve(holders),
 }));
 
-let asked: { action: WindowTabAction; sessionId?: StoreId.Session }[];
+let asked: { action: WindowTabAction; chatId?: ChatId }[];
 let stopAnswering: () => void;
 
 /**
@@ -33,7 +32,7 @@ function answeringWindow() {
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
-      ...(ask.sessionId ? { sessionId: ask.sessionId } : {}),
+      ...(ask.chatId ? { chatId: ask.chatId } : {}),
     });
     const { action } = ask;
     const answer =
@@ -50,10 +49,7 @@ function answeringWindow() {
   });
 }
 
-function run(
-  options: { sessionId?: StoreId.Session; timeoutMs?: number },
-  ...args: string[]
-) {
+function run(options: { timeoutMs?: number }, ...args: string[]) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
   return createTabCommand({ chatId, ...options }).execute(
@@ -133,10 +129,9 @@ describe("tab open", () => {
   });
 
   it("names the chat that asked", async () => {
-    const sessionId = StoreId.newSessionId();
-    await run({ sessionId }, "open", "https://example.com/");
+    await run({}, "open", "https://example.com/");
 
-    expect(asked[0]?.sessionId).toBe(sessionId);
+    expect(asked[0]?.chatId).toBe(chatId);
   });
 
   it("still opens the page when no window answers", async () => {

@@ -10,9 +10,9 @@ import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  type ChatId,
   type SessionMessageDataPart,
   type StoreId,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useEffect, useState } from "react";
@@ -25,15 +25,15 @@ import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { WorkingRow } from "./working-row";
 
 /**
- * How long a chat with no record is waited for before it is called gone: a
- * new chat's session is on screen before its first send makes the record, so
- * a missing one is only believed once it has stayed missing, re-asked each
+ * How long a chat with no session is waited for before it is called gone: a
+ * chat is only believed missing once it has stayed missing, re-asked each
  * interval, with nothing on its way to make it.
  */
 const MISSING_GRACE_MS = 5000;
 const MISSING_RECHECK_MS = 1000;
 
 interface ChatScreenProps {
+  chatId: ChatId;
   /** Drawn at the head of the composer: what goes with a message besides its words. */
   composerLead?: ReactNode;
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
@@ -45,33 +45,31 @@ interface ChatScreenProps {
   >;
   /** The words that open the chat, while the message they make is on its way. */
   sentPrompt?: string;
-  sessionId: StoreId.Session;
 }
 
 /**
  * One chat's conversation: its transcript, opening at the end, and a
  * composer that replies in it. Nothing above the transcript: the row over
- * it names the chat, and the top of the scroll is the ask itself. A
- * chat keeps its transcript in a record of its own, named for what it is
- * about, so its record is asked for by the chat's session first.
+ * it names the chat, and the top of the scroll is the ask itself. The chat's
+ * transcript is in its session, which is asked for by the chat's id first.
  */
 export function ChatScreen(props: ChatScreenProps) {
   const chat = useQuery(
-    rpcClient.workspace.chats.of.queryOptions({
-      input: { sessionId: props.sessionId },
-      // A chat keeps its record for as long as it exists; a chat with none
-      // yet is asked again, since its first send may still be making it.
+    rpcClient.workspace.chats.session.queryOptions({
+      input: { id: props.chatId },
+      // A chat keeps its session for as long as it exists; a chat with none
+      // is asked again, since the record that holds it may be on its way.
       refetchInterval: (query) =>
-        query.state.data?.taskId === null ? MISSING_RECHECK_MS : false,
+        query.state.data?.sessionId === null ? MISSING_RECHECK_MS : false,
       staleTime: (query) =>
-        query.state.data?.taskId ? Number.POSITIVE_INFINITY : 0,
+        query.state.data?.sessionId ? Number.POSITIVE_INFINITY : 0,
     }),
   );
-  const taskId = chat.data?.taskId;
+  const sessionId = chat.data?.sessionId;
   const isGone = useStaysMissing(
-    chat.data !== undefined && !taskId && props.sentPrompt === undefined,
+    chat.data !== undefined && !sessionId && props.sentPrompt === undefined,
   );
-  if (!taskId) {
+  if (!sessionId) {
     return isGone ? (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>This chat is not here any more.</p>
@@ -85,17 +83,17 @@ export function ChatScreen(props: ChatScreenProps) {
       </div>
     );
   }
-  return <ChatScreenOfRecord {...props} taskId={taskId} />;
+  return <ChatScreenOfRecord {...props} sessionId={sessionId} />;
 }
 
 function ChatScreenOfRecord({
+  chatId: taskId,
   composerLead,
   isUp,
   sendContext,
   sentPrompt,
   sessionId,
-  taskId,
-}: ChatScreenProps & { taskId: TaskId }) {
+}: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
@@ -110,7 +108,7 @@ function ChatScreenOfRecord({
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
   const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === sessionId);
+  const chat = chats.data?.find((entry) => entry.id === taskId);
   // While the chat's own agent composes, the transcript shows the typing
   // dots; the chat is otherwise at work when a task filed from it is, and
   // that is said at the transcript's tail too. Read from the tasks filed
@@ -127,7 +125,7 @@ function ChatScreenOfRecord({
   const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
-  const groupAsks = useComposerAsks({ kind: "chat", sessionId });
+  const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
   // Reading the chat is what clears its count, so it is marked read on
@@ -141,10 +139,10 @@ function ChatScreenOfRecord({
     if (!isUp) {
       return;
     }
-    markSeen.mutate({ sessionId });
+    markSeen.mutate({ id: taskId });
     // The mutation is stable; re-running on its identity would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [isUp, sessionId, newestSettledMessageId]);
+  }, [isUp, taskId, newestSettledMessageId]);
 
   if (!task.data || !state.data) {
     return (
@@ -159,7 +157,7 @@ function ChatScreenOfRecord({
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
   // A new-tab gesture over any of it asks for a tab of the window's own.
-  const into = { group: sessionId, ownTab: true, show: true };
+  const into = { group: taskId, ownTab: true, show: true };
   const intoOr = (options?: OpenOptions) =>
     options?.newTab ? { behind: options.behind, newTab: true } : into;
   return (
@@ -190,7 +188,7 @@ function ChatScreenOfRecord({
             openScreen: (href, options) => {
               appWindow.openScreen(href, intoOr(options));
             },
-            sessionId,
+            chatId: taskId,
           }}
         >
           <FileOpenContext
@@ -238,7 +236,7 @@ function ChatScreenOfRecord({
                   composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
-                  draftKey={{ scope: "chat", sessionId }}
+                  draftKey={{ chatId: taskId, scope: "chat" }}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}

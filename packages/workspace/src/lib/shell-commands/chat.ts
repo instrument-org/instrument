@@ -67,7 +67,7 @@ function chatRow(chat: Chat, names: Map<string, string>): string {
     // characters of every chat from the same fortnight are the same ones,
     // and an id printed short here is one that names nothing when it comes
     // back, in a reference or in a link a reply writes.
-    chat.id,
+    chat.sessionId,
     chat.state,
     `"${chat.title}"`,
     ...(topics ? [topics] : []),
@@ -102,7 +102,7 @@ function findChat(
     return { error: `which chat? ${CHAT_NAME} list lists them.` };
   }
   const byId = chats.filter((chat) =>
-    chat.id.toLowerCase().startsWith(reference.toLowerCase()),
+    chat.sessionId.toLowerCase().startsWith(reference.toLowerCase()),
   );
   if (byId.length === 1 && byId[0]) {
     return { chat: byId[0] };
@@ -122,15 +122,15 @@ function findChat(
     };
   }
   return {
-    error: `"${reference}" matches ${matches.length} chats; say which:\n${matches.map((chat) => `  ${chat.id}  ${chat.title}`).join("\n")}`,
+    error: `"${reference}" matches ${matches.length} chats; say which:\n${matches.map((chat) => `  ${chat.sessionId}  ${chat.title}`).join("\n")}`,
   };
 }
 
 /** A chat's messages as `who: what` lines, oldest first. */
 async function lines(chat: Chat): Promise<string[]> {
   const messages = await Store.getMessagesWithParts({
-    sessionId: chat.id,
-    taskId: chat.taskId,
+    sessionId: chat.sessionId,
+    taskId: chat.id,
   });
   if (messages.isErr()) {
     return [];
@@ -202,7 +202,7 @@ async function runRead(args: string[]) {
   return {
     exitCode: 0,
     stderr: "",
-    stdout: `${found.chat.id}  "${found.chat.title}"\n${shown.join("\n")}\n`,
+    stdout: `${found.chat.sessionId}  "${found.chat.title}"\n${shown.join("\n")}\n`,
   };
 }
 
@@ -216,7 +216,7 @@ async function runSearch(args: string[]) {
   for (const chat of chats) {
     for (const line of await lines(chat)) {
       if (line.toLowerCase().includes(words)) {
-        hits.push(`${chat.id}  "${chat.title}"  ${line}`);
+        hits.push(`${chat.sessionId}  "${chat.title}"  ${line}`);
       }
     }
   }
@@ -257,7 +257,7 @@ async function runTag(args: string[]) {
       stdout: `"${found.chat.title}" is already under #${topic.name}.\n`,
     };
   }
-  const written = await setChatTopics(found.chat.taskId, [
+  const written = await setChatTopics(found.chat.id, [
     ...found.chat.topics,
     topic.id,
   ]);

@@ -9,7 +9,7 @@ import { useWindow } from "@/client/components/window/context";
 import { TaskPage } from "@/client/components/window/task-page";
 import {
   type ChildTask,
-  type StoreId,
+  type ChatId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useRouter } from "@tanstack/react-router";
@@ -25,7 +25,7 @@ type Child = ChildTask;
  * chat. A row pressed moves the same tab to the task's page, so back
  * returns to the list.
  */
-export function ChatTasksScreen({ chat }: { chat: StoreId.Session }) {
+export function ChatTasksScreen({ chat }: { chat: ChatId }) {
   const children = useChatTasks(chat);
   const router = useRouter();
   const { openScreen } = useWindow();

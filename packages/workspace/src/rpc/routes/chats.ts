@@ -24,6 +24,7 @@ import {
   chatOfSession,
   owningChat,
   resolveChat,
+  sessionOfChat,
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
@@ -33,7 +34,7 @@ import { TaskSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
-import { type ChatId } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 /** A task the window filed, as its tasks screen lists it. */
 const ChildTaskSchema = TaskSchema.extend({
@@ -109,28 +110,22 @@ const liveChildTasksRoute = base
     );
   });
 
-/**
- * The window and the agent name a chat by its session, so the routes take
- * that and act on the chat it is; a session that is no chat's does nothing.
- */
+/** Acts on the chat an id names; an id that is no chat's does nothing. */
 async function whenChat(
-  sessionId: StoreId.Session,
+  id: ChatId,
   act: (chatId: ChatId) => Promise<unknown>,
 ): Promise<void> {
-  const chatId = chatOfSession(sessionId);
+  const chatId = resolveChat(id);
   if (chatId) {
     await act(chatId);
   }
 }
 
-/** One chat as the list shows it, or none for a session that is not a chat. */
+/** One chat as the list shows it, or none for an id that is not a chat's. */
 const chatByIdRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(ChatSchema.optional())
-  .handler(({ input }) => {
-    const chatId = chatOfSession(input.sessionId);
-    return chatId ? chatById(chatId) : undefined;
-  });
+  .handler(({ input }) => chatById(input.id));
 
 /** The chats, oldest first, kept current: see `liveChatList`. */
 const liveListChatsRoute = base
@@ -141,44 +136,37 @@ const liveListChatsRoute = base
 
 /** What the user has seen in a chat, so its count can clear. */
 const seenChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) => markChatSeen(chatId));
+    await whenChat(input.id, markChatSeen);
   });
 
 /** A chat the user wants back among the unread: its newest reply unseen again. */
 const unseenChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) => markChatUnseen(chatId));
+    await whenChat(input.id, markChatUnseen);
   });
 
 /** Puts a chat away: out of the inbox, still in the list, marked. */
 const archiveChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) => archiveChat(chatId));
+    await whenChat(input.id, archiveChat);
   });
 
 /** Stars a chat, or takes the star off. */
 const starChatRoute = base
-  .input(
-    z.object({
-      sessionId: StoreId.SessionSchema,
-      starred: z.boolean(),
-    }),
-  )
+  .input(z.object({ id: ChatIdSchema, starred: z.boolean() }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) =>
-      setChatStarred(chatId, input.starred),
-    );
+    await whenChat(input.id, (chatId) => setChatStarred(chatId, input.starred));
   });
 
 /** Brings a chat back into the inbox. */
 const unarchiveChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) => unarchiveChat(chatId));
+    await whenChat(input.id, unarchiveChat);
   });
 
 /**
@@ -188,53 +176,40 @@ const unarchiveChatRoute = base
  * title the same as one they typed.
  */
 const retitleChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(z.object({ title: z.string().optional() }))
   .handler(async ({ input }) => {
-    const id = chatOfSession(input.sessionId);
-    if (!id) {
+    const sessionId = sessionOfChat(input.id);
+    if (!sessionId) {
       return {};
     }
-    const title = await retitleChat({ id, sessionId: input.sessionId });
+    const title = await retitleChat({ id: input.id, sessionId });
     if (title === undefined) {
       return {};
     }
-    await settleChatTitle(id);
+    await settleChatTitle(input.id);
     return { title };
   });
 
 /** Names a chat as the user typed it. */
 const renameChatRoute = base
-  .input(
-    z.object({
-      sessionId: StoreId.SessionSchema,
-      title: z.string().trim().min(1),
-    }),
-  )
+  .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) =>
-      renameChat(chatId, input.title),
-    );
+    await whenChat(input.id, (chatId) => renameChat(chatId, input.title));
   });
 
 /** The topics a chat carries, replaced whole. */
 const setChatTopicsRoute = base
-  .input(
-    z.object({
-      sessionId: StoreId.SessionSchema,
-      topics: z.array(z.string()),
-    }),
-  )
+  .input(z.object({ id: ChatIdSchema, topics: z.array(z.string()) }))
   .handler(async ({ input }) => {
-    await whenChat(input.sessionId, (chatId) =>
-      setChatTopics(chatId, input.topics),
-    );
+    await whenChat(input.id, (chatId) => setChatTopics(chatId, input.topics));
   });
 
 /**
  * A chat's record, made before the window shows it, so the window never asks
  * for a chat that is not there yet, and named for the words it opens with.
- * Asked again for the same session, it answers with the same chat.
+ * The window picks the session its conversation will have, which is what
+ * makes asking again safe: the same session answers with the same chat.
  */
 const ensureChatRoute = base
   .input(
@@ -243,27 +218,40 @@ const ensureChatRoute = base
       sessionId: StoreId.SessionSchema,
     }),
   )
-  .output(z.object({ taskId: TaskIdSchema }))
+  .output(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => ({
-    taskId: await ensureChat(input.sessionId, input.firstWords),
+    id: await ensureChat(input.sessionId, input.firstWords),
   }));
 
-/** The record a chat's session is in, or none for a session that is not a chat's. */
-const chatOfRoute = base
+/**
+ * A chat's session, which its transcript is read and its messages are sent
+ * through, or none for an id that is no chat's.
+ */
+const chatSessionRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(z.object({ sessionId: StoreId.SessionSchema.nullable() }))
+  .handler(({ input }) => {
+    const chatId = resolveChat(input.id);
+    return { sessionId: (chatId && sessionOfChat(chatId)) ?? null };
+  });
+
+/**
+ * The chat a session is, or none: for an address that names a chat by its
+ * session, as a link in an older reply or a memory saved then does.
+ */
+const chatOfSessionRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
-  .output(z.object({ taskId: TaskIdSchema.nullable() }))
-  .handler(({ input }) => ({
-    taskId: chatOfSession(input.sessionId) ?? null,
-  }));
+  .output(z.object({ id: ChatIdSchema.nullable() }))
+  .handler(({ input }) => ({ id: chatOfSession(input.sessionId) ?? null }));
 
 /**
  * Deletes a chat with every task it started: their work stops, and the chat's
  * folder, which holds theirs, goes to the trash.
  */
 const trashChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const id = chatOfSession(input.sessionId);
+    const id = resolveChat(input.id);
     if (!id) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
@@ -283,10 +271,11 @@ export const chats = {
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
   live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
-  of: chatOfRoute,
+  ofSession: chatOfSessionRoute,
   rename: renameChatRoute,
   retitle: retitleChatRoute,
   seen: seenChatRoute,
+  session: chatSessionRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
   tasks: childTasksRoute,

@@ -97,8 +97,8 @@ export default async (app, args = {}) => {
     "/discover",
     "/apps",
     slug && `/apps/${slug}`,
-    chat && `/tasks?chat=${chat.sessionId}`,
-    taskId && `/tasks/${taskId}?chat=${chat.sessionId}`,
+    chat && `/tasks?chat=${chat.id}`,
+    taskId && `/tasks/${taskId}?chat=${chat.id}`,
     "/release-notes",
     // The inbox again last: a screen can leave something behind that only the
     // next navigation off it surfaces, and the last screen in the list never

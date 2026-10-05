@@ -652,7 +652,7 @@ export async function createLocalBashEnv({
         createChatCommand(),
         createMemoryCommand({ chatId: chat.id, sessionId }),
         createAppCommand({ taskId }),
-        createTabCommand({ chatId: chat.id, sessionId }),
+        createTabCommand({ chatId: chat.id }),
       ]
     : [
         createAppCommand({ taskId }),

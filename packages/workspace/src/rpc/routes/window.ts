@@ -67,7 +67,7 @@ const tab = base
     })) {
       // A chat's own asks, and those of any task asking among a chat's tabs,
       // go to the window.
-      if (resolveChat(event.id) || event.sessionId !== undefined) {
+      if (resolveChat(event.id) || event.chatId !== undefined) {
         const { id: _asker, ...request } = event;
         yield request;
       }

@@ -3,6 +3,7 @@ import { useTranscriptActions } from "@/client/components/task/transcript-action
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
+import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -22,7 +23,7 @@ import { type RowAction } from "./row-shell";
 
 /** Which chat a call is about, as every chat mutation takes it. */
 interface ChatInput {
-  sessionId: string;
+  id: ChatId;
 }
 
 /**
@@ -64,8 +65,8 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
   const isDeveloperMode = useDeveloperMode();
   const queryClient = useQueryClient();
-  const paint = (sessionId: string, change: (chat: Chat) => Chat) => {
-    paintChat(queryClient, { sessionId }, change);
+  const paint = (id: TaskId, change: (chat: Chat) => Chat) => {
+    paintChat(queryClient, { id }, change);
   };
   const repaint = () => {
     repaintChats(queryClient);
@@ -78,7 +79,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     rpcClient.workspace.chats.seen.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (chat) => ({ ...chat, unread: 0 }));
+        paint(input.id, (chat) => ({ ...chat, unread: 0 }));
       },
     }),
   );
@@ -87,7 +88,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     rpcClient.workspace.chats.unseen.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (chat) => ({
+        paint(input.id, (chat) => ({
           ...chat,
           unread: Math.max(chat.unread, 1),
         }));
@@ -98,7 +99,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     rpcClient.workspace.chats.star.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (chat) => ({
+        paint(input.id, (chat) => ({
           ...chat,
           starred: input.starred,
         }));
@@ -106,7 +107,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     }),
   );
   return (chat) => {
-    const input = { sessionId: chat.id };
+    const input = { id: chat.id };
     const put: RowAction = chat.archived
       ? {
           icon: <ArrowCounterClockwiseIcon className="size-3.5" />,
@@ -175,9 +176,9 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       menuOnly: true,
       run: () => {
         transcript.save("markdown", {
-          id: chat.taskId,
+          id: chat.id,
           label: chat.title,
-          sessionId: chat.id,
+          sessionId: chat.sessionId,
         });
       },
     };
@@ -187,7 +188,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       label: showInFolderLabel("folder"),
       menuOnly: true,
       run: () => {
-        void showTaskFolder(chat.taskId);
+        void showTaskFolder(chat.id);
       },
     };
     return [put, ...mark, starred, ...(isDeveloperMode ? [save] : []), show];
@@ -201,11 +202,11 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
  */
 function paintChat(
   queryClient: QueryClient,
-  { sessionId }: ChatInput,
+  { id }: { id: TaskId },
   change: (chat: Chat) => Chat,
 ) {
   queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
-    chats?.map((chat) => (chat.id === sessionId ? change(chat) : chat)),
+    chats?.map((chat) => (chat.id === id ? change(chat) : chat)),
   );
 }
 

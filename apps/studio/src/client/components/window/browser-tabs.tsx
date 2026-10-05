@@ -263,8 +263,8 @@ export function BrowserTabs({
   const setVisited = useSetAtom(visitedPagesAtom);
   const setRecents = useSetAtom(recentsAtom);
   const attached = useBrowserTargets();
-  // The chat each browsing task was filed from, by its session id, which is
-  // the group its browsing lands in; a task filed outside any chat is in the
+  // The chat each browsing task was filed from, which is the group its
+  // browsing lands in; a task filed outside any chat is in the
   // map with no chat. A task not in it is one not read yet, and its guest
   // waits for that read rather than landing in no group.
   const chatOfTask = useTaskChats(

@@ -42,7 +42,7 @@ const json = createJSONStorage<StoredWindowTabs>(() => localStorage);
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = atomWithStorage<WindowTabs>(
-  "studio.window-tabs.v8",
+  "studio.window-tabs.v9",
   { activeByGroup: {}, tabs: [] },
   {
     // Read as this build keeps them, whatever an earlier one wrote.
@@ -61,7 +61,7 @@ const storedTabsAtom = atomWithStorage<WindowTabs>(
 export const windowTabsAtom = atom((get) => get(storedTabsAtom));
 
 /**
- * The group on screen: the chat's session or the site's group the window's
+ * The group on screen: the chat's id or the site's group the window's
  * tab up stands on, or none for a screen that is its own route. Derived from
  * where that tab is, never kept beside it.
  */
@@ -162,7 +162,7 @@ export function useWindowTabs() {
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));
     },
-    /** The group on screen, by the chat's session id or the site's key, or nothing while none is. */
+    /** The group on screen, by the chat's id or the site's key, or nothing while none is. */
     groupOnScreen,
     moveToGroup: (id: string, group: string) => {
       apply((current) => moveToGroup(current, id, group));

@@ -39,6 +39,7 @@ vi.mock("@/client/rpc/client", () => ({
 }));
 
 const sessionId = StoreId.newSessionId();
+const CHAT_ID = ChatIdSchema.parse("2026-09-16-grocery-list");
 const TITLE = "Grocery list for the week";
 
 function chat(): Chat {
@@ -48,7 +49,7 @@ function chat(): Chat {
     archived: false,
     createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
-    id: sessionId,
+    id: CHAT_ID,
     replyCount: 1,
     root: {
       id: messageId,
@@ -68,9 +69,9 @@ function chat(): Chat {
       role: "user",
     },
     runningTasks: [],
+    sessionId,
     starred: false,
     state: "idle",
-    taskId: ChatIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],
@@ -116,7 +117,7 @@ describe("ChatTitle", () => {
     await userEvent.keyboard("{Enter}");
     await vi.waitFor(() => {
       expect(calls.rename).toHaveBeenCalledWith({
-        sessionId,
+        id: CHAT_ID,
         title: "Weekly shop",
       });
     });

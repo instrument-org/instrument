@@ -32,9 +32,9 @@ import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { chatSessionOfTask, liveHeldTabs } from "../chat/window-tab";
+import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { resolveChat } from "../record-folders";
+import { chatOf, resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getBrowserSessionDir,
@@ -1177,8 +1177,7 @@ async function resolveBrowserTarget({
       ? { isOwnGuest: false, kind: "page", targetId: onScreen }
       : noTabUp;
   }
-  const chatSession = chatSessionOfTask(id);
-  if (!chatSession) {
+  if (!chatOf(id)) {
     // Idempotent: createTarget returns the existing view for this (id,
     // sessionId) pair if one is already live, so sub-agents and repeat
     // invocations within the same session reuse the same browsing surface

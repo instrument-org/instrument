@@ -1,7 +1,7 @@
 import { type Draft } from "@/client/atoms/window";
 import {
+  type ChatId,
   type SessionMessageDataPart,
-  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
@@ -34,9 +34,9 @@ export const pageSlotByTabAtom = atom<Readonly<Record<string, PageSlot>>>({});
 export interface WindowShell {
   appTabs: ReturnType<typeof useAppTabs>;
   /** The chat a draft just became, marked in the inbox as it arrives. */
-  arrivedId: StoreId.Session | undefined;
+  arrivedId: ChatId | undefined;
   chats: Chat[] | undefined;
-  chatTitles: Map<StoreId.Session, string>;
+  chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<TaskId, string>;
   compose: ReturnType<typeof useCompose>;
@@ -46,21 +46,21 @@ export interface WindowShell {
   /** Opens a new draft, as the rail's New does. */
   newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */
-  onListed: (listed: StoreId.Session[]) => void;
+  onListed: (listed: ChatId[]) => void;
   /** A topic asked for from a chat's head, with what was typed. */
   onNewTopic: (name: string | undefined) => void;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
-  sentWords: ReadonlyMap<StoreId.Session, string>;
+  sentWords: ReadonlyMap<ChatId, string>;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
+    chatId: ChatId;
     isViewOpen: boolean;
-    sessionId: StoreId.Session;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  setChatTopics: (id: StoreId.Session, topics: string[]) => void;
+  setChatTopics: (id: ChatId, topics: string[]) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
   showDraft: (id: string) => void;
   topics: Topic[];

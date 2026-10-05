@@ -11,7 +11,7 @@ import { type TabId } from "@/shared/tabs";
 import { HOME_DIR_LABEL } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
-  type StoreId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import ms from "ms";
 
@@ -46,7 +46,7 @@ export interface SendContextWindow {
   appTabId: null | TabId;
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
-  chatTitles: Map<StoreId.Session, string>;
+  chatTitles: Map<ChatId, string>;
   drafts: Draft[];
   /** What each of the window's own Files tabs has in its Finder, by the tab's id. */
   finders: Readonly<Record<string, FinderShown>>;
@@ -358,9 +358,9 @@ export function contextReaders({
    * chat asking is the one on screen, which says its own.
    */
   const windowShown = async (
-    sessionId: StoreId.Session,
+    chatId: ChatId,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
-    if (windowTabs.groupOnScreen === sessionId) {
+    if (windowTabs.groupOnScreen === chatId) {
       return;
     }
     if (active && isGroupShown(active.group, paneOpenByGroup)) {
@@ -387,19 +387,19 @@ export function contextReaders({
    */
   const sendContext = async ({
     isViewOpen,
-    sessionId,
+    chatId,
   }: {
     /** Whether the chat's view of its tab up is open where the message is written. */
     isViewOpen: boolean;
-    sessionId: StoreId.Session;
+    chatId: ChatId;
   }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     if (!state) {
       return;
     }
-    const own = windowTabs.allTabs.filter((tab) => tab.group === sessionId);
-    const up = windowTabs.tabUpIn(sessionId);
+    const own = windowTabs.allTabs.filter((tab) => tab.group === chatId);
+    const up = windowTabs.tabUpIn(chatId);
     const shown =
-      isViewOpen && up ? await tabContext(up) : await windowShown(sessionId);
+      isViewOpen && up ? await tabContext(up) : await windowShown(chatId);
     if (!shown && own.length === 0) {
       return;
     }

@@ -22,7 +22,7 @@ export async function chatContextFor(): Promise<SessionMessageDataPart.ChatConte
       .slice(0, CHATS_IN_CONTEXT)
       .map((chat) => ({
         at: chat.updatedAt,
-        id: chat.id,
+        id: chat.sessionId,
         ...(chat.latest ? { latest: chat.latest.text } : {}),
         title: chat.title,
         topics: chat.topics.flatMap((id) => {

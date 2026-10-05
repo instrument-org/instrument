@@ -24,11 +24,10 @@ import {
 } from "@/client/lib/tabs-model";
 import { instrumentFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
-import { StoreId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
 import { DISCOVER_HREF } from "./ideas";
-import { chatOfHref, parseHref } from "./window-href";
+import { chatOfGroup, chatOfHref, parseHref } from "./window-href";
 
 /** The chat with no chat open: the inbox, and where every new tab opens. */
 export const INBOX_HREF = "/chats";
@@ -76,11 +75,11 @@ function siteGroupOf(id: string): string {
  * apps or an app, Discover, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf("studio.app-tabs.v1", INBOX_HREF);
+export const appTabsAtom = tabsAtomOf("studio.app-tabs.v2", INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands
- * on: the chat's session for a chat, the site's group for a site, and none
+ * on: the chat's id for a chat, the site's group for a site, and none
  * for everything else, whose screen is the route itself.
  */
 export function groupOfHref(href: string): string | undefined {
@@ -253,8 +252,8 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return BROWSER_HREF;
     }
     case "chat": {
-      const chat = StoreId.SessionSchema.safeParse(lastChat);
-      return chat.success ? `${CHATS_HREF}/${chat.data}` : INBOX_HREF;
+      const chat = chatOfGroup(lastChat ?? undefined);
+      return chat ? `${CHATS_HREF}/${chat}` : INBOX_HREF;
     }
     case "discover": {
       return DISCOVER_HREF;

@@ -1,5 +1,5 @@
 import { instrumentFolderHref } from "@/shared/computer-href";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
@@ -7,7 +7,7 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map() };
 
-const CHAT_ID = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT_ID = ChatIdSchema.parse("2026-10-01-caffeine-mixes");
 const INBOX_HREF = `/chats/${CHAT_ID}`;
 
 describe("screenPresentation", () => {

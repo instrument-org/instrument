@@ -31,19 +31,23 @@ const states = [
   },
   {
     title: "A chat with its pane",
-    note: "The pane flush beside the chat: location row, the page, and the chat's tiles.",
+    note: "The chat's tiles in a row over its reply box, the one shown ringed; the pane flush beside the chat, its location row ending in the × that puts it away.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
         inboxCol({ on: 0, w: 280 }) +
-        thread({ body: lisbon(3) }) +
-        paneCard({
-          tabs: [
-            { file: "itinerary" },
-            { file: "costs" },
-            { site: "tap", agent: true },
-          ],
-        }),
+        thread({
+          body: lisbon(3),
+          tiles: chatTiles(
+            [
+              { file: "itinerary" },
+              { file: "costs" },
+              { site: "tap", agent: true },
+            ],
+            0,
+          ),
+        }) +
+        paneCard({ tab: { file: "itinerary" } }),
     }),
   },
   {
@@ -80,7 +84,26 @@ const states = [
         active: 1,
       }),
       body: placeCard({ tab: { file: "itinerary" } }),
-      over: smallChat({ working: "Checking fares on flytap.com" }),
+      over: smallChat({
+        tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
+        working: "Checking fares on flytap.com",
+      }),
+    }),
+  },
+  {
+    title: "Floating chat peeking at a tile",
+    note: "A tile pressed in the small view opens in a card over the conversation, the tile ringed; Expand grows the window with it up, × puts it down.",
+    body: appWindow({
+      on: "files",
+      bar: winBar({
+        tabs: [{ chats: true }, { file: "itinerary" }],
+        active: 1,
+      }),
+      body: placeCard({ tab: { file: "itinerary" } }),
+      over: smallChat({
+        tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
+        peek: 0,
+      }),
     }),
   },
   {

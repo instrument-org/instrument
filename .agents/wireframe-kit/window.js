@@ -3,7 +3,8 @@
 // (2026-10-01) and redrawn at 1280x800 in the light theme. The bar (40) and the rail
 // (76) sit on the gray ground; everything else is one rounded card inset 8px from the
 // right and bottom. Chat is the inbox column (320) beside a thread or the empty state;
-// a chat's pane sits flush beside it with its tiles on a 120px rail. Window tabs live
+// a chat's tiles stand in a row over its reply box, and its pane sits flush beside
+// it. Tiles, pane and peek re-measured off the documents fixture (2026-10-05). Window tabs live
 // in the bar. Onboarding is its own 480x600 window. build.mjs pastes this whole file,
 // after brands.js, into the wireframe template's kit section.
 
@@ -294,11 +295,12 @@ const lisbon = (stage = 1) =>
     .filter(Boolean)
     .join("");
 
-/** A chat column: header, the centered transcript, the work box, the reply box. */
+/** A chat column: header, the centered transcript, then over the reply box its tiles (`tiles`, from chatTiles) and the work box. */
 const thread = ({
   title = LISBON_TITLE,
   body = lisbon(2),
   working = "",
+  tiles = "",
   head = "",
   foot = "",
   reply = {},
@@ -307,15 +309,15 @@ const thread = ({
   <div class="flex min-w-0 flex-1 flex-col">
     ${head || threadHead(title)}
     <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
-    <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${working ? workLine(working) : ""}${foot}${replyEl || replyBox(reply)}</div>
+    <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${working ? workLine(working) : ""}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;
 
 // ---- tabs, the pane, pages -------------------------------------------------------
 
 const pulse = `<span class="size-1.5 shrink-0 animate-pulse rounded-full bg-brand-500"></span>`;
 
-/** The location row: back, forward, and the omnibar holding crumbs or an address. */
-const locRow = (t) => `
+/** The location row: back, forward, and the omnibar holding crumbs or an address. `close` ends it with Expand (a file's, or a peek's) and the × that puts the view away. */
+const locRow = (t, { close = false, expand = false } = {}) => `
   <div class="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-background px-2 text-muted-foreground">
     <i class="ph ph-caret-left px-1 text-[14px]"></i><i class="ph ph-caret-right text-[14px] text-gray-300"></i>
     <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-[12px]">
@@ -327,32 +329,29 @@ const locRow = (t) => `
             : `${fileMark("folder")}<span>Instrument</span><i class="ph ph-caret-right text-[10px]"></i><span class="truncate text-foreground">${FILES[t.file].title}</span>`
       }
     </div>
+    ${close && (expand || t?.file) ? `<i class="ph ph-arrows-out-simple px-1 text-[15px]"></i>` : ""}
+    ${close ? `<i class="ph ph-x px-1 text-[15px]"></i>` : ""}
   </div>`;
 
-/** The chat's tiles down the pane's right edge: one 4:3 picture per tab, New at the foot. */
-const chatRail = (tabs, active = 0) => `
-  <div class="flex w-30 shrink-0 flex-col gap-3 border-l border-border bg-background px-2 py-3">
-    ${tabs
-      .map(
-        (t, i) => `
-      <div class="flex flex-col gap-1">
-        <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-card shadow-xs ${i === active ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}"><div class="absolute inset-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div></div>
-        <span class="truncate text-[11px] text-muted-foreground">${tabTitle(t)}</span>
-      </div>`,
-      )
-      .join("")}
-    <div class="flex-1"></div>
-    <div class="flex items-center justify-center gap-1 text-[12px] text-muted-foreground"><i class="ph ph-plus"></i>New</div>
+/** One of a chat's tiles: its picture filling a 4:3 box from the top, over its mark and name. `on` rings the one shown large; a page an agent drives has its name in the brand color (the app's shimmer). */
+const chatTile = (t, { on = false } = {}) => `
+  <div class="flex w-24 shrink-0 flex-col gap-1.5">
+    <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}"><div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div></div>
+    <span class="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground"><span class="grid size-3 shrink-0 place-items-center overflow-hidden text-[9px]">${tabMark(t, "size-3 text-[6px]")}</span><span class="truncate ${t.agent ? "text-brand-600" : ""}">${tabTitle(t)}</span></span>
   </div>`;
 
-/** The pane beside a chat, flush with a border: location row and page, then the chat's tiles. */
-const paneCard = ({ tabs, active = 0, body, w = 560, loc = true }) => `
-  <div class="flex shrink-0 border-l border-border" style="width:${w}px">
-    <div class="flex min-w-0 flex-1 flex-col">
-      ${loc ? locRow(tabs[active]) : ""}
-      <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active])}</div>
-    </div>
-    ${chatRail(tabs, active)}
+/** A chat's tiles in a row over its reply box (thread's `tiles`): one per thing it holds, oldest first, then New. `active` is the one shown large, -1 for none; past the column's width the row scrolls sideways. */
+const chatTiles = (tabs, active = -1) => `
+  <div class="mb-2 flex items-start gap-2 overflow-hidden p-0.5">
+    ${tabs.map((t, i) => chatTile(t, { on: i === active })).join("")}
+    <div class="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>New</div>
+  </div>`;
+
+/** The pane beside a chat, flush with a border: its location row, ending in the × that puts it away, and the page. The chat's tiles are over its reply box, not here. */
+const paneCard = ({ tab, body, w = 560, loc = true }) => `
+  <div class="flex shrink-0 flex-col border-l border-border" style="width:${w}px">
+    ${loc ? locRow(tab, { close: true }) : ""}
+    <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tab)}</div>
   </div>`;
 
 const bars2 = (...ws) =>
@@ -498,10 +497,11 @@ const finder = ({ pick = -1 } = {}) => `
 
 // ---- floating ------------------------------------------------------------------
 
-/** The small view: a thread floating over whatever place is up (420x560, bottom right). */
+/** The small view: a thread floating over whatever place is up (420x560, bottom right), its tiles over its reply box. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
   title = LISBON_TITLE,
   tabs = [],
+  peek = -1,
   body = lisbon(2),
   working = "",
   right = 12,
@@ -512,13 +512,22 @@ const smallChat = ({
 } = {}) => `
   <div class="absolute z-40 flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl" style="right:${right}px;bottom:${bottom}px;width:${w}px;height:${h}px">
     <div class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-      ${working ? pulse : `<i class="ph ph-chats-circle text-[15px]"></i>`}
+      <i class="ph ph-chats-circle text-[15px]"></i>
       <span class="min-w-0 flex-1 truncate text-[13px] font-medium">${title}</span>
       <i class="ph ph-minus text-[14px] text-muted-foreground"></i><i class="ph ph-arrows-out-simple text-[14px] text-muted-foreground"></i><i class="ph ph-x text-[14px] text-muted-foreground"></i>
     </div>
-    ${tabs.length ? `<div class="flex h-9 shrink-0 items-center gap-1 overflow-hidden border-b border-border px-2">${tabs.map((t) => `<span class="flex h-7 max-w-40 shrink-0 items-center gap-1.5 rounded-md bg-black/[0.04] px-2 text-[11px]">${tabMark(t)}<span class="truncate">${tabTitle(t)}</span>${t.agent ? pulse : ""}</span>`).join("")}</div>` : ""}
-    <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pt-3">${body}</div>
-    <div class="shrink-0 p-2.5">${working ? workLine(working) : ""}${replyBox(reply)}</div>
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pt-3">${body}</div>
+      <div class="shrink-0 p-2.5">${tabs.length ? chatTiles(tabs, peek) : ""}${working ? workLine(working) : ""}${replyBox(reply)}</div>
+      ${peek >= 0 ? chatPeek(tabs[peek], { bottom: working ? 216 : 180 }) : ""}
+    </div>
+  </div>`;
+
+/** The peek: a small view's tile open in a card over its conversation, from under the head to just over the tiles, its row ending in Expand and ×. */
+const chatPeek = (t, { bottom = 180 } = {}) => `
+  <div class="absolute inset-x-2 top-2 z-10 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl ring-1 ring-gray-300" style="bottom:${bottom}px">
+    ${locRow(t, { close: true, expand: true })}
+    <div class="relative min-h-0 flex-1 overflow-hidden">${page(t)}</div>
   </div>`;
 
 /** A minimized chat: a 300px dark bar on the bottom edge. */

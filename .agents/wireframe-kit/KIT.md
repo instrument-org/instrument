@@ -31,10 +31,14 @@ const states = [
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
         inboxCol({ on: 0 }) +
-        thread({ working: "Checking fares on flytap.com" }) +
-        paneCard({
-          tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
-        }),
+        thread({
+          working: "Checking fares on flytap.com",
+          tiles: chatTiles(
+            [{ site: "tap", agent: true }, { file: "itinerary" }],
+            0,
+          ),
+        }) +
+        paneCard({ tab: { site: "tap", agent: true } }),
     }),
   },
 ];
@@ -48,14 +52,15 @@ const states = [
 | `rail(on, { mark, user })`                                                               | The 76px rail: New (feather), Chat, Files, Browser, Apps, Discover, and Settings or the signed-in avatar                                                              |
 | `noChatOpen()`                                                                           | What Chat shows beside the inbox with nothing open. There is no Home page                                                                                             |
 | `inboxCol({ on, w, rows, waiting })`, `row(r, { on })`                                   | The 320px inbox: the Chats picker, Starred, Drafts, All, search, and hairline-divided rows; `on: -1` opens none                                                       |
-| `thread({ title, body, working, head, foot, reply })`                                    | A chat: header, centered transcript, the folded work box, the reply box                                                                                               |
+| `thread({ title, body, working, tiles, head, foot, reply })`                             | A chat: header, centered transcript, then its tiles, the folded work box and the reply box                                                                            |
 | `threadHead`, `you`, `agent`, `workLine`, `replyBox`                                     | Its pieces: the sage user bubble, the white agent bubble, the work box, the "Talk to Instrument" pill                                                                 |
 | `fileRow(key)`, `pageRow(site)`                                                          | A file or page the agent linked, in the transcript                                                                                                                    |
-| `paneCard({ tabs, active, body, w })`, `chatRail(tabs)`                                  | The pane flush beside a chat: location row and page, then the chat's 4:3 tiles on a 120px rail                                                                        |
-| `locRow(tab)`, `page(tab)`                                                               | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the Lisbon sites, the files, a fresh tab)                                                      |
+| `chatTiles(tabs, active)`, `chatTile(t, { on })`                                         | A chat's tiles in a row over its reply box: 96px, picture cropped from the top, mark and name under it, the one shown large ringed, New at the end                    |
+| `paneCard({ tab, body, w })`                                                             | The pane flush beside a chat: location row ending in the × that puts it away, and the page                                                                            |
+| `locRow(tab, { close, expand })`, `page(tab)`                                            | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the Lisbon sites, the files, a fresh tab)                                                      |
 | `placeCard({ tab, body, loc })`                                                          | Files, Browser, an app or a skill filling the card under its location row (`loc: false` for Apps and Discover)                                                        |
 | `finder({ pick })`                                                                       | Files' Finder                                                                                                                                                         |
-| `smallChat({ title, tabs, body, working })`                                              | The floating chat, 420 wide at the bottom right                                                                                                                       |
+| `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)`                         | The floating chat, 420 wide at the bottom right with its tiles over its reply box; `peek` opens a tile in a card over the conversation, with Expand and ×             |
 | `miniBar`, `menu(items, pos)`, `sheet(inner, size)`                                      | A minimized chat, a popover menu, a modal sheet over a dimmed window                                                                                                  |
 | `composeWin({ title, model, words, h, over })`, `modelTrigger(name, { mark, warn })`     | The draft: a 600-wide compose window docked at the bottom right, the model control and the arrow in its head, the words, the band with the ways in; pass it as `over` |
 | `replyBoxOpen({ extras, text })`, `modelProblem(text)`, `plusMenu({ left, top, model })` | The reply box opened up with a row over the words (the amber model notice leads it), and its plus menu, where the reply box offers the model                          |

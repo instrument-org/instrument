@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 /** The profile that splits the face, the eyes, and the smile. */
 const FACE =
   "M140 32q-28 60-36 116h28q-4 40 4 76M84 88v20M172 88v20M80 172q48 26 96 0";
@@ -19,6 +21,10 @@ export function FinderIcon({
   className?: string;
   weight?: "fill" | "regular";
 }) {
+  // One id per copy: the app window keeps every tab mounted in one document,
+  // and `url(#id)` resolving to a copy in a hidden tab paints that copy's
+  // hidden mask, which hides the square in every copy.
+  const maskId = `finder-icon-face-${useId().replaceAll(":", "")}`;
   return (
     <svg
       aria-hidden
@@ -32,7 +38,7 @@ export function FinderIcon({
     >
       {weight === "fill" ? (
         <>
-          <mask id="finder-icon-face">
+          <mask id={maskId}>
             <rect fill="white" height="256" stroke="none" width="256" />
             <path d={FACE} stroke="black" />
           </mask>
@@ -41,7 +47,7 @@ export function FinderIcon({
           <rect
             fill="currentColor"
             height="208"
-            mask="url(#finder-icon-face)"
+            mask={`url(#${maskId})`}
             rx="40"
             stroke="none"
             width="208"

@@ -5,7 +5,6 @@ import {
   OverlayFs,
   ReadWriteFs,
 } from "just-bash";
-import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import nodePath from "node:path";
 
@@ -14,6 +13,11 @@ import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
+import {
+  canonicalizeThroughMissing,
+  hostPathWithin,
+  realRoot,
+} from "./host-path";
 import { assignAttachedMounts } from "./attached-folder-mounts";
 import {
   type MaskedEntry,
@@ -383,72 +387,6 @@ export function folderHoldsWorkspace(folderPath: string): boolean {
   );
 }
 
-/**
- * True when a host path escapes its owning mount through a symlink.
- *
- * The path need not exist: a write creates its target, and often the
- * directories above it, so a check that only contained existing paths would let
- * a new file under a symlinked directory land outside the mount. A missing
- * mount root is not an escape (nothing to reach; normal not-found handling
- * applies). Any other resolution failure (permission error, symlink loop, ...)
- * means containment cannot be verified, so it fails closed.
- */
-export function hostPathEscapesMount(
-  hostPath: string,
-  hostRoot: string,
-): boolean {
-  let canonicalRoot: string;
-  try {
-    canonicalRoot = realpathSync(hostRoot);
-  } catch (error) {
-    return !isEnoent(error);
-  }
-
-  const canonicalPath = canonicalizeThroughMissing(hostPath);
-  if (canonicalPath === null) {
-    return true;
-  }
-
-  return !pathIsWithin(canonicalPath, canonicalRoot);
-}
-
-/**
- * Whether a virtual path names a masked entry of the mount that owns it (its
- * private dir, or a chat's `tasks/` dir), or anything inside one.
- *
- * The one question every consumer of the layout asks in place of comparing a
- * mount against `layout.task`. Fails closed on a path the mount does not own,
- * which its caller has already ruled out by resolving it there.
- */
-export function isMaskedPrivatePath(
-  mount: WorkspaceFsMount,
-  virtualAbsPath: string,
-): boolean {
-  return maskedEntryAt(mount, virtualAbsPath) !== null;
-}
-
-/**
- * The masked entry of the mount that owns a virtual path which the path is or
- * is inside, or null. Fails closed like {@link isMaskedPrivatePath}, answering
- * the private dir for a path the mount does not own.
- */
-export function maskedEntryAt(
-  mount: WorkspaceFsMount,
-  virtualAbsPath: string,
-): MaskedEntry | null {
-  if (mount.maskedEntries.length === 0) {
-    return null;
-  }
-  const relative = relativeWithin(
-    mount.mountPoint,
-    normalizePath(virtualAbsPath),
-  );
-  if (relative === null) {
-    return TASK_FOLDER_NAMES.private;
-  }
-  return maskedEntryOf(relative, mount.maskedEntries) ?? null;
-}
-
 /** Every mount other than the task, in the order they are advertised. */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
@@ -580,7 +518,7 @@ export function resolveNativeHostPath(
  * - map every mount's host root back to its mount point in the binary's output,
  *   so the machine layout does not leak through match paths.
  *
- * Returns null for a path outside every mount, for the private dir, and for a
+ * Returns null for a path outside every mount, for a masked entry, and for a
  * symlink that resolves out of its own mount, so the caller reports a clean
  * error rather than reaching the host.
  */
@@ -592,59 +530,121 @@ export function resolveReadOnlyHostPath(
   if (resolved === null) {
     return null;
   }
-  const { hostPath, mount } = resolved;
-
-  if (isMaskedPrivatePath(mount, virtualAbsPath)) {
-    return null;
-  }
-
+  const found = classifyHostPath(layout, resolved.hostPath, resolved.mount);
   // The bash sandbox refuses to traverse a symlink out of a mount; a real
   // binary would happily follow it, so the containment has to be re-checked
   // here rather than inherited. Not asked of the task mount, whose own contents
   // the agent writes and reads by relative path in any case.
-  if (mount !== layout.task && hostPathEscapesMount(hostPath, mount.hostRoot)) {
-    return null;
-  }
-  return hostPath;
+  return found === null ||
+    found.masked !== undefined ||
+    (resolved.mount !== layout.task && found.escapes)
+    ? null
+    : resolved.hostPath;
 }
 
 /**
- * The inverse of {@link resolveHostPath}: the virtual path a host path appears
- * at, plus the mount that owns it. Null when no mount's host root holds the
- * path. The deepest host root wins, so a folder attached from inside another
- * mount is named by its own mount point. A path spelled through a symlink
- * (`/tmp` for `/private/tmp`) is matched by where it really leads when its
- * spelling matches no root.
- *
- * A caller about to hand the file's bytes to the agent still checks
- * {@link isMaskedPrivatePath} and {@link hostPathEscapesMount}.
+ * {@link classifyHostPath} for a virtual path, through the mount that owns
+ * it. Null for a path no mount owns.
  */
-export function virtualPathForHostPath(
+export function classifyVirtualPath(
+  layout: WorkspaceFsLayout,
+  virtualAbsPath: string,
+): ReturnType<typeof classifyHostPath> {
+  const resolved = resolveHostPath(layout, virtualAbsPath);
+  return resolved === null
+    ? null
+    : classifyHostPath(layout, resolved.hostPath, resolved.mount);
+}
+
+/**
+ * What a path on the disk is to the agent: the mount it is reached through
+ * and its path there, the masked entry it is or is inside, and whether it
+ * leaves that mount through a symlink. Null when no mount holds it.
+ *
+ * The one place these are answered, for every consumer that holds a host
+ * path: the file tools, the native hatches that reach mounts (`rg`, `du`,
+ * `git`), and the agent's browser. The path is canonicalized once (through a
+ * symlink, through missing segments, and without case on a disk that ignores
+ * it), so two spellings of one file get one answer.
+ *
+ * `via` is the mount the path was reached through, when the caller resolved a
+ * virtual path to get it; without one the deepest mount holding the path is
+ * taken, by its spelling first and by where it really leads after.
+ *
+ * Masked is asked of the mount the path is reached through, by its path
+ * there, and of the deepest mount whose real root holds where the path really
+ * leads, by its path there. So a task's private dir is masked however the
+ * agent reached it, a chat's `tasks/` dir is masked from its own folder, and
+ * each task inside it answers for its own private dir alone.
+ */
+export function classifyHostPath(
   layout: WorkspaceFsLayout,
   hostPath: string,
-): null | { mount: WorkspaceFsMount; virtualPath: string } {
+  via?: WorkspaceFsMount,
+): null | {
+  escapes: boolean;
+  masked: MaskedEntry | undefined;
+  mount: WorkspaceFsMount;
+  virtualPath: string;
+} {
   const mounts = allMounts(layout);
-  const lexical = deepestMountHolding(
-    mounts.map((mount) => ({ mount, root: mount.hostRoot })),
+  const canonical = canonicalizeThroughMissing(hostPath);
+  const realRoots = new Map(
+    mounts.map((mount) => [mount, realRoot(mount.hostRoot)]),
+  );
+  const held = (
+    candidates: WorkspaceFsMount[],
+    rootOf: (mount: WorkspaceFsMount) => null | string,
+    target: null | string,
+  ) => {
+    let best: null | { mount: WorkspaceFsMount; relative: string } = null;
+    let bestRoot = "";
+    for (const mount of candidates) {
+      const root = rootOf(mount);
+      const relative =
+        root === null || target === null ? null : hostPathWithin(root, target);
+      if (relative !== null && root !== null && root.length > bestRoot.length) {
+        best = { mount, relative };
+        bestRoot = root;
+      }
+    }
+    return best;
+  };
+  const lexical = held(
+    via ? [via] : mounts,
+    (mount) => mount.hostRoot,
     hostPath,
   );
-  if (lexical) {
-    return lexical;
-  }
-  const canonical = canonicalizeThroughMissing(hostPath);
-  if (canonical === null) {
+  const reached =
+    lexical ??
+    (via
+      ? null
+      : held(mounts, (mount) => realRoots.get(mount) ?? null, canonical));
+  if (reached === null) {
     return null;
   }
-  return deepestMountHolding(
-    mounts.flatMap((mount) => {
-      try {
-        return [{ mount, root: realpathSync(mount.hostRoot) }];
-      } catch {
-        return [];
-      }
-    }),
-    canonical,
-  );
+  const real = held(mounts, (mount) => realRoots.get(mount) ?? null, canonical);
+  const ownRoot = realRoots.get(reached.mount);
+  return {
+    // A path or a root that cannot be resolved cannot be shown to stay inside,
+    // so it is taken to leave; a mount whose root is gone holds nothing to
+    // leave from.
+    escapes:
+      canonical === null ||
+      ownRoot === null ||
+      (ownRoot !== undefined && hostPathWithin(ownRoot, canonical) === null),
+    masked:
+      maskedEntryOf(reached.relative, reached.mount.maskedEntries) ??
+      (real
+        ? maskedEntryOf(real.relative, real.mount.maskedEntries)
+        : undefined),
+    mount: reached.mount,
+    virtualPath: normalizePath(
+      reached.relative === "/"
+        ? reached.mount.mountPoint
+        : `${reached.mount.mountPoint}${reached.relative}`,
+    ),
+  };
 }
 
 /** All mounts, task first. */
@@ -684,66 +684,6 @@ function buildSkillMounts(): WorkspaceFsMount[] {
   }
 
   return [...mounts.values()];
-}
-
-/**
- * Canonical form of a path whose tail may not exist yet: resolve the deepest
- * ancestor that does, then re-attach the segments below it. Every symlink on
- * the existing part is followed, which is what makes the result safe to compare
- * against a mount root. Returns null when resolution fails for any reason other
- * than absence, so the caller can fail closed.
- */
-function canonicalizeThroughMissing(hostPath: string): null | string {
-  const missing: string[] = [];
-  let current = hostPath;
-
-  for (;;) {
-    try {
-      return nodePath.join(realpathSync(current), ...missing.toReversed());
-    } catch (error) {
-      if (!isEnoent(error)) {
-        return null;
-      }
-    }
-
-    const parent = nodePath.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    missing.push(nodePath.basename(current));
-    current = parent;
-  }
-}
-
-function deepestMountHolding(
-  roots: { mount: WorkspaceFsMount; root: string }[],
-  hostPath: string,
-): null | { mount: WorkspaceFsMount; virtualPath: string } {
-  let best: null | { mount: WorkspaceFsMount; relative: string; root: string } =
-    null;
-  for (const { mount, root } of roots) {
-    const relative = nodePath.relative(root, hostPath);
-    if (
-      relative.startsWith("..") ||
-      nodePath.isAbsolute(relative) ||
-      (best !== null && root.length <= best.root.length)
-    ) {
-      continue;
-    }
-    best = { mount, relative, root };
-  }
-  if (best === null) {
-    return null;
-  }
-  const segments = best.relative.split(nodePath.sep).filter(Boolean);
-  return {
-    mount: best.mount,
-    virtualPath: normalizePath([best.mount.mountPoint, ...segments].join("/")),
-  };
-}
-
-function isEnoent(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 /** A mount's filesystem with its masked entries hidden, when it has any. */

@@ -47,7 +47,8 @@ import { getTaskState, setTaskState } from "../task-record";
 import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  privateMountPoint,
+  buildWorkspaceFsLayout,
+  classifyVirtualPath,
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
 import {
@@ -444,6 +445,7 @@ export async function resolveAgentBrowserPathArgs(
     return { args: resolved };
   }
 
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
@@ -451,7 +453,7 @@ export async function resolveAgentBrowserPathArgs(
       return { error: attachedMountLiteralError("Upload") };
     }
 
-    if (isAtOrUnder(privateMountPoint(MOUNT.task), virtualPath)) {
+    if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {
       return { error: privateDirLiteralError("Upload") };
     }
 

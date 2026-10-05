@@ -2,10 +2,8 @@ import { withoutPageEditParam } from "@instrument-org/shared";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-  hostPathEscapesMount,
-  isMaskedPrivatePath,
+  classifyHostPath,
   nonTaskMounts,
-  virtualPathForHostPath,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
@@ -49,15 +47,10 @@ function agentPathOfHostFile(
   layout: WorkspaceFsLayout,
   hostPath: string,
 ): null | string {
-  const found = virtualPathForHostPath(layout, hostPath);
-  if (
-    found === null ||
-    isMaskedPrivatePath(found.mount, found.virtualPath) ||
-    hostPathEscapesMount(hostPath, found.mount.hostRoot)
-  ) {
-    return null;
-  }
-  return found.virtualPath;
+  const found = classifyHostPath(layout, hostPath);
+  return found === null || found.masked !== undefined || found.escapes
+    ? null
+    : found.virtualPath;
 }
 
 /** How a file outside every mount is named to the agent. */

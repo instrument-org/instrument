@@ -2,7 +2,7 @@ import { MOUNT } from "../../mount-points";
 import { fileUrlOfHostPath } from "../local-page-address";
 import { normalizePath } from "../normalize-path";
 import {
-  isMaskedPrivatePath,
+  classifyHostPath,
   resolveHostPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
@@ -66,7 +66,8 @@ export async function rewriteNavigationArgToFileUrl(
   const resolved = resolveHostPath(layout, parsed.virtualPath);
   if (
     resolved === null ||
-    isMaskedPrivatePath(resolved.mount, parsed.virtualPath)
+    classifyHostPath(layout, resolved.hostPath, resolved.mount)?.masked !==
+      undefined
   ) {
     return { error: unreachableFileMessage(target.value) };
   }

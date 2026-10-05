@@ -1,13 +1,16 @@
 import { defineCommand } from "just-bash";
+import { readdirSync } from "node:fs";
 import fs from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 
+import { maskedEntryOf } from "../mask-private-dir-fs";
 import { relativeWithin } from "../path-containment";
 import {
   nonTaskMounts,
   resolveHostPath,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
+  type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 
 const DU_COMMAND = {
@@ -271,6 +274,24 @@ export function parseDuArgs(
 }
 
 /**
+ * The entries of a mount's root its masked entries name, as the disk spells
+ * them, so the walk skips them by name without deciding what a masked entry
+ * is: that is `maskedEntryOf`'s, which knows a disk that ignores case.
+ */
+function maskedNamesIn(hostRoot: string, mount: WorkspaceFsMount): string[] {
+  if (mount.maskedEntries.length === 0) {
+    return [];
+  }
+  try {
+    return readdirSync(hostRoot).filter(
+      (name) => maskedEntryOf(`/${name}`, mount.maskedEntries) !== undefined,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Map one operand onto the disk, or null when it is something only the
  * virtual filesystem can answer.
  */
@@ -292,7 +313,7 @@ function resolveOperand(
       display,
       hostPath,
       kind: "path",
-      maskedNames: relative === "/" ? owner.mount.maskedEntries : [],
+      maskedNames: relative === "/" ? maskedNamesIn(hostPath, owner.mount) : [],
     };
   }
 
@@ -319,7 +340,7 @@ function resolveOperand(
         return {
           display: `${base}/${name}`,
           hostPath: mount.hostRoot,
-          maskedNames: mount.maskedEntries,
+          maskedNames: maskedNamesIn(mount.hostRoot, mount),
         };
       })
       .toSorted((a, b) => (a.display < b.display ? -1 : 1)),
@@ -442,7 +463,7 @@ function walk(hostPath, display, maskedNames, depth) {
     }
     names.sort();
     for (const name of names) {
-      if (maskedNames.some((masked) => name.toLowerCase() === masked.toLowerCase())) {
+      if (maskedNames.includes(name)) {
         continue;
       }
       total += walk(path.join(hostPath, name), child(display, name), [], depth + 1);

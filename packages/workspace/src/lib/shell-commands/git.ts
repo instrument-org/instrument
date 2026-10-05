@@ -9,8 +9,7 @@ import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
 import {
   buildWorkspaceFsLayout,
-  hostPathEscapesMount,
-  isMaskedPrivatePath,
+  classifyHostPath,
   nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
@@ -529,10 +528,11 @@ function resolveMountPath(
     return undefined;
   }
   const { hostPath, mount } = resolved;
-  if (isMaskedPrivatePath(mount, virtualAbsPath)) {
+  const found = classifyHostPath(layout, hostPath, mount);
+  if (found?.masked !== undefined) {
     return { error: privateDirLiteralError(`"${virtualAbsPath}"`) };
   }
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+  if (found === null || found.escapes) {
     return { error: `${virtualAbsPath}: path is not accessible` };
   }
   return { hostPath, mount };

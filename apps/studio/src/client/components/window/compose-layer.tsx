@@ -57,7 +57,7 @@ export function ComposeLayer({
   onCloseChat: (chatId: ChatId) => void;
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string) => void;
-  /** A tab closed from a chat window's rail: asks first while a task is working in it. */
+  /** A tab closed from a chat window's tiles: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
@@ -162,7 +162,6 @@ export function ComposeLayer({
               <ChatWindow
                 arrives={entry.fromDraft === undefined}
                 chat={chat}
-                isRailCompact={entry.isRailCompact === true}
                 // The draft's key, for a chat that grew from one: the same
                 // element, so the window is not seen to leave and arrive.
                 key={entry.fromDraft ?? chatId}

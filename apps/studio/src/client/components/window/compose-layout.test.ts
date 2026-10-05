@@ -49,11 +49,10 @@ describe("layoutCompose", () => {
     expect(placed.map(idOf)).toEqual(["c"]);
   });
 
-  it("lays a minimized chat that holds tabs at a bar's width, with no room for a rail", () => {
+  it("lays a minimized chat at a bar's width", () => {
     const placed = layoutCompose(
       [chat("2026-10-01-chat-1", "bar"), chat("2026-10-01-chat-2", "bar")],
       2000,
-      () => true,
     );
     expect(placed.map((entry) => entry.right)).toEqual([
       COMPOSE_EDGE_GAP,
@@ -111,7 +110,7 @@ describe("layoutCompose", () => {
   });
 
   it("keeps the right edge's room the same on screen at any zoom", () => {
-    const placed = layoutCompose([draft("a")], 2000, undefined, 2);
+    const placed = layoutCompose([draft("a")], 2000, 2);
     expect(placed.map((entry) => entry.right)).toEqual([COMPOSE_EDGE_GAP / 2]);
   });
 
@@ -124,45 +123,5 @@ describe("layoutCompose", () => {
     expect(layoutCompose([draft("a"), draft("b")], 524)).toEqual([
       { ...draft("b"), right: 20, width: 492 },
     ]);
-  });
-
-  it("folds a chat window's rail to its marks where its pictures do not fit", () => {
-    const open = chat("2026-10-01-chat-4");
-    const at = (width: number) =>
-      layoutCompose([draft("a"), open], width, (entry) => entry.kind === "chat")
-        .filter((entry) => entry.kind === "chat")
-        .map(({ isRailCompact, width: placedWidth }) => ({
-          isRailCompact,
-          width: placedWidth,
-        }));
-    expect([at(2000), at(560), at(400)]).toMatchInlineSnapshot(`
-      [
-        [
-          {
-            "isRailCompact": undefined,
-            "width": undefined,
-          },
-        ],
-        [
-          {
-            "isRailCompact": true,
-            "width": 476,
-          },
-        ],
-        [
-          {
-            "isRailCompact": true,
-            "width": 368,
-          },
-        ],
-      ]
-    `);
-  });
-
-  it("folds a grown chat window's rail once its view and conversation are short of room", () => {
-    const grown = chat("2026-10-01-chat-4", "expanded");
-    const folds = (width: number) =>
-      layoutCompose([grown], width, () => true)[0]?.isRailCompact === true;
-    expect([folds(1200), folds(800)]).toEqual([false, true]);
   });
 });

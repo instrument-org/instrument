@@ -29,8 +29,8 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
-import { ChatRail } from "@/client/components/window/chat-rail";
 import { ChatScreen } from "@/client/components/window/chat-screen";
+import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
@@ -75,16 +75,6 @@ import { type ReactNode, useEffect, useState } from "react";
 const INBOX_COLLAPSE_THRESHOLD = 240;
 /** The least the conversation and its pane keep beside the inbox while the inbox is dragged wider. */
 const MAIN_WIDTH_MIN = 560;
-/** The rail's width with its pictures, `w-30`, and folded to its marks, `w-14`. */
-const RAIL_WIDTH = 120;
-const RAIL_COMPACT_WIDTH = 56;
-/**
- * How much room past the floors of the conversation and the pane the rail
- * keeps its pictures for: with less, it folds to its marks before either is
- * squeezed to its floor.
- */
-const RAIL_FOLD_SLACK = 126;
-
 /**
  * How much more room than it needs a row must have before what gave way for
  * it comes back, so a window held near the edge does not flicker between the
@@ -132,8 +122,8 @@ function ChatColumn({
 
 /**
  * The chat: the inbox down the left, and beside it the chat this tab has
- * open, its transcript and composer, the thing it has up drawn large, and
- * what it holds down its right edge. Choosing another chat in the inbox
+ * open, its transcript and composer with what it holds in a row over it,
+ * and the thing it has up drawn large. Choosing another chat in the inbox
  * moves this tab there, one step on in its history.
  */
 function ChatView({ chat }: { chat: ChatId | undefined }) {
@@ -142,7 +132,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setInboxOpen = useSetAtom(inboxOpenAtom);
   const sidebarWidth = useAtomValue(inboxWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const isActive = useIsActiveTab();
@@ -157,43 +147,19 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const up = windowTabs.tabUpIn(chat);
   const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
-  // Drawn only once there is something in it.
-  const showsRail = chat !== undefined && tabs.length > 0;
 
   // What gives way as the window narrows, one thing at a time and in one
-  // order: the pane gives up width, then the rail folds to its marks while
-  // the pane and the conversation still have some room past their floors,
-  // then both go down to those floors, and only then does the inbox step
-  // aside. Widening brings them back in the other order, each a margin past
-  // the width it left at.
-  const floors = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
-  const needs = floors + (showsRail ? RAIL_COMPACT_WIDTH : 0);
-  const { isCrossing, isShown, isSteppedAside } = useInboxRoom({
+  // order: the pane gives up width, then the pane and the conversation go
+  // down to their floors, and only then does the inbox step aside. Widening
+  // brings them back in the other order, each a margin past the width it
+  // left at.
+  const needs = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
+  const { isCrossing, isShown } = useInboxRoom({
     isActive,
     margin: ROOM_MARGIN,
     needs,
     room: showsRightArea && rowWidth > 0 ? rowWidth - sidebarWidth : undefined,
   });
-  // The rail folds on the room beside the inbox, counting an inbox that
-  // stepped aside as still there: the room it leaves is the conversation's,
-  // and a rail that unfolded into it would fold again as the window went on
-  // narrowing, each change setting off the next.
-  const beside =
-    rowWidth -
-    ((isInboxOpen || isSteppedAside) && showsRightArea ? sidebarWidth : 0);
-  const [isRailCompact, setRailCompact] = useState(false);
-  const railFolds =
-    showsRail &&
-    rowWidth > 0 &&
-    beside <
-      floors + RAIL_WIDTH + RAIL_FOLD_SLACK + (isRailCompact ? ROOM_MARGIN : 0);
-  // Kept with the render that decides it, not an effect after it, so the
-  // rail never draws one frame at the width it is leaving; settling takes one
-  // more pass at most, since the margin only widens the fold it decided.
-  if (railFolds !== isRailCompact) {
-    setRailCompact(railFolds);
-  }
-
   /** Puts the chat away: the inbox is shown again if it was hidden, with the empty side beside it. */
   const leaveChat = () => {
     appTabs.navigate(INBOX_HREF);
@@ -211,6 +177,46 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     showsPane && up.kind === "page",
   );
   const chatRecord = chats?.find((entry) => entry.id === chat);
+
+  // Drawn only once there is something in it.
+  const tiles = chat !== undefined && tabs.length > 0 && (
+    <ChatTiles
+      appsBySlug={appsBySlug}
+      chatTitles={chatTitles}
+      chosenId={showsPane ? up.id : undefined}
+      isChatWorking={chatRecord?.state === "working"}
+      onAddComputer={() => {
+        windowTabs.openScreen(instrumentFolderHref(), {
+          group: chat,
+          select: true,
+        });
+        setPaneOpen(chat, true);
+      }}
+      onAddWeb={() => {
+        windowTabs.openScreen(BROWSER_HREF, {
+          group: chat,
+          select: true,
+        });
+        setPaneOpen(chat, true);
+      }}
+      onClose={shell.requestClose}
+      onReorder={(keys) => {
+        windowTabs.reorder(keys, chat);
+      }}
+      onSelect={(id) => {
+        windowTabs.select(id);
+        setPaneOpen(chat, true);
+      }}
+      tabs={tabs}
+      targetOf={(tab) =>
+        encodeBrowserTargetId(
+          tab.taskId ?? WINDOW_ID,
+          StoreId.SessionSchema.parse(tab.id),
+        )
+      }
+      taskTitles={shell.childTitles}
+    />
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
@@ -306,6 +312,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                               })
                             }
                             sentPrompt={shell.sentWords.get(chat)}
+                            tiles={tiles}
                             chatId={chat}
                           />
                         </div>
@@ -324,12 +331,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                   className={cn(
                     "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border",
                     // A page's bottom corners follow what they meet: square
-                    // against the conversation at the left and against the
-                    // rail at the right, round only where the pane reaches
-                    // the card's own corner.
-                    showsRail
-                      ? "[--guest-bottom-radius:0] [--pane-bottom-right-radius:0]"
-                      : "[--guest-bottom-radius:0_var(--radius-2xl)]",
+                    // against the conversation at the left, round where the
+                    // pane reaches the card's own corner.
+                    "[--guest-bottom-radius:0_var(--radius-2xl)]",
                   )}
                 >
                   {up && (
@@ -337,8 +341,8 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       closeTab={shell.requestClose}
                       group={chat}
                       isFramed={false}
-                      // Puts the view away; what it showed stays on the
-                      // rail, whose tiles are where a tab is closed.
+                      // Puts the view away; what it showed stays among the
+                      // chat's tiles, which are where a tab is closed.
                       onClose={() => {
                         setPaneOpen(chat, false);
                       }}
@@ -350,46 +354,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                 </div>
               </RightPane>
             </div>
-            {showsRail && (
-              <ChatRail
-                activeId={up?.id}
-                appsBySlug={appsBySlug}
-                chatTitles={chatTitles}
-                isChatWorking={chatRecord?.state === "working"}
-                isCompact={railFolds}
-                isViewOpen={showsPane}
-                onAddComputer={() => {
-                  windowTabs.openScreen(instrumentFolderHref(), {
-                    group: chat,
-                    select: true,
-                  });
-                  setPaneOpen(chat, true);
-                }}
-                onAddWeb={() => {
-                  windowTabs.openScreen(BROWSER_HREF, {
-                    group: chat,
-                    select: true,
-                  });
-                  setPaneOpen(chat, true);
-                }}
-                onClose={shell.requestClose}
-                onReorder={(keys) => {
-                  windowTabs.reorder(keys, chat);
-                }}
-                onSelect={(id) => {
-                  windowTabs.select(id);
-                  setPaneOpen(chat, true);
-                }}
-                tabs={tabs}
-                targetOf={(tab) =>
-                  encodeBrowserTargetId(
-                    tab.taskId ?? WINDOW_ID,
-                    StoreId.SessionSchema.parse(tab.id),
-                  )
-                }
-                taskTitles={shell.childTitles}
-              />
-            )}
           </div>
         </main>
       )}

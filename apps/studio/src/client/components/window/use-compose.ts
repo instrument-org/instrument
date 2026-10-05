@@ -21,11 +21,7 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
  * windows over the pane's page and starts the chats the drafts become. Everything is keyed by the group the window shows: the
  * draft's key, or the chat's id.
  */
-export function useCompose(
-  width: number,
-  /** Whether a chat's group holds anything, which gives its small view a rail. */
-  holdsAnything: (group: string) => boolean,
-) {
+export function useCompose(width: number) {
   const [entries, setEntries] = useAtom(composeAtom);
   // Where each window's page is drawn, by the window's group, once the
   // window has made the element (a draft's band, or a chat grown to fill
@@ -42,12 +38,7 @@ export function useCompose(
     Record<string, PageChromeSlots | undefined>
   >({});
   const zoom = useAtomValue(zoomAtom);
-  const placed = layoutCompose(
-    entries,
-    width,
-    (entry) => entry.kind === "chat" && holdsAnything(entry.chatId),
-    zoom,
-  );
+  const placed = layoutCompose(entries, width, zoom);
   const windows = placed.filter((entry) => entry.placement !== "bar");
   // A chat's small view draws no page; grown to fill the row it does.
   const hosts: ComposeHost[] = windows.flatMap((entry) =>

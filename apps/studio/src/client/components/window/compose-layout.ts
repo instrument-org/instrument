@@ -5,15 +5,6 @@ export const COMPOSE_WIDTH = 600;
 export const CHAT_WINDOW_WIDTH = 420;
 export const COMPOSE_BAR_WIDTH = 300;
 
-/** How much wider a chat's small view stands for the rail of what the chat holds, in layout px (the rail's `w-30`). */
-export const CHAT_RAIL_WIDTH = 120;
-
-/** The rail folded to a column of marks, `w-14`. */
-const CHAT_RAIL_COMPACT_WIDTH = 56;
-
-/** The least a grown chat window's view keeps beside its conversation, the pane's own floor, before the rail folds to give it room. */
-const GROWN_VIEW_MIN = 300;
-
 /**
  * The window layer a draft's page guest is shown on: above the draft windows
  * (`z-40`) so the page is not under its own opaque window, and under every
@@ -63,11 +54,9 @@ export const GROWN = {
 
 /**
  * A window with its place along the foot: how far its right edge stands from
- * the row's, its width when the row is narrower than its own, and whether a
- * chat window's rail folds to its marks to fit.
+ * the row's, and its width when the row is narrower than its own.
  */
 export type PlacedCompose = ComposeEntry & {
-  isRailCompact?: boolean;
   right: number;
   width?: number;
 };
@@ -83,8 +72,6 @@ export type PlacedCompose = ComposeEntry & {
 export function layoutCompose(
   entries: ComposeEntry[],
   width: number,
-  /** Whether a chat's small view carries its rail, which it does while the chat holds anything. */
-  hasRail: (entry: ComposeEntry) => boolean = () => false,
   /** The UI's zoom, which the row is laid out in and the window's edge is not. */
   zoom = 1,
 ): PlacedCompose[] {
@@ -93,47 +80,21 @@ export function layoutCompose(
   let right = COMPOSE_EDGE_GAP / zoom;
   for (const [index, entry] of entries.toReversed().entries()) {
     if (entry.placement === "expanded") {
-      // Grown over the window: the conversation, the view beside it and the
-      // rail, which folds once the three no longer fit at their own widths.
-      const isRailCompact =
-        hasRail(entry) &&
-        grownWidth(width) <
-          CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
-      placed.push({
-        ...entry,
-        right: 0,
-        ...(isRailCompact ? { isRailCompact } : {}),
-      });
+      placed.push({ ...entry, right: 0 });
       continue;
     }
     if (isOneExpanded && entry.placement === "docked") {
       continue;
     }
-    // A bar is a bar's width whatever the chat holds: the rail is drawn
-    // only by a window.
-    const railed = entry.placement !== "bar" && hasRail(entry);
-    const own = widthOf(entry) + (railed ? CHAT_RAIL_WIDTH : 0);
+    const own = widthOf(entry);
     const room = width - right - COMPOSE_GAP;
-    // A window whose rail's pictures do not fit stands with the rail folded
-    // to its marks, at the narrower width that gives it.
-    const folded = widthOf(entry) + CHAT_RAIL_COMPACT_WIDTH;
-    if (railed && own > room && folded <= room) {
-      placed.push({ ...entry, isRailCompact: true, right, width: folded });
-      right += folded + COMPOSE_GAP;
-      continue;
-    }
     // The first that does not fit ends the row, and everything older with
     // it: a bar squeezed in past a window would put the windows out of order.
     if (own > room) {
       // The newest always stands, narrowed to the row: a window that is not
       // drawn is a New that appears to do nothing.
       if (index === 0 && room > 0) {
-        placed.push({
-          ...entry,
-          right,
-          width: room,
-          ...(railed ? { isRailCompact: true } : {}),
-        });
+        placed.push({ ...entry, right, width: room });
       }
       break;
     }
@@ -141,11 +102,6 @@ export function layoutCompose(
     right += own + COMPOSE_GAP;
   }
   return placed;
-}
-
-/** How wide a grown window stands over a row this wide, in layout px; the window it is laid over is a little wider than the row, so this errs narrow. */
-function grownWidth(width: number): number {
-  return width - 2 * GROWN_SIDE;
 }
 
 /** How wide a window stands along the foot: a bar's width put down, and otherwise its kind's. */

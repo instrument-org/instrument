@@ -22,11 +22,10 @@ import { useEffect, useRef, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeading } from "./chat-header";
-import { ChatRail } from "./chat-rail";
 import { ChatScreen } from "./chat-screen";
+import { ChatTiles } from "./chat-tiles";
 import { type Chat, draftTitle, type Topic } from "./chats";
 import {
-  CHAT_RAIL_WIDTH,
   CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
@@ -111,21 +110,19 @@ export function ChatBar({
  * A chat popped out: its conversation in a small window docked to the row's
  * bottom-right corner, over whatever place the window stands in, the way a
  * video keeps playing in its small window over the page that owns it, with
- * the rail of what the chat holds along its right edge, folded to its marks
- * when the window is narrower than it wants. Its head carries the chat's
- * title, topics and menu as the chat's own head draws them, and the window's
- * buttons.
+ * what the chat holds in a row of tiles over its composer. Its head carries
+ * the chat's title, topics and menu as the chat's own head draws them, and
+ * the window's buttons.
  *
  * Grown, it is a window over the whole row, the way a draft grows: the
- * conversation, the thing pressed on the rail drawn large beside it, and the
- * rail. Pressing a tile in the small window grows it with that thing up, and
+ * conversation, and the thing pressed among its tiles drawn large beside
+ * it. Pressing a tile in the small window grows it with that thing up, and
  * so does anything the conversation asks to have shown; what the agent opens
  * behind stays behind.
  */
 export function ChatWindow({
   arrives,
   chat,
-  isRailCompact,
   onClose,
   onCloseTab,
   onMinimize,
@@ -146,8 +143,6 @@ export function ChatWindow({
   /** Whether the window arrives with a motion: a draft becoming the chat is the same window, so it does not. */
   arrives: boolean;
   chat: Chat | undefined;
-  /** Whether the rail stands as a column of marks, for a window with no room for its pictures. */
-  isRailCompact: boolean;
   onClose: () => void;
   /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
   onCloseTab: (id: string) => void;
@@ -173,7 +168,7 @@ export function ChatWindow({
   sentWords?: string;
   chatId: ChatId;
   topics: Topic[];
-  /** The window's width, rail and all, narrower than its own on a row with less room. */
+  /** The window's width, narrower than its own on a row with less room. */
   width?: number;
 }) {
   const appWindow = useWindow();
@@ -283,14 +278,12 @@ export function ChatWindow({
     }
   };
 
-  const rail = tabs.length > 0 && (
-    <ChatRail
-      activeId={up?.id}
+  const tiles = tabs.length > 0 && (
+    <ChatTiles
       appsBySlug={appsBySlug}
       chatTitles={chatTitles}
+      chosenId={showsItem ? up.id : undefined}
       isChatWorking={isWorking}
-      isCompact={isRailCompact}
-      isViewOpen={showsItem}
       onAddComputer={() => {
         openHere(instrumentFolderHref());
       }}
@@ -344,9 +337,7 @@ export function ChatWindow({
           ? GROWN
           : {
               height: CHAT_WINDOW_HEIGHT,
-              width:
-                width ??
-                CHAT_WINDOW_WIDTH + (tabs.length > 0 ? CHAT_RAIL_WIDTH : 0),
+              width: width ?? CHAT_WINDOW_WIDTH,
             }
       }
       transition={COMPOSE_MOTION}
@@ -514,6 +505,7 @@ export function ChatWindow({
                     sendContext={contextToSend}
                     sentPrompt={sentWords}
                     chatId={chatId}
+                    tiles={tiles}
                   />
                 </ActiveTabProvider>
               </LinkSurface>
@@ -528,7 +520,7 @@ export function ChatWindow({
                 group={chatId}
                 isFramed={false}
                 // The row's × puts the view away; the thing stays in the
-                // chat, on the rail, as it does beside a chat in the window.
+                // chat, among its tiles, as it does beside a chat in the window.
                 onClose={() => {
                   setViewOpen(false);
                 }}
@@ -539,7 +531,6 @@ export function ChatWindow({
             </div>
           </div>
         )}
-        {rail}
       </div>
     </motion.div>
   );

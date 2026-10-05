@@ -45,6 +45,8 @@ interface ChatScreenProps {
   >;
   /** The words that open the chat, while the message they make is on its way. */
   sentPrompt?: string;
+  /** What the chat holds, as a row of tiles over what it is working on. */
+  tiles?: ReactNode;
 }
 
 /**
@@ -93,6 +95,7 @@ function ChatScreenOfRecord({
   sendContext,
   sentPrompt,
   sessionId,
+  tiles,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
   const task = useQuery(
@@ -222,15 +225,19 @@ function ChatScreenOfRecord({
                           },
                         }
                   }
-                  // What the chat is working on, over the composer: a
-                  // task pressed opens beside the chat, in the pane.
+                  // What the chat holds, then what it is working on, over
+                  // the composer: a task pressed opens beside the chat, in
+                  // the pane.
                   beforeComposer={
-                    <ChatWork
-                      onOpen={(id) => {
-                        appWindow.openScreen(`/tasks/${id}`, into);
-                      }}
-                      tasks={chat?.runningTasks ?? []}
-                    />
+                    <>
+                      {tiles}
+                      <ChatWork
+                        onOpen={(id) => {
+                          appWindow.openScreen(`/tasks/${id}`, into);
+                        }}
+                        tasks={chat?.runningTasks ?? []}
+                      />
+                    </>
                   }
                   composerLead={composerLead}
                   composerPlaceholder="Talk to Instrument"

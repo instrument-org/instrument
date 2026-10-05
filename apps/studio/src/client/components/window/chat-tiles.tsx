@@ -58,24 +58,22 @@ const AGENT_SETTLE_MS = 1000;
 const ON_SCREEN_SETTLE_MS = 3000;
 
 /**
- * What a chat holds, down its right edge: a tile for each thing it has open
- * (the pages its agent browses and the person opened, files, folders), the
- * oldest at the top and the newest at the foot beside New, scrolling when
- * there are many. A page is a picture of itself, taken as it loads and
- * changes and kept, so a chat reopened later, or after a relaunch, shows
- * its pages at once; a file is the picture the app keeps of it; a folder is
- * its mark. Pressing a tile brings the thing up
- * large beside the chat; its × takes it out of the chat; dragging one moves
- * it among the others. New, under the last tile, opens the web or this
- * computer beside the chat.
+ * What a chat holds, in a row over its composer: a tile for each thing it
+ * has open (the pages its agent browses and the person opened, files,
+ * folders), the oldest at the left and the newest at the right beside New,
+ * scrolling sideways when there are many. A page is a picture of itself,
+ * taken as it loads and changes and kept, so a chat reopened later, or after
+ * a relaunch, shows its pages at once; a file is the picture the app keeps
+ * of it; a folder is its mark. Pressing a tile brings the thing up large;
+ * the tile of the thing up is ringed, and with nothing up none is. Its ×
+ * takes it out of the chat; dragging one moves it among the others. New,
+ * after the last tile, opens the web or this computer beside the chat.
  */
-export function ChatRail({
-  activeId,
+export function ChatTiles({
   appsBySlug,
   chatTitles,
+  chosenId,
   isChatWorking,
-  isCompact = false,
-  isViewOpen,
   onAddComputer,
   onAddWeb,
   onClose,
@@ -85,15 +83,12 @@ export function ChatRail({
   targetOf,
   taskTitles,
 }: {
-  activeId: string | undefined;
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
   chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
+  /** The tab shown large, whose tile reads as chosen and whose page is on screen; none while nothing is. */
+  chosenId: string | undefined;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
   isChatWorking: boolean;
-  /** Whether it stands as a column of marks, for a row with no room left for its pictures. */
-  isCompact?: boolean;
-  /** Whether the thing up is shown large, which is when its tile reads as chosen and its page is on screen. */
-  isViewOpen: boolean;
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
@@ -106,35 +101,64 @@ export function ChatRail({
   taskTitles?: Parameters<typeof screenPresentation>[1]["taskTitles"];
 }) {
   // Tiles slide only while one is being dragged among them: laid out
-  // otherwise, they would slide every time the window around the rail grows,
+  // otherwise, they would slide every time the column around them grows,
   // shrinks or moves.
   const [isDragging, setDragging] = useState(false);
-  // A tab added lands at the foot, so the list follows it there.
+  // A tab added lands at the right end, so the row follows it there.
   const listRef = useRef<HTMLDivElement>(null);
   const count = useRef(tabs.length);
   useEffect(() => {
     if (tabs.length > count.current) {
       listRef.current?.scrollTo({
         behavior: "smooth",
-        top: listRef.current.scrollHeight,
+        left: listRef.current.scrollWidth,
       });
     }
     count.current = tabs.length;
   }, [tabs.length]);
+  // The chosen tile is brought into the row's view, so the ring is never
+  // scrolled out of sight. Offsets are layout px, which is what scrollLeft
+  // is in under the window's zoom.
+  useEffect(() => {
+    const list = listRef.current;
+    if (chosenId === undefined || !list) {
+      return;
+    }
+    const tile = [...list.querySelectorAll<HTMLElement>("[data-tile-id]")].find(
+      (element) => element.dataset.tileId === chosenId,
+    );
+    if (!tile) {
+      return;
+    }
+    const left = tile.offsetLeft;
+    const right = left + tile.offsetWidth;
+    if (left < list.scrollLeft) {
+      list.scrollTo({ behavior: "smooth", left });
+    } else if (right > list.scrollLeft + list.clientWidth) {
+      list.scrollTo({ behavior: "smooth", left: right - list.clientWidth });
+    }
+  }, [chosenId]);
   return (
-    <aside
-      aria-label="What this chat has open"
-      className="group/rail flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none data-compact:w-14"
-      data-compact={isCompact ? "" : undefined}
-    >
+    <section aria-label="What this chat has open" className="mb-2 select-none">
       <motion.div
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3 group-data-compact/rail:px-1.5"
+        className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-0.5"
         layoutScroll
+        // A wheel that only turns up and down scrolls the row sideways.
+        onWheel={(event) => {
+          const list = event.currentTarget;
+          if (
+            list.scrollWidth > list.clientWidth &&
+            Math.abs(event.deltaY) > Math.abs(event.deltaX)
+          ) {
+            list.scrollLeft += event.deltaY;
+          }
+        }}
         ref={listRef}
       >
         <Reorder.Group
-          axis="y"
-          className="flex flex-col gap-4 group-data-compact/rail:gap-2"
+          as="div"
+          axis="x"
+          className="flex shrink-0 gap-2"
           onReorder={(keys: string[]) => {
             onReorder(keys);
           }}
@@ -143,6 +167,8 @@ export function ChatRail({
           {tabs.map((tab) => (
             <Reorder.Item
               as="div"
+              className="w-24 shrink-0"
+              data-tile-id={tab.id}
               key={tab.id}
               onDragEnd={() => {
                 setDragging(false);
@@ -153,12 +179,11 @@ export function ChatRail({
               transition={isDragging ? undefined : STILL}
               value={keyOf(tab)}
             >
-              <RailTile
+              <ChatTile
                 appsBySlug={appsBySlug}
                 chatTitles={chatTitles}
                 isChatWorking={isChatWorking}
-                isChosen={isViewOpen && tab.id === activeId}
-                isOnScreen={isViewOpen && tab.id === activeId}
+                isChosen={tab.id === chosenId}
                 onClose={() => {
                   onClose(tab.id);
                 }}
@@ -172,38 +197,36 @@ export function ChatRail({
             </Reorder.Item>
           ))}
         </Reorder.Group>
-        {/* Right under the last tile, the way a list's add row follows it. */}
-        <div className="shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Open beside the chat"
-                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground group-data-compact/rail:justify-center group-data-compact/rail:px-0 hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-                title="New"
-                type="button"
-              >
-                <PlusIcon className="size-4" />
-                <span className="group-data-compact/rail:sr-only">New</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56 p-2">
-              <div className="grid grid-cols-2 gap-1">
-                <AddTile
-                  icon={<GlobeIcon />}
-                  label="Browser"
-                  onSelect={onAddWeb}
-                />
-                <AddTile
-                  icon={<DesktopIcon />}
-                  label={computerName()}
-                  onSelect={onAddComputer}
-                />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Right after the last tile, the way a strip's add button follows its tabs. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Open beside the chat"
+              className="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+              title="New"
+              type="button"
+            >
+              <PlusIcon className="size-4" />
+              New
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 p-2">
+            <div className="grid grid-cols-2 gap-1">
+              <AddTile
+                icon={<GlobeIcon />}
+                label="Browser"
+                onSelect={onAddWeb}
+              />
+              <AddTile
+                icon={<DesktopIcon />}
+                label={computerName()}
+                onSelect={onAddComputer}
+              />
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </motion.div>
-    </aside>
+    </section>
   );
 }
 
@@ -409,12 +432,11 @@ function PageWorking({
   );
 }
 
-function RailTile({
+function ChatTile({
   appsBySlug,
   chatTitles,
   isChatWorking,
   isChosen,
-  isOnScreen,
   onClose,
   onSelect,
   tab,
@@ -424,8 +446,8 @@ function RailTile({
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
   chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
   isChatWorking: boolean;
+  /** Whether its thing is the one shown large, which is also when its page is on screen. */
   isChosen: boolean;
-  isOnScreen: boolean;
   onClose: () => void;
   onSelect: () => void;
   tab: WindowTab;
@@ -442,8 +464,8 @@ function RailTile({
           taskTitles,
           ...(volumes ? { volumes } : {}),
         }).title;
-  // What the tile is by its mark: a page's site, a file's type, a folder,
-  // an app. Beside the name in a wide rail; the whole tile in a narrow one.
+  // What the tile is by its mark, beside its name: a page's site, a file's
+  // type, a folder, an app.
   const mark =
     tab.kind === "page" ? (
       <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
@@ -474,22 +496,9 @@ function RailTile({
         title={title}
         type="button"
       >
-        {/* A narrow rail gives the pictures and names up first, and keeps
-            each thing as its mark, one column of them. */}
         <span
           className={cn(
-            "hidden aspect-square w-full place-items-center rounded-lg bg-card shadow-xs ring-1 transition group-data-compact/rail:grid [&_img]:size-5 [&_svg]:size-5",
-            isChosen
-              ? "ring-2 ring-foreground/70"
-              : "ring-border/70 group-hover/tile:ring-border",
-            isWorking && "animate-pulse",
-          )}
-        >
-          {mark}
-        </span>
-        <span
-          className={cn(
-            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition group-data-compact/rail:hidden",
+            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
             isChosen
               ? "ring-2 ring-foreground/70"
               : "ring-border/70 group-hover/tile:ring-border",
@@ -497,7 +506,7 @@ function RailTile({
         >
           {tab.kind === "page" ? (
             <PagePicture
-              isOnScreen={isOnScreen}
+              isOnScreen={isChosen}
               tab={tab}
               targetId={targetOf(tab)}
             />
@@ -511,7 +520,7 @@ function RailTile({
         </span>
         {/* Every tile names what it is by its mark as well, which its
             picture hides: a page's site, a file's type, a folder, an app. */}
-        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground group-data-compact/rail:hidden">
+        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
           <span className="grid size-3 shrink-0 place-items-center [&_img]:size-3 [&_svg]:size-3">
             {mark}
           </span>
@@ -522,7 +531,7 @@ function RailTile({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 group-data-compact/rail:-top-1 group-data-compact/rail:-right-1 group-data-compact/rail:size-4 hover:text-foreground focus-visible:opacity-100"
+        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100"
         onClick={onClose}
         type="button"
       >

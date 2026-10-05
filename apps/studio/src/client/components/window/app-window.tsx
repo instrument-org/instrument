@@ -316,9 +316,7 @@ function WindowShell({
     setChatGroup(chatOfHref(activeHref) ?? null);
   }, [activeHref, isChat, setChatGroup]);
 
-  const compose = useCompose(rowWidth, (group) =>
-    windowTabs.allTabs.some((tab) => tab.group === group),
-  );
+  const compose = useCompose(rowWidth);
   // A draft is written over the screen, never on it, and a draft with no
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.

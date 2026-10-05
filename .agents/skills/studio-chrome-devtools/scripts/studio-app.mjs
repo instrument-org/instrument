@@ -942,7 +942,7 @@ export async function callRpc(cdp, route, input) {
   if (outcome.iterator) {
     fail(
       `"${route}" is an event iterator, and one cannot be carried back through a single evaluation.\n` +
-        `Poll its plain counterpart instead: task.agentStatus.byIds for task.agentStatus.live.byId.`,
+        `Poll its plain counterpart instead: task.status for task.live.status.`,
     );
   }
 
@@ -1128,23 +1128,23 @@ export async function snapshotTree(cdp, { depth = 12, selector } = {}) {
 }
 
 /**
- * Wait for a task's agent to stop working, read from `task.agentStatus.byIds`
- * rather than from whatever the page is currently painting.
+ * Wait for a task's agent to stop working, read from `task.status` rather
+ * than from whatever the page is currently painting.
  *
- * Busy is the `agent.alive` tag: every non-final state of the session machine
- * carries it, so this covers running, paused and mid-tool-call without
- * enumerating them, and it keeps covering them when those states change.
+ * Busy is `isWorking`: some session of the task carries the `agent.alive`
+ * tag, which every non-final state of the session machine does, so this
+ * covers running, paused and mid-tool-call without enumerating them.
  *
- * Completion is the *absence* of a session, not an `agent.done` tag. The
- * workspace machine drops a session's ref when it finishes, so a task whose
- * turn is over reports no session actors at all -- which is also what a task
- * that has not started one reports. Hence `settleMs`: until the task has been
- * seen busy, idle has to hold rather than count immediately, so a wait issued
- * in the same breath as `message.create` does not return before the session
- * has been spawned.
+ * Completion is the *absence* of a live session, not an `agent.done` tag.
+ * The workspace machine drops a session's ref when it finishes, so a task
+ * whose turn is over reports not working -- which is also what a task that
+ * has not started one reports. Hence `settleMs`: until the task has been seen
+ * busy, idle has to hold rather than count immediately, so a wait issued in
+ * the same breath as `message.create` does not return before the session has
+ * been spawned.
  *
- * A subagent outliving its parent keeps this waiting, because a status reports
- * tags per session and not which of them is the root.
+ * A subagent outliving its parent keeps this waiting, because any live
+ * session of the task counts.
  */
 export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
   // Reads the task first so a wrong id fails saying so, rather than waiting out
@@ -1155,16 +1155,11 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
   const deadline = startedAt + timeoutMs;
   let idleSince;
   let sawBusy = false;
-  let sessions = [];
+  let status;
 
   for (;;) {
-    const [status] = await callRpc(cdp, "workspace.task.agentStatus.byIds", {
-      ids: [taskId],
-    });
-    sessions = status?.sessionActors ?? [];
-    const busy = sessions.some((session) =>
-      session.tags.includes("agent.alive"),
-    );
+    status = await callRpc(cdp, "workspace.task.status", { id: taskId });
+    const busy = status?.isWorking === true;
 
     if (busy) {
       idleSince = undefined;
@@ -1188,7 +1183,7 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
     if (Date.now() > deadline) {
       fail(
         `Timed out after ${timeoutMs}ms waiting for ${taskId} to go idle.\n` +
-          `Sessions: ${JSON.stringify(sessions)}`,
+          `Status: ${JSON.stringify(status)}`,
       );
     }
     await sleep(IDLE_POLL_MS);

@@ -289,8 +289,8 @@ export const workspaceMachine = setup({
     ),
 
     // Persist an unread indicator so the sidebar/tab can surface a dot until
-    // the user views the task. Writing task settings publishes task.updated,
-    // which the live indicators stream re-reads from.
+    // the user views the task. Writing task settings says so on the record
+    // change feed, which the live indicators re-read on.
     dropSessionRef: assign(
       ({ context }, { actorId, id }: { actorId: string; id: TaskId }) => {
         const existingSessionActorRefs = context.sessionRefsByTaskId.get(id);

@@ -223,8 +223,8 @@ const create = base
           },
         });
 
-        // Publishes `task.updated` itself, which is what moves the task in the
-        // list, so this replaces the bare publish rather than joining it.
+        // A settings write, which the record change feed reports: what moves
+        // the task in the list.
         await recordTaskActivity(taskId);
 
         return { sessionId: message.metadata.sessionId };

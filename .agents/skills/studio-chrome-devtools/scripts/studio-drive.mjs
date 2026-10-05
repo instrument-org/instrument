@@ -1031,7 +1031,7 @@ async function cmdRpc(app, route, rawInput) {
     fail(
       `Usage: rpc <route> [json]\n` +
         `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'\n` +
-        `  rpc workspace.task.agentStatus.byIds '{"ids":["<task-id>"]}'`,
+        `  rpc workspace.task.status '{"id":"<task-id>"}'`,
     );
   }
 

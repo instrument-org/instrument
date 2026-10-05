@@ -104,7 +104,7 @@ const run = base
       },
     });
 
-    // Publishes `task.updated` itself, which is what moves the task in the list.
+    // A settings write, which the record change feed reports: what moves the task in the list.
     await recordTaskActivity(taskId);
 
     context.workspaceConfig.captureEvent("session.run");

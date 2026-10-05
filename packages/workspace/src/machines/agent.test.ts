@@ -585,9 +585,10 @@ describe("agentMachine", () => {
         actors: {
           llmRequestLogic: fromPromise(() => {
             requests += 1;
+            const noParts: SessionMessagePart.Type[] = [];
             return Promise.resolve({
               message: requests <= 5 ? refused : answered,
-              parts: [],
+              parts: noParts,
             });
           }),
           onFinish: fromPromise(() => Promise.resolve()),

@@ -1,6 +1,6 @@
 # Plan: one path namespace for a chat and its tasks
 
-Status: active.
+Status: completed. Steps 1 to 5 landed.
 
 ## Problem
 
@@ -31,3 +31,16 @@ A task granted folders before step 1 keeps the names on its record, since its tr
 ## Out of scope
 
 The chat and task prompts beyond what step 1 forces; the Result library; Studio's own local-file policy for guest pages, which confines a page to its folder rather than to the layout.
+
+## Outcome
+
+- Step 1 also restored the `:ro`/`:rw` on `task new --folder`, which 3dcf5ccd3 had turned into read and write for every handed folder, and taught `rg` to search a directory that holds mounts without being one (`/mnt`, or `/mnt/Home` in a task handed only `/mnt/Home/Downloads`), which `rg /mnt` could not do before either.
+- Step 2 made masking stricter than it was: a task's private dir reached through a mount that holds it whole, such as a chat's home mount over its own record, is masked for the native hatches and file tools. The just-bash mask on the virtual filesystem is still per mount.
+- Step 3 changed what three outputs say: a native hatch printing a path in an attached folder names its mount, agent-browser names a task file `./work/x` where it said `work/x`, and a root is matched only where its last name ends.
+- Step 4 moved `chat`, `memory`, `tab` and `app` onto `defineSubcommands` too; `parseFlags` is gone.
+- Evals before and after step 1, Workers AI, cases `chat-hands-over-a-folder`, `chat-widens-a-running-task`, `chat-one-file`: `zai-org/glm-5.3-flash` 17/17 then 16/17, `moonshotai/kimi-k2.6` 15/17 then 14/17. Every miss was the chat writing or copying a file itself or a task leaving out its files fence; no run hit a refusal or a path error, and the handed task wrote through `/mnt/Home/Downloads` as its context listed it.
+
+## Not done
+
+- No eval case hands a task nested folders, or a flag the subcommand does not take; both refusals are pinned by unit tests only.
+- Not run in the app, and not on Windows.

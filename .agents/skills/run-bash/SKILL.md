@@ -53,7 +53,7 @@ pnpm --silent script:run-bash -- --task TASK_ID "python-native -c 'import numpy'
 
 ### Attached-folder mounts
 
-Mount host folders read-only under `/mnt/<basename>` (repeatable; `--attach-writable` mounts one read-write), the same way user-attached folders appear to the agent:
+Mount host folders read-only under `/mnt/<basename>` (repeatable; `--attach-writable` mounts one read-write), the same way user-attached folders appear to the agent. `--mount-name <name>` before either mounts the next folder under that name instead, which may hold a slash the way a folder a chat hands a task does (`--mount-name Home/Downloads --attach ~/Downloads` mounts it at `/mnt/Home/Downloads`):
 
 ```bash
 pnpm --silent script:run-bash -- --attach ~/Documents/Photos \

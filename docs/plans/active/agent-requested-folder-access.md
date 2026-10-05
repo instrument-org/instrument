@@ -20,7 +20,7 @@ The tempting version is a read-only whole-system view for the main agent. It fai
 
 **Path knowledge is the capability.** The main agent's bash has real-binary escape hatches (`node`, `tsx`, `python`, `pnpm`, `git`, `ffmpeg`, `curl`), and once one of those is running it has the host user's full filesystem, network, and process access. [resolveNativeHostPath](../../../packages/workspace/src/lib/workspace-fs-layout.ts) quarantines *virtual* paths so a `/mnt` path cannot be handed to a subprocess, but it cannot do anything about a **real host path written directly into a script**. Nothing stops a Python script from containing a literal home path and calling `unlink` on it.
 
-So the sandbox's containment currently rests on a quiet premise: **the main agent does not know any real host paths.** Every layer is built on it. [virtualizeOutput](../../../packages/workspace/src/lib/shell-commands/rg.ts) maps host roots back to mount points precisely "so the machine layout does not leak through match paths," and [redactHostPaths](../../../packages/workspace/src/lib/filter-shell-output.ts) collapses the home directory to `~` in every subprocess's output. Those are not cosmetic. They are load-bearing.
+So the sandbox's containment currently rests on a quiet premise: **the main agent does not know any real host paths.** Every layer is built on it. [virtualizeHostPaths](../../../packages/workspace/src/lib/filter-shell-output.ts) maps host roots back to mount points precisely "so the machine layout does not leak through match paths," and collapses the home directory to `~` in every subprocess's output. Those are not cosmetic. They are load-bearing.
 
 Giving the main agent host-wide reads would demolish that premise deliberately, then ask the rest of the sandbox to keep working without it. A read-only capability would convert directly into a write capability one `python -c` later.
 
@@ -90,7 +90,7 @@ This is not optional, and the `~/.ssh` entry in particular is the whole argument
 
 The sub-agent's transcript never reaches the main agent. Its tool calls, its intermediate reads, and the paths it walked are not context the parent gets to see.
 
-What comes back is a short report plus whatever mounts were granted. And the report is **passed through `redactHostPaths` and `virtualizeOutput` programmatically before the parent sees it**, not merely written under a prompt instruction to avoid host paths. The sub-agent is a language model and will quote a real path in prose sooner or later; the parent's ignorance of host paths is a security property and must not depend on another model's discipline.
+What comes back is a short report plus whatever mounts were granted. And the report is **passed through `virtualizeHostPaths` programmatically before the parent sees it**, not merely written under a prompt instruction to avoid host paths. The sub-agent is a language model and will quote a real path in prose sooner or later; the parent's ignorance of host paths is a security property and must not depend on another model's discipline.
 
 So the main agent's view of a successful discovery is roughly: the app's data is now at `/mnt/Handy`, it holds `history.db`, and that file is a SQLite database with a `transcription_history` table. Everything it needs, and nothing it can turn into a host path.
 

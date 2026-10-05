@@ -1,4 +1,6 @@
+import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
+import { Card } from "@/client/components/ui/card";
 import {
   allowanceLabel,
   formatAmount,
@@ -18,6 +20,7 @@ type Status = RPCOutput["billing"]["status"];
  * account (Subscribe, Switch to, Start free trial); the plan they are on is
  * marked instead. One card leads with the brand button so the choice has an
  * obvious default: the preselected plan, else the first one they could take.
+ * The cards share a row and stack when it is too narrow for them.
  *
  * The same component is setup's plan step and the app's plan sheet.
  */
@@ -48,7 +51,7 @@ export function PlanCards({
     ) ?? actions.find(({ action }) => action !== "current");
 
   return (
-    <div className="flex flex-wrap justify-center gap-5" data-plan-cards>
+    <div className="flex flex-wrap gap-3" data-plan-cards>
       {actions.map(({ action, plan }) => (
         <PlanCard
           action={action}
@@ -87,49 +90,46 @@ function PlanCard({
   }[action];
 
   return (
-    <div
+    <Card
       className={cn(
-        "flex w-70 flex-col rounded-[22px] bg-card p-6 text-card-foreground shadow-[0_10px_30px_-16px_rgba(28,25,23,0.35)] ring-1",
-        action === "current"
-          ? "ring-2 ring-brand-500"
-          : "ring-black/7 dark:ring-white/10",
+        "min-w-52 flex-1 basis-0 gap-0 border p-4",
+        action === "current" && "border-brand-500/60",
       )}
       data-plan-card={plan.key}
     >
-      <div className="flex items-center gap-2 text-[15px] font-semibold">
-        <span className="min-w-0 flex-1 truncate">{plan.name}</span>
-        {action === "current" && (
-          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-900 dark:text-brand-200">
-            Your plan
-          </span>
-        )}
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          {plan.name}
+        </span>
+        {action === "current" && <Badge variant="outline">Your plan</Badge>}
       </div>
       {amount && (
-        <div className="mt-1.5 flex items-baseline gap-1">
-          <span className="text-4xl font-semibold tracking-tight">
+        <div className="mt-1 flex items-baseline gap-1">
+          <span className="text-2xl font-semibold tracking-tight">
             {amount}
           </span>
           {plan.price?.interval && (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               / {plan.price.interval}
             </span>
           )}
         </div>
       )}
-      <div className="mt-4 flex items-center justify-between rounded-xl bg-muted px-3.5 py-2.5 text-[13px]">
+      <div className="mt-3 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">AI usage</span>
-        <span className="font-semibold">{allowanceLabel(plan)}</span>
+        <span className="font-medium">{allowanceLabel(plan)}</span>
       </div>
       {action !== "current" && (
         <Button
-          className="mt-5 w-full rounded-full"
+          className="mt-4 w-full"
           disabled={isBusy}
           onClick={onChoose}
+          size="sm"
           variant={isLeading ? "brand" : "default"}
         >
           {label}
         </Button>
       )}
-    </div>
+    </Card>
   );
 }

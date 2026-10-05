@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -37,10 +38,7 @@ export function PlanSheet() {
       open={isOpen}
     >
       {isOpen && (
-        <DialogContent
-          className="bg-background px-10 pt-10 pb-8"
-          maxWidth="47.5rem"
-        >
+        <DialogContent maxWidth="40rem">
           <PlanSheetBody
             onDone={() => {
               setState(null);
@@ -93,16 +91,18 @@ function PlanSheetBody({
   const isChanging = status?.subscription !== undefined && !status.canSubscribe;
 
   return (
-    <div className="flex flex-col items-center">
-      <DialogTitle className="text-center font-serif text-[28px] leading-tight font-medium tracking-tight">
-        {isChanging ? "Change your plan" : "Choose a plan"}
-      </DialogTitle>
-      <DialogDescription className="mt-2.5 max-w-135 text-center text-sm leading-relaxed text-muted-foreground">
-        {isChanging
-          ? "You'll pay the difference for the rest of this month. Your limits go up as soon as it's paid."
-          : "Every plan includes everything. You'll finish in your browser."}
-      </DialogDescription>
-      <div className="mt-7">
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {isChanging ? "Change your plan" : "Choose a plan"}
+        </DialogTitle>
+        <DialogDescription>
+          {isChanging
+            ? "You'll pay the difference for the rest of this month. Your limits go up as soon as it's paid."
+            : "Every plan includes everything. You'll finish in your browser."}
+        </DialogDescription>
+      </DialogHeader>
+      <div>
         {offer ? (
           <PlanCards
             busyPlan={
@@ -131,7 +131,7 @@ function PlanSheetBody({
           <Spinner className="size-5 text-muted-foreground" />
         )}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -149,20 +149,20 @@ export function WaitingForStripe({
   onOpenAgain: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center py-6">
-      <DialogTitle className="text-center font-serif text-[28px] leading-tight font-medium tracking-tight">
-        Finish in your browser
-      </DialogTitle>
-      <DialogDescription className="mt-2.5 max-w-120 text-center text-sm leading-relaxed text-muted-foreground">
-        Checkout opened in your browser. Pay there, and you&rsquo;ll come right
-        back.
-      </DialogDescription>
+    <>
+      <DialogHeader>
+        <DialogTitle>Finish in your browser</DialogTitle>
+        <DialogDescription>
+          Checkout opened in your browser. Pay there, and you&rsquo;ll come
+          right back.
+        </DialogDescription>
+      </DialogHeader>
       <WaitingForStripeStatus
         isOpening={isOpening}
         onBack={onBack}
         onOpenAgain={onOpenAgain}
       />
-    </div>
+    </>
   );
 }
 
@@ -177,33 +177,27 @@ export function WaitingForStripeStatus({
   onOpenAgain: () => void;
 }) {
   return (
-    <>
+    <div className="flex flex-wrap items-center gap-3">
       <div
-        className="mt-8 flex items-center gap-2 text-[13px] text-muted-foreground"
+        className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground"
         data-waiting-for-stripe
       >
-        <span className="size-1.5 animate-pulse rounded-full bg-brand-500" />
+        <Spinner className="size-3.5" delay={0} />
         Waiting for Stripe
       </div>
-      <div className="mt-3 flex items-center gap-4">
-        <Button
-          className="h-auto p-0 text-[13px] font-medium text-muted-foreground underline decoration-foreground/20 underline-offset-4"
-          disabled={isOpening}
-          onClick={onOpenAgain}
-          variant="link"
-        >
-          Open it again
+      {onBack && (
+        <Button onClick={onBack} size="sm" variant="ghost">
+          Back
         </Button>
-        {onBack && (
-          <Button
-            className="h-auto p-0 text-[13px] font-medium text-muted-foreground"
-            onClick={onBack}
-            variant="link"
-          >
-            Back
-          </Button>
-        )}
-      </div>
-    </>
+      )}
+      <Button
+        disabled={isOpening}
+        onClick={onOpenAgain}
+        size="sm"
+        variant="outline"
+      >
+        Open it again
+      </Button>
+    </div>
   );
 }

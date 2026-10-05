@@ -3,6 +3,7 @@ import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { SettingsSection } from "@/client/components/settings/general-section";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import {
@@ -32,8 +33,13 @@ type Status = RPCOutput["billing"]["status"];
  * Signing in with ChatGPT is a provider, so it lives in Providers, not here.
  */
 export function UsageAndBillingSection() {
-  const { data: status, error, isLoading, isSignedIn, refetch } =
-    useBillingStatus();
+  const {
+    data: status,
+    error,
+    isLoading,
+    isSignedIn,
+    refetch,
+  } = useBillingStatus();
 
   if (!isSignedIn) {
     return (
@@ -127,11 +133,11 @@ function PlanGroup({ status }: { status: Status }) {
         <Card className="gap-0 overflow-hidden p-0">
           {paymentFailed && (
             <div
-              className="flex items-center gap-3 border-b border-border bg-warning-50 px-4 py-3 dark:bg-warning-900/30"
+              className="flex items-center gap-3 border-b border-border px-4 py-3"
               data-billing-row="payment-failed"
             >
               <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
-              <p className="min-w-0 flex-1 text-sm text-warning-700 dark:text-warning-300">
+              <p className="min-w-0 flex-1 text-sm">
                 Your payment didn&rsquo;t go through. {APP_NAME}&rsquo;s AI is
                 paused until it does.
               </p>
@@ -139,7 +145,6 @@ function PlanGroup({ status }: { status: Status }) {
                 disabled={portal.isPending}
                 onClick={openPortal}
                 size="sm"
-                variant="brand"
               >
                 Update card
               </Button>
@@ -184,11 +189,7 @@ function PlanGroup({ status }: { status: Status }) {
             detail="Your card and invoices, in Stripe"
             title="Payment method and invoices"
           >
-            <Button
-              disabled={portal.isPending}
-              onClick={openPortal}
-              size="sm"
-            >
+            <Button disabled={portal.isPending} onClick={openPortal} size="sm">
               Manage billing
             </Button>
           </Row>
@@ -221,7 +222,6 @@ function PlanGroup({ status }: { status: Status }) {
               openPlanSheet();
             }}
             size="sm"
-            variant={isTrial ? "default" : "brand"}
           >
             Choose a plan
           </Button>
@@ -331,15 +331,7 @@ function Meter({
           {shown}% used
         </span>
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/7 dark:bg-white/10">
-        <div
-          className={cn(
-            "h-full rounded-full",
-            isHigh ? "bg-warning-500" : "bg-brand-500",
-          )}
-          style={{ width: `${shown}%` }}
-        />
-      </div>
+      <Progress className="mt-1.5 h-1.5" value={shown} />
       <div className="mt-1 text-[11px] text-muted-foreground">{detail}</div>
     </div>
   );

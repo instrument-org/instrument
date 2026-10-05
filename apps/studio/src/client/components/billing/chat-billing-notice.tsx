@@ -11,12 +11,11 @@ import {
   usageWarningText,
 } from "@/client/lib/billing";
 import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
-import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -51,8 +50,12 @@ export function ChatBillingNotice({
   /** Sends the stopped turn again. */
   onContinue?: () => void;
 }) {
-  const { data: status, dataUpdatedAt, isSignedIn, refetch } =
-    useBillingStatus();
+  const {
+    data: status,
+    dataUpdatedAt,
+    isSignedIn,
+    refetch,
+  } = useBillingStatus();
   const { data: offer } = useQuery({
     ...rpcClient.billing.offer.queryOptions(),
     enabled: isSignedIn,
@@ -130,55 +133,47 @@ export function ChatBillingNotice({
   if (notice && noticeKey !== dismissedNotice) {
     const copy = noticeCopy(notice, now);
     const isGood = notice.kind === "resumed";
+    // Laid out against its own width: beside a narrow chat the button drops
+    // under the words rather than squeezing them into a column.
     return (
-      <div
-        className={cn(
-          "mb-2 flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 shadow-xs ring-1",
-          isGood
-            ? "ring-black/7 dark:ring-white/10"
-            : "ring-warning-300 dark:ring-warning-700",
-        )}
-        data-billing-notice={notice.kind}
-        role="status"
-      >
-        <span
-          className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-full",
-            isGood
-              ? "bg-brand-50 text-brand-700 dark:bg-brand-900 dark:text-brand-200"
-              : "bg-warning-50 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300",
-          )}
+      <div className="@container mb-1.5">
+        <div
+          className="flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-xl bg-muted/60 py-2 pr-1.5 pl-3"
+          data-billing-notice={notice.kind}
+          role="status"
         >
           {isGood ? (
-            <CheckIcon className="size-4" />
+            <CheckCircleIcon className="size-4 shrink-0 text-brand-600 dark:text-brand-300" />
           ) : (
-            <PauseIcon className="size-4" weight="fill" />
+            <PauseCircleIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
           )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold">{copy.title}</div>
-          <div className="text-xs text-muted-foreground">{copy.line}</div>
-        </div>
-        {copy.action && (
-          <Button
-            className="shrink-0 rounded-full px-4"
-            disabled={copy.action.kind === "update-card" && portal.isPending}
-            onClick={() => {
-              if (copy.action) {
-                act(copy.action.kind);
-              }
+          <div className="min-w-0 flex-1 @max-md:basis-[calc(100%-4rem)]">
+            <div className="text-[13px] font-medium text-foreground">
+              {copy.title}
+            </div>
+            <div className="text-xs text-muted-foreground">{copy.line}</div>
+          </div>
+          {copy.action && (
+            <Button
+              className="shrink-0 @max-md:order-last @max-md:ml-6.5"
+              disabled={copy.action.kind === "update-card" && portal.isPending}
+              onClick={() => {
+                if (copy.action) {
+                  act(copy.action.kind);
+                }
+              }}
+              size="sm"
+              variant={isGood ? "brand" : "default"}
+            >
+              {copy.action.label}
+            </Button>
+          )}
+          <DismissButton
+            onDismiss={() => {
+              setDismissedNotice(noticeKey);
             }}
-            size="sm"
-            variant="brand"
-          >
-            {copy.action.label}
-          </Button>
-        )}
-        <DismissButton
-          onDismiss={() => {
-            setDismissedNotice(noticeKey);
-          }}
-        />
+          />
+        </div>
       </div>
     );
   }
@@ -191,7 +186,7 @@ export function ChatBillingNotice({
     warning.kind === "trial" || upgradePlan(offer, status) !== undefined;
   return (
     <div
-      className="mb-2 flex h-8 items-center gap-2 rounded-lg bg-card/70 px-2.5 text-xs text-muted-foreground ring-1 ring-black/6 dark:ring-white/10"
+      className="mb-1.5 flex items-center gap-2 rounded-xl bg-muted/60 py-1 pr-1 pl-3 text-xs text-muted-foreground"
       data-billing-usage-warning={warning.kind}
       role="status"
     >
@@ -201,7 +196,7 @@ export function ChatBillingNotice({
       </span>
       {canGoUp && (
         <Button
-          className="h-auto shrink-0 p-0 text-xs font-semibold text-muted-foreground underline decoration-current/30 underline-offset-2"
+          className="h-auto shrink-0 p-0 text-xs font-medium text-foreground"
           onClick={() => {
             openPlanSheet({
               preselect:
@@ -226,14 +221,13 @@ export function ChatBillingNotice({
 
 function DismissButton({ onDismiss }: { onDismiss: () => void }) {
   return (
-    <Button
+    <button
       aria-label="Dismiss"
-      className="size-6 shrink-0 text-muted-foreground/70"
+      className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
       onClick={onDismiss}
-      size="icon-sm"
-      variant="ghost"
+      type="button"
     >
       <XIcon className="size-3.5" />
-    </Button>
+    </button>
   );
 }

@@ -1,6 +1,6 @@
 # Plan: one identity for a chat
 
-Status: completed. Steps 1 to 4 and 6 landed as written; step 5 landed for the workspace and `window.json` only (see Outcome).
+Status: completed. Steps 1 to 4 and 6 landed as written; step 5 landed for the workspace and `window.json` only (see Outcome), and the addendum below carries it to the window and the agent.
 
 ## Problem
 
@@ -20,6 +20,19 @@ Each step is one commit that leaves types and the workspace and studio suites gr
 ## Outcome
 
 Step 5 stopped short of the RPC surface. The window keys a chat's tab group, its `/chats/<id>` address, and its persisted tabs, compose entries and pane state by session id, and replies link chats as `instrument://chat/<session>`; the agent's `chat list` and chat context name chats the same way. Moving those to chat ids is a change to the window model (with a conversion of persisted renderer state and a reading of old links), which belongs with the tabs-and-history refactor rather than here. Until then `chats.*` take a session id and translate it once at the route.
+
+## Addendum: the window and the agent on chat ids
+
+Status: active.
+
+What step 5 left: the renderer and the routes still name a chat by its session. Each step below is one commit that keeps both packages' types and suites green.
+
+1. **Routes take the chat id.** `ChatSchema.id` is the `ChatId` and `sessionId` a field beside it; `taskId` goes. Every `chats.*` route takes `{ id: ChatId }`; `chats.of` becomes `chats.ofSession` (session to chat, for addresses written before), and `ensure` answers `{ id }`. Studio's call sites pass the chat's id; the window still keys by `chat.sessionId` in this step. The agent's `chat list` and the chat context note keep printing the session, so nothing the agent writes changes yet.
+2. **The window on chat ids.** A chat's group, its `/chats/<id>` address, `/tasks?chat=<id>`, compose entries, the chat group and pane state are keyed by `ChatId`, and the chat screen reads the session from the chat's record. Persisted renderer state written under session ids (`studio.app-tabs`, `studio.window-tabs`, `studio.compose`, `studio.chat-group`, `studio.pane-open`, `studio.drafts`, `studio.recents`) is converted once at window startup: each key's version is bumped, the old value rewritten with every chat session replaced by its chat id (an entry for a session that is no chat any more is dropped with it), and the old key removed. An address that names a chat by its session (`/chats/ses_…`, from a link in an older reply, a memory, or a notification) is resolved through `chats.ofSession` and opened at the chat's id. Main's notifications open `/chats/<chat id>`.
+3. **The agent on chat ids.** `chat list`, `read`, `search` and the chat context note print the chat id; `chat read` and `tag` also take a whole session id, since older transcripts name chats that way. The link instructions in the chat agent's prompt already say "by the id `chat list` prints", so they stand. Checks: the chat command tests; the chat eval case on Workers AI if credentials are at hand.
+4. **Docs.** `packages/workspace/AGENTS.md` (Records) and `system-overview.md` say the session is internal to a chat's store; this addendum's status goes to completed.
+
+Out of scope: memory files keep the session they recorded (`chat:`), which the window opens through the same session-to-chat resolution; rewriting stored transcripts.
 
 ## Constraints
 

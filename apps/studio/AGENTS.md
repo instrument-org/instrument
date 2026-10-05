@@ -28,7 +28,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - Route matching: `useMatchRoute`, never pathname strings.
 - After adding/removing/renaming files under `src/client/routes`, run `pnpm --filter @instrument-org/studio run routes:generate`. Don't hand-edit `routeTree.gen.ts`.
 - RPC types: `RPCInput`/`RPCOutput` from `@/client/rpc/client`. Never redeclare inferable types.
-- Persisted renderer state (`atomWithStorage`) takes a `studio.<name>.v<n>` key. The namespace keeps it apart from everything else sharing the origin; the version is what lets the value's meaning change later, since bumping it makes an old one ignored rather than read as something it is not. That failure is silent — a pane width stored in pixels and later read as a fraction is a pane a hundred times too small.
+- State a window keeps across launches is a `keptAtom` (`client/lib/kept-state.ts`), never `atomWithStorage` over `localStorage`. Its key is `<name>.v<n>`, registered in `shared/kept-state.ts` with the file it lives in under `<workspace>/.instrument/settings/`: `layout` (where the person left off), `drafts`, `bookmarks`, `history`, or `view` (how they like things laid out). The main process owns the files (`stores/workspace/kept-state.ts`), the preload reads them all before the first render, and writes go back over IPC, debounced and atomic, flushed on quit. The version is what lets the value's meaning change later, since bumping it makes an old one ignored rather than read as something it is not. That failure is silent — a pane width stored in pixels and later read as a fraction is a pane a hundred times too small. A value whose shape needs more than a check of its kind gets a `read` that validates it.
 
 ## Windows
 
@@ -37,7 +37,7 @@ Two top-level windows, each its own `BrowserWindow` / web contents, both loaded 
 - **app** — renders `<AppWindow />`: the app window (`windows/app-window.ts`), its tabs across the bar, each a router of its own kept mounted in one web contents. This is what "single web contents" below refers to. It has its own menu (`menus/app-window.ts`) and hosts every browser guest. Its screens are the routes under the pathless `client/routes/_app/` layout, drawn from `client/components/window/`; its state is in `client/atoms/window.ts`. A chat is a record under `chats/` and runs agent `instrument`; the window's own tabs and file views are scoped to `WINDOW_ID`, not to a record.
 - **onboarding** — renders `<App />`: a small (480×600), fixed-size, non-resizable "Welcome" window (`windows/onboarding.ts`) that runs the single-router onboarding flow at `/onboarding`. Shown before the app window on first run, while the app window loads off screen behind it (`warmAppWindowBehind`) and takes no asks until onboarding completes and puts it on screen; dismissing onboarding without completing quits the app.
 
-They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to the app window (tab commands, its chrome) must not assume it is running in the onboarding window.
+They share kept state (e.g. `zoomAtom`): the main process sends each window's writes to the other, so anything scoped to the app window (tab commands, its chrome) must not assume it is running in the onboarding window.
 
 Closing the last window quits the app on **every** platform, macOS included, and runs the same running-agent confirmation as Cmd+Q (`lib/quit-machine.ts`). Nothing outlives the last window; see `docs/decisions/2026-07-25-quit-when-the-last-window-closes.md`.
 

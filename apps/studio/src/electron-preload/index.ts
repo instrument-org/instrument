@@ -2,6 +2,7 @@ import {
   RESOLVE_THEME_CHANNEL,
   START_FILE_DRAG_CHANNEL,
 } from "@/shared/constants";
+import { KEPT_STATE_CHANNEL } from "@/shared/kept-state";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import os from "node:os";
@@ -52,9 +53,41 @@ function applyInitialTheme() {
 
 applyInitialTheme();
 
+/**
+ * Everything the windows keep, read synchronously so the first render has
+ * the tabs and drafts it was left with rather than defaults it swaps out. A
+ * failed read starts from the defaults, and the window's writes still land.
+ */
+function loadKeptState(): Record<string, unknown> {
+  try {
+    const value: unknown = ipcRenderer.sendSync(KEPT_STATE_CHANNEL.load);
+    if (value !== null && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value));
+    }
+  } catch {
+    // Starts from the defaults.
+  }
+  return {};
+}
+
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   homeDir: os.homedir(),
+  keptState: {
+    initial: loadKeptState(),
+    onChange: (listener) => {
+      const forward = (_event: unknown, key: string, value: unknown) => {
+        listener(key, value);
+      };
+      ipcRenderer.on(KEPT_STATE_CHANNEL.changed, forward);
+      return () => {
+        ipcRenderer.off(KEPT_STATE_CHANNEL.changed, forward);
+      };
+    },
+    set: (key, value) => {
+      ipcRenderer.send(KEPT_STATE_CHANNEL.set, key, value);
+    },
+  },
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.
   rendererLog: (entry) => {

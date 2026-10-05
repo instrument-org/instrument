@@ -12,7 +12,9 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom, type SetStateAction } from "jotai";
-import { atomFamily, atomWithStorage } from "jotai/utils";
+import { atomFamily } from "jotai/utils";
+
+import { keptAtom } from "@/client/lib/kept-state";
 
 /**
  * What the chat column is narrowed to.
@@ -38,12 +40,7 @@ export interface RecentEntry {
 
 export const RECENTS_MAX = 15;
 
-export const recentsAtom = atomWithStorage<RecentEntry[]>(
-  "studio.recents.v4",
-  [],
-  undefined,
-  { getOnInit: true },
-);
+export const recentsAtom = keptAtom<RecentEntry[]>("recents.v4", []);
 
 /**
  * What each screen shows, by the tab it is drawn in (one of the window's own
@@ -132,12 +129,7 @@ export function draftOfGroup(group: string | undefined): string | undefined {
  * Every draft not yet started, newest last, kept on this computer across
  * launches the way the tabs are: a draft put away is still in Drafts.
  */
-export const draftsAtom = atomWithStorage<Draft[]>(
-  "studio.drafts.v2",
-  [],
-  undefined,
-  { getOnInit: true },
-);
+export const draftsAtom = keptAtom<Draft[]>("drafts.v2", []);
 
 /** How long a draft's words are left alone before its record is written. */
 const DRAFT_WORDS_SETTLE_MS = 300;
@@ -223,12 +215,7 @@ export function composeKeyOf(entry: ComposeEntry): string {
  * launches, so what was floating when the app quit floats again; the drafts
  * themselves are in `draftsAtom`.
  */
-export const composeAtom = atomWithStorage<ComposeEntry[]>(
-  "studio.compose.v2",
-  [],
-  undefined,
-  { getOnInit: true },
-);
+export const composeAtom = keptAtom<ComposeEntry[]>("compose.v2", []);
 
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, the apps, and Discover. */
 export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
@@ -237,24 +224,14 @@ export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
  * The chat a tab last had open, so Chat in the rail takes a tab back to it.
  * Null for the inbox alone.
  */
-export const chatGroupAtom = atomWithStorage<null | string>(
-  "studio.chat-group.v2",
-  null,
-  undefined,
-  { getOnInit: true },
-);
+export const chatGroupAtom = keptAtom<null | string>("chat-group.v2", null);
 
 /**
  * Whether the inbox column is shown. Put away, a chat and its tabs have
  * the window to themselves; it comes back on its own when nothing is left
  * on screen without it.
  */
-export const inboxOpenAtom = atomWithStorage<boolean>(
-  "studio.inbox-open.v1",
-  true,
-  undefined,
-  { getOnInit: true },
-);
+export const inboxOpenAtom = keptAtom<boolean>("inbox-open.v1", true);
 
 /**
  * Whether each group's pane is open, by the chat's id or the draft's
@@ -262,19 +239,15 @@ export const inboxOpenAtom = atomWithStorage<boolean>(
  * by the toggle over it. A group not named here has its pane open, so a
  * chat whose agent opened something shows it on arrival.
  */
-export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
-  "studio.pane-open.v2",
+export const paneOpenByGroupAtom = keptAtom<Record<string, boolean>>(
+  "pane-open.v2",
   {},
-  undefined,
-  { getOnInit: true },
 );
 
 /** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
-export const paneShareAtom = atomWithStorage<number>(
-  "studio.pane-share.v1",
+export const paneShareAtom = keptAtom<number>(
+  "pane-share.v1",
   PANE_DEFAULT_SHARE,
-  undefined,
-  { getOnInit: true },
 );
 
 /** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
@@ -305,12 +278,7 @@ export interface VisitedPage {
 /** Enough history for the address field to finish the sites a person goes back to, which a page's handful of rows never needed. */
 export const VISITED_MAX = 500;
 
-export const visitedPagesAtom = atomWithStorage<VisitedPage[]>(
-  "studio.visited-pages.v1",
-  [],
-  undefined,
-  { getOnInit: true },
-);
+export const visitedPagesAtom = keptAtom<VisitedPage[]>("visited-pages.v1", []);
 
 /** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
 export interface FileTab {
@@ -403,11 +371,9 @@ export const SIDEBAR_WIDTH_MIN = 320;
 /** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
 export const SIDEBAR_WIDTH_MAX = 440;
 
-const storedInboxWidthAtom = atomWithStorage<number>(
-  "studio.inbox-width.v1",
+const storedInboxWidthAtom = keptAtom<number>(
+  "inbox-width.v1",
   SIDEBAR_WIDTH_MIN,
-  undefined,
-  { getOnInit: true },
 );
 
 /** The inbox column's width in CSS px, dragged by its right edge, and read within its widest whatever was stored. */
@@ -423,16 +389,14 @@ export const inboxWidthAtom = atom(
  * opens on it fresh: the one last chosen anywhere. Walking into such a folder
  * keeps whatever layout is on screen instead, the way a Finder window does.
  */
-export const computerViewAtom = atomWithStorage<
+export const computerViewAtom = keptAtom<
   "columns" | "gallery" | "icons" | "list"
->("studio.computer-view.v1", "columns", undefined, { getOnInit: true });
+>("computer-view.v1", "columns");
 
 /** Off by default, the way every file browser starts: a folder of dotfiles is a folder whose own contents are harder to find. */
-export const computerHiddenFilesAtom = atomWithStorage<boolean>(
-  "studio.computer-hidden-files.v1",
+export const computerHiddenFilesAtom = keptAtom<boolean>(
+  "computer-hidden-files.v1",
   false,
-  undefined,
-  { getOnInit: true },
 );
 
 /**
@@ -440,11 +404,9 @@ export const computerHiddenFilesAtom = atomWithStorage<boolean>(
  * layout above. The recents keep their own order, newest shown first, and do
  * not write here.
  */
-export const computerSortAtom = atomWithStorage<FileSystemSortState>(
-  "studio.computer-sort.v1",
+export const computerSortAtom = keptAtom<FileSystemSortState>(
+  "computer-sort.v1",
   { direction: "asc", key: "name" },
-  undefined,
-  { getOnInit: true },
 );
 
 /**
@@ -454,9 +416,9 @@ export const computerSortAtom = atomWithStorage<FileSystemSortState>(
  * either changes, so a folder's look is one thing rather than two halves
  * that each fall back on their own. The recents are kept under their root.
  */
-export const computerFolderViewsAtom = atomWithStorage<
+export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
->("studio.computer-folder-views.v1", {}, undefined, { getOnInit: true });
+>("computer-folder-views.v1", {});
 
 export interface ComputerFolderView {
   sort: FileSystemSortState;
@@ -467,12 +429,7 @@ export interface ComputerFolderView {
  * Whether a file tab shows the tree beside its document. One answer for
  * every file tab: the tree is a way of working, not a property of a file.
  */
-export const fileTreeOpenAtom = atomWithStorage<boolean>(
-  "studio.file-tree-open.v1",
-  true,
-  undefined,
-  { getOnInit: true },
-);
+export const fileTreeOpenAtom = keptAtom<boolean>("file-tree-open.v1", true);
 
 /**
  * Whether the Finder shows its sidebar of places beside the folder, where the
@@ -480,28 +437,19 @@ export const fileTreeOpenAtom = atomWithStorage<boolean>(
  * tree beside a file is. A narrow tab lays the places over the folder only
  * while asked for, whatever this says.
  */
-export const finderPlacesOpenAtom = atomWithStorage<boolean>(
-  "studio.finder-places-open.v1",
+export const finderPlacesOpenAtom = keptAtom<boolean>(
+  "finder-places-open.v1",
   true,
-  undefined,
-  { getOnInit: true },
 );
 
 /** How wide the Finder's sidebar is, in CSS px, dragged at its right edge. One width for every Finder. */
-export const finderPlacesWidthAtom = atomWithStorage<number>(
-  "studio.finder-places-width.v1",
+export const finderPlacesWidthAtom = keptAtom<number>(
+  "finder-places-width.v1",
   176,
-  undefined,
-  { getOnInit: true },
 );
 
 /** How wide the tree beside a file is, in CSS px, dragged at its right edge. One width for every file tab, as the tree is one way of working. */
-export const fileTreeWidthAtom = atomWithStorage<number>(
-  "studio.file-tree-width.v1",
-  240,
-  undefined,
-  { getOnInit: true },
-);
+export const fileTreeWidthAtom = keptAtom<number>("file-tree-width.v1", 240);
 
 /**
  * The elements screens draw a page's guest into, by the group the page's
@@ -528,26 +476,20 @@ export const pageSlotsAtom = atom<
  * The list view's columns beside Name, picked from its header's menu. One set
  * for every folder, the way the Finder's own defaults are one set.
  */
-export const computerListColumnsAtom = atomWithStorage<FileSystemListColumn[]>(
-  "studio.computer-list-columns.v1",
+export const computerListColumnsAtom = keptAtom<FileSystemListColumn[]>(
+  "computer-list-columns.v1",
   ["updatedAt", "size", "kind"],
-  undefined,
-  { getOnInit: true },
 );
 
 /** How wide the list view's columns beside Name are, in CSS px, dragged at their headers; a column left out is at its default. */
-export const computerListColumnWidthsAtom = atomWithStorage<
+export const computerListColumnWidthsAtom = keptAtom<
   Partial<Record<FileSystemListColumn, number>>
->("studio.computer-list-column-widths.v1", {}, undefined, {
-  getOnInit: true,
-});
+>("computer-list-column-widths.v1", {});
 
 /** How wide the columns view's columns are, in CSS px, dragged at any column's right edge. */
-export const computerColumnWidthAtom = atomWithStorage<number>(
-  "studio.computer-column-width.v1",
+export const computerColumnWidthAtom = keptAtom<number>(
+  "computer-column-width.v1",
   240,
-  undefined,
-  { getOnInit: true },
 );
 
 /** A page the user kept, shown on the browser's starting view. */
@@ -557,9 +499,4 @@ export interface Bookmark {
   url: string;
 }
 
-export const bookmarksAtom = atomWithStorage<Bookmark[]>(
-  "studio.bookmarks.v1",
-  [],
-  undefined,
-  { getOnInit: true },
-);
+export const bookmarksAtom = keptAtom<Bookmark[]>("bookmarks.v1", []);

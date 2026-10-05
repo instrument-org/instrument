@@ -2,6 +2,8 @@ import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { screen } from "electron";
 import Store from "electron-store";
 
+import { getKeptState } from "./kept-state";
+
 export interface WindowBounds {
   height: number;
   width: number;
@@ -21,7 +23,6 @@ interface StoredWindowState {
   windows?: Partial<
     Record<string, { bounds?: Partial<WindowBounds>; isMaximized?: boolean }>
   >;
-  zoom?: number;
 }
 
 interface WindowState {
@@ -63,14 +64,12 @@ function getStore(): Store<StoredWindowState> {
 const learnedWorkAreas = new Map<number, { height: number; width: number }>();
 
 /**
- * The app's UI zoom, as the renderer last reported it. The renderer owns the
- * value (`zoomAtom`, one setting shared by every window at the origin); the main
- * process keeps a copy so a window can place its macOS traffic lights for the
- * zoomed toolbar height at creation, rather than waiting for the renderer to
- * mount and report the zoom back.
+ * The app's UI zoom, as the windows keep it (`zoomAtom`), read here so a
+ * window can place its macOS traffic lights for the zoomed toolbar height at
+ * creation, rather than waiting for the renderer to mount and report it.
  */
 export function getAppZoom() {
-  const zoom = getStore().get("zoom");
+  const zoom = getKeptState("zoom.v1");
   return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
     ? zoom
     : 1;
@@ -122,10 +121,6 @@ export function rememberWorkAreaFromMaximized(bounds: WindowBounds) {
     height: bounds.height,
     width: bounds.width,
   });
-}
-
-export function setAppZoom(zoom: number) {
-  getStore().set("zoom", zoom);
 }
 
 export function setWindowState(name: WindowStateName, value: WindowState) {

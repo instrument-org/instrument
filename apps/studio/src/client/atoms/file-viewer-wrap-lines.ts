@@ -1,4 +1,4 @@
-import { atomWithStorage } from "jotai/utils";
+import { keptAtom } from "@/client/lib/kept-state";
 
 /**
  * Whether the file viewer wraps a long line rather than scrolling sideways.
@@ -7,7 +7,7 @@ import { atomWithStorage } from "jotai/utils";
  * real line structure wants it for the next file too, and having to set it
  * again on every open would be the annoying half of a toggle.
  */
-export const fileViewerWrapLinesAtom = atomWithStorage(
-  "studio.file-viewer-wrap-lines.v1",
+export const fileViewerWrapLinesAtom = keptAtom(
+  "file-viewer-wrap-lines.v1",
   true,
 );

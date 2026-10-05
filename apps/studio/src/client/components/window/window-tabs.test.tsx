@@ -4,7 +4,7 @@ import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import {
@@ -17,11 +17,6 @@ const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const OTHER = ChatIdSchema.parse("2026-10-02-trip");
 
 const TAB = TabIdSchema.parse("tab");
-
-// The tabs are kept in storage, which outlives each test's store.
-beforeEach(() => {
-  localStorage.clear();
-});
 
 /** A window whose tab up stands at an address, and its tabs as a component reads them. */
 function at(pathname: string) {

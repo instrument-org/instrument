@@ -33,9 +33,9 @@ let appSession: null | Session = null;
 
 /**
  * The Chromium profile the app and onboarding windows run on, inside the
- * workspace: its localStorage holds the window's tabs, drafts, bookmarks and
- * history, all of which point at this workspace's chats and pages, so two
- * workspaces never see each other's. The in-app browser has a profile of its
+ * workspace, so two workspaces never share cookies or caches. What the windows
+ * keep across launches is not here but in files the main process owns
+ * (`stores/workspace/kept-state.ts`). The in-app browser has a profile of its
  * own beside it (`browser-session`).
  */
 export function getAppSession(): Session {
@@ -114,8 +114,6 @@ function isAlive(pid: number): boolean {
     return true;
   } catch (error) {
     // EPERM: alive, just not ours to signal.
-    return (
-      error instanceof Error && "code" in error && error.code === "EPERM"
-    );
+    return error instanceof Error && "code" in error && error.code === "EPERM";
   }
 }

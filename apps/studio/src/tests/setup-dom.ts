@@ -1,4 +1,5 @@
 import { resetStudioModals } from "@/client/atoms/studio-modal";
+import { clearKeptState } from "@/client/lib/kept-state";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
@@ -15,6 +16,10 @@ afterEach(cleanup);
 // reach: a test that opened a modal would otherwise leave it open for the next
 // one, where it reads as a modal already blocking.
 afterEach(resetStudioModals);
+
+// What the windows keep across launches is one module's memory in tests, so
+// a test that opened a tab or set the zoom would hand it to the next one.
+afterEach(clearKeptState);
 
 // jsdom has no layout engine and so no ResizeObserver. A component that measures
 // itself would throw on construction here, which is a harsher failure than the

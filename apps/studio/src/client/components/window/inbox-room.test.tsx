@@ -2,18 +2,13 @@ import { inboxOpenAtom } from "@/client/atoms/window";
 import { renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { useInboxRoom } from "./inbox-room";
 
 const NEEDS = 600;
 const NARROW = 400;
 const WIDE = 1000;
-
-beforeEach(() => {
-  // The open atom is storage-backed with `getOnInit`.
-  localStorage.clear();
-});
 
 /**
  * Mounts the hook the way the chat does, in a store that outlives it, and

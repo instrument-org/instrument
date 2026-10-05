@@ -22,7 +22,6 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
@@ -436,14 +435,12 @@ const clearExceptions = base.input(z.void()).handler(() => {
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the band of
 // chrome above the UI, whose visual height scales with that zoom. One setting
-// shared by every window at the origin, so every window that draws such a band
-// is moved, whichever one reported it. The level is stored so the next window
-// can be created with the buttons already in the right place.
+// shared by every window, so every window that draws such a band is moved,
+// whichever one reported it.
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ input }) => {
     setTrafficLightForZoom(getAppWindow(), input.zoom);
-    setAppZoom(input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).

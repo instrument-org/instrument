@@ -15,6 +15,7 @@ import {
   sessionsInChatKeyedState,
 } from "./lib/chat-keyed-state";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
+import { importLocalStorage } from "./lib/kept-state";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
 import { initStudioDrive } from "./lib/studio-drive";
 import { rpcClient } from "./rpc/client";
@@ -65,6 +66,7 @@ async function start() {
   if (isAppWindow) {
     await convertKeptChatState();
   }
+  importLocalStorage(localStorage);
 
   let root = globalThis.__studioRoot;
   if (!root) {

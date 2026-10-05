@@ -36,6 +36,7 @@ import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
+import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { captureServerEvent } from "./capture-server-event";
@@ -235,6 +236,9 @@ export function createWorkspaceActor() {
         },
         exit: () => {
           actor.stop();
+          // app.exit skips everything after it, so what the windows wrote in
+          // the last moments goes to disk here.
+          flushKeptState();
           app.exit(quitExitCode());
         },
         reportBrowserSessionsTimeout: () => {

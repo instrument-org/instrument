@@ -76,7 +76,7 @@ function siteGroupOf(id: string): string {
  * apps or an app, Discover, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf("studio.app-tabs.v2", INBOX_HREF);
+export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands

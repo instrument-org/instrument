@@ -1,8 +1,8 @@
 import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
-import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { keptAtom } from "@/client/lib/kept-state";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
 import {
@@ -35,27 +35,26 @@ import {
 } from "./tab-model";
 import { sameHref } from "./window-href";
 
-const json = createJSONStorage<StoredWindowTabs>(() => localStorage);
-
 /**
  * The window's tabs, one list across every group, kept across launches on
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
-const storedTabsAtom = atomWithStorage<WindowTabs>(
-  "studio.window-tabs.v9",
+const storedTabsAtom = keptAtom<WindowTabs>(
+  "window-tabs.v9",
   { activeByGroup: {}, tabs: [] },
-  {
-    // Read as this build keeps them, whatever an earlier one wrote.
-    getItem: (key, initial) => normalizeWindowTabs(json.getItem(key, initial)),
-    removeItem: (key) => {
-      json.removeItem(key);
-    },
-    setItem: (key, value) => {
-      json.setItem(key, value);
-    },
-  },
-  { getOnInit: true },
+  // Read as this build keeps them, whatever an earlier one wrote.
+  (value, initial) =>
+    isStoredWindowTabs(value) ? normalizeWindowTabs(value) : initial,
 );
+
+/** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
+function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (!("tabs" in value) || Array.isArray(value.tabs))
+  );
+}
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */
 export const windowTabsAtom = atom((get) => get(storedTabsAtom));

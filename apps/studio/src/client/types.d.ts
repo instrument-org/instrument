@@ -13,6 +13,16 @@ declare global {
       // Fixed for the life of the process, so the preload hands it over once
       // rather than the renderer asking per path.
       homeDir: string;
+      // What the windows keep across launches (`client/lib/kept-state.ts`):
+      // every key as the window loaded, writes back to the main process, and
+      // the writes other windows make. Absent outside Electron.
+      keptState?: {
+        initial: Record<string, unknown>;
+        onChange: (
+          listener: (key: string, value: unknown) => void,
+        ) => () => void;
+        set: (key: string, value: unknown) => void;
+      };
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
       // Hand files to the OS as a native drag, by where they are on the

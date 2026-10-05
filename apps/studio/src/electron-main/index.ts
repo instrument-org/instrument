@@ -43,6 +43,7 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
+import { serveKeptState } from "./stores/workspace/kept-state";
 import {
   configureAppSession,
   waitForPreviousDevInstance,
@@ -200,6 +201,7 @@ async function bootstrapPrimaryInstance() {
   nativeTheme.on("updated", applyThemeToWindows);
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
+  serveKeptState();
   servePageEditorBoot();
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);

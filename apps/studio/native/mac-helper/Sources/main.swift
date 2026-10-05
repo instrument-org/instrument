@@ -7,6 +7,7 @@ import Foundation
 // and a non-zero exit.
 //
 //   instrument-mac contacts [--search <words>] [--limit <n>]
+//   instrument-mac access calendars|reminders|contacts [--request]
 //   instrument-mac calendars
 //   instrument-mac events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]
 //   instrument-mac reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]
@@ -202,7 +203,8 @@ let args = CommandLine.arguments.dropFirst()
 guard let command = args.first else {
   fail("Usage: instrument-mac calendars | events | reminders | add-event | add-reminder")
 }
-let given = options(args.dropFirst())
+// `access` names its kind outright; every other command takes --name value.
+let given = command == "access" ? [:] : options(args.dropFirst())
 
 switch command {
 case "calendars":
@@ -313,6 +315,50 @@ case "add-reminder":
   }
   emit(["added": title, "list": reminder.calendar.title])
 
+case "access":
+  // Where the user stands on one kind of data, for a page that asks ahead
+  // of the first task; --request raises the system's prompt when nobody has
+  // answered it yet.
+  let kind = args.dropFirst().first ?? ""
+  let request = args.contains("--request")
+  func named(_ granted: Bool) -> String { granted ? "allowed" : "denied" }
+  switch kind {
+  case "calendars", "reminders":
+    let entity: EKEntityType = kind == "calendars" ? .event : .reminder
+    var status = EKEventStore.authorizationStatus(for: entity)
+    if request && status == .notDetermined {
+      let granted =
+        (try? await (entity == .event
+          ? store.requestFullAccessToEvents() : store.requestFullAccessToReminders())) ?? false
+      status = granted ? .fullAccess : .denied
+    }
+    // A switch, not a table: .authorized is the old name of .fullAccess, and
+    // a dictionary literal holding both traps on the duplicate key.
+    let name: String
+    switch status {
+    case .fullAccess: name = "allowed"
+    case .writeOnly: name = "write-only"
+    case .denied: name = "denied"
+    case .restricted: name = "restricted"
+    case .notDetermined: name = "not-asked"
+    @unknown default: name = "unknown"
+    }
+    emit(["kind": kind, "status": name])
+  case "contacts":
+    var status = CNContactStore.authorizationStatus(for: .contacts)
+    if request && status == .notDetermined {
+      let granted = (try? await contactStore.requestAccess(for: .contacts)) ?? false
+      status = granted ? .authorized : .denied
+    }
+    let names: [CNAuthorizationStatus: String] = [
+      .authorized: "allowed", .denied: "denied", .restricted: "restricted",
+      .notDetermined: "not-asked",
+    ]
+    emit(["kind": kind, "status": names[status] ?? "unknown"])
+  default:
+    fail("access takes calendars, reminders, or contacts.")
+  }
+
 case "contacts":
   await requireContactsAccess()
   let keys: [CNKeyDescriptor] = [
@@ -355,6 +401,6 @@ case "contacts":
 
 default:
   fail(
-    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, or contacts."
+    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, contacts, or access."
   )
 }

@@ -232,12 +232,17 @@ const config: Configuration = {
       ? "build/entitlements.mac.preview.plist"
       : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
-    // The Mac helper behind the agent's `calendar` and `contacts` commands, built by
-    // `pnpm build:mac-helper` before packaging.
+    // Both halves of the Mac bridge (lib/mac-native.ts): the helper behind
+    // the agent's `calendar` and `contacts` commands and the module main
+    // loads, built by `pnpm build:mac-helper` before packaging.
     extraResources: [
       {
         from: "native/mac-helper/.build/out/Products/Release/instrument-mac",
         to: "bin/instrument-mac",
+      },
+      {
+        from: "native/mac-helper/.build/out/Products/Release/instrument-mac.node",
+        to: "bin/instrument-mac.node",
       },
     ],
     extendInfo: {

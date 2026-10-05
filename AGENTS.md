@@ -123,6 +123,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
 - `docs/architecture/releasing.md`: Where a build comes from and where it goes: cutting a tag, what it starts, where the artifacts land, the draft release, and the notes.
+- `docs/architecture/mac-native-bridge.md`: The Mac bridge: the in-process module and the helper process behind `lib/mac-native.ts`, which one a capability belongs in, and how to add one.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, Result + Zod tool conventions.

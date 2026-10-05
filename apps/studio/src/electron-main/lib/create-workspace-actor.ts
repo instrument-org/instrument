@@ -1,5 +1,6 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
+import { macHelperBinPath } from "@/electron-main/lib/mac-native";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -30,7 +31,6 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
@@ -65,28 +65,6 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-/** Where `pnpm build:mac-helper` leaves the helper in a checkout. */
-const UNPACKAGED_MAC_HELPER_BIN = path.resolve(
-  import.meta.dirname,
-  "../../native/mac-helper/.build/out/Products/Release/instrument-mac",
-);
-const MAC_HELPER_BIN_NAME = "instrument-mac";
-
-/**
- * The Mac helper behind the agent's `calendar` and `contacts` commands: in the app's
- * resources when packaged, from the Swift build in a checkout that has run
- * it, and on macOS only.
- */
-function macHelperBinPath(): string | undefined {
-  if (process.platform !== "darwin") {
-    return undefined;
-  }
-  const bin = app.isPackaged
-    ? path.join(process.resourcesPath, "bin", MAC_HELPER_BIN_NAME)
-    : UNPACKAGED_MAC_HELPER_BIN;
-  return existsSync(bin) ? bin : undefined;
-}
-
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
 

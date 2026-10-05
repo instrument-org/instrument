@@ -63,11 +63,11 @@ function chatRow(chat: Chat, names: Map<string, string>): string {
     })
     .join(" ");
   const columns = [
-    // Whole, never cut: a session id opens with its time, so the first
-    // characters of every chat from the same fortnight are the same ones,
-    // and an id printed short here is one that names nothing when it comes
-    // back, in a reference or in a link a reply writes.
-    chat.sessionId,
+    // Whole, never cut: a chat's id opens with its day, so the first
+    // characters of every chat from the same day are the same ones, and an
+    // id printed short here is one that names nothing when it comes back,
+    // in a reference or in a link a reply writes.
+    chat.id,
     chat.state,
     `"${chat.title}"`,
     ...(topics ? [topics] : []),
@@ -89,9 +89,11 @@ function failure(text: string) {
 }
 
 /**
- * The chat a reference names: a session id or the start of one, or words
- * from the title. One match is the chat; several are listed for the agent
- * to pick from, since guessing between them answers about the wrong one.
+ * The chat a reference names: its id or the start of one, or words from the
+ * title. A chat's session, or the start of one, names it too, since older
+ * transcripts and their links name chats that way. One match is the chat;
+ * several are listed for the agent to pick from, since guessing between them
+ * answers about the wrong one.
  */
 function findChat(
   chats: Chat[],
@@ -101,8 +103,12 @@ function findChat(
   if (!reference) {
     return { error: `which chat? ${CHAT_NAME} list lists them.` };
   }
-  const byId = chats.filter((chat) =>
-    chat.sessionId.toLowerCase().startsWith(reference.toLowerCase()),
+  const start = reference.toLowerCase();
+  const byId = chats.filter(
+    (chat) =>
+      chat.id.startsWith(start) ||
+      (start.startsWith("ses_") &&
+        chat.sessionId.toLowerCase().startsWith(start)),
   );
   if (byId.length === 1 && byId[0]) {
     return { chat: byId[0] };
@@ -122,7 +128,7 @@ function findChat(
     };
   }
   return {
-    error: `"${reference}" matches ${matches.length} chats; say which:\n${matches.map((chat) => `  ${chat.sessionId}  ${chat.title}`).join("\n")}`,
+    error: `"${reference}" matches ${matches.length} chats; say which:\n${matches.map((chat) => `  ${chat.id}  ${chat.title}`).join("\n")}`,
   };
 }
 
@@ -202,7 +208,7 @@ async function runRead(args: string[]) {
   return {
     exitCode: 0,
     stderr: "",
-    stdout: `${found.chat.sessionId}  "${found.chat.title}"\n${shown.join("\n")}\n`,
+    stdout: `${found.chat.id}  "${found.chat.title}"\n${shown.join("\n")}\n`,
   };
 }
 
@@ -216,7 +222,7 @@ async function runSearch(args: string[]) {
   for (const chat of chats) {
     for (const line of await lines(chat)) {
       if (line.toLowerCase().includes(words)) {
-        hits.push(`${chat.sessionId}  "${chat.title}"  ${line}`);
+        hits.push(`${chat.id}  "${chat.title}"  ${line}`);
       }
     }
   }

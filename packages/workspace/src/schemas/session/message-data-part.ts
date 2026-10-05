@@ -761,7 +761,7 @@ export namespace SessionMessageDataPart {
     chats: z.array(
       z.object({
         at: z.number(),
-        /** The session id, which a link to the chat carries; absent on a note stored before the agent could link one. */
+        /** The chat's id, which a link to the chat carries; a session id on a note stored before chats had ids of their own, and absent on one stored before the agent could link one. */
         id: z.string().optional(),
         latest: z.string().optional(),
         title: z.string(),

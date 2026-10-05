@@ -53,7 +53,6 @@ import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -96,11 +95,9 @@ type Item = Extract<Row, { type: "item" }>;
 export function CommandMenu({
   openPage,
   openScreen,
-  toggleInbox,
 }: {
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
-  toggleInbox: () => void;
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
@@ -160,13 +157,6 @@ export function CommandMenu({
       id: "new-tab",
       label: "New tab",
       run: shell.appTabs.openNewTab,
-    },
-    {
-      chord: WINDOW_SHORTCUTS.toggleInbox.accelerator,
-      icon: <SidebarSimpleIcon />,
-      id: "toggle-inbox",
-      label: "Toggle inbox",
-      run: toggleInbox,
     },
     {
       chord: SHORTCUTS.settings.accelerator,
@@ -477,7 +467,10 @@ export function CommandMenu({
       />
       <CommandList className="max-h-none! min-h-48 overflow-visible!">
         {rows.length > 0 ? (
-          <ResultRows rows={rows} />
+          // A list of its own per search: a fresh scroller starts at the top,
+          // where cmdk's pick of the first row then lands, rather than at
+          // wherever the last search's list was scrolled to.
+          <ResultRows key={words} rows={rows} />
         ) : fallback.isLooking ? (
           <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-4" />
@@ -504,6 +497,9 @@ function ResultRows({ rows }: { rows: Row[] }) {
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 36),
     getScrollElement: () => parentRef.current,
+    // Rows on the first render, before the scroller is measured, so cmdk
+    // finds the top row there when it picks one for the new search.
+    initialRect: { height: 384, width: 0 },
     // Layout px, not the on-screen rect: the menu sits inside CSS `zoom`.
     measureElement: (el) => el.offsetHeight,
     overscan: 8,

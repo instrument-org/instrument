@@ -2,17 +2,42 @@ import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { gatewayResponseBodySchema } from "./gateway-response-body";
+import { platformCodeSchema } from "./platform-code";
 
 type ErrorAction =
   | { error: Error; type: "error" }
   | { type: "continue" }
   | { type: "retry" }
-  | { type: "stop" };
+  | { type: "stop" }
+  | { type: "wait" };
+
+/**
+ * Our platform turning a request away because too many of the user's own
+ * requests are running at once. It clears when one of them finishes, which can
+ * take minutes rather than the seconds a retry's backoff allows for.
+ */
+function isOurConcurrencyLimit(message: SessionMessage.Assistant) {
+  const error = message.metadata.error;
+  if (
+    error?.kind !== "api-call" ||
+    !error.responseBody ||
+    message.metadata.aiGatewayModel?.params.provider !==
+      OUR_PROVIDER_CONFIG.type
+  ) {
+    return false;
+  }
+  const result = platformCodeSchema.safeParse(error.responseBody);
+  return result.success && result.data.error.code === "concurrency-limit";
+}
 
 export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   const error = message.metadata.error;
   if (!error) {
     return { type: "continue" };
+  }
+
+  if (isOurConcurrencyLimit(message)) {
+    return { type: "wait" };
   }
 
   // Retrying cannot help until the user frees space.

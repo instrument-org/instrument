@@ -551,6 +551,59 @@ describe("agentMachine", () => {
     `);
   });
 
+  // More refusals in a row than a retry's attempts allow: a wait for capacity
+  // spends none of them, so the turn still gets its answer.
+  it("waits out our platform's concurrency limit past the retry budget", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    const refused: SessionMessage.Assistant = {
+      ...createAssistantMessage(StoreId.newMessageId(), runSessionId),
+      metadata: {
+        ...createAssistantMessage(StoreId.newMessageId(), runSessionId)
+          .metadata,
+        aiGatewayModel: model,
+        error: {
+          classification: "rate-limit",
+          kind: "api-call",
+          message: "Too many requests",
+          name: "APIError",
+          responseBody: '{"error":{"code":"concurrency-limit"}}',
+          statusCode: 429,
+          url: "https://example.com",
+        },
+        finishReason: "error",
+      },
+    };
+    const answered = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    let requests = 0;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() => {
+            requests += 1;
+            return Promise.resolve({
+              message: requests <= 5 ? refused : answered,
+              parts: [],
+            });
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(() => Promise.resolve(false)),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(requests).toBe(6);
+  });
+
   it("reads nothing back when a completed turn leaves the queues empty", async () => {
     const runSessionId = StoreId.newSessionId();
     const parentMessageId = StoreId.newMessageId();

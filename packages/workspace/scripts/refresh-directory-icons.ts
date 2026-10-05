@@ -5,7 +5,8 @@
  * Each SVG is cleaned of anything that could run or reach out (scripts, event
  * handlers, links and references outside the file), padded to a square
  * viewBox, and, when the collection draws the mark separately for a dark
- * background, carries both halves behind a `prefers-color-scheme` switch. A
+ * background or the mark is one color a theme's ground would swallow,
+ * carries both halves behind a `prefers-color-scheme` switch. A
  * PNG is kept as fetched once it is square and at least 128px. A file that
  * comes out the same is left alone, and a file whose slug left the manifest
  * is removed, so a run with nothing upstream changed changes nothing.
@@ -30,6 +31,7 @@ import {
   directoryIconFileName,
 } from "../src/lib/apps/directory-icon";
 import { checkAppIcon } from "../src/lib/apps/icon";
+import { themeHalves } from "./lib/icon-contrast";
 
 const ICONS_DIR = path.resolve(
   import.meta.dirname,
@@ -197,13 +199,22 @@ function collectionBase(
   }
 }
 
+/**
+ * A mark with no dark version from its collection gets one made when it is
+ * a single color that one theme's ground would swallow (`icon-contrast.ts`).
+ */
 function svgIcon(light: string, dark?: string): { bytes: Buffer; kind: "svg" } {
-  const svg =
+  const cleaned = cleanSvg(light);
+  const halves =
     dark === undefined
-      ? squareSvg(cleanSvg(light))
+      ? themeHalves(cleaned)
+      : { dark: cleanSvg(dark), light: cleaned };
+  const svg =
+    halves === undefined
+      ? squareSvg(cleaned)
       : themedSvg(
-          squareSvg(scopeNames(cleanSvg(light), "l")),
-          squareSvg(scopeNames(cleanSvg(dark), "d")),
+          squareSvg(scopeNames(halves.light, "l")),
+          squareSvg(scopeNames(halves.dark, "d")),
         );
   return { bytes: Buffer.from(`${svg}\n`), kind: "svg" };
 }

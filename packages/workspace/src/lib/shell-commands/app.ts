@@ -10,8 +10,10 @@ import {
   type AppCatalogEntry,
   catalogEntryLocalServer,
   catalogEntryMacApp,
+  catalogEndpointNeedsClient,
   catalogEntryMcpEndpoint,
   findCatalogEntry,
+  getAppCatalog,
   searchAppCatalog,
   searchAppCatalogByMeaning,
 } from "../apps/catalog";
@@ -26,6 +28,7 @@ import {
   APP_MANIFEST_FILE_NAME,
   type AppManifest,
   AppManifestSchema,
+  type AppSlug,
   type CalledAppManifest,
   AppSlugSchema,
   isMcpManifest,
@@ -50,6 +53,7 @@ import {
   writeAppGuide,
 } from "../apps/store";
 import { checkAppIcon, writeAppIcon } from "../apps/icon";
+import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { boundaryContainmentNote, boundContent } from "../content-boundary";
 import { taskDir } from "../task-dir-utils";
@@ -273,25 +277,37 @@ function catalogKeyPlacement(auth: string | undefined): string | undefined {
  */
 function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   const mcp = catalogEntryMcpEndpoint(entry);
-  if (mcp) {
-    // A server that wants no sign-in, or a key rather than one, says so,
-    // since an MCP app defaults to a sign-in card.
-    const auth = entry.interfaces.find(
-      (surface) => surface.endpoint === mcp,
-    )?.auth;
-    const placement = auth === "none" ? "none" : catalogKeyPlacement(auth);
-    return placement === "none" ||
-      placement === "bearer" ||
-      placement?.startsWith("header:")
+  const mcpSurface = entry.interfaces.find(
+    (candidate) => candidate.endpoint === mcp,
+  );
+  // A server that wants no sign-in, or a key rather than one, says so,
+  // since an MCP app defaults to a sign-in card.
+  const placement =
+    mcpSurface?.auth === "none"
+      ? "none"
+      : catalogKeyPlacement(mcpSurface?.auth);
+  const isKey =
+    placement === "bearer" || placement?.startsWith("header:") === true;
+  if (mcp && !isKey) {
+    return placement === "none"
       ? { auth: placement, endpoint: mcp, kind: "mcp" }
       : { endpoint: mcp, kind: "mcp" };
+  }
+  // A server that wants a key is a way in only when the directory knows
+  // where the user makes one; otherwise the next way in is tried.
+  if (mcp && placement !== undefined && mcpSurface?.keyPage !== undefined) {
+    return { auth: placement, endpoint: mcp, kind: "mcp" };
   }
   const local = catalogEntryLocalServer(entry);
   if (local) {
     return { kind: "local", ...local };
   }
   for (const surface of entry.interfaces) {
-    if (surface.format === "mcp" || surface.endpoint === undefined) {
+    if (
+      surface.format === "mcp" ||
+      surface.endpoint === undefined ||
+      surface.keyPage === undefined
+    ) {
       continue;
     }
     const auth = catalogKeyPlacement(surface.auth);
@@ -314,7 +330,13 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
 /** The catalog, as lines: what each service is and how it is reached. */
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
-    const auth = surface.auth ? ` (${surface.auth})` : "";
+    // Said in words, so the endpoint is not mistaken for one to set up.
+    const auth =
+      surface.auth === "oauth-client"
+        ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
+        : surface.auth
+          ? ` (${surface.auth})`
+          : "";
     return `    ${surface.format.padEnd(9)} ${surface.endpoint ?? surface.package ?? surface.name}${auth}`;
   });
   const methods =
@@ -336,8 +358,15 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect: a task works in ${way.name} on this Mac with osascript, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
-            : `${start} --web ${way.url}  (on the web: every other way in needs a sign-in client ${APP_NAME} does not have yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
+            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
+  const keySurface =
+    way.kind === "mcp" || way.kind === "api"
+      ? entry.interfaces.find((surface) => surface.endpoint === way.endpoint)
+      : undefined;
+  const limits = entry.interfaces.find(
+    (surface) => surface.format === "mac-app",
+  )?.limits;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,
@@ -345,6 +374,12 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     `  auth: ${methods}`,
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     `  set up: ${howTo}`,
+    ...(keySurface?.keyPage
+      ? [
+          `  key: made at ${keySurface.keyPage}${keySurface.keySteps ? `: ${keySurface.keySteps}` : ""} The key card links there.`,
+        ]
+      : []),
+    ...(way.kind === "mac-app" && limits ? [`  limits: ${limits}`] : []),
   ].join("\n");
 }
 
@@ -751,6 +786,14 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
   const api = input.value("api");
   const local = input.value("local");
   const web = input.value("web");
+  if (
+    [mcp, api, local, web].filter(Boolean).length === 0 &&
+    input.value("mac-app") !== undefined
+  ) {
+    throw new Error(
+      `a Mac app a task drives with osascript needs no app folder and no \`${APP_COMMAND.name} new\`: brief a task to do what the user asked in it.`,
+    );
+  }
   if ([mcp, api, local, web].filter(Boolean).length !== 1) {
     throw new Error(
       "new takes exactly one of --mcp <url>, --api <base-url>, --local <package>, or --web <url>.",
@@ -835,6 +878,7 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
       `${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
     );
   }
+  await refuseWhatCannotConnect(slug, name, manifest);
   const guide = guideSkeleton(
     manifest,
     findCatalogEntry(
@@ -846,7 +890,16 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
           : undefined,
     ),
   );
-  await writeAppFolder({ appsDir, guide, manifest, slug });
+  // A guide written for another way in describes tools this one does not have.
+  const reachChanged =
+    existing.isOk() && existing.value.manifest.type !== manifest.type;
+  await writeAppFolder({
+    appsDir,
+    guide,
+    manifest,
+    replacesGuide: reachChanged,
+    slug,
+  });
   const prompts = guidePlaceholdersLeft(manifest, guide);
   // A key already in the store outlives the manifest that asked for it, so
   // rewriting one to try another auth placement costs the user nothing: the
@@ -873,8 +926,50 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
               ? credentialMovedMessage({ noun: "key", ...stored })
               : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
   return ok(
-    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
+}
+
+/**
+ * Refuses a set-up that is known not to connect, before any card is shown:
+ * a hosted MCP server whose sign-in takes only clients its vendor issued
+ * ahead of time (the directory's word for one it lists, the server's own
+ * metadata for one it does not), and a local server whose package its
+ * registry has never heard of.
+ */
+async function refuseWhatCannotConnect(
+  slug: AppSlug,
+  name: string,
+  manifest: AppManifest,
+) {
+  if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
+    const entry = findCatalogEntry(slug, manifest.url);
+    const site = entry ? (entry.home ?? `https://${entry.domain}`) : undefined;
+    const instead = `Set it up on the web instead: \`${APP_COMMAND.name} new ${slug} --name '${name}' --web ${site ?? "<the service's site>"}\`${entry ? `, or the way \`${APP_COMMAND.name} catalog ${entry.slug}\` says` : ""}.`;
+    const listed = getAppCatalog().some((candidate) =>
+      candidate.interfaces.some(
+        (surface) =>
+          surface.endpoint?.replace(/\/+$/, "") ===
+          manifest.url.replace(/\/+$/, ""),
+      ),
+    );
+    if (
+      catalogEndpointNeedsClient(manifest.url) ||
+      (!listed && (await mcpSignInSupport(manifest.url)) === "needs-client")
+    ) {
+      throw new Error(
+        `${manifest.url} signs in only with a client registered with its vendor ahead of time, which ${APP_NAME} does not have yet, so the sign-in card would fail. ${instead}`,
+      );
+    }
+  }
+  if (
+    manifest.type === "mcp-local" &&
+    (await packageExists(manifest.package, manifest.runtime)) === "missing"
+  ) {
+    throw new Error(
+      `${manifest.package} is not on ${manifest.runtime === "node" ? "npm" : "PyPI"}: there is no such package to install. Use the set-up line \`${APP_COMMAND.name} catalog\` gives for the service, and never a package name you have not seen in it or in the service's own docs.`,
+    );
+  }
 }
 
 async function runRequest(

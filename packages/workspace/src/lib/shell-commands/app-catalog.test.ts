@@ -136,7 +136,9 @@ describe("app catalog", () => {
 
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
     const text = await catalog("gmail");
-    expect(text).toContain("set up: nothing to connect: a task works in Mail");
+    expect(text).toContain(
+      "set up: nothing to connect, and no `app new`: when the user asks for something in Mail",
+    );
     expect(text).toContain("only when its account is added to Mail");
   });
 

@@ -7,6 +7,7 @@ export {
   catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
+  catalogKeyHelp,
   findCatalogEntry,
   getAppCatalog,
   searchAppCatalogByMeaning,

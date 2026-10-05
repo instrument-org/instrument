@@ -176,7 +176,7 @@
           "format": "mcp",
           "name": "Apify MCP server",
           "endpoint": "https://mcp.apify.com",
-          "auth": "api_key"
+          "auth": "oauth"
         }
       ],
       "home": "https://console.apify.com",
@@ -262,7 +262,8 @@
         {
           "format": "mac-app",
           "name": "Messages",
-          "bundleId": "com.apple.MobileSMS"
+          "bundleId": "com.apple.MobileSMS",
+          "limits": "Sending works: a task sends with osascript once macOS lets Instrument control Messages. Reading past messages does not: Messages' scripting cannot read its history, and the only ways to are Full Disk Access for Instrument (to read the Messages database, and with it every file) or Accessibility (to drive its window). Tell the user that before trying, and let them decide; never reach for either on your own."
         }
       ],
       "category": "mail",
@@ -353,7 +354,9 @@
           "format": "openapi",
           "name": "Asana REST API",
           "endpoint": "https://app.asana.com/api/1.0",
-          "auth": "pat"
+          "auth": "pat",
+          "keyPage": "https://app.asana.com/0/my-apps",
+          "keySteps": "Create a personal access token, name it Instrument, and copy it."
         }
       ],
       "home": "https://app.asana.com",
@@ -633,7 +636,9 @@
           "format": "mcp",
           "name": "Browserbase MCP server",
           "endpoint": "https://mcp.browserbase.com/mcp",
-          "auth": "api_key"
+          "auth": "api_key",
+          "keyPage": "https://www.browserbase.com/settings",
+          "keySteps": "Copy the API key from Settings."
         }
       ],
       "home": "https://www.browserbase.com/overview",
@@ -1133,7 +1138,7 @@
           "format": "mcp",
           "name": "ElevenLabs MCP server",
           "endpoint": "https://api.us.elevenlabs.io/v1/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
         }
       ],
       "category": "design",
@@ -1316,7 +1321,9 @@
           "format": "mcp",
           "name": "Firecrawl MCP server",
           "endpoint": "https://mcp.firecrawl.dev/v2/mcp",
-          "auth": "api_key"
+          "auth": "api_key",
+          "keyPage": "https://www.firecrawl.dev/app/api-keys",
+          "keySteps": "Copy your API key."
         }
       ],
       "home": "https://www.firecrawl.dev/app",
@@ -1370,7 +1377,9 @@
           "format": "openapi",
           "name": "Front REST API",
           "endpoint": "https://api2.frontapp.com",
-          "auth": "api_key"
+          "auth": "api_key",
+          "keyPage": "https://app.frontapp.com/settings/developers",
+          "keySteps": "An admin opens API Tokens, creates a token with access to resources, and copies it; it is shown once."
         }
       ],
       "docsUrl": "https://dev.frontapp.com/reference/introduction",
@@ -1437,7 +1446,9 @@
           "format": "openapi",
           "name": "GitHub REST API",
           "endpoint": "https://api.github.com",
-          "auth": "token"
+          "auth": "token",
+          "keyPage": "https://github.com/settings/personal-access-tokens/new",
+          "keySteps": "Name the token, choose the repositories and permissions it may use, generate it, and copy it."
         },
         {
           "format": "graphql",
@@ -1895,7 +1906,7 @@
           "format": "mcp",
           "name": "Instacart MCP server",
           "endpoint": "https://fig-mcp.instacart.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
         }
       ],
       "home": "https://www.instacart.com",
@@ -2663,16 +2674,6 @@
           "name": "Microsoft Graph",
           "endpoint": "https://graph.microsoft.com/v1.0",
           "auth": "oauth-client"
-        },
-        {
-          "format": "mac-app",
-          "name": "Microsoft Outlook",
-          "bundleId": "com.microsoft.Outlook"
-        },
-        {
-          "format": "mac-app",
-          "name": "Mail",
-          "bundleId": "com.apple.mail"
         }
       ],
       "category": "mail",
@@ -2699,7 +2700,9 @@
           "format": "mcp",
           "name": "Oxylabs MCP server",
           "endpoint": "https://mcp.oxylabs.io/mcp",
-          "auth": "api_key"
+          "auth": "header:X-Oxylabs-AI-Studio-Api-Key",
+          "keyPage": "https://aistudio.oxylabs.io/",
+          "keySteps": "Open Settings in AI Studio and copy the API key."
         }
       ],
       "home": "https://dashboard.oxylabs.io",
@@ -2777,7 +2780,7 @@
           "format": "mcp",
           "name": "PagerDuty MCP server",
           "endpoint": "https://mcp.pagerduty.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
         }
       ],
       "home": "https://www.pagerduty.com",
@@ -2896,7 +2899,7 @@
           "format": "mcp",
           "name": "PostHog MCP",
           "endpoint": "https://mcp.posthog.com/mcp",
-          "auth": "api_key"
+          "auth": "oauth"
         },
         {
           "format": "openapi",
@@ -3115,7 +3118,9 @@
           "format": "mcp",
           "name": "Render MCP server",
           "endpoint": "https://mcp.render.com/mcp",
-          "auth": "api_key"
+          "auth": "api_key",
+          "keyPage": "https://dashboard.render.com/u/settings#api-keys",
+          "keySteps": "Under API Keys, create a key and copy it; it is shown once."
         }
       ],
       "home": "https://dashboard.render.com",
@@ -3170,7 +3175,9 @@
           "format": "openapi",
           "name": "Resend REST API",
           "endpoint": "https://api.resend.com",
-          "auth": "api_key"
+          "auth": "api_key",
+          "keyPage": "https://resend.com/api-keys",
+          "keySteps": "Create an API key and copy it."
         }
       ],
       "docsUrl": "https://resend.com/docs",
@@ -3653,7 +3660,7 @@
           "format": "mcp",
           "name": "Stripe MCP",
           "endpoint": "https://mcp.stripe.com",
-          "auth": "mixed"
+          "auth": "oauth"
         },
         {
           "format": "openapi",
@@ -3790,7 +3797,7 @@
           "format": "mcp",
           "name": "Tavily MCP server",
           "endpoint": "https://mcp.tavily.com/mcp",
-          "auth": "api_key"
+          "auth": "oauth"
         }
       ],
       "home": "https://app.tavily.com",
@@ -3818,11 +3825,6 @@
           "name": "Microsoft Graph",
           "endpoint": "https://graph.microsoft.com/v1.0",
           "auth": "oauth-client"
-        },
-        {
-          "format": "mac-app",
-          "name": "Microsoft Teams",
-          "bundleId": "com.microsoft.teams2"
         }
       ],
       "category": "mail",
@@ -3843,7 +3845,7 @@
           "format": "mcp",
           "name": "Thumbtack MCP server",
           "endpoint": "https://mcp.thumbtack.com/mcp",
-          "auth": "none"
+          "auth": "oauth-client"
         }
       ],
       "home": "https://www.thumbtack.com",
@@ -4094,7 +4096,9 @@
           "format": "openapi",
           "name": "WakaTime API v1",
           "endpoint": "https://api.wakatime.com/api/v1",
-          "auth": "basic"
+          "auth": "basic",
+          "keyPage": "https://wakatime.com/api-key",
+          "keySteps": "Copy your secret API key."
         }
       ],
       "docsUrl": "https://wakatime.com/developers",
@@ -4281,7 +4285,7 @@
           "format": "mcp",
           "name": "Zapier MCP server",
           "endpoint": "https://mcp.zapier.com/api/mcp/mcp",
-          "auth": "api_key"
+          "auth": "oauth"
         }
       ],
       "home": "https://zapier.com/app",

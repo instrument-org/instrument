@@ -6,15 +6,23 @@ import {
 } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
+import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { loadApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { knowTask } from "../../test/helpers/mock-task-config";
+
+// The checks that ask a server or a registry answer "can't tell" unless a
+// case says otherwise, so no test reaches the network.
+vi.mock("../apps/preflight", () => ({
+  mcpSignInSupport: vi.fn(() => Promise.resolve("unknown")),
+  packageExists: vi.fn(() => Promise.resolve("unknown")),
+}));
 
 const taskId = TaskIdSchema.parse("app-new-task");
 const apps = getWorkspaceConfig().apps;
@@ -290,9 +298,11 @@ describe("app test and the guide skeleton", () => {
     // offers a sign-in the server cannot do.
     ["render", "--mcp https://mcp.render.com/mcp --auth bearer"],
     // One whose sign-in needs a client Instrument has not registered falls
-    // through to the key that works.
-    ["slack", "--api https://slack.com/api --auth bearer"],
-    ["hubspot", "--api https://api.hubapi.com --auth bearer"],
+    // through to a key the user can make on a page the directory names...
+    ["asana", "--api https://app.asana.com/api/1.0 --auth bearer"],
+    // ...and past a token that takes building an app first, to the web.
+    ["slack", "--web https://app.slack.com"],
+    ["hubspot", "--web https://app.hubspot.com"],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {
@@ -490,5 +500,83 @@ describe("app new --web", () => {
       "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: brief a task with https://zoom.us, or hand it a tab already open there with \`task new --tab <id>\`.
       "
     `);
+  });
+});
+
+describe("app new refuses what cannot connect", () => {
+  it("refuses a listed server whose sign-in needs a registered client", async () => {
+    const result = await app(
+      "new",
+      "slack",
+      "--name",
+      "Slack",
+      "--mcp",
+      "https://mcp.slack.com/mcp",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "signs in only with a client registered with its vendor ahead of time",
+    );
+    expect(result.stderr).toContain("--web https://app.slack.com");
+    expect((await loadApp(getWorkspaceConfig().appsDir, "slack")).isErr()).toBe(
+      true,
+    );
+  });
+
+  it("refuses an unlisted server whose metadata offers no registration", async () => {
+    vi.mocked(mcpSignInSupport).mockResolvedValueOnce("needs-client");
+
+    const result = await app(
+      "new",
+      "acme",
+      "--name",
+      "Acme",
+      "--mcp",
+      "https://mcp.acme.example/mcp",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--web <the service's site>");
+  });
+
+  it("refuses a local server whose package does not exist", async () => {
+    vi.mocked(packageExists).mockResolvedValueOnce("missing");
+
+    const result = await app(
+      "new",
+      "apple-messages",
+      "--name",
+      "Apple Messages",
+      "--local",
+      "@modelcontextprotocol/server-apple-messages",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("is not on npm");
+  });
+
+  it("rewrites the guide when the way in changes", async () => {
+    await app(
+      "new",
+      "switcher",
+      "--name",
+      "Switcher",
+      "--mcp",
+      "https://mcp.switcher.example/mcp",
+    );
+    const before = await guideOf("switcher");
+
+    await app(
+      "new",
+      "switcher",
+      "--name",
+      "Switcher",
+      "--web",
+      "https://switcher.example",
+      "--force",
+    );
+
+    expect(await guideOf("switcher")).not.toBe(before);
   });
 });

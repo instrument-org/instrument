@@ -63,6 +63,17 @@ const AppCatalogEntrySchema = z.object({
       bundleId: z.string().optional(),
       endpoint: z.string().optional(),
       format: z.string(),
+      /**
+       * For a key or token, the page where the account holder makes one. A
+       * key is offered as the way in only with it, since a key the user
+       * cannot find (a bot token that takes building an app first) strands
+       * them at the card.
+       */
+      keyPage: z.string().optional(),
+      /** What to do on `keyPage`, in a sentence the key card shows. */
+      keySteps: z.string().optional(),
+      /** For the Mac's own app, what a task can and cannot do in it, said before it tries. */
+      limits: z.string().optional(),
       name: z.string(),
       /** For a server that runs on this machine, what to install. */
       package: z.string().optional(),
@@ -132,6 +143,37 @@ export function catalogEntryMcpEndpoint(
       surface.endpoint &&
       surface.auth !== NEEDS_REGISTERED_CLIENT,
   )?.endpoint;
+}
+
+/** Whether an endpoint is one the directory knows needs a registered sign-in client. */
+export function catalogEndpointNeedsClient(endpoint: string): boolean {
+  const bare = endpoint.replace(/\/+$/, "");
+  return getAppCatalog().some((entry) =>
+    entry.interfaces.some(
+      (surface) =>
+        surface.auth === NEEDS_REGISTERED_CLIENT &&
+        surface.endpoint?.replace(/\/+$/, "") === bare,
+    ),
+  );
+}
+
+/**
+ * Where the key for an app's endpoint is made, and what to do there, when
+ * the directory knows: what the key card shows beside the field.
+ */
+export function catalogKeyHelp(
+  slug: string,
+  endpoint: string,
+): undefined | { page: string; steps?: string } {
+  const surface = findCatalogEntry(slug, endpoint)?.interfaces.find(
+    (candidate) => candidate.keyPage !== undefined,
+  );
+  return surface?.keyPage
+    ? {
+        page: surface.keyPage,
+        ...(surface.keySteps ? { steps: surface.keySteps } : {}),
+      }
+    : undefined;
 }
 
 /** True when an entry offers a simple key or token path beside OAuth. */

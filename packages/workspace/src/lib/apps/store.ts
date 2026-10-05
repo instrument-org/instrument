@@ -204,11 +204,14 @@ export async function writeAppFolder({
   appsDir,
   guide,
   manifest,
+  replacesGuide = false,
   slug,
 }: {
   appsDir: AbsolutePath;
   guide: string;
   manifest: AppManifest;
+  /** Writes the guide over one already there, for a manifest that reaches the service another way. */
+  replacesGuide?: boolean;
   slug: AppSlug;
 }): Promise<AbsolutePath> {
   const dir = absolutePathJoin(appsDir, slug);
@@ -219,7 +222,7 @@ export async function writeAppFolder({
     "utf8",
   );
   const guidePath = path.join(dir, APP_GUIDE_FILE_NAME);
-  if ((await readAppGuide(dir)) === null) {
+  if (replacesGuide || (await readAppGuide(dir)) === null) {
     await fs.writeFile(guidePath, guide, "utf8");
   }
   return dir;

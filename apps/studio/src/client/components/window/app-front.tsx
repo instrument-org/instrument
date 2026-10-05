@@ -18,6 +18,7 @@ import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   AppInspector,
@@ -70,9 +71,11 @@ export function AppFront({
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const app = list.data?.apps.find((entry) => entry.slug === slug);
   const entry = catalog.data?.find((candidate) => candidate.slug === slug);
-  const name = app?.name ?? entry?.name ?? slug;
-  const site = app?.site ?? (entry ? `https://${entry.domain}` : undefined);
-  const icon = app?.icon ?? entry?.icon;
+  // Drawn as every other surface draws the app, the chip and the tab included.
+  const drawn = useAppsBySlug().get(slug);
+  const name = drawn?.name ?? slug;
+  const site = drawn?.site;
+  const icon = drawn?.icon;
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
   // Worked on its own site in the window's browser: the site is the app, so

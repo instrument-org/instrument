@@ -96,8 +96,8 @@ const AppListItemSchema = z.object({
 });
 
 /**
- * The app's own icon, else its Mac app's, else the directory's for the service
- * it reaches; none leaves the site's to draw.
+ * The app's own icon, else its Mac app's, else the icon the directory's entry
+ * for the service it reaches is drawn with; none leaves the site's to draw.
  */
 async function iconFor(app: {
   dir: Parameters<typeof findAppIcon>[0];
@@ -121,7 +121,7 @@ async function iconFor(app: {
     app.slug,
     app.manifest.type === "mcp" ? app.manifest.url : undefined,
   );
-  const directory = entry ? await directoryIconFor(entry.slug) : undefined;
+  const directory = entry ? await catalogIconFor(entry) : undefined;
   return directory ? { icon: directory } : {};
 }
 
@@ -227,12 +227,20 @@ const catalogByMeaning = base
     return Promise.all(meant.map(withIcon));
   });
 
-/** A directory entry with the icon the build ships for it, or its Mac app's. */
+/** A directory entry with the icon it is drawn with. */
 async function withIcon(entry: ReturnType<typeof getAppCatalog>[number]) {
-  return {
-    ...entry,
-    icon: (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry)),
-  };
+  return { ...entry, icon: await catalogIconFor(entry) };
+}
+
+/**
+ * The icon a directory entry is drawn with: the one the build ships for it, or
+ * its Mac app's. An app connected from the entry falls back to the same one,
+ * so the service looks the same before and after it is connected.
+ */
+async function catalogIconFor(
+  entry: ReturnType<typeof getAppCatalog>[number],
+): Promise<string | undefined> {
+  return (await directoryIconFor(entry.slug)) ?? (await macAppIconFor(entry));
 }
 
 /**

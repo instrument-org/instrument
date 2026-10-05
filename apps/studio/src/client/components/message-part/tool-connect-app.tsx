@@ -1,4 +1,5 @@
 import { AppIcon } from "@/client/components/window/app-icon";
+import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { thisComputer } from "@/client/components/window/computer-name";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
@@ -54,6 +55,8 @@ function ConnectCard({
   // writes, which is what settles the card.
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const app = apps.data?.apps.find((entry) => entry.slug === slug);
+  // Its face as every other surface draws it, which outlives a removed app.
+  const drawn = useAppsBySlug().get(slug);
   // A card from an earlier session may outlive its app: removed, or renamed
   // since. It says so rather than offering a sign-in to nothing.
   const removed = apps.data !== undefined && app === undefined;
@@ -74,7 +77,7 @@ function ConnectCard({
     <ToolCard>
       <ToolCardSection borderBottom={Boolean(detail)} collapsedHeight={320}>
         <div className="flex items-center gap-3">
-          <AppIcon icon={app?.icon} name={name} site={site} />
+          <AppIcon icon={drawn?.icon} name={name} site={drawn?.site ?? site} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">
               {kind === "sign-in"

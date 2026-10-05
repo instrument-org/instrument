@@ -2,9 +2,10 @@
  * Billing end to end, driven through a real Studio instance against a local
  * API: a fresh user's trial starts on their first hosted request, runs out
  * into 402 subscription-required, Stripe Checkout (test mode, card 4242)
- * subscribes them to plan_10, the webhook flips their status, the 5h window
+ * subscribes them to the lower plan, the webhook flips their status, the 5h window
  * fills into 429 usage-limit-exceeded with Retry-After, an operator reset
- * reopens it, and the Customer Portal switches them to plan_40 and cancels.
+ * reopens it, billing.changePlan moves them to the higher plan, and the
+ * Customer Portal cancels.
  * Every step is asserted against the API and against what Studio's billing
  * debug page shows, and the page is captured per step.
  *
@@ -437,10 +438,31 @@ function payWithTestCard(browser: Browser, url: string) {
     await page.locator("#cardCvc").fill("123");
     await page.locator("#billingName").fill("Billing E2E");
     await page.locator("#billingCountry").selectOption("US");
+    // Stripe Managed Payments computes tax, so Checkout asks for the whole
+    // address rather than the postal code alone.
+    const manual = page.getByText("Enter address manually");
+    if (await manual.isVisible()) {
+      await manual.click();
+    }
+    for (const [selector, value] of [
+      ["#billingAddressLine1", "354 Oyster Point Blvd"],
+      ["#billingLocality", "South San Francisco"],
+    ] as const) {
+      const field = page.locator(selector);
+      if (await field.isVisible()) {
+        await field.fill(value);
+      }
+    }
+    const area = page.locator("#billingAdministrativeArea");
+    if (await area.isVisible()) {
+      await area.selectOption("CA");
+    }
     const postal = page.locator("#billingPostalCode");
     if (await postal.isVisible()) {
       await postal.fill("94103");
     }
+    // Tax is worked out from the address before the button takes a press.
+    await page.waitForTimeout(5000);
     // Link would ask for a phone number to save the card.
     const link = page.locator("#enableStripePass");
     if (await link.isChecked().catch(() => false)) {
@@ -452,39 +474,6 @@ function payWithTestCard(browser: Browser, url: string) {
     );
     await page.locator("button[type=submit]").click();
     await succeeded;
-  });
-}
-
-function portalSwitchPlan(browser: Browser, url: string, planName: string) {
-  return onPage(browser, url, "portal-switch", async (page) => {
-    await page
-      .getByRole("link", { name: /update subscription|update plan/i })
-      .or(
-        page.getByRole("button", { name: /update subscription|update plan/i }),
-      )
-      .first()
-      .click();
-    // The current plan's button reads "Selected"; the other one "Select".
-    await page
-      .locator("div", { hasText: planName })
-      .filter({
-        has: page.getByRole("button", { exact: true, name: "Select" }),
-      })
-      .last()
-      .getByRole("button", { exact: true, name: "Select" })
-      .click();
-    await page
-      .getByRole("button", { name: /continue/i })
-      .first()
-      .click();
-    await page
-      .getByRole("button", { name: /confirm/i })
-      .first()
-      .click();
-    // Done once the portal leaves the update flow.
-    await page.waitForURL((address) => !address.pathname.includes("/update"), {
-      timeout: 60_000,
-    });
   });
 }
 
@@ -514,6 +503,10 @@ async function main() {
   let token = "";
   let userId = "";
   let modelURI = "";
+  // The offered plans, smallest allowance first, read from the offer rather
+  // than named here: their keys and names belong to the catalog.
+  let lowerPlan = "";
+  let higherPlan = "";
 
   const burn = async (usd: number) =>
     BurnSchema.parse(await studioRpc(app, "billing.dev.burn", { usd }));
@@ -610,6 +603,23 @@ async function main() {
         models.find((model) => model.providerId === "instrument/auto")?.uri ??
         "";
       assert(modelURI, "Auto is not in Studio's model list");
+      const offered = z
+        .object({
+          plans: z.array(
+            z.looseObject({
+              allowance: z.looseObject({ multiple: z.number() }),
+              key: z.string(),
+            }),
+          ),
+        })
+        .parse(await studioRpc(app, "billing.offer"))
+        .plans.toSorted((a, b) => a.allowance.multiple - b.allowance.multiple);
+      lowerPlan = offered[0]?.key ?? "";
+      higherPlan = offered.at(-1)?.key ?? "";
+      assert(
+        lowerPlan && higherPlan !== lowerPlan,
+        "the offer lists fewer than two plans",
+      );
       return modelURI;
     },
   );
@@ -691,28 +701,28 @@ async function main() {
   );
 
   await step(
-    "Stripe Checkout with 4242 subscribes to plan_10 by webhook",
+    "Stripe Checkout with 4242 subscribes to the lower plan by webhook",
     async () => {
       const { url } = z
         .object({ url: z.string() })
         .parse(
-          await userRpc(token, "billing/createCheckout", { plan: "plan_10" }),
+          await userRpc(token, "billing/createCheckout", { plan: lowerPlan }),
         );
       assert(url.startsWith("https://checkout.stripe.com"), url);
       await payWithTestCard(browser, url);
       const current = await eventually(
         async () => {
           const next = await status();
-          assert(next.plan === "plan_10", `plan ${next.plan}`);
+          assert(next.plan === lowerPlan, `plan ${next.plan}`);
           return next;
         },
         { every: 1000, timeout: 60_000 },
       );
       const api = StatusSchema.parse(await userRpc(token, "billing/status"));
-      assert(api.plan === "plan_10", `API plan ${api.plan}`);
-      const page = await capturePage(app, "plan-10");
+      assert(api.plan === lowerPlan, `API plan ${api.plan}`);
+      const page = await capturePage(app, "lower-plan");
       assert(
-        page.status.plan === "plan_10",
+        page.status.plan === lowerPlan,
         `page plan ${String(page.status.plan)}`,
       );
       assert(
@@ -724,7 +734,7 @@ async function main() {
   );
 
   await step(
-    "a real call on plan_10 settles and carries no cost to Studio",
+    "a real call on the lower plan settles and carries no cost to Studio",
     async () => {
       if (!flags["real-calls"]) {
         return "skipped (--no-real-calls)";
@@ -821,31 +831,23 @@ async function main() {
     return `burn answered ${result.status}; page 5h ${String(page.windows["5h"]?.[1])}`;
   });
 
-  await step("the Customer Portal switches the plan to plan_40", async () => {
-    const { url } = z
-      .object({ url: z.string() })
-      .parse(await userRpc(token, "billing/createPortal"));
-    const offer = z
-      .object({
-        plans: z.array(z.looseObject({ key: z.string(), name: z.string() })),
-      })
-      .parse(await userRpc(token, "billing/offer"));
-    const name =
-      offer.plans.find((plan) => plan.key === "plan_40")?.name ?? "$40";
-    await portalSwitchPlan(browser, url, name);
+  await step("billing.changePlan switches to the higher plan", async () => {
+    const result = z
+      .object({ plan: z.string().nullable(), status: z.string() })
+      .parse(await studioRpc(app, "billing.changePlan", { plan: higherPlan }));
     await eventually(
       async () => {
         const current = await status();
-        assert(current.plan === "plan_40", `plan ${current.plan}`);
+        assert(current.plan === higherPlan, `plan ${current.plan}`);
       },
       { every: 1000, timeout: 60_000 },
     );
-    const page = await capturePage(app, "plan-40");
+    const page = await capturePage(app, "higher-plan");
     assert(
-      page.status.plan === "plan_40",
+      page.status.plan === higherPlan,
       `page plan ${String(page.status.plan)}`,
     );
-    return `switched to ${name}`;
+    return `${result.status}, now ${higherPlan}`;
   });
 
   await step(

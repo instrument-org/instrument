@@ -1,4 +1,5 @@
 import { BROWSER_HREF, CHATS_HREF, NEW_TAB_HREF } from "@/client/atoms/window";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
@@ -11,9 +12,7 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -131,7 +130,10 @@ export function screenPresentation(
     };
   }
   if (pathname === BROWSER_HREF) {
-    return { icon: <GlobeIcon className="size-3.5" />, title: "Browser" };
+    return {
+      icon: <PlaceIcon className="size-3.5" place="browser" />,
+      title: "Browser",
+    };
   }
   if (pathname === "/files") {
     const file = search.get("file");
@@ -167,16 +169,22 @@ export function screenPresentation(
     };
   }
   if (pathname === "/apps") {
-    return { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
+    return {
+      icon: <PlaceIcon className="size-3.5" place="apps" />,
+      title: "Apps",
+    };
   }
   if (pathname.startsWith(`${DISCOVER_HREF}/`)) {
     return {
-      icon: <CompassIcon className="size-3.5" />,
+      icon: <PlaceIcon className="size-3.5" place="discover" />,
       title: ideaTitleOf(pathname.slice(DISCOVER_HREF.length + 1)),
     };
   }
   if (pathname === DISCOVER_HREF) {
-    return { icon: <CompassIcon className="size-3.5" />, title: "Discover" };
+    return {
+      icon: <PlaceIcon className="size-3.5" place="discover" />,
+      title: "Discover",
+    };
   }
   if (pathname === "/debug" || pathname.startsWith("/debug/")) {
     return {

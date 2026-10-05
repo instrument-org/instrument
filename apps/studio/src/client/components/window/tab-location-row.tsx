@@ -1,4 +1,5 @@
 import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -17,13 +18,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
 import { expandHomePath } from "@instrument-org/shared";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -399,7 +398,10 @@ function locationMark(location: TabLocation): ReactNode {
     }
     case "apps": {
       return (
-        <AppWindowIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <PlaceIcon
+          className="size-3.5 shrink-0 text-muted-foreground"
+          place="apps"
+        />
       );
     }
     case "chat": {
@@ -420,7 +422,10 @@ function locationMark(location: TabLocation): ReactNode {
     case "discover":
     case "idea": {
       return (
-        <CompassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <PlaceIcon
+          className="size-3.5 shrink-0 text-muted-foreground"
+          place="discover"
+        />
       );
     }
     case "newTab": {

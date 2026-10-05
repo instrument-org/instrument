@@ -1,7 +1,7 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
-import { FinderIcon } from "@/client/components/icons/finder-icon";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import {
   Avatar,
   AvatarFallback,
@@ -10,66 +10,22 @@ import {
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
-import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ReactNode } from "react";
 
 /**
  * The places, in the order the rail draws them, each drawn filled while it
  * is the place stood in.
  */
-const PLACES: {
-  icon: (isOn: boolean) => ReactNode;
-  id: AppPlace;
-  label: string;
-}[] = [
-  {
-    icon: (isOn) => (
-      <ChatCircleIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-    ),
-    id: "chat",
-    label: "Chat",
-  },
-  {
-    // The Finder's face on the Mac, where the place is the Finder's own
-    // ground; a folder everywhere else.
-    icon: (isOn) =>
-      isMacOS() ? (
-        <FinderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-      ) : (
-        <FolderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-      ),
-    id: "files",
-    label: "Files",
-  },
-  {
-    icon: (isOn) => (
-      <GlobeIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-    ),
-    id: "browser",
-    label: "Browser",
-  },
-  {
-    icon: (isOn) => (
-      <ShapesIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-    ),
-    id: "apps",
-    label: "Apps",
-  },
-  {
-    icon: (isOn) => (
-      <MapTrifoldIcon className="size-6" weight={isOn ? "fill" : "regular"} />
-    ),
-    id: "discover",
-    label: "Discover",
-  },
+const PLACES: { id: AppPlace; label: string }[] = [
+  { id: "chat", label: "Chat" },
+  { id: "files", label: "Files" },
+  { id: "browser", label: "Browser" },
+  { id: "apps", label: "Apps" },
+  { id: "discover", label: "Discover" },
 ];
 
 /**
@@ -127,7 +83,11 @@ export function AppRail({
               ? { onHover: onHoverChat }
               : {})}
           >
-            {entry.icon(place === entry.id)}
+            <PlaceIcon
+              className="size-6"
+              place={entry.id}
+              weight={place === entry.id ? "fill" : "regular"}
+            />
           </RailEntry>
         ))}
       </div>

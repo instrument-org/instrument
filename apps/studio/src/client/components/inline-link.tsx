@@ -1,4 +1,5 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import {
   getFaviconUrl,
@@ -20,7 +21,6 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { type ReactNode } from "react";
@@ -229,7 +229,9 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "idea":
     case "ideas": {
-      return <CompassIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+      return (
+        <PlaceIcon className={INLINE_CHIP_ICON_CLASS_NAME} place="discover" />
+      );
     }
     case "memory": {
       return <BrainIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

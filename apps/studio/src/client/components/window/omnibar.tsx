@@ -1,4 +1,5 @@
 import { PageFavicon } from "@/client/components/favicon";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import {
   bookmarksAtom,
   CHATS_HREF,
@@ -46,7 +47,6 @@ import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -837,7 +837,7 @@ function useRows({
         return matchNames(words, ideas.data ?? [], (idea) => idea.title).map(
           (idea) => ({
             detail: idea.tagline,
-            icon: <CompassIcon className="size-4" />,
+            icon: <PlaceIcon className="size-4" place="discover" />,
             id: `idea:${idea.name}`,
             name: idea.title,
             run: () => {

@@ -90,9 +90,8 @@ describe("readDirectoryIcons", () => {
     ]) {
       await fs.writeFile(path.join(dir, file), "");
     }
-    expect(
-      Object.fromEntries(await readDirectoryIcons(dir)),
-    ).toMatchInlineSnapshot(`
+    expect(Object.fromEntries(await readDirectoryIcons(dir)))
+      .toMatchInlineSnapshot(`
       {
         "both": "both.svg",
         "only-png": "only-png.png",

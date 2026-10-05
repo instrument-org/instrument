@@ -21,7 +21,7 @@ const states = [
   },
   {
     title: "A chat at work",
-    note: "The Lisbon thread running, its work box folded over the reply box.",
+    note: "The Lisbon thread running: its work in flight at the header's right, the newest step shimmering, pressed for the chat's tasks.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:

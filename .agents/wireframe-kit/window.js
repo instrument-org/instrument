@@ -237,13 +237,14 @@ const inboxCol = ({ on = 0, w = 320, rows = ROWS, waiting = false } = {}) => `
 
 // ---- a chat --------------------------------------------------------------------
 
-/** The chat header: inbox toggle, title, the menu, and pop-out at the right. */
-const threadHead = (title, { right = "" } = {}) => `
+/** The chat header: inbox toggle, title, the menu, then at the right the work in flight (`working`, from workLine) and pop-out. */
+const threadHead = (title, { right = "", working = "" } = {}) => `
   <div class="flex shrink-0 items-center gap-2 bg-background p-3">
     <i class="ph ph-sidebar-simple px-1.5 text-[16px] text-muted-foreground"></i>
     <span class="truncate text-sm font-medium">${title}</span>
     <i class="ph ph-dots-three-outline-vertical text-[16px] text-muted-foreground"></i>
     <span class="flex-1"></span>
+    ${working}
     ${right || `<i class="ph ph-picture-in-picture px-1.5 text-[16px] text-muted-foreground"></i>`}
   </div>`;
 
@@ -260,9 +261,12 @@ const fileRow = (key) => `
 const pageRow = (site) => `
   <div class="flex max-w-[85%] items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">${SITES[site].mark()}<span class="truncate">${SITES[site].title}</span></div>`;
 
-/** The folded work box over the reply box while the chat's task runs. */
-const workLine = (text = "Checking fares on flytap.com") => `
-  <div class="mb-2 flex h-7 items-center gap-1.5 rounded-lg bg-card px-2 text-[11px] text-muted-foreground ring-1 ring-border"><i class="ph ph-caret-right text-[12px]"></i><span class="truncate">${text}</span></div>`;
+/** The work in flight, at a chat head's right while its tasks run: a spinner, the newest step in the shimmer's green and how many more (`more`), or with `compact` the spinner and the count. Pressed, it lists the chat's tasks. */
+const workLine = (
+  text = "Checking fares on flytap.com",
+  { more = 0, compact = false } = {},
+) => `
+  <span class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-2 text-[12px]"><i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>${compact ? `<span class="text-muted-foreground tabular-nums">${more + 1}</span>` : `<span class="truncate text-brand-600">${text}</span>${more ? `<span class="shrink-0 text-muted-foreground tabular-nums">+${more}</span>` : ""}`}<i class="ph ph-caret-down shrink-0 text-[11px] text-muted-foreground"></i></span>`;
 
 const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
   <div class="flex items-center gap-2 rounded-[22px] bg-white p-1.5 shadow-sm">
@@ -295,7 +299,7 @@ const lisbon = (stage = 1) =>
     .filter(Boolean)
     .join("");
 
-/** A chat column: header, the centered transcript, then over the reply box its tiles (`tiles`, from chatTiles) and the work box. */
+/** A chat column: header (with the work in flight while `working` names a step), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
   title = LISBON_TITLE,
   body = lisbon(2),
@@ -307,9 +311,9 @@ const thread = ({
   replyEl = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
-    ${head || threadHead(title)}
+    ${head || threadHead(title, { working: working ? workLine(working) : "" })}
     <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
-    <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${working ? workLine(working) : ""}${foot}${replyEl || replyBox(reply)}</div>
+    <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;
 
 // ---- tabs, the pane, pages -------------------------------------------------------
@@ -514,12 +518,13 @@ const smallChat = ({
     <div class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
       <i class="ph ph-chats-circle text-[15px]"></i>
       <span class="min-w-0 flex-1 truncate text-[13px] font-medium">${title}</span>
+      ${working ? workLine(working, { compact: true }) : ""}
       <i class="ph ph-minus text-[14px] text-muted-foreground"></i><i class="ph ph-arrows-out-simple text-[14px] text-muted-foreground"></i><i class="ph ph-x text-[14px] text-muted-foreground"></i>
     </div>
     <div class="relative flex min-h-0 flex-1 flex-col">
       <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pt-3">${body}</div>
-      <div class="shrink-0 p-2.5">${tabs.length ? chatTiles(tabs, peek) : ""}${working ? workLine(working) : ""}${replyBox(reply)}</div>
-      ${peek >= 0 ? chatPeek(tabs[peek], { bottom: working ? 216 : 180 }) : ""}
+      <div class="shrink-0 p-2.5">${tabs.length ? chatTiles(tabs, peek) : ""}${replyBox(reply)}</div>
+      ${peek >= 0 ? chatPeek(tabs[peek]) : ""}
     </div>
   </div>`;
 

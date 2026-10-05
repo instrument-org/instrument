@@ -51,6 +51,13 @@ const CHANGE_SETTLE_MS = 500;
 const AGENT_SETTLE_MS = 1000;
 
 /**
+ * How long the page on screen keeps showing its picture after a newer one
+ * arrives, so browsing around swaps the tile once, after the person pauses,
+ * rather than at every step.
+ */
+const ON_SCREEN_SETTLE_MS = 3000;
+
+/**
  * What a chat holds, down its right edge: a tile for each thing it has open
  * (the pages its agent browses and the person opened, files, folders), the
  * oldest at the top and the newest at the foot beside New, scrolling when
@@ -270,10 +277,10 @@ function keyOf(tab: WindowTab): string {
  * A page as its last picture, or, until it has one, its site's mark. The
  * picture is taken each time the page loads, moves, renames itself, or has
  * an agent's command, since the agent browses in tabs the person is not
- * looking at. The page on screen keeps the picture it came up with rather
- * than one that changes under the person as they use it, and shows what it
- * came to once it is put away; its pictures are taken while it is drawn,
- * which is when a guest has something to take.
+ * looking at. The page on screen shows a newer picture only once no newer
+ * one has come for a few seconds, so the tile follows the page without
+ * flickering at every step; its pictures are taken while it is drawn, which
+ * is when a guest has something to take.
  */
 function PagePicture({
   isOnScreen,
@@ -355,15 +362,25 @@ function PagePicture({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentAt]);
-  // The picture the page came on screen with, held while it is up.
+  // The picture shown while the page is up: the one it came up with, then
+  // the newest once no newer one has come for a while.
   const [heldUrl, setHeldUrl] = useState<string>();
   const latestUrl = picture.data?.url ?? undefined;
   useEffect(() => {
     if (!isOnScreen) {
       setHeldUrl(undefined);
-    } else if (latestUrl !== undefined) {
-      setHeldUrl((held) => held ?? latestUrl);
+      return;
     }
+    if (latestUrl === undefined) {
+      return;
+    }
+    setHeldUrl((held) => held ?? latestUrl);
+    const pending = setTimeout(() => {
+      setHeldUrl(latestUrl);
+    }, ON_SCREEN_SETTLE_MS);
+    return () => {
+      clearTimeout(pending);
+    };
   }, [isOnScreen, latestUrl]);
   const shownUrl = isOnScreen ? (heldUrl ?? latestUrl) : latestUrl;
 

@@ -12,6 +12,11 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 - **Scope:** default to the package/app that owns the change (`studio`, `workspace`, `ai-gateway`, `shared`) or an established workflow scope (`dx`, `ci`, `release`, `docs`, `evals`, `studio-drive`). Use a feature-area scope only when recent history shows that scope is established (`task`, `topics`); do not invent one from the subject matter.
 - **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
 - **Description:** lowercase, no period, under ~72 chars. Start with a concrete verb and name the product noun or feature affected, then the observable behavior: `restore window bounds`, `open reply folders`, `suppress duplicate folder notices`.
+- **Plain verbs, not `draw`:** history since mid-2026 uses `draw` for icons, layout, rendering, and data alike; don't copy it. Pick the verb for what changed:
+  - An icon: `use <icon> for <thing>`, or `change <thing> icon to <icon>` for a swap: `use feather icon for the rail's New button`, `change skills icon to cube`.
+  - How something looks or is laid out: `show <thing> as <form>`, or name the property: `show recent pages as a dense grid`, `make tooltip hairlines opaque`.
+  - When or how it paints: `render`: `render a transcript's last turns first`, `render thumbnails offscreen on Linux`.
+  - Where its content comes from: `build`, `read`, or `load` from a source: `build chat rows from a stored digest`.
 - **Standalone subject:** write a history label, not a sentence from the implementation story. Avoid starting with articles or pronouns; personification, metaphors, comparisons, and contrast clauses belong in the body. Prefer product behavior over an implementation detail unless that detail is the public contract.
 - **Check:** someone scanning `git log --oneline` should identify the feature and behavior without reading the diff or task. Rewrite the subject if they cannot.
 - **Body:** use a body for context, rationale, follow-on detail, or edge cases an agent will need later. Keep that detail out of the subject.

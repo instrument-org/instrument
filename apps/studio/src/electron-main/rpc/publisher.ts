@@ -95,6 +95,7 @@ interface PublisherEvents {
   "window.command":
     | "back"
     | "closeTab"
+    | "commandMenu"
     | "editPage"
     | "findInPage"
     | "forward"

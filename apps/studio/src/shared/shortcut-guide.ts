@@ -53,6 +53,7 @@ const WINDOW_GROUPS: Record<
   back: "Pages",
   closeTab: "Tabs",
   closeWindow: "General",
+  commandMenu: "General",
   editPage: "Pages",
   findInPage: "Pages",
   forward: "Pages",

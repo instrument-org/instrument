@@ -40,6 +40,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
     expect(lines).toMatchInlineSnapshot(`
       [
         "General: Close Window  ⇧⌘W",
+        "General: Command Menu  ⌘K",
         "General: Keyboard Shortcuts  ?",
         "General: New Chat  ⌘N",
         "General: Search or Ask  ⌘L",

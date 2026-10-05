@@ -53,6 +53,12 @@ function chord(
 const FILE_CHORDS: WindowChord[] = [
   // Where mail keeps New Message: a draft of a new chat, at the corner.
   chord("newChat"),
+  chord("commandMenu", () => {
+    // As with the field below: a page guest holding the keyboard keeps the
+    // menu's input from taking it, so the window takes it back first.
+    BrowserWindow.getFocusedWindow()?.webContents.focus();
+    publisher.publish("window.command", "commandMenu");
+  }),
   chord("search", () => {
     // The chord reaches the menu when a page guest has the keyboard, since
     // its keys never reach the window's own renderer. The field is the

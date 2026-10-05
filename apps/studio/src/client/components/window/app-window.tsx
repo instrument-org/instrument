@@ -114,6 +114,7 @@ import { useDrafts } from "./use-drafts";
 import { ideasQueryOptions } from "./use-ideas";
 import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
+import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "./use-record-recents";
 import { useWindowSteps } from "./use-tab-steps";
@@ -617,6 +618,12 @@ function WindowShell({
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
+  const toggleInbox = () => {
+    // The inbox is the chat's; elsewhere the chord has nothing to move.
+    if (isChat) {
+      setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
+    }
+  };
   useWindowCommands(
     {
       back: () => {
@@ -643,12 +650,7 @@ function WindowShell({
       search: focusField,
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
-      toggleInbox: () => {
-        // The inbox is the chat's; elsewhere the chord has nothing to move.
-        if (isChat) {
-          setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
-        }
-      },
+      toggleInbox,
       // The next or previous row of the inbox from the chat up; from no
       // chat, the list's first or last.
       selectChat: (direction) => {
@@ -922,6 +924,13 @@ function WindowShell({
                   openChatId={chatUp}
                 />
               </InboxPeek>
+              <CommandMenu
+                openPage={(url) => {
+                  openPage(url, { newTab: true });
+                }}
+                openScreen={openScreen}
+                toggleInbox={toggleInbox}
+              />
             </ShellContext>
             {/* Where the window's page waits while the tab up has none to
               show; hidden, so a guest left over it is parked. */}

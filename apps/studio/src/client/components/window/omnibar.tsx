@@ -47,13 +47,10 @@ import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import {
   keepPreviousData,
   skipToken,
-  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -61,6 +58,7 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
+import { toast } from "sonner";
 import {
   type ReactNode,
   use,
@@ -71,7 +69,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
 
 /** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
 const PAGES_SHOWN = 4;
@@ -568,7 +565,6 @@ function useRows({
   const home = window.api.homeDir;
   const words = typed.trim();
   const shell = use(ShellContext);
-  const commandRows = useCommandRows(words);
 
   // On the web: the pages the window knows, bookmarks ahead of history.
   const visited = useAtomValue(visitedPagesAtom);
@@ -637,10 +633,6 @@ function useRows({
       : undefined,
   );
 
-  // A switch asked for by its word is all the words mean.
-  if (commandRows.length > 0) {
-    return { completion: "", rows: commandRows };
-  }
   if (mode === "web") {
     const completion =
       canComplete && pathFromWords(words) === undefined
@@ -871,55 +863,6 @@ function useRows({
     empty: `No ${NOUNS[mode]} match “${words}”`,
     rows: [...matches],
   };
-}
-
-/**
- * The switches the window keeps nowhere a person would stumble on them, so
- * turning one on is a thing you type rather than a build you restart. Each
- * answers to a word starting `!`, which nothing else typed here begins
- * with, from three letters on.
- */
-function useCommandRows(words: string): OmniRow[] {
-  const preferences = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const setDeveloperMode = useMutation(
-    rpcClient.preferences.setDeveloperMode.mutationOptions(),
-  );
-  const setReleaseChannel = useMutation(
-    rpcClient.preferences.setReleaseChannel.mutationOptions(),
-  );
-  if (words.length < 3 || !words.startsWith("!")) {
-    return [];
-  }
-  const lower = words.toLowerCase();
-  const developerMode = preferences.data?.developerMode ?? false;
-  const isBeta = preferences.data?.releaseChannel === "beta";
-  const commands: (OmniRow & { word: string })[] = [
-    {
-      icon: <WrenchIcon className="size-4" />,
-      id: "developer-mode",
-      name: developerMode
-        ? "Turn off developer mode"
-        : "Turn on developer mode",
-      run: () => {
-        setDeveloperMode.mutate({ enabled: !developerMode });
-        toast(developerMode ? "Developer mode off" : "Developer mode on");
-      },
-      word: "!dev",
-    },
-    {
-      icon: <FlaskIcon className="size-4" />,
-      id: "beta-channel",
-      name: isBeta ? "Leave the beta channel" : "Join the beta channel",
-      run: () => {
-        setReleaseChannel.mutate({ channel: isBeta ? undefined : "beta" });
-        toast(isBeta ? "Beta channel removed" : "Beta channel enabled");
-      },
-      word: "!beta",
-    },
-  ];
-  return commands.filter((command) => command.word.startsWith(lower));
 }
 
 /** The row that opens a path on the computer, which says it before looking. */

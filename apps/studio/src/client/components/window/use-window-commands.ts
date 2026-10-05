@@ -1,3 +1,7 @@
+import {
+  commandMenuOpenAtom,
+  toggleCommandMenu,
+} from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
@@ -103,10 +107,11 @@ export function useWindowCommands(
         latest.current.forward();
       }
     };
-    // The chord for the field, taken before anything on the page reads it: the
-    // native menu is only offered the keys web content left alone, and the
-    // composer's editor takes this one for itself. The menu item stays for the
-    // case this cannot see, a focused page guest, whose keys never reach here.
+    // The chords for the field and the command menu, taken before anything on
+    // the page reads them: the native menu is only offered the keys web
+    // content left alone, and the composer's editor takes these for itself.
+    // The menu items stay for the case this cannot see, a focused page guest,
+    // whose keys never reach here.
     const onKeyDown = (event: KeyboardEvent) => {
       if (
         (event.metaKey || event.ctrlKey) &&
@@ -116,6 +121,15 @@ export function useWindowCommands(
       ) {
         event.preventDefault();
         latest.current.search();
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        openOrCloseCommandMenu();
       }
       // Edit on the page on screen, for a key the main process did not take
       // first.
@@ -151,6 +165,10 @@ export function useWindowCommands(
             } else {
               answer(latest.current, command);
             }
+            continue;
+          }
+          if (command === "commandMenu") {
+            openOrCloseCommandMenu();
             continue;
           }
           if (
@@ -287,6 +305,21 @@ export function useWindowCommands(
       }
     })();
   }, [isReady]);
+}
+
+/**
+ * The command menu's chord: closes the menu when it is up, and opens it only
+ * when no other dialog is, since the menu is a dialog of its own and two
+ * would stack.
+ */
+function openOrCloseCommandMenu() {
+  const store = getDefaultStore();
+  if (
+    store.get(commandMenuOpenAtom) ||
+    store.get(blockingModalCountAtom) === 0
+  ) {
+    toggleCommandMenu();
+  }
 }
 
 /** Puts up what something outside the window asked for: a file, or a screen by its route. */

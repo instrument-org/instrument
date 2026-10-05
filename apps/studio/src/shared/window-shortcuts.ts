@@ -16,6 +16,7 @@ export interface WindowShortcut {
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: "CmdOrCtrl+[", label: "Back" },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
+  commandMenu: { accelerator: "CmdOrCtrl+K", label: "Command Menu" },
   editPage: { accelerator: "CmdOrCtrl+E", label: "Edit Page" },
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find in Page" },
   forward: { accelerator: "CmdOrCtrl+]", label: "Forward" },

@@ -44,9 +44,9 @@ function SafeStorage() {
         {safeStorageInfo.backend === "basic_text" && (
           <div className="mt-3 border-t border-border pt-3">
             <p className="text-xs text-muted-foreground">
-              Your API keys are stored with basic encryption. For better
-              security, configure a password manager like gnome-libsecret or
-              kwallet on your system.
+              No password manager was found, so API keys and sign-ins are not
+              saved and last only until you quit. To keep them, set up a
+              password manager like gnome-libsecret or kwallet on your system.
             </p>
           </div>
         )}

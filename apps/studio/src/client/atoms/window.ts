@@ -11,8 +11,8 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atom, type SetStateAction } from "jotai";
+import { atomFamily, atomWithStorage } from "jotai/utils";
 
 /**
  * What the chat column is narrowed to.
@@ -139,10 +139,60 @@ export const draftsAtom = atomWithStorage<Draft[]>(
   { getOnInit: true },
 );
 
+/** How long a draft's words are left alone before its record is written. */
+const DRAFT_WORDS_SETTLE_MS = 300;
+
+/** Each draft's pending write of its words to its record. */
+const draftWordsWrites = new Map<string, ReturnType<typeof setTimeout>>();
+
 /**
- * What each draft's composer held when it was last put away, by draft id:
- * the files and folders it was given, restored when the draft comes back
- * up. In memory only, since bytes do not belong in storage.
+ * A draft's words: the one place they are typed into and read from, by the
+ * composer, its bar, the Drafts list and the send alike. They start as the
+ * record's (a draft made with words in it, or one kept past a launch), and
+ * what is typed is written back to the record a beat later rather than on
+ * every key: writing the record lays the whole window out again, transcripts
+ * and all, and that on each keystroke is felt in the keys.
+ */
+export const draftWordsAtom = atomFamily((draftId: string) => {
+  const typed = atom<null | string>(null);
+  const words = atom(
+    (get) =>
+      get(typed) ??
+      get(draftsAtom).find((draft) => draft.id === draftId)?.words ??
+      "",
+    (get, set, update: SetStateAction<string>) => {
+      const next = typeof update === "function" ? update(get(words)) : update;
+      set(typed, next);
+      clearTimeout(draftWordsWrites.get(draftId));
+      draftWordsWrites.set(
+        draftId,
+        setTimeout(() => {
+          draftWordsWrites.delete(draftId);
+          set(draftsAtom, (current) =>
+            current.map((draft) =>
+              draft.id === draftId && draft.words !== next
+                ? { ...draft, updatedAt: Date.now(), words: next }
+                : draft,
+            ),
+          );
+        }, DRAFT_WORDS_SETTLE_MS),
+      );
+    },
+  );
+  return words;
+});
+
+/** Lets go of a draft's words, for a draft sent or thrown away. */
+export function forgetDraftWords(draftId: string) {
+  clearTimeout(draftWordsWrites.get(draftId));
+  draftWordsWrites.delete(draftId);
+  draftWordsAtom.remove(draftId);
+}
+
+/**
+ * What each draft's composer held besides its words when it was last put
+ * away, by draft id: the files and folders it was given, restored when the
+ * draft comes back up. In memory only, since bytes do not belong in storage.
  */
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 

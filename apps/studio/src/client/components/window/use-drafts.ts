@@ -4,6 +4,7 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
+  forgetDraftWords,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
@@ -19,7 +20,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
@@ -191,12 +192,19 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
-  // What a draft's composer held is kept only as long as the draft: a
-  // composer unmounting keeps its snapshot as it goes, so a draft sent or
-  // thrown away is pruned here, after that.
+  // What a draft's composer held, and its words, are kept only as long as
+  // the draft: a composer unmounting keeps its snapshot as it goes, so a
+  // draft sent or thrown away is pruned here, after that.
   const draftIds = drafts.map((draft) => draft.id).join("\n");
+  const knownDraftIds = useRef(new Set<string>());
   useEffect(() => {
     const keep = new Set(draftIds.split("\n"));
+    for (const id of knownDraftIds.current) {
+      if (!keep.has(id)) {
+        forgetDraftWords(id);
+      }
+    }
+    knownDraftIds.current = keep;
     setDraftSnapshots((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([id]) => keep.has(id)),

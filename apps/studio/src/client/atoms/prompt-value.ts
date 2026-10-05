@@ -1,5 +1,6 @@
 import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type StoreId } from "@instrument-org/workspace/client";
+import { draftWordsAtom } from "@/client/atoms/window";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 
@@ -7,11 +8,14 @@ import { atomFamily } from "jotai/utils";
 //  - chat: the reply in one chat of the window's, kept in memory for the
 //    window's life so a reply left half-typed is there on coming back, and so
 //    the inbox can say the chat has one.
+//  - draft: a new chat's draft, whose words are the draft's own (see
+//    `draftWordsAtom`), kept whether or not its window is up.
 //  - transient: a composer that starts from a prefill and is meant to be thrown
 //    away, like the one on a skill page. Nothing is shared or retained, so
 //    walking away from the surface loses the draft instead of carrying it to
 //    the next skill and to the new-tab composer.
 export type PromptDraftKey =
+  | { draftId: string; scope: "draft" }
   | { id: string; scope: "transient" }
   | { scope: "chat"; sessionId: StoreId.Session };
 
@@ -20,6 +24,9 @@ export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
     case "chat": {
       return `chat:${key.sessionId}`;
+    }
+    case "draft": {
+      return `draft:${key.draftId}`;
     }
     case "transient": {
       return `transient:${key.id}`;
@@ -40,6 +47,9 @@ export function promptDraftAtom(key: PromptDraftKey) {
   switch (key.scope) {
     case "chat": {
       return chatDraftFamily(key.sessionId);
+    }
+    case "draft": {
+      return draftWordsAtom(key.draftId);
     }
     case "transient": {
       return transientDraftFamily(key.id);

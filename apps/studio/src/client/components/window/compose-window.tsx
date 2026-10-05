@@ -46,7 +46,6 @@ import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useHydrateAtoms } from "jotai/utils";
 import { motion } from "motion/react";
 import {
   type ReactNode,
@@ -119,9 +118,6 @@ function isAppsHref(pathname: string) {
 
 /** How many marks the minimized bar shows of what the draft holds. */
 const BAR_MARKS = 4;
-
-/** How long the words are left alone before the record is written. */
-const WORDS_SETTLE_MS = 300;
 
 /** The most the words take before they scroll, whatever the window could give them. */
 const WORDS_MAX_HEIGHT = 400;
@@ -339,54 +335,13 @@ export function ComposeWindow({
     behind !== undefined &&
     (behindItems === undefined || behindItems.length > 0);
 
-  // The words the box opens with: what was kept of it when it was put away,
-  // or, after a relaunch, the record's own words. Seeded once, since the
-  // box's draft is dropped with it and made afresh each time it mounts.
-  const key = { id: draft.id, scope: "transient" as const };
+  // The words are the draft's own, wherever they are read; what else the
+  // box held when it was put away is put back as it comes up.
+  const key = { draftId: draft.id, scope: "draft" as const };
   const snapshots = useAtomValue(draftSnapshotsAtom);
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
   const snapshot = snapshots[draft.id];
-  useHydrateAtoms([[promptDraftAtom(key), snapshot ? "" : draft.words]]);
   const words = useAtomValue(promptDraftAtom(key));
-  // A box seeded empty, with what was kept still to be put back into it, is
-  // not the user clearing the words: the first reading is let go.
-  const isRestoringRef = useRef(snapshot !== undefined);
-  const onChangeEvent = useEffectEvent(onChange);
-  // The record follows the box a beat behind it rather than on every key:
-  // writing the record lays the whole window out again, transcripts and all,
-  // and that on each keystroke is felt in the keys. What the record is for
-  // (the Drafts list's title, the bar's, the words kept past a launch) can
-  // wait a beat; the close and the start read the box itself.
-  useEffect(() => {
-    if (isRestoringRef.current) {
-      isRestoringRef.current = false;
-      return;
-    }
-    if (words === draft.words) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      onChangeEvent((current) => ({ ...current, words }));
-    }, WORDS_SETTLE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-    // The record follows the box; the box never follows the record.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words]);
-  // On the way out the record catches up at once, so a draft put down or
-  // closed mid-word keeps the word.
-  const catchUpWords = useEffectEvent(() => {
-    onChangeEvent((current) =>
-      current.words === words ? current : { ...current, words },
-    );
-  });
-  useEffect(
-    () => () => {
-      catchUpWords();
-    },
-    [],
-  );
 
   const inputRef = useRef<PromptInputRef>(null);
   // Layout rather than passive effects: on the way in the box's handle is
@@ -395,7 +350,7 @@ export function ComposeWindow({
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (snapshot) {
-      input?.restore(snapshot);
+      input?.restore({ ...snapshot, prompt: words });
     }
     return () => {
       const kept = input?.snapshot();

@@ -31,7 +31,7 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 
 | Plan | Status |
 | --- | --- |
-| [Chat surface](active/chat-surface.md) | slices 1-9 built, one open question |
+| [Chat surface](active/chat-surface.md) | slices 1-9 built |
 | [What the classic window took with it](active/after-the-classic-window.md) | open list |
 | [Grouped activities](active/grouped-activities.md) — one heading over a run of tool calls | built, headings flag off |
 | [Presentation syntax](active/presentation-syntax.md) — how the agent presents files, data, and artifacts | file group built, rest proposed |

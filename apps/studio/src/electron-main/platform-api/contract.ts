@@ -24,6 +24,11 @@ const BillingStatusSchema = z.object({
       cancelAt: z.string().optional(),
       cancelAtPeriodEnd: z.boolean(),
       currentPeriodEnd: z.string().optional(),
+      /**
+       * The plan it pays for, which `plan` above stops naming once a payment
+       * fails and the subscription no longer entitles.
+       */
+      plan: z.string().optional(),
       status: z.string(),
     })
     .optional(),

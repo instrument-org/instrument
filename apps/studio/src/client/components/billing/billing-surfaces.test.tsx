@@ -161,6 +161,17 @@ describe("Settings > Usage and billing", () => {
     }
   });
 
+  it("names the plan a failed payment is for", async () => {
+    platform.status = {
+      ...onBasic({ plan: "basic", status: "past_due" }),
+      plan: "none",
+      windows: [],
+    };
+    renderWithProviders(<UsageAndBillingSection />);
+
+    expect(await screen.findByText(/Basic · \$10 a month/)).toBeDefined();
+  });
+
   it("offers no plan change while a payment is owed", async () => {
     platform.status = {
       ...onBasic({ status: "past_due" }),

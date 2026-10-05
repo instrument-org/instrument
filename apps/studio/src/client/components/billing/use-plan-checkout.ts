@@ -25,9 +25,9 @@ export function usePlanCheckout({
   });
   const checkout = useMutation(
     rpcClient.billing.openCheckout.mutationOptions({
-      onError: () => {
+      onError: (error) => {
         setWaitingFor(null);
-        toast.error("Couldn't open checkout");
+        toast.error("Couldn't open checkout", { description: error.message });
       },
     }),
   );

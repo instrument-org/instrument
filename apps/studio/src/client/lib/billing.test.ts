@@ -157,23 +157,35 @@ describe("refusalNotice", () => {
       status: undefined,
     },
     {
+      expected: "access-revoked",
+      name: "access revoked after a dispute",
+      reason: "access-revoked",
+      status: noPlan,
+    },
+    {
       expected: "resumed",
       name: "a plan bought since",
       reason: "trial-ended",
       status: onPlan("basic"),
     },
-  ])("subscription-required, $name: $expected", ({ expected, reason, status }) => {
-    expect(notice({ code: "subscription-required", reason }, status)?.kind).toBe(
-      expected,
-    );
-  });
+  ])(
+    "subscription-required, $name: $expected",
+    ({ expected, reason, status }) => {
+      expect(
+        notice({ code: "subscription-required", reason }, status)?.kind,
+      ).toBe(expected);
+    },
+  );
 
   it("keeps the trial ended when its last request would have gone over", () => {
     expect(
-      notice({ code: "subscription-required", reason: "trial-ended" }, {
-        ...trialActive,
-        trial: { ...trialActive.trial, percentUsed: 85 },
-      })?.kind,
+      notice(
+        { code: "subscription-required", reason: "trial-ended" },
+        {
+          ...trialActive,
+          trial: { ...trialActive.trial, percentUsed: 85 },
+        },
+      )?.kind,
     ).toBe("trial-ended");
   });
 
@@ -247,6 +259,15 @@ describe("refusalNotice", () => {
   });
 });
 
+it("offers nothing to buy when access was revoked", () => {
+  expect(noticeCopy({ kind: "access-revoked" }, NOW)).toMatchInlineSnapshot(`
+    {
+      "line": "Contact support.",
+      "title": "Instrument's AI isn't available on this account",
+    }
+  `);
+});
+
 describe("stopLineText", () => {
   it.each([
     {
@@ -268,6 +289,10 @@ describe("stopLineText", () => {
     {
       line: "Stopped: too many of your tasks were running at once.",
       refusal: { code: "concurrency-limit" },
+    },
+    {
+      line: "Stopped: Instrument's AI isn't available on this account.",
+      refusal: { code: "subscription-required", reason: "access-revoked" },
     },
     { line: undefined, refusal: { code: "meter-unavailable" } },
   ])("$refusal.code $refusal.reason", ({ line, refusal }) => {
@@ -326,13 +351,17 @@ describe("usageWarning", () => {
       ...trialActive,
       trial: { ...trialActive.trial, percentUsed: 82.4 },
     });
-    expect(warning && usageWarningText(warning, NOW)).toMatchInlineSnapshot(`"82% of your free trial is used. It ends October 11 or when it runs out."`);
+    expect(warning && usageWarningText(warning, NOW)).toMatchInlineSnapshot(
+      `"82% of your free trial is used. It ends October 11 or when it runs out."`,
+    );
   });
 
   it("warns about the fullest window at 80% or more", () => {
     const warning = usageWarning(onPlan("basic", {}, [81, 93, 10]));
     expect(warning).toMatchObject({ kind: "window", window: "week" });
-    expect(warning && usageWarningText(warning, NOW)).toMatchInlineSnapshot(`"You've used 93% of your plan for this week. It resets at 3:41 PM."`);
+    expect(warning && usageWarningText(warning, NOW)).toMatchInlineSnapshot(
+      `"You've used 93% of your plan for this week. It resets at 3:41 PM."`,
+    );
   });
 
   it("leaves a full window to the refusal notice", () => {

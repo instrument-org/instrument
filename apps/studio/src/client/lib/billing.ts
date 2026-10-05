@@ -73,7 +73,8 @@ export function subscribedPlan(
   if (!status?.subscription) {
     return undefined;
   }
-  return offer?.plans.find((plan) => plan.key === status.plan);
+  const key = status.subscription.plan ?? status.plan;
+  return offer?.plans.find((plan) => plan.key === key);
 }
 
 /** Whether the next hosted request would be let through, by what status says. */
@@ -113,7 +114,10 @@ export function planCardAction(
   status: Status | undefined,
   { trial = false }: { trial?: boolean } = {},
 ): PlanCardAction {
-  if (status?.subscription && status.plan === plan.key) {
+  if (
+    status?.subscription &&
+    (status.subscription.plan ?? status.plan) === plan.key
+  ) {
     return "current";
   }
   if (status?.subscription && !status.canSubscribe) {
@@ -208,6 +212,7 @@ export function windowLabel(key: string) {
  * turn can be sent again.
  */
 export type BillingNotice =
+  | { kind: "access-revoked" }
   | { kind: "payment-failed" }
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
   | { kind: "plan-required"; reason?: string }
@@ -243,6 +248,9 @@ export function refusalNotice({
       // is as over as the refusal says.
       if (current?.subscription && canUseHostedModels(current)) {
         return { kind: "resumed", subscribed: true };
+      }
+      if (refusal.reason === "access-revoked") {
+        return { kind: "access-revoked" };
       }
       if (refusal.reason === "payment-failed" || hasPaymentFailed(current)) {
         return { kind: "payment-failed" };
@@ -295,6 +303,12 @@ export function noticeCopy(
 } {
   const choosePlan = { kind: "choose-plan" as const, label: "Choose a plan" };
   switch (notice.kind) {
+    case "access-revoked": {
+      return {
+        line: "Contact support.",
+        title: `${APP_NAME}'s AI isn't available on this account`,
+      };
+    }
     case "payment-failed": {
       return {
         action: { kind: "update-card", label: "Update card" },
@@ -363,6 +377,9 @@ export function stopLineText(refusal: BillingRefusal) {
     }
     case "subscription-required": {
       switch (refusal.reason) {
+        case "access-revoked": {
+          return `Stopped: ${APP_NAME}'s AI isn't available on this account.`;
+        }
         case "card-required": {
           return "Stopped: a card is needed to start your free trial.";
         }

@@ -2,15 +2,14 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { PageSection } from "@/client/components/window/page-section";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
-import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { type Capability, capabilitiesOf } from "./app-capabilities-model";
 
-/** How many of a group show before the rest wait behind "Show all". */
-const SHOWN = 8;
+/** How many of a group show before the rest wait behind "Show more". */
+const SHOWN = 6;
 
 /** How long an app's list of actions is reused: it changes only when the app ships a new version. */
 const KEPT_MS = 30 * 60_000;
@@ -77,7 +76,6 @@ export function AppCapabilities({
                   label="Look up"
                   onAsk={onAsk}
                   onOpen={onInspect}
-                  opens="try"
                 />
               ) : null}
               {capabilities.does.length > 0 ? (
@@ -86,7 +84,6 @@ export function AppCapabilities({
                   label="Change"
                   onAsk={onAsk}
                   onOpen={onInspect}
-                  opens="details"
                 />
               ) : null}
             </>
@@ -107,39 +104,60 @@ function Group({
   label,
   onAsk,
   onOpen,
-  opens,
 }: {
   items: Capability[];
   label: string;
   onAsk: (action: string) => void;
   onOpen: (action: string) => void;
-  /** What the second button does: run a look-up, or describe a change. */
-  opens: "details" | "try";
 }) {
   const [isAll, setIsAll] = useState(false);
-  const shown = isAll ? items : items.slice(0, SHOWN);
+  // Held back only when a few would be left over, since a button that shows
+  // one or two more costs as much room as the rows it hides.
+  const folds = items.length > SHOWN + 2;
+  const shown = folds && !isAll ? items.slice(0, SHOWN) : items;
   return (
     <div className="min-w-0">
       <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
-      <ul className="flex flex-col gap-2">
+      {/* One quiet list per group: each row opens the action's details, Ask
+          starts a request with it, and a look-up that needs nothing filled
+          in can also be tried on the spot. */}
+      <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60">
         {shown.map((item) => (
-          // A card per action with what a person can do with it in plain
-          // sight: ask Instrument to use it, or open it to see more.
-          <li
-            className="min-w-0 rounded-xl border border-border/60 bg-foreground/2 px-3.5 py-3"
-            key={item.name}
-          >
-            <p className="truncate text-[13px] leading-5 font-medium">
-              {item.label}
-            </p>
-            {item.detail ? (
-              <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">
-                {item.detail}
-              </p>
-            ) : null}
-            <div className="mt-2.5 flex items-center gap-1.5">
+          <li className="group/row flex min-w-0 items-center" key={item.name}>
+            <button
+              className="min-w-0 flex-1 px-3 py-2 text-left hover:bg-accent/50"
+              onClick={() => {
+                onOpen(item.name);
+              }}
+              title={item.detail}
+              type="button"
+            >
+              <span className="block truncate text-[13px] leading-5 font-medium">
+                {item.label}
+              </span>
+              {item.detail ? (
+                <span className="block truncate text-xs leading-4 text-muted-foreground">
+                  {item.detail}
+                </span>
+              ) : null}
+            </button>
+            <div className="flex shrink-0 items-center gap-0.5 pr-1.5">
+              {item.runsAsIs ? (
+                <button
+                  aria-label={`Try ${item.label}`}
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => {
+                    onOpen(item.name);
+                  }}
+                  type="button"
+                >
+                  <PlayIcon className="size-3.5" />
+                  Try
+                </button>
+              ) : null}
               <button
-                className="-ml-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={`Ask Instrument to ${item.label.toLowerCase()}`}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                 onClick={() => {
                   onAsk(item.label);
                 }}
@@ -148,35 +166,23 @@ function Group({
                 <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
                 Ask
               </button>
-              <button
-                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => {
-                  onOpen(item.name);
-                }}
-                type="button"
-              >
-                {opens === "try" ? (
-                  <PlayIcon className="size-3.5" />
-                ) : (
-                  <InfoIcon className="size-3.5" />
-                )}
-                {opens === "try" ? "Try it" : "Details"}
-              </button>
             </div>
           </li>
         ))}
+        {folds ? (
+          <li>
+            <button
+              className="w-full px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              onClick={() => {
+                setIsAll((value) => !value);
+              }}
+              type="button"
+            >
+              {isAll ? "Show fewer" : `Show ${items.length - SHOWN} more`}
+            </button>
+          </li>
+        ) : null}
       </ul>
-      {items.length > SHOWN ? (
-        <button
-          className="mt-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setIsAll((value) => !value);
-          }}
-          type="button"
-        >
-          {isAll ? "Show fewer" : `Show all ${items.length}`}
-        </button>
-      ) : null}
     </div>
   );
 }

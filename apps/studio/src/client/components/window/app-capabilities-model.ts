@@ -6,6 +6,8 @@ export interface Capability {
   detail?: string;
   label: string;
   name: string;
+  /** A look-up that takes nothing it must be given, so it can be tried with one press. */
+  runsAsIs: boolean;
 }
 
 /** What the app lets Instrument look at, and what it lets Instrument change. */
@@ -47,6 +49,7 @@ export function capabilitiesOf(tools: Tool[]): Capabilities {
     detail: firstSentence(tool.description),
     label: labelOf(tool),
     name: tool.name,
+    runsAsIs: tool.isRead && tool.params.every((param) => !param.required),
   });
   return {
     does: tools.filter((tool) => !tool.isRead).map(toCapability),

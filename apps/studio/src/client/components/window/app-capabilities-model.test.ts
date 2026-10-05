@@ -18,6 +18,20 @@ describe("firstSentence", () => {
 });
 
 describe("capabilitiesOf", () => {
+  // Try opens the action and runs it as it stands, which only a look-up
+  // asking for nothing can do; one that needs input offers only Ask.
+  it.each([
+    [[], true],
+    [[{ name: "limit", required: false }], true],
+    [[{ name: "query", required: true }], false],
+  ])("offers a try on a look-up taking %j: %s", (params, runsAsIs) => {
+    expect(
+      capabilitiesOf([
+        { description: "Search.", isRead: true, name: "search", params },
+      ]).finds[0]?.runsAsIs,
+    ).toBe(runsAsIs);
+  });
+
   it("splits reads from changes and names each in words", () => {
     expect(
       capabilitiesOf([
@@ -42,6 +56,7 @@ describe("capabilitiesOf", () => {
             "detail": "Create an issue.",
             "label": "Create or update issue",
             "name": "save_issue",
+            "runsAsIs": false,
           },
         ],
         "finds": [
@@ -49,6 +64,7 @@ describe("capabilitiesOf", () => {
             "detail": "List issues.",
             "label": "List issues",
             "name": "list_issues",
+            "runsAsIs": true,
           },
         ],
       }

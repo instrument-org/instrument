@@ -54,8 +54,6 @@ jobs:
           MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
           MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
 
       # Retried for the same reason as the release job's Package Mac step: the
       # notary service drops the connection now and then.

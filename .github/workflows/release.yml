@@ -73,16 +73,6 @@ jobs:
           MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
           MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'ubuntu-latest'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
 
       - if: matrix.os == 'ubuntu-latest'
         name: Package Linux
@@ -101,16 +91,6 @@ jobs:
           MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
           MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
 
       # Apple's notary service intermittently drops the connection while the
       # signing step polls for submission status, which surfaces as an opaque
@@ -214,16 +194,6 @@ jobs:
           MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
           MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'windows-latest'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
 
       - if: matrix.os == 'windows-latest'
         name: Package Windows

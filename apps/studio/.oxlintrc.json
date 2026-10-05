@@ -75,6 +75,11 @@
               {
                 "message": "@instrument-org/ai-gateway/client is only intended for the client",
                 "name": "@instrument-org/ai-gateway/client"
+              },
+              {
+                "importNames": ["publisher", "workspacePublisher"],
+                "message": "The workspace's event bus is its own: hear it through appListChanges or sessionEnds, and tell it through appChanged, so the workspace can leave the main process.",
+                "name": "@instrument-org/workspace/electron"
               }
             ],
             "patterns": [

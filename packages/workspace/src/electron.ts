@@ -75,6 +75,7 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";
+export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { taskDir } from "./lib/task-dir-utils";
@@ -89,7 +90,6 @@ export {
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
 export { liveRead, where } from "./rpc/live-read";
-export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,

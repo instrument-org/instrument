@@ -38,8 +38,8 @@ import {
   requireAppCredential,
   runAppTest,
   withAppMcpClient,
-  workspacePublisher,
   appChanged,
+  appListChanges,
   findAppIcon,
   type AppManifest,
 } from "@instrument-org/workspace/electron";
@@ -176,7 +176,7 @@ const live = {
     signal,
   }) {
     yield* liveRead({
-      changes: [workspacePublisher.subscribe("app.updated", { signal })],
+      changes: [appListChanges(signal)],
       read: () => call(list, {}, { context, signal }),
     });
   }),

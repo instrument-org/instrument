@@ -10,7 +10,7 @@ import {
   type TaskId,
   type WorkspaceActorRef,
   type WorkspaceConfig,
-  workspacePublisher,
+  sessionEnds,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
@@ -189,8 +189,8 @@ export function startAgentCompletionNotifications({
   async function subscribe() {
     while (true) {
       try {
-        for await (const event of workspacePublisher.subscribe("session.done", {
-          maxBufferedEvents: MAX_BUFFERED_COMPLETION_EVENTS,
+        for await (const event of sessionEnds({
+          maxBuffered: MAX_BUFFERED_COMPLETION_EVENTS,
         })) {
           await showNotification(event);
         }

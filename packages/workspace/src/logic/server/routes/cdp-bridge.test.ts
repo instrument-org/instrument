@@ -213,6 +213,7 @@ describe("handleCdpClient on a local page", () => {
   function connect(target = targetId) {
     const guest = { url: own as string | undefined };
     const sent: unknown[] = [];
+    let scripts = 0;
     const listeners: Record<string, (data: unknown) => void> = {};
     const events: { emit?: (method: string, params: unknown) => void } = {};
     const ws = {
@@ -232,6 +233,9 @@ describe("handleCdpClient on a local page", () => {
         }
         if (method === "Page.navigate") {
           guest.url = (params as { url: string }).url;
+        }
+        if (method === "Page.addScriptToEvaluateOnNewDocument") {
+          return Promise.resolve({ identifier: `script-${String(++scripts)}` });
         }
         return Promise.resolve({ result: { value: "page text" } });
       },
@@ -527,6 +531,48 @@ describe("handleCdpClient on a local page", () => {
         "Network.emulateNetworkConditions",
       ]),
     );
+  });
+
+  it("takes back the scripts, bindings, and switched-off checks the agent left when it leaves", async () => {
+    const { close, command, sendCommand } = connect();
+    await command("Page.addScriptToEvaluateOnNewDocument", { source: "a" });
+    await command("Page.addScriptToEvaluateOnNewDocument", { source: "b" });
+    await command("Page.removeScriptToEvaluateOnNewDocument", {
+      identifier: "script-1",
+    });
+    await command("Runtime.addBinding", { name: "leak" });
+    await command("Security.setIgnoreCertificateErrors", { ignore: true });
+    sendCommand.mockClear();
+    close();
+    const undone = sendCommand.mock.calls
+      .map(([, method, params]) => [method, params])
+      .filter(([method]) =>
+        /^(?:Page\.removeScript|Runtime\.removeBinding|Security\.|Page\.setBypassCSP)/.test(
+          String(method),
+        ),
+      );
+    expect(undone).toMatchInlineSnapshot(`
+      [
+        [
+          "Page.removeScriptToEvaluateOnNewDocument",
+          {
+            "identifier": "script-2",
+          },
+        ],
+        [
+          "Runtime.removeBinding",
+          {
+            "name": "leak",
+          },
+        ],
+        [
+          "Security.setIgnoreCertificateErrors",
+          {
+            "ignore": false,
+          },
+        ],
+      ]
+    `);
   });
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {

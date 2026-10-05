@@ -184,6 +184,82 @@ const TEARDOWN_RESETS: [string, Record<string, unknown>][] = [
  */
 const connectionsByTarget = new Map<BrowserTargetId, number>();
 
+/** Checks an agent can switch off on its page, each with the params that switch it back on. */
+const RELAXED_CHECKS: Record<string, Record<string, unknown>> = {
+  "Page.setBypassCSP": { enabled: false },
+  "Security.setIgnoreCertificateErrors": { ignore: false },
+};
+
+/**
+ * What a connection left on its page that would go on acting there for the
+ * person after the agent leaves: a script run in every new document (one
+ * that reads a password field as it is typed, say), a binding the page can
+ * call, a security check switched off.
+ */
+interface LeftOnPage {
+  bindings: Set<string>;
+  relaxed: Set<string>;
+  scripts: Set<string>;
+}
+
+function noteLeftOnPage(
+  left: LeftOnPage,
+  method: string,
+  params: unknown,
+  result: unknown,
+) {
+  switch (method) {
+    case "Page.addScriptToEvaluateOnNewDocument": {
+      // The debugger's answer, typed by the protocol rather than checked.
+      const { identifier } = (result ??
+        {}) as Partial<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>;
+      if (identifier) {
+        left.scripts.add(identifier);
+      }
+      return;
+    }
+    case "Page.removeScriptToEvaluateOnNewDocument": {
+      const { identifier } =
+        params as Protocol.Page.RemoveScriptToEvaluateOnNewDocumentRequest;
+      left.scripts.delete(identifier);
+      return;
+    }
+    case "Runtime.addBinding": {
+      left.bindings.add((params as Protocol.Runtime.AddBindingRequest).name);
+      return;
+    }
+    case "Runtime.removeBinding": {
+      left.bindings.delete(
+        (params as Protocol.Runtime.RemoveBindingRequest).name,
+      );
+      return;
+    }
+    default: {
+      if (method in RELAXED_CHECKS) {
+        left.relaxed.add(method);
+      }
+    }
+  }
+}
+
+/** The commands that take back what a connection left on its page. */
+function undoLeftOnPage(left: LeftOnPage): [string, Record<string, unknown>][] {
+  return [
+    ...[...left.scripts].map((identifier): [string, Record<string, unknown>] => [
+      "Page.removeScriptToEvaluateOnNewDocument",
+      { identifier },
+    ]),
+    ...[...left.bindings].map((name): [string, Record<string, unknown>] => [
+      "Runtime.removeBinding",
+      { name },
+    ]),
+    ...[...left.relaxed].map((method): [string, Record<string, unknown>] => [
+      method,
+      RELAXED_CHECKS[method] ?? {},
+    ]),
+  ];
+}
+
 /** One page an agent's connection drives, under the session id its frames carry. */
 export interface TargetSession {
   /** Stops listening to the page and puts back what the agent changed on it. */
@@ -368,6 +444,11 @@ export function openTargetSession({
   // Set once the session has ended, after which a layout read still in
   // flight must not hand the main process folders nobody is connected for.
   let ended = false;
+  const leftOnPage: LeftOnPage = {
+    bindings: new Set(),
+    relaxed: new Set(),
+    scripts: new Set(),
+  };
   const fileGate = createLocalFileGate({
     currentUrl: () => workspaceConfig.browser.getTargetUrl(targetId),
     onLayout: (layout) => {
@@ -525,6 +606,7 @@ export function openTargetSession({
     workspaceConfig.browser
       .sendCommand(targetId, method, params ?? {})
       .then(async (result) => {
+        noteLeftOnPage(leftOnPage, method, params, result);
         // Electron answers `Page.navigate` as soon as the load is committed,
         // and agent-browser's `open` returns on that answer rather than
         // blocking for the load event -- so a read one step later saw an empty
@@ -578,7 +660,12 @@ export function openTargetSession({
     // Nor may anything it set up to change the page go on changing it for
     // the person: blocked addresses, disabled scripts, a throttled CPU or
     // network.
-    for (const [method, params] of TEARDOWN_RESETS) {
+    // Nor may anything it left to run on every later load, or a check it
+    // switched off, outlive it.
+    for (const [method, params] of [
+      ...TEARDOWN_RESETS,
+      ...undoLeftOnPage(leftOnPage),
+    ]) {
       void workspaceConfig.browser
         .sendCommand(targetId, method, params)
         .catch(noop);

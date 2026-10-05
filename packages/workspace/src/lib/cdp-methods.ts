@@ -172,7 +172,10 @@ export const CDP_METHODS = {
     sender: "bridge",
     why: "sent when a connection closes, so an interception does not hold the person's page",
   },
-  "Page.addScriptToEvaluateOnNewDocument": {},
+  "Page.addScriptToEvaluateOnNewDocument": {
+    page: "wrapped",
+    why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
+  },
   "Page.bringToFront": {
     task: "override",
     why: "the task endpoint answers it with nothing done, so the agent never pulls the person's window to a tab; the page endpoint passes it on",
@@ -204,6 +207,11 @@ export const CDP_METHODS = {
     main: "override",
     why: "main drives the screencast itself, so there is nothing to acknowledge; the bridge does not count it as activity",
   },
+  "Page.setBypassCSP": {
+    page: "wrapped",
+    sender: "none",
+    why: "agent-browser never sends it, but a command through its inspect proxy can; switched back off when the connection closes",
+  },
   "Page.setDocumentContent": {},
   "Page.startScreencast": {
     main: "override",
@@ -213,7 +221,10 @@ export const CDP_METHODS = {
     main: "override",
     why: "stops main's own capture interval",
   },
-  "Runtime.addBinding": {},
+  "Runtime.addBinding": {
+    page: "wrapped",
+    why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
+  },
   "Runtime.callFunctionOn": {
     main: "wrapped",
     why: "agent-browser's scroll-and-measure script is run again until two runs agree",
@@ -224,8 +235,15 @@ export const CDP_METHODS = {
     why: "given 20s, since its promise runs the page's own code; the scroll-and-measure script is run again until two runs agree",
   },
   "Runtime.releaseObject": {},
+  "Runtime.removeBinding": {
+    sender: "bridge",
+    why: "sent when a connection closes, for each binding it added",
+  },
   "Runtime.runIfWaitingForDebugger": {},
-  "Security.setIgnoreCertificateErrors": {},
+  "Security.setIgnoreCertificateErrors": {
+    page: "wrapped",
+    why: "switched back on when the connection closes, so the person's later browsing in the tab is checked again",
+  },
   "Target.activateTarget": {
     page: "override",
     why: `${TARGET_TREE}; which tab the agent works in changes nothing in the window`,

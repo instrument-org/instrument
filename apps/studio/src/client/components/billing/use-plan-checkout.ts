@@ -1,7 +1,7 @@
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** How often billing is read while Checkout is open in the browser. */
@@ -37,9 +37,12 @@ export function usePlanCheckout({
     status?.subscription !== undefined &&
     status.plan === waitingFor;
 
+  // Once per plan: the caller usually closes the screen this waits on, and
+  // the poll that saw the plan land may answer again before it does.
+  const notified = useRef<null | string>(null);
   useEffect(() => {
-    if (subscribed && waitingFor) {
-      setWaitingFor(null);
+    if (subscribed && waitingFor && notified.current !== waitingFor) {
+      notified.current = waitingFor;
       onSubscribed(waitingFor);
     }
   }, [subscribed, waitingFor, onSubscribed]);
@@ -55,6 +58,7 @@ export function usePlanCheckout({
       }
     },
     start: (plan: string) => {
+      notified.current = null;
       setWaitingFor(plan);
       checkout.mutate({ plan });
     },

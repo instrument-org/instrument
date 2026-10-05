@@ -54,6 +54,12 @@ import {
 } from "./utils";
 import { resolveChat } from "../src/lib/record-folders";
 
+/** The Mac helper a checkout builds, when it has; see the harness input. */
+const MAC_HELPER_BIN = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/native/mac-helper/.build/out/Products/Release/instrument-mac",
+);
+
 export interface Assertion {
   check: (ctx: AssertionContext) => AssertionResult | Promise<AssertionResult>;
   text: string;
@@ -339,6 +345,13 @@ export async function runEvals(
       ),
       getAIProviderConfigs: () => providerConfigs,
       isExternalBrowserEnabled: () => true,
+      // The Mac helper as a checkout builds it (`pnpm --filter
+      // @instrument-org/studio build:mac-helper`), so a run reaches
+      // Calendar, Reminders, and Contacts the way the app does; without
+      // it the agent falls back to osascript, as a build without it would.
+      ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
+        ? { macHelperBinPath: MAC_HELPER_BIN }
+        : {}),
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: await execa({ reject: false })`which pnpm`.then(

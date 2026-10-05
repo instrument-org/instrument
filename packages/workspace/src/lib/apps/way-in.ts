@@ -10,7 +10,7 @@ import { type CalledAppManifest } from "./manifest";
 export type CatalogWayIn =
   | { auth: string; endpoint: string; kind: "api"; test?: string }
   | { auth?: string; endpoint: string; kind: "mcp" }
-  | { kind: "mac-app"; name: string }
+  | { bundleId: string; kind: "mac-app"; name: string }
   | { kind: "web"; signIn?: string; url: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
 
@@ -93,7 +93,7 @@ export function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   }
   const macApp = catalogEntryMacApp(entry);
   if (macApp) {
-    return { kind: "mac-app", name: macApp.name };
+    return { bundleId: macApp.bundleId, kind: "mac-app", name: macApp.name };
   }
   return {
     kind: "web",

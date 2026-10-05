@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 
 const taskId = TaskIdSchema.parse("app-catalog-task");
@@ -22,6 +24,30 @@ async function catalog(...words: string[]) {
 }
 
 describe("app catalog", () => {
+  // A task told to use osascript for Reminders walked every reminder for
+  // minutes; the helper answers in a query, so where the build carries it
+  // the set-up line names it.
+  it.each([
+    [undefined, "brief a task to do it with osascript on this Mac"],
+    [
+      "/app/bin/instrument-mac",
+      "brief a task to do it with the `calendar` command",
+    ],
+  ])("sends Reminders through the helper when it is %s", async (bin, line) => {
+    const config = getWorkspaceConfig();
+    const { macHelperBinPath: _absent, ...without } = config;
+    setWorkspaceConfig(
+      bin === undefined
+        ? without
+        : { ...config, macHelperBinPath: AbsolutePathSchema.parse(bin) },
+    );
+    try {
+      expect(await catalog("apple-reminders")).toContain(line);
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
   it("names the MCP server as the way in when a service has one", async () => {
     const text = await catalog("linear");
     expect(text).toContain(

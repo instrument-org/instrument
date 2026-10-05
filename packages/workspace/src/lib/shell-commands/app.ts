@@ -243,6 +243,20 @@ async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
   return settings?.apps ? new Set(settings.apps) : undefined;
 }
 
+/** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
+const NATIVE_COMMANDS: Record<string, string> = {
+  "com.apple.AddressBook": "contacts",
+  "com.apple.iCal": "calendar",
+  "com.apple.reminders": "calendar",
+};
+
+/** The task command that reaches a Mac app through the helper, where this build carries it. */
+function nativeCommandFor(bundleId: string): string | undefined {
+  return getWorkspaceConfig().macHelperBinPath === undefined
+    ? undefined
+    : NATIVE_COMMANDS[bundleId];
+}
+
 /** The catalog, as lines: what each service is and how it is reached. */
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
@@ -274,7 +288,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it ${nativeCommandFor(way.bundleId) === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${nativeCommandFor(way.bundleId)}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
             : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"

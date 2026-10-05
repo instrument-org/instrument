@@ -16,6 +16,7 @@ import {
 export const OSASCRIPT_COMMAND = {
   description:
     "Run AppleScript (`osascript -e '...'`, or a script file) or JavaScript for Automation (`-l JavaScript`) to work with the apps on this Mac: Reminders, Calendar, Notes, Contacts, Music, Finder and the rest. " +
+    "For Calendar, Reminders, and Contacts, use the `calendar` and `contacts` commands instead when they are listed: they are faster and read every account. " +
     "macOS asks the user the first time each app is controlled, and the command waits on their answer. " +
     "Error -1743 means they declined, and only they can change it, under System Settings, Privacy & Security, Automation.",
   name: "osascript",

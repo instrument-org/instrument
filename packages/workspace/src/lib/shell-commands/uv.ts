@@ -4,7 +4,7 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
-import { taskDir } from "../task-dir-utils";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getUvBinPath } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -20,7 +20,7 @@ export const UV_COMMAND = {
   name: "uv",
 } as const;
 
-export function createUvCommand(taskId: TaskId) {
+export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   return defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
@@ -48,8 +48,8 @@ export function createUvCommand(taskId: TaskId) {
       args: resolvePathArgs(args, taskId, ctx),
       ctx,
       env,
+      layout,
       taskCwd,
-      taskId,
     });
     return result;
   });
@@ -79,14 +79,15 @@ export async function runUv({
   args,
   ctx,
   env,
+  layout,
   taskCwd,
-  taskId,
 }: {
   args: string[];
   ctx: CommandContext;
   env: Record<string, string>;
+  /** What the output's host paths are rewritten against. */
+  layout: WorkspaceFsLayout;
   taskCwd: AbsolutePath;
-  taskId: TaskId;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
   const result = await execShim(getUvBinPath(), args, {
@@ -98,7 +99,7 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      filterShellOutput(text, taskDir(taskId)),
+      filterShellOutput(text, layout),
     ),
   };
 }

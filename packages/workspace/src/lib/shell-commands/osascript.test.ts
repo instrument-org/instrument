@@ -10,6 +10,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
 import { createOsascriptCommand } from "./osascript";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 
@@ -28,7 +29,7 @@ async function mockExeca() {
 
 describe("osascriptCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createOsascriptCommand(taskId);
+  const command = createOsascriptCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
     vi.resetAllMocks();

@@ -31,6 +31,7 @@ import {
 } from "../lib/skills";
 import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -181,6 +182,7 @@ export const LoadSkill = setupTool({
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
           cwd: taskDir(taskId),
+          layout: buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) }),
           signal,
           taskId,
         });

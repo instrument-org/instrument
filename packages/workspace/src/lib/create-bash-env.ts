@@ -90,6 +90,7 @@ import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
   type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
@@ -307,12 +308,12 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 };
 
 /**
- * What a custom command is built from. Most take the task id alone; `git`
- * takes the whole layout, since it reaches attached folders by their host
- * paths the way `rg` does.
+ * What a custom command is built from: the task, and the layout of the shell
+ * it runs in, which every native hatch writes its output's host paths back
+ * against and `git` also reaches attached folders through.
  */
 interface CustomCommandContext {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
+  layout: WorkspaceFsLayout;
   taskId: TaskId;
 }
 
@@ -357,13 +358,13 @@ const SESSION_COMMAND_DEFS: {
 const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
-    factory: ({ taskId }) => createFfmpegCommand(taskId),
+    factory: ({ layout, taskId }) => createFfmpegCommand(taskId, layout),
     listInDescription: true,
     name: FFMPEG_COMMAND.name,
   },
   {
     description: FFPROBE_COMMAND.description,
-    factory: ({ taskId }) => createFfprobeCommand(taskId),
+    factory: ({ layout, taskId }) => createFfprobeCommand(taskId, layout),
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
   },
@@ -381,13 +382,13 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: NODE_COMMAND.description,
-    factory: ({ taskId }) => createNodeCommand(taskId),
+    factory: ({ layout, taskId }) => createNodeCommand(taskId, layout),
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
   {
     description: OSASCRIPT_COMMAND.description,
-    factory: ({ taskId }) => createOsascriptCommand(taskId),
+    factory: ({ layout, taskId }) => createOsascriptCommand(taskId, layout),
     listInDescription: true,
     name: OSASCRIPT_COMMAND.name,
     platforms: ["darwin"],
@@ -401,62 +402,62 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 
   {
     description: PNPM_COMMAND.description,
-    factory: ({ taskId }) => createPnpmCommand(taskId),
+    factory: ({ layout, taskId }) => createPnpmCommand(taskId, layout),
     listInDescription: true,
     name: PNPM_COMMAND.name,
   },
   {
     description: NPX_COMMAND.description,
-    factory: ({ taskId }) => createNpxCommand(taskId),
+    factory: ({ layout, taskId }) => createNpxCommand(taskId, layout),
     listInDescription: false,
     name: NPX_COMMAND.name,
   },
   {
     description: PNPX_COMMAND.description,
-    factory: ({ taskId }) => createPnpxCommand(taskId),
+    factory: ({ layout, taskId }) => createPnpxCommand(taskId, layout),
     listInDescription: false,
     name: PNPX_COMMAND.name,
   },
   {
     description: PNX_COMMAND.description,
-    factory: ({ taskId }) => createPnxCommand(taskId),
+    factory: ({ layout, taskId }) => createPnxCommand(taskId, layout),
     listInDescription: true,
     name: PNX_COMMAND.name,
   },
   {
     description: UV_COMMAND.description,
-    factory: ({ taskId }) => createUvCommand(taskId),
+    factory: ({ layout, taskId }) => createUvCommand(taskId, layout),
     listInDescription: true,
     name: UV_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: ({ taskId }) => createPythonCommand(taskId),
+    factory: ({ layout, taskId }) => createPythonCommand(taskId, layout),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: ({ taskId }) => createPython3Command(taskId),
+    factory: ({ layout, taskId }) => createPython3Command(taskId, layout),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
   },
   {
     description: PYTHON_NATIVE_COMMAND.description,
-    factory: ({ taskId }) => createPythonNativeCommand(taskId),
+    factory: ({ layout, taskId }) => createPythonNativeCommand(taskId, layout),
     listInDescription: true,
     name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
-    factory: ({ taskId }) => createPipCommand(taskId),
+    factory: ({ layout, taskId }) => createPipCommand(taskId, layout),
     listInDescription: true,
     name: PIP_COMMAND.name,
   },
   {
     description: PIP3_COMMAND.description,
-    factory: ({ taskId }) => createPip3Command(taskId),
+    factory: ({ layout, taskId }) => createPip3Command(taskId, layout),
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
@@ -656,9 +657,7 @@ export async function createLocalBashEnv({
       ]
     : [
         createAppCommand({ taskId }),
-        ...customCommandDefs().map((cmd) =>
-          cmd.factory({ attachedFolders, taskId }),
-        ),
+        ...customCommandDefs().map((cmd) => cmd.factory({ layout, taskId })),
       ];
   const specializedCommandNames = chat
     ? [

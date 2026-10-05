@@ -21,6 +21,10 @@ import {
 } from "./shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "./subprocess-tree";
 import { taskDir } from "./task-dir-utils";
+import {
+  buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
+} from "./workspace-fs-layout";
 
 /**
  * How many processes may run at once per task. A ceiling the agent can hit beats
@@ -553,9 +557,9 @@ export function startBackgroundRun({
   callerSignal,
   command,
   explanation,
+  layout,
   run,
   taskId,
-  virtualizePaths,
 }: {
   /** Cancels the run until it is promoted; typically the tool call's signal. */
   callerSignal: AbortSignal;
@@ -566,17 +570,18 @@ export function startBackgroundRun({
     exitCode: number;
     output: string;
   }>;
-  /** Locates the task dir the streamed copy is redacted against. */
-  taskId: TaskId;
   /**
-   * Maps every mount's host root in a streamed line back to its mount point,
-   * the way a foreground shim does for the copy it returns. The sink is the
-   * one place the streamed copy passes through and knows nothing of mounts,
-   * so the caller that built the layout hands the mapping in. Left out where
-   * there is no mount to map.
+   * The layout of the shell the command runs in, which the streamed copy's
+   * host paths are written back against the way a foreground shim writes the
+   * copy it returns. Left out where there is no shell, which leaves the
+   * task's own folder and the skills.
    */
-  virtualizePaths?: (text: string) => string;
+  layout?: WorkspaceFsLayout;
+  /** The task the run belongs to. */
+  taskId: TaskId;
 }): BackgroundRunHandle {
+  const outputLayout =
+    layout ?? buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
   const buffer = new BackgroundOutputBuffer({
     capBytes: PENDING_OUTPUT_CAP_BYTES,
   });
@@ -607,16 +612,9 @@ export function startBackgroundRun({
     // usable as a tool input, and the authoritative final shell output already
     // does that; applying it to a live view would corrupt backslashes inside
     // matched lines for no gain.
-    //
-    // Mounts are mapped before the redaction pass, which is the order the
-    // foreground shims use: that pass folds anything under the home directory
-    // into `~`, and `~` resolves to nothing inside the sandbox, so a mount
-    // rooted there would reach the agent as a path it cannot open.
-    const text = filterShellOutput(
-      virtualizePaths ? virtualizePaths(rawText) : rawText,
-      taskDir(taskId),
-      { rewriteSeparators: false },
-    );
+    const text = filterShellOutput(rawText, outputLayout, {
+      rewriteSeparators: false,
+    });
     // Redaction can empty a chunk that arrived non-empty, and a chunk that adds
     // nothing must not be treated as one. Recording it would clear the
     // ends-with-newline flag, which makes the streamed digest disagree with the

@@ -1,6 +1,7 @@
 import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PYTHON_COMMAND, PYTHON_NATIVE_COMMAND } from "./python";
 import {
   resolveCommandContext,
@@ -29,15 +30,19 @@ export const PIP3_COMMAND = {
   name: "pip3",
 } as const;
 
-export function createPip3Command(taskId: TaskId) {
-  return createPipCommandNamed(taskId, PIP3_COMMAND.name);
+export function createPip3Command(taskId: TaskId, layout: WorkspaceFsLayout) {
+  return createPipCommandNamed(taskId, layout, PIP3_COMMAND.name);
 }
 
-export function createPipCommand(taskId: TaskId) {
-  return createPipCommandNamed(taskId, PIP_COMMAND.name);
+export function createPipCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+  return createPipCommandNamed(taskId, layout, PIP_COMMAND.name);
 }
 
-function createPipCommandNamed(taskId: TaskId, name: string) {
+function createPipCommandNamed(
+  taskId: TaskId,
+  layout: WorkspaceFsLayout,
+  name: string,
+) {
   return defineCommand(name, async (args, ctx) => {
     // `uv pip --version` is not a valid uv subcommand; intercept and return a
     // pip-compatible version string so agents that probe with `pip --version`
@@ -48,8 +53,8 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
         args: ["--version"],
         ctx,
         env,
+        layout,
         taskCwd,
-        taskId,
       });
       const uvVersion = uvResult.stdout.trim();
       return {
@@ -75,8 +80,8 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       args: ["pip", ...resolvePathArgs(args, taskId, ctx)],
       ctx,
       env,
+      layout,
       taskCwd,
-      taskId,
     });
     if (result.exitCode === 0 && args[0] === "install") {
       return { ...result, stderr: result.stderr + INSTALLED_NOTE };

@@ -1,13 +1,40 @@
 import os from "node:os";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { type TaskDir, TaskDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  type TaskDir,
+  TaskDirSchema,
+} from "../schemas/paths";
 import {
   filterShellOutput,
-  redactHostPaths,
   redactTaskDir,
   shouldFilterDebuggerMessage,
+  virtualizeHostPaths,
 } from "./filter-shell-output";
+import { type WorkspaceFsLayout } from "./workspace-fs-layout";
+
+/** A shell's layout: the task folder, and any folders mounted beside it. */
+function layoutOf(
+  dir: TaskDir,
+  mounts: Record<string, string> = {},
+): WorkspaceFsLayout {
+  return {
+    attached: Object.entries(mounts).map(([mountPoint, hostRoot]) => ({
+      hostRoot: AbsolutePathSchema.parse(hostRoot),
+      maskedEntries: [],
+      mountPoint,
+      readOnly: true,
+    })),
+    skills: [],
+    task: {
+      hostRoot: dir,
+      maskedEntries: [],
+      mountPoint: "/task",
+      readOnly: false,
+    },
+  };
+}
 
 describe("filterShellOutput", () => {
   const dir = TaskDirSchema.parse("/absolute/path/to/my task");
@@ -24,7 +51,7 @@ ${dir}/scripts/interleave-demo.ts
 
 ✖ 1 problems (0 errors, 1 warnings)`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
 
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm lint
@@ -45,7 +72,7 @@ ${dir}/scripts/interleave-demo.ts
 ${dir}/file2.ts
 ${dir}/file3.ts`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
 
     expect(result).toMatchInlineSnapshot(`
       "./file1.ts
@@ -58,7 +85,9 @@ ${dir}/file3.ts`;
     const output = String.raw`Converted -> output\smiley.png
 ${dir}\output\rainbow.pdf`;
 
-    const result = filterShellOutput(output, dir, { rewriteSeparators: true });
+    const result = filterShellOutput(output, layoutOf(dir), {
+      rewriteSeparators: true,
+    });
 
     expect(result).toMatchInlineSnapshot(`
       "Converted -> output/smiley.png
@@ -72,7 +101,7 @@ ${dir}\output\rainbow.pdf`;
     // LaTeX macro. Rewriting them made valid output look corrupted.
     const result = filterShellOutput(
       String.raw`{"body":"line\nline","re":"/a\d+/"}`,
-      dir,
+      layoutOf(dir),
     );
 
     expect(result).toMatchInlineSnapshot(
@@ -83,7 +112,9 @@ ${dir}\output\rainbow.pdf`;
   it("still redacts host paths when the separator rewrite is off, but leaves other backslashes alone", () => {
     const output = String.raw`${dir}\output\r.pdf matched /a\d+/ and "x\n"`;
 
-    const result = filterShellOutput(output, dir, { rewriteSeparators: false });
+    const result = filterShellOutput(output, layoutOf(dir), {
+      rewriteSeparators: false,
+    });
 
     expect(result).toMatchInlineSnapshot(
       `".\\output\\r.pdf matched /a\\d+/ and "x\\n""`,
@@ -93,7 +124,7 @@ ${dir}\output\rainbow.pdf`;
   it("redacts app dir variants case-insensitively", () => {
     const output = `${dir.toUpperCase()}/output/file.png`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
 
     expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
   });
@@ -110,7 +141,7 @@ ${dir}\output\rainbow.pdf`;
 }`;
 
     // The flag is what a Windows build's default is; this test runs on posix.
-    const result = filterShellOutput(output, windowsDir, {
+    const result = filterShellOutput(output, layoutOf(windowsDir), {
       rewriteSeparators: true,
     });
 
@@ -127,7 +158,7 @@ ${dir}\output\rainbow.pdf`;
     const output = `Error: ENOENT
     at async file://${home}/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
 
     expect(result).toBe(`Error: ENOENT
     at async file://~/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`);
@@ -140,7 +171,7 @@ ${dir}\output\rainbow.pdf`;
 
 ✓ All tests passed`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
 
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm test
@@ -152,7 +183,7 @@ ${dir}\output\rainbow.pdf`;
   });
 
   it("handles empty output", () => {
-    const result = filterShellOutput("", dir);
+    const result = filterShellOutput("", layoutOf(dir));
 
     expect(result).toMatchInlineSnapshot(`""`);
   });
@@ -194,14 +225,14 @@ ${dir}\output\rainbow.pdf`;
       output: `${"a".repeat(50)}https://user:ghp_secretToken@github.com/o/r.git`,
     },
   ])("redacts credentials in $output", ({ expected, output }) => {
-    expect(filterShellOutput(output, dir)).toBe(expected);
+    expect(filterShellOutput(output, layoutOf(dir))).toBe(expected);
   });
 
   it.each([
     { output: "https://github.com/o/r.git" },
     { output: "Cloning into 'r'... see https://example.com/help@2x.png" },
   ])("leaves $output without userinfo untouched", ({ output }) => {
-    expect(filterShellOutput(output, dir)).toBe(output);
+    expect(filterShellOutput(output, layoutOf(dir))).toBe(output);
   });
 
   it("filters debugger messages from output", () => {
@@ -217,7 +248,7 @@ ${dir}\output\rainbow.pdf`;
     Waiting for the debugger to disconnect...
     Waiting for the debugger to disconnect...`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, layoutOf(dir));
     expect(result).toMatchInlineSnapshot(`
       "
           Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
@@ -231,33 +262,48 @@ ${dir}\output\rainbow.pdf`;
   });
 });
 
-describe("redactHostPaths", () => {
-  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
+describe("virtualizeHostPaths", () => {
+  const home = os.homedir();
+  const dir = TaskDirSchema.parse(`${home}/Instrument/tasks/my task`);
+  const layout = layoutOf(dir, {
+    "/mnt/Home/Downloads": `${home}/Downloads`,
+    "/tasks/t1": "/var/folders/dj/abc/T/tasks/t1",
+  });
 
-  it("collapses the task dir to '.' and the home dir to '~'", () => {
-    const home = os.homedir();
-    const text = `attachments: ${dir}/attachments\ncache: ${home}/Library/Caches/pnpm`;
+  it("names each mount by its mount point, the task folder as ., and the rest of home as ~", () => {
+    const text = [
+      `wrote ${home}/Downloads/a.pdf`,
+      `cwd ${dir}/work`,
+      `cache ${home}/Library/Caches/pnpm`,
+    ].join("\n");
 
-    expect(redactHostPaths(text, dir)).toBe(
-      "attachments: ./attachments\ncache: ~/Library/Caches/pnpm",
+    expect(virtualizeHostPaths(text, layout)).toBe(
+      "wrote /mnt/Home/Downloads/a.pdf\ncwd ./work\ncache ~/Library/Caches/pnpm",
     );
   });
 
-  it("redacts a /var task dir written in its /private firmlink spelling", () => {
-    // A script that calls Path(...).resolve() canonicalizes /var -> /private/var.
-    const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
-    const text =
-      "Wrote report to /private/var/folders/dj/abc/T/tasks/my-task/output/r.txt";
+  it("reads a mount in its /private firmlink spelling", () => {
+    expect(
+      virtualizeHostPaths(
+        "Wrote /private/var/folders/dj/abc/T/tasks/t1/out/r.txt",
+        layout,
+      ),
+    ).toBe("Wrote /tasks/t1/out/r.txt");
+  });
 
-    expect(redactHostPaths(text, varDir)).toBe(
-      "Wrote report to ./output/r.txt",
-    );
+  it("does not read a root inside a longer name", () => {
+    expect(
+      virtualizeHostPaths(
+        `${home}/Downloads2/x and ${home}/Downloads.`,
+        layout,
+      ),
+    ).toBe("~/Downloads2/x and /mnt/Home/Downloads.");
   });
 
   it("touches only host paths: leaves backslashes and URL credentials alone", () => {
     const text = String.raw`re=/a\b/ and https://user:tok@example.com`;
 
-    expect(redactHostPaths(text, dir)).toBe(text);
+    expect(virtualizeHostPaths(text, layout)).toBe(text);
   });
 });
 

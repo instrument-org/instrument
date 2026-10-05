@@ -41,7 +41,6 @@ import {
   HandOffSchema,
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
-import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import {
@@ -192,9 +191,9 @@ export const BashTool = setupTool({
       sessionId,
       taskId,
     });
-    // The mounts the native shims map their own output through, so the live
-    // copy a promoted command streams names them the way the foreground copy
-    // does.
+    // The layout the native shims write their own output's host paths back
+    // against, so the live copy a promoted command streams names them the way
+    // the foreground copy does.
     const layout = shellLayout({ attachedFolders, chat, taskId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
@@ -236,8 +235,8 @@ export const BashTool = setupTool({
           };
         }
       },
+      layout,
       taskId,
-      virtualizePaths: (text) => virtualizeOutput(text, layout),
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);

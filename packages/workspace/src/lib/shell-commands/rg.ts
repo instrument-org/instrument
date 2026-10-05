@@ -5,12 +5,11 @@ import nodePath from "node:path";
 import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
-import { filterShellOutput, pathVariants } from "../filter-shell-output";
+import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
 import { normalizePath } from "../normalize-path";
 import { isAtOrUnder } from "../path-containment";
 import { RG_DISK_PATH } from "../ripgrep";
-import { taskDir } from "../task-dir-utils";
 import {
   nonTaskMounts,
   classifyVirtualPath,
@@ -157,8 +156,8 @@ export function createRgCommand({
 
     const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
       filterShellOutput(
-        virtualizeOutput(text, layout),
-        taskDir(taskId),
+        text,
+        layout,
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt
         // backslashes inside matched lines and `--json` escapes.
@@ -170,38 +169,6 @@ export function createRgCommand({
       ...streams,
     };
   });
-}
-
-/**
- * Map every mount's real location back to its virtual path so match paths stay
- * sandbox-shaped.
- *
- * A host root is matched in every spelling it can be printed in, not just the
- * one the layout stores. `--path-separator=/` makes ripgrep print a Windows
- * host root as `C:/Users/...` while the layout holds `C:\Users\...`, so
- * comparing the stored spelling alone silently matches nothing and the match
- * paths leak out as host paths.
- *
- * Longest spelling first, so a mount nested inside another wins over its parent.
- */
-export function virtualizeOutput(
-  output: string,
-  layout: WorkspaceFsLayout,
-): string {
-  const rewrites = nonTaskMounts(layout)
-    .flatMap((mount) =>
-      pathVariants(mount.hostRoot).map((hostRoot) => ({
-        hostRoot,
-        mountPoint: mount.mountPoint,
-      })),
-    )
-    .sort((a, b) => b.hostRoot.length - a.hostRoot.length);
-
-  let result = output;
-  for (const { hostRoot, mountPoint } of rewrites) {
-    result = result.replaceAll(hostRoot, mountPoint);
-  }
-  return result;
 }
 
 /**

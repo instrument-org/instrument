@@ -5,6 +5,7 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -81,7 +82,7 @@ const SANDBOXED_ALTERNATIVE = {
   alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
 };
 
-export function createNodeCommand(taskId: TaskId) {
+export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
@@ -122,7 +123,7 @@ export function createNodeCommand(taskId: TaskId) {
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, taskDir(taskId)),
+        (text) => filterShellOutput(text, layout),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -185,7 +186,7 @@ export function createNodeCommand(taskId: TaskId) {
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, taskDir(taskId)),
+        (text) => filterShellOutput(text, layout),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -218,7 +219,7 @@ export function createNodeCommand(taskId: TaskId) {
         return {
           exitCode: execResult.exitCode ?? 1,
           ...mapStreams(shimOutput(execResult, NODE_COMMAND.name), (text) =>
-            filterShellOutput(text, taskDir(taskId)),
+            filterShellOutput(text, layout),
           ),
         };
       }
@@ -267,7 +268,7 @@ export function createNodeCommand(taskId: TaskId) {
     );
     const streams = mapStreams(
       shimOutput(execResult, NODE_COMMAND.name),
-      (text) => filterShellOutput(text, taskDir(taskId)),
+      (text) => filterShellOutput(text, layout),
     );
 
     return {

@@ -12,6 +12,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
 import { createPythonNativeCommand, importedModules } from "./python";
+import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 vi.mock("./uv", () => ({
@@ -29,7 +30,7 @@ const mockCtx = createCommandContext({
 
 describe("python-native", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createPythonNativeCommand(taskId);
+  const command = createPythonNativeCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
     vi.resetAllMocks();

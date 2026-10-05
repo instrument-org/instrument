@@ -13,10 +13,10 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createBashEnv } from "../create-bash-env";
+import { virtualizeHostPaths } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { virtualizeOutput } from "./rg";
 import { ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();
@@ -422,7 +422,7 @@ describe("rg command in a chat", () => {
   });
 });
 
-describe("virtualizeOutput", () => {
+describe("virtualizeHostPaths on what rg prints", () => {
   // ripgrep runs with `--path-separator=/`, so it prints a host root in its
   // POSIX spelling whatever the layout stores.
   function layoutFor(hostRoot: string) {
@@ -447,7 +447,7 @@ describe("virtualizeOutput", () => {
     const layout = layoutFor(String.raw`C:\Users\dev\Downloads`);
 
     expect(
-      virtualizeOutput("C:/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
+      virtualizeHostPaths("C:/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
     ).toBe("/mnt/Docs/note.md:1:NEEDLE\n");
   });
 
@@ -455,7 +455,7 @@ describe("virtualizeOutput", () => {
     const layout = layoutFor("/Users/dev/Downloads");
 
     expect(
-      virtualizeOutput("/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
+      virtualizeHostPaths("/Users/dev/Downloads/note.md:1:NEEDLE\n", layout),
     ).toBe("/mnt/Docs/note.md:1:NEEDLE\n");
   });
 });

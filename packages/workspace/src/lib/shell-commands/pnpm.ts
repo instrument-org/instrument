@@ -8,6 +8,7 @@ import { dedent } from "radashi";
 
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -72,15 +73,16 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-export function createNpxCommand(taskId: TaskId) {
+export function createNpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
     taskId,
+    layout,
     stripNpxCompatibilityFlags,
   );
 }
 
-export function createPnpmCommand(taskId: TaskId) {
+export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -117,6 +119,7 @@ export function createPnpmCommand(taskId: TaskId) {
       }
       const { env: execEnv, taskCwd } = resolveCommandContext(taskId, ctx);
       const execResult = await runPnpmCommand({
+        layout,
         args: ["exec", ...args.slice(1)],
         cwd: taskCwd,
         env: execEnv,
@@ -193,6 +196,7 @@ export function createPnpmCommand(taskId: TaskId) {
     let installOutput = "";
     if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
+        layout,
         args: ["install"],
         cwd,
         env,
@@ -204,6 +208,7 @@ export function createPnpmCommand(taskId: TaskId) {
       }
     }
     const result = await runPnpmCommand({
+      layout,
       args: filteredArgs,
       cwd,
       env,
@@ -232,17 +237,18 @@ export function createPnpmCommand(taskId: TaskId) {
   });
 }
 
-export function createPnpxCommand(taskId: TaskId) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, taskId);
+export function createPnpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, taskId, layout);
 }
 
-export function createPnxCommand(taskId: TaskId) {
-  return createDlxAliasCommand(PNX_COMMAND.name, taskId);
+export function createPnxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNX_COMMAND.name, taskId, layout);
 }
 
 function createDlxAliasCommand(
   name: string,
   taskId: TaskId,
+  layout: WorkspaceFsLayout,
   normalizeArgs = (args: string[]) => args,
 ) {
   return defineCommand(name, async (args, ctx) => {
@@ -254,6 +260,7 @@ function createDlxAliasCommand(
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const result = await runPnpmCommand({
+      layout,
       args: ["dlx", ...normalizedArgs],
       cwd: taskCwd,
       env,

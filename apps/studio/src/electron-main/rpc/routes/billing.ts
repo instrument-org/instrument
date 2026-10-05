@@ -9,7 +9,6 @@ import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
-import { ORPCError } from "@orpc/client";
 import { app } from "electron";
 import { z } from "zod";
 
@@ -57,33 +56,19 @@ const openPortal = authenticated.handler(async () => {
 /**
  * Moves a live subscription to another plan through the API, which charges
  * the difference with Stripe's pending updates so the higher limits wait on
- * the payment. When the payment needs the person (a card to confirm), the
- * API hands back a page for it, opened like Checkout.
- *
- * STUB: an API without `billing.changePlan` answers 404, and until every
- * target serves it the Customer Portal stands in. Its own plan switch is to be
- * turned off, so this fallback goes once the API procedure ships everywhere.
+ * the payment. When that payment needs the person (a card to confirm), the
+ * API hands back the invoice's page, opened like Checkout.
  */
 const changePlan = authenticated
   .input(z.object({ plan: z.string() }))
   .handler(async ({ input }) => {
-    try {
-      const result = await platformApiRpcClient.billing.changePlan.call({
-        plan: input.plan,
-      });
-      const url: unknown = Reflect.get(result, "url");
-      if (typeof url === "string") {
-        await openBillingPage(url);
-      }
-      return { via: "api" as const };
-    } catch (error) {
-      if (!(error instanceof ORPCError) || error.status !== 404) {
-        throw error;
-      }
-      const { url } = await platformApiRpcClient.billing.createPortal.call();
-      await openBillingPage(url);
-      return { via: "portal" as const };
+    const result = await platformApiRpcClient.billing.changePlan.call({
+      plan: input.plan,
+    });
+    if (result.status === "pending" && result.invoiceUrl) {
+      await openBillingPage(result.invoiceUrl);
     }
+    return result;
   });
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);

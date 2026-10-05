@@ -84,9 +84,15 @@ export const contract = {
      * Moves a live subscription to another offered plan, charging the
      * difference now; the new limits apply once that payment succeeds.
      */
-    changePlan: base
-      .input(z.object({ plan: z.string() }))
-      .output(z.looseObject({})),
+    changePlan: base.input(z.object({ plan: z.string() })).output(
+      z.object({
+        /** Where the change's invoice is paid while it is pending. */
+        invoiceUrl: z.string().optional(),
+        /** The plan in effect now: the old one while the change is pending. */
+        plan: z.string().nullable(),
+        status: z.enum(["applied", "pending"]),
+      }),
+    ),
     createCheckout: base
       .input(z.object({ plan: z.string() }))
       .output(z.object({ url: z.string() })),

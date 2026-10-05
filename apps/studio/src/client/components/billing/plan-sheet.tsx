@@ -15,13 +15,14 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 /**
  * The plan picker as a sheet over whatever opened it, a chat or Settings.
  * Subscribing hands off to Stripe Checkout in the browser and waits there
  * for the subscription to land; switching a live subscription goes through
- * the API. Mounted once at the window root, with the app-wide modals.
+ * the API, and waits the same way while Stripe holds the change for payment. Mounted once at the window root, with the app-wide modals.
  */
 export function PlanSheet() {
   const [state, setState] = useAtom(planSheetAtom);
@@ -58,25 +59,77 @@ function PlanSheetBody({
   onDone: () => void;
   preselect: string | undefined;
 }) {
-  const { data: status, refetch } = useBillingStatus();
+  // A plan change waiting on its invoice: the plan it moves to, and the page
+  // where that invoice is paid when the person has to do it.
+  const [pendingChange, setPendingChange] = useState<null | {
+    invoiceUrl?: string;
+    plan: string;
+  }>(null);
+  const { data: status, refetch } = useBillingStatus({
+    pollMs: pendingChange ? 3000 : undefined,
+  });
+  const changeLanded =
+    pendingChange !== null && status?.plan === pendingChange.plan;
+  useEffect(() => {
+    if (changeLanded) {
+      onDone();
+    }
+  }, [changeLanded, onDone]);
   const { data: offer, error: offerError } = useQuery(
     rpcClient.billing.offer.queryOptions(),
   );
   const checkout = usePlanCheckout({ onSubscribed: onDone });
   const changePlan = useMutation(
     rpcClient.billing.changePlan.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't change your plan");
+      onError: (error) => {
+        toast.error("Couldn't change your plan", {
+          description: error.message,
+        });
       },
-      onSuccess: ({ via }) => {
-        if (via === "portal") {
-          toast("Finish switching plans in your browser");
-        }
+      onSuccess: (result, { plan }) => {
         void refetch();
-        onDone();
+        if (result.status === "applied") {
+          onDone();
+        } else {
+          setPendingChange({
+            plan,
+            ...(result.invoiceUrl && { invoiceUrl: result.invoiceUrl }),
+          });
+        }
       },
     }),
   );
+
+  if (pendingChange) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>
+            {pendingChange.invoiceUrl
+              ? "Finish in your browser"
+              : "Changing your plan"}
+          </DialogTitle>
+          <DialogDescription>
+            {pendingChange.invoiceUrl
+              ? "The payment for your new plan opened in your browser. Your limits go up as soon as it's paid."
+              : "Your limits go up as soon as the payment goes through."}
+          </DialogDescription>
+        </DialogHeader>
+        <WaitingForStripeStatus
+          isOpening={false}
+          onOpenAgain={
+            pendingChange.invoiceUrl
+              ? () => {
+                  void rpcClient.utils.openExternalLink.call({
+                    url: pendingChange.invoiceUrl ?? "",
+                  });
+                }
+              : undefined
+          }
+        />
+      </>
+    );
+  }
 
   if (checkout.waitingFor) {
     return (
@@ -174,7 +227,7 @@ export function WaitingForStripeStatus({
 }: {
   isOpening: boolean;
   onBack?: () => void;
-  onOpenAgain: () => void;
+  onOpenAgain?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -190,14 +243,16 @@ export function WaitingForStripeStatus({
           Back
         </Button>
       )}
-      <Button
-        disabled={isOpening}
-        onClick={onOpenAgain}
-        size="sm"
-        variant="outline"
-      >
-        Open it again
-      </Button>
+      {onOpenAgain && (
+        <Button
+          disabled={isOpening}
+          onClick={onOpenAgain}
+          size="sm"
+          variant="outline"
+        >
+          Open it again
+        </Button>
+      )}
     </div>
   );
 }

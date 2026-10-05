@@ -127,7 +127,16 @@ function isAllowedBaseUrl(value: string): boolean {
 }
 
 // An "api" app: authenticated HTTP requests through `app request`.
+/**
+ * Which account of the service this app is signed in as, in the user's
+ * words or the agent's ("jeremy@pileofturtles.com", "Acme workspace"), so
+ * two apps for one service can be told apart. Only a label: it reaches
+ * nothing and is left out of the manifest's hash.
+ */
+const AccountSchema = z.string().trim().min(1).max(120).optional();
+
 const ApiAppManifestSchema = z.strictObject({
+  account: AccountSchema,
   auth: ApiAuthSchema,
   baseUrl: z.string().refine(isAllowedBaseUrl, {
     message:
@@ -159,6 +168,7 @@ export type ApiAppManifest = z.output<typeof ApiAppManifestSchema>;
 // An "mcp" app: tools discovered and called on a hosted MCP server
 // (Streamable HTTP) through `app tools` and `app call`.
 const McpAppManifestSchema = z.strictObject({
+  account: AccountSchema,
   auth: McpAuthSchema,
   name: z.string().min(1),
   type: z.literal("mcp"),
@@ -175,6 +185,7 @@ export type McpAppManifest = z.output<typeof McpAppManifestSchema>;
 // carries. Tools are discovered and called exactly as a hosted server's are.
 const LocalMcpAppManifestSchema = z
   .strictObject({
+    account: AccountSchema,
     // Arguments the server itself takes, after its own name.
     args: z.array(z.string()).optional(),
     auth: LocalMcpAuthSchema,
@@ -210,6 +221,7 @@ export type LocalMcpAppManifest = z.output<typeof LocalMcpAppManifestSchema>;
 // Zoom) or that has none at all. No credential and no tools: connected means
 // the user said they are signed in, and a task works the site in a tab.
 const WebAppManifestSchema = z.strictObject({
+  account: AccountSchema,
   name: z.string().min(1),
   // The page the sign-in opens, when it is not where the work happens.
   signIn: z

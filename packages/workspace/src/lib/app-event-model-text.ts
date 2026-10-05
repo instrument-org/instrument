@@ -21,9 +21,9 @@ export function appEventModelNote(
     switch (event.event) {
       case "connected": {
         if (event.web !== undefined) {
-          return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: brief a task with ${event.web}, which it opens in a tab of its own where the sign-in holds, or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`. No \`${APP_COMMAND.name}\` call reaches it.`;
+          return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: brief a task with ${event.web}, which it opens in a tab of its own where the sign-in holds, or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event.slug)}`;
         }
-        return `- The user signed in to ${event.name} (${event.slug}). It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.`;
+        return `- The user signed in to ${event.name} (${event.slug}). It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event.slug)}`;
       }
       case "declined": {
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
@@ -51,4 +51,12 @@ export function appEventModelNote(
         : "Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this."
     }
   `;
+}
+
+/**
+ * What a connection note asks of the agent once it can see whose account
+ * the app is, on a connection it did not hear named.
+ */
+function nameIt(slug: string): string {
+  return ` Once you see which account it is (an email address, a workspace), name it with \`${APP_COMMAND.name} account ${slug} '<account>'\`, so it can be told from another.`;
 }

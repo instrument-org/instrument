@@ -200,6 +200,32 @@ export function guideSkeleton(
 }
 
 /** Write a manifest and, when the folder has none, a guide to fill in. */
+/**
+ * Names the account an app is signed in as, or clears the name, rewriting
+ * only its manifest. The name is outside the manifest's hash, so the app
+ * stays connected.
+ */
+export async function setAppAccount(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+  account: string | undefined,
+): Promise<AppManifest> {
+  const loaded = await loadApp(appsDir, slug);
+  if (loaded.isErr()) {
+    throw new Error(loaded.error.message);
+  }
+  const rest = omit(loaded.value.manifest, ["account"]);
+  const manifest = AppManifestSchema.parse(
+    account === undefined ? rest : { ...rest, account },
+  );
+  await fs.writeFile(
+    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+  return manifest;
+}
+
 export async function writeAppFolder({
   appsDir,
   guide,
@@ -234,10 +260,13 @@ export async function writeAppFolder({
  * parsed value rather than the file's bytes, so reformatting the JSON is not
  * a change. A local app's `macApp` is left out: it only says which icon the
  * app is drawn with, and naming one changes nothing that runs or is sent.
+ * Nor is any app's `account`, a label for the account it is signed in as.
  */
 function manifestHash(manifest: AppManifest): string {
   const reached =
-    manifest.type === "mcp-local" ? omit(manifest, ["macApp"]) : manifest;
+    manifest.type === "mcp-local"
+      ? omit(manifest, ["account", "macApp"])
+      : omit(manifest, ["account"]);
   return createHash("sha256")
     .update(JSON.stringify(sortKeys(reached)))
     .digest("hex")

@@ -49,6 +49,7 @@ import {
   listApps,
   loadApp,
   readAppGuide,
+  setAppAccount,
   writeAppFolder,
   writeAppGuide,
 } from "../apps/store";
@@ -150,6 +151,12 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       128px, in place of its site's or its Mac app's. For a service whose site
       has no good one, a local app that drives no Mac app, or when the user
       asks. A task can draw one; set it from the task's folder.
+  ${APP_COMMAND.name} account <slug> ['<account>'] [--clear]
+      Name the account the app is signed in as, the way the user would know
+      it ("jeremy@example.com", "Acme workspace"), so two apps for one service
+      can be told apart; it shows wherever the app does. Once you have seen
+      which account it is, from what the service answered or the page a task
+      worked on, name it. The user can rename it. With no name, prints it.
   ${APP_COMMAND.name} disconnect <slug>
       Take the app's key or sign-in away. Its folder stays.
 
@@ -165,6 +172,10 @@ export function createAppCommand(context: AppCommandContext) {
 const runApp = defineSubcommands<AppCommandContext>({
   name: APP_COMMAND.name,
   subcommands: {
+    account: subcommand({
+      booleans: ["clear"],
+      run: (input, context) => runAccount(input, context),
+    }),
     call: subcommand({
       run: ({ positional }, context, { signal, stdin }) =>
         runCall(positional, context, stdin, signal),
@@ -741,6 +752,33 @@ async function runIcon(
   );
 }
 
+async function runAccount(input: SubcommandInput, context: AppCommandContext) {
+  const [slug, ...words] = input.positional;
+  const app = await requireApp(slug, context, { connected: false });
+  const named = words.join(" ").trim();
+  if (input.has("clear")) {
+    await setAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
+    await appChanged(app.slug);
+    return ok(`${app.slug} no longer names an account.\n`);
+  }
+  if (named === "") {
+    return ok(
+      app.manifest.account
+        ? `${app.slug} is signed in as ${app.manifest.account}.\n`
+        : `${app.slug} names no account yet. Name it with \`${APP_COMMAND.name} account ${app.slug} '<account>'\` once you have seen which one it is.\n`,
+    );
+  }
+  const manifest = await setAppAccount(
+    getWorkspaceConfig().appsDir,
+    app.slug,
+    named,
+  );
+  await appChanged(app.slug);
+  return ok(
+    `${app.slug} is ${manifest.name} (${manifest.account}) wherever it appears now.\n`,
+  );
+}
+
 async function runList(context: AppCommandContext) {
   const config = getWorkspaceConfig();
   const [{ apps, invalid }, connections, allowed] = await Promise.all([
@@ -758,7 +796,7 @@ async function runList(context: AppCommandContext) {
   }
   const lines = visible.map(
     (app) =>
-      `${app.slug}  ${app.manifest.name}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
+      `${app.slug}  ${app.manifest.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
   );
   for (const entry of invalid) {
     if (!allowed || allowed.has(entry.slug)) {

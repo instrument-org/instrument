@@ -58,7 +58,12 @@ export {
   readDirectoryIcons,
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
-export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
+export {
+  listApps,
+  loadApp,
+  readAppGuide,
+  setAppAccount,
+} from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,

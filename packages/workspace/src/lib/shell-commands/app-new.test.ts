@@ -623,3 +623,38 @@ describe("app new refuses what cannot connect", () => {
     expect(await guideOf("switcher")).not.toBe(before);
   });
 });
+
+describe("app account", () => {
+  it("names the account without disconnecting the app", async () => {
+    await app(
+      "new",
+      "inbox-two",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com",
+    );
+    const before = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
+
+    const named = await app("account", "inbox-two", "jeremy@example.com");
+    const after = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
+
+    expect(named.stdout).toBe(
+      "inbox-two is Gmail (jeremy@example.com) wherever it appears now.\n",
+    );
+    expect(after._unsafeUnwrap().manifest.account).toBe("jeremy@example.com");
+    // Outside the hash, so the connection record still matches.
+    expect(after._unsafeUnwrap().manifestHash).toBe(
+      before._unsafeUnwrap().manifestHash,
+    );
+    expect((await app("list")).stdout).toContain(
+      "inbox-two  Gmail (jeremy@example.com)  web",
+    );
+
+    await app("account", "inbox-two", "--clear");
+    expect(
+      (await loadApp(getWorkspaceConfig().appsDir, "inbox-two"))._unsafeUnwrap()
+        .manifest.account,
+    ).toBeUndefined();
+  });
+});

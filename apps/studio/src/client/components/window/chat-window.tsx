@@ -17,7 +17,13 @@ import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
@@ -40,6 +46,7 @@ import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
+import { type ComposePeek } from "./use-compose";
 import { useWindowTabs } from "./window-tabs";
 
 /** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -116,8 +123,9 @@ export function ChatBar({
  *
  * Grown, it is a window over the whole row, the way a draft grows: the
  * conversation, and the thing pressed among its tiles drawn large beside
- * it. Pressing a tile in the small window grows it with that thing up, and
- * so does anything the conversation asks to have shown; what the agent opens
+ * it. Pressing a tile in the small window peeks at that thing in a card over
+ * the conversation, and Expand on the card grows the window with it up, as
+ * does anything the conversation asks to have shown; what the agent opens
  * behind stays behind.
  */
 export function ChatWindow({
@@ -130,6 +138,7 @@ export function ChatWindow({
   onOpenInChats,
   onPageChrome,
   onPageHost,
+  onPeek,
   onPlacementChange,
   onSetTopics,
   placement,
@@ -155,6 +164,8 @@ export function ChatWindow({
   /** Where the address row takes the page's reload and controls, while a page is up. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   onPageHost: (element: HTMLElement | null) => void;
+  /** What the small window peeks at, for the layer that draws a page into the card; undefined while it peeks at nothing, or at something that is not a page. */
+  onPeek: (peek: ComposePeek | undefined) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
   onSetTopics: (topics: string[]) => void;
   placement: "docked" | "expanded";
@@ -184,6 +195,66 @@ export function ChatWindow({
     chat === undefined ? sentWords !== undefined : chat.state === "working";
   const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
+
+  // The tab peeked at in the small window: a look, kept here and nowhere
+  // else, so the tab the chat has up, which is what it shows grown and in
+  // Chats, is not moved by it. Growing the window ends the look.
+  const [peekId, setPeekId] = useState<string>();
+  if (isExpanded && peekId !== undefined) {
+    setPeekId(undefined);
+  }
+  const peekTab = tabs.find((tab) => tab.id === peekId);
+  const [peekHost, setPeekHost] = useState<HTMLDivElement | null>(null);
+  const [peekChrome, setPeekChrome] = useState<PageChromeSlots>();
+  const peekPageId = peekTab?.kind === "page" ? peekTab.id : undefined;
+  const reportPeek = useEffectEvent(onPeek);
+  useEffect(() => {
+    reportPeek(
+      peekPageId === undefined
+        ? undefined
+        : { chrome: peekChrome, into: peekHost, tabId: peekPageId },
+    );
+  }, [peekChrome, peekHost, peekPageId]);
+  useEffect(
+    () => () => {
+      reportPeek(undefined);
+    },
+    [],
+  );
+  // The card stands over the conversation from near the window's head down
+  // to just over the tiles, however tall the composer under them grows.
+  // Measured in layout px, which the card's height is set in under the
+  // window's zoom.
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const [tilesRow, setTilesRow] = useState<HTMLDivElement | null>(null);
+  const [peekRoom, setPeekRoom] = useState(0);
+  const isPeeking = peekTab !== undefined;
+  useLayoutEffect(() => {
+    if (!isPeeking || !body || !tilesRow) {
+      return;
+    }
+    const measure = () => {
+      const box = body.getBoundingClientRect();
+      const scale = body.offsetHeight > 0 ? box.height / body.offsetHeight : 1;
+      setPeekRoom((tilesRow.getBoundingClientRect().top - box.top) / scale);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    // The composer's column: the tiles move whenever it changes height.
+    if (tilesRow.parentElement) {
+      observer.observe(tilesRow.parentElement);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, [body, isPeeking, tilesRow]);
+  /** Grows the window with the thing peeked at up, for good. */
+  const expandPeek = () => {
+    if (peekTab) {
+      select(peekTab.id);
+    }
+  };
   const chatTitles = new Map<ChatId, string>(
     chat === undefined ? [] : [[chat.id, chat.title]],
   );
@@ -279,31 +350,41 @@ export function ChatWindow({
   };
 
   const tiles = tabs.length > 0 && (
-    <ChatTiles
-      appsBySlug={appsBySlug}
-      chatTitles={chatTitles}
-      chosenId={showsItem ? up.id : undefined}
-      isChatWorking={isWorking}
-      onAddComputer={() => {
-        openHere(instrumentFolderHref());
-      }}
-      onAddWeb={() => {
-        openHere(BROWSER_HREF);
-      }}
-      onClose={closeTab}
-      onReorder={(keys) => {
-        windowTabs.reorder(keys, chatId);
-      }}
-      onSelect={select}
-      tabs={tabs}
-      targetOf={(tab) =>
-        encodeBrowserTargetId(
-          tab.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(tab.id),
-        )
-      }
-      taskTitles={taskTitles}
-    />
+    <div ref={setTilesRow}>
+      <ChatTiles
+        appsBySlug={appsBySlug}
+        chatTitles={chatTitles}
+        chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
+        isChatWorking={isWorking}
+        onAddComputer={() => {
+          openHere(instrumentFolderHref());
+        }}
+        onAddWeb={() => {
+          openHere(BROWSER_HREF);
+        }}
+        onClose={closeTab}
+        onReorder={(keys) => {
+          windowTabs.reorder(keys, chatId);
+        }}
+        // Small, a press peeks, and a press on the tile peeked at puts it down;
+        // grown, a press brings the thing up beside the conversation.
+        onSelect={(id) => {
+          if (isExpanded) {
+            select(id);
+          } else {
+            setPeekId((current) => (current === id ? undefined : id));
+          }
+        }}
+        tabs={tabs}
+        targetOf={(tab) =>
+          encodeBrowserTargetId(
+            tab.taskId ?? WINDOW_ID,
+            StoreId.SessionSchema.parse(tab.id),
+          )
+        }
+        taskTitles={taskTitles}
+      />
+    </div>
   );
 
   return (
@@ -399,7 +480,7 @@ export function ChatWindow({
           </WindowButton>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1" ref={setBody}>
         {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. The sizes are the chat column's. */}
         <div
           className={cn(
@@ -512,6 +593,31 @@ export function ChatWindow({
             </FileOpenContext>
           </WindowContext>
         </div>
+        {peekTab && (
+          <div
+            className="absolute inset-x-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl-soft ring-1 ring-gray-300 select-none [--guest-bottom-radius:var(--radius-xl)] dark:ring-gray-600"
+            data-slot="chat-peek"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setPeekId(undefined);
+              }
+            }}
+            style={{ height: Math.max(0, peekRoom - 16) }}
+          >
+            <GroupItem
+              closeTab={closeTab}
+              group={chatId}
+              isFramed={false}
+              onClose={() => {
+                setPeekId(undefined);
+              }}
+              onExpand={expandPeek}
+              onPageChrome={setPeekChrome}
+              onPageHost={setPeekHost}
+              up={peekTab}
+            />
+          </div>
+        )}
         {showsItem && (
           <div className="flex min-w-0 flex-1 flex-col bg-sidebar">
             <div className="min-h-0 flex-1">

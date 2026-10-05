@@ -40,6 +40,7 @@ export function GroupItem({
   group,
   isFramed = true,
   onClose,
+  onExpand,
   onPageChrome,
   onPageHost,
   up,
@@ -52,6 +53,8 @@ export function GroupItem({
   isFramed?: boolean;
   /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
   onClose?: () => void;
+  /** Grows it into the larger view, from Expand beside the ×, for a surface that only peeks at it. */
+  onExpand?: () => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
@@ -133,6 +136,7 @@ export function GroupItem({
         canGoForward={canGoForward}
         location={location}
         {...(onClose ? { onClose } : {})}
+        {...(onExpand ? { onExpand } : {})}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
           if (up.kind === "page" && page) {

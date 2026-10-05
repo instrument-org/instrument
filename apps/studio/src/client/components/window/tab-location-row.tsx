@@ -63,6 +63,7 @@ export function TabLocationRow({
   location,
   onBack,
   onClose,
+  onExpand,
   onForward,
   onSite,
   onVisit,
@@ -81,6 +82,8 @@ export function TabLocationRow({
   onBack?: () => void;
   /** Puts the view away, for a row over something shown large beside a chat; the thing stays with the chat. */
   onClose?: () => void;
+  /** Grows what is shown into the larger view, for a row over something peeked at; in place of the file's own Expand. */
+  onExpand?: () => void;
   onForward?: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
@@ -174,14 +177,19 @@ export function TabLocationRow({
         </div>
       )}
       {trailing}
-      {/* The file up at the size Quick Look gives it, over the window. */}
-      {lookTarget && (
+      {/* The file up at the size Quick Look gives it, over the window,
+        unless the row's own Expand grows what is shown instead. */}
+      {(onExpand ?? lookTarget) && (
         <TabRowControl
           disabled={false}
           icon={<ArrowsOutSimpleIcon className="size-4" />}
           label="Expand"
           onClick={() => {
-            setLookAt(lookTarget);
+            if (onExpand) {
+              onExpand();
+            } else if (lookTarget) {
+              setLookAt(lookTarget);
+            }
           }}
         />
       )}

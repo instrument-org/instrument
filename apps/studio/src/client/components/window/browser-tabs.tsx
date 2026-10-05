@@ -140,6 +140,8 @@ export interface ComposeHost {
   layer?: number;
   /** Where the host stands, so a page is placed again when the host moves without resizing. */
   place: string;
+  /** The tab drawn, for a host showing one of its group's tabs that is not the one the group has up: a floating chat's peek. */
+  tabId?: string;
 }
 
 /** Where a page's reload and its controls go in an address row drawn over it. */
@@ -880,9 +882,13 @@ export function BrowserTabs({
         <AskTray path={activeFilePath} />
       )}
       {compose?.map((host) => {
-        // The page the draft window has up, when what it has up is a page:
-        // the tab its group remembers, or its first.
-        const hostUp = windowTabs.tabUpIn(host.group);
+        // The page the window has up, when what it has up is a page: the
+        // tab the host names, or else the one its group remembers, or its
+        // first.
+        const hostUp =
+          host.tabId === undefined
+            ? windowTabs.tabUpIn(host.group)
+            : allTabs.find((tab) => tab.id === host.tabId);
         return hostUp?.kind === "page" ? (
           <ComposePagePanel
             attached={attached.has(targetOf(hostUp))}

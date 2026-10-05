@@ -184,6 +184,9 @@ export function ComposeLayer({
                 onPageHost={(element) => {
                   compose.setHost(chatId, element);
                 }}
+                onPeek={(peek) => {
+                  compose.setPeek(chatId, peek);
+                }}
                 onPlacementChange={(placement) => {
                   compose.setPlacement(chatId, placement);
                 }}

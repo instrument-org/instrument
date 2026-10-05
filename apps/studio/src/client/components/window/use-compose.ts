@@ -21,6 +21,13 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
  * windows over the pane's page and starts the chats the drafts become. Everything is keyed by the group the window shows: the
  * draft's key, or the chat's id.
  */
+/** A tab a chat's small view peeks at, and where its page is drawn. */
+export interface ComposePeek {
+  chrome: PageChromeSlots | undefined;
+  into: HTMLElement | null;
+  tabId: string;
+}
+
 export function useCompose(width: number) {
   const [entries, setEntries] = useAtom(composeAtom);
   // Where each window's page is drawn, by the window's group, once the
@@ -37,24 +44,47 @@ export function useCompose(width: number) {
   const [chromeById, setChromeById] = useState<
     Record<string, PageChromeSlots | undefined>
   >({});
+  // What each chat's small view is peeking at, while it is: the tab, the
+  // element its page is drawn into, and where the peek's row takes the
+  // page's reload and controls. In memory only: a peek is a look, and the
+  // tab the chat has up is not moved by it.
+  const [peeksById, setPeeksById] = useState<
+    Record<string, ComposePeek | undefined>
+  >({});
   const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(entries, width, zoom);
   const windows = placed.filter((entry) => entry.placement !== "bar");
-  // A chat's small view draws no page; grown to fill the row it does.
-  const hosts: ComposeHost[] = windows.flatMap((entry) =>
-    entry.kind === "draft" || entry.placement === "expanded"
+  // A chat's small view draws only the page it peeks at; grown to fill
+  // the row it draws the page it has up.
+  const hosts: ComposeHost[] = windows.flatMap((entry): ComposeHost[] => {
+    const key = composeKeyOf(entry);
+    if (entry.kind === "draft" || entry.placement === "expanded") {
+      return [
+        {
+          chrome: chromeById[key] ?? true,
+          group: key,
+          into: hostsById[key] ?? null,
+          isActive: true,
+          layer: COMPOSE_GUEST_LAYER,
+          place: `${entry.placement}:${entry.right}:${entry.width ?? ""}`,
+        },
+      ];
+    }
+    const peek = peeksById[key];
+    return peek
       ? [
           {
-            chrome: chromeById[composeKeyOf(entry)] ?? true,
-            group: composeKeyOf(entry),
-            into: hostsById[composeKeyOf(entry)] ?? null,
+            chrome: peek.chrome ?? false,
+            group: key,
+            into: peek.into,
             isActive: true,
             layer: COMPOSE_GUEST_LAYER,
-            place: `${entry.placement}:${entry.right}:${entry.width ?? ""}`,
+            place: `peek:${entry.right}:${entry.width ?? ""}`,
+            tabId: peek.tabId,
           },
         ]
-      : [],
-  );
+      : [];
+  });
 
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
   const raise = (key: string, make: () => ComposeEntry) => {
@@ -95,6 +125,10 @@ export function useCompose(width: number) {
       return rest;
     });
     setChromeById((current) => {
+      const { [key]: _gone, ...rest } = current;
+      return rest;
+    });
+    setPeeksById((current) => {
       const { [key]: _gone, ...rest } = current;
       return rest;
     });
@@ -162,6 +196,18 @@ export function useCompose(width: number) {
         : { ...current, [key]: slots },
     );
   };
+  /** What a chat's small view peeks at, or that it peeks at nothing. */
+  const setPeek = (key: string, peek: ComposePeek | undefined) => {
+    setPeeksById((current) => {
+      const was = current[key];
+      return was?.tabId === peek?.tabId &&
+        was?.into === peek?.into &&
+        was?.chrome?.into === peek?.chrome?.into &&
+        was?.chrome?.reloadInto === peek?.chrome?.reloadInto
+        ? current
+        : { ...current, [key]: peek };
+    });
+  };
   const setView = (key: string, view: null | ScreenView) => {
     // By value: a window reports the same view again as it re-renders, and
     // a fresh object each time would re-render the layout on every report.
@@ -183,6 +229,7 @@ export function useCompose(width: number) {
     remove,
     setChrome,
     setHost,
+    setPeek,
     setPlacement,
     setView,
     viewsById,

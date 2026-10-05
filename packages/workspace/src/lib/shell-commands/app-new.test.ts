@@ -504,6 +504,49 @@ describe("app new --web", () => {
 });
 
 describe("app new refuses what cannot connect", () => {
+  // The Gmail chat wrote gmail.mcp.google.com, a host that serves nothing.
+  it("refuses a hosted server the directory does not list for that service", async () => {
+    const result = await app(
+      "new",
+      "gmail",
+      "--name",
+      "Gmail",
+      "--mcp",
+      "https://gmail.mcp.google.com/mcp",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "is not Gmail's MCP server; the directory has gmailmcp.googleapis.com",
+    );
+  });
+
+  it("starts a listed web app's sign-in on its sign-in page", async () => {
+    const result = await app(
+      "new",
+      "gmail",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await manifestOf("gmail")).toMatchObject({
+      signIn:
+        "https://accounts.google.com/ServiceLogin?service=mail&continue=https://mail.google.com/mail/",
+      type: "web",
+    });
+  });
+
+  it("names the sign-in page in a web set-up line", async () => {
+    const result = await app("catalog", "slack");
+
+    expect(result.stdout).toContain(
+      "--web https://app.slack.com --sign-in 'https://slack.com/signin'",
+    );
+  });
+
   it("refuses a listed server whose sign-in needs a registered client", async () => {
     const result = await app(
       "new",

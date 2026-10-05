@@ -84,7 +84,7 @@ type CatalogWayIn =
   | { auth: string; endpoint: string; kind: "api"; test?: string }
   | { auth?: string; endpoint: string; kind: "mcp" }
   | { kind: "mac-app"; name: string }
-  | { kind: "web"; url: string }
+  | { kind: "web"; signIn?: string; url: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -324,7 +324,11 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   if (macApp) {
     return { kind: "mac-app", name: macApp.name };
   }
-  return { kind: "web", url: entry.home ?? `https://${entry.domain}` };
+  return {
+    kind: "web",
+    url: entry.home ?? `https://${entry.domain}`,
+    ...(entry.signIn ? { signIn: entry.signIn } : {}),
+  };
 }
 
 /** The catalog, as lines: what each service is and how it is reached. */
@@ -359,7 +363,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
             ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
-            : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
+            : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
       ? entry.interfaces.find((surface) => surface.endpoint === way.endpoint)
@@ -799,7 +803,13 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
       "new takes exactly one of --mcp <url>, --api <base-url>, --local <package>, or --web <url>.",
     );
   }
-  const signIn = input.value("sign-in")?.trim();
+  // A web app the directory knows starts its sign-in where the directory
+  // says, so the card opens the sign-in and not a signed-out home page.
+  const signIn =
+    input.value("sign-in")?.trim() ??
+    (input.value("web") === undefined
+      ? undefined
+      : findCatalogEntry(slug, undefined)?.signIn);
   if (signIn && !web) {
     throw new Error(
       "--sign-in goes with --web: only a web app signs in on a page of its own.",
@@ -942,6 +952,28 @@ async function refuseWhatCannotConnect(
   name: string,
   manifest: AppManifest,
 ) {
+  // A service the directory lists has its hosted servers on record, so a
+  // server for it at any other host is one the agent made up.
+  const listed = getAppCatalog().find((candidate) => candidate.slug === slug);
+  if (listed && manifest.type === "mcp") {
+    const hosts = listed.interfaces.flatMap((surface) =>
+      surface.format === "mcp" &&
+      surface.endpoint &&
+      URL.canParse(surface.endpoint)
+        ? [new URL(surface.endpoint).host]
+        : [],
+    );
+    if (
+      URL.canParse(manifest.url) &&
+      !hosts.includes(new URL(manifest.url).host)
+    ) {
+      throw new Error(
+        hosts.length === 0
+          ? `the directory lists no hosted MCP server for ${listed.name}, so ${manifest.url} is not one. Set it up the way \`${APP_COMMAND.name} catalog ${listed.slug}\` says.`
+          : `${manifest.url} is not ${listed.name}'s MCP server; the directory has ${hosts.join(", ")}. Set it up the way \`${APP_COMMAND.name} catalog ${listed.slug}\` says.`,
+      );
+    }
+  }
   if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
     const entry = findCatalogEntry(slug, manifest.url);
     const site = entry ? (entry.home ?? `https://${entry.domain}`) : undefined;

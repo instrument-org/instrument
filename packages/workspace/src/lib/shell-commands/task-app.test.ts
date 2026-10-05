@@ -120,7 +120,7 @@ const originalApps = getWorkspaceConfig().apps;
 /** An app in the workspace, connected on the manifest it currently has. */
 async function connectedApp(slug: string) {
   const result = await createAppCommand({ taskId: CHAT_ID }).execute(
-    ["new", slug, "--name", "Linear", "--mcp", "https://mcp.example.com/sse"],
+    ["new", slug, "--name", "Linear", "--mcp", "https://mcp.linear.app/mcp"],
     createCommandContext({
       cwd: "/task",
       env: new Map<string, string>(),

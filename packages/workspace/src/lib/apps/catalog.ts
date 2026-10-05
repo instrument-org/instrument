@@ -53,6 +53,12 @@ const AppCatalogEntrySchema = z.object({
   /** The signed-in web app, when it is not the domain's front page. */
   home: z.string().optional(),
   /**
+   * Where signing in on the web starts, when that is not `home`: signed out,
+   * a service's home is often its marketing page, with the sign-in a click
+   * away the user should not have to find.
+   */
+  signIn: z.string().optional(),
+  /**
    * The ways in, tried in the order `app catalog` describes: a hosted MCP
    * server, one that runs here, an API a key opens, the Mac's own app, and
    * last the web app at `home`.

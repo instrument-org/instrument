@@ -645,7 +645,8 @@
         "Find the signed vendor agreement from June",
         "What’s in our Legal folder?",
         "Summarize the latest file Kevin shared with me"
-      ]
+      ],
+      "signIn": "https://account.box.com/login"
     },
     {
       "slug": "brex",
@@ -1310,7 +1311,8 @@
         "Read this paragraph aloud in a warm voice",
         "Make a sound effect of a door creaking open",
         "Turn my blog post into an audio file"
-      ]
+      ],
+      "signIn": "https://elevenlabs.io/app/sign-in"
     },
     {
       "slug": "exa",
@@ -1777,7 +1779,8 @@
       "aliases": ["google mail"],
       "family": "google",
       "tier": "featured",
-      "rank": 2
+      "rank": 2,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=mail&continue=https://mail.google.com/mail/"
     },
     {
       "slug": "google-calendar",
@@ -1815,7 +1818,8 @@
       "aliases": ["gcal"],
       "family": "google",
       "tier": "featured",
-      "rank": 3
+      "rank": 3,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=cl&continue=https://calendar.google.com/calendar/"
     },
     {
       "slug": "google-drive",
@@ -1855,7 +1859,8 @@
       ],
       "family": "google",
       "tier": "featured",
-      "rank": 1
+      "rank": 1,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://drive.google.com/drive/"
     },
     {
       "slug": "grafana",
@@ -2045,7 +2050,8 @@
       "home": "https://app.hubspot.com",
       "category": "sales",
       "tier": "featured",
-      "rank": 6
+      "rank": 6,
+      "signIn": "https://app.hubspot.com/login"
     },
     {
       "slug": "hugging-face",
@@ -2172,7 +2178,8 @@
         "Add everything for tacos to my cart",
         "Is oat milk in stock at my nearest store?",
         "Turn this lasagna recipe into a grocery list"
-      ]
+      ],
+      "signIn": "https://www.instacart.com/login"
     },
     {
       "slug": "interactive-brokers",
@@ -2760,7 +2767,8 @@
         "Which clusters do we have running?",
         "Add a read-only database user for analytics",
         "What tier is our production cluster on?"
-      ]
+      ],
+      "signIn": "https://account.mongodb.com/account/login"
     },
     {
       "slug": "motherduck",
@@ -2931,7 +2939,8 @@
       "aliases": ["sharepoint", "excel", "word", "powerpoint"],
       "family": "microsoft",
       "tier": "featured",
-      "rank": 38
+      "rank": 38,
+      "signIn": "https://onedrive.live.com/login/"
     },
     {
       "slug": "openweather",
@@ -3176,7 +3185,8 @@
         "Who’s on call right now?",
         "What incidents fired overnight?",
         "When is my next on-call shift?"
-      ]
+      ],
+      "signIn": "https://app.pagerduty.com/"
     },
     {
       "slug": "pandadoc",
@@ -3865,7 +3875,8 @@
         "How many orders came in today?",
         "Which products are running low on stock?",
         "Mark the summer tote as sold out"
-      ]
+      ],
+      "signIn": "https://accounts.shopify.com/store-login"
     },
     {
       "slug": "shortcut",
@@ -4026,7 +4037,8 @@
       "home": "https://app.slack.com",
       "category": "mail",
       "tier": "featured",
-      "rank": 3
+      "rank": 3,
+      "signIn": "https://slack.com/signin"
     },
     {
       "slug": "spotify",
@@ -4058,7 +4070,8 @@
         "Play my Discover Weekly",
         "Make a playlist of upbeat songs for running",
         "What have I been listening to most lately?"
-      ]
+      ],
+      "signIn": "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
     },
     {
       "slug": "square",
@@ -4416,7 +4429,8 @@
         "Find a plumber near me for a leaky faucet",
         "How much does it cost to paint a bedroom?",
         "Get quotes from house cleaners this week"
-      ]
+      ],
+      "signIn": "https://www.thumbtack.com/login"
     },
     {
       "slug": "todoist",
@@ -4890,7 +4904,8 @@
         "Which customers owe us money right now?",
         "What bills are due this week?",
         "How much did we spend on rent this year?"
-      ]
+      ],
+      "signIn": "https://login.xero.com/"
     },
     {
       "slug": "zapier",
@@ -4953,7 +4968,8 @@
       "category": "calendar",
       "tier": "featured",
       "rank": 31,
-      "registryName": "io.github.zoom/zoom-workspace"
+      "registryName": "io.github.zoom/zoom-workspace",
+      "signIn": "https://zoom.us/signin"
     },
     {
       "slug": "zoominfo",

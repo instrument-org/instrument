@@ -27,7 +27,7 @@ import { z } from "zod";
 
 const BUILD_DIR = path.resolve(
   import.meta.dirname,
-  "../../native/mac-helper/.build/out/Products/Release",
+  "../../native/mac-helper/.build/bridge",
 );
 
 /** A file of the bridge: in the app's resources when packaged, from the build in a checkout. */

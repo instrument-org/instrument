@@ -57,7 +57,7 @@ import { resolveChat } from "../src/lib/record-folders";
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
-  "../../../apps/studio/native/mac-helper/.build/out/Products/Release/instrument-mac",
+  "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
 );
 
 export interface Assertion {

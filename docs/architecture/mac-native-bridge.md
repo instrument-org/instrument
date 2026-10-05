@@ -31,7 +31,7 @@ Two Objective-C traps are worth knowing before the first change:
 
 ## Building and packaging
 
-`pnpm build:mac-helper` (run by `build:vite`, so every package build includes it) compiles both as universal binaries into `native/mac-helper/.build`, which is git-ignored:
+`pnpm build:mac-helper` (run by `build:vite`, so every package build includes it) compiles both as universal binaries and puts them in `native/mac-helper/.build/bridge`, which is git-ignored:
 
 - **The helper:** with `swift build`.
 - **The module:** with `clang` against the [`node-api-headers`](https://www.npmjs.com/package/node-api-headers) package. Node-API is ABI-stable, so one build loads in any Electron, with no node-gyp and no per-version rebuild.

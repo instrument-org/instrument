@@ -237,11 +237,11 @@ const config: Configuration = {
     // loads, built by `pnpm build:mac-helper` before packaging.
     extraResources: [
       {
-        from: "native/mac-helper/.build/out/Products/Release/instrument-mac",
+        from: "native/mac-helper/.build/bridge/instrument-mac",
         to: "bin/instrument-mac",
       },
       {
-        from: "native/mac-helper/.build/out/Products/Release/instrument-mac.node",
+        from: "native/mac-helper/.build/bridge/instrument-mac.node",
         to: "bin/instrument-mac.node",
       },
     ],

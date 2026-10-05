@@ -14,12 +14,15 @@
 // finds them too.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
 const helperDir = path.resolve(import.meta.dirname, "../native/mac-helper");
-const outDir = path.join(helperDir, ".build/out/Products/Release");
+// Where both land, whatever folder this Swift puts its products in (it has
+// varied by Xcode: .build/out, .build/apple), so packaging and the app look
+// in one place.
+const outDir = path.join(helperDir, ".build/bridge");
 
 const target = process.env.TARGET_PLATFORM ?? process.platform;
 if (target !== "darwin" || process.platform !== "darwin") {
@@ -27,20 +30,25 @@ if (target !== "darwin" || process.platform !== "darwin") {
     `build-mac-helper: skipped, the bridge is macOS only (${target}).`,
   );
 } else {
-  execFileSync(
-    "swift",
-    [
-      "build",
-      "--package-path",
-      helperDir,
-      "-c",
-      "release",
-      "--arch",
-      "arm64",
-      "--arch",
-      "x86_64",
-    ],
-    { stdio: "inherit" },
+  const swiftArgs = [
+    "build",
+    "--package-path",
+    helperDir,
+    "-c",
+    "release",
+    "--arch",
+    "arm64",
+    "--arch",
+    "x86_64",
+  ];
+  execFileSync("swift", swiftArgs, { stdio: "inherit" });
+  const binPath = execFileSync("swift", [...swiftArgs, "--show-bin-path"], {
+    encoding: "utf8",
+  }).trim();
+  mkdirSync(outDir, { recursive: true });
+  copyFileSync(
+    path.join(binPath, "instrument-mac"),
+    path.join(outDir, "instrument-mac"),
   );
   const headers = path.join(
     path.dirname(
@@ -48,7 +56,6 @@ if (target !== "darwin" || process.platform !== "darwin") {
     ),
     "include",
   );
-  mkdirSync(outDir, { recursive: true });
   execFileSync(
     "clang",
     [

@@ -3,7 +3,8 @@
 // function; this module is the only place that touches `AfterPackContext`.
 
 import { type AfterPackContext, Arch } from "electron-builder";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import path from "node:path";
 
 import {
   type ElectronPlatform,
@@ -27,6 +28,7 @@ export function runAfterPack(context: AfterPackContext) {
   verifyPackagedUv(context);
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
+  verifyPackagedMacBridge(context);
 }
 
 // Only a binary matching the host platform AND arch can be executed during
@@ -123,6 +125,33 @@ function verifyPackagedFfmpeg(context: AfterPackContext) {
     const detail = version ?? "size-only";
     console.log(
       `afterPack: verified ${name} at ${binaryPath} (${size} bytes, ${detail})`,
+    );
+  }
+}
+
+/**
+ * Both halves of the Mac bridge (lib/mac-native.ts) are extraResources, which
+ * electron-builder skips without a word when the file is missing: a build
+ * once shipped without the helper because Swift wrote it to another folder.
+ */
+function verifyPackagedMacBridge(context: AfterPackContext) {
+  if (context.electronPlatformName !== "darwin") {
+    return;
+  }
+  const binDir = path.join(
+    resolveUnpackedDir(context.appOutDir, "darwin"),
+    "..",
+    "bin",
+  );
+  for (const name of ["instrument-mac", "instrument-mac.node"]) {
+    const file = path.join(binDir, name);
+    if (!existsSync(file)) {
+      throw new Error(
+        `Could not locate ${name} at ${file}. Run \`pnpm build:mac-helper\` before packaging; without it the agent has no calendar or contacts command and Settings cannot read notification permission.`,
+      );
+    }
+    console.log(
+      `afterPack: verified ${name} at ${file} (${statSync(file).size} bytes)`,
     );
   }
 }

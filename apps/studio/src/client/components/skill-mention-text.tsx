@@ -1,10 +1,10 @@
 import { InlineLink } from "@/client/components/inline-link";
-import { SkillMention } from "@/client/components/skill-mention";
-import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
+import {
+  SkillMention,
+  useSkillsByName,
+} from "@/client/components/skill-mention";
 import { splitMessageText } from "@/client/lib/skill-text";
-import { rpcClient } from "@/client/rpc/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
-import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 
 /**
@@ -28,18 +28,7 @@ export function SkillMentionText({ text }: { text: string }) {
   const hasReferences = lines
     .flat()
     .some((segment) => segment.type === "skill" || segment.type === "slash");
-  const { data: skills = [], isSuccess } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({
-      enabled: hasReferences,
-      staleTime: SKILL_LIST_STALE_TIME_MS,
-    }),
-  );
-  const byName = new Map(
-    skills.flatMap((skill) => [
-      ...skill.aliases.map((alias) => [alias, skill] as const),
-      [skill.qualifiedName, skill] as const,
-    ]),
-  );
+  const { byName, isSuccess } = useSkillsByName(hasReferences);
 
   return lines.map((segments, lineIndex) => (
     <Fragment key={lineIndex}>

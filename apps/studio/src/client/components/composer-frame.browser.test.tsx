@@ -10,7 +10,7 @@ import { ComposerFrame } from "./composer-frame";
 import { PromptEditor } from "./prompt-editor";
 
 vi.mock("@/client/components/skill-mention", () => ({
-  SkillMention: ({ name }: { name: string }) => <span>/{name}</span>,
+  SkillMentionByName: ({ name }: { name: string }) => <span>/{name}</span>,
 }));
 
 const noop = () => {

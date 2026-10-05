@@ -14,7 +14,7 @@ import { page, userEvent } from "vitest/browser";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 
 vi.mock("@/client/components/skill-mention", () => ({
-  SkillMention: ({ name }: { name: string }) => <span>/{name}</span>,
+  SkillMentionByName: ({ name }: { name: string }) => <span>/{name}</span>,
 }));
 
 // What jsdom cannot observe: a real caret, a real selection, and text that

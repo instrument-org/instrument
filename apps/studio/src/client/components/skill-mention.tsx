@@ -4,10 +4,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
-import { type RPCOutput } from "@/client/rpc/client";
+import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
+import { useQuery } from "@tanstack/react-query";
 
 type SkillSummary = RPCOutput["workspace"]["skill"]["list"][number];
 
@@ -80,5 +82,51 @@ export function SkillMention({
         ) : null}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * Every skill the workspace has, by each name a mention may carry: its
+ * aliases and its qualified name. Every skill, not only the ones a slash
+ * offers, since a mention can name one the menu leaves out (Settings drafts
+ * "Use /skill-creator to change /<skill>" for any skill). `isSuccess` is
+ * what `SkillMention`'s `resolved` wants.
+ */
+export function useSkillsByName(enabled = true) {
+  const { data: skills = [], isSuccess } = useQuery(
+    rpcClient.workspace.skill.list.queryOptions({
+      enabled,
+      staleTime: SKILL_LIST_STALE_TIME_MS,
+    }),
+  );
+  const byName = new Map(
+    skills.flatMap((skill) => [
+      ...skill.aliases.map((alias) => [alias, skill] as const),
+      [skill.qualifiedName, skill] as const,
+    ]),
+  );
+  return { byName, isSuccess };
+}
+
+/**
+ * A mention resolved by name against every skill the workspace has, the way
+ * the transcript resolves one: the composer's chip, so a draft and the message
+ * it becomes agree on whether the skill is there.
+ */
+export function SkillMentionByName({
+  name,
+  tabIndex,
+}: {
+  name: string;
+  tabIndex?: number;
+}) {
+  const { byName, isSuccess } = useSkillsByName();
+  return (
+    <SkillMention
+      name={name}
+      resolved={isSuccess}
+      summary={byName.get(name)}
+      tabIndex={tabIndex}
+    />
   );
 }

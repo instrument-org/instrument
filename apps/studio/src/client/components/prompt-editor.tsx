@@ -8,7 +8,7 @@ import {
   MenuGroupHeader,
 } from "@/client/components/composer-add-menu";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
-import { SkillMention } from "@/client/components/skill-mention";
+import { SkillMentionByName } from "@/client/components/skill-mention";
 import {
   type ComposerSkill,
   SkillMenuRow,
@@ -585,18 +585,8 @@ export function PromptEditor({
               chip.token.type === "app" ? (
                 <AppMention app={chip.token.app} />
               ) : (
-                <SkillMention
+                <SkillMentionByName
                   name={chip.token.name}
-                  // An empty list means nothing to check against, not a skill
-                  // that has gone: only claim a chip is stale once there is a
-                  // list.
-                  resolved={skills.length > 0}
-                  summary={skills.find(
-                    (skill) =>
-                      chip.token.type === "skill" &&
-                      (skill.aliases.includes(chip.token.name) ||
-                        skill.qualifiedName === chip.token.name),
-                  )}
                   // The composer's own controls stay the tab order; a draft
                   // with several tokens should not put a stop at each one.
                   tabIndex={-1}

@@ -214,6 +214,9 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
+  // The bundled EventKit helper behind the `calendar` command; absent off
+  // macOS and in builds that do not carry it.
+  eventKitBinPath?: AbsolutePath;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;

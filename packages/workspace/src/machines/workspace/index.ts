@@ -388,6 +388,7 @@ export const workspaceMachine = setup({
       trashItem: (path: AbsolutePath) => Promise<void>;
       uvBinPath: string;
       uvDataDir: string;
+      eventKitBinPath?: string;
       webSearch: WebSearchClient;
     },
     output: {},
@@ -424,6 +425,9 @@ export const workspaceMachine = setup({
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
+      ...(input.eventKitBinPath === undefined
+        ? {}
+        : { eventKitBinPath: AbsolutePathSchema.parse(input.eventKitBinPath) }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };

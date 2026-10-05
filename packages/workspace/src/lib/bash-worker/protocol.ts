@@ -18,6 +18,7 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "defaultTaskTemplateDir",
+  "eventKitBinPath",
   "nodeExecEnv",
   "pnpmBinPath",
   "preparedSkillsDir",

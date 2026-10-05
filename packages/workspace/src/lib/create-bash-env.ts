@@ -48,6 +48,11 @@ import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { getWorkspaceConfig } from "./workspace-config";
+import {
+  CALENDAR_COMMAND,
+  createCalendarCommand,
+} from "./shell-commands/calendar";
 import {
   createOsascriptCommand,
   OSASCRIPT_COMMAND,
@@ -327,6 +332,8 @@ interface CustomCommandDef {
   name: string;
   /** Where the binary exists; elsewhere the name stays unclaimed. */
   platforms?: NodeJS.Platform[];
+  /** Whether this build carries what the command runs; without it the name stays unclaimed. */
+  available?: () => boolean;
 }
 
 /**
@@ -386,6 +393,14 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: ({ layout, taskId }) => createNodeCommand(taskId, layout),
     listInDescription: true,
     name: NODE_COMMAND.name,
+  },
+  {
+    available: () => getWorkspaceConfig().eventKitBinPath !== undefined,
+    description: CALENDAR_COMMAND.description,
+    factory: ({ taskId }) => createCalendarCommand(taskId),
+    listInDescription: true,
+    name: CALENDAR_COMMAND.name,
+    platforms: ["darwin"],
   },
   {
     description: OSASCRIPT_COMMAND.description,
@@ -474,7 +489,9 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 /** The custom commands this platform has, read per call so a test can pin one. */
 function customCommandDefs(): CustomCommandDef[] {
   return ALL_CUSTOM_COMMAND_DEFS.filter(
-    (cmd) => cmd.platforms?.includes(process.platform) ?? true,
+    (cmd) =>
+      (cmd.platforms?.includes(process.platform) ?? true) &&
+      (cmd.available?.() ?? true),
   );
 }
 

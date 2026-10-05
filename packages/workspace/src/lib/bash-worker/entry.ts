@@ -24,6 +24,7 @@ import {
   toWireResult,
   type ToWorker,
   type WireResult,
+  WORKER_CONFIG_KEYS,
   type WorkerConfig,
 } from "./protocol";
 
@@ -218,10 +219,17 @@ function workerConfig(data: WorkerConfig): WorkspaceConfig {
   // or live object on the main thread, reached only by the commands proxied
   // there. A read that gets here anyway names the key instead of returning
   // undefined into code that assumes it is set. `then` reads as absent so the
-  // config is not mistaken for a promise.
+  // config is not mistaken for a promise, and a key the worker is sent reads
+  // as absent when it was, since an optional one left unset never arrives.
+  const sent = new Set<string>(WORKER_CONFIG_KEYS);
   return new Proxy(available, {
     get(target, key): unknown {
-      if (typeof key === "symbol" || key === "then" || key in target) {
+      if (
+        typeof key === "symbol" ||
+        key === "then" ||
+        key in target ||
+        sent.has(key)
+      ) {
         return Reflect.get(target, key);
       }
       throw new Error(

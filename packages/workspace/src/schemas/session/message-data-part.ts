@@ -12,8 +12,8 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
-   *   `reply`, `skillChanges`, `skillMentions`, and `projectContext` and
+   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `reply`,
+   *   `skillChanges`, `skillMentions`, and `projectContext` and
    *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
@@ -51,7 +51,6 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
-    "outputFormat",
     "projectChanges",
     "projectContext",
     "reply",
@@ -357,22 +356,6 @@ export namespace SessionMessageDataPart {
   });
 
   export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
-
-  /**
-   * The kind of page the user asked to receive the response as, picked on
-   * the draft that opened the chat: a template of the page skill, by the
-   * name of its folder and the title the catalog gives it. Carried beside
-   * the user's own text so the agent briefs its task with it, and the record
-   * says what was asked for.
-   */
-  export const OutputFormatDataPartSchema = z.object({
-    name: z.string().trim().min(1),
-    title: z.string().trim().min(1),
-  });
-
-  export type OutputFormatDataPart = z.output<
-    typeof OutputFormatDataPartSchema
-  >;
 
   /**
    * Skills the agent installed or revised during the turn, detected by diffing
@@ -951,7 +934,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
-    [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,

@@ -40,7 +40,6 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -84,10 +83,7 @@ import {
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { GroupItem } from "./group-item";
 import { segmentsOf } from "./host-path";
-import { IdeaSketch } from "./idea-sketch";
-import { type Idea } from "./ideas";
 import { LinkSurface } from "./link-surface";
-import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { topicColor } from "./topic-colors";
@@ -95,7 +91,6 @@ import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
-import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
 import { parseHref } from "./window-href";
@@ -106,8 +101,6 @@ export interface DraftSend {
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
-  /** The kind of page the response should come back as, when one was picked. */
-  output?: { name: string; title: string };
   prompt: string;
 }
 
@@ -220,7 +213,7 @@ export function ComposeBar({
  * bottom-right corner, or grown to fill the window inset from its edges, and
  * put down to a bar along the window's foot. Its head carries the draft's
  * name, the topic it will be filed under, the composer's controls (the plus
- * menu, the output picker, the model, the arrow) and the window's own three
+ * menu, the model, the arrow) and the window's own three
  * buttons; under it the words on white, borderless, and under those a gray
  * band that is the draft's own pane: the four doors when nothing is gathered
  * yet, and otherwise the gathered things as tabs with the one up drawn large,
@@ -362,8 +355,6 @@ export function ComposeWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
-  const ideas = useIdeas();
-  const output = ideas.data?.find((idea) => idea.name === draft.output);
   const topic = topics.find((entry) => entry.id === draft.topicId);
   // Retired topics stay nameable on a draft already filed under one, but are
   // never offered or picked again.
@@ -647,17 +638,9 @@ export function ComposeWindow({
           >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
-                <OutputHead
-                  onChange={(name) => {
-                    onChange((current) => {
-                      const { output: _dropped, ...rest } = current;
-                      return name === undefined
-                        ? rest
-                        : { ...rest, output: name };
-                    });
-                  }}
-                  output={output}
-                />
+                <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
+                  New chat
+                </span>
                 <TopicSlot
                   onClear={() => {
                     onChange((current) => {
@@ -797,19 +780,7 @@ export function ComposeWindow({
                   }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
-                  onSubmit={(send) => {
-                    onStart({
-                      ...send,
-                      ...(output
-                        ? {
-                            output: {
-                              name: output.name,
-                              title: output.title,
-                            },
-                          }
-                        : {}),
-                    });
-                  }}
+                  onSubmit={onStart}
                   placeholder="What do you need?"
                   ref={inputRef}
                   variant="bare"
@@ -1056,48 +1027,6 @@ function ItemMark({ item }: { item: ChosenItem }) {
 /** The last name in a path, which is what a chip calls the thing. */
 function nameOfPath(path: string) {
   return segmentsOf(path).at(-1) ?? path;
-}
-
-/**
- * What the draft is, as the head's first words: "New chat" until a page type
- * is picked, then "Make a" and that type. The words open the catalog of page
- * types, which is rare enough to live behind them rather than beside the send,
- * and whose Clear goes back to a chat.
- */
-function OutputHead({
-  onChange,
-  output,
-}: {
-  onChange: (name: string | undefined) => void;
-  output: Idea | undefined;
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-0.5">
-      <OutputPicker onChange={onChange} value={output?.name}>
-        <button
-          aria-label={output ? `Output: ${output.title}` : "Pick an output"}
-          className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
-          type="button"
-        >
-          {output ? (
-            <>
-              <span className="shrink-0">
-                {/^[aeiou]/i.test(output.title) ? "Make an" : "Make a"}
-              </span>
-              <IdeaSketch
-                className="h-4 w-auto shrink-0 drop-shadow-xs"
-                rows={output.sketch ?? []}
-              />
-              <span className="max-w-40 min-w-0 truncate">{output.title}</span>
-            </>
-          ) : (
-            <span className="shrink-0">New chat</span>
-          )}
-          <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
-        </button>
-      </OutputPicker>
-    </span>
-  );
 }
 
 /**

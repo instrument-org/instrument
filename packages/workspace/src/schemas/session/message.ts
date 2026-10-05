@@ -34,7 +34,6 @@ import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
-import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
@@ -664,20 +663,6 @@ export namespace SessionMessage {
         if (replyPart) {
           injectedParts.push({
             text: replyModelNote(replyPart.data),
-            type: "text",
-          });
-        }
-
-        const outputFormatPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-outputFormat";
-          } => part.type === "data-outputFormat",
-        );
-        if (outputFormatPart) {
-          injectedParts.push({
-            text: outputFormatModelNote(outputFormatPart.data),
             type: "text",
           });
         }

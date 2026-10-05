@@ -87,8 +87,6 @@ export interface Draft {
   included?: { appTabId: TabId } | { group: string; tabId: string };
   /** Tabs the window had up behind the draft that the person left out of it, by id. */
   leftBehind?: string[];
-  /** The kind of page the response should come back as: a page-skill template, by its folder's name. */
-  output?: string;
   topicId?: string;
   /**
    * Who settled the topic: the person, by picking or clearing one, or the

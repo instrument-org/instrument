@@ -40,7 +40,6 @@ export async function newMessage({
   intent,
   model,
   modelURI,
-  output,
   prompt,
   replyTo,
   sessionId,
@@ -65,8 +64,6 @@ export async function newMessage({
   intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
-  /** The kind of page the user asked for the response as; see the output-format part. */
-  output?: SessionMessageDataPart.OutputFormatDataPart;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
@@ -154,19 +151,6 @@ export async function newMessage({
         sessionId,
       },
       type: "data-reply",
-    });
-  }
-
-  if (output) {
-    parts.push({
-      data: output,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-outputFormat",
     });
   }
 

@@ -21,7 +21,6 @@ import { SkillChangesCard } from "./skill-changes-card";
 import { TaskAppChangesNote } from "./task-app-changes-note";
 import { TaskEventNote } from "./task-event-note";
 import { SentAsksNote } from "./window/ask-pills";
-import { OutputFormatNote } from "./window/output-format-note";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
 
@@ -74,8 +73,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
-  // What the user asked to get back, on the record under their words.
-  "data-outputFormat": "always",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
   // Drawn by the chat stream over the user's bubble, not in the part's place
@@ -323,9 +320,6 @@ export function renderDataPart({
     }
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
-    }
-    case "data-outputFormat": {
-      return <OutputFormatNote data={part.data} key={part.metadata.id} />;
     }
     case "data-projectChanges": {
       return <ProjectChangesNote data={part.data} key={part.metadata.id} />;

@@ -314,7 +314,6 @@ export function useDrafts({
           id: chatId,
           modelURI: send.modelURI,
           newSessionId: sessionId,
-          output: send.output,
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           // A context that cannot be gathered is a chat told less, not a

@@ -31,7 +31,6 @@ vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
 }));
 vi.mock("../../lib/apps", () => ({
   announceConnected: vi.fn(),
-  appName: (_dir: string, slug: string) => Promise.resolve(slug),
   appOAuthRedirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
   disconnectApp: vi.fn(),
 }));
@@ -39,6 +38,9 @@ vi.mock(
   import("@instrument-org/workspace/electron"),
   async (importOriginal) => ({
     ...(await importOriginal()),
+    // What the workspace says to its lists and the chat, which has no
+    // workspace to say it to here.
+    appChanged: () => Promise.resolve(),
     beginMcpOAuth: mocks.beginMcpOAuth,
     runAppTest: mocks.runAppTest,
   }),

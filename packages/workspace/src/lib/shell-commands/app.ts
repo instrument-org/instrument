@@ -6,7 +6,7 @@ import {
 import ms from "ms";
 
 import { MOUNT } from "../../mount-points";
-import { publisher } from "../../rpc/publisher";
+import { appChanged } from "../apps/changed";
 import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
@@ -651,7 +651,7 @@ async function runIcon(
     throw new Error(`${source} cannot be ${app.slug}'s icon: ${checked.error}`);
   }
   await writeAppIcon(app.dir, bytes, checked.fileName);
-  publisher.publish("app.updated", null);
+  await appChanged(app.slug);
   return ok(
     `${app.slug} is drawn with ${MOUNT.apps}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
   );

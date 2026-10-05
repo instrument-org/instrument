@@ -18,8 +18,8 @@ import {
   findAppIcon,
   findCatalogEntry,
   loadApp,
+  appChanged,
   type WorkspaceConfig,
-  workspacePublisher,
 } from "@instrument-org/workspace/electron";
 
 /** The loopback route the provider sends the browser back to after a sign-in. */
@@ -44,20 +44,13 @@ const DEFAULT_PORT =
     : PORTS.authCallback.prod;
 
 /** Tell the window and the chat that a sign-in just went through. */
-export async function announceConnected(
-  appsDir: WorkspaceConfig["appsDir"],
-  slug: string,
-) {
+export async function announceConnected(slug: string) {
   const connection = await appConnectionStore.get(slug);
-  workspacePublisher.publish("app.updated", null);
-  workspacePublisher.publish("app.event", {
-    detail:
-      connection?.toolCount === undefined
-        ? undefined
-        : `${connection.toolCount} tools`,
+  await appChanged(slug, {
+    ...(connection?.toolCount === undefined
+      ? {}
+      : { detail: `${connection.toolCount} tools` }),
     event: "connected",
-    name: await appName(appsDir, slug),
-    slug,
   });
 }
 
@@ -115,17 +108,13 @@ export function appOAuthRedirectUrl(): string {
 
 /**
  * What the workspace gets to keep about apps: the encrypted credential and
- * token stores, the connection records, and the way to tell the window that
- * any of them changed.
+ * token stores, and the connection records.
  */
 export function createAppsConfig(): WorkspaceConfig["apps"] {
   return {
     connections: appConnectionStore,
     disconnect: disconnectApp,
     getCredential: (slug) => Promise.resolve(getAppCredential(slug)),
-    notifyChanged: () => {
-      workspacePublisher.publish("app.updated", null);
-    },
     oauth: {
       redirectUrl: appOAuthRedirectUrl,
       store: appOAuthStore,
@@ -140,10 +129,8 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
 export async function disconnectApp(
   slug: string,
   {
-    appsDir,
     event = "disconnected",
   }: {
-    appsDir?: WorkspaceConfig["appsDir"];
     /** Whether the folder goes too, which the note to the chat says. */
     event?: "disconnected" | "removed";
   } = {},
@@ -151,7 +138,5 @@ export async function disconnectApp(
   removeAppCredential(slug);
   clearAppOAuth(slug);
   await appConnectionStore.remove(slug);
-  workspacePublisher.publish("app.updated", null);
-  const name = appsDir ? await appName(appsDir, slug) : slug;
-  workspacePublisher.publish("app.event", { event, name, slug });
+  await appChanged(slug, { event });
 }

@@ -9,6 +9,7 @@ export {
   findCatalogEntry,
   getAppCatalog,
 } from "./lib/apps/catalog";
+export { type AppEvent, appChanged } from "./lib/apps/changed";
 export {
   type AppConnection,
   AppConnectionSchema,

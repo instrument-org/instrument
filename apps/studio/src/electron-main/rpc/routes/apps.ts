@@ -39,6 +39,7 @@ import {
   runAppTest,
   withAppMcpClient,
   workspacePublisher,
+  appChanged,
   findAppIcon,
   type AppManifest,
 } from "@instrument-org/workspace/electron";
@@ -47,7 +48,6 @@ import { z } from "zod";
 
 import {
   announceConnected,
-  appName,
   appOAuthRedirectUrl,
   disconnectApp,
 } from "../../lib/apps";
@@ -418,7 +418,7 @@ async function requireShownOrigin({
   }
   const current = credentialOrigin(loaded.value.manifest);
   if (current !== origin) {
-    workspacePublisher.publish("app.updated", null);
+    await appChanged(slug);
     throw errors.API_ERROR({
       message: `The app now points at ${current} instead of ${origin}. Check the new address before going on.`,
     });
@@ -470,17 +470,14 @@ const startOAuth = base
       });
       // A sign-in that cannot start is as much news as one that finished:
       // the conversation asked for it, and is the one to say what now.
-      workspacePublisher.publish("app.updated", null);
-      workspacePublisher.publish("app.event", {
+      await appChanged(input.slug, {
         detail: result.error.message,
         event: "failed",
-        name: await appName(context.workspaceConfig.appsDir, input.slug),
-        slug: input.slug,
       });
       throw errors.API_ERROR({ message: result.error.message });
     }
     if (result.value.alreadyConnected) {
-      await announceConnected(context.workspaceConfig.appsDir, input.slug);
+      await announceConnected(input.slug);
       return { status: "connected" as const };
     }
     return { status: "started" as const, url: result.value.authorizationUrl };
@@ -530,23 +527,17 @@ const setCredential = base
       signal: signal ?? AbortSignal.timeout(60_000),
       slug: input.slug,
     });
-    const name = await appName(context.workspaceConfig.appsDir, input.slug);
-    workspacePublisher.publish("app.updated", null);
     if (report.passed) {
-      workspacePublisher.publish("app.event", {
+      await appChanged(input.slug, {
         detail: "the key was tested and works",
         event: "connected",
-        name,
-        slug: input.slug,
       });
       return;
     }
     const failure = report.checks.find((check) => check.status === "fail");
-    workspacePublisher.publish("app.event", {
+    await appChanged(input.slug, {
       detail: failure?.detail.split("\n")[0],
       event: "failed",
-      name,
-      slug: input.slug,
     });
   });
 
@@ -573,16 +564,12 @@ const allow = base
       signal: signal ?? AbortSignal.timeout(180_000),
       slug: input.slug,
     });
-    const name = await appName(context.workspaceConfig.appsDir, input.slug);
-    workspacePublisher.publish("app.updated", null);
     const failure = report.checks.find((check) => check.status === "fail");
-    workspacePublisher.publish("app.event", {
+    await appChanged(input.slug, {
       detail: report.passed
         ? "its server was installed and started"
         : failure?.detail.split("\n")[0],
       event: report.passed ? "connected" : "failed",
-      name,
-      slug: input.slug,
     });
     return report;
   });
@@ -590,17 +577,15 @@ const allow = base
 /** "Not now" on the card. */
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input }) => {
-    await decline(context.workspaceConfig.appsDir, input.slug);
+  .handler(async ({ input }) => {
+    await decline(input.slug);
   });
 
 /** Take the key or sign-in away; the folder stays, for connecting again. */
 const disconnect = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input }) => {
-    await disconnectApp(input.slug, {
-      appsDir: context.workspaceConfig.appsDir,
-    });
+  .handler(async ({ input }) => {
+    await disconnectApp(input.slug);
   });
 
 /** The app's folder to the trash, with everything the stores hold about it. */
@@ -608,15 +593,12 @@ const remove = base
   .input(z.object({ slug: AppSlugSchema }))
   .handler(async ({ context, input }) => {
     const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    await disconnectApp(input.slug, {
-      appsDir: context.workspaceConfig.appsDir,
-      event: "removed",
-    });
+    await disconnectApp(input.slug, { event: "removed" });
     if (loaded.isOk()) {
       await context.workspaceConfig.trashItem(loaded.value.dir);
     }
     await removeLocalServer(input.slug);
-    workspacePublisher.publish("app.updated", null);
+    await appChanged(input.slug);
   });
 
 /** The red/green loop, from the app's page. */
@@ -628,17 +610,13 @@ const test = base
       signal: signal ?? AbortSignal.timeout(60_000),
       slug: input.slug,
     });
-    workspacePublisher.publish("app.updated", null);
+    await appChanged(input.slug);
     return report;
   });
 
-async function decline(appsDir: Parameters<typeof appName>[0], slug: string) {
+async function decline(slug: string) {
   await recordConnection(slug, { status: "declined" });
-  workspacePublisher.publish("app.event", {
-    event: "declined",
-    name: await appName(appsDir, slug),
-    slug,
-  });
+  await appChanged(slug, { event: "declined" });
 }
 
 export const apps = {

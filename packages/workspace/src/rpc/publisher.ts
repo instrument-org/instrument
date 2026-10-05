@@ -1,5 +1,6 @@
 import { EventPublisher } from "@orpc/server";
 
+import { type AppEvent } from "../lib/apps/changed";
 import { type RecordChanged } from "../lib/record-changes";
 import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -14,18 +15,19 @@ import { type BrowserTargetId } from "../types";
 export const publisher = new EventPublisher<{
   /**
    * The user acted on an app outside the conversation: finished a sign-in,
-   * saved a key, declined, disconnected. Published by the host app, which
-   * owns those surfaces; the chat is woken with it.
+   * saved a key, declined, disconnected. Published only by `appChanged`,
+   * which the host app calls from the surfaces it owns; the chat is woken
+   * with it.
    */
   "app.event": {
     detail?: string;
-    event: "connected" | "declined" | "disconnected" | "failed" | "removed";
+    event: AppEvent;
     name: string;
     slug: string;
   };
   /**
    * An app's folder or connection record changed. Carries no payload because
-   * every listener re-reads the list.
+   * every listener re-reads the list. Published only by `appChanged`.
    */
   "app.updated": null;
   /**

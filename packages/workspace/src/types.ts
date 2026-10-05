@@ -158,8 +158,6 @@ export interface WorkspaceAppsConfig {
    * sends it only to that origin.
    */
   getCredential: (slug: string) => Promise<null | StoredAppCredential>;
-  /** Called after a connection record changes, so every list of apps re-reads. */
-  notifyChanged?: () => void;
   /**
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The

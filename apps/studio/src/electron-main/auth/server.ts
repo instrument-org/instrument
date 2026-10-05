@@ -35,11 +35,11 @@ import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
 import {
+  appChanged,
   cancelMcpOAuth,
   completeMcpOAuth,
   pendingMcpOAuthSlug,
   recordConnection,
-  workspacePublisher,
 } from "@instrument-org/workspace/electron";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
@@ -308,13 +308,8 @@ async function start() {
         return c.html(renderAuthPage({ kind: "expired" }), 400);
       }
       await recordConnection(slug, { status: "declined" });
+      await appChanged(slug, { event: "declined" });
       const name = await appName(appsDir, slug);
-      workspacePublisher.publish("app.updated", null);
-      workspacePublisher.publish("app.event", {
-        event: "declined",
-        name,
-        slug,
-      });
       return c.html(
         renderAuthPage({
           kind: "declined",
@@ -342,12 +337,9 @@ async function start() {
           error: result.error.message,
           status: "failed",
         });
-        workspacePublisher.publish("app.updated", null);
-        workspacePublisher.publish("app.event", {
+        await appChanged(slug, {
           detail: result.error.message,
           event: "failed",
-          name,
-          slug,
         });
       }
       return c.html(page, 400);
@@ -356,7 +348,7 @@ async function start() {
       ? await appName(appsDir, result.value.slug)
       : result.value.slug;
     if (appsDir) {
-      await announceConnected(appsDir, result.value.slug);
+      await announceConnected(result.value.slug);
     }
     // A sign-in that ran in the window's own browser lands on the service
     // itself, signed in: the connection is visible where it matters, and no

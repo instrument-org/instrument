@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getWorkspaceConfig } from "../workspace-config";
+import { appChanged } from "./changed";
 
 /**
  * Where an app stands, as the app (never the agent) records it. `connected`
@@ -130,6 +131,6 @@ export async function recordConnection(
     updatedAt: Date.now(),
   };
   await apps.connections.set(slug, next);
-  apps.notifyChanged?.();
+  await appChanged(slug);
   return next;
 }

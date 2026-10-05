@@ -12,7 +12,10 @@ import {
   describeDay,
   formatPriceInWords,
 } from "@/client/lib/billing";
-import { onboardingPlanStep } from "@/client/lib/onboarding-plan-step";
+import {
+  type OnboardingPlanStep,
+  onboardingPlanStep,
+} from "@/client/lib/onboarding-plan-step";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +27,7 @@ const DAY_MS = 86_400_000;
 type Page =
   | { kind: "plan" }
   | { kind: "subscribed"; plan: string }
-  | { kind: "trial-started" };
+  | { endsAt: Date; kind: "trial-started" };
 
 /**
  * Onboarding's steps inside the app window, after the sign-in window: for
@@ -65,12 +68,15 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
   );
   const [page, setPage] = useState<Page>({ kind: "plan" });
   const setTrialPlan = useSetAtom(trialPlanAtom);
+  // The trial runs its days from now, as near as the first message makes it.
+  const trialStarted = (): Page => ({
+    endsAt: new Date(Date.now() + (offer?.trial?.days ?? 7) * DAY_MS),
+    kind: "trial-started",
+  });
   const checkout = usePlanCheckout({
     onSubscribed: (plan) => {
       setPage(
-        offer?.trial?.available
-          ? { kind: "trial-started" }
-          : { kind: "subscribed", plan },
+        offer?.trial?.available ? trialStarted() : { kind: "subscribed", plan },
       );
     },
   });
@@ -80,30 +86,37 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
     hasToken !== undefined &&
     chatgpt !== undefined &&
     (!isSignedIn || (status !== undefined && offer !== undefined));
-  const step =
-    isReady && offer && status
-      ? onboardingPlanStep({
-          hasChatGPTPlan: chatgpt.accounts.length > 0,
-          isSignedIn,
-          offer,
-          status,
-        })
-      : null;
+  // Settled once, from the account as it was when the steps opened: buying a
+  // plan here changes what the step would be, and must not end the steps
+  // before the confirmation that says so.
+  const [step, setStep] = useState<OnboardingPlanStep | undefined>();
+  if (step === undefined && isReady) {
+    setStep(
+      offer && status
+        ? onboardingPlanStep({
+            hasChatGPTPlan: chatgpt.accounts.length > 0,
+            isSignedIn,
+            offer,
+            status,
+          })
+        : null,
+    );
+  }
 
   // Nothing to choose is the same as having chosen: on into the app.
-  const hasNothingToShow = isReady && step === null && page.kind === "plan";
+  const hasNothingToShow = step === null;
   useEffect(() => {
     if (hasNothingToShow) {
       onFinish();
     }
   }, [hasNothingToShow, onFinish]);
 
-  if (!isReady || hasNothingToShow || !offer) {
+  if (step === undefined || hasNothingToShow || !offer) {
     return <Frame>{null}</Frame>;
   }
 
   if (page.kind === "trial-started") {
-    const endsAt = new Date(Date.now() + (offer.trial?.days ?? 7) * DAY_MS);
+    const { endsAt } = page;
     return (
       <Frame>
         <Confirmation
@@ -195,7 +208,7 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
             if (isTrial && !offer.trial?.cardRequired) {
               // Our trial starts with the first message on our models, so
               // there is nothing to start in Stripe.
-              setPage({ kind: "trial-started" });
+              setPage(trialStarted());
             } else {
               checkout.start(plan.key);
             }

@@ -149,7 +149,7 @@ export function InlineLink({
  * An app's own icon at the chip's size, looked up by slug the way the tab
  * strip looks one up; a slug the window has no app for gets the generic mark.
  */
-function AppChipIcon({ slug }: { slug: string }) {
+export function AppChipIcon({ slug }: { slug: string }) {
   const app = useAppsBySlug().get(slug);
   if (!app) {
     return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

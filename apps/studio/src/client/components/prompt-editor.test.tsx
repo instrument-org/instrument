@@ -13,6 +13,14 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../tests/render";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 
+// The window's apps by slug, which a chip draws its icon and name from.
+const appsBySlug = vi.hoisted(() => ({
+  current: new Map<string, { icon?: string; name: string; site?: string }>(),
+}));
+vi.mock("./window/apps-by-slug", () => ({
+  useAppsBySlug: () => appsBySlug.current,
+}));
+
 const noop = () => {
   // Nothing to do: these tests assert on onChange, not on submit or paste.
 };
@@ -173,60 +181,35 @@ describe("PromptEditor", () => {
 });
 
 describe("PromptEditor app chips", () => {
-  const paper = { name: "Paper", site: "https://paper.design", slug: "paper" };
+  const paper = { name: "Paper", site: "https://paper.design" };
   const draft = "What can you do with [Paper](instrument://app/paper) for me?";
   const chipIcon = (container: HTMLElement) =>
     container.querySelector(
       '[data-app="paper"] [role="img"], [data-app="paper"] img',
     );
-
-  it("draws the app's own icon for a mention the draft starts with", () => {
-    const { container } = renderWithProviders(
+  const renderDraft = (defaultValue: string) =>
+    renderWithProviders(
       <PromptEditor
-        apps={[paper]}
-        {...editorProps}
-        autoFocus={false}
-        defaultValue={draft}
-        onChange={noop}
-      />,
-    );
-    expect(chipIcon(container)).not.toBeNull();
-  });
-
-  it("draws a local app's initial rather than the generic mark", () => {
-    const { container } = renderWithProviders(
-      <PromptEditor
-        apps={[{ name: "Drafts", slug: "drafts" }]}
-        {...editorProps}
-        autoFocus={false}
-        defaultValue="Ask [Drafts](instrument://app/drafts)"
-        onChange={noop}
-      />,
-    );
-    expect(
-      container.querySelector('[data-app="drafts"] [role="img"]'),
-    ).not.toBeNull();
-  });
-
-  it("draws it once the apps arrive after the draft opened", () => {
-    const { container, rerender } = renderWithProviders(
-      <PromptEditor
+        // The slash menu's apps: what a chip draws comes from the window's
+        // lookup instead, so a directory app not yet connected has its face.
         apps={[]}
         {...editorProps}
         autoFocus={false}
-        defaultValue={draft}
+        defaultValue={defaultValue}
         onChange={noop}
       />,
     );
-    rerender(
-      <PromptEditor
-        apps={[paper]}
-        {...editorProps}
-        autoFocus={false}
-        defaultValue={draft}
-        onChange={noop}
-      />,
-    );
-    expect(chipIcon(container)).not.toBeNull();
+
+  it("draws the icon of an app the menu does not offer", () => {
+    appsBySlug.current = new Map([["paper", paper]]);
+    expect(chipIcon(renderDraft(draft).container)).not.toBeNull();
+  });
+
+  it("draws a local app's initial rather than the generic mark", () => {
+    appsBySlug.current = new Map([["drafts", { name: "Drafts" }]]);
+    const { container } = renderDraft("Ask [Drafts](instrument://app/drafts)");
+    expect(
+      container.querySelector('[data-app="drafts"] [role="img"]'),
+    ).not.toBeNull();
   });
 });

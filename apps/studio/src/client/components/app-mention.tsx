@@ -1,14 +1,14 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
+  AppChipIcon,
   INLINE_CHIP_CLASS_NAME,
-  INLINE_CHIP_ICON_CLASS_NAME,
 } from "@/client/components/inline-link";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 
-/** What a menu needs of an app to offer it, and what its chip draws it with. */
+/** What a menu needs of an app to offer it and draw its row. */
 export interface ComposerApp extends AppMentionRef {
   /** The installed app's own icon, for a local server that drives one. */
   icon?: string | undefined;
@@ -19,37 +19,19 @@ export interface ComposerApp extends AppMentionRef {
 /**
  * An app named in the composer: the same chip the transcript draws for a link
  * into the app, so what was written and what was sent read as one thing. The
- * icon is the app's own where the window knows the app; a slug it does not
- * know wears the generic mark and the name the token carries.
+ * icon and name come from the same lookup the transcript's chip uses, the
+ * apps the workspace has and the directory's catalog, so an app named before
+ * it is connected (a directory card's Connect) has its face in the draft too.
+ * A slug neither knows wears the generic mark and the name the token carries.
  */
-export function AppMention({
-  app,
-  apps,
-}: {
-  app: AppMentionRef;
-  /** The apps the window has, for the icon; the token itself carries only the name. */
-  apps: ComposerApp[];
-}) {
-  const known = apps.find((entry) => entry.slug === app.slug);
+export function AppMention({ app }: { app: AppMentionRef }) {
+  const known = useAppsBySlug().get(app.slug);
   return (
     <span
       className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50")}
       data-app={app.slug}
     >
-      {/* Any app the window knows gets its face, a site's icon or its own
-          initial, the way the transcript's chip draws it; only a name the
-          window has no app for gets the generic mark. */}
-      {known ? (
-        <AppIcon
-          className="size-3! rounded-xs"
-          name={known.name}
-          icon={known.icon}
-          site={known.site}
-          size="sm"
-        />
-      ) : (
-        <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
-      )}
+      <AppChipIcon slug={app.slug} />
       <span className="truncate">{known?.name ?? app.name}</span>
     </span>
   );

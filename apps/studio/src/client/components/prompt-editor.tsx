@@ -583,7 +583,7 @@ export function PromptEditor({
           {chips.map((chip) =>
             createPortal(
               chip.token.type === "app" ? (
-                <AppMention app={chip.token.app} apps={apps} />
+                <AppMention app={chip.token.app} />
               ) : (
                 <SkillMention
                   name={chip.token.name}

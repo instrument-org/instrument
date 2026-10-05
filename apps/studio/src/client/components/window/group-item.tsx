@@ -50,7 +50,7 @@ export function GroupItem({
   group: string;
   /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
   isFramed?: boolean;
-  /** Puts the view away, from Hide at the end of its address row, for a surface that shows it beside a chat. */
+  /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
   onClose?: () => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;

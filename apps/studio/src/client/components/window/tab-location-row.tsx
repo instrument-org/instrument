@@ -26,7 +26,7 @@ import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {
@@ -188,10 +188,8 @@ export function TabLocationRow({
       {onClose && (
         <TabRowControl
           disabled={false}
-          // Rotated: the mark draws a panel at the left, and this one is at
-          // the right.
-          icon={<SidebarSimpleIcon className="size-4 rotate-180" />}
-          label="Hide"
+          icon={<XIcon className="size-4" />}
+          label="Close"
           onClick={onClose}
         />
       )}

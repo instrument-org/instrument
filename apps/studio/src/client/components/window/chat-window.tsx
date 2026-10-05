@@ -527,7 +527,7 @@ export function ChatWindow({
                 closeTab={closeTab}
                 group={chatId}
                 isFramed={false}
-                // The row's Hide puts the view away; the thing stays in the
+                // The row's × puts the view away; the thing stays in the
                 // chat, on the rail, as it does beside a chat in the window.
                 onClose={() => {
                   setViewOpen(false);

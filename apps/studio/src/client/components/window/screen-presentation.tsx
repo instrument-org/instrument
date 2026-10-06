@@ -34,7 +34,7 @@ import { parseHref } from "./window-href";
  * What an address alone cannot say about a screen: the names of the things
  * it stands for, kept by the window and read off the address's id.
  */
-interface ScreenNames {
+export interface ScreenNames {
   appsBySlug: Map<
     string,
     { icon?: string | undefined; name: string; site: string | undefined }

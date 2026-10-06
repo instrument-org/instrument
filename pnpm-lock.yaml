@@ -78,7 +78,7 @@ patchedDependencies:
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
   just-bash@3.4.1: 943551c9ef003fd3b8cfb6000edddd2de747449045914f608b25d37f1a7d36ef
   micromark-extension-gfm-table@2.1.1: df69698554d58e36e0cb8741ec0b37585066f12ddd4396b11511eb2e3d2e9d8e
-  sonner@2.0.7: 22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29
+  sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
 importers:
 
@@ -702,7 +702,7 @@ importers:
         version: 1.2.2
       sonner:
         specifier: ^2.0.7
-        version: 2.0.7(patch_hash=22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 2.0.7(patch_hash=818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       sortablejs:
         specifier: 1.15.7
         version: 1.15.7
@@ -18206,7 +18206,7 @@ snapshots:
       '@solid-primitives/transition-group': 1.1.2(solid-js@1.9.15)
       solid-js: 1.9.15
 
-  sonner@2.0.7(patch_hash=22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+  sonner@2.0.7(patch_hash=818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)

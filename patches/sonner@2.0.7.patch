@@ -1,8 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index bd21e898f431298b70e941833c78819a1eb53a36..e9ea54b0afe10a698923cca395082333870292e0 100644
+index bd21e898f431298b70e941833c78819a1eb53a36..671f6d09b8dc7503b6f2091ef640eb5a390fe95a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -444,6 +444,16 @@ function getDefaultSwipeDirections(position) {
+@@ -428,6 +428,7 @@ const TOAST_WIDTH = 356;
+ const GAP = 14;
+ // Threshold to dismiss a toast
+ const SWIPE_THRESHOLD = 45;
++const SWIPE_AXIS_LOCK_DISTANCE = 6;
+ // Equal to exit animation duration
+ const TIME_BEFORE_UNMOUNT = 200;
+ function cn(...classes) {
+@@ -444,6 +445,16 @@ function getDefaultSwipeDirections(position) {
      }
      return directions;
  }
@@ -19,7 +27,7 @@ index bd21e898f431298b70e941833c78819a1eb53a36..e9ea54b0afe10a698923cca395082333
  const Toast = (props)=>{
      var _toast_classNames, _toast_classNames1, _toast_classNames2, _toast_classNames3, _toast_classNames4, _toast_classNames5, _toast_classNames6, _toast_classNames7, _toast_classNames8;
      const { invert: ToasterInvert, toast, unstyled, interacting, setHeights, visibleToasts, heights, index, toasts, expanded, removeToast, defaultRichColors, closeButton: closeButtonFromToaster, style, cancelButtonStyle, actionButtonStyle, className = '', descriptionClassName = '', duration: durationFromToaster, position, gap, expandByDefault, classNames, icons, closeButtonAriaLabel = 'Close toast' } = props;
-@@ -517,7 +527,7 @@ const Toast = (props)=>{
+@@ -517,7 +528,7 @@ const Toast = (props)=>{
      React__default.default.useEffect(()=>{
          const toastNode = toastRef.current;
          if (toastNode) {
@@ -28,7 +36,7 @@ index bd21e898f431298b70e941833c78819a1eb53a36..e9ea54b0afe10a698923cca395082333
              // Add toast height to heights array after the toast is mounted
              setInitialHeight(height);
              setHeights((h)=>[
-@@ -540,7 +550,7 @@ const Toast = (props)=>{
+@@ -540,7 +551,7 @@ const Toast = (props)=>{
          const toastNode = toastRef.current;
          const originalHeight = toastNode.style.height;
          toastNode.style.height = 'auto';
@@ -37,8 +45,93 @@ index bd21e898f431298b70e941833c78819a1eb53a36..e9ea54b0afe10a698923cca395082333
          toastNode.style.height = originalHeight;
          setInitialHeight(newHeight);
          setHeights((heights)=>{
-@@ -735,8 +745,9 @@ const Toast = (props)=>{
+@@ -648,6 +659,41 @@ const Toast = (props)=>{
+     }
+     const icon = toast.icon || (icons == null ? void 0 : icons[toastType]) || getAsset(toastType);
+     var _toast_richColors, _icons_close;
++    /**
++     * Ends a swipe: dismisses the toast if it went far or fast enough, else
++     * snaps it back. Runs on `pointerup`, and also on `pointercancel`, a lost
++     * pointer capture, or a move with no button held, since a release the page
++     * never sees (a window drag region, an OS gesture) would otherwise leave the
++     * toast following the cursor.
++     */ const releaseSwipe = ()=>{
++        var _toastRef_current, _toastRef_current1, _dragStartTime_current;
++        if (swipeOut || !dismissible) return;
++        pointerStartRef.current = null;
++        const swipeAmountX = Number(((_toastRef_current = toastRef.current) == null ? void 0 : _toastRef_current.style.getPropertyValue('--swipe-amount-x').replace('px', '')) || 0);
++        const swipeAmountY = Number(((_toastRef_current1 = toastRef.current) == null ? void 0 : _toastRef_current1.style.getPropertyValue('--swipe-amount-y').replace('px', '')) || 0);
++        const timeTaken = new Date().getTime() - ((_dragStartTime_current = dragStartTime.current) == null ? void 0 : _dragStartTime_current.getTime());
++        const swipeAmount = swipeDirection === 'x' ? swipeAmountX : swipeAmountY;
++        const velocity = Math.abs(swipeAmount) / timeTaken;
++        if (Math.abs(swipeAmount) >= SWIPE_THRESHOLD || velocity > 0.11) {
++            setOffsetBeforeRemove(offset.current);
++            toast.onDismiss == null ? void 0 : toast.onDismiss.call(toast, toast);
++            if (swipeDirection === 'x') {
++                setSwipeOutDirection(swipeAmountX > 0 ? 'right' : 'left');
++            } else {
++                setSwipeOutDirection(swipeAmountY > 0 ? 'down' : 'up');
++            }
++            deleteToast();
++            setSwipeOut(true);
++            return;
++        } else {
++            var _toastRef_current2, _toastRef_current3;
++            (_toastRef_current2 = toastRef.current) == null ? void 0 : _toastRef_current2.style.setProperty('--swipe-amount-x', `0px`);
++            (_toastRef_current3 = toastRef.current) == null ? void 0 : _toastRef_current3.style.setProperty('--swipe-amount-y', `0px`);
++        }
++        setIsSwiped(false);
++        setSwiping(false);
++        setSwipeDirection(null);
++    };
+     return /*#__PURE__*/ React__default.default.createElement("li", {
+         tabIndex: 0,
+         ref: toastRef,
+@@ -700,47 +746,29 @@ const Toast = (props)=>{
+                 y: event.clientY
+             };
+         },
+-        onPointerUp: ()=>{
+-            var _toastRef_current, _toastRef_current1, _dragStartTime_current;
+-            if (swipeOut || !dismissible) return;
+-            pointerStartRef.current = null;
+-            const swipeAmountX = Number(((_toastRef_current = toastRef.current) == null ? void 0 : _toastRef_current.style.getPropertyValue('--swipe-amount-x').replace('px', '')) || 0);
+-            const swipeAmountY = Number(((_toastRef_current1 = toastRef.current) == null ? void 0 : _toastRef_current1.style.getPropertyValue('--swipe-amount-y').replace('px', '')) || 0);
+-            const timeTaken = new Date().getTime() - ((_dragStartTime_current = dragStartTime.current) == null ? void 0 : _dragStartTime_current.getTime());
+-            const swipeAmount = swipeDirection === 'x' ? swipeAmountX : swipeAmountY;
+-            const velocity = Math.abs(swipeAmount) / timeTaken;
+-            if (Math.abs(swipeAmount) >= SWIPE_THRESHOLD || velocity > 0.11) {
+-                setOffsetBeforeRemove(offset.current);
+-                toast.onDismiss == null ? void 0 : toast.onDismiss.call(toast, toast);
+-                if (swipeDirection === 'x') {
+-                    setSwipeOutDirection(swipeAmountX > 0 ? 'right' : 'left');
+-                } else {
+-                    setSwipeOutDirection(swipeAmountY > 0 ? 'down' : 'up');
+-                }
+-                deleteToast();
+-                setSwipeOut(true);
+-                return;
+-            } else {
+-                var _toastRef_current2, _toastRef_current3;
+-                (_toastRef_current2 = toastRef.current) == null ? void 0 : _toastRef_current2.style.setProperty('--swipe-amount-x', `0px`);
+-                (_toastRef_current3 = toastRef.current) == null ? void 0 : _toastRef_current3.style.setProperty('--swipe-amount-y', `0px`);
+-            }
+-            setIsSwiped(false);
+-            setSwiping(false);
+-            setSwipeDirection(null);
++        onPointerUp: releaseSwipe,
++        onPointerCancel: releaseSwipe,
++        onLostPointerCapture: ()=>{
++            if (pointerStartRef.current) releaseSwipe();
+         },
+         onPointerMove: (event)=>{
+             var _window_getSelection, // Apply transform using both x and y values
+             _toastRef_current, _toastRef_current1;
              if (!pointerStartRef.current || !dismissible) return;
++            if (event.buttons === 0) {
++                releaseSwipe();
++                return;
++            }
              const isHighlighted = ((_window_getSelection = window.getSelection()) == null ? void 0 : _window_getSelection.toString().length) > 0;
              if (isHighlighted) return;
 -            const yDelta = event.clientY - pointerStartRef.current.y;
@@ -48,12 +141,42 @@ index bd21e898f431298b70e941833c78819a1eb53a36..e9ea54b0afe10a698923cca395082333
 +            const xDelta = (event.clientX - pointerStartRef.current.x) / pointerZoom;
              var _props_swipeDirections;
              const swipeDirections = (_props_swipeDirections = props.swipeDirections) != null ? _props_swipeDirections : getDefaultSwipeDirections(position);
-             // Determine swipe direction if not already locked
+-            // Determine swipe direction if not already locked
+-            if (!swipeDirection && (Math.abs(xDelta) > 1 || Math.abs(yDelta) > 1)) {
++            // Determine swipe direction if not already locked. Waits for a few px so
++            // a wobble at the start of a throw doesn't lock it to the wrong axis.
++            if (!swipeDirection && (Math.abs(xDelta) > SWIPE_AXIS_LOCK_DISTANCE || Math.abs(yDelta) > SWIPE_AXIS_LOCK_DISTANCE)) {
+                 setSwipeDirection(Math.abs(xDelta) > Math.abs(yDelta) ? 'x' : 'y');
+             }
+             let swipeAmount = {
+@@ -1146,7 +1174,13 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+                 if (isNotDismissible) return;
+                 setInteracting(true);
+             },
+-            onPointerUp: ()=>setInteracting(false)
++            onPointerUp: ()=>setInteracting(false),
++            onPointerCancel: ()=>setInteracting(false),
++            // A release the page never saw leaves `interacting` set, which pauses
++            // every toast's timer; the next move with no button held clears it.
++            onPointerMove: (event)=>{
++                if (interacting && event.buttons === 0) setInteracting(false);
++            }
+         }, filteredToasts.filter((toast)=>!toast.position && index === 0 || toast.position === position).map((toast, index)=>{
+             var _toastOptions_duration, _toastOptions_closeButton;
+             return /*#__PURE__*/ React__default.default.createElement(Toast, {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..62576667af6175018181e27013c6c4141a3241de 100644
+index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..34a00516fbbf54f810b4f406ff9d37595f8868f5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -437,6 +437,16 @@ function getDefaultSwipeDirections(position) {
+@@ -421,6 +421,7 @@ const TOAST_WIDTH = 356;
+ const GAP = 14;
+ // Threshold to dismiss a toast
+ const SWIPE_THRESHOLD = 45;
++const SWIPE_AXIS_LOCK_DISTANCE = 6;
+ // Equal to exit animation duration
+ const TIME_BEFORE_UNMOUNT = 200;
+ function cn(...classes) {
+@@ -437,6 +438,16 @@ function getDefaultSwipeDirections(position) {
      }
      return directions;
  }
@@ -70,7 +193,7 @@ index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..62576667af6175018181e27013c6c414
  const Toast = (props)=>{
      var _toast_classNames, _toast_classNames1, _toast_classNames2, _toast_classNames3, _toast_classNames4, _toast_classNames5, _toast_classNames6, _toast_classNames7, _toast_classNames8;
      const { invert: ToasterInvert, toast, unstyled, interacting, setHeights, visibleToasts, heights, index, toasts, expanded, removeToast, defaultRichColors, closeButton: closeButtonFromToaster, style, cancelButtonStyle, actionButtonStyle, className = '', descriptionClassName = '', duration: durationFromToaster, position, gap, expandByDefault, classNames, icons, closeButtonAriaLabel = 'Close toast' } = props;
-@@ -510,7 +520,7 @@ const Toast = (props)=>{
+@@ -510,7 +521,7 @@ const Toast = (props)=>{
      React.useEffect(()=>{
          const toastNode = toastRef.current;
          if (toastNode) {
@@ -79,7 +202,7 @@ index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..62576667af6175018181e27013c6c414
              // Add toast height to heights array after the toast is mounted
              setInitialHeight(height);
              setHeights((h)=>[
-@@ -533,7 +543,7 @@ const Toast = (props)=>{
+@@ -533,7 +544,7 @@ const Toast = (props)=>{
          const toastNode = toastRef.current;
          const originalHeight = toastNode.style.height;
          toastNode.style.height = 'auto';
@@ -88,8 +211,93 @@ index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..62576667af6175018181e27013c6c414
          toastNode.style.height = originalHeight;
          setInitialHeight(newHeight);
          setHeights((heights)=>{
-@@ -728,8 +738,9 @@ const Toast = (props)=>{
+@@ -641,6 +652,41 @@ const Toast = (props)=>{
+     }
+     const icon = toast.icon || (icons == null ? void 0 : icons[toastType]) || getAsset(toastType);
+     var _toast_richColors, _icons_close;
++    /**
++     * Ends a swipe: dismisses the toast if it went far or fast enough, else
++     * snaps it back. Runs on `pointerup`, and also on `pointercancel`, a lost
++     * pointer capture, or a move with no button held, since a release the page
++     * never sees (a window drag region, an OS gesture) would otherwise leave the
++     * toast following the cursor.
++     */ const releaseSwipe = ()=>{
++        var _toastRef_current, _toastRef_current1, _dragStartTime_current;
++        if (swipeOut || !dismissible) return;
++        pointerStartRef.current = null;
++        const swipeAmountX = Number(((_toastRef_current = toastRef.current) == null ? void 0 : _toastRef_current.style.getPropertyValue('--swipe-amount-x').replace('px', '')) || 0);
++        const swipeAmountY = Number(((_toastRef_current1 = toastRef.current) == null ? void 0 : _toastRef_current1.style.getPropertyValue('--swipe-amount-y').replace('px', '')) || 0);
++        const timeTaken = new Date().getTime() - ((_dragStartTime_current = dragStartTime.current) == null ? void 0 : _dragStartTime_current.getTime());
++        const swipeAmount = swipeDirection === 'x' ? swipeAmountX : swipeAmountY;
++        const velocity = Math.abs(swipeAmount) / timeTaken;
++        if (Math.abs(swipeAmount) >= SWIPE_THRESHOLD || velocity > 0.11) {
++            setOffsetBeforeRemove(offset.current);
++            toast.onDismiss == null ? void 0 : toast.onDismiss.call(toast, toast);
++            if (swipeDirection === 'x') {
++                setSwipeOutDirection(swipeAmountX > 0 ? 'right' : 'left');
++            } else {
++                setSwipeOutDirection(swipeAmountY > 0 ? 'down' : 'up');
++            }
++            deleteToast();
++            setSwipeOut(true);
++            return;
++        } else {
++            var _toastRef_current2, _toastRef_current3;
++            (_toastRef_current2 = toastRef.current) == null ? void 0 : _toastRef_current2.style.setProperty('--swipe-amount-x', `0px`);
++            (_toastRef_current3 = toastRef.current) == null ? void 0 : _toastRef_current3.style.setProperty('--swipe-amount-y', `0px`);
++        }
++        setIsSwiped(false);
++        setSwiping(false);
++        setSwipeDirection(null);
++    };
+     return /*#__PURE__*/ React.createElement("li", {
+         tabIndex: 0,
+         ref: toastRef,
+@@ -693,47 +739,29 @@ const Toast = (props)=>{
+                 y: event.clientY
+             };
+         },
+-        onPointerUp: ()=>{
+-            var _toastRef_current, _toastRef_current1, _dragStartTime_current;
+-            if (swipeOut || !dismissible) return;
+-            pointerStartRef.current = null;
+-            const swipeAmountX = Number(((_toastRef_current = toastRef.current) == null ? void 0 : _toastRef_current.style.getPropertyValue('--swipe-amount-x').replace('px', '')) || 0);
+-            const swipeAmountY = Number(((_toastRef_current1 = toastRef.current) == null ? void 0 : _toastRef_current1.style.getPropertyValue('--swipe-amount-y').replace('px', '')) || 0);
+-            const timeTaken = new Date().getTime() - ((_dragStartTime_current = dragStartTime.current) == null ? void 0 : _dragStartTime_current.getTime());
+-            const swipeAmount = swipeDirection === 'x' ? swipeAmountX : swipeAmountY;
+-            const velocity = Math.abs(swipeAmount) / timeTaken;
+-            if (Math.abs(swipeAmount) >= SWIPE_THRESHOLD || velocity > 0.11) {
+-                setOffsetBeforeRemove(offset.current);
+-                toast.onDismiss == null ? void 0 : toast.onDismiss.call(toast, toast);
+-                if (swipeDirection === 'x') {
+-                    setSwipeOutDirection(swipeAmountX > 0 ? 'right' : 'left');
+-                } else {
+-                    setSwipeOutDirection(swipeAmountY > 0 ? 'down' : 'up');
+-                }
+-                deleteToast();
+-                setSwipeOut(true);
+-                return;
+-            } else {
+-                var _toastRef_current2, _toastRef_current3;
+-                (_toastRef_current2 = toastRef.current) == null ? void 0 : _toastRef_current2.style.setProperty('--swipe-amount-x', `0px`);
+-                (_toastRef_current3 = toastRef.current) == null ? void 0 : _toastRef_current3.style.setProperty('--swipe-amount-y', `0px`);
+-            }
+-            setIsSwiped(false);
+-            setSwiping(false);
+-            setSwipeDirection(null);
++        onPointerUp: releaseSwipe,
++        onPointerCancel: releaseSwipe,
++        onLostPointerCapture: ()=>{
++            if (pointerStartRef.current) releaseSwipe();
+         },
+         onPointerMove: (event)=>{
+             var _window_getSelection, // Apply transform using both x and y values
+             _toastRef_current, _toastRef_current1;
              if (!pointerStartRef.current || !dismissible) return;
++            if (event.buttons === 0) {
++                releaseSwipe();
++                return;
++            }
              const isHighlighted = ((_window_getSelection = window.getSelection()) == null ? void 0 : _window_getSelection.toString().length) > 0;
              if (isHighlighted) return;
 -            const yDelta = event.clientY - pointerStartRef.current.y;
@@ -99,4 +307,26 @@ index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..62576667af6175018181e27013c6c414
 +            const xDelta = (event.clientX - pointerStartRef.current.x) / pointerZoom;
              var _props_swipeDirections;
              const swipeDirections = (_props_swipeDirections = props.swipeDirections) != null ? _props_swipeDirections : getDefaultSwipeDirections(position);
-             // Determine swipe direction if not already locked
+-            // Determine swipe direction if not already locked
+-            if (!swipeDirection && (Math.abs(xDelta) > 1 || Math.abs(yDelta) > 1)) {
++            // Determine swipe direction if not already locked. Waits for a few px so
++            // a wobble at the start of a throw doesn't lock it to the wrong axis.
++            if (!swipeDirection && (Math.abs(xDelta) > SWIPE_AXIS_LOCK_DISTANCE || Math.abs(yDelta) > SWIPE_AXIS_LOCK_DISTANCE)) {
+                 setSwipeDirection(Math.abs(xDelta) > Math.abs(yDelta) ? 'x' : 'y');
+             }
+             let swipeAmount = {
+@@ -1139,7 +1167,13 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+                 if (isNotDismissible) return;
+                 setInteracting(true);
+             },
+-            onPointerUp: ()=>setInteracting(false)
++            onPointerUp: ()=>setInteracting(false),
++            onPointerCancel: ()=>setInteracting(false),
++            // A release the page never saw leaves `interacting` set, which pauses
++            // every toast's timer; the next move with no button held clears it.
++            onPointerMove: (event)=>{
++                if (interacting && event.buttons === 0) setInteracting(false);
++            }
+         }, filteredToasts.filter((toast)=>!toast.position && index === 0 || toast.position === position).map((toast, index)=>{
+             var _toastOptions_duration, _toastOptions_closeButton;
+             return /*#__PURE__*/ React.createElement(Toast, {

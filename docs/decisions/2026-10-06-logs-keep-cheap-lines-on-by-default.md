@@ -28,7 +28,7 @@ The agent press line stays on by default. It runs one hit-test script in the gue
 
 - An attached log can answer "did the agent's click land" without asking the user to reproduce anything.
 - New log lines are judged by the tiers above rather than by whether anyone is likely to read them.
-- Known gap: `did-fail-load` in `browser-view/manager.ts` writes the full failed URL, query string included. On real use that put Gmail data URLs carrying tokens, and LAN hostnames, into `main.log`. Most of those lines are `errorCode=-3` (aborted loads), which are noise as well.
+- `did-fail-load` in `browser-view/manager.ts` logs the failed load's host, not its URL, and skips `errorCode=-3` (aborted loads). Its full URL had put Gmail data URLs carrying tokens into `main.log`.
 
 ## Implementation
 

@@ -334,9 +334,14 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.on(
       "did-fail-load",
       (_event, errorCode, errorDescription, validatedURL) => {
-        log.error(
-          `did-fail-load targetId=${entry.targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
-        );
+        // Only the host goes in the log: a page's full address can carry
+        // tokens and says what the user was looking at.
+        if (errorCode !== -3) {
+          const url = URL.parse(validatedURL);
+          log.error(
+            `did-fail-load targetId=${entry.targetId} host=${url?.host || url?.protocol || "unknown"} errorCode=${errorCode} errorDescription=${errorDescription}`,
+          );
+        }
         // ERR_ABORTED (-3) is a normal interrupted navigation. Any other failure
         // of the initial load would leave `attach` pending until the 15s timeout;
         // settle it so createTarget resolves against the bound guest (CDP still

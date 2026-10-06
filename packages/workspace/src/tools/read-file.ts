@@ -50,7 +50,7 @@ import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { resolveChat } from "../lib/record-folders";
+import { chatSpokenFor, ONE_AGENT_NAME, toolFolders } from "../lib/one-agent";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -500,10 +500,12 @@ export const ReadFile = setupTool({
   `,
   execute: async ({ agentName, input, model, signal, taskId, taskState }) => {
     const region = input.region;
-    const chatId = agentName === "instrument" ? resolveChat(taskId) : undefined;
+    const chatId = chatSpokenFor(agentName, taskId);
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
+      apps:
+        agentName === "instrument" ||
+        (agentName === ONE_AGENT_NAME && chatId !== undefined),
+      attachedFolders: await toolFolders(agentName, taskId, taskState),
       extraMounts: chatId ? await childTaskMounts(chatId) : undefined,
       taskHostRoot: taskDir(taskId),
     });

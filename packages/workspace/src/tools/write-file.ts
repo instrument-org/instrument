@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
+import { chatSpokenFor, toolFolders } from "../lib/one-agent";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
@@ -51,8 +52,10 @@ export const WriteFile = setupTool({
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html ${MOUNT.attachedFolders}/<folder>/foo.html\`.  `,
   execute: async ({ agentName, input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
+      apps:
+        agentName === "instrument" ||
+        chatSpokenFor(agentName, taskId) !== undefined,
+      attachedFolders: await toolFolders(agentName, taskId, taskState),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

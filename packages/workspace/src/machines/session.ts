@@ -17,6 +17,7 @@ import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { chatSpokenFor } from "../lib/one-agent";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { interruptWaits } from "../lib/wait-interrupts";
@@ -331,7 +332,8 @@ export const sessionMachine = setup({
           }
           if (
             event.interrupt ||
-            (context.agent.name === "instrument" && isTypedByUser(event.value))
+            (chatSpokenFor(context.agent.name, context.taskId) !== undefined &&
+              isTypedByUser(event.value))
           ) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;

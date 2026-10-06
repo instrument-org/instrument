@@ -22,6 +22,8 @@ import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { ONE_AGENT_NAME } from "../lib/one-agent";
+import { resolveChat } from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -671,7 +673,13 @@ export const agentMachine = setup({
 
                 const tool = getToolByType(part.type);
 
-                if (isInteractiveTool(tool.name)) {
+                // A fork runs the chat's agent, questions included, where
+                // nobody answers: its question runs, and says so.
+                if (
+                  isInteractiveTool(tool.name) &&
+                  (context.agent.name !== ONE_AGENT_NAME ||
+                    resolveChat(context.taskId) !== undefined)
+                ) {
                   pendingToolCalls.push(part);
                   continue;
                 }

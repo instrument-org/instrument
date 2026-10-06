@@ -77,8 +77,9 @@ export async function initializeTask(
             ),
     );
 
-    // A chat runs no code of its own, so it takes none of a task's scaffold.
-    if (!isChat) {
+    // A chat runs no code of its own, so it takes none of a task's scaffold,
+    // except under the one agent, which does its work in the chat's folder.
+    if (!isChat || (workspaceConfig.isOneAgentEnabled?.() ?? false)) {
       yield* copyTask({
         includePrivateFolder: false,
         sourceDir: workspaceConfig.defaultTaskTemplateDir,

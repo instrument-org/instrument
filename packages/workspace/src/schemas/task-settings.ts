@@ -29,6 +29,9 @@ export const TaskSettingsSchema = z.object({
   // the session database is rewritten by the act of opening a task, so sorting
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
+  // A background run `task fork` started: it carries its chat's
+  // conversation and runs the chat's own agent rather than the task agent.
+  fork: z.boolean().optional(),
   name: z.string().default("Untitled task"),
   // How hard this task's model is asked to think, on every turn it takes. A
   // task the conversation starts copies the conversation's level. Absent

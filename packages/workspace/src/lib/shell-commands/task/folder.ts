@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
 import { attachFolder, detachFolder } from "../../attach-folder";
@@ -6,12 +7,19 @@ import { folderReach } from "../../chat/folder-reach";
 import { mountAliases } from "../../chat/mount-paths";
 import { outputFolderPath } from "../../chat/output-folder";
 import { folderLabel } from "../../folder-parent-label";
+import { isOneAgentEnabled } from "../../one-agent";
+import { effectiveFolderAccess } from "../../workspace-fs-layout";
 import {
   type SubcommandInput,
   type SubcommandShell,
   subcommand,
 } from "../subcommands";
-import { requireFoldersOnDisk, resolveFolders } from "../task-args";
+import {
+  ANSWER_WAIT_MS,
+  awaitAnswers,
+  requireFoldersOnDisk,
+  resolveFolders,
+} from "../task-args";
 import { TASK_COMMAND } from "../task-command";
 import { requireOwnChild } from "./children";
 import { type TaskCommandContext } from "./context";
@@ -41,6 +49,9 @@ export const folderSubcommand = subcommand<TaskCommandContext>({
       it at its next step, an idle one it hands a folder carries on with it as
       a new turn. Say what the folder is for on stdin, in the same heredoc form
       as \`send\`, and it is told that too.
+      With the one agent, \`self\` in place of an id gives this conversation
+      itself a folder inside one of its own, read and write unless :ro, mounted
+      beside the one it is in: \`folder self --add <mount>/<folder>\`.
 `,
 });
 
@@ -61,6 +72,9 @@ async function runFolder(
   context: TaskCommandContext,
   { stdin }: SubcommandShell,
 ) {
+  if (input.positional[0] === "self") {
+    return await runSelfFolder(input, context);
+  }
   const task = await requireOwnChild(input.positional[0], context);
   const askedAdds = input.all("add");
   const askedRemoves = input.all("remove");
@@ -148,4 +162,59 @@ async function runFolder(
     task,
   });
   return `${lines.join("\n") || `${task.id} has no folder but the workspace folder.`}\n${told}`;
+}
+
+/**
+ * Gives the conversation itself a folder inside one it reaches, the grant
+ * \`--folder\` makes a task: the home folder is read-only whole, since the
+ * workspace is inside it, and a folder in it is not. Only the one agent
+ * writes with its own tools, so only it is offered this.
+ *
+ * The system's own ask for a protected folder (Desktop, Documents,
+ * Downloads) still comes first, the way it does on \`new\`.
+ */
+async function runSelfFolder(
+  input: SubcommandInput,
+  context: TaskCommandContext,
+) {
+  if (!isOneAgentEnabled()) {
+    throw new Error(
+      `folder: \`self\` is not available in this conversation. Hand the folder to a task with --folder.`,
+    );
+  }
+  const askedAdds = input.all("add");
+  if (askedAdds.length === 0) {
+    throw new Error("folder self: --add <mount>/<folder> is required.");
+  }
+  const chatFolders = await folderReach(context.chatId);
+  const adds = resolveFolders(askedAdds, chatFolders);
+  const looks = await requireFoldersOnDisk(adds, askedAdds);
+  const unanswered = await awaitAnswers(
+    looks,
+    Math.min(ANSWER_WAIT_MS, context.remainingYieldMs() - 2000),
+  );
+  if (unanswered.length > 0) {
+    throw new Error(
+      `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}: tell them to answer the system's dialog, then run this again.`,
+    );
+  }
+  const lines: string[] = [];
+  for (const folder of adds) {
+    await attachFolder({
+      access: folder.access,
+      path: folder.path,
+      taskId: context.chatId,
+    });
+    const reach = await folderReach(context.chatId);
+    const mounted = Object.values(reach).find(
+      (held) => path.resolve(held.path) === path.resolve(folder.path),
+    );
+    const mountPoint = mounted
+      ? attachedFolderMountPoint(mounted.mountName)
+      : folder.path;
+    lines.push(
+      `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : folder.access}). Work in it there.`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
 }

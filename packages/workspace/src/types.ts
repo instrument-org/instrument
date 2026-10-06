@@ -198,6 +198,13 @@ export interface WorkspaceConfig {
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
+  /**
+   * The `one_agent` feature flag: a chat runs the merged agent
+   * (`agents/one.ts`), which works itself and forks to the background,
+   * instead of the delegating one. Read per session spawn, like the browser
+   * flag. Absent is off.
+   */
+  isOneAgentEnabled?: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;

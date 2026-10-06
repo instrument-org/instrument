@@ -7,6 +7,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { agentNameForTask } from "../agent-name-for-task";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
@@ -563,7 +564,7 @@ async function wakeWith(
   workspaceRef.send({
     type: "addMessage",
     value: {
-      agentName: "instrument",
+      agentName: agentNameForTask(chatId),
       id: chatId,
       message,
       model: modelResult.value,

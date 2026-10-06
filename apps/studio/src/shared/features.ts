@@ -4,6 +4,7 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
+  "one_agent",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
@@ -28,5 +29,10 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
+  },
+  one_agent: {
+    description:
+      "Chats run one agent that does quick work itself and forks multi-step work to the background with the conversation in hand, instead of briefing a separate task agent. Takes effect for a chat the next time its session starts.",
+    title: "One Agent",
   },
 };

@@ -43,7 +43,7 @@ export interface Agent<T extends AgentTools> {
   systemPrompt: () => string;
 }
 
-const AGENT_NAMES = ["main", "instrument"] as const;
+const AGENT_NAMES = ["main", "instrument", "instrument-one"] as const;
 
 export type AgentName = (typeof AGENT_NAMES)[number];
 export type AgentTools = Partial<Record<InternalToolName, AnyAgentTool>>;

@@ -523,7 +523,15 @@ export interface BashEnvOptions {
    * its command set shrinks to reading and `task`. See
    * `createChatBashDescription`.
    */
-  chat?: { childMounts: WorkspaceFsMount[]; id: ChatId };
+  chat?: {
+    childMounts: WorkspaceFsMount[];
+    /**
+     * The one agent's chat (`agents/one.ts`): the task agent's whole shell
+     * beside the chat's commands, rather than the chat's reading set.
+     */
+    full?: boolean;
+    id: ChatId;
+  };
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -532,9 +540,24 @@ export interface BashEnvOptions {
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
 export type BashRunner = Pick<Bash, "exec">;
 
+/**
+ * What the one agent's chat runs beside the task agent's shell, listed with
+ * it. Its description is the same in a fork, which keeps the tool definitions
+ * the provider cache is keyed on the same as the chat's; the fork is told
+ * these are not there.
+ */
+const ONE_AGENT_CHAT_COMMAND_LINES = [
+  `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
+  `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
+  `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
+  `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
+  `  (In the chat, each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\` and the workspace's apps at \`${MOUNT.apps}\`.)`,
+];
+
 export function createBashDescription({
   chat = false,
-}: { chat?: boolean } = {}) {
+  oneAgent = false,
+}: { chat?: boolean; oneAgent?: boolean } = {}) {
   const allowedCommandNames = getCommandNames().filter(
     (name) => !BROKEN_COMMANDS.has(name),
   );
@@ -557,6 +580,7 @@ export function createBashDescription({
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...(oneAgent ? ONE_AGENT_CHAT_COMMAND_LINES : []),
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
@@ -673,7 +697,7 @@ export async function createLocalBashEnv({
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...(chat ? [] : getNetworkCommandNames()),
+    ...(chat && !chat.full ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   // What sets the two shells apart: the chat gets `task`, `chat`,
@@ -682,6 +706,10 @@ export async function createLocalBashEnv({
   // own guards, so the chat's shell stays network-free. Putting a
   // thing on the user's screen is the chat's `tab`: a task's reply is
   // read by the chat, and a pane of the task's own has nobody looking.
+  const nativeCommands = customCommandDefs().map((cmd) =>
+    cmd.factory({ layout, taskId }),
+  );
+  const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
   const specializedCommands = chat
     ? [
         createTaskCommand({
@@ -693,11 +721,9 @@ export async function createLocalBashEnv({
         createMemoryCommand({ chatId: chat.id, sessionId }),
         createAppCommand({ taskId }),
         createTabCommand({ chatId: chat.id }),
+        ...(chat.full ? nativeCommands : []),
       ]
-    : [
-        createAppCommand({ taskId }),
-        ...customCommandDefs().map((cmd) => cmd.factory({ layout, taskId })),
-      ];
+    : [createAppCommand({ taskId }), ...nativeCommands];
   const specializedCommandNames = chat
     ? [
         TASK_COMMAND.name,
@@ -705,8 +731,9 @@ export async function createLocalBashEnv({
         MEMORY_COMMAND.name,
         APP_COMMAND.name,
         TAB_COMMAND.name,
+        ...(chat.full ? nativeCommandNames : []),
       ]
-    : [APP_COMMAND.name, ...customCommandDefs().map((cmd) => cmd.name)];
+    : [APP_COMMAND.name, ...nativeCommandNames];
 
   const bash = new Bash({
     commands: allowedCommands,
@@ -772,8 +799,10 @@ export async function createLocalBashEnv({
     // bootstrap inside QuickJS before every script to give its Node shims
     // Node's shapes. The chat's shell runs no scripts at all, so it
     // gets neither.
-    javascript: chat === undefined && { bootstrap: JS_EXEC_BOOTSTRAP },
-    python: chat === undefined,
+    javascript: (chat === undefined || chat.full === true) && {
+      bootstrap: JS_EXEC_BOOTSTRAP,
+    },
+    python: chat === undefined || chat.full === true,
   });
 
   // Order matters: the alias runs first so the recorded command list names

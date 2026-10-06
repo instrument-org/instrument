@@ -53,7 +53,7 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
 import { chatRefusal } from "./chat-shell-policy";
-import { resolveChat } from "../lib/record-folders";
+import { chatSpokenFor, ONE_AGENT_NAME } from "../lib/one-agent";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -166,7 +166,10 @@ export const BashTool = setupTool({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
   description: ({ agentName }) =>
-    createBashDescription({ chat: agentName === "instrument" }),
+    createBashDescription({
+      chat: agentName === "instrument",
+      oneAgent: agentName === ONE_AGENT_NAME,
+    }),
   async execute({ agentName, input, partId, sessionId, signal, taskId }) {
     if (agentName === "instrument") {
       const refused = chatRefusal(input.command);
@@ -177,9 +180,13 @@ export const BashTool = setupTool({
     const attachedFolders = await folderReach(taskId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
-    const chatId = agentName === "instrument" ? resolveChat(taskId) : undefined;
+    const chatId = chatSpokenFor(agentName, taskId);
     const chat = chatId
-      ? { childMounts: await childTaskMounts(chatId), id: chatId }
+      ? {
+          childMounts: await childTaskMounts(chatId),
+          full: agentName === ONE_AGENT_NAME,
+          id: chatId,
+        }
       : undefined;
     const bash = await createBashEnv({
       attachedFolders,

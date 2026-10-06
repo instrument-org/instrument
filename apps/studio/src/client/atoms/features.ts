@@ -8,6 +8,7 @@ const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
   external_browser: false,
+  one_agent: false,
 };
 
 async function listen(

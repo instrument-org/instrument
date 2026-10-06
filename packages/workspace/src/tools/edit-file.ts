@@ -14,6 +14,7 @@ import {
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
+import { chatSpokenFor, toolFolders } from "../lib/one-agent";
 import { pathExists } from "../lib/path-exists";
 import {
   applyUnicodeFallbacks,
@@ -775,8 +776,10 @@ export const EditFile = setupTool({
     }
 
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
+      apps:
+        agentName === "instrument" ||
+        chatSpokenFor(agentName, taskId) !== undefined,
+      attachedFolders: await toolFolders(agentName, taskId, taskState),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

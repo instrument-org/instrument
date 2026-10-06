@@ -5,6 +5,7 @@ import { TASK_COMMAND } from "../task-command";
 import { appSubcommand } from "./app";
 import { type TaskCommandContext } from "./context";
 import { folderSubcommand } from "./folder";
+import { forkSubcommand } from "./fork";
 import { listSubcommand } from "./list";
 import { logSubcommand } from "./log";
 import { newSubcommand } from "./new";
@@ -25,6 +26,7 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
 ${[
   newSubcommand,
+  forkSubcommand,
   sendSubcommand,
   stopSubcommand,
   folderSubcommand,
@@ -46,6 +48,7 @@ const runTask = defineSubcommands<TaskCommandContext>({
   subcommands: {
     app: appSubcommand,
     folder: folderSubcommand,
+    fork: forkSubcommand,
     list: listSubcommand,
     log: logSubcommand,
     new: newSubcommand,

@@ -9,6 +9,7 @@ import { latestOrNewSessionId } from "../../chat/latest-session";
 import { mountAliases, toTaskPaths } from "../../chat/mount-paths";
 import { folderLabel } from "../../folder-parent-label";
 import { newMessage } from "../../new-message";
+import { agentNameForChild } from "../../one-agent";
 import { Store } from "../../store";
 import { systemNote } from "../../system-note";
 import { type TaskHold, queueBehindHold, taskHold } from "../../task-hold";
@@ -61,6 +62,7 @@ export async function deliver({
     throw session.error;
   }
   const sessionId = session.value;
+  const agentName = await agentNameForChild(task.id);
   const message = await newMessage({
     ...(files ? { files } : {}),
     model,
@@ -81,7 +83,7 @@ export async function deliver({
       getWorkspaceActorRef().send({
         type: "addMessage",
         value: {
-          agentName: "main",
+          agentName,
           id: task.id,
           message: stampedNow(message.value),
           model,
@@ -101,7 +103,7 @@ export async function deliver({
   getWorkspaceActorRef().send({
     type: "addMessage",
     value: {
-      agentName: "main",
+      agentName,
       id: task.id,
       interrupt,
       message: message.value,

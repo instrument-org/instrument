@@ -33,8 +33,13 @@ export const RequestFolder = setupTool({
   ]),
 }).create({
   description: `Ask the user for a folder you do not reach, which is one outside their home folder: an external drive, another volume. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.attachedFolders}, and the answer names the mount, which you pass to a task with --folder. Ask for one folder at a time, and only when the work cannot proceed without it.`,
+  // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
-    return Promise.resolve(executeError("Not implemented"));
+    return Promise.resolve(
+      executeError(
+        "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.",
+      ),
+    );
   },
   readOnly: true,
   timeoutMs: ms("1 second"),

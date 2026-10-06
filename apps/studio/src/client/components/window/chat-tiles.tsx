@@ -193,10 +193,13 @@ export function ChatTiles({
   return (
     <section
       aria-label="What this chat has open"
-      className="relative mb-2 select-none"
+      // Pulled out by the row's padding, which leaves the chosen tile's
+      // plate room inside the scroll's clip while the tiles stay in line
+      // with the composer.
+      className="relative -mx-1 -mt-1 mb-1 select-none"
     >
       <motion.div
-        className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-0.5"
+        className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-1.5"
         layoutScroll
         onScroll={readEnds}
         // A wheel that only turns up and down scrolls the row sideways.
@@ -325,7 +328,7 @@ function RowEnd({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-y-0 flex w-16 items-start pt-6",
+        "pointer-events-none absolute inset-y-0 flex w-16 items-start pt-7",
         side === "left"
           ? "left-0 justify-start bg-linear-to-r from-background via-background/80 to-transparent pl-1"
           : "right-0 justify-end bg-linear-to-l from-background via-background/80 to-transparent pr-1",
@@ -607,7 +610,14 @@ function ChatTile({
       />
     );
   const tile = (isWorking: boolean) => (
-    <div className="group/tile relative flex flex-col gap-1.5">
+    // The one up sits on a plate, the way the rail lights the place the
+    // window is in.
+    <div
+      className={cn(
+        "group/tile relative flex flex-col gap-1.5",
+        isChosen && "-m-1.5 rounded-xl bg-foreground/8 p-1.5",
+      )}
+    >
       <button
         aria-label={title}
         className="flex flex-col gap-1.5 text-left outline-none"
@@ -652,7 +662,14 @@ function ChatTile({
         </span>
         {/* The name alone, at the tile's whole width: the mark is on the
             picture, or is the picture when there is none. */}
-        <span className="flex min-w-0 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
+        <span
+          className={cn(
+            "flex min-w-0 px-0.5 text-[11px] leading-4",
+            isChosen
+              ? "font-medium text-foreground"
+              : "text-muted-foreground group-hover/tile:text-foreground",
+          )}
+        >
           <span className={cn("truncate", isWorking && "brand-shiny-text")}>
             {title}
           </span>
@@ -660,7 +677,11 @@ function ChatTile({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        className={cn(
+          "absolute grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100",
+          // On the picture's corner either way: the plate's padding moves it in.
+          isChosen ? "top-2.5 right-2.5" : "top-1 right-1",
+        )}
         onClick={onClose}
         type="button"
       >

@@ -5,8 +5,7 @@
     <!-- A preview build's entitlements: entitlements.mac.plist without the keys
          its provisioning profile grants. That profile is bound to the shipping
          bundle id, and a preview has its own, so claiming them would build an
-         app the system kills on exec. What goes with them is the Touch ID
-         passkey authenticator, which web-authn.ts skips in a preview. -->
+         app the system kills on exec. -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>

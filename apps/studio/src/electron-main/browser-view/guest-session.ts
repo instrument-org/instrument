@@ -2,14 +2,15 @@ import { session, type Session } from "electron";
 import fs from "node:fs";
 
 import { applyStandardUserAgent } from "../lib/user-agent";
-import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
 import { followPageEdits } from "../page-editor/sessions";
 import {
   blockedRequestResponse,
+  cspResponse,
   enableContentBlocking,
 } from "./content-blocking";
 import { routeGuestDownloads } from "./downloads";
 import { guests } from "./guest-registry";
+import { refusePasskeys } from "./passkey-policy";
 import {
   confineLocalPagesToTheirFolder,
   refuseLocalFilesIn,
@@ -24,7 +25,9 @@ let configured: null | { dir: string; session: Session } = null;
  * handed back as it is after that. Everything the session does for a page is
  * registered here, once: the guest registry that tells its contents apart,
  * the permission policy, the user agent, the local-file rule and ad blocking
- * (one request listener between them), downloads, and the page editor.
+ * (one request listener between them), ad blocking's CSP filters and the
+ * passkey refusal (one headers listener between them), downloads, and the
+ * page editor.
  *
  * A process opens one workspace, so it has one browser profile; a second
  * folder asked for would be a second profile, which nothing here expects.
@@ -82,11 +85,9 @@ export function configureGuestSession(profileDir: string): Session {
   // like one. Branded with the app's own name because the guest's pages get the
   // matching metadata over CDP; see applyProductBrandedMetadata.
   applyStandardUserAgent(guestSession, { productBranded: true });
-  // Required, not optional: a passkey sign-in that finds more than one
-  // credential is cancelled outright when nothing answers this.
-  selectWebAuthnAccountOnRequest(guestSession);
   confineLocalPagesToTheirFolder(guestSession, blockedRequestResponse);
   enableContentBlocking(guestSession, (id) => guests.isAdBlockExempt(id));
+  refusePasskeys(guestSession, cspResponse);
   routeGuestDownloads(guestSession, guests);
   return guestSession;
 }

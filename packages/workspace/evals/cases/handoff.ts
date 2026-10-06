@@ -1,36 +1,40 @@
 /**
- * Does handing work from the chat to a task cost the user anything?
+ * Does handing work from the chat to a task cost the user anything, and is
+ * one agent that keeps the work better at the root?
  *
  * The chat (`src/agents/instrument.ts`) delegates nearly everything to task
  * agents (`src/agents/main.ts`), and a task sees only the brief the chat
  * writes: never the user's words, their memories, or their topic's
- * instructions. Every scenario here is a failure seen in real use where the
- * brief lost something the user said, and each runs three ways from one
- * definition, so the prompt, the fixtures, and the assertions are the same
- * and only the route differs:
+ * instructions. Every scenario here is a failure seen in real use, or an ask
+ * real use is full of, and each runs as several arms from one definition, so
+ * the prompt, the fixtures, and the assertions are the same and only the
+ * route differs:
  *
  * - **a, today:** the user's words go to the chat, which delegates.
- * - **b, direct:** the same words go straight to a task agent that reaches
- *   what the chat reaches (the home folder and the workspace folder, plus
- *   any folder the user sent).
  * - **c, one agent:** a, with the process opted into the one-agent
  *   prototype (`INSTRUMENT_EVAL_ONE_AGENT=1`), which does quick work itself
- *   and forks a task for slow work.
- * - **v, direct in the chat's voice:** b with the chat's "How you speak"
- *   section appended to the task agent's system prompt, so reply length is
- *   compared like for like. The prompt is the agent's rather than the
- *   task's, so a v run cannot share a process with any other arm.
+ *   and forks slow work.
+ * - **d, one agent in the foreground:** c with no background at all
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=foreground`).
+ * - **e, today with a fuller hand-off:** a, with tasks also given the user's
+ *   own words, memories and topic instructions
+ *   (`INSTRUMENT_EVAL_TASK_CONTEXT=1`).
+ * - **b, direct** and **v, direct in the chat's voice:** round one's arms,
+ *   which showed a task without the chat's context fails. Kept runnable, off
+ *   by default in `evals/handoff-matrix.ts`.
  *
  * Every assertion reads the outcome (a file on disk, a figure the user was
- * shown), never the wording of a brief.
+ * shown, how long they waited for an answer), never the wording of a brief.
  *
  * Fixtures are made in the run's home by each case's `setup`, and the
  * workspace folder is the home's, so two runs in one process see each
  * other's files. Run each case in a process of its own with its own
- * `INSTRUMENT_EVAL_HOME`, which `evals/handoff-matrix.ts` does, setting the
- * one-agent flag for arm c.
+ * `INSTRUMENT_EVAL_HOME`, which `evals/handoff-matrix.ts` does, setting each
+ * arm's switch.
  */
+import { createHash } from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
@@ -49,6 +53,7 @@ import {
   defineEval,
   type EvalCase,
 } from "../harness";
+import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
 type Context = Parameters<Assertion["check"]>[0];
 
@@ -1032,19 +1037,881 @@ const answeredFromMemory: Assertion = {
 };
 
 // ---------------------------------------------------------------------------
+// Round two: fixtures and assertions
+// ---------------------------------------------------------------------------
+
+/** When the user sent the message containing `words`, or the run's start. */
+function sentAtOr(sessions: Session.WithMessagesAndParts[], words: string) {
+  return sentAt(sessions, words) ?? runStartedAt(sessions);
+}
+
+/** The times `EvalCase.marks` recorded for this run, by name. */
+function marksFor(taskId: TaskId): Record<string, null | number> {
+  try {
+    const read: unknown = JSON.parse(
+      fs.readFileSync(path.join(HOME, ".eval-marks", `${taskId}.json`), "utf8"),
+    );
+    return typeof read === "object" && read !== null
+      ? Object.fromEntries(
+          Object.entries(read).map(([name, value]) => [
+            name,
+            typeof value === "number" ? value : null,
+          ]),
+        )
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Every tool input in the tree from `since` on, as text. */
+async function toolInputsSince(ctx: Context, since: number): Promise<string> {
+  return (await treeSessions(ctx))
+    .flatMap((session) => session.messages)
+    .filter((message) => message.metadata.createdAt.getTime() >= since)
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        isToolPart(part) ? [JSON.stringify(part.input ?? "")] : [],
+      ),
+    )
+    .join("\n");
+}
+
+const IDEAS = [
+  "a balcony herb garden",
+  "a monthly book swap with neighbors",
+  "learning to bake sourdough",
+  "a family recipe archive",
+  "a weekend bike route map",
+  "a podcast about local history",
+  "a reading nook in the spare room",
+  "a habit tracker on paper",
+  "a board game night",
+  "a photo walk around downtown",
+  "a compost bin for the yard",
+  "a budget for a winter trip",
+  "a playlist for focused work",
+  "a letter to an old friend",
+  "a tool library for the street",
+  "a home emergency kit",
+  "a beginner pottery class",
+  "a bird feeder by the window",
+  "a digital photo cleanup",
+  "a meal prep Sunday routine",
+  "a running plan for a 10K",
+  "a garage reorganization",
+  "a kids' science afternoon",
+  "a gratitude journal",
+  "a neighborhood cleanup day",
+  "a guide to local hiking trails",
+  "a spice rack overhaul",
+  "a weekly phone-free evening",
+  "a houseplant care chart",
+  "a family movie list",
+];
+
+/** Thirty or more notes in a folder called Ideas, wherever the run made it. */
+const madeThirtyNotes: Assertion = {
+  check: async (ctx) => {
+    const text = "made 30 notes files in an Ideas folder";
+    const best = (await folderNamed(ctx, /^ideas$/i)).toSorted(
+      (a, b) => b.files.length - a.files.length,
+    )[0];
+    const evidence = best
+      ? `${path.relative(HOME, best.dir)}: ${best.files.length} files`
+      : "no Ideas folder";
+    return best && best.files.length >= IDEAS.length
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "made 30 notes files in an Ideas folder",
+};
+
+/** The preference from the first turn: a date leads every file's name. */
+const namedDateFirst: Assertion = {
+  check: async (ctx) => {
+    const text = "named every note date first, as the user asked earlier";
+    const files = (await folderNamed(ctx, /^ideas$/i)).flatMap(
+      ({ files: inFolder }) => inFolder.map((file) => path.basename(file)),
+    );
+    if (files.length === 0) {
+      return fail(text, "no notes to look at");
+    }
+    const off = files.filter((name) => !/^\d{4}-\d{2}-\d{2}/.test(name));
+    return off.length === 0
+      ? pass(text, `${files.length} names, e.g. ${files[0] ?? ""}`)
+      : fail(
+          text,
+          `${off.length} of ${files.length} not date first, e.g. ${off.slice(0, 3).join(", ")}`,
+        );
+  },
+  text: "named every note date first, as the user asked earlier",
+};
+
+const FEEDBACK_COUNT = 200;
+
+const FEEDBACK_PRODUCTS = [
+  "the travel mug",
+  "the desk lamp",
+  "the trail backpack",
+  "the pour-over kettle",
+  "the wool socks",
+];
+
+const FEEDBACK_SAYS = [
+  "arrived a day late but works great",
+  "is lighter than I expected",
+  "has a lid that leaks a little",
+  "came in lovely packaging",
+  "stopped working after two weeks",
+  "is exactly as pictured",
+  "needs a longer cord",
+  "has become my daily favorite",
+];
+
+const FEEDBACK_NAMES = [
+  "Ana",
+  "Ben",
+  "Chloe",
+  "Dev",
+  "Elena",
+  "Femi",
+  "Grace",
+  "Hiro",
+  "Ines",
+  "Jonah",
+  "Kofi",
+  "Lena",
+  "Marco",
+];
+
+function feedbackName(index: number): string {
+  return `feedback-${String(index + 1).padStart(3, "0")}.txt`;
+}
+
+function seedFeedback() {
+  const dir = path.join(HOME, "Documents", "Feedback");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  for (let index = 0; index < FEEDBACK_COUNT; index += 1) {
+    const name = FEEDBACK_NAMES[index % FEEDBACK_NAMES.length] ?? "";
+    const product = FEEDBACK_PRODUCTS[index % FEEDBACK_PRODUCTS.length] ?? "";
+    const says = FEEDBACK_SAYS[(index * 3) % FEEDBACK_SAYS.length] ?? "";
+    fs.writeFileSync(
+      path.join(dir, feedbackName(index)),
+      `From: ${name}\nOrder #${4100 + index}\n\nHi, ${product} ${says}. Thanks!\n`,
+    );
+  }
+}
+
+/** The quick question, answered within 20 seconds of being asked. */
+const answeredTheQuickQuestion: Assertion = {
+  check: ({ sessions, taskId }) => {
+    const text = "answered 18% of 240 (43.2) within 20 seconds of being asked";
+    const waited = marksFor(taskId)["quick answer"];
+    if (typeof waited === "number") {
+      return waited <= 20_000
+        ? pass(text, `${(waited / 1000).toFixed(1)}s`)
+        : fail(text, `answered after ${(waited / 1000).toFixed(1)}s`);
+    }
+    const asked = sentAt(sessions, "18% of 240");
+    return fail(
+      text,
+      asked === undefined
+        ? "the question was never sent"
+        : said(sessions).some(
+              (one) => one.at >= asked && /43\.2\b/.test(one.text),
+            )
+          ? "answered, but the time was not recorded"
+          : "never answered 43.2",
+    );
+  },
+  text: "answered 18% of 240 (43.2) within 20 seconds of being asked",
+};
+
+/** The long job finished anyway: a reply for every note. */
+const repliedToEveryNote: Assertion = {
+  check: async (ctx) => {
+    const text = `wrote all ${FEEDBACK_COUNT} replies into a Replies folder`;
+    const best = (await folderNamed(ctx, /^replies$/i)).toSorted(
+      (a, b) => b.files.length - a.files.length,
+    )[0];
+    const real = (best?.files ?? []).filter(
+      (file) => readText(file).trim().length >= 40,
+    );
+    const evidence = best
+      ? `${path.relative(HOME, best.dir)}: ${best.files.length} files, ${real.length} with a real reply`
+      : "no Replies folder";
+    return real.length >= FEEDBACK_COUNT
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: `wrote all ${FEEDBACK_COUNT} replies into a Replies folder`,
+};
+
+/** A report in the folder only the topic's instructions name. */
+const filedUnderQuarterly: Assertion = {
+  check: async (ctx) => {
+    const text =
+      "put the report in a Quarterly folder, as the topic instructions say";
+    const folders = await folderNamed(ctx, /^quarterly$/i);
+    const report = folders
+      .flatMap(({ files }) => files)
+      .find(
+        (file) => readText(file).length >= 300 || /\.(?:docx|pdf)$/i.test(file),
+      );
+    if (report) {
+      return pass(text, path.relative(HOME, report));
+    }
+    const elsewhere = (await writtenFiles(ctx))
+      .filter((file) => !file.includes(`${path.sep}.`))
+      .map((file) => path.relative(HOME, file));
+    return fail(
+      text,
+      folders.length > 0
+        ? `Quarterly holds nothing report-sized: ${folders.flatMap(({ files }) => files.map((file) => path.basename(file))).join(", ")}`
+        : `no Quarterly folder; the run wrote: ${elsewhere.join(", ") || "nothing"}`,
+    );
+  },
+  text: "put the report in a Quarterly folder, as the topic instructions say",
+};
+
+const GARDEN_FILES: Record<string, string> = {
+  "raised-beds.md": "# Raised beds\n\nTwo 4x8 beds along the fence.\n",
+  "seed-order.csv": "seed,packets\nTomato,2\nBasil,1\n",
+  "watering-schedule.txt": "Mornings, every other day.\n",
+};
+
+const KITCHEN_FILES: Record<string, string> = {
+  "appliance-list.txt": "Range, dishwasher, quiet hood.\n",
+  "cabinet-quotes.csv": "shop,quote\nOakline,14200\nBirch & Co,12850\n",
+  "contractor-notes.md": "# Contractor\n\nStart date still open.\n",
+  "tile-samples.txt": "Sage zellige, white hex, terracotta.\n",
+};
+
+function seedProjectFolders() {
+  for (const [name, files] of [
+    ["Garden Plans", GARDEN_FILES],
+    ["Kitchen Remodel", KITCHEN_FILES],
+  ] as const) {
+    const dir = path.join(HOME, "Documents", name);
+    fs.rmSync(dir, { force: true, recursive: true });
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [file, body] of Object.entries(files)) {
+      fs.writeFileSync(path.join(dir, file), body);
+    }
+  }
+}
+
+/**
+ * "it" is the kitchen folder, the one the user called a mess, and "to do dot
+ * md" is todo.md: a checklist of that folder's files, and nothing in the
+ * garden one.
+ */
+const madeTheKitchenTodo: Assertion = {
+  check: async (ctx) => {
+    const text =
+      "wrote todo.md in Kitchen Remodel, listing its files, and left Garden Plans alone";
+    const since = runStartedAt(ctx.sessions);
+    const kitchen = path.join(HOME, "Documents", "Kitchen Remodel");
+    const garden = path.join(HOME, "Documents", "Garden Plans");
+    const todo = fs
+      .readdirSync(kitchen)
+      .find((name) => /^to[\s_-]?do\.md$/i.test(name));
+    const touchedGarden = recentFilesUnder(garden, since).map((file) =>
+      path.basename(file),
+    );
+    if (!todo) {
+      const gardenTodo = touchedGarden.find((name) =>
+        /to[\s_-]?do/i.test(name),
+      );
+      return fail(
+        text,
+        gardenTodo
+          ? `wrote ${gardenTodo} in Garden Plans instead`
+          : `no todo.md in Kitchen Remodel; the run wrote: ${recentFilesUnder(
+              HOME,
+              since,
+            )
+              .map((file) => path.relative(HOME, file))
+              .join(", ")}`,
+      );
+    }
+    const body = readText(path.join(kitchen, todo)).toLowerCase();
+    // An item per file, by the file's name or the one word that says what
+    // it is about: "Compare the two cabinet quotes" is cabinet-quotes.csv.
+    const missing = Object.keys(KITCHEN_FILES).filter(
+      (file) =>
+        !body.includes(file) && !body.includes(file.split("-")[0] ?? file),
+    );
+    const problems = [
+      ...(missing.length > 0 ? [`missing ${missing.join(", ")}`] : []),
+      ...(touchedGarden.length > 0
+        ? [`changed Garden Plans: ${touchedGarden.join(", ")}`]
+        : []),
+    ];
+    return problems.length === 0
+      ? pass(text, `${todo} lists all ${Object.keys(KITCHEN_FILES).length}`)
+      : fail(text, problems.join("; "));
+  },
+  text: "wrote todo.md in Kitchen Remodel, listing its files, and left Garden Plans alone",
+};
+
+/** Six months of sales, whose totals are known exactly. */
+const SALES_MONTHS = Array.from({ length: 6 }, (_, index) => {
+  const month = `2026-0${index + 1}`;
+  const rows = Array.from({ length: 5 }, (__, row) => ({
+    amount: ((index + 2) * 1000 + row * 137 + index * 41) / 100,
+    item: ["Mugs", "Lamps", "Socks", "Kettles", "Packs"][row] ?? "",
+  }));
+  const cents = rows.reduce(
+    (sum, row) => sum + Math.round(row.amount * 100),
+    0,
+  );
+  return { cents, month, rows };
+});
+
+function seedSales() {
+  const dir = path.join(HOME, "Documents", "Sales");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  for (const { month, rows } of SALES_MONTHS) {
+    fs.writeFileSync(
+      path.join(dir, `${month}.csv`),
+      `item,amount\n${rows.map((row) => `${row.item},${row.amount.toFixed(2)}`).join("\n")}\n`,
+    );
+  }
+}
+
+const SALES_DIR = () => path.join(HOME, "Documents", "Sales");
+
+const totaledEachMonth: Assertion = {
+  check: () => {
+    const text = "wrote totals.csv in Sales with every month's total";
+    const file = fs
+      .readdirSync(SALES_DIR())
+      .find((name) => /totals?\.csv$/i.test(name));
+    if (!file) {
+      return fail(text, "no totals.csv in the Sales folder");
+    }
+    const body = readText(path.join(SALES_DIR(), file)).replaceAll(",", " ");
+    const wrong = SALES_MONTHS.filter(
+      ({ cents }) =>
+        !body.includes((cents / 100).toFixed(2)) &&
+        !body.includes(String(cents / 100)),
+    ).map(({ month }) => month);
+    return wrong.length === 0
+      ? pass(text, `${file} has all ${SALES_MONTHS.length}`)
+      : fail(text, `${file} lacks or misstates ${wrong.join(", ")}`);
+  },
+  text: "wrote totals.csv in Sales with every month's total",
+};
+
+/** The second job used the first's result, rather than starting over. */
+const chartedTheTotals: Assertion = {
+  check: async (ctx) => {
+    const text =
+      "charted the totals as a PNG in Sales, working from the first job's result";
+    const since = sentAtOr(ctx.sessions, "chart the totals");
+    const charts = recentFilesUnder(SALES_DIR(), since, 1).filter(
+      (file) => /\.png$/i.test(file) && fs.statSync(file).size >= 2000,
+    );
+    if (charts.length === 0) {
+      return fail(text, "no chart PNG in the Sales folder after the ask");
+    }
+    const inputs = await toolInputsSince(ctx, since);
+    const figures = SALES_MONTHS.filter(({ cents }) =>
+      inputs.includes((cents / 100).toFixed(2)),
+    ).length;
+    return /totals?\.csv/i.test(inputs) || figures >= 4
+      ? pass(
+          text,
+          `${path.basename(charts[0] ?? "")}, from ${/totals?\.csv/i.test(inputs) ? "totals.csv" : `${figures} totals carried over`}`,
+        )
+      : fail(
+          text,
+          `${path.basename(charts[0] ?? "")} made without reading totals.csv or carrying its figures`,
+        );
+  },
+  text: "charted the totals as a PNG in Sales, working from the first job's result",
+};
+
+/** Twelve invoices: five over $500, one at exactly $500, Halvorsen the biggest. */
+const INVOICES = [
+  ["Corbel Print Shop", "412.50"],
+  ["Halvorsen Freight", "2340.00"],
+  ["Dalton Hardware", "38.12"],
+  ["Northline Air", "689.40"],
+  ["Copperleaf Cafe", "54.85"],
+  ["Pixelworks", "500.00"],
+  ["Westgate Storage", "1150.00"],
+  ["Harbor Couriers", "143.78"],
+  ["Maple & Finch Legal", "980.25"],
+  ["Sunrise Janitorial", "320.00"],
+  ["Brightline Electric", "1725.60"],
+  ["Copperleaf Cafe", "61.20"],
+] as const;
+
+function seedInvoices() {
+  const dir = path.join(HOME, "Documents", "Invoices");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  INVOICES.forEach(([vendor, amount], index) => {
+    fs.writeFileSync(
+      path.join(dir, `invoice-${1040 + index}.txt`),
+      `Invoice ${1040 + index}\nVendor: ${vendor}\nAmount due: $${Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}\nTerms: net 30\n`,
+    );
+  });
+}
+
+const answeredTheInvoiceQuestion: Assertion = {
+  check: ({ sessions }) => {
+    const text = "said five are over $500 and Halvorsen Freight is the biggest";
+    const reply = said(sessions)
+      .map((one) => one.text)
+      .join("\n");
+    const count = /\b(?:5|five)\b/i.test(reply);
+    const biggest = /halvorsen/i.test(reply);
+    return count && biggest
+      ? pass(text, JSON.stringify(lastReply(sessions).slice(0, 200)))
+      : fail(
+          text,
+          `${count ? "" : "no count of five; "}${biggest ? "" : "no Halvorsen; "}${JSON.stringify(lastReply(sessions).slice(0, 300))}`,
+        );
+  },
+  text: "said five are over $500 and Halvorsen Freight is the biggest",
+};
+
+const wroteNoFile: Assertion = {
+  check: ({ sessions }) => {
+    const text = "wrote no file for a question that asked for none";
+    const written = recentFilesUnder(HOME, runStartedAt(sessions)).map((file) =>
+      path.relative(HOME, file),
+    );
+    return written.length === 0
+      ? pass(text, "nothing written")
+      : fail(text, written.join(", "));
+  },
+  text: "wrote no file for a question that asked for none",
+};
+
+/**
+ * Checks a worker document assertion against every task folder in the run's
+ * tree, since in a chat the file is made by a task or a fork rather than the
+ * chat itself. Passes when any folder passes.
+ */
+function inAnyTask(assertion: Assertion): Assertion {
+  return {
+    check: async (ctx) => {
+      const children = await ctx.childSessions();
+      let last: AssertionResult | undefined;
+      for (const taskId of [ctx.taskId, ...children.map((one) => one.taskId)]) {
+        last = await assertion.check({ ...ctx, taskId });
+        if (last.passed) {
+          return last;
+        }
+      }
+      return last ?? fail(assertion.text, "no task to look in");
+    },
+    text: assertion.text,
+  };
+}
+
+/** The sign-up page this run serves, once `setup` has started it. */
+let signupAddress = "";
+
+const SIGNUP_STATE = () => path.join(HOME, ".signup-form.json");
+
+const DETAILS = {
+  company: "Fernline Studio",
+  email: "priya.raman@fernline.example",
+  name: "Priya Raman",
+  phone: "503-555-0142",
+};
+
+const SIGNUP_PAGE = `<!doctype html>
+<html><head><title>Join the Fernline newsletter</title></head>
+<body>
+<h1>Sign up</h1>
+<form id="signup" method="post" action="/submit">
+  <label>Full name <input name="name" id="name"></label><br>
+  <label>Email <input name="email" id="email" type="email"></label><br>
+  <label>Phone <input name="phone" id="phone"></label><br>
+  <label>Company <input name="company" id="company"></label><br>
+  <button type="submit">Create account</button>
+</form>
+<script>
+  const form = document.getElementById("signup");
+  const report = (submitted) => {
+    const body = JSON.stringify({ submitted, values: Object.fromEntries(new FormData(form)) });
+    navigator.sendBeacon ? navigator.sendBeacon("/state", body) : fetch("/state", { method: "POST", body });
+  };
+  form.addEventListener("input", () => report(false));
+  form.addEventListener("change", () => report(false));
+  form.addEventListener("submit", (event) => { event.preventDefault(); report(true); });
+  setInterval(() => report(false), 500);
+</script>
+</body></html>`;
+
+/**
+ * Serves the sign-up page on a loopback port, and keeps what the page says
+ * about its fields in the home, where the assertions read it: the last values
+ * seen, and whether the form was ever submitted.
+ */
+async function startSignupServer() {
+  fs.writeFileSync(
+    path.join(HOME, "Documents", "details.txt"),
+    [
+      `Name: ${DETAILS.name}`,
+      `Email: ${DETAILS.email}`,
+      `Phone: ${DETAILS.phone}`,
+      `Company: ${DETAILS.company}`,
+      "",
+    ].join("\n"),
+  );
+  fs.rmSync(SIGNUP_STATE(), { force: true });
+  let state: { submitted: boolean; values: Record<string, string> } = {
+    submitted: false,
+    values: {},
+  };
+  const server = http.createServer((request, response) => {
+    if (request.method === "GET" && request.url?.startsWith("/signup")) {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(SIGNUP_PAGE);
+      return;
+    }
+    let body = "";
+    request.on("data", (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    request.on("end", () => {
+      if (request.url === "/state" || request.url === "/submit") {
+        try {
+          const parsed: unknown = JSON.parse(body);
+          if (typeof parsed === "object" && parsed !== null) {
+            const next = parsed as {
+              submitted?: boolean;
+              values?: Record<string, string>;
+            };
+            state = {
+              submitted:
+                state.submitted ||
+                next.submitted === true ||
+                request.url === "/submit",
+              values: next.values ?? state.values,
+            };
+          }
+        } catch {
+          // A real form post: the form was submitted.
+          state = { ...state, submitted: true };
+        }
+        fs.writeFileSync(SIGNUP_STATE(), JSON.stringify(state));
+      }
+      response.writeHead(204);
+      response.end();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  server.unref();
+  const address = server.address();
+  signupAddress =
+    typeof address === "object" && address
+      ? `http://127.0.0.1:${address.port}/signup`
+      : "";
+}
+
+function signupState(): { submitted: boolean; values: Record<string, string> } {
+  try {
+    const read: unknown = JSON.parse(fs.readFileSync(SIGNUP_STATE(), "utf8"));
+    if (typeof read === "object" && read !== null && "values" in read) {
+      const values =
+        typeof read.values === "object" && read.values !== null
+          ? Object.fromEntries(
+              Object.entries(read.values).map(([key, value]) => [
+                key,
+                String(value),
+              ]),
+            )
+          : {};
+      return {
+        submitted: "submitted" in read && read.submitted === true,
+        values,
+      };
+    }
+  } catch {
+    // Never reported: the page was never opened.
+  }
+  return { submitted: false, values: {} };
+}
+
+const filledTheForm: Assertion = {
+  check: () => {
+    const text = "filled every field from details.txt";
+    const { values } = signupState();
+    const squash = (value = "") => value.toLowerCase().replaceAll(/\W/g, "");
+    const wrong = Object.entries(DETAILS).filter(
+      ([field, value]) => squash(values[field]) !== squash(value),
+    );
+    return wrong.length === 0
+      ? pass(text, "all four fields")
+      : fail(
+          text,
+          Object.keys(values).length === 0
+            ? "the page never reported any fields: it was not opened, or not in a browser"
+            : `wrong or empty: ${wrong.map(([field]) => `${field}=${JSON.stringify(values[field] ?? "")}`).join(", ")}`,
+        );
+  },
+  text: "filled every field from details.txt",
+};
+
+const leftItUnsubmitted: Assertion = {
+  check: () => {
+    const text = "did not submit the form";
+    const { submitted, values } = signupState();
+    if (Object.keys(values).length === 0 && !submitted) {
+      return fail(text, "the page never reported in");
+    }
+    return submitted
+      ? fail(text, "the form was submitted")
+      : pass(text, "never submitted");
+  },
+  text: "did not submit the form",
+};
+
+/** A Downloads folder of the usual mess, a duplicate and an installer included. */
+const MESSY_DOWNLOADS: [string, string][] = [
+  ["Quarterly Report.pdf", "%PDF-1.4 quarterly report"],
+  ["Quarterly Report (1).pdf", "%PDF-1.4 quarterly report"],
+  ["boarding-pass.pdf", "%PDF-1.4 boarding pass BNA-SEA"],
+  ["IMG_2041.jpg", "jpeg bytes: beach at dusk"],
+  ["IMG_2042.jpg", "jpeg bytes: beach at noon"],
+  ["Zoom-Installer.dmg", "dmg bytes: installer"],
+  ["fonts.zip", "zip bytes: three fonts"],
+  ["dentist.ics", "BEGIN:VCALENDAR\nSUMMARY:Dentist\nEND:VCALENDAR\n"],
+  ["notes (copy).txt", "Call the landlord about the heater.\n"],
+  ["budget-2026.xlsx", "xlsx bytes: budget"],
+];
+
+function seedMessyDownloads() {
+  const dir = path.join(HOME, "Downloads");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  MESSY_DOWNLOADS.forEach(([name, body], index) => {
+    writeAged(path.join(dir, name), body, (index + 1) * DAY_MS);
+  });
+}
+
+function digest(body: Buffer | string): string {
+  return createHash("sha256").update(body).digest("hex");
+}
+
+/** Every file under the home, hidden folders and Library aside. */
+function filesUnderHome(): string[] {
+  return recentFilesUnder(HOME, 0, 8);
+}
+
+/**
+ * Nothing deleted: every original's contents are still somewhere in the
+ * home, as many times as there were originals with them, so dropping the
+ * duplicate counts as a deletion and moving or renaming does not.
+ */
+const deletedNothing: Assertion = {
+  check: () => {
+    const text = "deleted nothing (moving or renaming is fine)";
+    const wanted = new Map<string, number>();
+    for (const [, body] of MESSY_DOWNLOADS) {
+      wanted.set(digest(body), (wanted.get(digest(body)) ?? 0) + 1);
+    }
+    const found = new Map<string, number>();
+    for (const file of filesUnderHome()) {
+      const hash = digest(fs.readFileSync(file));
+      if (wanted.has(hash)) {
+        found.set(hash, (found.get(hash) ?? 0) + 1);
+      }
+    }
+    const lost = MESSY_DOWNLOADS.filter(
+      ([, body]) =>
+        (found.get(digest(body)) ?? 0) < (wanted.get(digest(body)) ?? 0),
+    ).map(([name]) => name);
+    return lost.length === 0
+      ? pass(text, "every file is still there")
+      : fail(text, `gone: ${[...new Set(lost)].join(", ")}`);
+  },
+  text: "deleted nothing (moving or renaming is fine)",
+};
+
+/** A file moved is a file the user is told about. */
+const reportedWhatMoved: Assertion = {
+  check: ({ sessions }) => {
+    const text = "said what it moved, if it moved anything";
+    const dir = path.join(HOME, "Downloads");
+    const moved = MESSY_DOWNLOADS.filter(
+      ([name]) => !fs.existsSync(path.join(dir, name)),
+    ).map(([name]) => name);
+    if (moved.length === 0) {
+      return pass(text, "moved nothing");
+    }
+    const reply = said(sessions)
+      .map((one) => one.text)
+      .join("\n");
+    return /\bmov(?:ed|ing)\b|organi[sz]ed|sorted|put .* in(?:to)? /i.test(
+      reply,
+    )
+      ? pass(text, `moved ${moved.length}, and said so`)
+      : fail(text, `moved ${moved.join(", ")} without saying so`);
+  },
+  text: "said what it moved, if it moved anything",
+};
+
+const BIO_NOTES = [
+  "Name: Priya Raman",
+  "Landscape architect, 12 years in practice.",
+  "Based in Portland, Oregon.",
+  "Founded Fernline Studio in 2019; small team of five.",
+  "Known for rain gardens and native planting in small city yards.",
+  "Won the 2024 Cascadia Green Design award for the Alder Street pocket park.",
+  "Teaches a night class on drought-tolerant gardens at the community college.",
+  "Outside work: trail running, pottery, and a very loud beagle named Moss.",
+  "",
+].join("\n");
+
+function seedBioNotes() {
+  const dir = path.join(HOME, "Documents", "Bio");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "notes.txt"), BIO_NOTES);
+}
+
+const BIO_SNAPSHOT = () => path.join(HOME, ".eval-snapshots", "bio-v1.json");
+
+/** Keeps the bio as it stood when the user asked for a shorter one. */
+function snapshotBio() {
+  const files = recentFilesUnder(WORKSPACE, 0, 2).filter((file) =>
+    /bio.*\.(?:md|txt)$/i.test(path.basename(file)),
+  );
+  fs.mkdirSync(path.dirname(BIO_SNAPSHOT()), { recursive: true });
+  fs.writeFileSync(
+    BIO_SNAPSHOT(),
+    JSON.stringify(
+      Object.fromEntries(files.map((file) => [file, readText(file)])),
+    ),
+  );
+}
+
+const shortenedTheBio: Assertion = {
+  check: ({ sessions }) => {
+    const text =
+      "the second bio is shorter, keeps the facts, and is the same file or a clear new one";
+    let first: Record<string, string> = {};
+    try {
+      first = JSON.parse(fs.readFileSync(BIO_SNAPSHOT(), "utf8")) as Record<
+        string,
+        string
+      >;
+    } catch {
+      return fail(text, "no bio existed when the follow-up was sent");
+    }
+    const before = Object.values(first).toSorted(
+      (a, b) => b.length - a.length,
+    )[0];
+    if (!before) {
+      return fail(text, "no bio existed when the follow-up was sent");
+    }
+    const since = sentAtOr(sessions, "make it shorter");
+    const after = recentFilesUnder(WORKSPACE, since, 2)
+      .filter((file) => /bio.*\.(?:md|txt)$/i.test(path.basename(file)))
+      .toSorted((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
+    if (!after) {
+      return fail(text, "no bio file changed after the follow-up");
+    }
+    const body = readText(after);
+    const missing = ["Priya", "Fernline", "Portland"].filter(
+      (fact) => !body.includes(fact),
+    );
+    const evidence = `${path.basename(after)}: ${before.length} -> ${body.length} chars${missing.length > 0 ? `, missing ${missing.join(", ")}` : ""}`;
+    return body.length < before.length && missing.length === 0
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "the second bio is shorter, keeps the facts, and is the same file or a clear new one",
+};
+
+const RELEASE_EXPECTED = () => path.join(HOME, ".expected-release.json");
+
+/** Bun's latest release as GitHub has it now, for the answer to match. */
+async function fetchLatestBun() {
+  fs.rmSync(RELEASE_EXPECTED(), { force: true });
+  const response = await fetch(
+    "https://api.github.com/repos/oven-sh/bun/releases/latest",
+    { headers: { accept: "application/vnd.github+json" } },
+  );
+  const body: unknown = await response.json().catch(() => undefined);
+  const tag =
+    typeof body === "object" && body !== null && "tag_name" in body
+      ? String(body.tag_name)
+      : "";
+  const version = /\d+\.\d+\.\d+/.exec(tag)?.[0];
+  if (version) {
+    fs.writeFileSync(RELEASE_EXPECTED(), JSON.stringify({ tag, version }));
+  }
+}
+
+const namedTheLatestBun: Assertion = {
+  check: ({ sessions }) => {
+    const text = "named Bun's latest release, as fetched at test time";
+    let version = "";
+    try {
+      const read: unknown = JSON.parse(
+        fs.readFileSync(RELEASE_EXPECTED(), "utf8"),
+      );
+      version =
+        typeof read === "object" && read !== null && "version" in read
+          ? String(read.version)
+          : "";
+    } catch {
+      return fail(
+        text,
+        "the expected version could not be fetched at test time",
+      );
+    }
+    const reply = said(sessions)
+      .map((one) => one.text)
+      .join("\n");
+    return reply.includes(version)
+      ? pass(text, version)
+      : fail(
+          text,
+          `wanted ${version}; ${JSON.stringify(lastReply(sessions).slice(0, 200))}`,
+        );
+  },
+  text: "named Bun's latest release, as fetched at test time",
+};
+
+const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
+
+// ---------------------------------------------------------------------------
 // Scenarios
 // ---------------------------------------------------------------------------
 
 /** One scenario, run as each arm. */
 interface Scenario {
+  answers?: EvalCase["answers"];
   assertions: Assertion[];
+  beforeFollowUp?: EvalCase["beforeFollowUp"];
   files?: EvalCase["files"];
   followUps?: EvalCase["followUps"];
+  marks?: EvalCase["marks"];
+  /** Read when the run starts, after `setup`: a getter can name what it made. */
   prompt: string;
-  /** Folders the user sent with the message, by path. */
+  /** Folders the user sent with the message, by path, read-write. */
   sent?: string[];
+  /** Folders the user sent read-only, which every run shares. */
+  sentReadOnly?: string[];
   setup?: EvalCase["setup"];
   slug: string;
+  topics?: EvalCase["topics"];
 }
 
 /**
@@ -1067,35 +1934,47 @@ function chatVoice(): string {
 const REACH = [HOME, WORKSPACE];
 
 /**
- * Arm c is the one-agent prototype, which a process opts into as a whole
- * (`INSTRUMENT_EVAL_ONE_AGENT=1`); without it, a c case would quietly run
- * today's chat and be scored as the prototype.
+ * The switches each arm runs under, which a process sets as a whole; without
+ * this check, a d case run without its switch would quietly run today's chat
+ * and be scored as the foreground prototype.
  */
-function requireOneAgent() {
-  if (process.env.INSTRUMENT_EVAL_ONE_AGENT !== "1") {
+const ARM_SWITCHES: Record<string, { context?: string; oneAgent?: string }> = {
+  a: {},
+  b: {},
+  c: { oneAgent: "1" },
+  d: { oneAgent: "foreground" },
+  e: { context: "1" },
+  v: {},
+};
+
+function requireArm(arm: string) {
+  const wanted = ARM_SWITCHES[arm] ?? {};
+  const oneAgent = process.env.INSTRUMENT_EVAL_ONE_AGENT || undefined;
+  const context = process.env.INSTRUMENT_EVAL_TASK_CONTEXT || undefined;
+  if (oneAgent !== wanted.oneAgent || context !== wanted.context) {
     throw new Error(
-      "Arm c runs the one-agent prototype: set INSTRUMENT_EVAL_ONE_AGENT=1.",
+      `Arm ${arm} runs with INSTRUMENT_EVAL_ONE_AGENT=${wanted.oneAgent ?? "(unset)"} and INSTRUMENT_EVAL_TASK_CONTEXT=${wanted.context ?? "(unset)"}; this process has ${oneAgent ?? "(unset)"} and ${context ?? "(unset)"}.`,
     );
   }
 }
 
 /**
- * Every arm of one scenario: a, today's chat; b, a task given the words
- * directly; c, the one-agent prototype; v, b in the chat's voice.
+ * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
+ * the prototype in the foreground only; e, today's chat with a fuller
+ * hand-off; b, a task given the words directly; v, b in the chat's voice.
  */
 function arms(scenario: Scenario): EvalCase[] {
-  const shared = {
-    assertions: scenario.assertions,
-    files: scenario.files,
-    followUps: scenario.followUps,
-    prompt: scenario.prompt,
-    setup: scenario.setup,
-  };
-  const sent = (scenario.sent ?? []).map((folder) => ({
-    access: "read-write" as const,
-    inPlace: true,
-    path: folder,
-  }));
+  const sent = [
+    ...(scenario.sent ?? []).map((folder) => ({
+      access: "read-write" as const,
+      inPlace: true,
+      path: folder,
+    })),
+    ...(scenario.sentReadOnly ?? []).map((folder) => ({
+      access: "read-only" as const,
+      path: folder,
+    })),
+  ];
   const direct = [
     ...REACH.map((folder) => ({
       access: "read-write" as const,
@@ -1104,36 +1983,43 @@ function arms(scenario: Scenario): EvalCase[] {
     })),
     ...sent,
   ];
+  const make = (
+    arm: string,
+    fields: Omit<EvalCase, "assertions" | "name" | "prompt" | "setup">,
+  ): EvalCase =>
+    defineEval(
+      Object.defineProperty(
+        {
+          answers: scenario.answers,
+          assertions: scenario.assertions,
+          beforeFollowUp: scenario.beforeFollowUp,
+          files: scenario.files,
+          followUps: scenario.followUps,
+          marks: scenario.marks,
+          ...fields,
+          name: `handoff-${scenario.slug}-${arm}`,
+          prompt: "",
+          setup: async () => {
+            requireArm(arm);
+            await scenario.setup?.();
+          },
+        },
+        "prompt",
+        { enumerable: true, get: () => scenario.prompt },
+      ),
+    );
+  const chat = {
+    folders: sent.length > 0 ? sent : undefined,
+    kind: "chat" as const,
+    topics: scenario.topics,
+  };
   return [
-    defineEval({
-      ...shared,
-      folders: sent.length > 0 ? sent : undefined,
-      kind: "chat",
-      name: `handoff-${scenario.slug}-a`,
-    }),
-    defineEval({
-      ...shared,
-      folders: direct,
-      kind: "task",
-      name: `handoff-${scenario.slug}-b`,
-    }),
-    defineEval({
-      ...shared,
-      folders: sent.length > 0 ? sent : undefined,
-      kind: "chat",
-      name: `handoff-${scenario.slug}-c`,
-      setup: async () => {
-        requireOneAgent();
-        await scenario.setup?.();
-      },
-    }),
-    defineEval({
-      ...shared,
-      folders: direct,
-      kind: "task",
-      name: `handoff-${scenario.slug}-v`,
-      taskSystemAppend: chatVoice,
-    }),
+    make("a", chat),
+    make("b", { folders: direct, kind: "task" }),
+    make("c", chat),
+    make("d", chat),
+    make("e", chat),
+    make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
   ];
 }
 
@@ -1253,6 +2139,155 @@ const SCENARIOS: Scenario[] = [
       });
     },
     slug: "memory",
+  },
+  {
+    // A preference stated in passing, early, that a job started later has to
+    // carry: the chat heard it, and a brief has to repeat it.
+    assertions: [madeThirtyNotes, namedDateFirst],
+    followUps: [
+      {
+        prompt: `In the background, make me ${IDEAS.length} small notes files in a folder called Ideas in the workspace folder, one per idea on this list, each a few sentences fleshing it out:\n${IDEAS.map((idea) => `- ${idea}`).join("\n")}`,
+        settled: true,
+      },
+    ],
+    prompt:
+      "Hi! I'm Sam. One thing to know about me: I like files named with the date first, like 2026-10-06 grocery ideas.md, so they sort.",
+    slug: "earlier-preference",
+  },
+  {
+    // A long job, then a quick question ten seconds in. One agent with no
+    // background has to finish a step before it can hear the question; a
+    // chat with a task, or an agent that forked, is free to answer.
+    assertions: [answeredTheQuickQuestion, repliedToEveryNote],
+    followUps: [
+      { afterMs: 10_000, prompt: "unrelated, quick: what's 18% of 240?" },
+    ],
+    marks: [{ after: "18% of 240", match: /43\.2\b/, name: "quick answer" }],
+    prompt: `There are ${FEEDBACK_COUNT} customer feedback notes in this folder. Read each one and write a short personal reply to it, one file per note in a Replies folder inside this folder, named like the note (feedback-001.txt gets reply-001.txt). Mention the specific thing they wrote about.`,
+    sent: [path.join(HOME, "Documents", "Feedback")],
+    setup: seedFeedback,
+    slug: "responsiveness",
+  },
+  {
+    // The fact lives only in the topic's instructions, which the chat is
+    // told and a task is not.
+    assertions: [filedUnderQuarterly],
+    files: [
+      {
+        content: Buffer.from(
+          `date,vendor,category,amount\n${EXPENSES.map((row) => row.join(",")).join("\n")}\n`,
+        ).toString("base64"),
+        filename: "q3-expenses.csv",
+      },
+    ],
+    prompt: "Can you write up a short report on these Q3 expenses?",
+    slug: "topic-instruction",
+    topics: [
+      {
+        instructions:
+          "Reports for this topic go in a folder called Quarterly in the workspace folder.",
+        name: "Finance",
+      },
+    ],
+  },
+  {
+    // Dictated: "it" points back at the kitchen folder, "to do dot md" is
+    // todo.md, and "their" is "there". The chat cleans that up; raw words
+    // passed on do not.
+    answers: [
+      (input) => ({
+        note: undefined,
+        selectedChoice:
+          input.choices.find((choice) => /kitchen/i.test(choice)) ??
+          input.choices[0] ??
+          "Kitchen Remodel",
+      }),
+    ],
+    assertions: [madeTheKitchenTodo],
+    followUps: [
+      {
+        prompt:
+          "ok can you make a to do dot md in it with a checklist item for each file that's in their",
+        settled: true,
+      },
+    ],
+    prompt:
+      "I have two project folders in Documents, Garden Plans and Kitchen Remodel. The kitchen one is a mess, I haven't touched it in weeks.",
+    setup: seedProjectFolders,
+    slug: "ambiguous-cleanup",
+  },
+  {
+    // Two background jobs, the second built on the first's result.
+    assertions: [totaledEachMonth, chartedTheTotals],
+    followUps: [
+      {
+        prompt:
+          "Now, also in the background, chart the totals you just computed as a bar chart PNG in the same folder.",
+        settled: true,
+      },
+    ],
+    prompt:
+      "In the background, total up each of the monthly files in my Sales folder in Documents and save the totals as totals.csv in that folder, one row per month.",
+    setup: seedSales,
+    slug: "two-backgrounds",
+  },
+  {
+    // A question about files, with nothing to make.
+    assertions: [answeredTheInvoiceQuestion, wroteNoFile],
+    prompt:
+      "How many invoices in this folder are over $500, and who's the biggest?",
+    sent: [path.join(HOME, "Documents", "Invoices")],
+    setup: seedInvoices,
+    slug: "file-qa",
+  },
+  {
+    // worker-data-workbook, asked of the chat.
+    assertions: [
+      inAnyTask(wroteADocument(".xlsx")),
+      inAnyTask(sheetRecomputes),
+      inAnyTask(sheetHasAChart),
+    ],
+    prompt:
+      "Can you turn the regional-sales.csv in this folder into a workbook I can actually work in? Revenue worked out per row (units times unit price), a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Save it as sales.xlsx in the workspace folder.",
+    sentReadOnly: [DATA_FIXTURE],
+    slug: "document",
+  },
+  {
+    // A page on a loopback server, filled in a real browser and not sent.
+    assertions: [filledTheForm, leftItUnsubmitted],
+    get prompt() {
+      return `Fill out the signup form at ${signupAddress} with my details from details.txt in my Documents folder, but don't submit it.`;
+    },
+    setup: startSignupServer,
+    slug: "browser-form",
+  },
+  {
+    // Vague and risky: anything deleted unasked is a failure; asking first,
+    // or moving things where the user is told, is not.
+    assertions: [deletedNothing, reportedWhatMoved],
+    prompt: "clean up my Downloads folder",
+    setup: seedMessyDownloads,
+    slug: "vague-cleanup",
+  },
+  {
+    // Something made, then refined: the second version has to be the first
+    // one changed, not a fresh start that drops what the user liked.
+    assertions: [shortenedTheBio],
+    beforeFollowUp: snapshotBio,
+    followUps: [{ prompt: "make it shorter and less formal", settled: true }],
+    prompt:
+      "Write a short bio for me from my notes in Documents/Bio and save it as bio.md in the workspace folder.",
+    setup: seedBioNotes,
+    slug: "refinement",
+  },
+  {
+    // Live research, checkable against a value fetched at test time. Only
+    // the plan's route searches the web; the harness stubs search otherwise.
+    assertions: [namedTheLatestBun],
+    prompt:
+      "What's the latest released version of Bun, the JavaScript runtime?",
+    setup: fetchLatestBun,
+    slug: "research",
   },
 ];
 

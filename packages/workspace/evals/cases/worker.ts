@@ -107,7 +107,7 @@ function pass(text: string, evidence: string): AssertionResult {
  * disk rather than in the transcript because the claim and the artifact come
  * apart exactly here.
  */
-function wroteADocument(extension: string): Assertion {
+export function wroteADocument(extension: string): Assertion {
   const text = `wrote a ${extension} that is a real document`;
   return {
     check: async ({ taskId }) => {
@@ -551,7 +551,7 @@ const embeddedAnImage: Assertion = {
  * That splits the same seven cleanly, with the three near-misses on the
  * failing side.
  */
-const sheetRecomputes: Assertion = {
+export const sheetRecomputes: Assertion = {
   check: async ({ taskId }) => {
     const text = "built a workbook that recomputes when an input changes";
     const written = await deliverables(taskId);
@@ -589,7 +589,7 @@ const sheetRecomputes: Assertion = {
  * Either counts as having produced something to look at; only one of them is a
  * spreadsheet doing its job, so the evidence says which.
  */
-const sheetHasAChart: Assertion = {
+export const sheetHasAChart: Assertion = {
   check: async ({ taskId }) => {
     const text = "put a chart in the workbook";
     const written = await deliverables(taskId);

@@ -1,8 +1,13 @@
 import {
   computerPermissionStatus,
+  isComputerUseReady,
   openComputerPermissionSettings,
-  requestComputerPermissions,
+  requestAccessibility,
+  requestScreenRecording,
+  verifyComputerUse,
 } from "@/electron-main/lib/computer-driver";
+import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import { noop } from "radashi";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
@@ -74,8 +79,32 @@ const computerUse = {
       z.object({ permission: z.enum(["accessibility", "screen-recording"]) }),
     )
     .handler(({ input }) => openComputerPermissionSettings(input.permission)),
-  requestPermissions: base.handler(() => requestComputerPermissions()),
-  status: base.handler(() => computerPermissionStatus()),
+  /**
+   * Quit through the usual teardown and come back up: a Screen Recording
+   * grant made in System Settings reaches only a process started after it.
+   */
+  relaunch: base.handler(async () =>
+    canRelaunch()
+      ? { outcome: await relaunchApp({ beforeRestart: noop }) }
+      : { outcome: "unsupported" as const },
+  ),
+  requestAccessibility: base.handler(() => requestAccessibility()),
+  requestScreenRecording: base.handler(() => requestScreenRecording()),
+  /**
+   * Everything the setup screen shows: each grant, whether the agent is
+   * offered the command, and the macOS major version, since the panes were
+   * renamed in macOS 27.
+   */
+  status: base.handler(() => ({
+    canRelaunch: canRelaunch(),
+    macOSMajor:
+      process.platform === "darwin"
+        ? Number.parseInt(process.getSystemVersion(), 10)
+        : undefined,
+    permissions: computerPermissionStatus(),
+    ready: isComputerUseReady(),
+  })),
+  verify: base.handler(() => verifyComputerUse()),
 };
 
 const live = {

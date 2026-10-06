@@ -186,11 +186,13 @@ export interface ComputerUseHost {
   >;
   // Read per invocation: a feature flag the user can toggle from Settings.
   isEnabled: () => boolean;
-  /** The system prompts for whatever grant is missing; macOS only. */
-  requestPermissions: () => Promise<
-    | { accessibility: boolean; screenRecording: boolean; supported: true }
-    | { supported: false }
-  >;
+  /**
+   * Whether setup is complete: the driver is bundled and the system grants it
+   * needs are in place. The agent is told the command exists only then; the
+   * person grants access in the host's own setup screen, never through the
+   * agent.
+   */
+  isReady: () => boolean;
 }
 
 export interface WorkspaceConfig {

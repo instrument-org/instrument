@@ -2,6 +2,7 @@ import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { getDefaultStore } from "jotai";
 
 export type SettingsTab =
+  | "Computer Use"
   | "Debug"
   | "Features"
   | "General"

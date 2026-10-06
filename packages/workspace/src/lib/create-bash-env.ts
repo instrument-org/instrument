@@ -556,7 +556,7 @@ export function createBashDescription({
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...(hasWorkspaceConfig() && getWorkspaceConfig().computerUse?.isEnabled()
+    ...(isComputerUseOffered()
       ? [`  ${COMPUTER_COMMAND.name} - ${COMPUTER_COMMAND.description}`]
       : []),
     ...customCommandDefs()
@@ -605,6 +605,18 @@ export function createBashDescription({
     Specialized commands:
     ${specializedCommands}
   `.trim();
+}
+
+/**
+ * Whether the agent is told `computer` exists: the user turned it on and
+ * finished setting it up. Read per request, since both change while a
+ * session runs.
+ */
+function isComputerUseOffered() {
+  const host = hasWorkspaceConfig()
+    ? getWorkspaceConfig().computerUse
+    : undefined;
+  return host !== undefined && host.isEnabled() && host.isReady();
 }
 
 /**

@@ -1,6 +1,6 @@
 import {
   connectComputerDriver,
-  requestComputerPermissions,
+  isComputerUseReady,
   stopComputerDriver,
 } from "@/electron-main/lib/computer-driver";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
@@ -144,7 +144,7 @@ export function createWorkspaceActor() {
       computerUse: {
         connect: connectComputerDriver,
         isEnabled: () => isFeatureEnabled("computer_use"),
-        requestPermissions: requestComputerPermissions,
+        isReady: isComputerUseReady,
       },
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)

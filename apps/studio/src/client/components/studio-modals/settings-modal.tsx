@@ -2,6 +2,8 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
+import { featuresAtom } from "@/client/atoms/features";
+import { ComputerUseSection } from "@/client/components/settings/computer-use-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
@@ -32,13 +34,14 @@ import { rpcClient } from "@/client/rpc/client";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 
 interface NavItem {
   icon: React.ElementType;
@@ -177,6 +180,9 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
+    case "Computer Use": {
+      return <ComputerUseSection />;
+    }
     case "Debug": {
       return <DebugSection />;
     }
@@ -207,6 +213,7 @@ function SettingsSectionBody({
 
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
+  const features = useAtomValue(featuresAtom);
   const { data: invalidFolders } = useQuery(
     rpcClient.workspace.storage.invalidFolders.list.queryOptions(),
   );
@@ -233,6 +240,16 @@ function useNavItems(): NavItem[] {
       tab: "Skills",
       title: "Skills",
     },
+    // Only once the flag is on: until then there is nothing to set up.
+    ...(features.computer_use
+      ? [
+          {
+            icon: CursorClickIcon,
+            tab: "Computer Use" as const,
+            title: "Computer Use",
+          },
+        ]
+      : []),
     ...(hasUnrecognizedFolders
       ? [
           {

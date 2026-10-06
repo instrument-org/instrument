@@ -31,13 +31,13 @@ describe.skipIf(process.platform === "win32")("computer", () => {
     driver = path.join(dir, "cua-driver");
     log = path.join(dir, "calls.log");
     // Stands in for cua-driver: records each argv, answers get_window_state
-    // with the tree twice over the way the driver does.
+    // with the tree twice over and a menu bar, the way the driver does.
     await writeFile(
       driver,
       `#!/bin/sh
 echo "$@" >> "${log}"
 case "$2" in
-  get_window_state) echo '{"element_count":1,"elements":[{"element_index":0}],"tree_markdown":"- [element_index 0] AXButton \\"OK\\""}' ;;
+  get_window_state) printf '%s\\n' '{"_note":"Prefer elements","element_count":3,"elements":[{"element_index":0}],"tree_markdown":"- [0] AXWindow \\"Notes\\"\\n  - [1] AXButton \\"OK\\"\\n- [2] AXMenuBar\\n  - AXMenuBarItem \\"File\\"\\n    - AXMenuItem \\"Export…\\"\\n- [3] AXButton \\"After\\""}' ;;
   *) echo '{"ok":true}' ;;
 esac
 `,
@@ -65,7 +65,7 @@ esac
             status: "ready",
           }),
         isEnabled: () => true,
-        requestPermissions: () => Promise.resolve({ supported: false }),
+        isReady: () => true,
         ...overrides,
       },
     });
@@ -81,18 +81,34 @@ esac
     expect(result.stdout).toContain("turned off");
   });
 
-  it("asks for setup when macOS grants are missing", async () => {
-    useHost({
-      connect: () =>
-        Promise.resolve({
-          missing: ["accessibility"],
-          status: "needs-permission",
-        }),
-    });
+  it.each([
+    ["setup is incomplete", { isReady: () => false }],
+    [
+      "a grant goes missing after setup",
+      {
+        connect: () =>
+          Promise.resolve({
+            missing: ["accessibility" as const],
+            status: "needs-permission" as const,
+          }),
+      },
+    ],
+  ])("points the user at Settings when %s", async (_case, overrides) => {
+    useHost(overrides);
     const result = await run(["list_apps"]);
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain("Accessibility");
-    expect(result.stdout).toContain("computer setup");
+    expect(result.stdout).toContain("Settings, Computer Use");
+    await expect(readFile(log, "utf8")).rejects.toThrow();
+  });
+
+  it("reports a driver that fails to start as the app's fault", async () => {
+    useHost({
+      connect: () =>
+        Promise.resolve({ reason: "dlopen failed", status: "unavailable" }),
+    });
+    const result = await run(["list_apps"]);
+    expect(result.stdout).toContain("fault in Instrument");
+    expect(result.stdout).toContain("dlopen failed");
   });
 
   it("refuses a tool outside the allowlist", async () => {
@@ -113,11 +129,19 @@ esac
     ]);
   });
 
-  it("drops the duplicate element array from a window snapshot", async () => {
+  it("trims a window snapshot to its markdown tree without the menu bar", async () => {
     useHost();
     const result = await run(["get_window_state", '{"pid":844,"window_id":1}']);
-    expect(result.stdout).not.toContain('"elements"');
-    expect(result.stdout).toContain('[element_index 0] AXButton "OK"');
-    expect(result.stdout).toContain('"element_count": 1');
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "{
+        "element_count": 3
+      }
+
+      - [0] AXWindow "Notes"
+        - [1] AXButton "OK"
+      - AXMenuBar (omitted; use invoke_menu)
+      - [3] AXButton "After"
+      "
+    `);
   });
 });

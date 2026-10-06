@@ -1,6 +1,6 @@
 import type { EmbeddedCuaDriverHostLike } from "@trycua/cua-driver";
 
-import { app, shell } from "electron";
+import { app, shell, systemPreferences } from "electron";
 import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -32,7 +32,13 @@ export type ComputerAccess =
 export type ComputerPermission = "accessibility" | "screen-recording";
 
 export type ComputerPermissionStatus =
-  | { accessibility: boolean; screenRecording: boolean; supported: true }
+  | {
+      accessibility: boolean;
+      screenRecording: ReturnType<
+        typeof systemPreferences.getMediaAccessStatus
+      >;
+      supported: true;
+    }
   | { supported: false };
 
 type Sdk = typeof import("@trycua/cua-driver");
@@ -53,26 +59,60 @@ export function cuaDriverBinPath(): string {
   );
 }
 
-/** Where the user stands on the two grants, without asking. */
-export async function computerPermissionStatus(): Promise<ComputerPermissionStatus> {
+/**
+ * Where the user stands on the two grants, without asking. Read through
+ * Electron, which answers synchronously and for this app, so the agent's
+ * command list can depend on it.
+ */
+export function computerPermissionStatus(): ComputerPermissionStatus {
   if (process.platform !== "darwin") {
     return { supported: false };
   }
-  const { currentMacOsPermissionStatus } = await loadSdk();
-  return { ...currentMacOsPermissionStatus(), supported: true };
+  return {
+    accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+    screenRecording: systemPreferences.getMediaAccessStatus("screen"),
+    supported: true,
+  };
 }
 
 /**
- * The system's prompts for whichever grant is missing. Accessibility opens
- * its Settings pane with Instrument listed; Screen Recording asks once, then
- * only its pane can change the answer.
+ * Whether the agent can be offered the `computer` command: this build carries
+ * the driver, and on macOS both grants are in place. The driver's own checks
+ * still run on every call; this decides only what the agent is told exists.
  */
-export async function requestComputerPermissions(): Promise<ComputerPermissionStatus> {
-  if (process.platform !== "darwin") {
-    return { supported: false };
+export function isComputerUseReady(): boolean {
+  if (!existsSync(cuaDriverBinPath())) {
+    return false;
   }
-  const { requestMacOsPermissions } = await loadSdk();
-  return { ...requestMacOsPermissions(), supported: true };
+  const status = computerPermissionStatus();
+  return (
+    !status.supported ||
+    (status.accessibility && status.screenRecording === "granted")
+  );
+}
+
+/**
+ * The system's Accessibility prompt, which offers to open the pane with this
+ * app listed. Shown only while the app is not yet trusted.
+ */
+export function requestAccessibility(): ComputerPermissionStatus {
+  if (process.platform === "darwin") {
+    systemPreferences.isTrustedAccessibilityClient(true);
+  }
+  return computerPermissionStatus();
+}
+
+/**
+ * The system's Screen Recording prompt. macOS asks once per app; after an
+ * answer only the pane can change it, and a grant made there reaches this
+ * process only after it relaunches.
+ */
+export async function requestScreenRecording(): Promise<ComputerPermissionStatus> {
+  if (process.platform === "darwin") {
+    const { requestMacOsPermissions } = await loadSdk();
+    requestMacOsPermissions();
+  }
+  return computerPermissionStatus();
 }
 
 export async function openComputerPermissionSettings(
@@ -81,11 +121,54 @@ export async function openComputerPermissionSettings(
   if (process.platform !== "darwin") {
     return;
   }
+  // These anchors still resolve on macOS 27, where the Accessibility pane is
+  // titled Device Control and Data Access.
   await shell.openExternal(
     permission === "accessibility"
       ? "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
       : "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
   );
+}
+
+/**
+ * One real capture through the driver, so setup ends on proof rather than on
+ * two checkmarks, and so macOS's direct-capture consent ("bypass the private
+ * window picker") appears here, while the person is looking at Settings,
+ * rather than in the middle of a task.
+ */
+export async function verifyComputerUse(): Promise<
+  { detail: string; ok: false } | { ok: true }
+> {
+  const access = await connectComputerDriver();
+  if (access.status === "needs-permission") {
+    return {
+      detail: `Missing: ${access.missing.join(" and ")}.`,
+      ok: false,
+    };
+  }
+  if (access.status === "unavailable") {
+    return { detail: access.reason, ok: false };
+  }
+  const mod = await loadSdk();
+  const driver = mod.CuaDriver.connect(access.socketPath);
+  try {
+    const result = await driver.callTool(
+      "get_desktop_state",
+      JSON.stringify({ max_image_dimension: 64 }),
+    );
+    return result.isError || result.images.length === 0
+      ? { detail: result.text || "The driver returned no image.", ok: false }
+      : { ok: true };
+  } catch (error) {
+    return {
+      detail: error instanceof Error ? error.message : String(error),
+      ok: false,
+    };
+  } finally {
+    if (mod.CuaDriver.instanceOf(driver)) {
+      driver.uniffiDestroy();
+    }
+  }
 }
 
 /**
@@ -114,13 +197,13 @@ export async function connectComputerDriver(): Promise<ComputerAccess> {
   }
 
   let grants = "n/a";
-  if (process.platform === "darwin") {
-    const status = mod.currentMacOsPermissionStatus();
+  const status = computerPermissionStatus();
+  if (status.supported) {
     const missing: ComputerPermission[] = [];
     if (!status.accessibility) {
       missing.push("accessibility");
     }
-    if (!status.screenRecording) {
+    if (status.screenRecording !== "granted") {
       missing.push("screen-recording");
     }
     if (missing.length > 0) {

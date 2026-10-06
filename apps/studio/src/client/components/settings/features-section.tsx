@@ -1,14 +1,14 @@
 import { featuresAtom } from "@/client/atoms/features";
-import { Button } from "@/client/components/ui/button";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function FeaturesSection() {
   const features = useAtomValue(featuresAtom);
@@ -62,8 +62,7 @@ export function FeaturesSection() {
                 optimisticFeatures.external_browser &&
                 isMacOS() && <AppManagementHint />}
               {feature === "computer_use" &&
-                optimisticFeatures.computer_use &&
-                isMacOS() && <ComputerUsePermissions />}
+                optimisticFeatures.computer_use && <ComputerUseSetupLink />}
             </div>
             <Switch
               checked={optimisticFeatures[feature]}
@@ -79,83 +78,21 @@ export function FeaturesSection() {
   );
 }
 
-const COMPUTER_PERMISSIONS = [
-  { key: "accessibility", label: "Accessibility" },
-  { key: "screenRecording", label: "Screen Recording" },
-] as const;
-
-/**
- * Where Instrument stands on the two grants Computer Use runs under, read
- * again whenever the window regains focus: the user grants them in System
- * Settings, so coming back here is when the answer has changed. Asking shows
- * the system's prompts the first time; once declined, only the pane can
- * change the answer, so each missing grant also links to its pane.
- */
-function ComputerUsePermissions() {
-  const status = useQuery(rpcClient.features.computerUse.status.queryOptions());
-  const { data: windowFocusChanged } = useQuery(
-    rpcClient.utils.events.windowFocusChanged.experimental_liveOptions(),
-  );
-  const refetchStatus = status.refetch;
-  useEffect(() => {
-    void refetchStatus();
-  }, [windowFocusChanged, refetchStatus]);
-  const request = useMutation(
-    rpcClient.features.computerUse.requestPermissions.mutationOptions({
-      onSettled: () => {
-        void status.refetch();
-      },
-    }),
-  );
-  const openSettings = useMutation(
-    rpcClient.features.computerUse.openSettings.mutationOptions(),
-  );
-
-  const data = status.data;
-  if (!data?.supported) {
-    return null;
-  }
-  const allGranted = data.accessibility && data.screenRecording;
-
+/** Setup lives on its own Settings screen, which appears once the flag is on. */
+function ComputerUseSetupLink() {
   return (
-    <div className="space-y-1.5 pt-1 text-sm text-muted-foreground">
-      {COMPUTER_PERMISSIONS.map(({ key, label }) => (
-        <p key={key}>
-          {label}: {data[key] ? "allowed" : "not allowed"}
-          {!data[key] && (
-            <>
-              {" · "}
-              <button
-                className="underline underline-offset-2"
-                onClick={() => {
-                  openSettings.mutate({
-                    permission:
-                      key === "accessibility"
-                        ? "accessibility"
-                        : "screen-recording",
-                  });
-                }}
-                type="button"
-              >
-                Open Privacy &amp; Security
-              </button>
-            </>
-          )}
-        </p>
-      ))}
-      {!allGranted && (
-        <Button
-          disabled={request.isPending}
-          onClick={() => {
-            request.mutate(undefined);
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Ask macOS for access
-        </Button>
-      )}
-    </div>
+    <p className="text-sm text-muted-foreground">
+      The agent can use other apps once it is set up.{" "}
+      <button
+        className="underline underline-offset-2"
+        onClick={() => {
+          openSettings({ tab: "Computer Use" });
+        }}
+        type="button"
+      >
+        Set up Computer Use
+      </button>
+    </p>
   );
 }
 

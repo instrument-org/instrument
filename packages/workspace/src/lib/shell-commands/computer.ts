@@ -79,6 +79,9 @@ export function createComputerCommand({
         "computer: desktop control is turned off. The user can turn on Computer Use under Settings, Features.",
       );
     }
+    if (!host.isReady()) {
+      return fail(NOT_SET_UP);
+    }
 
     const [subcommand, ...rest] = args;
     if (
@@ -87,10 +90,6 @@ export function createComputerCommand({
       subcommand === "-h"
     ) {
       return { exitCode: 0, stderr: "", stdout: `${HELP}\n` };
-    }
-
-    if (subcommand === "setup") {
-      return setup(host);
     }
 
     const access = await host.connect();
@@ -218,36 +217,20 @@ const HELP = dedent`
              press_key, hotkey, set_value, invoke_menu, launch_app,
              bring_to_front, set_window_frame, move_cursor
 
+  The menu bar is left out of window snapshots; reach a menu item with
+  invoke_menu and its path of titles.
+
   computer describe <tool>   the tool's full description and input schema
   computer status            whether the driver can see and act right now
-  computer setup             ask the system for the permissions it needs
 `;
 
-async function setup(host: ComputerUseHost): Promise<CommandResult> {
-  const status = await host.requestPermissions();
-  if (!status.supported) {
-    const access = await host.connect();
-    return access.status === "ready"
-      ? ok(
-          "computer: no permissions to grant on this platform. Run `computer status` to check the desktop session.",
-        )
-      : fail(describeUnready(access));
-  }
-  const missing = [
-    !status.accessibility && "Accessibility",
-    !status.screenRecording && "Screen Recording",
-  ].filter(Boolean);
-  if (missing.length === 0) {
-    return ok("computer: Accessibility and Screen Recording are granted.");
-  }
-  return fail(dedent`
-    computer: macOS asked the user for ${missing.join(" and ")}. Only they can
-    grant it, in System Settings, Privacy & Security, by turning on Instrument.
-    Tell them that, and wait for them to say it is done before running
-    \`computer status\`. Instrument may need to restart before a new grant
-    takes effect.
-  `);
-}
+// The person grants access in Settings, never through the agent, so the
+// refusal names where and stops there.
+const NOT_SET_UP = dedent`
+  computer: Computer Use is not set up on this computer. Tell the user they
+  can set it up under Settings, Computer Use, and stop; there is nothing to
+  run that grants it.
+`;
 
 function describeUnready(
   access: Exclude<
@@ -255,23 +238,26 @@ function describeUnready(
     { status: "ready" }
   >,
 ) {
+  // A load failure is this build's fault; the raw path it carries has sent a
+  // model off diagnosing the app's install location.
   if (access.status === "unavailable") {
-    return `computer: the desktop driver is unavailable. ${access.reason}`;
+    return dedent`
+      computer: the desktop driver in this build failed to start. This is a
+      fault in Instrument, not something the user can fix by moving or
+      reinstalling the app; tell them it failed and stop.
+      Detail: ${access.reason}
+    `;
   }
-  const names = access.missing.map((permission) =>
-    permission === "accessibility" ? "Accessibility" : "Screen Recording",
-  );
-  return dedent`
-    computer: Instrument does not have ${names.join(" or ")} permission yet.
-    Run \`computer setup\` to show the user the system's request, then wait
-    for them to grant it before trying again.
-  `;
+  return NOT_SET_UP;
 }
 
 /**
  * The driver's JSON for `get_window_state` carries the tree twice, as
  * `tree_markdown` and as a structured `elements` array. The markdown is the
- * one a model reads well, so the array is dropped from what the agent sees.
+ * one a model reads well, so the array is dropped from what the agent sees,
+ * along with the driver's note recommending the array. The application menu
+ * bar goes too: it can be most of a snapshot, and `invoke_menu` reaches its
+ * items by title rather than by index.
  */
 function compactOutput(stdout: string) {
   try {
@@ -281,13 +267,42 @@ function compactOutput(stdout: string) {
       typeof parsed.data.tree_markdown === "string" &&
       "elements" in parsed.data
     ) {
-      const { elements: _elements, tree_markdown, ...rest } = parsed.data;
-      return `${JSON.stringify(rest, null, 2)}\n\n${tree_markdown}\n`;
+      const {
+        _note: _driverNote,
+        elements: _elements,
+        tree_markdown,
+        ...rest
+      } = parsed.data;
+      return `${JSON.stringify(rest, null, 2)}\n\n${withoutMenuBar(tree_markdown)}\n`;
     }
   } catch {
     // Not JSON: plain text from the driver, kept as is.
   }
   return stdout;
+}
+
+/** Drops each `AXMenuBar` line and every line indented under it. */
+function withoutMenuBar(tree: string) {
+  const kept: string[] = [];
+  let menuIndent: number | undefined;
+  for (const line of tree.split("\n")) {
+    const indent = line.length - line.trimStart().length;
+    if (menuIndent !== undefined) {
+      if (line.trim() === "" || indent > menuIndent) {
+        continue;
+      }
+      menuIndent = undefined;
+    }
+    if (/^- \[\d+\] AXMenuBar\b/.test(line.trimStart())) {
+      menuIndent = indent;
+      kept.push(
+        `${line.slice(0, indent)}- AXMenuBar (omitted; use invoke_menu)`,
+      );
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept.join("\n");
 }
 
 async function createScreenshotPath(taskId: TaskId) {
@@ -306,10 +321,6 @@ async function exists(file: string) {
 
 function fail(message: string): CommandResult {
   return { exitCode: 1, stderr: "", stdout: `${message}\n` };
-}
-
-function ok(message: string): CommandResult {
-  return { exitCode: 0, stderr: "", stdout: `${message}\n` };
 }
 
 function parseInput(raw: string | undefined) {

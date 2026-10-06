@@ -268,9 +268,10 @@ function createValidateProductionEnv(
   };
 }
 
-// just-bash starts its WebAssembly runtimes (`python`, `js-exec`, `sqlite3`)
-// in workers it finds with `new URL("./worker.js", import.meta.url)`, so it
-// has to run from its own package folder. The build externalizes it with the
+// just-bash starts its `python` and `sqlite3` WebAssembly runtimes in workers
+// it finds with `new URL("./worker.js", import.meta.url)`, so it has to run
+// from its own package folder. (`js-exec` runs on the `run` package, which
+// builds its worker from inline source.) The build externalizes it with the
 // rest of the monorepo's dependencies; dev bundles those into out/main, where
 // the worker file does not exist and every run waits out the script timeout
 // without a word. Dev externalizes it at its resolved path instead, since

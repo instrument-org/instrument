@@ -9,6 +9,7 @@ const defaultFeatures: Features = {
   context_ring: false,
   external_browser: false,
   one_agent: false,
+  one_agent_foreground: false,
 };
 
 async function listen(

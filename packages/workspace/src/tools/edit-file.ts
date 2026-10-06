@@ -20,7 +20,6 @@ import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { MOUNT } from "../mount-points";
@@ -28,6 +27,7 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
 import { ReadFile } from "./read-file";
+import { workDir } from "../lib/work-dir";
 
 const MAX_FILE_SIZE = 250 * 1024; // 250KB
 
@@ -780,7 +780,7 @@ export const EditFile = setupTool({
         agentName === "instrument" ||
         chatSpokenFor(agentName, taskId) !== undefined,
       attachedFolders: await toolFolders(agentName, taskId, taskState),
-      taskHostRoot: taskDir(taskId),
+      taskHostRoot: workDir(taskId),
     });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,

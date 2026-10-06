@@ -42,7 +42,6 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { systemNote } from "../lib/system-note";
-import { taskDir } from "../lib/task-dir-utils";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -54,6 +53,7 @@ import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
 import { chatRefusal } from "./chat-shell-policy";
 import { chatSpokenFor, ONE_AGENT_NAME } from "../lib/one-agent";
+import { workDir } from "../lib/work-dir";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -284,7 +284,7 @@ export const BashTool = setupTool({
       spillFilePath = RelativePathSchema.parse(
         path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.log`),
       );
-      const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
+      const absPath = absolutePathJoin(workDir(taskId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
       await fs.writeFile(absPath, outcome.output, {
         encoding: "utf8",

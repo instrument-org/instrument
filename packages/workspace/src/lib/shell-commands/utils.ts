@@ -10,7 +10,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
 import { relativeWithin } from "../path-containment";
-import { getTaskTmpDir, taskDir } from "../task-dir-utils";
+import { getTaskTmpDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -18,6 +18,7 @@ import {
   resolveHostDevicePath,
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
+import { workDir } from "../work-dir";
 
 /**
  * How to reach a `/mnt/...` path a native process cannot: the sandboxed
@@ -137,7 +138,7 @@ export function bridgeInlineCodePaths(
   }
 
   const relativeTaskRoot =
-    path.relative(taskCwd, taskDir(taskId)).replaceAll("\\", "/") || ".";
+    path.relative(taskCwd, workDir(taskId)).replaceAll("\\", "/") || ".";
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -156,11 +157,11 @@ export function bridgeAppleScriptPaths(
   code: string,
   taskId: TaskId,
 ): { code: string } | { error: string } {
-  const checked = bridgeInlineCodePaths(code, taskId, taskDir(taskId));
+  const checked = bridgeInlineCodePaths(code, taskId, workDir(taskId));
   if ("error" in checked) {
     return checked;
   }
-  const taskRoot = taskDir(taskId);
+  const taskRoot = workDir(taskId);
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -285,7 +286,7 @@ export function resolveCommandContext(
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
   // at a missing dir.
-  const tmpDir = getTaskTmpDir(taskDir(taskId));
+  const tmpDir = getTaskTmpDir(workDir(taskId));
   mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
@@ -304,7 +305,7 @@ export function resolveCommandContext(
       TMPDIR: tmpDir,
     },
     taskCwd: resolveNativeHostPath(
-      taskDir(taskId),
+      workDir(taskId),
       ctx.fs.resolvePath(ctx.cwd, "."),
     ),
   };
@@ -333,7 +334,7 @@ export function resolvePathArgs(
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
     return (
       resolveHostDevicePath(virtualPath) ??
-      resolveNativeHostPath(taskDir(taskId), virtualPath)
+      resolveNativeHostPath(workDir(taskId), virtualPath)
     );
   });
 }
@@ -547,6 +548,6 @@ function virtualToRealRelative(
   if (device !== undefined) {
     return device;
   }
-  const realAbs = resolveNativeHostPath(taskDir(taskId), resolved);
+  const realAbs = resolveNativeHostPath(workDir(taskId), resolved);
   return path.relative(taskCwd, realAbs);
 }

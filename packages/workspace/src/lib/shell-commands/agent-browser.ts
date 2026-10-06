@@ -68,6 +68,7 @@ import {
   resolvePathArgs,
   subprocessStdin,
 } from "./utils";
+import { workDir } from "../work-dir";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
@@ -473,7 +474,7 @@ export async function resolveAgentBrowserPathArgs(
     return { args: resolved };
   }
 
-  const layout = buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) });
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
@@ -497,7 +498,7 @@ export async function resolveAgentBrowserPathArgs(
       return { error: `Upload file not found: "${value}".` };
     }
 
-    resolved[index] = resolveNativeHostPath(taskDir(taskId), virtualPath);
+    resolved[index] = resolveNativeHostPath(workDir(taskId), virtualPath);
   }
   return { args: resolved };
 }
@@ -856,7 +857,7 @@ export function createAgentBrowserCommand({
       await fs.mkdir(externalTmpDir, { recursive: true });
     }
 
-    const screenshotDir = getScreenshotsDir(taskDir(taskId));
+    const screenshotDir = getScreenshotsDir(workDir(taskId));
     // Managed browser only. The CLI applies this at launch as a browser-wide
     // `Browser.setDownloadBehavior`, so on an external browser it would capture
     // every download that browser makes for the rest of its life: ones the user
@@ -865,7 +866,7 @@ export function createAgentBrowserCommand({
     // user expects them, and get reported as the agent's own file changes.
     const downloadPath = isExternal
       ? undefined
-      : getDownloadsDir(taskDir(taskId));
+      : getDownloadsDir(workDir(taskId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host

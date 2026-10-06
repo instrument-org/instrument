@@ -5,7 +5,7 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type TaskId } from "../schemas/task-id";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
-import { taskDir } from "./task-dir-utils";
+import { workDir } from "./work-dir";
 
 /**
  * Where a task's handoff notes live, named once for both halves of the handoff.
@@ -89,7 +89,7 @@ export async function readHandoffNotes(
 ): Promise<string | undefined> {
   try {
     const contents = await fs.readFile(
-      path.join(taskDir(taskId), HANDOFF_NOTES_RELATIVE_PATH),
+      path.join(workDir(taskId), HANDOFF_NOTES_RELATIVE_PATH),
       "utf8",
     );
     const trimmed = contents.trim();

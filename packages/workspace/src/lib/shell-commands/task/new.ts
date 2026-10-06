@@ -10,7 +10,6 @@ import { defaultTaskName } from "../../default-task-name";
 import { initializeTask } from "../../initialize-task";
 import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
-import { isOneAgentEnabled } from "../../one-agent";
 import { taskDir } from "../../task-dir-utils";
 import { holdTask } from "../../task-hold";
 import { setTaskState } from "../../task-record";
@@ -53,7 +52,7 @@ import {
 import { chatModel } from "./model-choice";
 import { handedTabsLine, resolveTabs, tabsHeldElsewhere } from "./tab-choice";
 
-const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
+export const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -81,7 +80,6 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>
 `;
 
 export const newSubcommand = subcommand<TaskCommandContext>({
-  booleans: ["fresh"],
   flags: ["app", "file", "folder", "name", "tab"],
   repeatable: ["app", "file", "folder", "tab"],
   run: runNew,
@@ -95,18 +93,11 @@ export const newSubcommand = subcommand<TaskCommandContext>({
  */
 const ANSWER_WAIT_MARGIN_MS = 2000;
 
-async function runNew(
+export async function runNew(
   input: SubcommandInput,
   context: TaskCommandContext,
   { cwd, stdin }: SubcommandShell,
 ) {
-  // Under the one agent, background work is a fork, which carries the
-  // conversation a brief would rewrite; a fresh start is asked for by name.
-  if (isOneAgentEnabled() && !input.has("fresh")) {
-    throw new Error(
-      `new: background work in this conversation is \`${TASK_COMMAND.name} fork\`, which carries the conversation as it stands: the same heredoc, saying what to do now, with no brief. A job unrelated to this conversation takes \`new --fresh\`.`,
-    );
-  }
   const prompt = promptFrom(input.positional.join(" "), stdin);
   if (!prompt) {
     throw new Error(

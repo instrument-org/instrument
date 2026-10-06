@@ -11,13 +11,13 @@ import { executeError } from "../lib/execute-error";
 import { chatSpokenFor, toolFolders } from "../lib/one-agent";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
+import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   content: "content",
@@ -56,7 +56,7 @@ export const WriteFile = setupTool({
         agentName === "instrument" ||
         chatSpokenFor(agentName, taskId) !== undefined,
       attachedFolders: await toolFolders(agentName, taskId, taskState),
-      taskHostRoot: taskDir(taskId),
+      taskHostRoot: workDir(taskId),
     });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,

@@ -375,9 +375,9 @@ export const workspaceMachine = setup({
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
       isExternalBrowserEnabled: () => boolean;
-      isOneAgentEnabled?: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
+      oneAgentMode?: WorkspaceConfig["oneAgentMode"];
       pnpmBinPath: string;
       preparedSkillsDir: string;
       registryDir: string;
@@ -410,9 +410,7 @@ export const workspaceMachine = setup({
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
-      ...(input.isOneAgentEnabled
-        ? { isOneAgentEnabled: input.isOneAgentEnabled }
-        : {}),
+      ...(input.oneAgentMode ? { oneAgentMode: input.oneAgentMode } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),

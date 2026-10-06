@@ -1,11 +1,7 @@
-import fs from "node:fs/promises";
+import { APP_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-import {
-  AGENT_FILES_LANGUAGE,
-  AGENT_NEEDS_LANGUAGE,
-  TASK_FOLDER_NAMES,
-} from "../../../constants";
+import { AGENT_FILES_LANGUAGE, AGENT_NEEDS_LANGUAGE } from "../../../constants";
 import { MOUNT } from "../../../mount-points";
 import { type ChatId } from "../../../schemas/chat-id";
 import { type SessionMessage } from "../../../schemas/session/message";
@@ -18,10 +14,11 @@ import { initializeTask } from "../../initialize-task";
 import { isToolPart } from "../../is-tool-part";
 import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
-import { isOneAgentEnabled, ONE_AGENT_NAME } from "../../one-agent";
+import { ONE_AGENT_NAME, oneAgentMode } from "../../one-agent";
 import { Store } from "../../store";
 import { systemNote } from "../../system-note";
 import { taskDir } from "../../task-dir-utils";
+import { setTaskState } from "../../task-record";
 import { getTaskSettings, recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { getWorkspaceConfig } from "../../workspace-config";
@@ -31,79 +28,142 @@ import {
   type SubcommandShell,
   subcommand,
 } from "../subcommands";
-import { resolveFileUploads } from "../task-args";
+import {
+  ANSWER_WAIT_MS,
+  awaitAnswers,
+  requireFoldersOnDisk,
+  resolveFileUploads,
+  resolveFolders,
+} from "../task-args";
 import { TASK_COMMAND } from "../task-command";
 import { recordHandOff } from "../task-hand-off";
 import { subprocessStdin } from "../utils";
+import { resolveApps } from "./app-choice";
 import { type TaskCommandContext } from "./context";
 import { promptFrom } from "./delivery";
 import { chatLayout, handedFolders } from "./folders";
 import { chatModel } from "./model-choice";
+import { runNew } from "./new";
+import { handedTabsLine, resolveTabs, tabsHeldElsewhere } from "./tab-choice";
 
-const FORK_USAGE = `  ${TASK_COMMAND.name} fork --name '<title>' [--file <path>]... <<'EOF'
+const FORK_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>/<folder>[:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
   <what to do now>
   EOF
       Fork this conversation to the background: a run of you that starts with
-      the conversation as it stands, your folders at the same paths, and its
-      own working folder copied from yours, then does what stdin says. It is
-      one of this chat's tasks, and reports back the way a task does. The
-      directive says what to do now; the conversation is the background, so
-      none of it needs repeating. --file hands it a file beside the copy.
-      Prints its id. You are told when it finishes; do not poll it.
+      the conversation as it stands, works in this same folder, reaches your
+      folders at the same paths, and does what stdin says. The conversation is
+      its background, so stdin says what to do now and repeats none of it.
+      --folder gives it read and write on a folder inside one of yours (one in
+      the home folder, say), --file names a file to start from, --app names a
+      connected app the work uses, and --tab hands it a tab of the user's,
+      page and all. It is one of this chat's tasks and reports back the way a
+      task does. \`${TASK_COMMAND.name} fork\` is the same command. Prints its
+      id. You are told when it finishes; do not poll it.
+  ${TASK_COMMAND.name} new --fresh --name '<title>' [<flags as above>] <<'EOF'
+  <the whole brief>
+  EOF
+      A task with a clean context, for a job unrelated to this conversation:
+      it knows nothing of it, so stdin is its whole brief.
 `;
 
+/**
+ * `task new` under the one agent's `fork` mode, and `task fork` beside it:
+ * the shape a model reaches for is the right one, so `new` forks and a clean
+ * start is asked for by name (`--fresh`).
+ */
 export const forkSubcommand = subcommand<TaskCommandContext>({
-  flags: ["file", "name"],
-  repeatable: ["file"],
-  run: runFork,
+  booleans: ["fresh"],
+  flags: ["app", "file", "folder", "name", "tab"],
+  repeatable: ["app", "file", "folder", "tab"],
+  run: (input, context, shell) =>
+    input.has("fresh")
+      ? runNew(input, context, shell)
+      : runFork(input, context, shell),
   usage: FORK_USAGE,
 });
 
 /**
- * Top-level entries of a chat's folder a fork's copy leaves out: the
- * private dir and the chat's own tasks (the fork's folder among them), and
- * what is rebuilt on demand or is only ever scratch.
+ * `task new` under the one agent's `foreground` mode, where nothing runs in
+ * the background: refused, saying where the work goes instead.
  */
-const NOT_COPIED = new Set<string>([
-  TASK_FOLDER_NAMES.private,
-  TASK_FOLDER_NAMES.tmp,
-  TASK_FOLDER_NAMES.toolOutput,
-  TASK_FOLDER_NAMES.browserSession,
-  "tasks",
-  "node_modules",
-  ".venv",
-]);
+export const foregroundNewSubcommand = subcommand<TaskCommandContext>({
+  run: () => {
+    throw new Error(
+      "there is no background work in this conversation. Do the work yourself, here, in this reply.",
+    );
+  },
+  usage: `  ${TASK_COMMAND.name} new
+      Not available here: you do every job yourself, in the conversation.
+`,
+});
 
 async function runFork(
   input: SubcommandInput,
   context: TaskCommandContext,
   { cwd, stdin }: SubcommandShell,
 ) {
-  if (!isOneAgentEnabled()) {
+  if (oneAgentMode() !== "fork") {
     throw new Error(
       `fork: not available in this conversation. Start a task with \`${TASK_COMMAND.name} new\`.`,
     );
   }
   const chatSessionId = context.sessionId;
   if (!chatSessionId) {
-    throw new Error("fork: there is no conversation to fork outside a turn.");
+    throw new Error("there is no conversation to fork outside a turn.");
   }
   const directive = promptFrom(input.positional.join(" "), stdin);
   if (!directive) {
     throw new Error(
-      `fork: what to do is required, on stdin through a quoted heredoc.\n\n${FORK_USAGE}`,
+      `what to do is required, on stdin through a quoted heredoc.\n\n${FORK_USAGE}`,
     );
   }
   if (input.positional.length > 0 && subprocessStdin(stdin)) {
     throw new Error(
-      `fork: unexpected ${input.positional.length === 1 ? "argument" : "arguments"} ${input.positional.map((argument) => `"${argument}"`).join(", ")} beside what to do on stdin.`,
+      `unexpected ${input.positional.length === 1 ? "argument" : "arguments"} ${input.positional.map((argument) => `"${argument}"`).join(", ")} beside what to do on stdin. A path with a space in it needs quotes.`,
     );
   }
   const workspaceConfig = getWorkspaceConfig();
-  const { model, modelURI } = await chatModel("fork", context);
+  const { model, modelURI } = await chatModel("new", context);
   const chatFolders = await folderReach(context.chatId);
+
+  // Every folder the chat reaches comes along at the chat's own path and
+  // access, so a path anywhere in the inherited conversation is the same path
+  // here. --folder adds a grant inside one of them, as `folder self` does.
+  const askedFolders = input.all("folder");
+  const granted = resolveFolders(askedFolders, chatFolders);
+  const looks = await requireFoldersOnDisk(granted, askedFolders);
+  const unanswered = await awaitAnswers(
+    looks,
+    Math.min(ANSWER_WAIT_MS, context.remainingYieldMs() - 2000),
+  );
+  if (unanswered.length > 0) {
+    throw new Error(
+      `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}: tell them to answer the system's dialog, then run this again.`,
+    );
+  }
+  const grantedPaths = new Set(
+    granted.map((folder) => path.resolve(folder.path)),
+  );
+  const folders = [
+    ...Object.values(chatFolders)
+      .filter((folder) => !grantedPaths.has(path.resolve(folder.path)))
+      .map((folder) => ({
+        access: effectiveFolderAccess(folder),
+        mountName: folder.mountName,
+        path: folder.path,
+        source: folder.source,
+      })),
+    ...granted,
+  ];
+
+  // The fork works in this folder, so a file named here is already where it
+  // looks: checked to be there, and named to it rather than copied.
   const layout = await chatLayout(context, chatFolders);
-  const files = await resolveFileUploads(input.all("file"), { cwd, layout });
+  const askedFiles = input.all("file");
+  await resolveFileUploads(askedFiles, { cwd, layout });
+  const apps = await resolveApps(input.all("app"));
+  const handedTabs = await resolveTabs(input.all("tab"));
+  const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 
   const taskId = await newTaskId({ prompt: directive, workspaceConfig });
@@ -116,6 +176,7 @@ async function runFork(
         fork: true,
         name,
         ...(effort ? { reasoningEffort: effort } : {}),
+        workdir: context.chatId,
       },
       taskId,
       workspaceConfig,
@@ -125,7 +186,11 @@ async function runFork(
   if (initialized.isErr()) {
     throw initialized.error;
   }
-  await copyWorkingFolder(context.chatId, taskId);
+  if (handedTabs.length > 0) {
+    await setTaskState(taskDir(taskId), {
+      browserTabs: handedTabs.map((id) => ({ id, openedBy: "handed" })),
+    });
+  }
 
   const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
@@ -139,21 +204,16 @@ async function runFork(
     forkSessionId: sessionId,
   });
 
-  // Every folder the chat reaches, under the name it reaches it by and with
-  // the access it has there, so a path anywhere in the inherited conversation
-  // is the same path here.
-  const folders = Object.values(chatFolders).map((folder) => ({
-    access: effectiveFolderAccess(folder),
-    mountName: folder.mountName,
-    path: folder.path,
-    source: folder.source,
-  }));
   const message = await newMessage({
-    files,
     folders,
     model,
     modelURI,
-    prompt: forkDirective(directive),
+    prompt: forkDirective(directive, {
+      apps,
+      files: askedFiles.map((file) =>
+        path.posix.isAbsolute(file) ? file : path.posix.join(cwd, file),
+      ),
+    }),
     sessionId,
     taskId,
   });
@@ -172,45 +232,53 @@ async function runFork(
   });
   await recordTaskActivity(taskId);
   recordHandOff({ kind: "created", taskId });
-  return `Forked ${taskId} ("${name}"). It is running now, with this conversation and your folders (${handedFolders(folders)}).\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+
+  const reach = Object.values(await folderReach(taskId));
+  const grants = granted.map((folder) => {
+    const mounted = reach.find(
+      (held) => path.resolve(held.path) === path.resolve(folder.path),
+    );
+    return {
+      access: mounted ? effectiveFolderAccess(mounted) : folder.access,
+      mountName: mounted?.mountName ?? folder.mountName,
+    };
+  });
+  const grantLine =
+    grants.length > 0
+      ? `It also has ${handedFolders(grants)}, which you do not; \`${TASK_COMMAND.name} folder self --add\` gives you the same.\n`
+      : "";
+  return `Forked ${taskId} ("${name}"). It is running now, in this folder (${MOUNT.task}) and with your folders at the same paths.\n${grantLine}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
 }
 
 /**
  * The fork's own turn, after everything it inherited. Said here rather than
  * ahead of the conversation so the request up to this turn is the chat's
- * own, which is the prefix a provider's cache already holds.
+ * own, which is the prefix a provider's cache already holds; the label that
+ * the conversation is background rather than the assignment is the first
+ * thing in it.
  */
-function forkDirective(directive: string): string {
+function forkDirective(
+  directive: string,
+  { apps, files }: { apps: string[]; files: string[] },
+): string {
+  const startFrom =
+    files.length > 0 ? `\nStart from: ${files.join(", ")}.` : "";
+  const useApps =
+    apps.length > 0
+      ? `\nThe work uses the connected ${apps.length === 1 ? "app" : "apps"} ${apps.join(", ")}.`
+      : "";
   return `${systemNote`
-    Everything above is this chat as it stood when you were forked to work in the background, and it is yours to use: the user's words, their memories, what you already found. You are one of the chat's tasks now, where nobody watches: no question, folder request, or app card reaches the user from here, and \`${TASK_COMMAND.name}\`, \`chat\`, \`memory\` and \`tab\` are not in your shell. Your working folder (\`${MOUNT.task}\`) is a copy of the chat's as it stood, and the user's folders are at the same paths. Do the work below in full. Your last message is read by the chat, which relays it: a line or two saying what came of it, and a \`\`\`${AGENT_FILES_LANGUAGE} fence naming what you made, placed where the user can reach it. If you cannot go on without something from the user, end with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence instead, one need per line.
-  `.trim()}\n\n${directive}`;
-}
-
-/**
- * The fork's working folder as a copy of the chat's: what the conversation
- * calls `attachments/report.pdf` or `work/notes.md` is there under the same
- * name. A copy rather than a share, since every tool resolves a task's
- * working folder from where its record is.
- */
-async function copyWorkingFolder(chatId: ChatId, forkId: TaskId) {
-  const from = taskDir(chatId);
-  // Entry by entry, since the fork's folder is inside the chat's and a copy
-  // of the whole would be a copy into itself.
-  for (const entry of await fs.readdir(from)) {
-    if (!NOT_COPIED.has(entry)) {
-      await fs.cp(path.join(from, entry), path.join(taskDir(forkId), entry), {
-        force: true,
-        recursive: true,
-      });
-    }
-  }
+    Everything above is background context, not your assignment: this chat as it stood when you were forked to work in the background. Draw on it (the user's words, their memories, what was already found), but do what the assignment below says and nothing the conversation asked of the chat. You are one of the chat's tasks now, where nobody watches: no question, folder request, or app card reaches the user from here, and \`${TASK_COMMAND.name}\`, \`chat\`, \`memory\` and \`tab\` are not in your shell. You work in the chat's own folder (\`${MOUNT.task}\`), which the chat keeps using while you run, so write new files rather than rewriting ones it has open; the user's folders are at the same paths. Your last message is read by the chat, which relays it: a line or two saying what came of it, and a \`\`\`${AGENT_FILES_LANGUAGE} fence naming what you made, placed where the user can reach it. If you cannot go on without something from the user, end with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence instead, one need per line.
+  `.trim()}\n\nYour assignment:\n${directive}${startFrom}${useApps}`;
 }
 
 /**
  * Copies the chat's session into the fork's: the baseline (system prompt and
  * context message) and every message so far, under the same ids, so the
  * fork's first request renders the same bytes as the chat's up to the
- * fork's own turn.
+ * fork's own turn. Each copy is marked `inherited` in its metadata, which no
+ * model request carries, so a transcript can set the background apart
+ * without moving the prefix.
  *
  * Left out: a tool call that has not answered yet, which is the `fork` call
  * itself, since a call with no result is a request a provider refuses.
@@ -287,9 +355,23 @@ function inherited(
       usage: _usage,
       ...metadata
     } = message.metadata;
-    return { ...message, metadata: { ...metadata, sessionId }, parts };
+    return {
+      ...message,
+      metadata: { ...metadata, inherited: true, sessionId },
+      parts,
+    };
   }
-  return { ...inSession(message, sessionId), parts };
+  return { ...markedInherited(message, sessionId), parts };
+}
+
+/** A message filed under another session, marked as inherited. */
+function markedInherited<
+  T extends { metadata: { inherited?: boolean; sessionId: StoreId.Session } },
+>(item: T, sessionId: StoreId.Session): T {
+  return {
+    ...item,
+    metadata: { ...item.metadata, inherited: true, sessionId },
+  };
 }
 
 /** The same record, filed under another session. */

@@ -78,8 +78,14 @@ export async function initializeTask(
     );
 
     // A chat runs no code of its own, so it takes none of a task's scaffold,
-    // except under the one agent, which does its work in the chat's folder.
-    if (!isChat || (workspaceConfig.isOneAgentEnabled?.() ?? false)) {
+    // except under the one agent, which does its work in the chat's folder. A
+    // task that works in another record's folder (a fork, in its chat's)
+    // takes none either: its own folder holds only its record.
+    const worksElsewhere = initialSettings.workdir !== undefined;
+    if (
+      !worksElsewhere &&
+      (!isChat || workspaceConfig.oneAgentMode?.() !== undefined)
+    ) {
       yield* copyTask({
         includePrivateFolder: false,
         sourceDir: workspaceConfig.defaultTaskTemplateDir,
@@ -108,7 +114,7 @@ export async function initializeTask(
       TASK_FOLDER_NAMES.attachments,
       TASK_FOLDER_NAMES.work,
     ];
-    for (const dirName of standardDirs) {
+    for (const dirName of worksElsewhere ? [] : standardDirs) {
       yield* ResultAsync.fromPromise(
         fs.mkdir(absolutePathJoin(dir, dirName), {
           recursive: true,

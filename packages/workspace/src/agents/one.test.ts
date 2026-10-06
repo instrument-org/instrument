@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../lib/workspace-config";
 
 import { TOOL_NAMES } from "../tools/name";
 import { instrumentAgent } from "./instrument";
@@ -28,8 +33,46 @@ describe("oneAgent", () => {
 
   it("says when to work and when to fork", () => {
     expect(prompt).toContain("Do it yourself when it takes seconds");
-    expect(prompt).toContain("task fork --name '<title>'");
+    expect(prompt).toContain("task new --name '<title>'");
+    expect(prompt).toContain("task new --fresh");
     expect(prompt).toContain("task folder self --add");
+    expect(prompt).not.toContain("task fork");
+    // The brief-writing rules are for a task that knows nothing of the chat.
+    expect(prompt).not.toContain("Brief a task the way");
+    expect(prompt).not.toContain("<the brief, as many lines as it needs>");
+  });
+
+  it("keeps the chat's memory rules, the save beside a fork included", () => {
+    const memory = section(prompt, "Memory");
+    expect(memory).toContain("memory save <name> <<'EOF'");
+    expect(memory).toContain("memory forget <name>");
+    expect(memory).toContain(
+      "the save and the fork go in one command, the save first",
+    );
+    expect(memory).toContain(
+      "Never tell the user you have remembered something you have not saved",
+    );
+  });
+
+  describe("in the foreground mode", () => {
+    let foreground: string;
+    beforeAll(() => {
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({ ...config, oneAgentMode: () => "foreground" });
+      foreground = oneAgent.systemPrompt();
+      setWorkspaceConfig(config);
+    });
+
+    it("does all the work itself and starts nothing", () => {
+      expect(foreground).toContain("There is no background here");
+      expect(section(foreground, "Background work")).toBeUndefined();
+      expect(section(foreground, "Tasks")).toBeUndefined();
+      expect(section(foreground, "When a task finishes")).toBeUndefined();
+      expect(foreground).not.toContain("task new");
+      expect(section(foreground, "Memory")).toContain(
+        "gets the save first, then the work, in the same reply",
+      );
+    });
   });
 
   it("has the task agent's tools beside the chat's", () => {

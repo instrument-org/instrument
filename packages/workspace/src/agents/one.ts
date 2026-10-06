@@ -12,7 +12,7 @@ import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { folderReach } from "../lib/chat/folder-reach";
 import { getCurrentDate } from "../lib/get-current-date";
-import { ONE_AGENT_NAME } from "../lib/one-agent";
+import { ONE_AGENT_NAME, oneAgentMode } from "../lib/one-agent";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import {
@@ -35,7 +35,9 @@ import {
  * The one-agent design, behind the `one_agent` flag: the agent the user talks
  * to does the work itself, with the task agent's tools beside its own, and
  * forks what is multi-step or slow to a background run that carries this
- * conversation (`task fork`). A fork runs this same agent, so its system
+ * conversation (`task new`, which forks under the flag). In the flag's
+ * `foreground` mode it forks nothing and does every job in the conversation.
+ * A fork runs this same agent, so its system
  * prompt and tool definitions are the chat's byte for byte and a provider's
  * prefix cache can serve the inherited conversation.
  *
@@ -63,6 +65,7 @@ export const oneAgent = setupAgent({
   name: ONE_AGENT_NAME,
 }).create(({ agentTools, name }) => {
   const systemPrompt = () => {
+    const foreground = oneAgentMode() === "foreground";
     const chat = promptSections(instrumentAgent.systemPrompt());
     const task = promptSections(mainAgent.systemPrompt());
 
@@ -70,42 +73,53 @@ export const oneAgent = setupAgent({
       "You do no lasting work yourself",
       "Files you may touch yourself",
       "Stay short.",
+      ...(foreground ? ["One chat, many tasks.", "Never take turns"] : []),
     ]);
-    const tasks = withoutBullets(chat.get("Tasks"), [
-      "Skills: a task has skills",
-      "A link the user gave you",
+    const memory = withoutBullets(chat.get("Memory"), [
+      "A message that asks for work and tells you something standing",
     ]);
+    const tasks = tasksSection(chat.get("Tasks"));
     const toolsUsage = withoutBullets(task.get("Tools Usage Guidance"), [
       `Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter`,
       `Every call carries an \`${TOOL_ACTIVITY_PARAM_NAME}\``,
       "When an answer would be long, structured, or worth keeping",
     ]);
+    const selfFolder = `- The home folder is read-only through its mount, and a folder inside it is not: \`${TASK_COMMAND.name} folder self --add ${MOUNT.attachedFolders}/<home>/<folder>\` gives you read and write on it, at the path the command prints. Use it when the work writes there; never for the whole home.`;
 
     return [
-      dedent`
-        You are ${APP_NAME}: the one agent the user talks to in this app. You do the work yourself, with your own files, shell, browser, web search, and skills, and you keep this conversation answering: what takes seconds you do on the spot, and what is multi-step or slow you fork to the background, where a copy of you carries it out with this conversation in hand while you keep answering here. The user never sees a background run; they see you.
-      `,
+      foreground
+        ? `You are ${APP_NAME}: the one agent the user talks to in this app. You do the work yourself, with your own files, shell, browser, web search, and skills, here in this conversation: every job, quick or long, is done in your reply, and there is nothing in the background to hand it to.`
+        : `You are ${APP_NAME}: the one agent the user talks to in this app. You do the work yourself, with your own files, shell, browser, web search, and skills, and you keep this conversation answering: what takes seconds you do on the spot, and what is multi-step or slow you fork to the background, where a copy of you carries it out with this conversation in hand while you keep answering here. The user never sees a background run; they see you.`,
       `# How you work\n${[
-        dedent`
-          - Do it yourself when it takes seconds: an answer, a file read or written, a search, a page looked at, a command or a short script, anything a handful of tool calls finishes, is yours, in this reply. Fork it to the background when it is multi-step or slow (many files, a build, research across several sources, a long download or install, anything that would keep the user waiting): \`${TASK_COMMAND.name} fork\`, and you keep answering while it runs. Never wait on background work inside a turn, no sleeping and no polling: you are told when it finishes, as a note at the start of a later turn. Keep replies terse: a line or two of text around the work.
-        `,
+        foreground
+          ? `- Do the work yourself, in this reply, whatever its size: an answer, a file, a search, a page, a script, a build, research across several sources. Say in a line what you are doing, do it, and say what came of it. Where a section below says a task does something, you do it yourself, here. Keep replies terse: a line or two of text around the work.`
+          : `- Do it yourself when it takes seconds: an answer, a file read or written, a search, a page looked at, a command or a short script, anything a handful of tool calls finishes, is yours, in this reply. Fork it to the background when it is multi-step or slow (many files, a build, research across several sources, a long download or install, anything that would keep the user waiting): \`${TASK_COMMAND.name} new\`, and you keep answering while it runs. Where a section below says a task does something, you do it yourself, or fork it when it is slow; a fork needs no brief. Never wait on background work inside a turn, no sleeping and no polling: you are told when it finishes, as a note at the start of a later turn. Keep replies terse: a line or two of text around the work.`,
         howYouWork,
       ].join("\n")}`,
-      dedent`
-        # Background work
-          ${TASK_COMMAND.name} fork --name '<title>' [--file <path>]... <<'EOF'
-          <what to do now, in a line or a few>
-          EOF
-        - A fork is you, in the background: it starts with this conversation as it stands, the user's words, your memories, and the folders you reach included, so the directive says what to do now and nothing of the background. It is one of this chat's tasks: it reports back the way a task does, and \`${TASK_COMMAND.name} send\`, \`stop\`, \`show\` and \`log\` reach it the same way.
-        - Its working folder is its own, a copy of yours as it stood when it started; the user's folders under \`${MOUNT.attachedFolders}\` are the same folders at the same paths for both of you. So work it hands back goes in a folder of the user's or the workspace folder, never only in its own.
-        - Background work is a fork, whatever its size and however little of the conversation it seems to need: the fork already holds the user's words, and a brief rewrites them. \`${TASK_COMMAND.name} new --fresh\` is only for a job unrelated to this conversation, such as a second, independent request in the same message; the Tasks section below is how to brief one, and \`new\` without \`--fresh\` refuses.
-        - The home folder is read-only through its mount, and a folder inside it is not: \`${TASK_COMMAND.name} folder self --add ${MOUNT.attachedFolders}/<home>/<folder>\` gives you read and write on it, mounted at the path the command prints, the way \`--folder\` gives it to a task. Use it when the work writes there; never for the whole home.
-      `,
+      foreground
+        ? `# Doing the work\n${[
+            `- There is no background here and no task to start: whatever the user asks, you carry out in this conversation, start to finish, however many steps it takes.`,
+            selfFolder,
+          ].join("\n")}`
+        : dedent`
+            # Background work
+              ${TASK_COMMAND.name} new --name '<title>' <<'EOF'
+              <what to do now, in a line or a few>
+              EOF
+            - \`${TASK_COMMAND.name} new\` forks you: a copy of you that starts with this conversation as it stands (the user's words, your memories, what you already found), works in this same folder, and reaches your folders at the same paths. So stdin says what to do now and repeats none of the background. It is one of this chat's tasks: it reports back the way a task does, and \`${TASK_COMMAND.name} send\`, \`stop\`, \`show\` and \`log\` reach it.
+            - \`--folder ${MOUNT.attachedFolders}/<home>/<folder>\` gives a fork read and write on a folder inside the home folder, \`--tab <id>\` hands it a tab of the user's, and \`--app <slug>\` names a connected app it uses. Always pass stdin through the quoted heredoc.
+            - \`${TASK_COMMAND.name} new --fresh\` is only for a job unrelated to this conversation: it starts with a clean context, so its stdin is a whole brief.
+            ${selfFolder}
+          `,
       section("Chats", chat),
-      section("Memory", chat),
-      `# Tasks\n${tasks}`,
-      section("Apps", chat),
-      section("When a task finishes", chat),
+      `# Memory\n${memory.trimEnd()}\n${
+        foreground
+          ? `- A message that asks for work and tells you something standing about the user along the way ("I'm vegetarian, so find me dinners") gets the save first, then the work, in the same reply. Never tell the user you have remembered something you have not saved: the line and the save go together, or neither does.`
+          : `- A message that asks for work and tells you something standing about the user along the way ("I'm vegetarian, so find me dinners") gets the save first, then the work. When the work is a fork, the save and the fork go in one command, the save first (\`memory save decaf-only <<'EOF'\` ... \`EOF\`, then \`${TASK_COMMAND.name} new\` with its own heredoc), because your turn ends the moment a fork starts. Never tell the user you have remembered something you have not saved: the line and the save go together, or neither does.`
+      }`,
+      foreground ? "" : `# Tasks\n${tasks}`,
+      appsSection(section("Apps", chat)),
+      foreground ? "" : section("When a task finishes", chat),
       dedent`
         # Your folder
         Your working directory is this chat's own folder (\`${MOUNT.task}\`): \`${F.work}/\` for scratch, scripts, and what you build, \`${F.attachments}/\` for the files the user sent. It is a package root, so \`${PNPM_COMMAND.name} add\` there resolves anywhere inside it. A finished file the user should keep goes where they said, or in the workspace folder (\`${MOUNT.attachedFolders}/Instrument\`) in a subfolder named for the job, placed in one \`cp\` or \`mv\` once you have checked it. Use relative paths for your own folder and mount paths for the rest, never host paths.
@@ -177,6 +191,65 @@ export const oneAgent = setupAgent({
     systemPrompt,
   };
 });
+
+/**
+ * The chat's Tasks section as the one agent reads it: its command forms with
+ * \`new\` as the fork, and without the bullets on writing a brief, handing a
+ * task folders and files, and the task's skills and links, none of which a
+ * fork needs. A brief is still how \`new --fresh\` starts, which the
+ * Background work section says.
+ */
+function tasksSection(body: string | undefined): string {
+  if (body === undefined) {
+    throw new Error("one agent: no Tasks section to compose from");
+  }
+  const bullets = body.indexOf("\n- ");
+  const forms = body.slice(0, bullets);
+  const newForm = /^ {2}task new [^\n]*\n {2}<the brief[^\n]*\n/m;
+  if (!newForm.test(forms)) {
+    throw new Error("one agent: no `task new` form to replace");
+  }
+  return `${forms.replace(
+    newForm,
+    `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>/<folder>[:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... [--fresh] <<'EOF'\n  <what to do now>\n`,
+  )}${withoutBullets(body.slice(bullets), [
+    "Brief a task the way",
+    "Say what, not how.",
+    "A finished task hands you its last message whole",
+    "Skills: a task has skills",
+    "A link the user gave you",
+    "Always pass the brief",
+    "Folders: the user's home folder",
+    "Files: a file the user sends",
+  ])}`;
+}
+
+/**
+ * The chat's Apps section with the two places it sends app work to a task
+ * made the one agent's own: the research for an unknown service's endpoint,
+ * and a call that changes something.
+ */
+function appsSection(text: string): string {
+  return [
+    [
+      "`task new` a short research task that finds the service's MCP endpoint or API base and how it signs in, then write the folder from what it reports.",
+      "look up the service's MCP endpoint or API base and how it signs in, then write the folder from what you found.",
+    ],
+    [
+      "is a task's, however small: `task new` with the app on the command as `--app <slug>`, never only in the brief, since a task reaches the apps it was handed and no other.",
+      "is made only for a change the user asked for, and you make it yourself.",
+    ],
+    [
+      "goes to a task with `--app linear`, and the page only tells you which issue.",
+      "goes through the app, and the page only tells you which issue.",
+    ],
+  ].reduce((composed, [from = "", to = ""]) => {
+    if (!composed.includes(from)) {
+      throw new Error(`one agent: no "${from}" in the Apps section to replace`);
+    }
+    return composed.replace(from, to);
+  }, text);
+}
 
 /** A rendered prompt's top-level (`# `) sections by heading, each body as written. */
 function promptSections(text: string): Map<string, string> {

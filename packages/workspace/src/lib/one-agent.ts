@@ -2,9 +2,12 @@ import { type AgentName } from "../agents/types";
 import { type ChatId } from "../schemas/chat-id";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type TaskId } from "../schemas/task-id";
+import { type StoreId } from "../schemas/store-id";
+import { type TaskSettings } from "../schemas/task-settings";
 import { type TaskState } from "../schemas/task-state";
+import { type OneAgentMode } from "../types";
 import { folderReach } from "./chat/folder-reach";
-import { resolveChat } from "./record-folders";
+import { owningChat, resolveChat, sessionOfChat } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { getTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -15,9 +18,32 @@ import { getWorkspaceConfig } from "./workspace-config";
  */
 export const ONE_AGENT_NAME = "instrument-one" satisfies AgentName;
 
-/** The `one_agent` feature flag, off unless the host turned it on. */
+/**
+ * How the `one_agent` feature flag has chats run, or none when the host left
+ * it off. See `OneAgentMode`.
+ */
+export function oneAgentMode(): OneAgentMode | undefined {
+  return getWorkspaceConfig().oneAgentMode?.();
+}
+
+/**
+ * A mode spelled the way a switch outside the app gives it (the evals'
+ * `INSTRUMENT_EVAL_ONE_AGENT`): `1` or `fork`, `foreground`, or anything else
+ * for off.
+ */
+export function parseOneAgentMode(
+  value: string | undefined,
+): OneAgentMode | undefined {
+  return value === "1" || value === "fork"
+    ? "fork"
+    : value === "foreground"
+      ? "foreground"
+      : undefined;
+}
+
+/** The `one_agent` feature flag, in either mode. */
 export function isOneAgentEnabled(): boolean {
-  return getWorkspaceConfig().isOneAgentEnabled?.() ?? false;
+  return oneAgentMode() !== undefined;
 }
 
 /**
@@ -58,4 +84,27 @@ export async function toolFolders(
   return agentName === ONE_AGENT_NAME
     ? await folderReach(taskId, state)
     : state.attachedFolders;
+}
+
+/**
+ * The session a request names to the provider, which is what its prompt
+ * cache is routed by (Workers AI's affinity, the ChatGPT plan's session): a
+ * request's own, except a fork's, which names its chat's. A fork's first
+ * request is the chat's conversation byte for byte, and that prefix is
+ * cached wherever the chat's requests went.
+ */
+export function cacheSessionFor({
+  sessionId,
+  settings,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  settings: TaskSettings | undefined;
+  taskId: TaskId;
+}): StoreId.Session {
+  if (!settings?.fork) {
+    return sessionId;
+  }
+  const chatId = owningChat(taskId);
+  return (chatId && sessionOfChat(chatId)) ?? sessionId;
 }

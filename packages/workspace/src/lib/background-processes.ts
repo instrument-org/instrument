@@ -20,11 +20,11 @@ import {
   withShellOutputSink,
 } from "./shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "./subprocess-tree";
-import { taskDir } from "./task-dir-utils";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
+import { workDir } from "./work-dir";
 
 /**
  * How many processes may run at once per task. A ceiling the agent can hit beats
@@ -204,11 +204,13 @@ const recordsBySession = new Map<
 /** Refuses promotion and lets concurrent callers join session cleanup. */
 const cleanupBySession = new Map<StoreId.Session, Promise<void>>();
 /**
- * Never reset within a run, and seeded from disk on first use per task. Ids name
- * log files that persisted tool results point at, so reusing one would overwrite
- * the output an earlier turn's transcript promises.
+ * Never reset within a run, and seeded from disk on first use per working
+ * folder. Ids name log files that persisted tool results point at, so reusing
+ * one would overwrite the output an earlier turn's transcript promises. Kept
+ * per folder rather than per task because a fork shares its chat's folder,
+ * and two counters over one folder would hand out the same log name.
  */
-const nextIdByTask = new Map<TaskId, number>();
+const nextIdByFolder = new Map<string, number>();
 
 /**
  * Kills everything, for app shutdown. Child processes normally die with the
@@ -581,7 +583,7 @@ export function startBackgroundRun({
   taskId: TaskId;
 }): BackgroundRunHandle {
   const outputLayout =
-    layout ?? buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
+    layout ?? buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) });
   const buffer = new BackgroundOutputBuffer({
     capBytes: PENDING_OUTPUT_CAP_BYTES,
   });
@@ -686,7 +688,7 @@ export function startBackgroundRun({
 
 /**
  * Hands out the next `bg_N` for a task, seeding from the log files already on
- * disk the first time a task is seen.
+ * disk the first time its working folder is seen.
  *
  * The counter lives in memory, so without the seed a restart would begin again at
  * `bg_1` and the write stream, which truncates, would overwrite a log that a
@@ -695,13 +697,13 @@ export function startBackgroundRun({
  * earlier one's name.
  */
 function allocateId(taskId: TaskId): string {
-  let next = nextIdByTask.get(taskId);
+  const outputDir = absolutePathJoin(
+    workDir(taskId),
+    TASK_FOLDER_NAMES.toolOutput,
+  );
+  let next = nextIdByFolder.get(outputDir);
 
   if (next === undefined) {
-    const outputDir = absolutePathJoin(
-      taskDir(taskId),
-      TASK_FOLDER_NAMES.toolOutput,
-    );
     let highest = 0;
     try {
       for (const name of fs.readdirSync(outputDir)) {
@@ -715,7 +717,7 @@ function allocateId(taskId: TaskId): string {
     next = highest + 1;
   }
 
-  nextIdByTask.set(taskId, next + 1);
+  nextIdByFolder.set(outputDir, next + 1);
   return `bg_${next}`;
 }
 
@@ -859,7 +861,7 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
     const logFilePath = RelativePathSchema.parse(
       path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
-    const logFileAbsolutePath = absolutePathJoin(taskDir(taskId), logFilePath);
+    const logFileAbsolutePath = absolutePathJoin(workDir(taskId), logFilePath);
     fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
     return { logFileAbsolutePath, logFilePath };
   } catch (error) {

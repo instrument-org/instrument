@@ -98,7 +98,6 @@ import {
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
-import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
@@ -106,6 +105,7 @@ import {
   type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
+import { workDir } from "./work-dir";
 
 /** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
@@ -663,7 +663,7 @@ export function shellLayout({
     apps: chat !== undefined,
     attachedFolders,
     extraMounts: chat?.childMounts,
-    taskHostRoot: taskDir(taskId),
+    taskHostRoot: workDir(taskId),
   });
 }
 

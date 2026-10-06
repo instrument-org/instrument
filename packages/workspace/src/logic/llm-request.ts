@@ -28,6 +28,7 @@ import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
+import { cacheSessionFor } from "../lib/one-agent";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskSettings } from "../lib/task-settings";
@@ -348,8 +349,16 @@ export const llmRequestLogic = fromPromise<
         );
       },
       // Groups this session's generations into one trace in the analytics our
-      // gateway reports.
-      headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },
+      // gateway reports, and routes the request to the provider cache the
+      // session's earlier requests warmed. A fork names its chat's session,
+      // whose cache holds the conversation it starts from.
+      headers: {
+        [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
+          sessionId: input.sessionId,
+          settings: taskSettings,
+          taskId: input.taskId,
+        }),
+      },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,

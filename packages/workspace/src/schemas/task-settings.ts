@@ -1,6 +1,7 @@
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
+import { ChatIdSchema } from "./chat-id";
 import { StoreId } from "./store-id";
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
@@ -38,6 +39,11 @@ export const TaskSettingsSchema = z.object({
   // leaves the provider's own default, which is what every task took before
   // this existed.
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
+  // The chat whose folder this task works in, rather than its own: a fork
+  // shares its chat's working folder, so a path the conversation names is
+  // the same file for both. Its own folder still holds its record. Absent
+  // for every other task. Read through `workDir` (lib/work-dir.ts).
+  workdir: ChatIdSchema.optional(),
 });
 
 export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({

@@ -4,12 +4,12 @@ import { WINDOW_ID } from "../schemas/window-id";
 import { childTaskMounts, windowTaskMounts } from "./chat/children";
 import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
-import { taskDir } from "./task-dir-utils";
 import { resolveChat } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
+import { workDir } from "./work-dir";
 
 /**
  * Host path for a file a task can reach: task-relative, the mount path of a
@@ -63,7 +63,7 @@ export async function resolveWorkspaceFilePaths({
  * reaching every chat's tasks.
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
-  const taskHostRoot = taskDir(taskId);
+  const taskHostRoot = workDir(taskId);
   const chatId = resolveChat(taskId);
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),

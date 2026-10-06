@@ -29,12 +29,12 @@ import {
   SKILL_CONTENT_LIMIT,
   truncateSkillContent,
 } from "../lib/skills";
-import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+import { workDir } from "../lib/work-dir";
 const TAGS = {
   file: "file",
   skillFiles: "skill_files",
@@ -149,7 +149,7 @@ export const LoadSkill = setupTool({
     // filesystem-safe string would let distinct skills collapse onto one copy.
     const directory = normalizedPathJoin(skill.sourceId, skill.name);
     const { alreadyLoaded, destDir } = await copySkill({
-      dir: taskDir(taskId),
+      dir: workDir(taskId),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,
@@ -181,8 +181,8 @@ export const LoadSkill = setupTool({
       if (provenance.installDependencies) {
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
-          cwd: taskDir(taskId),
-          layout: buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) }),
+          cwd: workDir(taskId),
+          layout: buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) }),
           signal,
           taskId,
         });

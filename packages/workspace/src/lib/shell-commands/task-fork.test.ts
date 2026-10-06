@@ -13,9 +13,15 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { oneAgent } from "../../agents/one";
 import { createSession } from "../create-session";
+import {
+  prepareModelMessages,
+  SESSION_CONTEXT_VERSION,
+} from "../prepare-model-messages";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
+import { workDir } from "../work-dir";
 import { setTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -47,11 +53,11 @@ let counter = 0;
 let rootDir: string;
 let context: TaskCommandContext;
 let chatSessionId: StoreId.Session;
-let oneAgent = true;
+let oneAgentOn = true;
 
 beforeEach(async () => {
   counter += 1;
-  oneAgent = true;
+  oneAgentOn = true;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-fork-"));
   createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
@@ -62,7 +68,7 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
-    isOneAgentEnabled: () => oneAgent,
+    oneAgentMode: () => (oneAgentOn ? "fork" : undefined),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
@@ -140,12 +146,14 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
       id,
       metadata: {
         agentName: "instrument-one" as const,
-        contextVersion: 1,
+        contextVersion: SESSION_CONTEXT_VERSION,
         createdAt,
         realRole: "system" as const,
         sessionId,
       },
-      parts: [{ metadata: meta(id), text: "the prompt", type: "text" }],
+      parts: [
+        { metadata: meta(id), text: oneAgent.systemPrompt(), type: "text" },
+      ],
       role: "session-context" as const,
     })),
     message((id) => ({
@@ -235,7 +243,10 @@ describe("task fork", () => {
     expect(result.exitCode).toBe(0);
     expect(handOffs.map((handOff) => handOff.kind)).toEqual(["created"]);
     const id = forkId(handOffs);
-    expect((await getTaskSettings(taskDir(id)))?.fork).toBe(true);
+    expect(await getTaskSettings(taskDir(id))).toMatchObject({
+      fork: true,
+      workdir: context.chatId,
+    });
 
     const sessions = await Store.getSessions(id);
     const sessionId = sessions._unsafeUnwrap()[0]?.id;
@@ -252,7 +263,8 @@ describe("task fork", () => {
       })
     )._unsafeUnwrap();
 
-    // Same ids in the same order, filed under the fork's session.
+    // Same ids in the same order, filed under the fork's session and marked
+    // as inherited.
     expect(copied.map((message) => message.id)).toEqual(
       chat.map((message) => message.id),
     );
@@ -260,6 +272,7 @@ describe("task fork", () => {
       copied.every(
         (message) =>
           message.metadata.sessionId === sessionId &&
+          message.metadata.inherited === true &&
           message.parts.every((part) => part.metadata.sessionId === sessionId),
       ),
     ).toBe(true);
@@ -281,23 +294,90 @@ describe("task fork", () => {
     );
     expect(start?.value).toMatchObject({ agentName: "instrument-one", id });
     const directive = JSON.stringify(start?.value);
-    expect(directive).toContain("forked to work in the background");
+    expect(directive).toContain(
+      "Everything above is background context, not your assignment",
+    );
+    expect(directive).toContain("Your assignment:\\nBatch");
     expect(directive).toContain(
       "rename every photo in Downloads by its date taken",
     );
   });
 
-  it("copies the chat's folder, leaving out its tasks and private dir", async () => {
+  it("works in the chat's own folder, keeping only its record in its own", async () => {
     const { handOffs } = await fork();
-    const dir = taskDir(forkId(handOffs));
+    const id = forkId(handOffs);
+    expect(workDir(id)).toBe(taskDir(context.chatId));
     await expect(
-      fs.readFile(path.join(dir, "attachments", "list.csv"), "utf8"),
+      fs.readFile(path.join(workDir(id), "attachments", "list.csv"), "utf8"),
     ).resolves.toBe("a,b\n");
-    await expect(fs.stat(path.join(dir, "tasks"))).rejects.toThrow();
+    expect(await fs.readdir(taskDir(id))).toEqual([".instrument"]);
+  });
+
+  it("is what `task new` runs, and --fresh is not", async () => {
+    const asNew = subcommandRunner(forkSubcommand, "task new");
+    const handOffs: HandOff[] = [];
+    await withHandOffs(handOffs, () =>
+      asNew(
+        ["--name", "Rename photos"],
+        context,
+        encodeUtf8ToBytes(`Batch ${counter}: rename them.`),
+      ),
+    );
+    expect((await getTaskSettings(taskDir(forkId(handOffs))))?.fork).toBe(true);
+  });
+
+  it("sends the chat's request as the prefix of its first one", async () => {
+    const { handOffs } = await fork();
+    const id = forkId(handOffs);
+    const start = sent.events.find(
+      (event): event is { type: "createSession"; value: { message: never } } =>
+        typeof event === "object" &&
+        event !== null &&
+        "type" in event &&
+        event.type === "createSession",
+    );
+    const sessionId = (await Store.getSessions(id))._unsafeUnwrap()[0]?.id;
+    if (!start || !sessionId) {
+      throw new Error("the fork did not start");
+    }
+    // The session machine saves the directive before the first request.
+    (await Store.saveMessageWithParts(start.value.message, id))._unsafeUnwrap();
+
+    const model = createMockAIGatewayModel();
+    const request = async (taskId: TaskId, session: StoreId.Session) =>
+      (
+        await prepareModelMessages({
+          agent: oneAgent,
+          model,
+          sessionId: session,
+          signal: new AbortController().signal,
+          taskId,
+        })
+      )
+        ._unsafeUnwrap()
+        // Where the cache breakpoints sit moves with the newest message, and
+        // is a request option rather than bytes of the prefix.
+        .map(({ providerOptions: _options, ...message }) => message);
+    const chat = await request(context.chatId, chatSessionId);
+    const forked = await request(id, sessionId);
+
+    // System prompt, the ask, the `ls` call and its result, and the line.
+    expect(chat.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+    expect(forked.slice(0, chat.length)).toEqual(chat);
+    expect(forked).toHaveLength(chat.length + 1);
+    expect(JSON.stringify(forked.at(-1))).toContain(
+      "Everything above is background context, not your assignment",
+    );
   });
 
   it("refuses without the one agent", async () => {
-    oneAgent = false;
+    oneAgentOn = false;
     await expect(fork()).rejects.toThrow(/not available/);
   });
 });

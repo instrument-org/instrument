@@ -94,6 +94,7 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   context_ring: "c",
   external_browser: "x",
   one_agent: "o",
+  one_agent_foreground: "f",
 };
 
 const FEATURE_NAMES = Object.keys(FEATURE_CODES) as FeatureName[];

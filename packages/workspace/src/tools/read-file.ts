@@ -45,12 +45,12 @@ import {
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { chatSpokenFor, ONE_AGENT_NAME, toolFolders } from "../lib/one-agent";
+import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -507,7 +507,7 @@ export const ReadFile = setupTool({
         (agentName === ONE_AGENT_NAME && chatId !== undefined),
       attachedFolders: await toolFolders(agentName, taskId, taskState),
       extraMounts: chatId ? await childTaskMounts(chatId) : undefined,
-      taskHostRoot: taskDir(taskId),
+      taskHostRoot: workDir(taskId),
     });
     const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
@@ -542,7 +542,7 @@ export const ReadFile = setupTool({
           // The private dir is masked from the shell too, so listing it here
           // would advertise a path every read of it rejects.
           exclude:
-            path.resolve(absolutePath) === path.resolve(taskDir(taskId))
+            path.resolve(absolutePath) === path.resolve(workDir(taskId))
               ? [TASK_FOLDER_NAMES.private]
               : undefined,
           hidden: true,
@@ -621,7 +621,7 @@ export const ReadFile = setupTool({
         // dir into the file; keep it out of the model context and the persisted
         // tool result. Task-dir only: a home path in file contents can be
         // legitimate, so redacting it risks mangling a path the agent edits.
-        content: redactTaskDir(rawContent, taskDir(taskId)),
+        content: redactTaskDir(rawContent, workDir(taskId)),
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,

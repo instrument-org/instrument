@@ -3,9 +3,9 @@ import { execa } from "execa";
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { filterShellOutput } from "./filter-shell-output";
-import { taskDir } from "./task-dir-utils";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import { workDir } from "./work-dir";
 
 export async function runUvCommand({
   args,
@@ -36,7 +36,7 @@ export async function runUvCommand({
       result.all ||
         result.shortMessage ||
         "uv failed without diagnostic output.",
-      buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) }),
+      buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) }),
     ),
     exitCode: result.exitCode ?? 1,
     stdout: result.stdout,

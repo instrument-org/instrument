@@ -4,8 +4,8 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { commandLineToolsEnv } from "./command-line-tools-env";
-import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workDir } from "./work-dir";
 
 // Per-task virtualenv, at the task root so it ships with the task and stays
 // isolated from other tasks. The root is also the agent's working directory,
@@ -28,7 +28,7 @@ export function getUvBinPath(): AbsolutePath {
 
 /** Absolute path to the task's virtualenv directory (`.venv`). */
 export function taskVenvDir(taskId: TaskId): AbsolutePath {
-  return absolutePathJoin(taskDir(taskId), VENV_DIR_NAME);
+  return absolutePathJoin(workDir(taskId), VENV_DIR_NAME);
 }
 
 /**

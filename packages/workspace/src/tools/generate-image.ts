@@ -22,7 +22,6 @@ import {
   resolveExistingFilePath,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
@@ -35,6 +34,7 @@ import {
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";
+import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   allowOverwrite: "allowOverwrite",
@@ -156,7 +156,7 @@ export const GenerateImage = setupTool({
   }) {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: await toolFolders(agentName, taskId, taskState),
-      taskHostRoot: taskDir(taskId),
+      taskHostRoot: workDir(taskId),
     });
     const filePathResult = resolveWritableToolPath({
       inputPath: input.filePath,
@@ -190,7 +190,7 @@ export const GenerateImage = setupTool({
     );
     let renamedToAvoidOverwrite = false;
     if (!input.allowOverwrite) {
-      const dirAbsolute = absolutePathJoin(taskDir(taskId), parsedPath.dir);
+      const dirAbsolute = absolutePathJoin(workDir(taskId), parsedPath.dir);
       // Match on name without extension: the output extension is model-derived,
       // so a prior foo.jpg must block a new foo.png.
       const existingNames = await readExistingBaseNames(dirAbsolute);
@@ -262,7 +262,7 @@ export const GenerateImage = setupTool({
               ? `${pathWithoutExt}-${index + 1}.${ext}`
               : `${pathWithoutExt}.${ext}`;
 
-          const absolutePath = absolutePathJoin(taskDir(taskId), filename);
+          const absolutePath = absolutePathJoin(workDir(taskId), filename);
           const imageBuffer = Buffer.from(image.base64, "base64");
 
           await writeFileWithDir(absolutePath, imageBuffer, { signal });

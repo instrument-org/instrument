@@ -6,7 +6,6 @@ import { type TaskId } from "../../schemas/task-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -20,6 +19,7 @@ import {
   stringArray,
   subprocessStdin,
 } from "./utils";
+import { workDir } from "../work-dir";
 
 // Unrecognized flags are forwarded to node as-is; these are refused instead,
 // because they park the process on a debugger or a file watcher that nothing
@@ -38,7 +38,7 @@ function execNode(
 ) {
   return execShim(process.execPath, args, {
     cancelSignal: signal,
-    cwd: cwd ?? taskDir(taskId),
+    cwd: cwd ?? workDir(taskId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,

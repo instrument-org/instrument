@@ -3,8 +3,8 @@ import path from "node:path";
 
 import { type TaskId } from "../schemas/task-id";
 import { runUvCommand } from "./run-uv";
-import { taskDir } from "./task-dir-utils";
 import { MANAGED_PYTHON_VERSION, taskVenvDir, taskVenvPython } from "./uv";
+import { workDir } from "./work-dir";
 
 export interface TaskVenvError {
   exitCode: number;
@@ -116,7 +116,7 @@ function runUvVenv(taskId: TaskId): Promise<TaskVenvError | undefined> {
       MANAGED_PYTHON_VERSION,
       taskVenvDir(taskId),
     ],
-    cwd: taskDir(taskId),
+    cwd: workDir(taskId),
     taskId,
   })
     .then((result) =>

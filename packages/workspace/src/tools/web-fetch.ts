@@ -11,7 +11,6 @@ import { absolutePathJoin } from "../lib/absolute-path-join";
 import { boundaryContainmentNote, boundContent } from "../lib/content-boundary";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
-import { taskDir } from "../lib/task-dir-utils";
 import {
   isWorkspaceServerUrl,
   workspaceServerRefusal,
@@ -25,6 +24,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
+import { workDir } from "../lib/work-dir";
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 // Converted pages can run to hundreds of thousands of characters (a single
@@ -161,7 +161,7 @@ export const WebFetch = setupTool({
           path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.txt`),
         );
         const absoluteSpillPath = absolutePathJoin(
-          taskDir(taskId),
+          workDir(taskId),
           spillFilePath,
         );
         await fs.mkdir(path.dirname(absoluteSpillPath), { recursive: true });

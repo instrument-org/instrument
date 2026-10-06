@@ -31,6 +31,7 @@ import { setTaskState } from "./task-record";
 import { resolveChat } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
+import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
@@ -156,7 +157,7 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: taskDir(taskId),
+      dir: workDir(taskId),
       files,
       folders,
       messageId,

@@ -169,6 +169,13 @@ export interface WorkspaceAppsConfig {
   };
 }
 
+/**
+ * How a chat runs under the `one_agent` flag: `fork` does quick work itself
+ * and forks slow work to the background; `foreground` does everything itself,
+ * with no background at all.
+ */
+export type OneAgentMode = "fork" | "foreground";
+
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
@@ -198,15 +205,15 @@ export interface WorkspaceConfig {
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
-  /**
-   * The `one_agent` feature flag: a chat runs the merged agent
-   * (`agents/one.ts`), which works itself and forks to the background,
-   * instead of the delegating one. Read per session spawn, like the browser
-   * flag. Absent is off.
-   */
-  isOneAgentEnabled?: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
+  /**
+   * The `one_agent` feature flag and its variant: a chat runs the merged agent
+   * (`agents/one.ts`), which works itself and, in `fork`, forks slow work to
+   * the background, or, in `foreground`, does all of it in the chat. Read per
+   * session spawn, like the browser flag. Absent is off.
+   */
+  oneAgentMode?: () => OneAgentMode | undefined;
   pnpmBinPath: AbsolutePath;
   // Where the skills the app ships are prepared for use. They cannot run from
   // the bundle -- it is signed, notarized, and replaced wholesale by the updater,

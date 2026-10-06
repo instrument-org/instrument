@@ -27,6 +27,7 @@ import { isWorking } from "../src/lib/chat/activity";
 import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
+import { parseOneAgentMode } from "../src/lib/one-agent";
 import { Store } from "../src/lib/store";
 import { updateTaskSettings } from "../src/lib/task-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
@@ -440,8 +441,9 @@ export async function runEvals(
       ),
       getAIProviderConfigs: () => providerConfigs,
       isExternalBrowserEnabled: () => true,
-      // Arm C of the one-agent comparison: every chat runs `agents/one.ts`.
-      isOneAgentEnabled: () => process.env.INSTRUMENT_EVAL_ONE_AGENT === "1",
+      // Arms C (`1`) and D (`foreground`) of the one-agent comparison.
+      oneAgentMode: () =>
+        parseOneAgentMode(process.env.INSTRUMENT_EVAL_ONE_AGENT),
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without

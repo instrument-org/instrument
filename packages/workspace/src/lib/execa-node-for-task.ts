@@ -4,8 +4,8 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
 import { gitSubprocessEnv } from "./git";
-import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workDir } from "./work-dir";
 
 export function execaNodeForTask<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
@@ -22,7 +22,7 @@ export function execaNodeForTask<
   };
   return execa(file, arguments_, {
     ...options,
-    cwd: cwd ?? taskDir(taskId),
+    cwd: cwd ?? workDir(taskId),
     env: {
       ...baseEnv,
       // Covers what resolveCommandContext cannot: the user's own app processes

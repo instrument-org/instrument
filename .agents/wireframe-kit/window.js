@@ -341,7 +341,7 @@ const chatTile = (t, { on = false, icon = "" } = {}) => `
     <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}">${
       icon
         ? `<div class="grid h-full place-items-center">${icon}</div>`
-        : `<div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div><span class="absolute bottom-1 left-1 grid size-5 place-items-center rounded-md bg-white shadow-xs ring-1 ring-black/5">${tabMark(t, "size-3 text-[6px]")}</span>`
+        : `<div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div><span class="absolute bottom-1 left-1 grid size-4 place-items-center rounded-sm bg-white/85">${tabMark(t, "size-3 text-[6px]")}</span>`
     }</div>
     <span class="truncate px-0.5 text-[11px] leading-4 ${t.agent ? "text-brand-600" : "text-muted-foreground"}">${tabTitle(t)}</span>
   </div>`;

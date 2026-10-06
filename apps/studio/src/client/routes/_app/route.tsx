@@ -265,6 +265,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         // brought back, so the chat and its tabs can have
                         // the window.
                         leading={<InboxToggle isCollapsible={showsRightArea} />}
+                        // An archived chat is put away, so it leaves the
+                        // side beside the list with it.
+                        onArchived={leaveChat}
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.

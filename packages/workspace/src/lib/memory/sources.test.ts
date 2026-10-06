@@ -72,23 +72,16 @@ describe("listMemorySources", () => {
     expect(await listMemorySources(home)).toEqual([]);
   });
 
-  it("finds Windsurf by its memories folder", async () => {
-    await install(".codeium", "windsurf", "memories", "global_rules.md");
-
-    const found = await listMemorySources(home);
-    expect(found.map((source) => source.home)).toEqual(["~/.codeium/windsurf"]);
-  });
-
   it("lists several, in the order it knows them", async () => {
     await install(".codex", "AGENTS.md");
     await install(".claude", "CLAUDE.md");
-    await install(".cursor", "rules");
+    await install(".gemini", "GEMINI.md");
 
     const found = await listMemorySources(home);
     expect(found.map((source) => source.name)).toEqual([
       "Claude Code",
       "Codex",
-      "Cursor",
+      "Gemini CLI",
     ]);
   });
 });

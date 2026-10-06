@@ -69,25 +69,10 @@ const KNOWN: KnownSource[] = [
     site: "https://gemini.google.com",
   },
   {
-    markers: [["rules"]],
-    name: "Cursor",
-    segments: [".cursor"],
-    site: "https://cursor.com",
-  },
-  {
     markers: [["AGENTS.md"]],
     name: "opencode",
     segments: [".config", "opencode"],
     site: "https://opencode.ai",
-  },
-  {
-    markers: [
-      ["memories", "global_rules.md"],
-      ["memories", "*"],
-    ],
-    name: "Windsurf",
-    segments: [".codeium", "windsurf"],
-    site: "https://windsurf.com",
   },
 ];
 

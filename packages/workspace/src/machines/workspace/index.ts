@@ -470,6 +470,7 @@ export const workspaceMachine = setup({
           const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
             interrupt: event.value.interrupt,
+            model: event.value.model,
             saved: event.value.saved,
             type: "addMessage",
             value: event.value.message,

@@ -395,7 +395,7 @@ function FittedPicture({
         onError={onError}
         src={src}
       />
-      <span className="absolute bottom-1 left-1 grid size-5 place-items-center rounded-md bg-background shadow-xs ring-1 ring-border/70 [&_img]:size-3 [&_svg]:size-3">
+      <span className="pointer-events-none absolute bottom-1 left-1 grid size-4 place-items-center rounded-sm bg-background/85 [&_img]:size-3 [&_svg]:size-3">
         {mark}
       </span>
     </>

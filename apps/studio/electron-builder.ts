@@ -1,6 +1,5 @@
 import {
   APP_BUNDLE_ID,
-  APP_DOMAIN,
   APP_EXECUTABLE,
   APP_NAME,
   APP_PREVIEW_NAME,
@@ -208,14 +207,13 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: true,
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
-    category: "Utility",
+    category: "Office",
     executableName: APP_EXECUTABLE,
     icon: "build/icons",
-    maintainer: APP_DOMAIN,
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
-    category: "public.app-category.developer-tools",
+    category: "public.app-category.productivity",
     // Split deliberately. The app's own entitlements carry what the
     // provisioning profile grants; the helpers get the hardened-runtime keys
     // and nothing else. Naming only entitlementsInherit once left both

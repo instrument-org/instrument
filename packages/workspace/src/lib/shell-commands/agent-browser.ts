@@ -424,9 +424,28 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
- * Resolve virtual absolute paths for native agent-browser, then validate and
- * bridge every file operand of `upload`. CDP reports success for missing files,
- * so the wrapper must fail before handing them to the browser process.
+ * Subcommands whose operands include a file the browser process reads or
+ * writes. Every other subcommand's operands are text the page receives as
+ * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
+ * leading `/` is a comment, a regex or a slash command, never a path.
+ */
+const FILE_OPERAND_SUBCOMMANDS = new Set([
+  "diff",
+  "download",
+  "network",
+  "pdf",
+  "profiler",
+  "record",
+  "screenshot",
+  "trace",
+  "upload",
+]);
+
+/**
+ * Resolve virtual absolute paths in global flag values and in the operands of
+ * subcommands that take a file, then validate and bridge every file operand of
+ * `upload`. CDP reports success for missing files, so the wrapper must fail
+ * before handing them to the browser process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
@@ -439,8 +458,17 @@ export async function resolveAgentBrowserPathArgs(
     };
   },
 ): Promise<{ args: string[] } | { error: string }> {
-  const resolved = resolvePathArgs(args, taskId, ctx);
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const textOperands = new Set(
+    subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
+      ? subArgs.slice(1).map(({ index }) => index)
+      : [],
+  );
+  const resolved = args.map((arg, index) =>
+    textOperands.has(index)
+      ? arg
+      : (resolvePathArgs([arg], taskId, ctx)[0] ?? arg),
+  );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
@@ -689,8 +717,6 @@ export function createAgentBrowserCommand({
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const layout = await taskFsLayout(taskId);
-    // Before resolvePathArgs, which would otherwise turn a `/task/...`
-    // navigation target into a quarantined host path.
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
       layout,

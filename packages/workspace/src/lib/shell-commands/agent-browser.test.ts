@@ -380,6 +380,37 @@ describe("resolveAgentBrowserPathArgs", () => {
       args: ["fill", "@e1", "attachments/image.png"],
     });
   });
+
+  it.each([
+    {
+      args: ["eval", "// a comment\n(() => /a\\/b/.test('a/b'))()"],
+      name: "an eval script opening with a comment",
+    },
+    { args: ["fill", "@e1", "/help"], name: "a fill value opening with /" },
+    {
+      args: ["wait", "--fn", "/ready/.test(document.title)"],
+      name: "a wait function opening with a regex",
+    },
+  ])("passes $name through as typed", async ({ args }) => {
+    const result = await resolveAgentBrowserPathArgs(args, taskId, {
+      cwd: "/task",
+      fs,
+    });
+
+    expect(result).toEqual({ args });
+  });
+
+  it("resolves a screenshot path given as a /task path", async () => {
+    const result = await resolveAgentBrowserPathArgs(
+      ["screenshot", "/task/work/page.png"],
+      taskId,
+      { cwd: "/task", fs },
+    );
+
+    expect(result).toEqual({
+      args: ["screenshot", `${taskDirPath}/work/page.png`],
+    });
+  });
 });
 
 describe("agent-browser routing", () => {

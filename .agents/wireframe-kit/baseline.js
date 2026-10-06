@@ -5,9 +5,9 @@
 
 const META = {
   title: "Kit baseline: every surface as built",
-  line: "What the wireframe kit draws without being asked to change anything: the window's places, the chat and its pane, the floating chat, onboarding, and the Mac and the web around the app.",
+  line: "Everything the wireframe kit draws as the app ships today, from the window's places, the chat and the floating chat to onboarding and the Mac and web around the app.",
   source:
-    "Window frames from window.js, measured off the running app on the documents fixture. Desktop, menu bar, notification, Finder and website frames from mac.js are drawn from macOS and a generic browser, not measured.",
+    "We drew the window frames with window.js, which we measured from the running app on the documents fixture. The desktop, menu bar, notification, Finder and website frames come from mac.js, which we drew from macOS and a generic browser without measuring.",
   slotH: 300,
 };
 
@@ -15,13 +15,13 @@ const D = { w: DESKTOP.w, h: DESKTOP.h };
 
 const states = [
   {
-    title: "Chat with nothing open",
-    note: "Where the window lands: the rail, the inbox, and the empty state. There is no Home page.",
+    title: "Empty chat",
+    note: "The window opens here, with the rail, the inbox and an empty chat, and there's no Home page.",
     body: appWindow(),
   },
   {
-    title: "The inbox in Drafts",
-    note: "The Drafts place lit beside a plain Chats mark, each draft a row with a dashed circle in its gutter and Draft where a chat's latest line goes.",
+    title: "Drafts",
+    note: "In Drafts we light the Drafts icon and leave the Chats icon plain. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message.",
     body: appWindow({
       body:
         inboxCol({
@@ -33,8 +33,8 @@ const states = [
     }),
   },
   {
-    title: "A chat at work",
-    note: "The Lisbon thread running: its work in flight at the header's right, the newest step shimmering, pressed for the chat's tasks.",
+    title: "Chat running",
+    note: "While the Lisbon chat runs, we show its newest step shimmering at the right of the header, and pressing it lists the chat's tasks.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
@@ -43,8 +43,8 @@ const states = [
     }),
   },
   {
-    title: "A chat with its pane",
-    note: "The chat's tiles in a row over its reply box, the one shown ringed; the pane flush beside the chat, its location row ending in the × that puts it away.",
+    title: "Chat with pane",
+    note: "The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane. The pane sits right beside the chat, and the × at the end of its location row closes it.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
@@ -65,7 +65,7 @@ const states = [
   },
   {
     title: "Files",
-    note: "The Finder as Files' first tab, under its location row.",
+    note: "Files opens the Finder as its first tab, under the location row.",
     body: appWindow({
       on: "files",
       bar: winBar({
@@ -80,7 +80,7 @@ const states = [
   },
   {
     title: "Browser",
-    note: "A website as a window tab, filling the card.",
+    note: "A website opens as a window tab and fills the card.",
     body: appWindow({
       on: "browser",
       bar: winBar({ tabs: [{ chats: true }, { site: "booking" }], active: 1 }),
@@ -89,7 +89,7 @@ const states = [
   },
   {
     title: "Floating chat",
-    note: "The small view over whatever place is up, 420 wide at the bottom right.",
+    note: "The floating chat sits 420 pixels wide at the bottom right, over whichever place is open.",
     body: appWindow({
       on: "files",
       bar: winBar({
@@ -104,8 +104,8 @@ const states = [
     }),
   },
   {
-    title: "Floating chat peeking at a tile",
-    note: "A tile pressed in the small view opens in a card over the conversation, the tile ringed; Expand grows the window with it up, × puts it down.",
+    title: "Floating chat with tile preview",
+    note: "Pressing a tile in the floating chat opens it in a card over the conversation and rings the tile. Expand makes the window bigger with the tile still open, and × closes the card.",
     body: appWindow({
       on: "files",
       bar: winBar({
@@ -121,7 +121,7 @@ const states = [
   },
   {
     title: "Draft",
-    note: "A new chat's compose window docked at the bottom right: the model and the arrow in its head, the words, then the band with the ways in.",
+    note: "A new chat opens a compose window docked at the bottom right. The model picker and send button are in its header, and below the text we offer Browser, This Mac and Apps, plus a place to drop files.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body: inboxCol({ on: 0 }) + thread(),
@@ -129,8 +129,8 @@ const states = [
     }),
   },
   {
-    title: "Reply box and its plus menu",
-    note: "The reply box opened up with a model notice leading it, and the plus menu, where the reply box offers the model.",
+    title: "Reply box with plus menu",
+    note: "When the chosen model has a problem, the open reply box leads with a notice about it, and the plus menu is where you pick another model.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
@@ -145,7 +145,7 @@ const states = [
   },
   {
     title: "Menu and sheet",
-    note: "The two overlays the window uses: a popover menu and a sheet over a dimmed window.",
+    note: "The window uses two kinds of overlay, a popover menu and a sheet over the dimmed window.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body: inboxCol({ on: 0 }) + thread(),
@@ -166,15 +166,15 @@ const states = [
     }),
   },
   {
-    title: "Onboarding: sign in",
-    note: "Onboarding's own 480x600 window, the sign-in step as built.",
+    title: "Onboarding sign-in",
+    note: "Onboarding runs in its own 480x600 window, and this is the sign-in step as it ships.",
     w: 480,
     h: 600,
     body: onboardWin({ body: onboardLogin() }),
   },
   {
-    title: "On the desktop",
-    note: "The window at 80% on the Mac, with the menu bar and the Dock around it.",
+    title: "Desktop",
+    note: "We show the window at 80% on a Mac, with the menu bar and the Dock around it.",
     ...D,
     body: macDesktop({
       windows: placed(
@@ -188,7 +188,7 @@ const states = [
   },
   {
     title: "Menu bar extra",
-    note: "Instrument's glyph among the status items, its panel open while another app is in front.",
+    note: "Instrument's icon sits with the other status items in the menu bar, and its panel stays open while another app is in front.",
     ...D,
     body: macDesktop({
       bar: menuBar({
@@ -211,7 +211,7 @@ const states = [
   },
   {
     title: "Notification",
-    note: "A banner from Instrument over another app.",
+    note: "Instrument's notifications show up as a banner over whatever app is in front.",
     ...D,
     body: macDesktop({
       bar: menuBar({
@@ -233,7 +233,7 @@ const states = [
   },
   {
     title: "Finder context menu",
-    note: "A right click on the user's own file, in the Mac's menu, not Studio's.",
+    note: "Right-clicking one of the user's own files opens the Mac's menu, so we draw macOS here rather than Studio.",
     ...D,
     body: macDesktop({
       bar: menuBar({
@@ -267,8 +267,8 @@ const states = [
     }),
   },
   {
-    title: "The website",
-    note: "Someone else's browser, for the first thing people see before installing.",
+    title: "Website",
+    note: "This is the first thing people see before they install, in their own browser.",
     ...D,
     body: macDesktop({
       bar: menuBar({

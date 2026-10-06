@@ -1,5 +1,7 @@
 # web_fetch blocks private addresses to match the sandbox
 
+> Superseded by [2026-10-06-curl-and-web-fetch-reach-the-local-network.md](2026-10-06-curl-and-web-fetch-reach-the-local-network.md): `curl` and `web_fetch` reach the local network, and refuse only Instrument's own workspace server. `lib/private-address.ts` was deleted with it.
+
 ## Context
 
 `web_fetch` is a new tool that fetches an arbitrary http(s) URL and pipes the result into the model's context. Unlike the agent's other HTTP path -- `curl`, which runs inside the just-bash sandbox -- `web_fetch` executes in the Electron main process with no sandbox around it.

@@ -191,7 +191,8 @@ export function useCompose(width: number) {
   const setChrome = (key: string, slots: PageChromeSlots | undefined) => {
     setChromeById((current) =>
       current[key]?.into === slots?.into &&
-      current[key]?.reloadInto === slots?.reloadInto
+      current[key]?.reloadInto === slots?.reloadInto &&
+      current[key]?.fieldInto === slots?.fieldInto
         ? current
         : { ...current, [key]: slots },
     );
@@ -203,7 +204,8 @@ export function useCompose(width: number) {
       return was?.tabId === peek?.tabId &&
         was?.into === peek?.into &&
         was?.chrome?.into === peek?.chrome?.into &&
-        was?.chrome?.reloadInto === peek?.chrome?.reloadInto
+        was?.chrome?.reloadInto === peek?.chrome?.reloadInto &&
+        was?.chrome?.fieldInto === peek?.chrome?.fieldInto
         ? current
         : { ...current, [key]: peek };
     });

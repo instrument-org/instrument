@@ -71,8 +71,6 @@ const create = base
        * alongside `sessionId`, which names a session that already exists.
        */
       newSessionId: StoreId.SessionSchema.optional(),
-      /** The kind of page the user asked to receive the response as. */
-      output: SessionMessageDataPart.OutputFormatDataPartSchema.optional(),
       prompt: z.string(),
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
@@ -94,7 +92,6 @@ const create = base
         id,
         modelURI,
         newSessionId,
-        output,
         prompt,
         replyTo,
         sessionId,
@@ -169,7 +166,6 @@ const create = base
           folders,
           model,
           modelURI,
-          output,
           prompt,
           replyTo,
           sessionId: finalSessionId,

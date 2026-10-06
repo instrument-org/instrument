@@ -104,8 +104,8 @@ export type ScreenPlacement =
 /**
  * Where a screen opens (a chat, a memory, a skill and a chat's tasks are
  * placed before this): a window tab of its own when asked; the window's tab
- * up for an app and for any screen no group's tab stands on (Discover, the
- * release notes); into a group other than the one on screen, waiting there;
+ * up for an app and for any screen no group's tab stands on (the release
+ * notes); into a group other than the one on screen, waiting there;
  * the window's tab up outside a chat; otherwise in the chat on screen, where
  * the tab up goes there, or a tab of its own opens, or one opens with
  * nothing up.

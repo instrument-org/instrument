@@ -9,7 +9,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
-import { addressAppsById, createOsascriptCommand } from "./osascript";
+import {
+  addressAppsById,
+  createOsascriptCommand,
+  worksAppWindows,
+} from "./osascript";
 import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
@@ -160,6 +164,51 @@ describe("osascriptCommand", () => {
     );
 
     expect(result.exitCode).toBe(1);
+  });
+
+  it.each([
+    // Taken from the Raycast tasks that clicked through Settings for minutes.
+    'tell application "System Events" to tell process "Raycast" to click menu item "Settings…" of menu 1 of menu bar item 1 of menu bar 2',
+    'tell application "System Events" to tell process "Raycast" to get entire contents of window "Settings"',
+    'tell application "System Events" to tell process "Raycast" to perform action "AXPress" of button 1 of group 8',
+    'tell application "System Events" to keystroke "v" using command down',
+    'tell application "System Events" to key code 36',
+    'Application("System Events").processes.byName("Raycast").windows[0].buttons[0].click()',
+    'Application("System Events").keystroke("snippets")',
+  ])("treats %j as working an app's windows", (code) => {
+    expect(worksAppWindows(code)).toBe(true);
+  });
+
+  it.each([
+    'tell application "Reminders" to make new reminder with properties {name:"Call Sam"}',
+    'tell application "System Events" to get name of every process',
+    'tell application "System Events" to exists process "Raycast"',
+    'tell application "System Events" to get name of every login item',
+    'tell application "Finder" to get name of every window',
+    'display dialog "Click OK to keep going"',
+  ])("lets %j run", (code) => {
+    expect(worksAppWindows(code)).toBe(false);
+  });
+
+  it("refuses a script that works an app's windows, inline, piped, or from a file", async () => {
+    const script =
+      'tell application "System Events" to tell process "Raycast" to click button 1 of window 1';
+    const fs = new InMemoryFs();
+    await fs.writeFile("/task/work/drive.applescript", script);
+
+    const results = [
+      await command.execute(["-e", script], mockCtx),
+      await command.execute(["-"], {
+        ...mockCtx,
+        stdin: encodeUtf8ToBytes(script),
+      }),
+      await command.execute(["work/drive.applescript"], { ...mockCtx, fs }),
+    ];
+
+    const { execa } = await import("execa");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+    expect(results.map((result) => result.exitCode)).toEqual([1, 1, 1]);
+    expect(results[0]?.stderr).toContain("import or config file");
   });
 
   it("refuses a script file on a mount it cannot reach", async () => {

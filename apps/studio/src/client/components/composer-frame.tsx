@@ -27,6 +27,7 @@ export function ComposerFrame({
   layout = "block",
   leading,
   maxHeight,
+  notice,
   onBlur,
   onFocus,
   overlay,
@@ -62,6 +63,12 @@ export function ComposerFrame({
   leading?: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. */
   maxHeight: number;
+  /**
+   * One row about the chosen model, over everything else: a newer release on
+   * offer, or a problem to fix before sending. The same row in every layout,
+   * so a pill and a draft say it in one place and one way.
+   */
+  notice?: React.ReactNode;
   /** Focus entering and leaving the pill, for what it shows only while open. */
   onBlur?: React.FocusEventHandler<HTMLDivElement>;
   onFocus?: React.FocusEventHandler<HTMLDivElement>;
@@ -88,6 +95,20 @@ export function ComposerFrame({
       >
         {overlay}
         <AnimatePresence initial={false}>
+          {notice ? (
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="overflow-hidden"
+              exit={{ height: 0, opacity: 0 }}
+              initial={{ height: 0, opacity: 0 }}
+              key="notice"
+              transition={BLOCK_OPEN}
+            >
+              <div className="px-0.5 pb-1.5" data-slot="composer-notice">
+                {notice}
+              </div>
+            </motion.div>
+          ) : null}
           {extras ? (
             <motion.div
               animate={{ height: "auto", opacity: 1 }}
@@ -196,28 +217,48 @@ export function ComposerFrame({
           The row opens the box rather than appearing inside it, so what was
           attached is read as arriving. `initial={false}`: a draft restored with
           files already had them. */}
-      <AnimatePresence initial={false}>
-        {attachments && (
-          // The negative margin carries the clip out past the chips, so the
-          // remove buttons that sit outside them survive both it and the
-          // scroller's own.
-          <motion.div
-            animate={{ height: "auto", opacity: 1 }}
-            className="row-start-1 -mx-2 -mt-2 mb-2 overflow-hidden"
-            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-            initial={{ height: 0, opacity: 0 }}
-            key="attachments"
-            transition={BLOCK_OPEN}
-          >
-            <div
-              className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"
-              data-slot="composer-attachments"
+      {/* The notice and what is attached share the first row, stacked. The row
+          clips, as the attachments did when they were the row themselves, so
+          a long list of files gives way under the cap; the notice is one line
+          and keeps its height. */}
+      <div className="row-start-1 flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <AnimatePresence initial={false}>
+          {notice && (
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="shrink-0 overflow-hidden"
+              exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+              initial={{ height: 0, opacity: 0 }}
+              key="notice"
+              transition={BLOCK_OPEN}
             >
-              {attachments}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div className="pb-2" data-slot="composer-notice">
+                {notice}
+              </div>
+            </motion.div>
+          )}
+          {attachments && (
+            // The negative margin carries the clip out past the chips, so the
+            // remove buttons that sit outside them survive both it and the
+            // scroller's own.
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="-mx-2 -mt-2 mb-2 min-h-0 overflow-hidden"
+              exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+              initial={{ height: 0, opacity: 0 }}
+              key="attachments"
+              transition={BLOCK_OPEN}
+            >
+              <div
+                className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"
+                data-slot="composer-attachments"
+              >
+                {attachments}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* `min-w-0`: a grid item is floored at the width of its own content,
           and a pasted link is one word as wide as a paragraph. Without this the

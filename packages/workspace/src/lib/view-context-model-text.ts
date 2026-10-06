@@ -1,6 +1,5 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_COMMAND } from "./shell-commands/app-command";
-import { SKILL_NAMES } from "./skill-names";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
@@ -168,16 +167,6 @@ function screenNote(data: ViewContext) {
     case "home": {
       return systemNote`
         When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
-      `;
-    }
-    case "discover": {
-      if (data.idea) {
-        return systemNote`
-          When the user sent this, the window showed the Discover screen open on one kind of page, "${data.idea.title}": ${data.idea.tagline} It is the \`${data.idea.name}\` template of the \`${SKILL_NAMES.createPage}\` skill. "This", "one of these", "this kind of page" and "like this" refer to it: a page they ask for here is made with that skill and that template, and a brief for it names both.
-        `;
-      }
-      return systemNote`
-        When the user sent this, the window showed the Discover screen: the kinds of page Instrument can make, each a template of the \`${SKILL_NAMES.createPage}\` skill, with examples of each. Nothing in particular is in view unless they name one.
       `;
     }
     case "skills": {

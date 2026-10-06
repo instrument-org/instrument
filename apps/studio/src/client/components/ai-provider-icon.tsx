@@ -37,6 +37,15 @@ import {
   SiVercel,
 } from "react-icons/si";
 
+/**
+ * The glyph cropped to what it draws. Its own box leaves a quarter of itself
+ * empty around the mark, which beside other providers' marks, drawn edge to
+ * edge, made Instrument read a size smaller in every list of providers.
+ */
+function InstrumentProviderGlyph({ className }: { className?: string }) {
+  return <BrandIconGlyph className={className} viewBox="71 71 380 380" />;
+}
+
 const PROVIDER_ICON_MAP: Record<
   AIProviderType,
   ComponentType<{ className?: string }> | null
@@ -63,7 +72,7 @@ const PROVIDER_ICON_MAP: Record<
   "opencode-go": OpenCode,
   "opencode-zen": OpenCode,
   openrouter: OpenRouter,
-  [OUR_MODELS.providerType]: BrandIconGlyph,
+  [OUR_MODELS.providerType]: InstrumentProviderGlyph,
   perplexity: Perplexity,
   together: Together,
   vercel: SiVercel,

@@ -78,13 +78,16 @@ export function GroupItem({
   // in the pane beside a chat, rather than into a bar of the page's own.
   const [reloadSlot, setReloadSlot] = useState<HTMLDivElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
+  const [fieldSlot, setFieldSlot] = useState<HTMLDivElement | null>(null);
   const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
   useEffect(() => {
     onPageChromeEvent(
-      isPage ? { into: controlsSlot, reloadInto: reloadSlot } : undefined,
+      isPage
+        ? { fieldInto: fieldSlot, into: controlsSlot, reloadInto: reloadSlot }
+        : undefined,
     );
-  }, [isPage, controlsSlot, reloadSlot]);
+  }, [isPage, controlsSlot, fieldSlot, reloadSlot]);
   useEffect(
     () => () => {
       onPageChromeEvent(undefined);
@@ -150,6 +153,12 @@ export function GroupItem({
         }}
         {...(up.kind === "page"
           ? {
+              fieldEnd: (
+                <div
+                  className="flex shrink-0 items-center empty:hidden"
+                  ref={setFieldSlot}
+                />
+              ),
               reload: (
                 <div
                   className="flex shrink-0 items-center empty:hidden"

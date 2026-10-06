@@ -44,6 +44,9 @@ criticals = "criticals"
 ect = "ect"
 # A command line truncated for display in a UI mockup (`-loglevel erro...`).
 erro = "erro"
+# A regex stem matching both AppleScript's `app` and `application`
+# (`app(?:lication)?`); "corrected" to `location`, it stops matching the latter.
+lication = "lication"
 # A regex stem that has to match both "truncated" and "truncation".
 truncat = "truncat"
 

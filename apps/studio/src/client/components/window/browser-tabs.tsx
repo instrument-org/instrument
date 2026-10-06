@@ -144,6 +144,8 @@ export interface ComposeHost {
 
 /** Where a page's reload and its controls go in an address row drawn over it. */
 export interface PageChromeSlots {
+  /** Inside the address field, at its end: the page's zoom while it is not 100%. */
+  fieldInto: HTMLElement | null;
   into: HTMLElement | null;
   reloadInto: HTMLElement | null;
 }
@@ -241,6 +243,7 @@ interface OpenOptions {
 export function BrowserTabs({
   chromeInto,
   compose,
+  fieldInto,
   onPageChange,
   ref,
   reloadInto,
@@ -249,6 +252,8 @@ export function BrowserTabs({
   chromeInto?: HTMLElement | null;
   /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
   compose?: ComposeHost[];
+  /** The element inside the row's address field that the page's state is drawn into. */
+  fieldInto?: HTMLElement | null;
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
@@ -815,7 +820,11 @@ export function BrowserTabs({
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
-          chrome={{ into: chromeInto ?? null, reloadInto: reloadInto ?? null }}
+          chrome={{
+            fieldInto: fieldInto ?? null,
+            into: chromeInto ?? null,
+            reloadInto: reloadInto ?? null,
+          }}
           // Square and flat, like the pane it fills: a page not drawn yet
           // shows the panel, and a card inset in the pane reads as a frame.
           className="h-full rounded-none shadow-none"

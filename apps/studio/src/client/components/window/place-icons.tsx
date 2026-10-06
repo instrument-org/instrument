@@ -4,7 +4,6 @@ import { isMacOS } from "@/client/lib/utils";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ComponentType } from "react";
 
@@ -22,7 +21,6 @@ const PLACE_ICONS = {
   apps: ShapesIcon,
   browser: GlobeIcon,
   chat: ChatCircleIcon,
-  discover: MapTrifoldIcon,
   files: FilesPlaceIcon,
 } satisfies Record<AppPlace, ComponentType<PlaceIconProps>>;
 

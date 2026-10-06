@@ -53,6 +53,7 @@ vi.mock("@/client/rpc/client", () => ({
           experimental_liveOptions: query("focus", () => null),
         },
       },
+      openExternalLink: { mutationOptions: mutation() },
     },
   },
 }));

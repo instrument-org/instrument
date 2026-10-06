@@ -111,30 +111,41 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      //
+      // Three columns: the field in the middle, held to a width a person
+      // types into rather than one that runs the width of the window, and
+      // the controls either side of it in equal columns, so the field sits
+      // centered under a wide window. The middle column takes the room first
+      // and the sides each keep at least what their controls need, so as the
+      // row narrows the field gives up width, and once the sides cannot be
+      // equal it gives up its center rather than cover a control. The cap is
+      // in rem, so it grows with the window's zoom along with the text.
+      className="@container/tabrow grid h-10 shrink-0 grid-cols-[1fr_minmax(0,40rem)_1fr] items-center gap-1 border-b border-border bg-background px-2"
       data-tab-location=""
       ref={ref}
     >
-      {leading}
-      {onBack && onForward && (
-        <>
-          <TabRowControl
-            chord="back"
-            disabled={!canGoBack}
-            icon={<CaretLeftIcon className="size-4" />}
-            label="Back"
-            onClick={onBack}
-          />
-          <TabRowControl
-            chord="forward"
-            disabled={!canGoForward}
-            icon={<CaretRightIcon className="size-4" />}
-            label="Forward"
-            onClick={onForward}
-          />
-        </>
-      )}
-      {reload}
+      <div className="flex items-center gap-1">
+        {leading}
+        {onBack && onForward && (
+          <>
+            <TabRowControl
+              chord="back"
+              disabled={!canGoBack}
+              icon={<CaretLeftIcon className="size-4" />}
+              label="Back"
+              onClick={onBack}
+            />
+            <TabRowControl
+              chord="forward"
+              disabled={!canGoForward}
+              icon={<CaretRightIcon className="size-4" />}
+              label="Forward"
+              onClick={onForward}
+            />
+          </>
+        )}
+        {reload}
+      </div>
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
         // one of the places you are under goes there, and a press anywhere
@@ -142,7 +153,7 @@ export function TabLocationRow({
         // address bar does.
         <div
           className={cn(
-            "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
+            "group/field relative flex h-7 min-w-0 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
             // The app's icon sits in the field's round end, with room to
             // breathe inside the curve.
             openIn && "pr-2",
@@ -176,31 +187,33 @@ export function TabLocationRow({
           {openIn && <OpenInAppButton target={openIn} />}
         </div>
       )}
-      {trailing}
-      {/* The file up at the size Quick Look gives it, over the window,
+      <div className="flex items-center justify-end gap-1">
+        {trailing}
+        {/* The file up at the size Quick Look gives it, over the window,
         unless the row's own Expand grows what is shown instead. */}
-      {(onExpand ?? lookTarget) && (
-        <TabRowControl
-          disabled={false}
-          icon={<ArrowsOutSimpleIcon className="size-4" />}
-          label="Expand"
-          onClick={() => {
-            if (onExpand) {
-              onExpand();
-            } else if (lookTarget) {
-              setLookAt(lookTarget);
-            }
-          }}
-        />
-      )}
-      {onClose && (
-        <TabRowControl
-          disabled={false}
-          icon={<XIcon className="size-4" />}
-          label="Close"
-          onClick={onClose}
-        />
-      )}
+        {(onExpand ?? lookTarget) && (
+          <TabRowControl
+            disabled={false}
+            icon={<ArrowsOutSimpleIcon className="size-4" />}
+            label="Expand"
+            onClick={() => {
+              if (onExpand) {
+                onExpand();
+              } else if (lookTarget) {
+                setLookAt(lookTarget);
+              }
+            }}
+          />
+        )}
+        {onClose && (
+          <TabRowControl
+            disabled={false}
+            icon={<XIcon className="size-4" />}
+            label="Close"
+            onClick={onClose}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -20,6 +20,19 @@ const states = [
     body: appWindow(),
   },
   {
+    title: "The inbox in Drafts",
+    note: "The Drafts place lit beside a plain Chats mark, each draft a row with a dashed circle in its gutter and Draft where a chat's latest line goes.",
+    body: appWindow({
+      body:
+        inboxCol({
+          drafts: [
+            { title: "Plan a weekend in Porto in November", time: "9:12 AM" },
+            { title: "Compare the three kitchen quotes", time: "Yesterday" },
+          ],
+        }) + noChatOpen(),
+    }),
+  },
+  {
     title: "A chat at work",
     note: "The Lisbon thread running: its work in flight at the header's right, the newest step shimmering, pressed for the chat's tasks.",
     body: appWindow({

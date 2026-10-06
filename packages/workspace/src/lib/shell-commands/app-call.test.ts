@@ -230,7 +230,7 @@ ${use}`,
     const result = await script(`await tools.${slug}.issues();`, scoped);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "at apply (<tools-setup>:13:49): tools.tracker.issues: this task was not handed the app "tracker". Apps it has: notes.
+      "at <stdin>:1:26: tools.tracker.issues: this task was not handed the app "tracker". Apps it has: notes.
       "
     `);
   });

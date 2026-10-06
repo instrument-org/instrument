@@ -585,12 +585,37 @@ export namespace SessionMessageDataPart {
   });
 
   /**
+   * One chip the composer showed over the words as they were sent, which the
+   * transcript draws again over the message: a page, a screen of the app's
+   * (an app's front, a folder by its route), or files and folders by path.
+   * What a chat had up beside it is not one; that tab is the chat's own.
+   */
+  const SentChipSchema = z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("page"), title: z.string(), url: z.string() }),
+    z.object({
+      kind: z.literal("screen"),
+      title: z.string(),
+      url: z.string(),
+    }),
+    z.object({
+      items: z
+        .array(z.object({ kind: z.enum(["file", "folder"]), path: z.string() }))
+        .min(1),
+      kind: z.literal("paths"),
+    }),
+  ]);
+
+  export type SentChip = z.output<typeof SentChipSchema>;
+
+  /**
    * What the window had on screen when the message was sent: which screen,
    * and what was on it. One record for every screen, written by the screen
    * itself, so "this", "here" and "these" in the message can be resolved
    * against what the user was actually looking at and nothing else.
    */
   export const ViewContextDataPartSchema = z.object({
+    /** The chips over the words as they were sent, in their order; for the transcript, not the agent. */
+    attached: z.array(SentChipSchema).optional(),
     /** The app whose page is up on the Apps screen, and where it stands. */
     app: z
       .object({

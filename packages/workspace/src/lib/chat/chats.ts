@@ -1000,6 +1000,13 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
       if (host !== "") {
         sites.push(host);
       }
+      // A page chipped beside the thing in view went with the message too.
+      for (const chip of viewed.attached ?? []) {
+        const chipHost = chip.kind === "page" ? webHostOf(chip.url) : "";
+        if (chipHost !== "" && chipHost !== host) {
+          sites.push(chipHost);
+        }
+      }
     }
   }
   return {

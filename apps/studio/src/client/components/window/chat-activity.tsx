@@ -1,12 +1,11 @@
+import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -22,10 +21,9 @@ type ChatTask = NonNullable<ReturnType<typeof useChatTasks>["data"]>[number];
 
 /**
  * What a chat has in flight, at its head's right: while any task filed from
- * it is at work, a spinner and the step the newest is on in the live
- * shimmer, with how many more run; on a head with no room for the step, the
- * spinner and the count alone. While none runs, a quiet mark and how many
- * tasks the chat has filed. Pressed, it lists the chat's tasks, the running
+ * it is at work, the breathing dot and the step the newest is on in the live
+ * shimmer; on a head with no room for the step, the dot alone. While none
+ * runs, a quiet checklist mark. Pressed, it lists the chat's tasks, the running
  * ones first with each one's step and the finished ones under them with when
  * they ended, and a task pressed opens beside the chat. Nothing at all for a
  * chat that has filed no task.
@@ -52,7 +50,6 @@ export function ChatActivity({
   if (!lead && filed === 0) {
     return null;
   }
-  const others = tasks.length - 1;
   return (
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>
@@ -62,40 +59,24 @@ export function ChatActivity({
             className="flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-xs hover:bg-accent data-[state=open]:bg-accent"
             type="button"
           >
-            <Spinner className="size-3.5 shrink-0" delay={0} />
-            {/* The step needs the head's room: under it, the count alone. */}
+            <PlanningDotIcon />
+            {/* The step needs the head's room: under it, the dot alone. */}
             <span
               className={cn(
-                "hidden min-w-0 items-center gap-1",
+                "hidden min-w-0 items-center",
                 !isCompact && "@lg/head:flex",
               )}
             >
               <WorkLine task={lead} />
-              {others > 0 && (
-                <span className="shrink-0 text-muted-foreground tabular-nums">
-                  +{others}
-                </span>
-              )}
             </span>
-            <span
-              className={cn(
-                "text-muted-foreground tabular-nums",
-                !isCompact && "@lg/head:hidden",
-              )}
-            >
-              {tasks.length}
-            </span>
-            <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
           </button>
         ) : (
           <button
             aria-label={`${filed} ${filed === 1 ? "task" : "tasks"}`}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+            className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
             type="button"
           >
-            <ListChecksIcon className="size-3.5 shrink-0" />
-            <span className="tabular-nums">{filed}</span>
-            <CaretDownIcon className="size-3 shrink-0" />
+            <ListChecksIcon className="size-4 shrink-0" />
           </button>
         )}
       </PopoverTrigger>
@@ -153,7 +134,7 @@ function TaskRows({
       {atWork.map((task) => (
         <Row
           key={task.id}
-          mark={<Spinner className="size-3.5" delay={0} />}
+          mark={<PlanningDotIcon className="size-3.5" />}
           onOpen={() => {
             onOpen(task.id);
           }}

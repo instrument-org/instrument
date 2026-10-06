@@ -53,20 +53,21 @@ function inHead(width: number, onOpen = vi.fn()) {
 }
 
 describe("ChatActivity", () => {
-  it("shows the newest step and how many more run in a wide head", async () => {
+  it("shows the newest step in a wide head", async () => {
     await inHead(800);
     await expect
       .element(page.getByText("Reading about tram 28's route"))
       .toBeVisible();
-    await expect.element(page.getByText("+2")).toBeVisible();
   });
 
-  it("folds to the spinner and the count in a narrow head", async () => {
+  it("folds to the dot alone in a narrow head", async () => {
     await inHead(300);
     await expect
       .element(page.getByText("Reading about tram 28's route"))
       .not.toBeVisible();
-    await expect.element(page.getByText("3", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "3 tasks working" }))
+      .toBeVisible();
   });
 
   it("lists running tasks, then finished ones, and opens the one pressed", async () => {

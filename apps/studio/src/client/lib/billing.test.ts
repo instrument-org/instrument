@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   allowanceLabel,
   describeWhen,
+  isAccessRevoked,
   noticeCopy,
   planCardAction,
   refusalNotice,
@@ -176,6 +177,30 @@ describe("refusalNotice", () => {
       ).toBe(expected);
     },
   );
+
+  it.each([
+    {
+      name: "a plan bought",
+      reason: "trial-ended",
+      title: "You're subscribed",
+    },
+    {
+      name: "a failed payment fixed",
+      reason: "payment-failed",
+      title: "Your payment went through",
+    },
+    {
+      name: "access restored",
+      reason: "access-revoked",
+      title: "Instrument's AI is available again",
+    },
+  ])("says what changed once $name lifts the refusal", ({ reason, title }) => {
+    const resumed = notice(
+      { code: "subscription-required", reason },
+      onPlan("basic"),
+    );
+    expect(resumed && noticeCopy(resumed, NOW).title).toBe(title);
+  });
 
   it("keeps the trial ended when its last request would have gone over", () => {
     expect(
@@ -372,5 +397,29 @@ describe("usageWarning", () => {
     const first = usageWarning(onPlan("basic", {}, [85, 50, 10]));
     const second = usageWarning(onPlan("basic", {}, [90, 50, 10]));
     expect(first?.key).toBe(second?.key);
+  });
+});
+
+describe("isAccessRevoked", () => {
+  it.each([
+    {
+      expected: true,
+      name: "a paid subscription with no plan",
+      status: { ...onPlan("basic"), plan: "none" },
+    },
+    {
+      expected: false,
+      name: "a failed payment",
+      status: { ...onPlan("basic", { status: "past_due" }), plan: "none" },
+    },
+    {
+      expected: false,
+      name: "a stopped Stripe trial",
+      status: { ...onPlan("basic", { status: "paused" }), plan: "none" },
+    },
+    { expected: false, name: "a plan in effect", status: onPlan("basic") },
+    { expected: false, name: "no subscription", status: noPlan },
+  ])("$name: $expected", ({ expected, status }) => {
+    expect(isAccessRevoked(status)).toBe(expected);
   });
 });

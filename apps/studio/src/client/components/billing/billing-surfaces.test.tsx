@@ -183,6 +183,16 @@ describe("Settings > Usage and billing", () => {
     await screen.findByText("Update card");
     expect(screen.queryByText("Change plan")).toBeNull();
   });
+
+  it("offers nothing to buy on a paid subscription whose access was revoked", async () => {
+    platform.status = { ...onBasic(), plan: "none", windows: [] };
+    renderWithProviders(<UsageAndBillingSection />);
+
+    await screen.findByText("Instrument's AI isn't available on this account");
+    expect(screen.queryByText("Change plan")).toBeNull();
+    expect(screen.queryByText("Choose a plan")).toBeNull();
+    expect(screen.queryByText("Keep my plan")).toBeNull();
+  });
 });
 
 describe("the chat's billing notice", () => {

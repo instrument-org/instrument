@@ -12,6 +12,7 @@ import {
   describeWhen,
   formatPriceInWords,
   hasPaymentFailed,
+  isAccessRevoked,
   subscribedPlan,
   subscriptionEndsAt,
   windowLabel,
@@ -120,6 +121,29 @@ function PlanGroup({ status }: { status: Status }) {
   const now = new Date();
   const plan = subscribedPlan(status, offer);
   const subscription = status.subscription;
+
+  if (isAccessRevoked(status)) {
+    return (
+      <SettingsSection title="Plan">
+        <Card className="gap-0 overflow-hidden p-0">
+          <Row
+            data-billing-row="access-revoked"
+            detail="Contact support."
+            title={`${APP_NAME}'s AI isn't available on this account`}
+          />
+          <Row
+            data-billing-row="billing"
+            detail="Your card and invoices, in Stripe"
+            title="Payment method and invoices"
+          >
+            <Button disabled={portal.isPending} onClick={openPortal} size="sm">
+              Manage billing
+            </Button>
+          </Row>
+        </Card>
+      </SettingsSection>
+    );
+  }
 
   if (subscription) {
     const endsAt = subscriptionEndsAt(status);

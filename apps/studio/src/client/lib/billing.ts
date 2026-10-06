@@ -55,13 +55,34 @@ export function allowanceLabel(plan: OfferPlan) {
   return multiple <= 1 ? "Standard" : `${multiple}× Standard`;
 }
 
-/** Subscription states in which the last payment failed and is still owed. */
-const PAYMENT_FAILED_STATUSES = new Set(["incomplete", "past_due", "unpaid"]);
+/**
+ * Subscription states in which the last payment failed and is still owed,
+ * the ones the API refuses with `payment-failed`. A Stripe trial that ended
+ * without a card pauses, and a card is what resumes it.
+ */
+const PAYMENT_FAILED_STATUSES = new Set([
+  "incomplete",
+  "past_due",
+  "paused",
+  "unpaid",
+]);
 
 export function hasPaymentFailed(status: Status | undefined) {
   return (
     status?.subscription !== undefined &&
     PAYMENT_FAILED_STATUSES.has(status.subscription.status)
+  );
+}
+
+/**
+ * A subscription that is paid up yet entitles nothing: the API revoked access
+ * after a dispute or a fraud warning, and only support can restore it.
+ */
+export function isAccessRevoked(status: Status | undefined) {
+  return (
+    status?.subscription !== undefined &&
+    status.plan === "none" &&
+    !hasPaymentFailed(status)
   );
 }
 
@@ -216,7 +237,12 @@ export type BillingNotice =
   | { kind: "payment-failed" }
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
   | { kind: "plan-required"; reason?: string }
-  | { kind: "resumed"; subscribed: boolean }
+  | {
+      /** What the refusal was about, when it was not a missing plan. */
+      after?: "access-revoked" | "payment-failed";
+      kind: "resumed";
+      subscribed: boolean;
+    }
   | { kind: "trial-ended" };
 
 /**
@@ -247,7 +273,12 @@ export function refusalNotice({
       // calls active was refused on what this request would have cost, so it
       // is as over as the refusal says.
       if (current?.subscription && canUseHostedModels(current)) {
-        return { kind: "resumed", subscribed: true };
+        return {
+          ...((refusal.reason === "access-revoked" ||
+            refusal.reason === "payment-failed") && { after: refusal.reason }),
+          kind: "resumed",
+          subscribed: true,
+        };
       }
       if (refusal.reason === "access-revoked") {
         return { kind: "access-revoked" };
@@ -345,9 +376,14 @@ export function noticeCopy(
       return {
         action: { kind: "continue", label: "Continue" },
         line: "Pick up where this chat stopped.",
-        title: notice.subscribed
-          ? "You're subscribed"
-          : "Your plan has room again",
+        title:
+          notice.after === "payment-failed"
+            ? "Your payment went through"
+            : notice.after === "access-revoked"
+              ? `${APP_NAME}'s AI is available again`
+              : notice.subscribed
+                ? "You're subscribed"
+                : "Your plan has room again",
       };
     }
     case "trial-ended": {

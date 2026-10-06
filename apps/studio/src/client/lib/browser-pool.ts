@@ -217,12 +217,25 @@ function recordHostFocus(event: FocusEvent) {
 // would keep hitting it instead of the app. Hand focus back to the host as the
 // guest leaves the screen; the `blur` this fires clears the main process's
 // record of which guest is focused.
-function releaseGuestFocus({ webview }: PooledWebview) {
-  if (document.activeElement !== webview) {
-    return;
-  }
-  webview.blur();
-  restoreHostFocus();
+//
+// After the commit, not during it: a park from a slot's layout cleanup runs
+// inside React's commit, which puts focus back on whatever held it before the
+// commit, so a blur there becomes `webview.focus()` and the guest takes the
+// keyboard back from whatever the new screen focused (a new tab's address
+// field).
+function releaseGuestFocus(targetId: BrowserTargetId) {
+  queueMicrotask(() => {
+    const pooled = pool.get(targetId);
+    if (
+      !pooled ||
+      paintOwners.has(targetId) ||
+      document.activeElement !== pooled.webview
+    ) {
+      return;
+    }
+    pooled.webview.blur();
+    restoreHostFocus();
+  });
 }
 
 function restoreHostFocus() {
@@ -902,7 +915,7 @@ function placeGuest(targetId: BrowserTargetId) {
   }
   if (!winner) {
     paintOwners.delete(targetId);
-    releaseGuestFocus(pooled);
+    releaseGuestFocus(targetId);
     applyPaintHost(pooled);
     return;
   }

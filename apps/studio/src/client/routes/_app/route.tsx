@@ -144,7 +144,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     chat === undefined
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
-  const up = windowTabs.tabUpIn(chat);
+  const up = windowTabs.selectedTabIn(chat);
   const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
 
@@ -478,7 +478,7 @@ function RouteScreen({ href }: { href: string }) {
 function SiteView({ group }: { group: string }) {
   const shell = useShell();
   const windowTabs = useWindowTabs();
-  const up = windowTabs.tabUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);

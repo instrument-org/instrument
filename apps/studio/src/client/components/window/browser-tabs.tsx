@@ -49,7 +49,7 @@ import {
   patchPage,
   replaceTab,
   selectTab,
-  upIn,
+  selectedTabIn,
 } from "./tab-model";
 import {
   everyTabIdAtom,
@@ -569,7 +569,7 @@ export function BrowserTabs({
         const guest = activeTarget && getGuest(activeTarget);
         if (guest) {
           change((current, onScreen) => {
-            const shown = upIn(current, onScreen);
+            const shown = selectedTabIn(current, onScreen);
             return shown ? pageNavigated(current, shown.id) : current;
           });
           void guest.load(url);
@@ -638,7 +638,7 @@ export function BrowserTabs({
         const waitingUp =
           key === undefined || key === latest.current.group
             ? undefined
-            : upIn(
+            : selectedTabIn(
                 {
                   activeByGroup: latest.current.activeByGroup,
                   tabs: latest.current.allTabs,
@@ -876,7 +876,7 @@ export function BrowserTabs({
         // first.
         const hostUp =
           host.tabId === undefined
-            ? windowTabs.tabUpIn(host.group)
+            ? windowTabs.selectedTabIn(host.group)
             : allTabs.find((tab) => tab.id === host.tabId);
         return hostUp?.kind === "page" ? (
           <ComposePagePanel

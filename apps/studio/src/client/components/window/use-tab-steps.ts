@@ -97,7 +97,7 @@ export function useTabSteps(
  */
 export function useWindowSteps(): TabSteps {
   const router = useRouter();
-  const { allTabs, tabUpIn } = useWindowTabs();
+  const { allTabs, selectedTabIn } = useWindowTabs();
   // The page a file screen in the tab draws beside its tree.
   const { selectedId } = useAtomValue(appTabsAtom);
   const hosted = usePageGuest(
@@ -112,14 +112,17 @@ export function useWindowSteps(): TabSteps {
   const href = useRouterState({ select: (state) => state.location.href });
   const group = groupOfHref(href);
   const site = isSiteGroup(group) ? group : undefined;
-  const page = useTabSteps(site === undefined ? undefined : tabUpIn(site), {
-    outer: {
-      back: () => {
-        router.history.back();
+  const page = useTabSteps(
+    site === undefined ? undefined : selectedTabIn(site),
+    {
+      outer: {
+        back: () => {
+          router.history.back();
+        },
+        canGoBack: routerCanGoBack,
       },
-      canGoBack: routerCanGoBack,
     },
-  });
+  );
   if (site !== undefined) {
     return page;
   }

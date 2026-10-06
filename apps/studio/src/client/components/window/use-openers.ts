@@ -247,7 +247,7 @@ export function useOpeners({
         tasks.task === undefined
           ? tasksHref(owner)
           : taskHref(tasks.task, owner);
-      const up = windowTabs.tabUpIn(owner);
+      const up = windowTabs.selectedTabIn(owner);
       const placement = tasksPlacementOf(owner, options, {
         groupOnScreen: windowTabs.groupOnScreen,
         upInOwner: up?.kind === "screen" ? up.href : undefined,

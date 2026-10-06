@@ -699,7 +699,7 @@ function WindowShell({
     if (group === undefined || !isSiteGroup(group)) {
       return;
     }
-    const up = windowTabs.tabUpIn(group);
+    const up = windowTabs.selectedTabIn(group);
     return up?.kind === "page" ? up : undefined;
   };
   /**

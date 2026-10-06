@@ -188,7 +188,7 @@ export function ChatWindow({
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
-  const up = windowTabs.tabUpIn(chatId);
+  const up = windowTabs.selectedTabIn(chatId);
   const isExpanded = placement === "expanded";
   // Whether the thing up is drawn large; only a grown window has the room.
   const [isViewOpen, setViewOpen] = useState(false);

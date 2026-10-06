@@ -444,6 +444,9 @@ export async function runEvals(
       // Arms C (`1`) and D (`foreground`) of the one-agent comparison.
       oneAgentMode: () =>
         parseOneAgentMode(process.env.INSTRUMENT_EVAL_ONE_AGENT),
+      // Arm E: today's chat and tasks, with the chat's background on a task.
+      isTaskContextEnabled: () =>
+        process.env.INSTRUMENT_EVAL_TASK_CONTEXT === "1",
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without

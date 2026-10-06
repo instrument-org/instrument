@@ -10,6 +10,7 @@ const defaultFeatures: Features = {
   external_browser: false,
   one_agent: false,
   one_agent_foreground: false,
+  task_context: false,
 };
 
 async function listen(

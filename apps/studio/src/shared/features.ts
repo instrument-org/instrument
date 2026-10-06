@@ -6,6 +6,7 @@ export const FeatureNameSchema = z.enum([
   "external_browser",
   "one_agent",
   "one_agent_foreground",
+  "task_context",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
@@ -40,5 +41,10 @@ export const FEATURE_METADATA: Record<
     description:
       "With One Agent on, the chat does every job itself in the conversation, with no background work. For comparing against One Agent's forks.",
     title: "One Agent, No Background",
+  },
+  task_context: {
+    description:
+      "A task a chat starts gets the chat's topic instructions, memories, and the user's own words beside its brief, marked as background. Off with One Agent on.",
+    title: "Task Context",
   },
 };

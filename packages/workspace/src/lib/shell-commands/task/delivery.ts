@@ -1,6 +1,7 @@
 import { type ByteString } from "just-bash";
 
 import { type SessionMessage } from "../../../schemas/session/message";
+import { type SessionMessageDataPart } from "../../../schemas/session/message-data-part";
 import { type Task } from "../../../schemas/task";
 import { type TaskId } from "../../../schemas/task-id";
 import { isWorking } from "../../chat/activity";
@@ -42,6 +43,7 @@ export function promptFrom(inline: string, stdin: ByteString): string {
  * in flight stopped, with `interrupt`). Says whether the task was working.
  */
 export async function deliver({
+  chatBackground,
   command,
   context,
   files,
@@ -49,6 +51,8 @@ export async function deliver({
   prompt,
   task,
 }: {
+  /** What the task is given of the chat beside the message (`task_context`). */
+  chatBackground?: SessionMessageDataPart.ChatBackgroundDataPart;
   command: string;
   context: TaskCommandContext;
   files?: Awaited<ReturnType<typeof resolveFileUploads>>;
@@ -64,6 +68,7 @@ export async function deliver({
   const sessionId = session.value;
   const agentName = await agentNameForChild(task.id);
   const message = await newMessage({
+    ...(chatBackground ? { chatBackground } : {}),
     ...(files ? { files } : {}),
     model,
     modelURI,

@@ -375,6 +375,7 @@ export const workspaceMachine = setup({
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
       isExternalBrowserEnabled: () => boolean;
+      isTaskContextEnabled?: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       oneAgentMode?: WorkspaceConfig["oneAgentMode"];
@@ -410,6 +411,9 @@ export const workspaceMachine = setup({
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.isTaskContextEnabled
+        ? { isTaskContextEnabled: input.isTaskContextEnabled }
+        : {}),
       ...(input.oneAgentMode ? { oneAgentMode: input.oneAgentMode } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),

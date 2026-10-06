@@ -1,7 +1,10 @@
+import { chatBackground } from "../../chat-background";
 import { folderReach } from "../../chat/folder-reach";
 import { mountAliases, toTaskPaths } from "../../chat/mount-paths";
+import { isTaskContextEnabled } from "../../one-agent";
 import { taskDir } from "../../task-dir-utils";
 import { getTaskState } from "../../task-record";
+import { getTaskSettings } from "../../task-settings";
 import {
   type SubcommandInput,
   type SubcommandShell,
@@ -66,7 +69,21 @@ async function runSend(
     [...chatPathsOf(aliases), ...filePaths(askedFiles, cwd)],
     task.id,
   );
+  // The user's words since the task last heard from the chat, verbatim,
+  // beside the chat's message (`task_context`). A fork already holds them.
+  const background =
+    isTaskContextEnabled() &&
+    context.sessionId &&
+    !(await getTaskSettings(taskDir(task.id)))?.fork
+      ? await chatBackground({
+          chatId: context.chatId,
+          chatSessionId: context.sessionId,
+          standing: false,
+          taskId: task.id,
+        })
+      : undefined;
   const { held, message, running } = await deliver({
+    ...(background ? { chatBackground: background } : {}),
     command: "send",
     context,
     files,

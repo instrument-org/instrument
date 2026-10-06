@@ -28,6 +28,7 @@ import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { chatContextModelNote } from "../../lib/chat-context-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
+import { chatBackgroundModelNote } from "../../lib/chat-background-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -766,6 +767,23 @@ export namespace SessionMessage {
             parts.push({ text: "</user_message>", type: "text" });
           }
           parts.push(...injectedParts);
+        }
+
+        // Ahead of everything, the brief included, and marked as background:
+        // what a task was given of its chat (`task_context`) is there to read
+        // the brief by, and the brief stays the assignment.
+        const chatBackgroundPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-chatBackground";
+          } => part.type === "data-chatBackground",
+        );
+        if (chatBackgroundPart) {
+          parts.unshift({
+            text: chatBackgroundModelNote(chatBackgroundPart.data),
+            type: "text",
+          });
         }
       }
 

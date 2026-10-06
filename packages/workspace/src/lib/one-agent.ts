@@ -47,6 +47,18 @@ export function isOneAgentEnabled(): boolean {
 }
 
 /**
+ * The `task_context` feature flag: a task a chat briefs gets the chat's
+ * background beside its brief. Only the delegating chat briefs tasks, so it
+ * is off whenever the one agent is on.
+ */
+export function isTaskContextEnabled(): boolean {
+  return (
+    !isOneAgentEnabled() &&
+    (getWorkspaceConfig().isTaskContextEnabled?.() ?? false)
+  );
+}
+
+/**
  * The chat an agent speaks for, when it runs in one: the chat's own agent of
  * either design, in the chat's folder. A fork runs the one agent too, but in a
  * task's folder, so it speaks for none.

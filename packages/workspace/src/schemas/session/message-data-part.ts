@@ -56,6 +56,7 @@ export namespace SessionMessageDataPart {
     "reply",
     "taskAppChanges",
     "taskEvent",
+    "chatBackground",
     "chatContext",
     "chatTopics",
     "unknown",
@@ -858,6 +859,33 @@ export namespace SessionMessageDataPart {
   export type ChatTopicsDataPart = z.output<typeof ChatTopicsDataPartSchema>;
 
   /**
+   * What a task started by a chat is given of the chat beside its brief,
+   * under the `task_context` flag: the user's own messages there, verbatim,
+   * and on its first message the chat's topic instructions and what memory
+   * holds. Rendered ahead of the brief and marked as background, so the
+   * brief stays the assignment. `messages` on a later message are the ones
+   * the user wrote since the task last heard from the chat.
+   */
+  const ChatBackgroundDataPartSchema = z.object({
+    memories: MemoryDataPartSchema.shape.memories.optional(),
+    messages: z
+      .array(
+        z.object({
+          /** The chat message's id, so a later forward skips what was sent. */
+          id: z.string(),
+          sentAt: z.number(),
+          text: z.string(),
+        }),
+      )
+      .default([]),
+    topics: ChatTopicsDataPartSchema.shape.topics.optional(),
+  });
+
+  export type ChatBackgroundDataPart = z.output<
+    typeof ChatBackgroundDataPartSchema
+  >;
+
+  /**
    * Retired, and read anyway.
    *
    * The directory watcher that wrote this is gone, and so is the change card it
@@ -955,6 +983,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.chatBackground]: ChatBackgroundDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,

@@ -3,6 +3,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { MOUNT } from "../../../mount-points";
 import { type SessionMessage } from "../../../schemas/session/message";
 import { attachedFolderMountPoint } from "../../attached-folder-mounts";
+import { chatBackground } from "../../chat-background";
 import { folderReach } from "../../chat/folder-reach";
 import { latestOrNewSessionId } from "../../chat/latest-session";
 import { mountAliases, toTaskPaths } from "../../chat/mount-paths";
@@ -10,6 +11,7 @@ import { defaultTaskName } from "../../default-task-name";
 import { initializeTask } from "../../initialize-task";
 import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
+import { isTaskContextEnabled } from "../../one-agent";
 import { taskDir } from "../../task-dir-utils";
 import { holdTask } from "../../task-hold";
 import { setTaskState } from "../../task-record";
@@ -181,7 +183,18 @@ export async function runNew(
     throw session.error;
   }
   const sessionId = session.value;
+  // The chat's background beside the brief (`task_context`): the user's
+  // words, its topic instructions and memories, marked as not the assignment.
+  const background =
+    isTaskContextEnabled() && context.sessionId
+      ? await chatBackground({
+          chatId: context.chatId,
+          chatSessionId: context.sessionId,
+          standing: true,
+        })
+      : undefined;
   const message = await newMessage({
+    ...(background ? { chatBackground: background } : {}),
     files,
     folders,
     model,

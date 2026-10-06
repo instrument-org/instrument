@@ -205,6 +205,12 @@ export interface WorkspaceConfig {
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
+  /**
+   * The `task_context` feature flag: a task a chat starts gets the chat's
+   * topic instructions, memories, and the user's own words as background
+   * beside its brief (`lib/chat-background.ts`). Absent is off.
+   */
+  isTaskContextEnabled?: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   /**

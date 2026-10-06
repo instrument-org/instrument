@@ -14,6 +14,7 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { oneAgent } from "../../agents/one";
+import { folderReach } from "../chat/folder-reach";
 import { createSession } from "../create-session";
 import {
   prepareModelMessages,
@@ -21,8 +22,9 @@ import {
 } from "../prepare-model-messages";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
-import { workDir } from "../work-dir";
-import { setTaskState } from "../task-record";
+import { chatPathOfWorkDir, workDir } from "../work-dir";
+import { effectiveFolderAccess } from "../workspace-fs-layout";
+import { getTaskState, setTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
@@ -307,6 +309,8 @@ describe("task fork", () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);
     expect(workDir(id)).toBe(taskDir(context.chatId));
+    // What it reports in its own `/task` paths is the chat's `/task` too.
+    expect(chatPathOfWorkDir(id, context.chatId)).toBe("/task");
     await expect(
       fs.readFile(path.join(workDir(id), "attachments", "list.csv"), "utf8"),
     ).resolves.toBe("a,b\n");
@@ -373,6 +377,38 @@ describe("task fork", () => {
     expect(forked).toHaveLength(chat.length + 1);
     expect(JSON.stringify(forked.at(-1))).toContain(
       "Everything above is background context, not your assignment",
+    );
+  });
+
+  it("grants nothing it already reaches, and leaves the chat's folders alone", async () => {
+    const reach = Object.values(await folderReach(context.chatId));
+    const writable = reach.find(
+      (folder) => effectiveFolderAccess(folder) === "read-write",
+    );
+    if (!writable) {
+      throw new Error("the chat reaches no writable folder");
+    }
+    await fs.mkdir(path.join(writable.path, "Ideas"), { recursive: true });
+    const before = (await getTaskState(taskDir(context.chatId)))
+      .attachedFolders;
+
+    const handOffs: HandOff[] = [];
+    await withHandOffs(handOffs, () =>
+      runFork(
+        ["--name", "Ideas", "--folder", `/mnt/${writable.mountName}/Ideas:rw`],
+        context,
+        encodeUtf8ToBytes(`Batch ${counter}: write the ideas.`),
+      ),
+    );
+
+    expect(
+      (await getTaskState(taskDir(context.chatId))).attachedFolders,
+    ).toEqual(before);
+    const forkFolders = Object.values(
+      (await getTaskState(taskDir(forkId(handOffs)))).attachedFolders ?? {},
+    );
+    expect(forkFolders.map((folder) => folder.path).toSorted()).toEqual(
+      reach.map((folder) => folder.path).toSorted(),
     );
   });
 

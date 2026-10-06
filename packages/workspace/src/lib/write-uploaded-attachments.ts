@@ -42,12 +42,19 @@ interface PreparedUploadedFile {
 export async function writeUploadedAttachments({
   dir,
   files,
+  filesDir = dir,
   folders,
   messageId,
   sessionId,
 }: {
+  /** The task's record folder, whose state the folders are granted in. */
   dir: TaskDir;
   files?: FileUpload.Type[];
+  /**
+   * The folder its files land in, under `attachments/`: the one it works in,
+   * which for a fork is its chat's (`workDir`).
+   */
+  filesDir?: TaskDir;
   folders?: {
     access?: FolderAttachment.Access;
     mountName?: string;
@@ -63,7 +70,7 @@ export async function writeUploadedAttachments({
 
     if (files && files.length > 0) {
       const preparedFiles = yield* await prepareUploadedFiles({
-        dir,
+        dir: filesDir,
         files,
       });
 

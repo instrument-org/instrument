@@ -155,8 +155,16 @@ const TASK_ROOT = new RegExp(String.raw`(?<![\w./-])${MOUNT.task}/`, "gu");
  * bullets and backticks an agent adds taken off, so what the conversation
  * is handed is a path it can open.
  */
-export function translateTaskFolderPaths(text: string, taskId: TaskId): string {
-  const root = `${MOUNT.tasks}/${taskId}`;
+export function translateTaskFolderPaths(
+  text: string,
+  taskId: TaskId,
+  /**
+   * Where the conversation reaches the task's folder, when not at
+   * `/tasks/<id>`: its own `/task` for a fork, which works in the chat's
+   * folder.
+   */
+  root = `${MOUNT.tasks}/${taskId}`,
+): string {
   return text
     .replaceAll(TASK_ROOT, `${root}/`)
     .replaceAll(FILES_FENCE, (fence: string, body: string) => {

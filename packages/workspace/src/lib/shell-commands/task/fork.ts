@@ -8,6 +8,7 @@ import { type SessionMessage } from "../../../schemas/session/message";
 import { type StoreId } from "../../../schemas/store-id";
 import { type TaskId } from "../../../schemas/task-id";
 import { folderReach } from "../../chat/folder-reach";
+import { pathIsWithin } from "../../path-is-within";
 import { latestOrNewSessionId } from "../../chat/latest-session";
 import { defaultTaskName } from "../../default-task-name";
 import { initializeTask } from "../../initialize-task";
@@ -128,10 +129,14 @@ async function runFork(
 
   // Every folder the chat reaches comes along at the chat's own path and
   // access, so a path anywhere in the inherited conversation is the same path
-  // here. --folder adds a grant inside one of them, as `folder self` does.
+  // here. --folder adds a grant for a folder inside one of them that the chat
+  // reaches with less access than asked (one in the read-only home folder):
+  // mounted on its own, the way `folder self` mounts it, since a mount
+  // cannot sit inside another. One the chat already reaches as asked needs
+  // nothing more.
   const askedFolders = input.all("folder");
-  const granted = resolveFolders(askedFolders, chatFolders);
-  const looks = await requireFoldersOnDisk(granted, askedFolders);
+  const resolved = resolveFolders(askedFolders, chatFolders);
+  const looks = await requireFoldersOnDisk(resolved, askedFolders);
   const unanswered = await awaitAnswers(
     looks,
     Math.min(ANSWER_WAIT_MS, context.remainingYieldMs() - 2000),
@@ -141,20 +146,23 @@ async function runFork(
       `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}: tell them to answer the system's dialog, then run this again.`,
     );
   }
-  const grantedPaths = new Set(
-    granted.map((folder) => path.resolve(folder.path)),
-  );
-  const folders = [
-    ...Object.values(chatFolders)
-      .filter((folder) => !grantedPaths.has(path.resolve(folder.path)))
-      .map((folder) => ({
-        access: effectiveFolderAccess(folder),
-        mountName: folder.mountName,
-        path: folder.path,
-        source: folder.source,
-      })),
-    ...granted,
-  ];
+  const chatGrants = Object.values(chatFolders).map((folder) => ({
+    access: effectiveFolderAccess(folder),
+    mountName: folder.mountName,
+    path: folder.path,
+    source: folder.source,
+  }));
+  const granted = resolved
+    .filter(
+      (folder) =>
+        !chatGrants.some(
+          (held) =>
+            (held.access === "read-write" || folder.access === "read-only") &&
+            pathIsWithin(folder.path, held.path),
+        ),
+    )
+    .map(({ mountName: _nested, ...folder }) => folder);
+  const folders = [...chatGrants, ...granted];
 
   // The fork works in this folder, so a file named here is already where it
   // looks: checked to be there, and named to it rather than copied.
@@ -240,7 +248,7 @@ async function runFork(
     );
     return {
       access: mounted ? effectiveFolderAccess(mounted) : folder.access,
-      mountName: mounted?.mountName ?? folder.mountName,
+      mountName: mounted?.mountName ?? path.basename(folder.path),
     };
   });
   const grantLine =

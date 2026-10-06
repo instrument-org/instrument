@@ -15,6 +15,7 @@ import {
   translateTaskFolderPaths,
 } from "../../chat/mount-paths";
 import { taskDir } from "../../task-dir-utils";
+import { chatPathOfWorkDir } from "../../work-dir";
 import { taskHold } from "../../task-hold";
 import { getTaskState } from "../../task-record";
 import { getTaskSettings } from "../../task-settings";
@@ -64,7 +65,11 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
   const lastSaid =
     said === undefined
       ? undefined
-      : translateTaskFolderPaths(toChatPaths(said, aliases), task.id);
+      : translateTaskFolderPaths(
+          toChatPaths(said, aliases),
+          task.id,
+          chatPathOfWorkDir(task.id, context.chatId),
+        );
 
   const settings = await getTaskSettings(taskDir(task.id));
   const handedApps = settings?.apps ?? [];

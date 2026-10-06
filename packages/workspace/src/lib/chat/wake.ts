@@ -9,6 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { agentNameForTask } from "../agent-name-for-task";
 import { filesNamedIn } from "../parse-files-block";
+import { chatPathOfWorkDir } from "../work-dir";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -343,7 +344,11 @@ async function inChatPaths(
     await folderReach(chatId),
     await folderReach(taskId),
   );
-  return translateTaskFolderPaths(toChatPaths(text, aliases), taskId);
+  return translateTaskFolderPaths(
+    toChatPaths(text, aliases),
+    taskId,
+    chatPathOfWorkDir(taskId, chatId),
+  );
 }
 
 async function onSessionDone(

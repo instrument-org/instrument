@@ -160,7 +160,8 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: workDir(taskId),
+      dir: taskDir(taskId),
+      filesDir: workDir(taskId),
       files,
       folders,
       messageId,

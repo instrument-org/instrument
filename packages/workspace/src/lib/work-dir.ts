@@ -1,3 +1,4 @@
+import { MOUNT } from "../mount-points";
 import { type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { chatDir } from "./record-folders";
@@ -33,4 +34,15 @@ export function workDir(id: TaskId): TaskDir {
   const dir = read.workdir ? chatDir(read.workdir) : own;
   known.set(own, dir);
   return dir;
+}
+
+/**
+ * Where the conversation that started a task reaches the task's working
+ * folder: at `/tasks/<id>` for a task of its own folder, and at its own
+ * `/task` for a fork, which works in the chat's folder.
+ */
+export function chatPathOfWorkDir(taskId: TaskId, chatId: TaskId): string {
+  return workDir(taskId) === taskDir(chatId)
+    ? MOUNT.task
+    : `${MOUNT.tasks}/${taskId}`;
 }

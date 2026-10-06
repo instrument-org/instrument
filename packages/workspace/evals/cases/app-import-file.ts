@@ -66,13 +66,16 @@ function oneLine(text: string): string {
   return text.slice(0, 240).replaceAll("\n", " ⏎ ");
 }
 
-/** A brief that picks the app's windows as the way in, which the task then follows. */
+/**
+ * A brief that picks the app's windows as the way in, or rules out the file
+ * ("Do not create files"), which the task then follows.
+ */
 const PRESCRIBES_THE_INTERFACE =
-  /\binterface\b|\bUI\b|\bclick|\bsettings window\b|\bosascript\b|\bSystem Events\b/i;
+  /\binterface\b|\bUI\b|\bclick|\bsettings window\b|\bosascript\b|\bSystem Events\b|\b(?:do not|don't)\s+(?:create|make|write)\s+(?:a |any )?files?\b/i;
 
 const briefLeavesTheWayIn: Assertion = {
   check: ({ sessions }) => {
-    const text = "no brief tells the task to work Raycast's interface";
+    const text = "no brief picks Raycast's interface or rules out a file";
     const all = briefs(sessions);
     if (all.length === 0) {
       return result(text, false, "no task was started");
@@ -81,10 +84,10 @@ const briefLeavesTheWayIn: Assertion = {
       PRESCRIBES_THE_INTERFACE.test(brief),
     );
     return prescribing.length === 0
-      ? result(text, true, `${all.length} briefs, none naming the interface`)
+      ? result(text, true, `${all.length} briefs, none picking the way in`)
       : result(text, false, prescribing.map(oneLine).join(" | "));
   },
-  text: "no brief tells the task to work Raycast's interface",
+  text: "no brief picks Raycast's interface or rules out a file",
 };
 
 const makesAnImportFile: Assertion = {
@@ -175,6 +178,9 @@ export const APP_IMPORT_FILE_EVALS = [
       datesStayCurrent,
     ],
     kind: "chat",
+    // Asking the user for a folder waits on a picker no eval answers, until
+    // the run's time cap; the chat chose its way in, and the run is scored.
+    shouldStop: (part) => part.type === "tool-request_folder",
     name: "chat-raycast-snippets-as-an-import-file",
     prompt: [
       "My Raycast snippets didn't come over when I migrated to this Mac. Can you put them back? They all started with x:",

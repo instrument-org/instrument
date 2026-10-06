@@ -179,6 +179,10 @@ function stubCommand(
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // always errors in this environment; replaced with a stub below
+  // Writes under /tmp, which no mount covers, so every call fails. A task's
+  // shell gets ours (shell-commands/mktemp.ts) instead; the chat's writes no
+  // files, so it gets none.
+  "mktemp",
 ]);
 
 const STATIC_STUB_COMMANDS = [
@@ -552,18 +556,11 @@ export function createBashDescription({
     .filter(([name]) => allowedCommandNames.includes(name))
     .map(([name, description]) => `  ${name} - ${description}`);
 
-  const listedCustom = customCommandDefs().filter(
-    (cmd) => cmd.listInDescription,
-  );
-  // A custom command that shadows a builtin of the same name (mktemp) is
-  // named once, under its own description.
-  const builtins = namedOnly.filter(
-    (name) => !listedCustom.some((cmd) => cmd.name === name),
-  );
-
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...listedCustom.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...customCommandDefs()
+      .filter((cmd) => cmd.listInDescription)
+      .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 
@@ -600,7 +597,7 @@ export function createBashDescription({
 
     TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${builtins.join(", ")}
+    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
 
     IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_NATIVE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 

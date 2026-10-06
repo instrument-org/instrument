@@ -1,3 +1,8 @@
+import {
+  connectComputerDriver,
+  requestComputerPermissions,
+  stopComputerDriver,
+} from "@/electron-main/lib/computer-driver";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import { macHelperBinPath } from "@/electron-main/lib/mac-native";
@@ -136,6 +141,11 @@ export function createWorkspaceActor() {
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,
+      computerUse: {
+        connect: connectComputerDriver,
+        isEnabled: () => isFeatureEnabled("computer_use"),
+        requestPermissions: requestComputerPermissions,
+      },
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
@@ -278,6 +288,7 @@ export function createWorkspaceActor() {
             // Agent-started servers and watchers outlive the turn that started
             // them, so quitting is what ends them.
             killAllBackgroundProcesses().catch(noop),
+            stopComputerDriver(),
           ]);
         }),
       },

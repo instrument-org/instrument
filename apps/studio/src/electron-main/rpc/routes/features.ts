@@ -1,3 +1,8 @@
+import {
+  computerPermissionStatus,
+  openComputerPermissionSettings,
+  requestComputerPermissions,
+} from "@/electron-main/lib/computer-driver";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
@@ -58,6 +63,21 @@ const openFilesAndFoldersSettings = base
     return { opened: true };
   });
 
+/**
+ * The two grants Computer Use runs under on macOS, for the Settings card that
+ * shows where each stands and asks for the missing one. Elsewhere there is
+ * nothing to grant and every call answers `supported: false`.
+ */
+const computerUse = {
+  openSettings: base
+    .input(
+      z.object({ permission: z.enum(["accessibility", "screen-recording"]) }),
+    )
+    .handler(({ input }) => openComputerPermissionSettings(input.permission)),
+  requestPermissions: base.handler(() => requestComputerPermissions()),
+  status: base.handler(() => computerPermissionStatus()),
+};
+
 const live = {
   getAll: base.output(eventIterator(FeaturesSchema)).handler(async function* ({
     signal,
@@ -70,6 +90,7 @@ const live = {
 };
 
 export const features = {
+  computerUse,
   live,
   openAppManagementSettings,
   openFilesAndFoldersSettings,

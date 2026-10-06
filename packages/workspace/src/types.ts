@@ -169,6 +169,30 @@ export interface WorkspaceAppsConfig {
   };
 }
 
+/**
+ * The desktop driver behind the `computer` command, which the host starts as
+ * a child of itself so macOS attributes its Accessibility and Screen Recording
+ * use to the app. Absent where the host does not carry one.
+ */
+export interface ComputerUseHost {
+  /** The driver's private endpoint, starting it when it is not running. */
+  connect: () => Promise<
+    | { binaryPath: string; socketPath: string; status: "ready" }
+    | {
+        missing: ("accessibility" | "screen-recording")[];
+        status: "needs-permission";
+      }
+    | { reason: string; status: "unavailable" }
+  >;
+  // Read per invocation: a feature flag the user can toggle from Settings.
+  isEnabled: () => boolean;
+  /** The system prompts for whatever grant is missing; macOS only. */
+  requestPermissions: () => Promise<
+    | { accessibility: boolean; screenRecording: boolean; supported: true }
+    | { supported: false }
+  >;
+}
+
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
@@ -176,6 +200,7 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
+  computerUse?: ComputerUseHost;
   defaultTaskTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;

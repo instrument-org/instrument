@@ -44,3 +44,6 @@ __traces__/
 # Written by the smoke test on every run, and uploaded from here as a CI
 # artifact rather than read back from the checkout.
 smoke-test-screenshots/
+
+# Vendored cua-driver executable (downloaded by scripts/download-cua-driver.ts)
+resources/cua-driver/

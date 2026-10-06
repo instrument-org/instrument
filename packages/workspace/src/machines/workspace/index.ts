@@ -369,6 +369,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
+      computerUse?: WorkspaceConfig["computerUse"];
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       getAIProviderConfigs: GetProviderConfigs;
@@ -400,6 +401,7 @@ export const workspaceMachine = setup({
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
+      ...(input.computerUse ? { computerUse: input.computerUse } : {}),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         input.defaultTaskTemplateDir,
       ),
@@ -424,7 +426,9 @@ export const workspaceMachine = setup({
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined
         ? {}
-        : { macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath) }),
+        : {
+            macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
+          }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };

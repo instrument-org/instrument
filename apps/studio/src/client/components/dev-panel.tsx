@@ -91,6 +91,7 @@ const pillTriggerClassName = `${controlClassName} gap-x-1.5 px-1.5`;
  */
 const FEATURE_CODES: Record<FeatureName, string> = {
   bash_summary_chip: "b",
+  computer_use: "u",
   context_ring: "c",
   external_browser: "x",
 };

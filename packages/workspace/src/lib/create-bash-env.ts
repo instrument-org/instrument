@@ -36,6 +36,10 @@ import {
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
 import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
+import {
+  COMPUTER_COMMAND,
+  createComputerCommand,
+} from "./shell-commands/computer";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -48,7 +52,7 @@ import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
-import { getWorkspaceConfig } from "./workspace-config";
+import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
   CONTACTS_COMMAND,
@@ -552,6 +556,9 @@ export function createBashDescription({
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
+    ...(hasWorkspaceConfig() && getWorkspaceConfig().computerUse?.isEnabled()
+      ? [`  ${COMPUTER_COMMAND.name} - ${COMPUTER_COMMAND.description}`]
+      : []),
     ...customCommandDefs()
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
@@ -611,6 +618,7 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
   AGENT_BROWSER_COMMAND.name,
   APP_COMMAND.name,
   CHAT_COMMAND.name,
+  COMPUTER_COMMAND.name,
   FG_COMMAND.name,
   JOBS_COMMAND.name,
   KILL_COMMAND.name,
@@ -695,6 +703,10 @@ export async function createLocalBashEnv({
       ]
     : [
         createAppCommand({ taskId }),
+        // Registered whether or not the host enables it: in the bash worker
+        // the host's config is out of reach, so the main-thread command
+        // decides, and the description lists it only while it is on.
+        createComputerCommand({ layout, taskId }),
         ...customCommandDefs().map((cmd) => cmd.factory({ layout, taskId })),
       ];
   const specializedCommandNames = chat
@@ -705,7 +717,11 @@ export async function createLocalBashEnv({
         APP_COMMAND.name,
         TAB_COMMAND.name,
       ]
-    : [APP_COMMAND.name, ...customCommandDefs().map((cmd) => cmd.name)];
+    : [
+        APP_COMMAND.name,
+        COMPUTER_COMMAND.name,
+        ...customCommandDefs().map((cmd) => cmd.name),
+      ];
 
   const bash = new Bash({
     commands: allowedCommands,

@@ -6,6 +6,7 @@ import { atom } from "jotai";
 
 const defaultFeatures: Features = {
   bash_summary_chip: false,
+  computer_use: false,
   context_ring: false,
   external_browser: false,
 };

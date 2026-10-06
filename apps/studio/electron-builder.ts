@@ -74,10 +74,14 @@ const config: Configuration = {
   // electron-builder's automatic native-module unpacking no longer covers it
   // (pnpm 10 was unpacked as a side effect of its top-level reflink `.node`).
   // Unpack it explicitly; afterPack verifies the entry survived.
+  //
+  // The Cua Driver SDK loads its Rust library with dlopen from a path next to
+  // its `.node`, and dlopen cannot read inside an asar.
   asarUnpack: [
     "resources/**",
     "**/node_modules/dugite/git/**",
     "**/node_modules/pnpm/**",
+    "**/node_modules/@trycua/cua-driver-*/**",
   ],
   directories: {
     buildResources: "build",

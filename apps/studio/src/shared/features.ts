@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
+  "computer_use",
   "context_ring",
   "external_browser",
 ]);
@@ -18,6 +19,11 @@ export const FEATURE_METADATA: Record<
   bash_summary_chip: {
     description: "Show compact bash command names in tool call summaries.",
     title: "Bash Summary Chip",
+  },
+  computer_use: {
+    description:
+      "Let the agent operate the apps on this computer: read their windows, click, type, and scroll in them, mostly without taking over your pointer. On macOS, Instrument needs Accessibility and Screen Recording access.",
+    title: "Computer Use",
   },
   context_ring: {
     description:

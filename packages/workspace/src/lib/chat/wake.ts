@@ -16,6 +16,7 @@ import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
+import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { chatOfTask } from "./attribution";
@@ -375,6 +376,7 @@ async function onSessionDone(
   // from its words, so a turn that ended blocked reads as waiting rather than
   // finished and the fence is not said twice.
   const needs = receipt === undefined ? [] : needsNamedIn(receipt);
+  const tabs = await openTabsOf(id);
   const summary =
     receipt === undefined
       ? undefined
@@ -393,6 +395,7 @@ async function onSessionDone(
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
       summary,
+      ...(tabs.length > 0 ? { tabs } : {}),
       taskId: id,
       title: (await getTaskSettings(taskDir(id)))?.name ?? id,
       tokens: usage.inputTokens + usage.outputTokens,
@@ -424,6 +427,32 @@ function schedule(
     );
   }, WAKE_DEBOUNCE_MS);
   pending.set(chatId, { events, timer });
+}
+
+/**
+ * The window's tabs a task held that are still open, by the id `tab` takes:
+ * a result the task left on a page is in one of these, and nowhere in the
+ * task's own transcript.
+ */
+async function openTabsOf(
+  taskId: TaskId,
+): Promise<NonNullable<TaskEvent["tabs"]>> {
+  const { browser } = getWorkspaceConfig();
+  const held = (await getTaskState(taskDir(taskId))).browserTabs ?? [];
+  return held.flatMap((tab) => {
+    const decoded = decodeBrowserTargetId(tab.id);
+    if (!decoded || !browser.getTargetMeta(tab.id)) {
+      return [];
+    }
+    const url = browser.getTargetUrl(tab.id);
+    return [
+      {
+        id: decoded.sessionId,
+        openedBy: tab.openedBy,
+        ...(url === undefined ? {} : { url }),
+      },
+    ];
+  });
 }
 
 /**

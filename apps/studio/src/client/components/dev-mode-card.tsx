@@ -18,7 +18,7 @@ export function DevModeCard({
   return (
     <div
       className={cn(
-        "rounded-md border border-dashed border-border bg-muted/30 p-2",
+        "rounded-md border border-dashed border-dev-700/40 bg-dev-500/5 p-2 dark:border-dev-300/30",
         className,
       )}
     >
@@ -51,9 +51,20 @@ export function DevModeCardHeader({
  * color on a dashed edge, the way the chat's developer notes are drawn, so
  * none of it reads as something a person using the app would see.
  */
-export function ChatDevOnly({ children }: { children: ReactNode }) {
+export function ChatDevOnly({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center gap-2 rounded-r-lg border-l-2 border-dashed border-dev-700/50 bg-dev-500/5 pr-2 pl-2 dark:border-dev-300/40">
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-r-lg border-l-2 border-dashed border-dev-700/50 bg-dev-500/5 pr-2 pl-2 dark:border-dev-300/40",
+        className,
+      )}
+    >
       <div className="min-w-0 flex-1">{children}</div>
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>

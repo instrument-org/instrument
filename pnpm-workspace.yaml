@@ -100,6 +100,11 @@ minimumReleaseAgeExclude:
   - "@milkdown/prose@7.22.2"
   - "@milkdown/transformer@7.22.2"
   - "@milkdown/utils@7.22.2"
+  # The agent's sandbox, taken five days after release with its patch rebuilt
+  # and verified against it. Exact version, so later just-bash releases still
+  # wait out the guard; the entry goes inert once 3.6.0 passes the cutoff and
+  # can be dropped.
+  - "just-bash@3.6.0"
 
 overrides:
   "@electron/rebuild>node-abi": 4.35.0

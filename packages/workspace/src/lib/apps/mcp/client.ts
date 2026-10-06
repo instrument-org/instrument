@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { type ContentBlock } from "@modelcontextprotocol/sdk/types.js";
 import { err, ok, type Result } from "neverthrow";
-import { noop } from "radashi";
+import { isPlainObject, noop } from "radashi";
 
 import { isLoopbackHost } from "../manifest";
 import { checkPublicUrl } from "../safe-url";
@@ -37,6 +37,8 @@ export interface McpConnectionError {
 
 interface McpCallResult {
   isError: boolean;
+  /** The tool's `structuredContent`, where the server sent one: the result as data rather than prose. */
+  structured?: object;
   text: string;
 }
 
@@ -54,7 +56,10 @@ interface McpToolSummary {
   outputSchema?: unknown;
 }
 
-/** Call one MCP tool and flatten its content to text for the agent. */
+/**
+ * Call one MCP tool and flatten its content to text for the agent, keeping
+ * its structured result beside the text where the server sent one.
+ */
 export async function callMcpTool(
   client: Client,
   { args, name }: { args: Record<string, unknown>; name: string },
@@ -68,7 +73,17 @@ export async function callMcpTool(
       item.type === "text" ? item.text : `[${item.type} content]`,
     )
     .join("\n");
-  return { isError: result.isError === true, text };
+  const structured = isPlainObject(result.structuredContent)
+    ? result.structuredContent
+    : undefined;
+  return {
+    isError: result.isError === true,
+    structured,
+    // A server should send the text form too, but one that sends only the
+    // data still has said something.
+    text:
+      text === "" && structured ? JSON.stringify(structured, null, 2) : text,
+  };
 }
 
 /** List the tools an MCP server exposes (name, description, input schema). */

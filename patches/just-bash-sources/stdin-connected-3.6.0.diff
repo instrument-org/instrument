@@ -1,0 +1,1482 @@
+diff --git a/packages/just-bash/src/Bash.ts b/packages/just-bash/src/Bash.ts
+index 288a5a3..f93abf9 100644
+--- a/packages/just-bash/src/Bash.ts
++++ b/packages/just-bash/src/Bash.ts
+@@ -770,6 +770,7 @@ export class Bash {
+           executionScope,
+           stdinAlreadyAccounted,
+         ),
++        groupStdinClosed: false,
+         // Cooperative cancellation signal (used by timeout command)
+         signal: effectiveOptions.signal,
+         // Extra arguments injected directly into first command's arg list
+diff --git a/packages/just-bash/src/comparison-tests/fixtures/pipeline-compound-stdin.comparison.fixtures.json b/packages/just-bash/src/comparison-tests/fixtures/pipeline-compound-stdin.comparison.fixtures.json
+new file mode 100644
+index 0000000..bc90150
+--- /dev/null
++++ b/packages/just-bash/src/comparison-tests/fixtures/pipeline-compound-stdin.comparison.fixtures.json
+@@ -0,0 +1,89 @@
++{
++  "02aaa715c31fdb80": {
++    "command": "{ printf \"a\\nb\\n\" | if true; then read x; echo \"if=[$x]\"; fi; read y; echo \"y=[$y]\"; } < outer.txt",
++    "files": {
++      "outer.txt": "outer\n"
++    },
++    "stdout": "if=[a]\ny=[outer]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "10dcaaf4e55919fb": {
++    "command": "{ printf \"\" | if true; then read x; echo \"if=[$x] status=$?\"; fi; read y; echo \"y=[$y]\"; } < outer.txt",
++    "files": {
++      "outer.txt": "outer\n"
++    },
++    "stdout": "if=[] status=1\ny=[outer]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "2e1d991b46bb026e": {
++    "command": "printf \"a\\nb\\n\" | source ./lib.sh",
++    "files": {
++      "lib.sh": "read x; echo \"sourced=[$x]\"\n"
++    },
++    "stdout": "sourced=[a]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "622260a3da8c33cd": {
++    "command": "printf \"a\\nb\\n\" | if true; then cat; fi",
++    "files": {},
++    "stdout": "a\nb\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "6a81d09a9bd779d6": {
++    "command": "printf \"a\\nb\\n\" | case y in y) read x; echo \"case=[$x]\" ;; esac",
++    "files": {},
++    "stdout": "case=[a]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "6c4a663937a69eb6": {
++    "command": "printf \"a\\nb\\n\" | { source ./lib.sh; read y; echo \"y=[$y]\"; }",
++    "files": {
++      "lib.sh": "read x; echo \"sourced=[$x]\"\n"
++    },
++    "stdout": "sourced=[a]\ny=[b]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "6e67fb3cf1464082": {
++    "command": "printf \"a\\nb\\n\" | if true; then read x; echo \"if=[$x]\"; fi",
++    "files": {},
++    "stdout": "if=[a]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "8a40c2e6610df1ed": {
++    "command": "printf \"a\\nb\\n\" | if false; then :; else read x; echo \"else=[$x]\"; fi",
++    "files": {},
++    "stdout": "else=[a]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "b215e352b3f8d30d": {
++    "command": "printf \"a\\nb\\n\" | if true; then read x; echo \"if=[$x]\"; fi < own.txt",
++    "files": {
++      "own.txt": "own\n"
++    },
++    "stdout": "if=[own]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "d033b2b3eacd9116": {
++    "command": "printf \"a\\nb\\n\" | for ((i = 0; i < 2; i++)); do read x; echo \"for$i=[$x]\"; done",
++    "files": {},
++    "stdout": "for0=[a]\nfor1=[b]\n",
++    "stderr": "",
++    "exitCode": 0
++  },
++  "f7474656278f8dfe": {
++    "command": "printf \"a\\nb\\n\" | for i in 1 2 3; do read x; echo \"for$i=[$x]\"; done",
++    "files": {},
++    "stdout": "for1=[a]\nfor2=[b]\nfor3=[]\n",
++    "stderr": "",
++    "exitCode": 0
++  }
++}
+diff --git a/packages/just-bash/src/comparison-tests/pipeline-compound-stdin.comparison.test.ts b/packages/just-bash/src/comparison-tests/pipeline-compound-stdin.comparison.test.ts
+new file mode 100644
+index 0000000..1a93c2f
+--- /dev/null
++++ b/packages/just-bash/src/comparison-tests/pipeline-compound-stdin.comparison.test.ts
+@@ -0,0 +1,127 @@
++import { afterEach, beforeEach, describe, it } from "vitest";
++import {
++  cleanupTestDir,
++  compareOutputs,
++  createTestDir,
++  setupFiles,
++} from "./fixture-runner.js";
++
++/**
++ * A compound command that sits after a `|` reads the pipe, whichever kind of
++ * compound command it is: bash hands the previous stage's stdout to an `if`,
++ * a `for`, or a `case` exactly as it does to a `while`, and to the file a
++ * `source` runs. Recorded against GNU bash 3.2.57. Every command has its
++ * stdin piped at the outermost level so recording never blocks on the
++ * recorder's own stdin.
++ */
++
++describe("compound commands in a pipeline - Real Bash Comparison", () => {
++  let testDir: string;
++
++  beforeEach(async () => {
++    testDir = await createTestDir();
++  });
++
++  afterEach(async () => {
++    await cleanupTestDir(testDir);
++  });
++
++  it("an if body reads the pipe", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | if true; then read x; echo "if=[$x]"; fi',
++    );
++  });
++
++  it("an if body reads the whole pipe through cat", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | if true; then cat; fi',
++    );
++  });
++
++  it("an else body reads the pipe", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | if false; then :; else read x; echo "else=[$x]"; fi',
++    );
++  });
++
++  it("a for body reads the pipe, and later iterations continue it", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | for i in 1 2 3; do read x; echo "for$i=[$x]"; done',
++    );
++  });
++
++  it("a C-style for body reads the pipe", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | for ((i = 0; i < 2; i++)); do read x; echo "for$i=[$x]"; done',
++    );
++  });
++
++  it("a case body reads the pipe", async () => {
++    const env = await setupFiles(testDir, {});
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | case y in y) read x; echo "case=[$x]" ;; esac',
++    );
++  });
++
++  it("a compound command's own redirection wins over the pipe", async () => {
++    const env = await setupFiles(testDir, { "own.txt": "own\n" });
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | if true; then read x; echo "if=[$x]"; fi < own.txt',
++    );
++  });
++
++  it("the pipe does not reach past the compound command", async () => {
++    const env = await setupFiles(testDir, { "outer.txt": "outer\n" });
++    await compareOutputs(
++      env,
++      testDir,
++      '{ printf "a\\nb\\n" | if true; then read x; echo "if=[$x]"; fi; read y; echo "y=[$y]"; } < outer.txt',
++    );
++  });
++
++  it("a sourced file reads the pipe", async () => {
++    const env = await setupFiles(testDir, {
++      "lib.sh": 'read x; echo "sourced=[$x]"\n',
++    });
++    await compareOutputs(env, testDir, 'printf "a\\nb\\n" | source ./lib.sh');
++  });
++
++  it("a sourced file's reads advance the shared position outside it", async () => {
++    const env = await setupFiles(testDir, {
++      "lib.sh": 'read x; echo "sourced=[$x]"\n',
++    });
++    await compareOutputs(
++      env,
++      testDir,
++      'printf "a\\nb\\n" | { source ./lib.sh; read y; echo "y=[$y]"; }',
++    );
++  });
++
++  it("an empty pipe is an empty stream, not the enclosing one", async () => {
++    const env = await setupFiles(testDir, { "outer.txt": "outer\n" });
++    await compareOutputs(
++      env,
++      testDir,
++      '{ printf "" | if true; then read x; echo "if=[$x] status=$?"; fi; read y; echo "y=[$y]"; } < outer.txt',
++    );
++  });
++});
+diff --git a/packages/just-bash/src/custom-commands.test.ts b/packages/just-bash/src/custom-commands.test.ts
+index 98ce506..8b4fd1d 100644
+--- a/packages/just-bash/src/custom-commands.test.ts
++++ b/packages/just-bash/src/custom-commands.test.ts
+@@ -361,6 +361,125 @@ describe("custom-commands", () => {
+       expect(result.exitCode).toBe(0);
+     });
+ 
++    describe("ctx.stdinConnected", () => {
++      // Prints one word per invocation: "pipe" when fd 0 is connected,
++      // "none" when it is not, so a script's stdout is the sequence of
++      // answers the command saw.
++      const probe = defineCommand("probe", async (_args, ctx) => ({
++        stdout: `${ctx.stdinConnected ? "pipe" : "none"}\n`,
++        stderr: "",
++        exitCode: 0,
++      }));
++      const run = (script: string) =>
++        new Bash({
++          customCommands: [probe],
++          files: {
++            "/empty": "",
++            "/full": "x\n",
++            "/script": "#!/bin/bash\nprobe\n",
++          },
++        }).exec(`chmod +x /script; ${script}`);
++
++      it("is false for a bare command", async () => {
++        expect((await run("probe")).stdout).toBe("none\n");
++      });
++
++      it("is true for a pipe that carried bytes", async () => {
++        expect((await run("echo hi | probe")).stdout).toBe("pipe\n");
++      });
++
++      it.each([
++        ["a producer that printed nothing", "printf '' | probe"],
++        ["a producer that failed", "false | probe"],
++        ["a middle stage of a pipeline", "printf '' | probe | cat"],
++        ["a redirection from an empty file", "probe < /empty"],
++        ["a pipe into a group", "printf '' | { probe; }"],
++        ["a pipe into a subshell", "printf '' | (probe)"],
++        ["a pipe into a function", "f() { probe; }; printf '' | f"],
++        ["a pipe into an if", "printf '' | if true; then probe; fi"],
++        ["a pipe into a for", "printf '' | for i in 1; do probe; done"],
++        [
++          "a pipe into a C-style for",
++          "printf '' | for ((i = 0; i < 1; i++)); do probe; done",
++        ],
++        ["a pipe into a while", "printf '' | while probe; do break; done"],
++        [
++          "a pipe into an until",
++          "printf '' | until false; do probe; break; done",
++        ],
++        ["a pipe into a case", "printf '' | case x in x) probe ;; esac"],
++        ["a pipe into an executable script", "printf '' | /script"],
++        ["a pipe into a nested shell", "printf '' | bash -c probe"],
++        ["a pipe into `command`", "printf '' | command probe"],
++        ["a pipe into `exec`", "printf '' | exec probe"],
++        ["a pipe into `eval`", "printf '' | eval probe"],
++        ["a pipe into `source`", "printf '' | source /script"],
++        ["an empty here-string", "probe <<< ''"],
++        ["a self-duplication inside a pipe", "printf '' | probe <&0"],
++        [
++          "a closed fd 0 reopened by an inner redirection",
++          "{ probe < /empty; } 0<&-",
++        ],
++        [
++          "a closed fd 0 reopened by a function's own redirection",
++          "f() { probe; } < /empty; f 0<&-",
++        ],
++      ])("is true for %s, even with no bytes", async (_, script) => {
++        expect((await run(script)).stdout).toBe("pipe\n");
++      });
++
++      it.each([
++        ["a nested shell with nothing to hand on", "bash -c probe"],
++        ["a closed fd 0", "probe 0<&-"],
++        ["a self-duplication of an unconnected fd 0", "probe <&0"],
++        ["a script run with nothing to hand on", "/script"],
++        ["an if with nothing to hand on", "if true; then probe; fi"],
++        ["a closed fd 0 on a group", "{ probe; } 0<&-"],
++        ["a closed fd 0 on a subshell", "(probe) 0<&-"],
++        ["a closed fd 0 on a function call", "f() { probe; }; f 0<&-"],
++        ["a closed fd 0 on a function definition", "f() { probe; } 0<&-; f"],
++        ["a closed fd 0 on `eval`", "eval probe 0<&-"],
++        ["a closed fd 0 on `source`", "source /script 0<&-"],
++        ["a closed fd 0 on an executable script", "/script 0<&-"],
++        ["a closed fd 0 on an if", "if true; then probe; fi 0<&-"],
++        ["a closed fd 0 on a while", "while probe; do break; done 0<&-"],
++        ["a closed fd 0 two scopes up", "f() { probe; }; { { f; }; } 0<&-"],
++        ["a closed fd 0 inside a pipe", "printf '' | { probe; } 0<&-"],
++      ])("is false for %s", async (_, script) => {
++        expect((await run(script)).stdout).toBe("none\n");
++      });
++
++      it("is false inside a closed scope and true again outside it", async () => {
++        expect(
++          (await run("printf '' | { { probe; } 0<&-; probe; }")).stdout,
++        ).toBe("none\npipe\n");
++      });
++
++      it("is false again once the pipeline is over", async () => {
++        expect((await run("printf '' | probe; probe")).stdout).toBe(
++          "pipe\nnone\n",
++        );
++      });
++
++      it("is false for the first stage, which inherits the shell's stdin", async () => {
++        expect((await run("probe | cat")).stdout).toBe("none\n");
++      });
++
++      it("stays false for the commands after a closed fd 0, which reads as EOF", async () => {
++        expect((await run("exec 0<&-; probe")).stdout).toBe("none\n");
++      });
++
++      it("follows the standalone context's stdin", () => {
++        const withStdin = createCommandContext({
++          fs: {} as never,
++          stdin: EMPTY_BYTES,
++        });
++        const without = createCommandContext({ fs: {} as never });
++        expect(withStdin.stdinConnected).toBe(true);
++        expect(without.stdinConnected).toBe(false);
++      });
++    });
++
+     it("custom command can read files via ctx.fs", async () => {
+       const reader = defineCommand("reader", async (args, ctx) => {
+         const content = await ctx.fs.readFile(args[0]);
+diff --git a/packages/just-bash/src/custom-commands.ts b/packages/just-bash/src/custom-commands.ts
+index cf0a943..0a2b43e 100644
+--- a/packages/just-bash/src/custom-commands.ts
++++ b/packages/just-bash/src/custom-commands.ts
+@@ -57,19 +57,15 @@ export interface CommandContextOptions
+ export function createCommandContext(
+   options: CommandContextOptions,
+ ): RuntimeCommandContext {
+-  const {
+-    executionLimits,
+-    executionLimitProfile,
+-    fs,
+-    stdin = EMPTY_BYTES,
+-    ...overrides
+-  } = options;
++  const { executionLimits, executionLimitProfile, fs, stdin, ...overrides } =
++    options;
+   return {
+     fs,
+     fsIdentity: overrides.fsIdentity ?? getFileSystemIdentity(fs),
+     cwd: "/",
+     env: new Map(),
+-    stdin,
++    stdin: stdin ?? EMPTY_BYTES,
++    stdinConnected: stdin !== undefined,
+     limits: resolveLimits(executionLimits, executionLimitProfile),
+     ...overrides,
+   };
+diff --git a/packages/just-bash/src/interpreter/builtin-dispatch.ts b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+index c0ac4ad..55e9890 100644
+--- a/packages/just-bash/src/interpreter/builtin-dispatch.ts
++++ b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+@@ -92,6 +92,7 @@ export type RunCommandFn = (
+   useDefaultPath?: boolean,
+   stdinSourceFd?: number,
+   stdinRedirected?: boolean,
++  stdinConnected?: boolean,
+ ) => Promise<ExecResult>;
+ 
+ interface RevocableCommandContext {
+@@ -424,6 +425,8 @@ export type ExecuteUserScriptFn = (
+   scriptPath: string,
+   args: string[],
+   stdin?: string,
++  stdinOwned?: boolean,
++  stdinClosed?: boolean,
+ ) => Promise<ExecResult>;
+ 
+ /**
+@@ -450,14 +453,24 @@ export async function dispatchBuiltin(
+   _useDefaultPath: boolean,
+   stdinSourceFd: number,
+   /**
+-   * True when a redirection gave this command its own fd 0. `stdin` alone
+-   * cannot express it: `cmd < empty-file` and an unredirected command both
+-   * arrive as `""`, but only the first means EOF rather than "inherit the
+-   * shell's stdin".
++   * True when a redirection or a pipe gave this command its own fd 0.
++   * `stdin` alone cannot express it: `cmd < empty-file`, `false | cmd`, and
++   * an unredirected command all arrive as `""`, but only the first two mean
++   * EOF rather than "inherit the shell's stdin".
+    */
+   stdinRedirected = false,
++  /**
++   * True when something is on the other end of fd 0. Differs from
++   * `stdinRedirected` in both directions: an inherited fd 0 is connected when
++   * the enclosing scope has a stream, and `cmd 0<&-` owns a closed fd 0 that
++   * is connected to nothing. Handed to the command the builtins wrap.
++   */
++  stdinConnected = false,
+ ): Promise<ExecResult | null> {
+   const { ctx, runCommand } = dispatchCtx;
++  // An owned fd 0 with nothing on it is a closed one (`cmd 0<&-`), which the
++  // scopes below carry as such rather than as an owned empty stream.
++  const stdinClosed = stdinRedirected && !stdinConnected;
+ 
+   // Coverage tracking for builtins (lightweight: only fires when coverage is enabled)
+   if (ctx.coverage && SHELL_BUILTINS.has(commandName)) {
+@@ -492,7 +505,7 @@ export async function dispatchBuiltin(
+   // In POSIX mode, eval is a special builtin that cannot be overridden by functions
+   // In non-POSIX mode (bash default), functions can override eval
+   if (commandName === "eval" && ctx.state.options.posix) {
+-    return handleEval(ctx, args, stdin, stdinRedirected);
++    return handleEval(ctx, args, stdin, stdinRedirected, stdinClosed);
+   }
+   if (commandName === "shift") {
+     return handleShift(ctx, args);
+@@ -519,7 +532,7 @@ export async function dispatchBuiltin(
+     return handleDirs(ctx, args);
+   }
+   if (commandName === "source" || commandName === ".") {
+-    return handleSource(ctx, args);
++    return handleSource(ctx, args, stdin, stdinRedirected, stdinClosed);
+   }
+   if (commandName === "read") {
+     return handleRead(ctx, args, stdin, stdinSourceFd);
+@@ -538,7 +551,15 @@ export async function dispatchBuiltin(
+   if (!skipFunctions) {
+     const func = ctx.state.functions.get(commandName);
+     if (func) {
+-      return callFunction(ctx, func, args, stdin, undefined, stdinRedirected);
++      return callFunction(
++        ctx,
++        func,
++        args,
++        stdin,
++        undefined,
++        stdinRedirected,
++        stdinClosed,
++      );
+     }
+   }
+   // Internal transform primitive, reached through `builtin` so a user-defined
+@@ -571,7 +592,7 @@ export async function dispatchBuiltin(
+   // Simple builtins (can be overridden by functions)
+   // eval: In non-POSIX mode, functions can override eval (handled above for POSIX mode)
+   if (commandName === "eval") {
+-    return handleEval(ctx, args, stdin, stdinRedirected);
++    return handleEval(ctx, args, stdin, stdinRedirected, stdinClosed);
+   }
+   if (commandName === "cd") {
+     return await handleCd(ctx, args);
+@@ -586,10 +607,22 @@ export async function dispatchBuiltin(
+     return handleLet(ctx, args);
+   }
+   if (commandName === "command") {
+-    return handleCommandBuiltin(dispatchCtx, args, stdin, stdinRedirected);
++    return handleCommandBuiltin(
++      dispatchCtx,
++      args,
++      stdin,
++      stdinRedirected,
++      stdinConnected,
++    );
+   }
+   if (commandName === "builtin") {
+-    return handleBuiltinBuiltin(dispatchCtx, args, stdin, stdinRedirected);
++    return handleBuiltinBuiltin(
++      dispatchCtx,
++      args,
++      stdin,
++      stdinRedirected,
++      stdinConnected,
++    );
+   }
+   if (commandName === "shopt") {
+     return handleShopt(ctx, args);
+@@ -611,6 +644,7 @@ export async function dispatchBuiltin(
+       false,
+       -1,
+       stdinRedirected,
++      stdinConnected,
+     );
+     return { ...result, internalProducerOmitsShellPrefix: true };
+   }
+@@ -658,6 +692,7 @@ async function handleCommandBuiltin(
+   stdin: string,
+   /** Forwarded to the wrapped command: it runs on this command's fd 0. */
+   stdinRedirected = false,
++  stdinConnected = false,
+ ): Promise<ExecResult> {
+   const { ctx, runCommand } = dispatchCtx;
+ 
+@@ -711,6 +746,7 @@ async function handleCommandBuiltin(
+     useDefaultPath,
+     -1,
+     stdinRedirected,
++    stdinConnected,
+   );
+ }
+ 
+@@ -723,6 +759,7 @@ async function handleBuiltinBuiltin(
+   stdin: string,
+   /** Forwarded to the wrapped builtin: it runs on this command's fd 0. */
+   stdinRedirected = false,
++  stdinConnected = false,
+ ): Promise<ExecResult> {
+   const { runCommand } = dispatchCtx;
+ 
+@@ -746,7 +783,17 @@ async function handleBuiltinBuiltin(
+   }
+   const [, ...rest] = cmdArgs;
+   // Run as builtin (recursive call, skip function lookup)
+-  return runCommand(cmd, rest, [], stdin, true, false, -1, stdinRedirected);
++  return runCommand(
++    cmd,
++    rest,
++    [],
++    stdin,
++    true,
++    false,
++    -1,
++    stdinRedirected,
++    stdinConnected,
++  );
+ }
+ 
+ /**
+@@ -759,6 +806,9 @@ export async function executeExternalCommand(
+   args: string[],
+   stdin: string,
+   useDefaultPath: boolean,
++  /** See `dispatchBuiltin`. */
++  stdinOwned = false,
++  stdinConnected = false,
+ ): Promise<ExecResult> {
+   const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
+ 
+@@ -798,7 +848,13 @@ export async function executeExternalCommand(
+       }
+       ctx.state.hashTable.set(commandName, resolved.path);
+     }
+-    return await executeUserScript(resolved.path, args, stdin);
++    return await executeUserScript(
++      resolved.path,
++      args,
++      stdin,
++      stdinOwned,
++      stdinOwned && !stdinConnected,
++    );
+   }
+   const { cmd, path: cmdPath } = resolved;
+   // Add to hash table for PATH caching (only for non-path commands)
+@@ -887,19 +943,30 @@ export async function executeExternalCommand(
+       stdinAccessed = true;
+       return effectiveStdin;
+     },
++    // Whether anything is on the other end of fd 0, which the bytes alone
++    // cannot say once they are empty: a pipe whose producer printed nothing,
++    // a redirection from an empty file, or an enclosing group's stdin all
++    // arrive as no bytes, and a command that reads stdin only when it has one
++    // (ripgrep, which otherwise walks the directory) needs the distinction.
++    stdinConnected,
+     limits: ctx.limits,
+     executionScope: cmd.internalIsExtension
+       ? createCommandExecutionBudget(ctx.executionScope)
+       : ctx.executionScope,
+     exec: (script, options) => ctx.execFn(script, options, false),
++    // The nested shell gets this command's stdin only when fd 0 is connected:
++    // handing it an empty buffer otherwise would give every command in it a
++    // stream to report, where a bare `bash -c cmd` has none to hand on.
+     execWithInheritedStdin: (script, options) =>
+       ctx.execFn(
+         script,
+-        {
+-          ...options,
+-          stdin: latin1FromBytes(effectiveStdin),
+-          stdinKind: "bytes",
+-        },
++        stdinConnected
++          ? {
++              ...options,
++              stdin: latin1FromBytes(effectiveStdin),
++              stdinKind: "bytes",
++            }
++          : options,
+         true,
+       ),
+     fetch: ctx.fetch,
+diff --git a/packages/just-bash/src/interpreter/builtins/eval.ts b/packages/just-bash/src/interpreter/builtins/eval.ts
+index 71d8d9b..8976f7f 100644
+--- a/packages/just-bash/src/interpreter/builtins/eval.ts
++++ b/packages/just-bash/src/interpreter/builtins/eval.ts
+@@ -26,6 +26,8 @@ export async function handleEval(
+    * unredirected `eval` shares the shell's stdin.
+    */
+   stdinRedirected = false,
++  /** The fd 0 this `eval` was given is closed (`eval '…' 0<&-`). */
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   // Handle options like bash does:
+   // -- ends option processing
+@@ -63,9 +65,11 @@ export async function handleEval(
+   // move the one shared position, so `{ eval 'read a'; read b; }` must give
+   // `b` the second line rather than replay the first.
+   const savedGroupStdin = ctx.state.groupStdin;
++  const savedGroupStdinClosed = ctx.state.groupStdinClosed;
+   const ownsStdin = stdinRedirected || (stdin !== undefined && stdin !== "");
+   if (ownsStdin) {
+     ctx.state.groupStdin = stdin ?? "";
++    ctx.state.groupStdinClosed = !stdin && stdinClosed;
+   }
+ 
+   try {
+@@ -96,6 +100,7 @@ export async function handleEval(
+       (savedGroupStdin !== undefined && ctx.state.groupStdin === undefined)
+     ) {
+       ctx.state.groupStdin = savedGroupStdin;
++      ctx.state.groupStdinClosed = savedGroupStdinClosed;
+     }
+   }
+ }
+diff --git a/packages/just-bash/src/interpreter/builtins/source.ts b/packages/just-bash/src/interpreter/builtins/source.ts
+index a83ef31..43fdb6e 100644
+--- a/packages/just-bash/src/interpreter/builtins/source.ts
++++ b/packages/just-bash/src/interpreter/builtins/source.ts
+@@ -11,6 +11,15 @@ import type { InterpreterContext } from "../types.js";
+ export async function handleSource(
+   ctx: InterpreterContext,
+   args: string[],
++  stdin = "",
++  /**
++   * A pipe or a redirection gave this `source` its own fd 0. Empty content is
++   * still ownership: `printf '' | source file` means an empty stream inside,
++   * where an unredirected `source` shares the shell's stdin.
++   */
++  stdinRedirected = false,
++  /** The fd 0 this `source` was given is closed (`source file 0<&-`). */
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   // Handle -- to end options (ignored like bash does)
+   let sourceArgs = args;
+@@ -98,7 +107,21 @@ export async function handleSource(
+   // Save and restore current source context for BASH_SOURCE tracking
+   const savedSource = ctx.state.currentSource;
+ 
++  // `source` runs in the current shell, so like `eval` it restores only the
++  // stdin it actually replaced: the file's commands read the pipe or file
++  // that fed the `source` command, and share the shell's fd 0 otherwise.
++  const savedGroupStdin = ctx.state.groupStdin;
++  const savedGroupStdinClosed = ctx.state.groupStdinClosed;
++  const ownsStdin = stdinRedirected || stdin !== "";
++
+   const cleanup = (): void => {
++    if (
++      ownsStdin ||
++      (savedGroupStdin !== undefined && ctx.state.groupStdin === undefined)
++    ) {
++      ctx.state.groupStdin = savedGroupStdin;
++      ctx.state.groupStdinClosed = savedGroupStdinClosed;
++    }
+     ctx.state.sourceDepth--;
+     ctx.state.currentSource = savedSource;
+     // Restore positional parameters if we changed them
+@@ -123,6 +146,10 @@ export async function handleSource(
+   }
+   // Set current source to the file being sourced (for function definitions)
+   ctx.state.currentSource = filename;
++  if (ownsStdin) {
++    ctx.state.groupStdin = stdin;
++    ctx.state.groupStdinClosed = stdin === "" && stdinClosed;
++  }
+   try {
+     const ast = parse(content);
+     const result = await ctx.executeScript(ast);
+diff --git a/packages/just-bash/src/interpreter/control-flow.ts b/packages/just-bash/src/interpreter/control-flow.ts
+index 9ae8f49..36a0a3c 100644
+--- a/packages/just-bash/src/interpreter/control-flow.ts
++++ b/packages/just-bash/src/interpreter/control-flow.ts
+@@ -50,37 +50,55 @@ import {
+ } from "./helpers/loop.js";
+ import { failure, throwExecutionLimit } from "./helpers/result.js";
+ import {
++  ownedStdinClosed,
+   type PreparedRedirections,
+   withPreparedRedirections,
+ } from "./redirections.js";
+ import type { InterpreterContext } from "./types.js";
+ 
+ /**
+- * Decide whether a loop takes ownership of the shared read stream
+- * (`ctx.state.groupStdin`).
++ * Run a compound command's body on the stdin it owns, if it owns one.
+  *
+- * A loop only installs — and therefore only restores — a stdin it brought
+- * itself: its own input redirection (`< file`, here-doc, here-string), or the
+- * stdin handed to it as a pipeline stage. A stream merely INHERITED from an
+- * enclosing group or loop must be left in place, because reads inside the body
+- * advance it and restoring it afterwards would rewind the shared read
+- * position: `printf 'a\nb\n' | { while read x; do break; done; read y; }` has
+- * to see `y=b`, not `y=a`.
++ * A compound command only installs — and therefore only restores — a stdin
++ * (`ctx.state.groupStdin`) it brought itself: its own input redirection
++ * (`< file`, here-doc, here-string), or the stdin handed to it as a pipeline
++ * stage. A stream merely INHERITED from an enclosing group or loop must be
++ * left in place, because reads inside the body advance it and restoring it
++ * afterwards would rewind the shared read position:
++ * `printf 'a\nb\n' | { while read x; do break; done; read y; }` has to see
++ * `y=b`, not `y=a`.
+  *
+- * `ownStdin` of `""` still counts as ownership — `done < empty-file` gives the
+- * body an empty stream rather than the enclosing one.
++ * Empty content still counts as ownership — `done < empty-file` gives the body
++ * an empty stream rather than the enclosing one, and so does a pipeline stage
++ * whose producer printed nothing, which is why the caller says whether it
++ * handed one over (`stdinOwned`) rather than leaving the bytes to tell, and
++ * whether what it handed over is a closed fd 0 (`stdinClosed`).
+  */
+-function resolveLoopStdin(
+-  ownStdin: string | undefined,
+-  pipelineStdin: string,
+-): { owns: true; stdin: string } | { owns: false } {
+-  if (ownStdin !== undefined) {
+-    return { owns: true, stdin: ownStdin };
+-  }
+-  if (pipelineStdin !== "") {
+-    return { owns: true, stdin: pipelineStdin };
++async function withCompoundStdin(
++  ctx: InterpreterContext,
++  prepared: PreparedRedirections,
++  stdin: string,
++  stdinOwned: boolean,
++  stdinClosed: boolean,
++  run: () => Promise<ExecResult>,
++): Promise<ExecResult> {
++  const owned =
++    prepared.stdin !== undefined
++      ? prepared.stdin
++      : stdinOwned || stdin !== ""
++        ? stdin
++        : undefined;
++  if (owned === undefined) return run();
++  const savedGroupStdin = ctx.state.groupStdin;
++  const savedGroupStdinClosed = ctx.state.groupStdinClosed;
++  ctx.state.groupStdin = owned;
++  ctx.state.groupStdinClosed = ownedStdinClosed(prepared, stdin, stdinClosed);
++  try {
++    return await run();
++  } finally {
++    ctx.state.groupStdin = savedGroupStdin;
++    ctx.state.groupStdinClosed = savedGroupStdinClosed;
+   }
+-  return { owns: false };
+ }
+ 
+ class CompoundOutput {
+@@ -173,9 +191,14 @@ async function executeBoundedStatements(
+ export async function executeIf(
+   ctx: InterpreterContext,
+   node: IfNode,
++  stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+-  return withPreparedRedirections(ctx, node.redirections, "", () =>
+-    executeIfBody(ctx, node),
++  return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeIfBody(ctx, node),
++    ),
+   );
+ }
+ 
+@@ -205,9 +228,14 @@ async function executeIfBody(
+ export async function executeFor(
+   ctx: InterpreterContext,
+   node: ForNode,
++  stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+-  return withPreparedRedirections(ctx, node.redirections, "", () =>
+-    executeForBody(ctx, node),
++  return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeForBody(ctx, node),
++    ),
+   );
+ }
+ 
+@@ -306,9 +334,14 @@ async function executeForBody(
+ export async function executeCStyleFor(
+   ctx: InterpreterContext,
+   node: CStyleForNode,
++  stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+-  return withPreparedRedirections(ctx, node.redirections, "", () =>
+-    executeCStyleForBody(ctx, node),
++  return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeCStyleForBody(ctx, node),
++    ),
+   );
+ }
+ 
+@@ -405,29 +438,24 @@ export async function executeWhile(
+   ctx: InterpreterContext,
+   node: WhileNode,
+   stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
+-    executeWhileBody(ctx, node, stdin, prepared),
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeWhileBody(ctx, node),
++    ),
+   );
+ }
+ 
+ async function executeWhileBody(
+   ctx: InterpreterContext,
+   node: WhileNode,
+-  stdin: string,
+-  prepared: PreparedRedirections,
+ ): Promise<ExecResult> {
+   const output = new CompoundOutput(ctx);
+   let exitCode = 0;
+   let iterations = 0;
+ 
+-  // Install groupStdin only for a stream this loop owns (see resolveLoopStdin)
+-  const loopStdin = resolveLoopStdin(prepared.stdin, stdin);
+-  const savedGroupStdin = ctx.state.groupStdin;
+-  if (loopStdin.owns) {
+-    ctx.state.groupStdin = loopStdin.stdin;
+-  }
+-
+   ctx.state.loopDepth++;
+   try {
+     while (true) {
+@@ -524,9 +552,6 @@ async function executeWhileBody(
+     }
+   } finally {
+     ctx.state.loopDepth--;
+-    if (loopStdin.owns) {
+-      ctx.state.groupStdin = savedGroupStdin;
+-    }
+   }
+ 
+   return output.build(exitCode);
+@@ -536,29 +561,24 @@ export async function executeUntil(
+   ctx: InterpreterContext,
+   node: UntilNode,
+   stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
+-    executeUntilBody(ctx, node, stdin, prepared),
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeUntilBody(ctx, node),
++    ),
+   );
+ }
+ 
+ async function executeUntilBody(
+   ctx: InterpreterContext,
+   node: UntilNode,
+-  stdin: string,
+-  prepared: PreparedRedirections,
+ ): Promise<ExecResult> {
+   const output = new CompoundOutput(ctx);
+   let exitCode = 0;
+   let iterations = 0;
+ 
+-  // Install groupStdin only for a stream this loop owns (see resolveLoopStdin)
+-  const loopStdin = resolveLoopStdin(prepared.stdin, stdin);
+-  const savedGroupStdin = ctx.state.groupStdin;
+-  if (loopStdin.owns) {
+-    ctx.state.groupStdin = loopStdin.stdin;
+-  }
+-
+   ctx.state.loopDepth++;
+   try {
+     while (true) {
+@@ -609,9 +629,6 @@ async function executeUntilBody(
+     }
+   } finally {
+     ctx.state.loopDepth--;
+-    if (loopStdin.owns) {
+-      ctx.state.groupStdin = savedGroupStdin;
+-    }
+   }
+ 
+   return output.build(exitCode);
+@@ -620,9 +637,14 @@ async function executeUntilBody(
+ export async function executeCase(
+   ctx: InterpreterContext,
+   node: CaseNode,
++  stdin = "",
++  stdinOwned = false,
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+-  return withPreparedRedirections(ctx, node.redirections, "", () =>
+-    executeCaseBody(ctx, node),
++  return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
++    withCompoundStdin(ctx, prepared, stdin, stdinOwned, stdinClosed, () =>
++      executeCaseBody(ctx, node),
++    ),
+   );
+ }
+ 
+diff --git a/packages/just-bash/src/interpreter/functions.ts b/packages/just-bash/src/interpreter/functions.ts
+index 3ed46f7..c02e04e 100644
+--- a/packages/just-bash/src/interpreter/functions.ts
++++ b/packages/just-bash/src/interpreter/functions.ts
+@@ -16,6 +16,7 @@ import { POSIX_SPECIAL_BUILTINS } from "./helpers/shell-constants.js";
+ import {
+   applyRedirections,
+   createRedirectionTransaction,
++  ownedStdinClosed,
+   type PreparedRedirections,
+   preparedRedirectionError,
+   routeControlFlowError,
+@@ -51,6 +52,8 @@ export async function callFunction(
+   callLine?: number,
+   /** A redirection on the call site (`f < file`) gave the function its own fd 0. */
+   stdinRedirected = false,
++  /** The fd 0 the call site gave the function is closed (`f 0<&-`). */
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   ctx.state.callDepth++;
+   if (ctx.state.callDepth > ctx.limits.maxCallDepth) {
+@@ -200,6 +203,7 @@ export async function callFunction(
+       func.body,
+       effectiveStdin,
+       stdinOwned,
++      ownedStdinClosed(prepared, stdin, stdinClosed),
+     );
+     // Apply output redirections from the function definition using pre-expanded targets
+     // e.g., fun() { echo hi; } 1>&2 should redirect output to stderr when called
+diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
+index 3aa1194..66bde42 100644
+--- a/packages/just-bash/src/interpreter/interpreter.ts
++++ b/packages/just-bash/src/interpreter/interpreter.ts
+@@ -422,9 +422,17 @@ export class Interpreter {
+     scriptPath: string,
+     args: string[],
+     stdin = "",
++    stdinOwned = false,
++    stdinClosed = false,
+   ): Promise<ExecResult> {
+-    return executeUserScriptHelper(this.ctx, scriptPath, args, stdin, (ast) =>
+-      this.executeScript(ast),
++    return executeUserScriptHelper(
++      this.ctx,
++      scriptPath,
++      args,
++      stdin,
++      stdinOwned,
++      stdinClosed,
++      (ast) => this.executeScript(ast),
+     );
+   }
+ 
+@@ -530,8 +538,8 @@ export class Interpreter {
+   }
+ 
+   private async executePipeline(node: PipelineNode): Promise<ExecResult> {
+-    return executePipelineHelper(this.ctx, node, (cmd, stdin) =>
+-      this.executeCommand(cmd, stdin),
++    return executePipelineHelper(this.ctx, node, (cmd, stdin, stdinOwned) =>
++      this.executeCommand(cmd, stdin, stdinOwned),
+     );
+   }
+ 
+@@ -545,11 +553,17 @@ export class Interpreter {
+     node: CommandNode,
+     stdin: string,
+     stdinOwned = false,
++    stdinClosed = false,
+   ): Promise<ExecResult> {
+     const procSubMark = markProcessSubstitutions(this.ctx);
+     let result: ExecResult;
+     try {
+-      result = await this.executeCommandInner(node, stdin, stdinOwned);
++      result = await this.executeCommandInner(
++        node,
++        stdin,
++        stdinOwned,
++        stdinClosed,
++      );
+     } catch (error) {
+       await releaseProcessSubstitutions(this.ctx, procSubMark).catch(
+         () => undefined,
+@@ -574,29 +588,30 @@ export class Interpreter {
+     node: CommandNode,
+     stdin: string,
+     stdinOwned: boolean,
++    stdinClosed: boolean,
+   ): Promise<ExecResult> {
+     this.assertDefenseContext("command");
+ 
+     this.ctx.coverage?.hit(`bash:cmd:${node.type}`);
+     switch (node.type) {
+       case "SimpleCommand":
+-        return this.executeSimpleCommand(node, stdin);
++        return this.executeSimpleCommand(node, stdin, stdinOwned, stdinClosed);
+       case "If":
+-        return executeIf(this.ctx, node);
++        return executeIf(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "For":
+-        return executeFor(this.ctx, node);
++        return executeFor(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "CStyleFor":
+-        return executeCStyleFor(this.ctx, node);
++        return executeCStyleFor(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "While":
+-        return executeWhile(this.ctx, node, stdin);
++        return executeWhile(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "Until":
+-        return executeUntil(this.ctx, node, stdin);
++        return executeUntil(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "Case":
+-        return executeCase(this.ctx, node);
++        return executeCase(this.ctx, node, stdin, stdinOwned, stdinClosed);
+       case "Subshell":
+-        return this.executeSubshell(node, stdin, stdinOwned);
++        return this.executeSubshell(node, stdin, stdinOwned, stdinClosed);
+       case "Group":
+-        return this.executeGroup(node, stdin, stdinOwned);
++        return this.executeGroup(node, stdin, stdinOwned, stdinClosed);
+       case "FunctionDef":
+         return executeFunctionDef(this.ctx, node);
+       case "ArithmeticCommand":
+@@ -611,12 +626,20 @@ export class Interpreter {
+   private async executeSimpleCommand(
+     node: SimpleCommandNode,
+     stdin: string,
++    stdinOwned = false,
++    stdinClosed = false,
+   ): Promise<ExecResult> {
+     let transaction: RedirectionTransaction | undefined;
+     try {
+-      return await this.executeSimpleCommandInner(node, stdin, (created) => {
+-        transaction = created;
+-      });
++      return await this.executeSimpleCommandInner(
++        node,
++        stdin,
++        stdinOwned,
++        stdinClosed,
++        (created) => {
++          transaction = created;
++        },
++      );
+     } catch (error) {
+       transaction?.finish();
+       if (error instanceof GlobError) {
+@@ -632,6 +655,8 @@ export class Interpreter {
+   private async executeSimpleCommandInner(
+     node: SimpleCommandNode,
+     stdin: string,
++    stdinOwned: boolean,
++    stdinClosed: boolean,
+     onTransaction: (transaction: RedirectionTransaction) => void,
+   ): Promise<ExecResult> {
+     // Update currentLine for $LINENO
+@@ -879,7 +904,27 @@ export class Interpreter {
+       return preparedRedirectionError(preparedRedirections);
+     }
+     const stdinSourceFd = preparedRedirections.stdinSourceFd;
+-    const stdinRedirected = preparedRedirections.stdin !== undefined;
++    // Two things a command can be told about fd 0. It owns the descriptor when
++    // a redirection gave it one here or the pipeline it sits in did, which
++    // decides whether eval, a function, or `command` read their own stream or
++    // the enclosing one; `0<&-` counts, since a closed fd 0 is still not the
++    // shell's. It is connected when something is on the other end: a
++    // redirection or a pipe that this command carries, or, for an fd 0 no
++    // redirection touched (`<&0` included), whatever the command inherited:
++    // an owned stream from the caller, bytes, or the enclosing scope's stream,
++    // each of which can itself be a closed fd 0 carried down from a `0<&-`
++    // higher up. A closed fd 0 is connected to nothing.
++    const stdinRedirected =
++      stdinOwned || preparedRedirections.stdin !== undefined;
++    const fd0 = preparedRedirections.standardRoutes.get(0);
++    const stdinConnected =
++      fd0 === undefined || (fd0.kind === "dup-in" && fd0.sourceFd === 0)
++        ? stdinOwned
++          ? !stdinClosed || stdin !== ""
++          : stdin !== "" ||
++            (this.ctx.state.groupStdin !== undefined &&
++              !this.ctx.state.groupStdinClosed)
++        : fd0.kind !== "closed";
+     if (preparedRedirections.stdin !== undefined) {
+       stdin = preparedRedirections.stdin;
+     }
+@@ -959,6 +1004,7 @@ export class Interpreter {
+         false,
+         stdinSourceFd,
+         stdinRedirected,
++        stdinConnected,
+       );
+     } catch (error) {
+       // For break/continue, we still need to apply redirections before propagating
+@@ -1086,13 +1132,15 @@ export class Interpreter {
+     useDefaultPath = false,
+     stdinSourceFd = -1,
+     stdinRedirected = false,
++    stdinConnected = false,
+   ): Promise<ExecResult> {
+     const dispatchCtx: BuiltinDispatchContext = {
+       ctx: this.ctx,
+-      runCommand: (name, a, qa, s, sf, udp, ssf, sr) =>
+-        this.runCommand(name, a, qa, s, sf, udp, ssf, sr),
++      runCommand: (name, a, qa, s, sf, udp, ssf, sr, sc) =>
++        this.runCommand(name, a, qa, s, sf, udp, ssf, sr, sc),
+       buildExportedEnv: () => this.buildExportedEnv(),
+-      executeUserScript: (path, a, s) => this.executeUserScript(path, a, s),
++      executeUserScript: (path, a, s, so, sc) =>
++        this.executeUserScript(path, a, s, so, sc),
+     };
+ 
+     // Try builtin dispatch first
+@@ -1106,6 +1154,7 @@ export class Interpreter {
+       useDefaultPath,
+       stdinSourceFd,
+       stdinRedirected,
++      stdinConnected,
+     );
+ 
+     if (builtinResult !== null)
+@@ -1120,6 +1169,8 @@ export class Interpreter {
+       args,
+       stdin,
+       useDefaultPath,
++      stdinRedirected,
++      stdinConnected,
+     );
+     return { ...externalResult, internalProducerCommand: commandName };
+   }
+@@ -1143,6 +1194,7 @@ export class Interpreter {
+     node: SubshellNode,
+     stdin = "",
+     stdinOwned = false,
++    stdinClosed = false,
+   ): Promise<ExecResult> {
+     return executeSubshellHelper(
+       this.ctx,
+@@ -1150,6 +1202,7 @@ export class Interpreter {
+       stdin,
+       (stmt) => this.executeStatement(stmt),
+       stdinOwned,
++      stdinClosed,
+     );
+   }
+ 
+@@ -1157,6 +1210,7 @@ export class Interpreter {
+     node: GroupNode,
+     stdin = "",
+     stdinOwned = false,
++    stdinClosed = false,
+   ): Promise<ExecResult> {
+     return executeGroupHelper(
+       this.ctx,
+@@ -1164,6 +1218,7 @@ export class Interpreter {
+       stdin,
+       (stmt) => this.executeStatement(stmt),
+       stdinOwned,
++      stdinClosed,
+     );
+   }
+ 
+diff --git a/packages/just-bash/src/interpreter/pipeline-execution.ts b/packages/just-bash/src/interpreter/pipeline-execution.ts
+index 8c6ff55..61df695 100644
+--- a/packages/just-bash/src/interpreter/pipeline-execution.ts
++++ b/packages/just-bash/src/interpreter/pipeline-execution.ts
+@@ -24,6 +24,7 @@ import type { InterpreterContext } from "./types.js";
+ export type ExecuteCommandFn = (
+   node: CommandNode,
+   stdin: string,
++  stdinOwned?: boolean,
+ ) => Promise<ExecResult>;
+ 
+ /**
+@@ -94,7 +95,11 @@ export async function executePipeline(
+     const outputCheckpoint = ctx.executionScope.outputBytesUsed;
+     try {
+       ctx.state.commandCount = ctx.executionScope.chargeCommand();
+-      result = await executeCommand(command, stdin);
++      // Every stage after the first owns its fd 0: the previous stage's
++      // stdout is its stdin even when that output is empty, the same way a
++      // redirection from an empty file is. Passing the bytes alone loses
++      // that, since `""` also means "no pipe, inherit the shell's stdin".
++      result = await executeCommand(command, stdin, !isFirst);
+     } catch (error) {
+       // BadSubstitutionError should fail the command but not abort the script
+       if (error instanceof BadSubstitutionError) {
+diff --git a/packages/just-bash/src/interpreter/redirections.ts b/packages/just-bash/src/interpreter/redirections.ts
+index d3b7229..398440e 100644
+--- a/packages/just-bash/src/interpreter/redirections.ts
++++ b/packages/just-bash/src/interpreter/redirections.ts
+@@ -1049,6 +1049,31 @@ export async function routeControlFlowError(
+   };
+ }
+ 
++/**
++ * Whether these redirections close fd 0 (`0<&-`, `<&-`). The prepared `stdin`
++ * is `""` then, the same as a redirection from an empty file, and only the
++ * route tells the two apart.
++ */
++function closesStdin(prepared: PreparedRedirections): boolean {
++  return prepared.standardRoutes.get(0)?.kind === "closed";
++}
++
++/**
++ * Whether a scope handed `stdin` by its caller, and owning it, owns a closed
++ * fd 0: its own redirections decide first (a file or here-doc opens it, `<&-`
++ * closes it), and otherwise the answer travels with the ownership, since an
++ * owned empty stream cannot say on its own whether a pipe ran dry or nothing
++ * was ever behind it.
++ */
++export function ownedStdinClosed(
++  prepared: PreparedRedirections,
++  stdin: string,
++  stdinClosed: boolean,
++): boolean {
++  if (prepared.stdin !== undefined) return closesStdin(prepared);
++  return stdin === "" && stdinClosed;
++}
++
+ export async function withPreparedRedirections(
+   ctx: InterpreterContext,
+   redirections: RedirectionNode[],
+@@ -1066,9 +1091,11 @@ export async function withPreparedRedirections(
+     if (prepared.error) return preparedRedirectionError(prepared);
+     const savedGroupStdin = ctx.state.groupStdin;
+     const savedGroupStdinSourceFd = ctx.state.groupStdinSourceFd;
++    const savedGroupStdinClosed = ctx.state.groupStdinClosed;
+     if (prepared.stdin !== undefined) {
+       ctx.state.groupStdin = prepared.stdin;
+       ctx.state.groupStdinSourceFd = prepared.stdinSourceFd;
++      ctx.state.groupStdinClosed = closesStdin(prepared);
+     }
+     try {
+       const result = await run(prepared);
+@@ -1084,6 +1111,7 @@ export async function withPreparedRedirections(
+       if (prepared.stdin !== undefined) {
+         ctx.state.groupStdin = savedGroupStdin;
+         ctx.state.groupStdinSourceFd = savedGroupStdinSourceFd;
++        ctx.state.groupStdinClosed = savedGroupStdinClosed;
+       }
+     }
+   } catch (error) {
+diff --git a/packages/just-bash/src/interpreter/state-transaction.ts b/packages/just-bash/src/interpreter/state-transaction.ts
+index 5bf931d..ad85c3a 100644
+--- a/packages/just-bash/src/interpreter/state-transaction.ts
++++ b/packages/just-bash/src/interpreter/state-transaction.ts
+@@ -138,6 +138,7 @@ export function beginIsolatedShellState(state: InterpreterState): () => void {
+     emptyCompletionSpec: state.emptyCompletionSpec,
+     groupStdin: state.groupStdin,
+     groupStdinSourceFd: state.groupStdinSourceFd,
++    groupStdinClosed: state.groupStdinClosed,
+     bashPid: state.bashPid,
+     expansionExitCode: state.expansionExitCode,
+     expansionStderr: state.expansionStderr,
+diff --git a/packages/just-bash/src/interpreter/subshell-group.ts b/packages/just-bash/src/interpreter/subshell-group.ts
+index 36754e7..1a39b51 100644
+--- a/packages/just-bash/src/interpreter/subshell-group.ts
++++ b/packages/just-bash/src/interpreter/subshell-group.ts
+@@ -33,6 +33,7 @@ import {
+ import { getErrorMessage } from "./helpers/errors.js";
+ import { failure, result } from "./helpers/result.js";
+ import {
++  ownedStdinClosed,
+   type PreparedRedirections,
+   withPreparedRedirections,
+ } from "./redirections.js";
+@@ -55,6 +56,8 @@ export async function executeSubshell(
+   executeStatement: ExecuteStatementFn,
+   /** See `executeGroup`: empty content can still be an owned, empty fd 0. */
+   stdinOwned = false,
++  /** See `executeGroup`. */
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   const parentLoopDepth = ctx.state.loopDepth;
+   const parentDescriptors = new Map<number, FdEntry>();
+@@ -78,6 +81,7 @@ export async function executeSubshell(
+           prepared.stdin ?? stdin,
+           executeStatement,
+           stdinOwned || prepared.stdin !== undefined,
++          ownedStdinClosed(prepared, stdin, stdinClosed),
+         ),
+     );
+   } finally {
+@@ -112,10 +116,12 @@ async function executeSubshellBody(
+   stdin: string,
+   executeStatement: ExecuteStatementFn,
+   stdinOwned: boolean,
++  stdinClosed: boolean,
+ ): Promise<ExecResult> {
+   // Save any existing groupStdin and set new one from pipeline
+   if (stdinOwned || stdin) {
+     ctx.state.groupStdin = stdin;
++    ctx.state.groupStdinClosed = stdinClosed;
+   }
+ 
+   const output = new ExecutionOutputAccumulator(ctx.executionScope, "subshell");
+@@ -230,9 +236,23 @@ export async function executeGroup(
+    * say whether it came from `< empty-file` or from no redirection at all.
+    */
+   stdinOwned = false,
++  /**
++   * The fd 0 the caller gave this group is closed (`f 0<&-`), which an owned
++   * empty `stdin` cannot say either: the body reads EOF the same way, but a
++   * command inside asking whether fd 0 is connected must hear no.
++   */
++  stdinClosed = false,
+ ): Promise<ExecResult> {
+   return withPreparedRedirections(ctx, node.redirections, stdin, (prepared) =>
+-    executeGroupBody(ctx, node, stdin, executeStatement, stdinOwned, prepared),
++    executeGroupBody(
++      ctx,
++      node,
++      stdin,
++      executeStatement,
++      stdinOwned,
++      stdinClosed,
++      prepared,
++    ),
+   );
+ }
+ 
+@@ -242,6 +262,7 @@ async function executeGroupBody(
+   stdin: string,
+   executeStatement: ExecuteStatementFn,
+   stdinOwned: boolean,
++  stdinClosed: boolean,
+   prepared: PreparedRedirections,
+ ): Promise<ExecResult> {
+   const output = new ExecutionOutputAccumulator(ctx.executionScope, "group");
+@@ -266,8 +287,10 @@ async function executeGroupBody(
+   // *second* line: putting the saved position back would replay a line the
+   // inner group already consumed.
+   const savedGroupStdin = ctx.state.groupStdin;
++  const savedGroupStdinClosed = ctx.state.groupStdinClosed;
+   if (ownsStdin) {
+     ctx.state.groupStdin = effectiveStdin;
++    ctx.state.groupStdinClosed = ownedStdinClosed(prepared, stdin, stdinClosed);
+   }
+   const restoreGroupStdin = (): void => {
+     // A shared stdin can be consumed down to "" but never taken away:
+@@ -280,6 +303,7 @@ async function executeGroupBody(
+       (savedGroupStdin !== undefined && ctx.state.groupStdin === undefined)
+     ) {
+       ctx.state.groupStdin = savedGroupStdin;
++      ctx.state.groupStdinClosed = savedGroupStdinClosed;
+     }
+   };
+ 
+@@ -330,6 +354,8 @@ export async function executeUserScript(
+   scriptPath: string,
+   args: string[],
+   stdin: string,
++  stdinOwned: boolean,
++  stdinClosed: boolean,
+   executeScript: ExecuteScriptFn,
+ ): Promise<ExecResult> {
+   // Read the script content
+@@ -356,8 +382,12 @@ export async function executeUserScript(
+   ctx.state.parentHasLoopContext = parentLoopDepth > 0;
+   ctx.state.loopDepth = 0;
+   ctx.state.bashPid = ctx.state.nextVirtualPid++;
+-  if (stdin) {
++  // The script's commands read the stream the caller handed it, which an
++  // empty pipe, an empty-file redirection, or a closed fd 0 all hand over as
++  // no bytes at all.
++  if (stdinOwned || stdin) {
+     ctx.state.groupStdin = stdin;
++    ctx.state.groupStdinClosed = stdin === "" && stdinClosed;
+   }
+   ctx.state.currentSource = scriptPath;
+ 
+diff --git a/packages/just-bash/src/interpreter/types.ts b/packages/just-bash/src/interpreter/types.ts
+index ae851a5..97f1792 100644
+--- a/packages/just-bash/src/interpreter/types.ts
++++ b/packages/just-bash/src/interpreter/types.ts
+@@ -318,6 +318,13 @@ export interface IOState {
+   groupStdin?: string;
+   /** Descriptor that supplied `groupStdin`, when it has a shared position. */
+   groupStdinSourceFd?: number;
++  /**
++   * The scope that owns `groupStdin` closed its fd 0 (`{ …; } 0<&-`), so the
++   * stream is empty because nothing is behind it rather than because a pipe
++   * or file ran dry. Reads inside see EOF either way; a command asking
++   * whether fd 0 is connected gets the difference.
++   */
++  groupStdinClosed?: boolean;
+   /** File descriptors for process substitution and here-docs */
+   fileDescriptors?: Map<number, string>;
+   /**
+@@ -485,12 +492,15 @@ export interface InterpreterContext {
+    * `stdinOwned` says the caller gave this command its own fd 0, even when the
+    * content is the empty string (`f < empty-file`). Without it an empty stdin
+    * is indistinguishable from "no redirection", and the command would fall
+-   * back to the enclosing shell's stdin instead of seeing EOF.
++   * back to the enclosing shell's stdin instead of seeing EOF. `stdinClosed`
++   * says that owned fd 0 is closed (`f 0<&-`): EOF as well, but connected to
++   * nothing, which an owned empty stream cannot say on its own.
+    */
+   executeCommand: (
+     node: CommandNode,
+     stdin: string,
+     stdinOwned?: boolean,
++    stdinClosed?: boolean,
+   ) => Promise<ExecResult>;
+   /** Optional secure fetch function for network-enabled commands */
+   fetch?: SecureFetch;
+diff --git a/packages/just-bash/src/types.ts b/packages/just-bash/src/types.ts
+index 52af770..0c8c68a 100644
+--- a/packages/just-bash/src/types.ts
++++ b/packages/just-bash/src/types.ts
+@@ -181,6 +181,17 @@ export interface RuntimeCommandContext {
+    * actually holds UTF-8 — is the bug class this type prevents.
+    */
+   stdin: ByteString;
++  /**
++   * Whether fd 0 is connected to anything: a pipe from an earlier stage, a
++   * redirection, or an enclosing group's stdin. Set even when no bytes
++   * arrived, which `stdin` alone cannot show: `false | cmd` and a bare `cmd`
++   * both hand the command an empty `stdin`, and only this flag separates
++   * "read the empty pipe" from "no pipe". False for a closed fd 0
++   * (`cmd 0<&-`). A command that behaves differently with and without a
++   * stdin (ripgrep reads it when present and walks the directory otherwise)
++   * reads this rather than the byte count.
++   */
++  stdinConnected?: boolean;
+   /**
+    * Execution limits configuration.
+    * Fully resolved by Bash before a command is invoked.

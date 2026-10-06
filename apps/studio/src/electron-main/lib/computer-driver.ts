@@ -1,10 +1,11 @@
 import type { EmbeddedCuaDriverHostLike } from "@trycua/cua-driver";
 
-import { shell } from "electron";
+import { app, shell } from "electron";
 import { existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 import { logger } from "./electron-logger";
-import { getResourcePath } from "./resource-path";
+import { getAppUnpackedPath, getResourcePath } from "./resource-path";
 
 /**
  * Cua Driver, embedded: the `cua-driver` daemon behind the agent's `computer`
@@ -182,7 +183,28 @@ export async function stopComputerDriver() {
   }
 }
 
+/**
+ * The SDK finds its Rust library beside the platform package it resolves from
+ * its own module URL, then hands that path to dlopen, which cannot read an
+ * asar. Imported by name, the URL is inside `app.asar` even for unpacked files,
+ * so a packaged build imports it from `app.asar.unpacked` by path instead and
+ * every path it derives is a real one.
+ */
 function loadSdk(): Promise<Sdk> {
-  sdk ??= import("@trycua/cua-driver");
+  if (!app.isPackaged) {
+    sdk ??= import("@trycua/cua-driver");
+    return sdk;
+  }
+  const entry = pathToFileURL(
+    getAppUnpackedPath(
+      "node_modules",
+      "@trycua",
+      "cua-driver",
+      "dist",
+      "index.js",
+    ),
+  ).href;
+  // A URL import is typed `any`; it is the same module the type names.
+  sdk ??= import(entry) as Promise<Sdk>;
   return sdk;
 }

@@ -75,13 +75,16 @@ const config: Configuration = {
   // (pnpm 10 was unpacked as a side effect of its top-level reflink `.node`).
   // Unpack it explicitly; afterPack verifies the entry survived.
   //
-  // The Cua Driver SDK loads its Rust library with dlopen from a path next to
-  // its `.node`, and dlopen cannot read inside an asar.
+  // The Cua Driver SDK hands dlopen a library path derived from its own module
+  // URL, and dlopen cannot read inside an asar, so the SDK and the runtime it
+  // resolves through are unpacked and imported from there by path
+  // (`lib/computer-driver.ts`).
   asarUnpack: [
     "resources/**",
     "**/node_modules/dugite/git/**",
     "**/node_modules/pnpm/**",
-    "**/node_modules/@trycua/cua-driver-*/**",
+    "**/node_modules/@trycua/**",
+    "**/node_modules/@ubjs/**",
   ],
   directories: {
     buildResources: "build",

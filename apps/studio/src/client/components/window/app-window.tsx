@@ -80,6 +80,7 @@ import {
   appTabsAtom,
   groupOfHref,
   hrefOfAppTab,
+  INBOX_HREF,
   isChatHref,
   isSiteGroup,
   newSiteGroup,
@@ -900,6 +901,14 @@ function WindowShell({
                 <ChatPane
                   arrivedId={arrivedId}
                   drafts={shell.drafts}
+                  // Only the chat in Chat is ever the open one here, and
+                  // archiving it puts it away, with the inbox back in its
+                  // column.
+                  onArchiveOpen={() => {
+                    inboxPeek.close();
+                    appTabs.navigate(INBOX_HREF);
+                    setInboxOpen(true);
+                  }}
                   onDeleteDraft={deleteDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();

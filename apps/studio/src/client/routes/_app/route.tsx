@@ -237,6 +237,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           <ChatPane
             arrivedId={shell.arrivedId}
             drafts={shell.drafts}
+            // An archived chat is put away, so it leaves the side beside
+            // the list with it.
+            onArchiveOpen={leaveChat}
             onDeleteDraft={shell.deleteDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {

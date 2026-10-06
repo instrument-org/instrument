@@ -18,6 +18,7 @@ import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
+import { AGENTS } from "../src/agents/all";
 import { attachChats, workspaceMachine } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
@@ -103,6 +104,7 @@ export interface CompletedRun {
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
+  metrics: RunMetrics;
   /** The sanitized model id, as it appears in the label and the results path. */
   modelLabel: string;
   modelURI: string;
@@ -124,6 +126,37 @@ export interface CompletedRun {
   trial: number;
   /** This task alone, which for a chat is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+}
+
+/**
+ * What a run cost the person waiting on it, as opposed to what it produced.
+ * Times are from the case's first message being sent.
+ */
+export interface RunMetrics {
+  /** Cached input tokens across the tree, for pricing a run. */
+  cacheReadTokens: number;
+  /**
+   * When the run was last working: the last turn's end for a task, and the
+   * moment the whole tree went quiet for a chat, not the moment the harness
+   * finished waiting to be sure of it.
+   */
+  doneMs: number;
+  /**
+   * The first non-empty text the run's own agent streamed: the chat's for a
+   * chat case, never a task's. Absent when it never wrote any.
+   */
+  firstTextMs?: number;
+  /** `task fork` and `task new` commands the run's own agent ran. */
+  taskCommands: { fork: number; new: number };
+  /** Tasks the run started, however deep. */
+  tasksCreated: number;
+  /** Tool calls by every agent in the tree. */
+  toolCalls: number;
+  /**
+   * Characters of assistant text in the run's own sessions: what the user
+   * reads. For a chat that is the chat's replies, not its tasks'.
+   */
+  visibleChars: number;
 }
 
 /**
@@ -216,14 +249,30 @@ export interface EvalCase {
   apps?: AppFixture[];
   assertions?: Assertion[];
   files?: FileUpload.Type[];
-  folders?: { access?: FolderAttachment.Access; path: string }[];
+  /**
+   * `inPlace` attaches the folder where it is rather than a per-run copy:
+   * for a folder under the run's home, which `setup` made and which a
+   * process with a home of its own (`INSTRUMENT_EVAL_HOME`) does not share.
+   */
+  folders?: {
+    access?: FolderAttachment.Access;
+    inPlace?: boolean;
+    path: string;
+  }[];
   /**
    * Further user turns, sent one at a time on the same session once the turn
    * before it has settled. For behavior that only exists across turns: a
    * context rollover, or anything the agent is supposed to carry forward
    * rather than re-derive. Assertions see every session the run produced.
+   *
+   * A string is sent once the conversation's own turn ends, which for a chat
+   * is while its tasks may still be working. `settled` waits for every task
+   * in the tree as well, the way a person waits to read a reply before
+   * answering it. `afterMs` sends that long after the previous message
+   * without waiting at all, so it lands while the work is under way, as a
+   * correction typed mid-job does.
    */
-  followUps?: string[];
+  followUps?: (FollowUp | string)[];
   /**
    * For a chat case scored on what the conversation does when a task
    * reports, not on the task's work: every task the conversation starts is
@@ -245,10 +294,22 @@ export interface EvalCase {
   kind?: "chat" | "task";
   name: string;
   prompt: string;
+  /**
+   * Run before the case's task is created, with the run's home and workspace
+   * in place: for fixtures that have to be made rather than copied, such as
+   * files whose modification times matter, or a memory already kept.
+   */
+  setup?: () => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
     taskId: TaskId,
   ) => boolean | Promise<boolean>;
+  /**
+   * Text appended to every task agent's system prompt in this process. The
+   * prompt is the agent's, not the task's, so every case in one run has to
+   * agree on it; a run that mixes them is refused.
+   */
+  taskSystemAppend?: () => string;
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
@@ -277,6 +338,12 @@ interface ChildTaskSessions {
 }
 
 type ChooseAnswer = z.output<typeof Choose.outputSchema>;
+
+interface FollowUp {
+  afterMs?: number;
+  prompt: string;
+  settled?: boolean;
+}
 
 export function defineEval(evalCase: EvalCase): EvalCase {
   return evalCase;
@@ -334,6 +401,19 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
+  const taskSystemAppends = _.unique(
+    evals.map((evalCase) => evalCase.taskSystemAppend),
+  );
+  if (taskSystemAppends.length > 1) {
+    throw new Error(
+      "These cases disagree on the task agent's system prompt, which is one per process. Run the cases with taskSystemAppend in a run of their own.",
+    );
+  }
+  const [taskSystemAppend] = taskSystemAppends;
+  if (taskSystemAppend) {
+    appendToTaskSystemPrompt(taskSystemAppend);
+  }
+
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
   const stopStandInWindow = standInWindow.listen();
@@ -360,6 +440,8 @@ export async function runEvals(
       ),
       getAIProviderConfigs: () => providerConfigs,
       isExternalBrowserEnabled: () => true,
+      // Arm C of the one-agent comparison: every chat runs `agents/one.ts`.
+      isOneAgentEnabled: () => process.env.INSTRUMENT_EVAL_ONE_AGENT === "1",
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
@@ -449,6 +531,7 @@ export async function runEvals(
         if (evalCase.kind === "chat") {
           ensureWorkspaceFolder();
         }
+        await evalCase.setup?.();
         const folders = privateFoldersFor(evalCase, index) ?? [];
         return call(
           taskRoute.create,
@@ -482,6 +565,7 @@ export async function runEvals(
 
       const abortController = new AbortController();
       const startedAt = Date.now();
+      let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
@@ -531,6 +615,28 @@ export async function runEvals(
             }
 
             const part = event.part;
+
+            // Every message's parts are published, the user's and the
+            // context's included, and a part does not say whose it is. Those
+            // are stored before their parts are published, so a text part
+            // whose message is not yet stored, or is stored as the
+            // assistant's, is a reply being streamed.
+            if (
+              firstTextAt === undefined &&
+              part.type === "text" &&
+              part.text.trim() !== ""
+            ) {
+              const seenAt = Date.now();
+              const stored = await Store.getMessages({
+                messageIds: [part.metadata.messageId],
+                sessionId: part.metadata.sessionId,
+                taskId: id,
+              });
+              const role = stored.isOk() ? stored.value[0]?.role : undefined;
+              if (role === undefined || role === "assistant") {
+                firstTextAt ??= seenAt;
+              }
+            }
 
             if (
               part.type === "tool-choose" &&
@@ -623,9 +729,20 @@ export async function runEvals(
         runDeadline === undefined
           ? undefined
           : Math.max(0, runDeadline - Date.now());
-      let outcome = await waitForSessionDone(sessionId, id, {
+      const followUps = (evalCase.followUps ?? []).map((followUp) =>
+        typeof followUp === "string" ? { prompt: followUp } : followUp,
+      );
+      const isTimed = (followUp?: FollowUp) => followUp?.afterMs !== undefined;
+      let turn = waitForSessionDone(sessionId, id, {
         timeoutMs: remainingMs(),
       });
+      let outcome: "done" | "timeout" = "done";
+      let doneAt = startedAt;
+      let lastSentAt = startedAt;
+      if (!isTimed(followUps[0])) {
+        outcome = await turn;
+        doneAt = Date.now();
+      }
 
       if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
         await standInForTasks(id, evalCase.finishesAs, {
@@ -640,34 +757,61 @@ export async function runEvals(
       // loops on turn one. A turn that stopped or timed out ends the run
       // rather than asking the next question into a session that is not
       // listening.
-      for (const followUp of evalCase.followUps ?? []) {
+      for (const [position, followUp] of followUps.entries()) {
         if (stoppedBy || outcome === "timeout") {
           break;
         }
+        if (followUp.afterMs !== undefined) {
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              Math.max(0, lastSentAt + (followUp.afterMs ?? 0) - Date.now()),
+            ),
+          );
+        } else if (followUp.settled && evalCase.kind === "chat") {
+          await waitForTreeQuiet(id, {
+            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+          });
+        }
+        // A message sent into a turn in progress is heard between its steps,
+        // and that turn's end is the one still awaited; sent to a session at
+        // rest, it starts a turn of its own.
+        const steering = isTimed(followUp) && isWorking(id);
         write(
-          `${evalPrefix(label)}${c.dim}Follow-up: ${followUp.slice(0, 60)}${c.reset}\n`,
+          `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
         );
         await call(
           messageRoute.create,
-          { id, modelURI: uri, prompt: followUp, sessionId },
+          { id, modelURI: uri, prompt: followUp.prompt, sessionId },
           { context },
         );
-        outcome = await waitForSessionDone(sessionId, id, {
-          timeoutMs: remainingMs(),
-        });
+        lastSentAt = Date.now();
+        if (!steering) {
+          turn = waitForSessionDone(sessionId, id, {
+            timeoutMs: remainingMs(),
+          });
+        }
+        if (!isTimed(followUps[position + 1])) {
+          outcome = await turn;
+          doneAt = Date.now();
+        }
       }
 
       // The children and the wake they trigger are the rest of a chat
       // run. Everything above this line has only watched the conversation.
-      if (evalCase.kind === "chat" && !stoppedBy) {
+      // A message sent mid-turn that the turn ended before hearing runs as a
+      // turn of its own, so a timed follow-up waits the same way.
+      if ((evalCase.kind === "chat" || followUps.some(isTimed)) && !stoppedBy) {
         const settled = await waitForTreeQuiet(id, {
           timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
         });
-        if (settled === "timeout") {
+        if (settled.status === "timeout") {
           stoppedBy = "timeout";
           process.stderr.write(
             `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
           );
+        } else {
+          doneAt = Math.max(doneAt, settled.quietSince);
         }
       }
 
@@ -695,6 +839,17 @@ export async function runEvals(
         treeUsage.outputTokens += one.outputTokens;
         treeUsage.totalTokens += one.totalTokens;
       }
+      const metrics = {
+        ...(await metricsFor(id, childTaskIds, {
+          doneAt,
+          firstTextAt,
+          startedAt,
+        })),
+        cacheReadTokens: [usage, ...childUsages].reduce(
+          (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
+          0,
+        ),
+      };
       const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const costUSD = price
         ? [usage, ...childUsages].reduce(
@@ -712,6 +867,7 @@ export async function runEvals(
         childTaskIds,
         costUSD,
         label,
+        metrics,
         modelLabel,
         modelURI: uri,
         name: evalCase.name,
@@ -809,8 +965,8 @@ function ensureWorkspaceFolder() {
  * own prompt refers to ("my Reports folder").
  */
 function privateFoldersFor(evalCase: EvalCase, index: number) {
-  return evalCase.folders?.map((folder) => {
-    if (folder.access === "read-only") {
+  return evalCase.folders?.map(({ inPlace, ...folder }) => {
+    if (folder.access === "read-only" || inPlace) {
       return folder;
     }
     const root = path.join(
@@ -821,6 +977,90 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
     fs.cpSync(folder.path, root, { recursive: true });
     return { ...folder, path: root };
   });
+}
+
+/**
+ * Appends to the task agent's system prompt for the rest of the process,
+ * both where the baseline is built and where a stored one is checked
+ * against it, so the two agree and the baseline is not rebuilt every turn.
+ */
+function appendToTaskSystemPrompt(extra: () => string) {
+  const agent = AGENTS.main;
+  const baseSystemPrompt = agent.systemPrompt;
+  const baseGetMessages = agent.getMessages;
+  agent.systemPrompt = () => `${baseSystemPrompt()}\n\n${extra()}`;
+  agent.getMessages = async (options) => {
+    const base = baseSystemPrompt();
+    return (await baseGetMessages(options)).map((message) =>
+      message.metadata.realRole === "system"
+        ? {
+            ...message,
+            parts: message.parts.map((part) =>
+              part.type === "text" && part.text === base
+                ? { ...part, text: `${part.text}\n\n${extra()}` }
+                : part,
+            ),
+          }
+        : message,
+    );
+  };
+}
+
+/** See `RunMetrics`. */
+async function metricsFor(
+  taskId: TaskId,
+  childTaskIds: TaskId[],
+  {
+    doneAt,
+    firstTextAt,
+    startedAt,
+  }: { doneAt: number; firstTextAt?: number; startedAt: number },
+): Promise<Omit<RunMetrics, "cacheReadTokens">> {
+  const own = await Store.getSessions(taskId);
+  let visibleChars = 0;
+  const taskCommands = { fork: 0, new: 0 };
+  for (const session of own.isOk() ? own.value : []) {
+    const withParts = await Store.getSessionWithMessagesAndParts(
+      session.id,
+      taskId,
+    );
+    for (const message of withParts.isOk() ? withParts.value.messages : []) {
+      if (message.role !== "assistant") {
+        continue;
+      }
+      for (const part of message.parts) {
+        if (part.type === "text") {
+          visibleChars += part.text.trim().length;
+        }
+        if (part.type === "tool-bash" && part.input?.command) {
+          const command: string = part.input.command;
+          taskCommands.fork += [
+            ...command.matchAll(/(?:^|[\n;&|])\s*task fork\b/g),
+          ].length;
+          taskCommands.new += [
+            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
+          ].length;
+        }
+      }
+    }
+  }
+  let toolCalls = 0;
+  for (const one of [taskId, ...childTaskIds]) {
+    for (const session of await sessionsFor(one)) {
+      for (const message of session.messages) {
+        toolCalls += message.parts.filter((part) => isToolPart(part)).length;
+      }
+    }
+  }
+  return {
+    doneMs: doneAt - startedAt,
+    firstTextMs:
+      firstTextAt === undefined ? undefined : firstTextAt - startedAt,
+    taskCommands,
+    tasksCreated: childTaskIds.length,
+    toolCalls,
+    visibleChars,
+  };
 }
 
 function sanitizeCanonicalId(canonicalId: string): string {
@@ -943,7 +1183,7 @@ async function waitForSessionDone(
 async function waitForTreeQuiet(
   rootTaskId: TaskId,
   { timeoutMs }: { timeoutMs: number },
-): Promise<"quiet" | "timeout"> {
+): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
@@ -955,10 +1195,10 @@ async function waitForTreeQuiet(
     } else {
       quietSince ??= Date.now();
       if (Date.now() - quietSince >= TREE_QUIET_MS) {
-        return "quiet";
+        return { quietSince, status: "quiet" };
       }
     }
     await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
   }
-  return "timeout";
+  return { status: "timeout" };
 }

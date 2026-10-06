@@ -221,6 +221,9 @@ if (
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
   );
+  process.stderr.write(
+    "                   --name <case> scores every task no chat started as that case\n",
+  );
   process.stderr.write("  list [pattern]   List available evals\n");
   process.stderr.write(
     "  models [pattern] List what the configured providers can run right now\n",
@@ -452,6 +455,8 @@ switch (subcommand) {
     write(`Workspace: ${absoluteWorkspaceDir}\n`);
 
     const rollup = await generateReport({
+      // With --name, the workspace is taken to hold that one case's run.
+      caseForRoots: values.name,
       evalCases: EVALS,
       includeContextMessages,
       outputDir,

@@ -18,6 +18,7 @@ import {
   type EvalCase,
   modelLabelFor,
   runKey,
+  type RunMetrics,
   type RunStop,
   sessionsFor,
 } from "./harness";
@@ -67,6 +68,8 @@ interface RunReport {
   erroredRequests: number;
   failed: number;
   label: string;
+  /** Present only for runs this process watched. See `RunMetrics`. */
+  metrics?: RunMetrics;
   modelURI?: string;
   /** Where this run's transcript and assertions were written. */
   outputDir: string;
@@ -77,6 +80,9 @@ interface RunReport {
   systemPromptSha256?: string;
   taskId: string;
   totalTokens: number;
+  /** This task plus every task it started, for runs this process watched. */
+  treeTokens?: number;
+  treeUsage?: CompletedRun["treeUsage"];
 }
 
 /**
@@ -87,12 +93,19 @@ interface RunReport {
 const MAX_CONSOLE_EVIDENCE = 300;
 
 export async function generateReport({
+  caseForRoots,
   evalCases = [],
   includeContextMessages = false,
   outputDir,
   runs = [],
   workspaceRootDir,
 }: {
+  /**
+   * The case every task that no chat started is scored as, for a workspace
+   * that holds one case's run. Without the runs that made it, a chat is
+   * known only by the title it was given since, not by its case's name.
+   */
+  caseForRoots?: string;
   evalCases?: EvalCase[];
   includeContextMessages?: boolean;
   outputDir: string;
@@ -149,6 +162,16 @@ export async function generateReport({
     `${c.dim}Generating report for${c.reset} ${c.yellow}${tasks.length}${c.reset} ${c.dim}task(s)...${c.reset}\n`,
   );
 
+  const startedByAChat = new Set<string>();
+  if (caseForRoots) {
+    for (const task of tasks) {
+      const chatId = resolveChat(task.id);
+      for (const child of chatId ? await listChildTasks(chatId) : []) {
+        startedByAChat.add(child.id);
+      }
+    }
+  }
+
   let rollupPassed = 0;
   let rollupFailed = 0;
   let rollupErroredTasks = 0;
@@ -178,7 +201,9 @@ export async function generateReport({
     // over a past workspace dir is still filed by case and model rather than by
     // a slug of the prompt with a numeric suffix, which named nothing anyone
     // could act on.
-    const caseName = run?.name ?? task.title;
+    const caseName =
+      run?.name ??
+      (caseForRoots && !startedByAChat.has(taskId) ? caseForRoots : task.title);
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -309,8 +334,10 @@ export async function generateReport({
       JSON.stringify(
         {
           costUSD: run?.costUSD,
+          metrics: run?.metrics,
           modelURI: taskModelURI,
           name: caseName,
+          treeUsage: run?.treeUsage,
           resolvedModelId: run?.resolvedModelId,
           stoppedBy,
           systemPromptSha256,
@@ -397,6 +424,7 @@ export async function generateReport({
       erroredRequests: apiErrors.length,
       failed: assertionResults.filter((r) => !r.passed).length,
       label,
+      metrics: run?.metrics,
       modelURI: taskModelURI,
       outputDir: relativeDir,
       passed: assertionResults.filter((r) => r.passed).length,
@@ -405,6 +433,8 @@ export async function generateReport({
       systemPromptSha256,
       taskId: task.id,
       totalTokens: stats.totalTokens,
+      treeTokens: run?.treeUsage.totalTokens,
+      treeUsage: run?.treeUsage,
     });
   }
 

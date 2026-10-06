@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { type CommandContext, defineCommand } from "just-bash";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
@@ -41,7 +41,11 @@ export function createJsExecCommand() {
     if ("exitCode" in translated) {
       return translated;
     }
-    const result = await ctx.origCommand(translated.args);
+    const result = await ctx.origCommand(
+      (await usesModuleSyntax(translated.args, ctx))
+        ? ["-m", ...translated.args]
+        : translated.args,
+    );
     return {
       ...result,
       stderr: explainJsExecFailure(result.stderr),
@@ -157,6 +161,50 @@ function translateNodeOptions(
     };
   }
   return { args };
+}
+
+/**
+ * A line opening with a static `import` or `export`, or `import.meta`
+ * anywhere. A dynamic `import(...)` runs in a script and does not count.
+ */
+const MODULE_SYNTAX =
+  /^[ \t]*(?:import(?:[ \t]+[\w$*{"']|[ \t]*[{*"'])|export(?:[ \t]+[\w$*{]|[ \t]*[{*]))|\bimport\.meta\b/m;
+
+/**
+ * Whether the code to run is an ES module the runtime would run as a script.
+ * The runtime switches to module mode on its own for `.mjs`, `.mts`, `.ts`,
+ * and a top-level `await`; Node also detects `import` and `export`, and
+ * without that a `.js` file or `-e` code that imports `fs` fails with `could
+ * not load module 'fs'`, which reads as the module being missing. Running
+ * CommonJS as a module costs nothing here, since `require` and `module` stay
+ * defined, so a false positive is harmless.
+ */
+async function usesModuleSyntax(
+  args: string[],
+  ctx: CommandContext,
+): Promise<boolean> {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === undefined || arg === "-m" || arg === "--module") {
+      return false;
+    }
+    if (arg === "-c") {
+      return MODULE_SYNTAX.test(args[index + 1] ?? "");
+    }
+    if (!arg.startsWith("-")) {
+      if (arg.endsWith(".cjs")) {
+        return false;
+      }
+      try {
+        const source = await ctx.fs.readFile(ctx.fs.resolvePath(ctx.cwd, arg));
+        return MODULE_SYNTAX.test(source);
+      } catch {
+        // The runtime reports a file it cannot open in its own words.
+        return false;
+      }
+    }
+  }
+  return MODULE_SYNTAX.test(ctx.stdin);
 }
 
 /**

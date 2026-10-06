@@ -403,7 +403,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
-        // Not one of ours; leave other webviews alone.
+        // Every `<webview>` the app mounts carries a target partition, so one
+        // without it came from elsewhere and would attach with whatever
+        // webPreferences its attributes asked for. Reject it.
+        log.warn(
+          `rejected webview attach (foreign partition) partition=${params.partition}`,
+        );
+        event.preventDefault();
         return;
       }
       const entry = entries.get(targetId);

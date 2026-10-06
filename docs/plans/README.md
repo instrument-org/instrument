@@ -67,7 +67,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Status |
 | --- | --- |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
-| [Agent browser ad blocking](active/agent-browser-ad-blocking.md) | draft |
 
 ### Platform and product
 
@@ -97,6 +96,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Outcome |
 | --- | --- |
+| [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
 | [The Instrument 2.0 orchestrator spike](completed/instrument-2-0-prototype.md) | became the 2.0 app |
 | [Apps in the 2.0 prototype](completed/instrument-2-0-apps.md) | landed |
 | [Threads, topics, and activity](completed/orchestrator-threads.md) | landed, then overtaken |

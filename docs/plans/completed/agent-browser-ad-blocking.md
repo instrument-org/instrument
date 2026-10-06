@@ -1,6 +1,6 @@
 # Plan: agent browser ad blocking
 
-Status: draft, not started. Revisit when browser reliability or page-noise issues justify changing the default rendering model for task browsers.
+Status: landed in 2699ce60e and its follow-ups. Blocking is on by default through Ghostery's engine over the published filter lists, the page menu's "Block ads" turns it off for the workspace, `agent-browser adblock [on|off]` is the agent's per-task say, and the agent prompt discloses it. How it works now is in [in-app-browser.md](../../architecture/in-app-browser.md).
 
 ---
 

@@ -211,7 +211,8 @@ export interface EvalCase {
    * once a service is reachable: handing one to a task, and calling it.
    *
    * One apps directory serves every case in a run, so these are listed in every
-   * case's context, not only this one's. Run an app case on its own.
+   * case's context, not only this one's. Run an app case on its own. A task
+   * case is handed these, as a chat's `task new --app` would.
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
@@ -453,6 +454,12 @@ export async function runEvals(
         return call(
           taskRoute.create,
           {
+            // A task case is handed the apps it declares, the way a chat
+            // hands them, so it hears about them in its context.
+            apps:
+              evalCase.kind === "chat"
+                ? undefined
+                : evalCase.apps?.map((app) => app.slug),
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
             chat: evalCase.kind === "chat",

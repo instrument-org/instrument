@@ -54,6 +54,10 @@ const byId = base
 const create = base
   .input(
     z.object({
+      // The apps the task is handed, as a chat's `task new --app` hands
+      // them. Set only by the eval harness; a task the window makes reaches
+      // every app.
+      apps: z.array(z.string()).optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z
         .array(
@@ -85,7 +89,17 @@ const create = base
     async ({
       context,
       errors,
-      input: { chat, files, folders, intent, modelURI, name, prompt, viewing },
+      input: {
+        apps,
+        chat,
+        files,
+        folders,
+        intent,
+        modelURI,
+        name,
+        prompt,
+        viewing,
+      },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -118,7 +132,7 @@ const create = base
         });
         result = await initializeTask(
           {
-            initialSettings: { name: initialTaskName },
+            initialSettings: { apps, name: initialTaskName },
             taskId,
             workspaceConfig: context.workspaceConfig,
           },

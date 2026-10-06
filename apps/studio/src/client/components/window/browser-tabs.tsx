@@ -614,23 +614,22 @@ export function BrowserTabs({
       },
       openOrFocus: (url, options) => {
         const key = options?.group ?? latest.current.group;
-        // A file has one tab per place, the way it has one tab in Files; a
-        // website gets a tab every time it is asked for, however many are
-        // already open at that address. Among the group's own: another
-        // chat's tab on the file is that chat's, and a task's tab is the
-        // task's, driving where the task drives it.
-        const atFile =
-          hostPathOfFileUrl(url) === undefined
-            ? undefined
-            : latest.current.tabs.find(
-                (tab) =>
-                  tab.group === key && !tab.taskId && sameAddress(tab.url, url),
-              );
-        if (atFile) {
+        // An address already open in the group comes forward rather than
+        // opening twice: a file has one tab per place, the way it has one tab
+        // in Files, and a link to a page a task left open is that page.
+        // Only the exact address counts, so a second page on a site still
+        // gets a tab of its own. Among the group's own: another chat's tab
+        // is that chat's, and a task's own guest is the task's, driving
+        // where the task drives it.
+        const atAddress = latest.current.tabs.find(
+          (tab) =>
+            tab.group === key && !tab.taskId && sameAddress(tab.url, url),
+        );
+        if (atAddress) {
           if (options?.show || key === latest.current.group) {
-            change((current) => selectTab(current, atFile.id));
+            change((current) => selectTab(current, atAddress.id));
           }
-          return atFile.id;
+          return atAddress.id;
         }
         // A group waiting behind with its new tab up gets the page in that
         // tab, the way the group on screen does: the tab that was there to

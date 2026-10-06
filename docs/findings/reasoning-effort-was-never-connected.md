@@ -32,4 +32,4 @@ GLM 5.3 Flash, ~114 first turns per level, seconds to the first token a user can
 
 ## Where a level lives
 
-On the task, beside the model, because a task runs on one model for its whole life and the level is part of that choice. A task the conversation starts inherits the conversation's unless `task new --effort` names one; `task models` prints the levels each model takes and its default, so the conversation can choose and can run one brief at two levels to compare them. It is read per turn rather than captured with the session's context, so changing it takes effect on the next turn rather than the next session.
+On the task. A task the conversation starts copies the conversation's level, and the conversation's agent cannot choose one: like the model, which follows the chat's picker, it is not the agent's to guess at. It is read per turn rather than captured with the session's context, so changing it takes effect on the next turn rather than the next session.

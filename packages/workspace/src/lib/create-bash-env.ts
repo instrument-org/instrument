@@ -19,6 +19,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
+import { createSandboxFetch } from "./sandbox-fetch";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -575,7 +576,7 @@ export function createBashDescription({
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
 
-    IMPORTANT: \`curl\` refuses private and loopback addresses, so it cannot reach a server you started: it exits 7 with \`Network access denied: private/loopback IP address blocked\` (silent under \`-s\`). Make that request from a real process instead: a \`${NODE_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
+    \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts. The one address it refuses is Instrument's own workspace server.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -749,16 +750,10 @@ export async function createLocalBashEnv({
       maxTraversalEntries: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
       maxTraversalWork: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
     },
-    network: {
-      // No per-domain allow-list to maintain; the agent legitimately fetches
-      // arbitrary public URLs (downloads, scraping, etc.). Someday: gate this
-      // behind a per-session human-in-the-loop allow-list / approval prompt.
-      dangerouslyAllowFullInternetAccess: true,
-      // SSRF block: loopback/RFC1918/metadata, with DNS check + redirect re-check.
-      // Enforced even when the dangerously-allow flag is on.
-      denyPrivateRanges: true,
-      maxResponseSize: SANDBOX_MAX_BYTES,
-    },
+    // `curl`, `js-exec`'s `fetch` and `python`'s `jb_http` reach every
+    // address the native interpreters can, the local network included, except
+    // Instrument's own workspace server.
+    fetch: createSandboxFetch({ maxResponseSize: SANDBOX_MAX_BYTES }),
     // Seed with process.env so PATH and other system vars are available to
     // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
     // also use sed, uname, etc when on unix systems.

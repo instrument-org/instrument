@@ -7,6 +7,7 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
 
+import { setWorkspaceServerPort } from "../../logic/server/url";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
@@ -134,11 +135,13 @@ async function runExec({
   id,
   record,
   stream,
+  workspaceServerPort,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
   runs.set(id, controller);
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
+  setWorkspaceServerPort(workspaceServerPort);
   // Main keeps the folder index current as it makes and trashes records, so
   // the record comes resolved with the command rather than read here, where a
   // copy of the index would miss a task made since.

@@ -11,8 +11,7 @@ import { type ContentBlock } from "@modelcontextprotocol/sdk/types.js";
 import { err, ok, type Result } from "neverthrow";
 import { isPlainObject, noop } from "radashi";
 
-import { isLoopbackHost } from "../manifest";
-import { checkPublicUrl } from "../safe-url";
+import { checkAppUrl } from "../safe-url";
 import { fetchForMcp } from "./fetch";
 import { type LocalServerLaunch } from "./local-server";
 
@@ -159,11 +158,9 @@ export async function withMcpClient<T>({
       reason: "connect",
     });
   }
-  // Same guard the api path runs, so a manifest cannot reach a private address
-  // by choosing the mcp type: the agent picks this hostname too.
-  const unsafe = await checkPublicUrl(url, {
-    allowLoopback: isLoopbackHost(url.hostname),
-  });
+  // Same guard the api path runs, so a manifest cannot reach the workspace
+  // server or send a credential over plain http by choosing the mcp type.
+  const unsafe = await checkAppUrl(url);
   if (unsafe !== null) {
     return err({ message: unsafe, reason: "connect" });
   }

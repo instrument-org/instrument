@@ -31,6 +31,7 @@ import {
   PYTHON_NATIVE_COMMAND,
 } from "../lib/shell-commands/python";
 import { SKILL_NAMES } from "../lib/skill-names";
+import { TOOL_NAMES } from "../tools/name";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
@@ -364,7 +365,9 @@ export const mainAgent = setupAgent({
         now,
         sessionId,
         textParts: [
-          getSystemInfoText(),
+          getSystemInfoText({
+            network: `\`curl\` and \`${TOOL_NAMES.webFetch}\` reach the internet and the local network. \`${NODE_COMMAND.name}\` and \`${PYTHON_NATIVE_COMMAND.name}\` are real programs on this computer, with its network.`,
+          }),
           await getUserText(),
           projectName
             ? buildProjectContextText({

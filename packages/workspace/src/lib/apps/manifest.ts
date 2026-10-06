@@ -107,7 +107,7 @@ export function isLoopbackHost(hostname: string): boolean {
 
 /**
  * Only https, plus plain http for loopback hosts (local services, tests).
- * Non-loopback private ranges are rejected at request time per hop; this only
+ * Each hop is checked again at request time (`checkAppUrl`); this only
  * validates the shape of the configured base.
  */
 function isAllowedBaseUrl(value: string): boolean {

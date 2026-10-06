@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
 import { omit, pick } from "radashi";
 
+import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import {
@@ -134,6 +135,7 @@ export function createRemoteBash(
               : undefined,
             stream: sink !== undefined,
             type: "exec",
+            workspaceServerPort: getWorkspaceServerPort(),
           });
         } catch (error) {
           // A value structured clone refuses (a function, say) never reached

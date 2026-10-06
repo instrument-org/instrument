@@ -1,4 +1,4 @@
-import { type CommandContext, defineCommand } from "just-bash";
+import { type CommandContext, defineCommand, latin1FromBytes } from "just-bash";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
@@ -204,7 +204,7 @@ async function usesModuleSyntax(
       }
     }
   }
-  return MODULE_SYNTAX.test(ctx.stdin);
+  return MODULE_SYNTAX.test(latin1FromBytes(ctx.stdin));
 }
 
 /**

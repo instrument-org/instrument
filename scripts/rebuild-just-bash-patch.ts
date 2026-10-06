@@ -247,6 +247,11 @@ function main() {
   step("Applying the carried changes");
   const touched = applySources(manifest);
 
+  step("Building with the changes");
+  build(manifest);
+
+  // After the build, because the python3 tests load the worker bundle the
+  // build writes beside its source rather than the source itself.
   if (runTests) {
     const prefix = `packages/${manifest.package}/`;
     const dirs = [...touched]
@@ -257,8 +262,6 @@ function main() {
     console.log("  passed");
   }
 
-  step("Building with the changes");
-  build(manifest);
   const changed = changedFiles(manifest, publishedPackage);
   console.log(`  ${changed.size} published files change:`);
   for (const file of [...changed.keys()].toSorted()) {

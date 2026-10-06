@@ -97,11 +97,11 @@ export const AGENT_BROWSER_COMMAND = {
 export function agentBrowserCommandDescription() {
   const external = getWorkspaceConfig().isExternalBrowserEnabled()
     ? [
-        `Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
+        `Defaults to the in-app browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
         `The host's browser installs and Chrome profiles are NOT visible in the filesystem; inspect them only via \`agent-browser profiles\`.`,
       ]
     : [
-        `Drives the Instrument-managed task browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
+        `Drives the in-app browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
       ];
 
   return [
@@ -128,7 +128,7 @@ const BLOCKED_FLAGS = new Set([
 
 // Launch-state flags that imply an external local Chrome launch when no
 // connection-identity flag (--cdp, --auto-connect, --provider) is present:
-// the task browser is a provider connection that ignores local launch
+// the in-app browser is a provider connection that ignores local launch
 // options, so these only mean something against an external browser.
 const EXTERNAL_STATE_FLAGS = new Set([
   "--executable-path",
@@ -304,7 +304,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
 const WORKSPACE_HELP_EXTERNAL = dedent`
   External browsers (flags apply per invocation; a bare command targets the
-  managed task browser again):
+  in-app browser again):
     profiles                    List the user's Chrome profiles
     --profile <name>            Launch Chrome with an existing profile (logins)
     --auto-connect              Connect to a Chromium already running with
@@ -515,7 +515,7 @@ function executablePathMessage() {
   return [
     "agent-browser: --executable-path is not available.",
     "It names a program for the workspace to launch on the host rather than a browser to target, so the binary that runs is not the agent's to choose.",
-    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the task browser is the default target, and the app ships the browser it drives.",
+    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the in-app browser is the default target, and the app ships the browser it drives.",
     "",
   ].join("\n");
 }
@@ -577,7 +577,7 @@ function profileDirMessage(value: string) {
   return [
     `agent-browser: --profile takes the name of one of the user's Chrome profiles, and "${value}" is a directory.`,
     "The value is handed to Chrome as its data directory unchanged, so a relative one resolves against Chrome's own working directory rather than the task, and either way the profile it opens holds none of the logins --profile exists to reuse.",
-    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the task browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
+    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the in-app browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
     "",
   ].join("\n");
 }
@@ -776,9 +776,9 @@ export function createAgentBrowserCommand({
       commandArgs.push(...resolvedArgs);
     } else if (isExternal) {
       // External targets run under a sibling daemon session so switching
-      // between the task browser and an external browser never tears down the
+      // between the in-app browser and an external browser never tears down the
       // other's connection. External intent is per-invocation: a bare
-      // follow-up command routes back to the task browser.
+      // follow-up command routes back to the in-app browser.
       commandArgs.push(
         "--session",
         externalBrowserSessionName(sessionId),
@@ -792,7 +792,7 @@ export function createAgentBrowserCommand({
     } else if (browserFreeRead) {
       // A fetch needs no view either; creating one would leave the user staring
       // at an empty browser panel the agent never navigates. It still needs a
-      // daemon, which gets its own session so the task browser's daemon is
+      // daemon, which gets its own session so the in-app browser's daemon is
       // still only ever started by an invocation that resolves the provider:
       // one started without it holds no CDP endpoint and would launch its own
       // browser the next time a command needed a page.
@@ -873,7 +873,7 @@ export function createAgentBrowserCommand({
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
     // An external invocation drives the host's browser stack, so it runs with
-    // the host's environment; only the task browser gets the sandbox's.
+    // the host's environment; only the in-app browser gets the sandbox's.
     const baseEnv = isExternal ? externalBrowserBaseEnv() : env;
 
     const spawnEnv = {
@@ -919,10 +919,10 @@ export function createAgentBrowserCommand({
       // The daemon spawns the provider plugin via process.execPath. In
       // packaged builds that is the Electron binary, which this var makes
       // behave as plain node. Inert for the Rust CLI and for Chrome; set
-      // only for task-browser invocations so an external --executable-path
+      // only for in-app browser invocations so an external --executable-path
       // launch of an Electron-based app is unaffected.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // Task-browser invocations write to a per-task sink instead of the host
+      // In-app browser invocations write to a per-task sink instead of the host
       // home. External ones keep whatever the host uses to locate the user's
       // browser data, which is the base env's HOME on macOS and Linux and is
       // not HOME at all on Windows.
@@ -1008,7 +1008,7 @@ export function createAgentBrowserCommand({
  * browser. Mirrors upstream connection-identity precedence (cdp >
  * auto-connect > provider > local launch): an explicit `--provider
  * instrument` keeps a mixed invocation like `--profile x --provider
- * instrument` on the task browser, exactly as the CLI itself would resolve
+ * instrument` on the in-app browser, exactly as the CLI itself would resolve
  * it, and a literal `--auto-connect false` opt-out is honored.
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {

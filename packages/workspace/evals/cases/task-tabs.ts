@@ -7,7 +7,7 @@
  * two pages are one job, whether it snapshots again after a switch instead of
  * clicking refs from the other tab, and whether a one-page question stays one
  * page. A run has no window, so each task browses in a Chrome of its own,
- * which has the same tab commands the app's task browser answers.
+ * which has the same tab commands the app's browser answers.
  */
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";

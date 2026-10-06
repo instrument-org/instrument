@@ -479,7 +479,7 @@ describe("agent-browser routing", () => {
     };
   }
 
-  it("routes a bare command to the task browser via the instrument provider", async () => {
+  it("routes a bare command to the in-app browser via the instrument provider", async () => {
     const { args, env } = await spawnedWith(["open", "https://example.com"]);
 
     expect(args).toContain("--session");
@@ -520,7 +520,7 @@ describe("agent-browser routing", () => {
   it.each([
     {
       args: ["click", "@e1"],
-      name: "a click on the task browser",
+      name: "a click on the in-app browser",
       snapshotArgs: ["--session", sessionId, "snapshot", "-i", "--delta"],
     },
     {
@@ -602,7 +602,7 @@ describe("agent-browser routing", () => {
     { args: ["--auto-connect", "snapshot"], name: "--auto-connect" },
     { args: ["--provider", "browserbase", "open", "x"], name: "--provider" },
     { args: ["profiles"], name: "profiles" },
-    { args: ["open", "https://example.com"], name: "the task browser" },
+    { args: ["open", "https://example.com"], name: "the in-app browser" },
   ])("does not ask $name for a window it cannot open", async ({ args }) => {
     const { args: spawned } = await spawnedWith(args);
 
@@ -639,13 +639,13 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBeUndefined();
   });
 
-  it("keeps the task browser's downloads inside the task", async () => {
+  it("keeps the in-app browser's downloads inside the task", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
     expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${taskDirPath}/downloads`);
   });
 
-  it("keeps the task browser's temp files inside the task", async () => {
+  it("keeps the in-app browser's temp files inside the task", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
     for (const key of ["TEMP", "TMP", "TMPDIR"]) {
@@ -672,7 +672,7 @@ describe("agent-browser routing", () => {
     expect(env.NO_COLOR).toBe("1");
   });
 
-  it("keeps the host environment away from the task browser", async () => {
+  it("keeps the host environment away from the in-app browser", async () => {
     vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
 
     const { env } = await spawnedWith(["open", "https://example.com"]);
@@ -761,7 +761,7 @@ describe("agent-browser routing", () => {
     );
 
     // Routing stays argv-derived: the shell env cannot move the invocation off
-    // the task browser or re-point the plugin registry.
+    // the in-app browser or re-point the plugin registry.
     expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
     expect(env.AGENT_BROWSER_CDP).toBeUndefined();
     expect(env.AGENT_BROWSER_AUTO_CONNECT).toBeUndefined();
@@ -807,7 +807,7 @@ describe("agent-browser with external browsers disabled", () => {
     { args: ["--state", "state.json", "open", "x"] },
     { args: ["profiles"] },
   ])(
-    "refuses $args instead of answering it on the task browser",
+    "refuses $args instead of answering it on the in-app browser",
     async ({ args }) => {
       const { result, spawned } = await execute(args);
 
@@ -819,7 +819,7 @@ describe("agent-browser with external browsers disabled", () => {
     },
   );
 
-  it("still drives the task browser", async () => {
+  it("still drives the in-app browser", async () => {
     const { result, spawned } = await execute(["open", "https://example.com"]);
 
     expect(result.exitCode).toBe(0);
@@ -881,7 +881,7 @@ describe("isExternalBrowserInvocation", () => {
     { args: ["--cdp", "9222", "snapshot"], external: true },
     { args: ["--provider", "browserbase", "open", "x"], external: true },
     { args: ["-p", "ios", "open", "x"], external: true },
-    // Explicitly naming the instrument provider is the task browser.
+    // Explicitly naming the instrument provider is the in-app browser.
     { args: ["--provider", "instrument", "open", "x"], external: false },
     // The CLI does not honor an inline value on these flags -- it reads the
     // whole token as the subcommand and fails -- so the invocation reaches no

@@ -3,7 +3,7 @@ import path from "node:path";
 
 /**
  * Provider name the agent can pass explicitly (`--provider instrument`) to
- * force the task browser; it is also the default via AGENT_BROWSER_PROVIDER.
+ * force the in-app browser; it is also the default via AGENT_BROWSER_PROVIDER.
  */
 export const INSTRUMENT_PROVIDER_NAME = "instrument";
 
@@ -47,7 +47,7 @@ if (typeof request !== "object" || request === null) {
   respond({
     manifest: {
       capabilities: ["browser.provider"],
-      description: "Instrument-managed task browser",
+      description: "Instrument's in-app browser",
       name: "${INSTRUMENT_PROVIDER_NAME}",
     },
     success: true,

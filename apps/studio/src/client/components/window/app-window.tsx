@@ -934,6 +934,7 @@ function WindowShell({
                 <BrowserTabs
                   chromeInto={pageSlot?.chrome?.into ?? null}
                   compose={[...compose.hosts, ...slotHosts]}
+                  fieldInto={pageSlot?.chrome?.fieldInto ?? null}
                   ref={setBrowser}
                   reloadInto={pageSlot?.chrome?.reloadInto ?? null}
                 />

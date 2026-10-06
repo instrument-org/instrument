@@ -98,6 +98,8 @@ export interface GuestEventMap {
   "ipc-message": { args: unknown[]; channel: string };
   "page-favicon-updated": { favicons: string[] };
   "page-title-updated": { title: string };
+  /** The pool's own, fired after `setZoom`: Electron says nothing when a guest's zoom changes. */
+  "zoom-set": object;
 }
 
 /**
@@ -848,6 +850,7 @@ function guestHandle(
       guard(() => {
         webview.setZoomFactor(factor);
       }, undefined);
+      webview.dispatchEvent(new Event("zoom-set"));
     },
     step: (direction) =>
       guard(() => {

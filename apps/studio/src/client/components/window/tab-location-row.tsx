@@ -3,6 +3,11 @@ import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { AppIcon } from "@/client/components/window/app-icon";
 import {
   lookAtAtom,
@@ -13,7 +18,9 @@ import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
 } from "@/client/hooks/use-open-in-app";
+import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { pageConnection } from "@/client/lib/page-connection";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
@@ -24,8 +31,9 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
-import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -36,6 +44,7 @@ import {
   type Ref,
   useEffect,
   useRef,
+  useState,
 } from "react";
 
 import { locationCrumbs, type TabLocation } from "./tab-location";
@@ -59,6 +68,7 @@ export function TabLocationRow({
   canGoBack,
   canGoForward,
   field,
+  fieldEnd,
   leading,
   location,
   onBack,
@@ -75,6 +85,8 @@ export function TabLocationRow({
   canGoForward?: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
+  /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
+  fieldEnd?: ReactNode;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
@@ -184,6 +196,7 @@ export function TabLocationRow({
               )
             }
           />
+          {fieldEnd}
           {openIn && <OpenInAppButton target={openIn} />}
         </div>
       )}
@@ -322,7 +335,7 @@ function Field({ location }: { location: TabLocation }) {
     const { host, rest } = splitUrl(location.url);
     return (
       <>
-        {locationMark(location)}
+        <ConnectionBadge url={location.url} />
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">{host}</span>
           {rest}
@@ -400,6 +413,57 @@ function Field({ location }: { location: TabLocation }) {
   );
 }
 
+/**
+ * What a page's address says about its connection, where a browser says it:
+ * nothing for an encrypted page, since a lock is true of a lookalike site
+ * too; Not secure ahead of the address for plain http; and only a mark for
+ * plain http to this computer, which never crosses the network but is no
+ * more encrypted for it. A press on either is the reason, in Chromium's
+ * words.
+ */
+function ConnectionBadge({ url }: { url: string }) {
+  const [isOpen, setOpen] = useState(false);
+  useCloseOnWindowBlur(isOpen, () => {
+    setOpen(false);
+  });
+  const connection = pageConnection(url);
+  if (connection === "secure") {
+    return null;
+  }
+  const isLocal = connection === "local";
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger
+        aria-label="Connection is not secure"
+        className={cn(
+          "-ml-1.5 flex h-5 shrink-0 cursor-default items-center gap-1 rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
+          isLocal ? "w-5 justify-center" : "pr-2 pl-1.5",
+        )}
+      >
+        {isLocal ? (
+          <InfoIcon className="size-3.5" />
+        ) : (
+          <>
+            <WarningIcon className="size-3.5" />
+            Not secure
+          </>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3 text-sm">
+        <p className="flex items-center gap-2 font-medium">
+          <WarningIcon className="size-4 shrink-0 text-warning-700" />
+          Your connection to this site is not secure
+        </p>
+        <p className="mt-1.5 text-muted-foreground">
+          You should not enter any sensitive information on this site (for
+          example, passwords or credit cards), because it could be stolen by
+          attackers.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** What the place is drawn with, ahead of its name. */
 function locationMark(location: TabLocation): ReactNode {
   switch (location.kind) {
@@ -441,10 +505,10 @@ function locationMark(location: TabLocation): ReactNode {
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    // A page says nothing about its connection unless it is bad news; see
+    // ConnectionBadge.
     case "page": {
-      return (
-        <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
+      return null;
     }
     // A task is under the list it was opened from, the way an app page is
     // under Apps: the list wears the mark the chat's menu opens it with, and

@@ -171,12 +171,16 @@ describe("renderChatPart in the chat", () => {
     state: "output-available",
     type: "tool-bash",
   } as SessionMessagePart.ToolPart;
+  const doneReasoningPart: SessionMessagePart.ReasoningPart = {
+    ...reasoningPart,
+    state: "done",
+  };
 
-  function chatToolNode(isDeveloperMode: boolean) {
+  function chatNode(part: SessionMessagePart.Type, isDeveloperMode: boolean) {
     const message = {
       id: messageId,
       metadata: { createdAt: new Date(0), sessionId },
-      parts: [bashPart],
+      parts: [part],
       role: "assistant",
     } as SessionMessage.WithParts;
     return renderChatPart({
@@ -194,16 +198,16 @@ describe("renderChatPart in the chat", () => {
         task: undefined as never,
       },
       message,
-      part: bashPart,
+      part,
       partIndex: 0,
     });
   }
 
-  it("hides the agent's commands", () => {
-    expect(chatToolNode(false)).toBeNull();
-  });
-
-  it("shows them in developer mode", () => {
-    expect(chatToolNode(true)).not.toBeNull();
+  it.each([
+    ["a command", bashPart],
+    ["reasoning", doneReasoningPart],
+  ])("hides %s, and shows it in developer mode", (_case, part) => {
+    expect(chatNode(part, false)).toBeNull();
+    expect(chatNode(part, true)).not.toBeNull();
   });
 });

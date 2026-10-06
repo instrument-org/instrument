@@ -32,8 +32,8 @@ export interface RenderPartContext {
    * The conversation the user talks to shows its words and its questions,
    * and nothing of its machinery: no reasoning, no command rows, no cards
    * for the tasks it started, no notes from the harness. Developer mode
-   * brings its tool calls back as rows between the bubbles, so what it ran
-   * can be seen.
+   * brings all of it back as rows between the bubbles, so what it ran and
+   * why can be seen.
    */
   presentation?: "chat";
   task: Task;
@@ -133,6 +133,7 @@ export function renderChatPart({
     // agent's to fix before asking again, not the user's to read.
     if (
       ctx.presentation === "chat" &&
+      !ctx.isDeveloperMode &&
       part.type === "tool-connect_app" &&
       part.state === "output-available" &&
       part.output.state === "failure"
@@ -169,7 +170,7 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
-    if (ctx.presentation === "chat") {
+    if (ctx.presentation === "chat" && !ctx.isDeveloperMode) {
       return null;
     }
     // Whether the run is still writing into this block. Anything after it means

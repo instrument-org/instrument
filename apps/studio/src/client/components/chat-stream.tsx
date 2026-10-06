@@ -559,12 +559,13 @@ export function ChatStream({
       // The conversation's own replies land whole: while a step is still
       // being composed its words are held back and the dots at the tail stand
       // in, so what the user reads is what was sent, never what is being typed.
-      // A reply that was superseded before it finished is never shown.
+      // A reply that was superseded before it finished is shown only in
+      // developer mode.
       const isComposing =
         presentation === "chat" &&
         message.role === "assistant" &&
         ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
-          message.metadata.error?.kind === "aborted");
+          (!isDeveloperMode && message.metadata.error?.kind === "aborted"));
 
       for (const [partIndex, stored] of message.parts.entries()) {
         // What is drawn for the part: the part itself, or the part with the
@@ -796,9 +797,10 @@ export function ChatStream({
       }
 
       // A reply the conversation superseded is not an error to anyone; it
-      // is simply not shown, in developer mode too.
+      // is simply not shown, outside developer mode.
       const superseded =
         presentation === "chat" &&
+        !isDeveloperMode &&
         message.role === "assistant" &&
         message.metadata.error?.kind === "aborted";
       // A run of the same refusal, one per retry, reads as one: only the

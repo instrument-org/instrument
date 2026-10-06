@@ -151,7 +151,7 @@ export function renderDataPart({
       );
     }
     case "data-appEvent": {
-      if (ctx.presentation === "chat") {
+      if (ctx.presentation === "chat" && !ctx.isDeveloperMode) {
         return null;
       }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
@@ -351,7 +351,7 @@ export function renderDataPart({
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.
-      if (ctx.presentation === "chat") {
+      if (ctx.presentation === "chat" && !ctx.isDeveloperMode) {
         return null;
       }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;

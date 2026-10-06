@@ -112,8 +112,7 @@ launches a Chromium of its own, so `open`, clicks, snapshots and our wrapper
 around them all run for real, and an eval is the cheapest real check of how
 the agent uses the browser: the skill, the targeting guidance, what a command
 prints. What it cannot show is anything specific to the guest -- the CDP
-bridge, guest sizing, the panel the user watches -- which has no rung below
-4. Check the tool sequence for a real `open` and its output before believing
+bridge, guest sizing, the panel the user watches -- which has no rung below 4. Check the tool sequence for a real `open` and its output before believing
 a browser eval either way.
 
 ## Rung 4: the running app

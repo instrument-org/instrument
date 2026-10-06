@@ -47,6 +47,9 @@ erro = "erro"
 # A regex stem matching both AppleScript's `app` and `application`
 # (`app(?:lication)?`); "corrected" to `location`, it stops matching the latter.
 lication = "lication"
+# A misspelled `--name` flag that shell-command tests pass on purpose to check
+# the unknown-flag error; "corrected", the flag is valid and the tests fail.
+nam = "nam"
 # A regex stem that has to match both "truncated" and "truncation".
 truncat = "truncat"
 

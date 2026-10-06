@@ -245,10 +245,12 @@ function noteLeftOnPage(
 /** The commands that take back what a connection left on its page. */
 function undoLeftOnPage(left: LeftOnPage): [string, Record<string, unknown>][] {
   return [
-    ...[...left.scripts].map((identifier): [string, Record<string, unknown>] => [
-      "Page.removeScriptToEvaluateOnNewDocument",
-      { identifier },
-    ]),
+    ...[...left.scripts].map(
+      (identifier): [string, Record<string, unknown>] => [
+        "Page.removeScriptToEvaluateOnNewDocument",
+        { identifier },
+      ],
+    ),
     ...[...left.bindings].map((name): [string, Record<string, unknown>] => [
       "Runtime.removeBinding",
       { name },

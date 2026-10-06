@@ -5000,7 +5000,14 @@ function FileSystemListView({
     };
     walk(currentPath, 0);
     return visibleRows;
-  }, [currentPath, expanded, index, isRevealing, renderUnreadable, slowFolders]);
+  }, [
+    currentPath,
+    expanded,
+    index,
+    isRevealing,
+    renderUnreadable,
+    slowFolders,
+  ]);
   // The rows that are items, which is what the keyboard walks.
   const entryRows = rows.filter(
     (row): row is { depth: number; entry: FileSystemEntry } =>

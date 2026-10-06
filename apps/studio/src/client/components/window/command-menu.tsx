@@ -1,8 +1,5 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import {
-  openSettings,
-  type SettingsTab,
-} from "@/client/atoms/settings-modal";
+import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   APPS_HREF,
@@ -347,7 +344,9 @@ export function CommandMenu({
             label: "Commands",
           },
           {
-            items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
+            items: chatMatches.map(({ item, ranges }) =>
+              chatItem(item, ranges),
+            ),
             label: "Chats",
           },
           {

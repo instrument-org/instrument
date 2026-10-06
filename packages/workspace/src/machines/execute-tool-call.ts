@@ -87,21 +87,16 @@ const executeToolLogic = fromPromise<
     sessionId: StoreId.Session;
     taskId: TaskId;
   }
->(
-  async ({
-    input: { agentName, model, part, sessionId, taskId },
+>(async ({ input: { agentName, model, part, sessionId, taskId }, signal }) => {
+  return runToolCall({
+    agentName,
+    model,
+    part,
+    sessionId,
     signal,
-  }) => {
-    return runToolCall({
-      agentName,
-      model,
-      part,
-      sessionId,
-      signal,
-      taskId,
-    });
-  },
-);
+    taskId,
+  });
+});
 
 export const executeToolCallMachine = setup({
   actors: {

@@ -424,7 +424,9 @@ export const workspaceMachine = setup({
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined
         ? {}
-        : { macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath) }),
+        : {
+            macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
+          }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };

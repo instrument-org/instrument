@@ -41,7 +41,9 @@ export function markReplacedModels(
       return model;
     }
 
-    let replacement: { model: AIGatewayModel.Type; release: ModelRelease } | undefined;
+    let replacement:
+      | { model: AIGatewayModel.Type; release: ModelRelease }
+      | undefined;
     for (const [candidate, candidateRelease] of releases) {
       if (
         candidateRelease.series !== release.series ||

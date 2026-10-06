@@ -20,6 +20,7 @@ import {
 } from "./context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
+import { resetMemoryReported } from "./create-memory-part";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
@@ -243,6 +244,10 @@ export async function prepareModelMessages({
           taskId,
           { signal },
         );
+
+        // The whole of memory was told on a message the cut just dropped, so
+        // the chat's next message tells it again.
+        await resetMemoryReported({ sessionId, taskId });
       }
     }
   }

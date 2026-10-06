@@ -1,5 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
-import { openSettings } from "@/client/atoms/settings-modal";
+import { openSettings as openSettingsTab } from "@/client/atoms/settings-modal";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
@@ -86,7 +86,7 @@ function ComputerUseSetupLink() {
       <button
         className="underline underline-offset-2"
         onClick={() => {
-          openSettings({ tab: "Computer Use" });
+          openSettingsTab({ tab: "Computer Use" });
         }}
         type="button"
       >

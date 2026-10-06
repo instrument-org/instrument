@@ -273,7 +273,7 @@ function Step({
       <Icon
         className={
           done
-            ? "mt-0.5 size-5 shrink-0 text-success"
+            ? "mt-0.5 size-5 shrink-0 text-success-700 dark:text-success-300"
             : failed
               ? "mt-0.5 size-5 shrink-0 text-destructive"
               : "mt-0.5 size-5 shrink-0 text-muted-foreground"

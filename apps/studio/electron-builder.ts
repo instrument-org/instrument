@@ -286,6 +286,11 @@ const config: Configuration = {
   nsis: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     createDesktopShortcut: "always",
+    // The asar is stored uncompressed inside the installer, so a differential
+    // update fetches the changed bytes of it rather than the whole compressed
+    // member, which any code change rewrites. The installer grows by what
+    // compressing the asar would have saved.
+    differentialPackage: "store-asar",
     // The installer drawn at the display's scale, and Open With for the
     // types Instrument shows. Not `win.fileAssociations`, whose macro makes
     // the app each extension's default.

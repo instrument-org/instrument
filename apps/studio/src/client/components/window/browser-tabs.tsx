@@ -7,7 +7,7 @@ import {
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { PageFavicon } from "@/client/components/favicon";
-import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
+import { BrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { getGuest, takeGuestTraversal } from "@/client/lib/browser-pool";
@@ -130,7 +130,7 @@ export interface ComposeHost {
    */
   chrome?: boolean | PageChromeSlots;
   group: string;
-  /** Drawn inside an overlay, whose own cover does not park the page; see TaskBrowserPanel. */
+  /** Drawn inside an overlay, whose own cover does not park the page; see BrowserPanel. */
   insideOverlay?: boolean;
   into: HTMLElement | null;
   isActive: boolean;
@@ -817,7 +817,7 @@ export function BrowserTabs({
             ];
       })}
       {active ? (
-        <TaskBrowserPanel
+        <BrowserPanel
           active={attached.has(targetOf(active))}
           chrome={{
             fieldInto: fieldInto ?? null,
@@ -955,7 +955,7 @@ function ComposePagePanel({
   }
   return createPortal(
     <ActiveTabProvider isActive={host.isActive}>
-      <TaskBrowserPanel
+      <BrowserPanel
         active={attached}
         chrome={host.chrome ?? true}
         className="h-full rounded-none shadow-none"

@@ -18,7 +18,7 @@ import path from "node:path";
 import { parse } from "tldts";
 
 /**
- * Ad and tracker blocking for the task browser, the way Brave does it out of
+ * Ad and tracker blocking for the in-app browser, the way Brave does it out of
  * the box: EasyList, EasyPrivacy, and uBlock Origin's lists, through
  * Ghostery's engine.
  *

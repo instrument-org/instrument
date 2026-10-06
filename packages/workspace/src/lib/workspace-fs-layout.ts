@@ -31,6 +31,7 @@ import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { chatsDir } from "./record-folders";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import { type WalkBudget } from "./walk-budget";
 import {
   BUNDLED_SOURCE_IDS,
   getSkillSources,
@@ -150,7 +151,17 @@ export interface WorkspaceFsMount {
  */
 export async function buildBashFs(
   layout: WorkspaceFsLayout,
-  { maxFileReadSize }: { maxFileReadSize: number },
+  {
+    homeWalkBudget,
+    maxFileReadSize,
+  }: {
+    /**
+     * Counts listings under a folder that holds the workspace (the home
+     * folder) against a budget of their own; see `WalkBudget`.
+     */
+    homeWalkBudget?: WalkBudget;
+    maxFileReadSize: number;
+  },
 ): Promise<IFileSystem> {
   const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
 
@@ -196,19 +207,22 @@ export async function buildBashFs(
     // OverlayFs is copy-on-write into memory, and the filesystem is rebuilt per
     // bash call, so mounting a writable folder there would report every `mv`
     // and `cp` as succeeding and leave the user's files untouched.
+    const mounted = masked(
+      mount,
+      mount.readOnly
+        ? new OverlayFs({
+            maxFileReadSize,
+            mountPoint: "/",
+            readOnly: true,
+            root: mount.hostRoot,
+          })
+        : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+    );
     fs.mount(
       mount.mountPoint,
-      masked(
-        mount,
-        mount.readOnly
-          ? new OverlayFs({
-              maxFileReadSize,
-              mountPoint: "/",
-              readOnly: true,
-              root: mount.hostRoot,
-            })
-          : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
-      ),
+      homeWalkBudget && folderHoldsWorkspace(mount.hostRoot)
+        ? homeWalkBudget.wrap(mounted, mount.mountPoint)
+        : mounted,
     );
   }
 

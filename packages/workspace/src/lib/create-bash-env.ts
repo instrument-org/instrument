@@ -105,6 +105,7 @@ import {
   type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
+import { createWalkBudget, type WalkBudget } from "./walk-budget";
 import { workDir } from "./work-dir";
 
 /** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
@@ -289,6 +290,19 @@ const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
     return { ast: context.ast };
   },
 };
+
+/** Starts a walk budget over at every command the shell runs. */
+function resetEachCommand(
+  budget: WalkBudget,
+): TransformPlugin<Record<string, never>> {
+  return {
+    name: "reset-walk-budget",
+    transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
+      budget.reset();
+      return { ast: context.ast };
+    },
+  };
+}
 
 /** Records which commands a script runs, in order, for the tool's metadata. */
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
@@ -532,6 +546,11 @@ export interface BashEnvOptions {
     full?: boolean;
     id: ChatId;
   };
+  /**
+   * The one agent's shell, in its chat or a fork: walks over the home folder
+   * stop at the chat's budget while its own folder keeps a task's.
+   */
+  oneAgent?: boolean;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -682,6 +701,7 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   attachedFolders,
   chat,
+  oneAgent = false,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
@@ -693,11 +713,20 @@ export async function createLocalBashEnv({
   standIn?: (name: string) => Command;
 }) {
   const layout = shellLayout({ attachedFolders, chat, taskId });
-  const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
+  const readOnlyChat = chat !== undefined && chat.full !== true;
+  // The one agent works in its own folder at a task's budget, and walks the
+  // home folder at the chat's, whether it is the chat or a fork of it.
+  const homeWalkBudget = oneAgent
+    ? createWalkBudget(CHAT_MAX_TRAVERSAL)
+    : undefined;
+  const fs = await buildBashFs(layout, {
+    homeWalkBudget,
+    maxFileReadSize: SANDBOX_MAX_BYTES,
+  });
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...(chat && !chat.full ? [] : getNetworkCommandNames()),
+    ...(readOnlyChat ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   // What sets the two shells apart: the chat gets `task`, `chat`,
@@ -774,8 +803,12 @@ export async function createLocalBashEnv({
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
-      maxTraversalEntries: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
-      maxTraversalWork: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalEntries: readOnlyChat
+        ? CHAT_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: readOnlyChat
+        ? CHAT_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
     },
     // `curl`, `js-exec`'s `fetch` and `python`'s `jb_http` reach every
     // address the native interpreters can, the local network included, except
@@ -809,6 +842,9 @@ export async function createLocalBashEnv({
   // what actually ran rather than what was typed.
   bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
+  if (homeWalkBudget) {
+    bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
+  }
 
   return bash;
 }

@@ -191,6 +191,7 @@ export const BashTool = setupTool({
     const bash = await createBashEnv({
       attachedFolders,
       chat,
+      oneAgent: agentName === ONE_AGENT_NAME,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.

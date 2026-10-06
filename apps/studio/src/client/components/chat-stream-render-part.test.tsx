@@ -164,13 +164,12 @@ describe("renderChatPart reasoning", () => {
 });
 
 describe("renderChatPart in the chat", () => {
+  // A command still being written: hidden in the chat for its kind, not its
+  // state, and drawn in developer mode whatever its state.
   const bashPart: SessionMessagePart.ToolPart = {
     ...toolPart,
-    input: { command: "ls" },
-    output: { exitCode: 0, stderr: "", stdout: "" },
-    state: "output-available",
     type: "tool-bash",
-  } as SessionMessagePart.ToolPart;
+  };
   const doneReasoningPart: SessionMessagePart.ReasoningPart = {
     ...reasoningPart,
     state: "done",

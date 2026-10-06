@@ -253,8 +253,10 @@ function AddTile({
 }
 
 /**
- * A picture filling its tile, cropped from the top down: the head of a page
- * or a document is what says what it is, so that is the part kept.
+ * A picture at its tile's full width, hung from the top and cut off at the
+ * tile's foot: the head of a page or a document is what says what it is, so
+ * it is kept whole across, never cropped at the sides. A picture wider than
+ * the tile's shape leaves the card's ground under it.
  */
 function FittedPicture({
   onError,
@@ -266,7 +268,7 @@ function FittedPicture({
   return (
     <img
       alt=""
-      className="size-full object-cover object-top"
+      className="absolute inset-x-0 top-0 h-auto w-full"
       draggable={false}
       onError={onError}
       src={src}

@@ -320,6 +320,7 @@ export function refusalNotice({
 /** What a notice's one button does. */
 export type BillingNoticeAction =
   | "choose-plan"
+  | "contact-support"
   | "continue"
   | "update-card"
   | "upgrade";
@@ -336,7 +337,8 @@ export function noticeCopy(
   switch (notice.kind) {
     case "access-revoked": {
       return {
-        line: "Contact support.",
+        action: { kind: "contact-support", label: "Contact support" },
+        line: "Get in touch and we'll sort it out.",
         title: `${APP_NAME}'s AI isn't available on this account`,
       };
     }

@@ -6,6 +6,7 @@ import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   describeDate,
   describeDay,
@@ -19,7 +20,7 @@ import {
 } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
@@ -108,6 +109,7 @@ export function UsageAndBillingSection() {
 
 function PlanGroup({ status }: { status: Status }) {
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
+  const openLink = useOpenExternalLink();
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
       onError: () => {
@@ -128,9 +130,18 @@ function PlanGroup({ status }: { status: Status }) {
         <Card className="gap-0 overflow-hidden p-0">
           <Row
             data-billing-row="access-revoked"
-            detail="Contact support."
+            detail="Get in touch and we'll sort it out."
             title={`${APP_NAME}'s AI isn't available on this account`}
-          />
+          >
+            <Button
+              onClick={() => {
+                openLink(SUPPORT_URL);
+              }}
+              size="sm"
+            >
+              Contact support
+            </Button>
+          </Row>
           <Row
             data-billing-row="billing"
             detail="Your card and invoices, in Stripe"

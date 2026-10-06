@@ -2,6 +2,7 @@ import { keptAtom } from "@/client/lib/kept-state";
 import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { Button } from "@/client/components/ui/button";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   type BillingNoticeAction,
   noticeCopy,
@@ -12,6 +13,7 @@ import {
 } from "@/client/lib/billing";
 import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
 import { rpcClient } from "@/client/rpc/client";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
@@ -63,6 +65,7 @@ export function ChatBillingNotice({
     ...rpcClient.billing.offer.queryOptions(),
     enabled: isSignedIn,
   });
+  const openLink = useOpenExternalLink();
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
       onError: () => {
@@ -124,6 +127,10 @@ export function ChatBillingNotice({
     switch (kind) {
       case "choose-plan": {
         openPlanSheet();
+        break;
+      }
+      case "contact-support": {
+        openLink(SUPPORT_URL);
         break;
       }
       case "continue": {

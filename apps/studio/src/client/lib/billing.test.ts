@@ -284,10 +284,14 @@ describe("refusalNotice", () => {
   });
 });
 
-it("offers nothing to buy when access was revoked", () => {
+it("offers support rather than a plan when access was revoked", () => {
   expect(noticeCopy({ kind: "access-revoked" }, NOW)).toMatchInlineSnapshot(`
     {
-      "line": "Contact support.",
+      "action": {
+        "kind": "contact-support",
+        "label": "Contact support",
+      },
+      "line": "Get in touch and we'll sort it out.",
       "title": "Instrument's AI isn't available on this account",
     }
   `);

@@ -162,3 +162,48 @@ describe("renderChatPart reasoning", () => {
     ).not.toBeNull();
   });
 });
+
+describe("renderChatPart in the chat", () => {
+  const bashPart: SessionMessagePart.ToolPart = {
+    ...toolPart,
+    input: { command: "ls" },
+    output: { exitCode: 0, stderr: "", stdout: "" },
+    state: "output-available",
+    type: "tool-bash",
+  } as SessionMessagePart.ToolPart;
+
+  function chatToolNode(isDeveloperMode: boolean) {
+    const message = {
+      id: messageId,
+      metadata: { createdAt: new Date(0), sessionId },
+      parts: [bashPart],
+      role: "assistant",
+    } as SessionMessage.WithParts;
+    return renderChatPart({
+      browserStatusContextAdded: false,
+      ctx: {
+        isAgentRunning: false,
+        isDeveloperMode,
+        isToolStreaming: () => false,
+        lastMessageId: messageId,
+        onRetry: () => {
+          // Nothing to do: these tests assert on whether the row exists.
+        },
+        presentation: "chat",
+        // Handed to the row, never read while building it.
+        task: undefined as never,
+      },
+      message,
+      part: bashPart,
+      partIndex: 0,
+    });
+  }
+
+  it("hides the agent's commands", () => {
+    expect(chatToolNode(false)).toBeNull();
+  });
+
+  it("shows them in developer mode", () => {
+    expect(chatToolNode(true)).not.toBeNull();
+  });
+});

@@ -31,7 +31,9 @@ export interface RenderPartContext {
   /**
    * The conversation the user talks to shows its words and its questions,
    * and nothing of its machinery: no reasoning, no command rows, no cards
-   * for the tasks it started, no notes from the harness.
+   * for the tasks it started, no notes from the harness. Developer mode
+   * brings its tool calls back as rows between the bubbles, so what it ran
+   * can be seen.
    */
   presentation?: "chat";
   task: Task;
@@ -117,9 +119,10 @@ export function renderChatPart({
     // What the conversation asks the user (a choice, a sign-in, a folder)
     // and nothing else: every other call is its own business, a task it
     // started included, since the tasks at work stand over the composer
-    // rather than in the transcript.
+    // rather than in the transcript. Developer mode shows every call.
     if (
       ctx.presentation === "chat" &&
+      !ctx.isDeveloperMode &&
       part.type !== "tool-choose" &&
       part.type !== "tool-connect_app" &&
       part.type !== "tool-request_folder"

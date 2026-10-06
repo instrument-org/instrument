@@ -19,9 +19,11 @@ import { type z } from "zod";
 import type { Session } from "../src/schemas/session";
 
 import { attachChats, workspaceMachine } from "../src/electron";
+import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
+import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
@@ -222,6 +224,19 @@ export interface EvalCase {
    * rather than re-derive. Assertions see every session the run produced.
    */
   followUps?: string[];
+  /**
+   * For a chat case scored on what the conversation does when a task
+   * reports, not on the task's work: every task the conversation starts is
+   * stopped as soon as its first turn settles, and the conversation is woken
+   * through the real wake path as if it had finished, saying `said` and
+   * leaving `leavesOpen` as window tabs it opened. A run's tasks browse in a
+   * Chrome of their own, so this is the only way a finish note names a
+   * window tab, and it saves the minutes and tokens of the work itself.
+   */
+  finishesAs?: {
+    leavesOpen?: { at: string; id: string }[];
+    said: string;
+  };
   /**
    * Which agent answers the prompt. A chat delegates to tasks it
    * creates inside the same workspace, so a run of that kind produces the
@@ -612,6 +627,13 @@ export async function runEvals(
         timeoutMs: remainingMs(),
       });
 
+      if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
+        await standInForTasks(id, evalCase.finishesAs, {
+          standInWindow,
+          workspaceRef: actor,
+        });
+      }
+
       // Follow-ups run before the teardown below, so the caps timer and the
       // part subscription cover the whole conversation rather than its first
       // turn: a run that loops on turn four is the same runaway as one that
@@ -803,6 +825,54 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
+}
+
+/**
+ * Stops each task the conversation started and wakes it as though the task
+ * had finished: see `EvalCase.finishesAs`. The stop is one the conversation
+ * expects, so it wakes nothing of its own.
+ */
+async function standInForTasks(
+  chatId: TaskId,
+  { leavesOpen = [], said }: NonNullable<EvalCase["finishesAs"]>,
+  {
+    standInWindow,
+    workspaceRef,
+  }: {
+    standInWindow: ReturnType<typeof createStandInWindow>;
+    workspaceRef: WorkspaceActorRef;
+  },
+) {
+  const resolved = resolveChat(chatId);
+  for (const child of resolved ? await listChildTasks(resolved) : []) {
+    expectStop(child.id);
+    workspaceRef.send({ type: "stopSessions", value: { id: child.id } });
+    while (isWorking(child.id)) {
+      await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
+    }
+    for (const tab of leavesOpen) {
+      standInWindow.openPage(tab);
+    }
+    wakeChatWithTaskEvent(
+      chatId,
+      {
+        status: "done",
+        summary: said,
+        ...(leavesOpen.length > 0
+          ? {
+              tabs: leavesOpen.map(({ at, id }) => ({
+                id,
+                openedBy: "task" as const,
+                url: at,
+              })),
+            }
+          : {}),
+        taskId: child.id,
+        title: child.title,
+      },
+      workspaceRef,
+    );
+  }
 }
 
 /** Every task descended from this one, however deep. */

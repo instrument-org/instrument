@@ -127,6 +127,19 @@ export function cancelAskedWake(taskId: TaskId): boolean {
   return true;
 }
 
+/**
+ * Wakes a chat about one of its tasks with an event composed elsewhere,
+ * through the same debounce and delivery a finish takes. What the eval
+ * harness stands a task's finish in with, without the task doing the work.
+ */
+export function wakeChatWithTaskEvent(
+  chatId: TaskId,
+  event: TaskEvent,
+  workspaceRef: WorkspaceActorRef,
+) {
+  schedule(chatId, event, workspaceRef);
+}
+
 export function expectStop(taskId: TaskId) {
   stoppedByChat.add(taskId);
 }

@@ -17,6 +17,11 @@
  *   user's.
  * - **A tab already open is brought forward**, not opened a second time.
  * - **A result the user asks to see goes on screen.**
+ * - **A result left on a page is that page.** A task that filled a cart in a
+ *   tab of its own finished, and the conversation said the cart was "waiting
+ *   in" a link to the task, whose chip opens the transcript over the page.
+ *   The task here is a stand-in (`finishesAs`), so the case scores only the
+ *   reply to its finish note.
  */
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -27,6 +32,8 @@ const JAR_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0C";
 const EXAMPLE_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0D";
 const IANA_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0E";
 const HOME_TAB = "screen-3c1d7e0a-5a1b-4c2e-9f11-0a6c1f2b7d10";
+const CART = "https://unscentedco.com/en-us/cart";
+const CART_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0F";
 
 /** Every bash command the conversation ran, in order. */
 function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
@@ -130,6 +137,56 @@ function handedTab(tabId: string): Assertion {
   };
 }
 
+/** Everything the conversation said, in order. */
+function replies(sessions: Session.WithMessagesAndParts[]): string {
+  return sessions
+    .flatMap((session) => session.messages)
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      ),
+    )
+    .join("\n");
+}
+
+const neverLinkedATask: Assertion = {
+  check: ({ sessions }) => {
+    const links = replies(sessions).match(/\]\(instrument:\/\/task\/[^)]*\)/g);
+    return {
+      evidence: links ? links.join("\n") : "no task links",
+      passed: !links,
+      text: "Never pointed the user at a task for its result",
+    };
+  },
+  text: "Never pointed the user at a task for its result",
+};
+
+/** Put the page in front of the user, or linked it by its address. */
+function pointedAtPage(tabId: string, url: string): Assertion {
+  const text = `Showed tab ${tabId} or linked ${url}`;
+  return {
+    check: ({ sessions }) => {
+      const shown = bashCommands(sessions)
+        .flatMap(tabCalls)
+        .filter((call) => call.verb === "show" && call.args.includes(tabId));
+      const said = replies(sessions);
+      const linked = said.includes(`](${url}`);
+      return {
+        evidence:
+          shown.length > 0
+            ? `tab show ${tabId}`
+            : linked
+              ? `linked ${url}`
+              : said.slice(-600) || "no reply",
+        passed: shown.length > 0 || linked,
+        text,
+      };
+    },
+    text,
+  };
+}
+
 /** The new-tab page on screen, with the user's other tabs open behind it. */
 function homeWith(
   tabs: { at: string; id: string; title: string }[],
@@ -198,6 +255,31 @@ function ranTab(
 }
 
 export const WINDOW_TABS_EVALS = [
+  defineEval({
+    // The run that prompted this, in the words it was typed in.
+    assertions: [pointedAtPage(CART_TAB, CART), neverLinkedATask],
+    finishesAs: {
+      leavesOpen: [{ at: CART, id: CART_TAB }],
+      said: [
+        "I left this one-time-purchase cart ready in the store, without starting checkout or subscribing:",
+        "",
+        "| Qty. | Item | Price | Price/oz |",
+        "|---:|---|---:|---:|",
+        "| 2 | Body Soap, 2L Refill Pouch | $67.00 | $0.50 |",
+        "| 1 | Daily Shampoo, 2L Refill Pouch | $33.50 | $0.50 |",
+        "| 1 | Daily Conditioner, 500 ml | $6.50 | $0.38 |",
+        "| | Subtotal | $107.00 | $0.49 |",
+        "",
+        "The cart confirms the $105 free-shipping threshold is met. Subscribe and save takes 15% off the first order of eligible items; I left it unselected.",
+      ].join("\n"),
+    },
+    kind: "chat",
+    name: "window-tabs-result-on-a-page",
+    prompt:
+      "https://unscentedco.com/\n\nAlright, I want to purchase unscented body wash at the best price from here based on price per ounce. And I'm also interested in getting a cart that's at least $105 because that's a subscription, and I think we also use their conditioner and their shampoo. So we might as well do a set if there's an incentive for savings. Also, I'm willing to consider the subscribe and save stuff too",
+    viewing: homeWith([]),
+  }),
+
   defineEval({
     // The Windows run that started this, in the words it was typed in.
     assertions: [delegated, neverOpenedToHandOver],

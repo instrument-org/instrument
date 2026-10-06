@@ -1,6 +1,6 @@
 /**
- * Does a task make a designed PDF the way the pdf skill says to, and does
- * what it hands over hold up?
+ * Does a task make a designed PDF or deck the way the pdf and powerpoint
+ * skills say to, and does what it hands over hold up?
  *
  * Briefs are written the way the chat writes them for a PDF: the goal, the
  * user's words, and "Use the pdf skill". Which route the task takes is the
@@ -158,6 +158,33 @@ const lookedAtARender: Assertion = {
   text: "looked at a render of its pages",
 };
 
+const ranThePreview: Assertion = {
+  check: ({ sessions }) => {
+    const text = "drew its slides with the powerpoint skill's preview.py";
+    const runs = toolParts(sessions).filter(
+      (part) =>
+        part.type === "tool-bash" &&
+        (part.input?.command ?? "").includes("preview.py"),
+    ).length;
+    return runs > 0 ? pass(text, `${runs} run(s)`) : fail(text, "never ran it");
+  },
+  text: "drew its slides with the powerpoint skill's preview.py",
+};
+
+const wroteADeck: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "wrote a .pptx";
+    const work = path.join(taskDir(taskId), "work");
+    const decks = (
+      await fs.promises.readdir(work, { recursive: true }).catch(() => [])
+    ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));
+    return decks.length > 0
+      ? pass(text, decks.join(", "))
+      : fail(text, "no .pptx under work/");
+  },
+  text: "wrote a .pptx",
+};
+
 const proposalBrief =
   "Make a new one-page PDF proposal for Dana Hollis of Hollis Garden Co., for a website redesign, from the previous version attached (hollis-proposal-v1.pdf). The user wants it minimal and type-driven, neutral colors, nothing flashy and no fancy columns; it should feel like a careful design studio made it. Keep the same scope, timeline and pricing: $12,000 with a 50% friends-and-family discount, so $6,000, paid in three $2,000 parts, plus the optional $100/month care plan. Use the pdf skill. Put the PDF in work/ and name it in your receipt. Take the time to get the design right.";
 
@@ -204,5 +231,12 @@ export const DOCUMENT_DESIGN_EVALS = [
     ],
     name: "document-design-revise",
     prompt: proposalBrief,
+  }),
+  defineEval({
+    assertions: [wroteADeck, ranThePreview, lookedAtARender],
+    files: [fixture("q3-sales.csv")],
+    name: "document-design-deck",
+    prompt:
+      "Make a short slide deck (6 to 8 slides) for Thursday's board meeting on Q3 sales from the attached q3-sales.csv: the headline, how each region did against target, and what to watch in Q4. The user will present it from PowerPoint. Use the powerpoint skill. Put the .pptx in work/ and name it in your receipt.",
   }),
 ];

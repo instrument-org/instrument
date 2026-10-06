@@ -67,6 +67,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Status |
 | --- | --- |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
+| [Chrome extensions, starting with 1Password](active/browser-extensions-and-1password.md) | on hold, spike done |
 
 ### Platform and product
 

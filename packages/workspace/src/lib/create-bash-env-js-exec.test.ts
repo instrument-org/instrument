@@ -243,6 +243,13 @@ describe("js-exec runs import and export as a module, as node detects them", () 
       stdout: `["x"]\n`,
     });
   });
+
+  it("loads a built-in through a dynamic import() in script code", async () => {
+    const result = await run(
+      `js-exec -c 'import("node:fs").then((fs) => console.log(fs.readdirSync("/mnt/Docs/sub").length))'`,
+    );
+    expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "2\n" });
+  });
 });
 
 describe("js-exec gives its Node shims Node's shapes", () => {

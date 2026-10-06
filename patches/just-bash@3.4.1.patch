@@ -252,6 +252,79 @@ index 9e7c0af258854c507a7d52e142714ff9ea6b8348..196af57ac8a647116fb005a761a08068
 +`,exitCode:2};let u=r.isModule,i=r.stripTypes;n&&n!=="-c"&&n!=="<stdin>"&&((n.endsWith(".mjs")||n.endsWith(".mts")||n.endsWith(".ts"))&&(u=!0),(n.endsWith(".ts")||n.endsWith(".mts"))&&(i=!0)),!u&&/\bawait\s+[\w([`]/.test(s)&&(u=!0);let a=e.jsBootstrapCode;return Q(s,e,n,r.scriptArgs,a,u,i)}},pe={name:"node",async execute(){return{stdout:"",stderr:`node: this sandbox uses js-exec instead of node
  
  ${P}`,exitCode:1}}};export{de as _resetJsExecWorkerForTests,fe as jsExecCommand,pe as nodeStubCommand};
+diff --git a/dist/bundle/chunks/js-exec-worker.js b/dist/bundle/chunks/js-exec-worker.js
+index dc892f78142bd5acf2048989ed1acd4f02b00a24..79499e3d40b6e29f44882daf346c97397beb118c 100644
+--- a/dist/bundle/chunks/js-exec-worker.js
++++ b/dist/bundle/chunks/js-exec-worker.js
+@@ -4626,39 +4626,37 @@ async function executeCode(input) {
+       }
+       initResult.value.dispose();
+     }
+-    if (input.isModule) {
+-      runtime.setModuleLoader(
+-        (moduleName) => {
+-          if (Object.hasOwn(VIRTUAL_MODULES, moduleName)) {
+-            return VIRTUAL_MODULES[moduleName];
+-          }
+-          try {
+-            const data = backend.readFile(moduleName);
+-            let source = new TextDecoder().decode(data);
+-            if (moduleName.endsWith(".ts") || moduleName.endsWith(".mts")) {
+-              source = stripTypeScriptTypes(source);
+-            }
+-            return source;
+-          } catch (e) {
+-            return {
+-              error: new Error(
+-                `Cannot find module '${moduleName}': ${e.message}`
+-              )
+-            };
+-          }
+-        },
+-        (baseModuleName, requestedName) => {
+-          if (requestedName.startsWith("node:")) {
+-            requestedName = requestedName.slice(5);
+-          }
+-          if (!requestedName.startsWith("./") && !requestedName.startsWith("../") && !requestedName.startsWith("/")) {
+-            return requestedName;
++    runtime.setModuleLoader(
++      (moduleName) => {
++        if (Object.hasOwn(VIRTUAL_MODULES, moduleName)) {
++          return VIRTUAL_MODULES[moduleName];
++        }
++        try {
++          const data = backend.readFile(moduleName);
++          let source = new TextDecoder().decode(data);
++          if (moduleName.endsWith(".ts") || moduleName.endsWith(".mts")) {
++            source = stripTypeScriptTypes(source);
+           }
+-          const fromFile = baseModuleName === "<eval>" ? void 0 : baseModuleName;
+-          return resolveModulePath(requestedName, fromFile, input.cwd);
++          return source;
++        } catch (e) {
++          return {
++            error: new Error(
++              `Cannot find module '${moduleName}': ${e.message}`
++            )
++          };
+         }
+-      );
+-    }
++      },
++      (baseModuleName, requestedName) => {
++        if (requestedName.startsWith("node:")) {
++          requestedName = requestedName.slice(5);
++        }
++        if (!requestedName.startsWith("./") && !requestedName.startsWith("../") && !requestedName.startsWith("/")) {
++          return requestedName;
++        }
++        const fromFile = baseModuleName === "<eval>" ? void 0 : baseModuleName;
++        return resolveModulePath(requestedName, fromFile, input.cwd);
++      }
++    );
+     if (input.bootstrapCode) {
+       const bootstrapResult = context.evalCode(
+         input.bootstrapCode,
 diff --git a/dist/bundle/chunks/python3-F5S5TYGS.js b/dist/bundle/chunks/python3-F5S5TYGS.js
 index 650b035ac9ff019fdf245a77dea806bd56cbcca8..fd74fce4ced8128cd7f137ce076a272a27b2d6d9 100644
 --- a/dist/bundle/chunks/python3-F5S5TYGS.js

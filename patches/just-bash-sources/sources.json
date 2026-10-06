@@ -70,6 +70,10 @@
       "pulls": [
         { "number": 544, "commit": "da2e87cf2c0428fb0b0989e218ccdec477046dbf" }
       ]
+    },
+    {
+      "name": "script dynamic import",
+      "diff": "script-dynamic-import-3.4.1.diff"
     }
   ]
 }

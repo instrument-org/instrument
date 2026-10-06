@@ -1,0 +1,136 @@
+diff --git a/packages/just-bash/src/commands/js-exec/js-exec-worker.ts b/packages/just-bash/src/commands/js-exec/js-exec-worker.ts
+index 6533bf3..28d217b 100644
+--- a/packages/just-bash/src/commands/js-exec/js-exec-worker.ts
++++ b/packages/just-bash/src/commands/js-exec/js-exec-worker.ts
+@@ -1307,54 +1307,53 @@ async function executeCode(
+       initResult.value.dispose();
+     }
+ 
+-    // Set up module loader if module mode is enabled
+-    if (input.isModule) {
+-      runtime.setModuleLoader(
+-        (moduleName: string) => {
+-          // Check virtual built-in modules first
+-          if (Object.hasOwn(VIRTUAL_MODULES, moduleName)) {
+-            return VIRTUAL_MODULES[moduleName];
+-          }
++    // Set up the module loader for every run: a script can reach modules
++    // through a dynamic import() as well as a module can through `import`.
++    runtime.setModuleLoader(
++      (moduleName: string) => {
++        // Check virtual built-in modules first
++        if (Object.hasOwn(VIRTUAL_MODULES, moduleName)) {
++          return VIRTUAL_MODULES[moduleName];
++        }
+ 
+-          // Resolve from VFS via sync backend
+-          try {
+-            const data = backend.readFile(moduleName);
+-            let source = new TextDecoder().decode(data);
+-            // Strip TypeScript types from .ts/.mts imports
+-            if (moduleName.endsWith(".ts") || moduleName.endsWith(".mts")) {
+-              source = stripTypeScriptTypes(source);
+-            }
+-            return source;
+-          } catch (e) {
+-            return {
+-              error: new Error(
+-                `Cannot find module '${moduleName}': ${(e as Error).message}`,
+-              ),
+-            };
+-          }
+-        },
+-        (baseModuleName: string, requestedName: string) => {
+-          // Strip node: prefix for Node.js compatibility
+-          if (requestedName.startsWith("node:")) {
+-            requestedName = requestedName.slice(5);
+-          }
+-          // Bare specifiers (built-in names) pass through
+-          if (
+-            !requestedName.startsWith("./") &&
+-            !requestedName.startsWith("../") &&
+-            !requestedName.startsWith("/")
+-          ) {
+-            return requestedName;
++        // Resolve from VFS via sync backend
++        try {
++          const data = backend.readFile(moduleName);
++          let source = new TextDecoder().decode(data);
++          // Strip TypeScript types from .ts/.mts imports
++          if (moduleName.endsWith(".ts") || moduleName.endsWith(".mts")) {
++            source = stripTypeScriptTypes(source);
+           }
+-          // Normalize relative paths against the importing file's directory.
+-          // For <eval> (inline code), pass undefined as fromFile so
+-          // resolveModulePath uses input.cwd as the base directory.
+-          const fromFile =
+-            baseModuleName === "<eval>" ? undefined : baseModuleName;
+-          return resolveModulePath(requestedName, fromFile, input.cwd);
+-        },
+-      );
+-    }
++          return source;
++        } catch (e) {
++          return {
++            error: new Error(
++              `Cannot find module '${moduleName}': ${(e as Error).message}`,
++            ),
++          };
++        }
++      },
++      (baseModuleName: string, requestedName: string) => {
++        // Strip node: prefix for Node.js compatibility
++        if (requestedName.startsWith("node:")) {
++          requestedName = requestedName.slice(5);
++        }
++        // Bare specifiers (built-in names) pass through
++        if (
++          !requestedName.startsWith("./") &&
++          !requestedName.startsWith("../") &&
++          !requestedName.startsWith("/")
++        ) {
++          return requestedName;
++        }
++        // Normalize relative paths against the importing file's directory.
++        // For <eval> (inline code), pass undefined as fromFile so
++        // resolveModulePath uses input.cwd as the base directory.
++        const fromFile =
++          baseModuleName === "<eval>" ? undefined : baseModuleName;
++        return resolveModulePath(requestedName, fromFile, input.cwd);
++      },
++    );
+ 
+     // Run bootstrap code if provided
+     if (input.bootstrapCode) {
+diff --git a/packages/just-bash/src/commands/js-exec/js-exec.esm.test.ts b/packages/just-bash/src/commands/js-exec/js-exec.esm.test.ts
+index ab66a25..65be6af 100644
+--- a/packages/just-bash/src/commands/js-exec/js-exec.esm.test.ts
++++ b/packages/just-bash/src/commands/js-exec/js-exec.esm.test.ts
+@@ -191,4 +191,27 @@ describe("js-exec ESM modules", () => {
+     expect(result.stdout).toBe("deep-chain\n");
+     expect(result.exitCode).toBe(0);
+   });
++
++  it("should load modules through dynamic import() in script mode", async () => {
++    const env = new Bash({
++      javascript: true,
++      files: {
++        "/home/user/data.mjs": "export default 42;\n",
++        "/home/user/main.js":
++          "import('./data.mjs').then((m) => console.log(m.default));\n",
++      },
++    });
++
++    const builtin = await env.exec(
++      `js-exec -c "import('node:fs').then((m) => console.log(typeof m.readFileSync))"`,
++    );
++    expect(builtin.stderr).toBe("");
++    expect(builtin.stdout).toBe("function\n");
++    expect(builtin.exitCode).toBe(0);
++
++    const relative = await env.exec("js-exec /home/user/main.js");
++    expect(relative.stderr).toBe("");
++    expect(relative.stdout).toBe("42\n");
++    expect(relative.exitCode).toBe(0);
++  });
+ });

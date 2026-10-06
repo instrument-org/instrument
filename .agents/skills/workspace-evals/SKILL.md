@@ -7,6 +7,8 @@ description: Run, write, or read Instrument agent evals (`pnpm eval`) against re
 
 `packages/workspace/evals/` boots the real workspace machine and runs the actual agent loop against real models. `evals/cases/` holds committed cases with assertions; `--prompt` runs a throwaway one.
 
+The harness is the agents' own tool. Nobody runs evals by hand, so it serves whatever check you need next: when a behavior cannot be expressed as a case (a state the run never reaches, a wait it cannot script, an assertion with no helper), change the harness until it can, rather than recording the behavior as untested.
+
 `pnpm eval` also exists at the repo root, so none of these need a `cd` first.
 
 ```bash
@@ -52,5 +54,6 @@ The workspace a run used is a temp directory, so `report <dir>` is only good unt
 - The run is not over when the conversation's turn ends. That is the moment it hands work off; the tasks are still running and the wake that carries their results back is 1.5s behind them. The harness waits for the whole tree to go quiet, so `usage` is the conversation alone and `treeUsage` is what the run actually cost.
 - The conversation is created with the two folders `window.ensure` gives it in the app. Without them it cannot read back what its own tasks wrote: measured, that is ten tool calls and 240K tokens hunting a file, against two and 96K when it can see it.
 - Assertions get `childSessions()` alongside `sessions`, because the work being scored happened in the tasks rather than in the conversation.
+- `finishesAs` stands in for the tasks when only the conversation's reply to a finish is being scored: each task it starts is stopped once the first turn settles, and the conversation is woken through the real wake path with the receipt and the window tabs the case scripts. It is also the only way a finish note names a window tab, since a run's tasks browse in a Chrome of their own.
 
 `packages/workspace/scripts/chat-handoff-report.ts <workspace-dir>` prints what each task handed back and whether the wake note's ceiling cut it, which is the number to watch: a task's last message travels whole up to that ceiling, and everything past it was composed, paid for, and dropped.

@@ -39,8 +39,8 @@ import { windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
- * by its title, a site by its page, a folder, a file, the apps or an app,
- * Discover. Dragged to reorder, closed by the middle button, the cross or a
+ * by its title, a site by its page, a folder, a file, the apps or an app.
+ * Dragged to reorder, closed by the middle button, the cross or a
  * right click, and the plus at the end opens a chat.
  */
 export function AppTabStrip({

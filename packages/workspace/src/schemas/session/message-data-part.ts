@@ -12,8 +12,8 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
-   *   `reply`, `skillChanges`, `skillMentions`, and `projectContext` and
+   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `reply`,
+   *   `skillChanges`, `skillMentions`, and `projectContext` and
    *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
@@ -51,7 +51,6 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
-    "outputFormat",
     "projectChanges",
     "projectContext",
     "reply",
@@ -359,22 +358,6 @@ export namespace SessionMessageDataPart {
   export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
 
   /**
-   * The kind of page the user asked to receive the response as, picked on
-   * the draft that opened the chat: a template of the page skill, by the
-   * name of its folder and the title the catalog gives it. Carried beside
-   * the user's own text so the agent briefs its task with it, and the record
-   * says what was asked for.
-   */
-  export const OutputFormatDataPartSchema = z.object({
-    name: z.string().trim().min(1),
-    title: z.string().trim().min(1),
-  });
-
-  export type OutputFormatDataPart = z.output<
-    typeof OutputFormatDataPartSchema
-  >;
-
-  /**
    * Skills the agent installed or revised during the turn, detected by diffing
    * the workspace skills directory across the turn. Attached to the turn's last
    * assistant message so the chat can offer a way into a skill the agent just
@@ -602,12 +585,37 @@ export namespace SessionMessageDataPart {
   });
 
   /**
+   * One chip the composer showed over the words as they were sent, which the
+   * transcript draws again over the message: a page, a screen of the app's
+   * (an app's front, a folder by its route), or files and folders by path.
+   * What a chat had up beside it is not one; that tab is the chat's own.
+   */
+  const SentChipSchema = z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("page"), title: z.string(), url: z.string() }),
+    z.object({
+      kind: z.literal("screen"),
+      title: z.string(),
+      url: z.string(),
+    }),
+    z.object({
+      items: z
+        .array(z.object({ kind: z.enum(["file", "folder"]), path: z.string() }))
+        .min(1),
+      kind: z.literal("paths"),
+    }),
+  ]);
+
+  export type SentChip = z.output<typeof SentChipSchema>;
+
+  /**
    * What the window had on screen when the message was sent: which screen,
    * and what was on it. One record for every screen, written by the screen
    * itself, so "this", "here" and "these" in the message can be resolved
    * against what the user was actually looking at and nothing else.
    */
   export const ViewContextDataPartSchema = z.object({
+    /** The chips over the words as they were sent, in their order; for the transcript, not the agent. */
+    attached: z.array(SentChipSchema).optional(),
     /** The app whose page is up on the Apps screen, and where it stands. */
     app: z
       .object({
@@ -664,15 +672,6 @@ export namespace SessionMessageDataPart {
         selected: z.array(z.string()).default([]),
       })
       .optional(),
-    /** The kind of page open on the Discover screen: a template of the page skill. */
-    idea: z
-      .object({
-        /** The template's folder name under the page skill's `templates/`. */
-        name: z.string(),
-        tagline: z.string(),
-        title: z.string(),
-      })
-      .optional(),
     page: ViewedPageSchema.optional(),
     /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
     tabs: z
@@ -692,7 +691,6 @@ export namespace SessionMessageDataPart {
       "apps",
       "browser",
       "computer",
-      "discover",
       "file",
       "home",
       // No screen is called this; messages already stored may still name it.
@@ -951,7 +949,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
-    [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,

@@ -14,26 +14,16 @@ export interface InstrumentLink {
  * leads with. Each is a kind of thing a reply mentions and a person can be
  * taken to, and the noun is the one the agent's own commands use for it.
  */
-type InstrumentLinkKind =
-  | "app"
-  | "chat"
-  | "idea"
-  | "ideas"
-  | "memory"
-  | "skill"
-  | "task";
+type InstrumentLinkKind = "app" | "chat" | "memory" | "skill" | "task";
 
 /**
  * The nouns an address may lead with, each with the screen prefix its thing
- * lives under. `discover` is the website's word for the Ideas screen and
- * stays as the site wrote it into its "Try in Instrument" links. `thread` is
- * what a chat was called when older replies linked one, and those replies
- * are still in transcripts.
+ * lives under. `thread` is what a chat was called when older replies linked
+ * one, and those replies are still in transcripts.
  */
 const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
   chat: { kind: "chat", prefix: "/chats" },
-  discover: { kind: "idea", prefix: "/discover" },
   memory: { kind: "memory", prefix: "/memory" },
   skill: { kind: "skill", prefix: "/skills" },
   task: { kind: "task", prefix: "/tasks" },
@@ -101,12 +91,9 @@ export function instrumentLinkOf(url: string): InstrumentLink | undefined {
   if (segments.length > 1 || (name !== undefined && !NAME.test(name))) {
     return undefined;
   }
+  // Every noun names one thing and is nothing without it.
   if (name === undefined) {
-    // Only the Ideas screen is a place on its own; every other noun names
-    // one thing and is nothing without it.
-    return kind === "idea"
-      ? { href: prefix, kind: "ideas", name: "" }
-      : undefined;
+    return undefined;
   }
   return { href: `${prefix}/${name}`, kind, name };
 }
@@ -120,7 +107,7 @@ export function instrumentUrlOf(href: string): string | undefined {
   const pathname = new URL(href, "http://tabs").pathname;
   for (const [host, { prefix }] of Object.entries(HOSTS)) {
     if (pathname === prefix) {
-      return host === "discover" ? `${APP_NAME_SLUG}://${host}` : undefined;
+      return undefined;
     }
     if (pathname.startsWith(`${prefix}/`)) {
       const name = decoded(pathname.slice(prefix.length + 1));

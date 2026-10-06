@@ -43,6 +43,8 @@ export interface ComposerAction {
    */
   handsOff?: boolean;
   icon: Icon;
+  /** Drawn in the icon's place, for an entry whose mark is not a Phosphor icon: the chosen model's provider. */
+  iconElement?: React.ReactNode;
   id: string;
   /**
    * For an entry that turns the menu into something else rather than acting and
@@ -420,8 +422,10 @@ function ActionItem({
 }) {
   return (
     <DropdownMenuItem onSelect={onSelect}>
-      <action.icon className="size-4" />
-      {action.label}
+      {action.iconElement ?? <action.icon className="size-4" />}
+      {/* One line whatever its length: a long model name wrapped the entry
+          onto two. */}
+      <span className="min-w-0 truncate">{action.label}</span>
     </DropdownMenuItem>
   );
 }

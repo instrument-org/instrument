@@ -87,8 +87,6 @@ export interface Draft {
   included?: { appTabId: TabId } | { group: string; tabId: string };
   /** Tabs the window had up behind the draft that the person left out of it, by id. */
   leftBehind?: string[];
-  /** The kind of page the response should come back as: a page-skill template, by its folder's name. */
-  output?: string;
   topicId?: string;
   /**
    * Who settled the topic: the person, by picking or clearing one, or the
@@ -202,8 +200,8 @@ export function composeKeyOf(entry: ComposeEntry): string {
  */
 export const composeAtom = keptAtom<ComposeEntry[]>("layout", "compose.v2", []);
 
-/** The places the rail at the window's edge switches between: the chat, the files, the browser, the apps, and Discover. */
-export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
+/** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
+export type AppPlace = "apps" | "browser" | "chat" | "files";
 
 /**
  * The chat a tab last had open, so Chat in the rail takes a tab back to it.

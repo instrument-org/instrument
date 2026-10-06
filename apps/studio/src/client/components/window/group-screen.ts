@@ -12,8 +12,8 @@ import { parseHref } from "./window-href";
 /**
  * Whether a tab in a chat's or a draft's group can stand at an address: the
  * computer, a chat's tasks or one task, the web's start, the new tab, the
- * apps or one app's front. Anything else the window shows (Discover, the
- * release notes, the debug pages, Settings) is the window's own and never a
+ * apps or one app's front. Anything else the window shows (the release
+ * notes, the debug pages, Settings) is the window's own and never a
  * tab of a group, so an address outside this list opens at the window's
  * level and a stored tab at one is dropped.
  */

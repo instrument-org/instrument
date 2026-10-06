@@ -1,6 +1,4 @@
-import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
-import { z } from "zod";
 
 import { MOUNT } from "../../../mount-points";
 import { type SessionMessage } from "../../../schemas/session/message";
@@ -14,7 +12,7 @@ import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
 import { taskDir } from "../../task-dir-utils";
 import { holdTask } from "../../task-hold";
-import { getTaskState, setTaskState } from "../../task-record";
+import { setTaskState } from "../../task-record";
 import { getTaskSettings, recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { getWorkspaceConfig } from "../../workspace-config";
@@ -51,10 +49,10 @@ import {
   requireUnnestedMounts,
   withWorkspaceFolder,
 } from "./folders";
-import { requireOwnProvider, resolveModel } from "./model-choice";
+import { chatModel } from "./model-choice";
 import { handedTabsLine, resolveTabs, tabsHeldElsewhere } from "./tab-choice";
 
-const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
+const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -76,16 +74,13 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--model <model>]
       task starts on the first. A task opens the pages it needs in tabs of
       its own in this chat too, behind whatever the user has up, so work on
       a new page needs no tab: the brief names the page.
-      --effort is how hard its model thinks, one of ${REASONING_EFFORTS.join(", ")};
-      \`${TASK_COMMAND.name} models\` says which levels each model takes and its default. The same
-      brief at two levels is two tasks, which is how a level is compared.
       Prints the task id. You are told when it finishes a turn; do not poll it.
       What that note carries is its last message, so the brief names a file to
       make and a folder for it, never findings or a summary to put in the reply.
 `;
 
 export const newSubcommand = subcommand<TaskCommandContext>({
-  flags: ["app", "effort", "file", "folder", "model", "name", "tab"],
+  flags: ["app", "file", "folder", "name", "tab"],
   repeatable: ["app", "file", "folder", "tab"],
   run: runNew,
   usage: NEW_USAGE,
@@ -119,15 +114,7 @@ async function runNew(
     );
   }
   const workspaceConfig = getWorkspaceConfig();
-  const chatState = await getTaskState(taskDir(context.chatId));
-  const rawURI = input.value("model") ?? chatState.selectedModelURI;
-  if (!rawURI) {
-    throw new Error(
-      "new: no model. This conversation has not chosen one yet; pass --model <model>.",
-    );
-  }
-  const { model, modelURI } = await resolveModel(rawURI, context);
-  await requireOwnProvider(model, context);
+  const { model, modelURI } = await chatModel("new", context);
   const askedFolders = input.all("folder");
   const chatFolders = await folderReach(context.chatId);
   const resolvedFolders = resolveFolders(askedFolders, chatFolders);
@@ -166,13 +153,8 @@ async function runNew(
   // How hard the conversation thinks is how hard its tasks think: the level is
   // a property of the workspace rather than of one turn, and a task the
   // conversation cannot configure has no other way to be told.
-  const parentSettings = await getTaskSettings(taskDir(context.chatId));
-  // A level named on the command wins over the conversation's own, which is how
-  // one brief is run at several levels to compare them.
-  const askedEffort = input.value("effort")?.trim();
-  const effort = askedEffort
-    ? z.enum(REASONING_EFFORTS).parse(askedEffort)
-    : parentSettings?.reasoningEffort;
+  const effort = (await getTaskSettings(taskDir(context.chatId)))
+    ?.reasoningEffort;
   const initialized = await initializeTask(
     {
       chatId: context.chatId,

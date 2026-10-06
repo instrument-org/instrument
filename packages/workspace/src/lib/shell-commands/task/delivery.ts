@@ -11,9 +11,7 @@ import { folderLabel } from "../../folder-parent-label";
 import { newMessage } from "../../new-message";
 import { Store } from "../../store";
 import { systemNote } from "../../system-note";
-import { taskDir } from "../../task-dir-utils";
 import { type TaskHold, queueBehindHold, taskHold } from "../../task-hold";
-import { getTaskState } from "../../task-record";
 import { recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type PendingLook, resolveFileUploads } from "../task-args";
@@ -22,7 +20,7 @@ import { formatAge } from "../task-list-output";
 import { subprocessStdin } from "../utils";
 import { type TaskCommandContext } from "./context";
 import { chatPathsOf, requireFoldersNamedInBriefHanded } from "./folders";
-import { resolveModel } from "./model-choice";
+import { chatModel } from "./model-choice";
 
 /**
  * The prompt a subcommand was given: what came on stdin when anything did,
@@ -57,15 +55,7 @@ export async function deliver({
   prompt: string;
   task: Task;
 }) {
-  const state = await getTaskState(taskDir(task.id));
-  const chatState = await getTaskState(taskDir(context.chatId));
-  const rawURI = state.selectedModelURI ?? chatState.selectedModelURI;
-  if (!rawURI) {
-    throw new Error(
-      `${command}: the task has no model; set one with \`task model\`.`,
-    );
-  }
-  const { model, modelURI } = await resolveModel(rawURI, context);
+  const { model, modelURI } = await chatModel(command, context);
   const session = await latestOrNewSessionId(task.id);
   if (session.isErr()) {
     throw session.error;

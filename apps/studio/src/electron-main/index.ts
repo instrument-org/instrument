@@ -63,7 +63,6 @@ import {
   serveResolvedTheme,
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
-import { configurePlatformAuthenticator } from "./lib/web-authn";
 import { servePageEditorBoot } from "./page-editor/sessions";
 import { initializeRPC } from "./rpc/initialize";
 
@@ -182,10 +181,6 @@ async function bootstrapPrimaryInstance() {
   // The app's windows run on the workspace's own session (getAppSession); the
   // default one still makes the main process's own requests.
   configureAppSession(session.defaultSession);
-
-  // Let a site's passkey prompt reach an authenticator, in the task browser and
-  // here. Nothing services one until this runs.
-  configurePlatformAuthenticator();
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

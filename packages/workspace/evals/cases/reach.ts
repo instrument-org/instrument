@@ -279,6 +279,14 @@ export const REACH_EVALS = [
       'Create a reminder in the user\'s macOS Reminders app for October 8, 2026 at 12:00 PM local time. Title it "Try the ARC Raiders: Frozen Trail update". Confirm briefly when it is set; if macOS requires permission or interaction, report exactly what the user needs to allow.',
   }),
   defineEval({
+    // An app with a scripting dictionary, which osascript still drives in
+    // the app's own terms: the guard on narrowing what the command claims.
+    assertions: [reachedTheAppWithOsascript],
+    name: "reach-task-notes",
+    prompt:
+      'Add a note to the user\'s Notes app titled "Taco night" listing tortillas, black beans, salsa, and limes. Confirm briefly when it is added.',
+  }),
+  defineEval({
     // A service the task was not handed, with a website it could sign in to
     // instead: the road and its cost are the user's to see first.
     assertions: [taskNamedTheGap("Google Calendar")],

@@ -32,8 +32,7 @@ if (ENV_REGISTRY_DIR) {
 /**
  * The registry the app ships: the `instrument-org/skills` checkout, as the
  * submodule in development and as a copy under resources once packaged. The
- * workspace reads its skills from here, and the Ideas screen its page
- * templates and their captures.
+ * workspace reads its skills from here.
  */
 export function getRegistryDir(): string {
   return app.isPackaged

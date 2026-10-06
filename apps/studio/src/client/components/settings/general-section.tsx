@@ -76,6 +76,7 @@ export function GeneralSection() {
       <InterfaceAndTheme />
       <Notifications />
       <About />
+      <ReleaseChannel />
       <SettingsSection title="Advanced">
         <DiagnosticLog />
       </SettingsSection>
@@ -381,6 +382,80 @@ function InterfaceAndTheme() {
             </div>
             <ZoomStepper />
           </div>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+const RELEASE_CHANNELS = [
+  { label: "Stable", value: "latest" },
+  { label: "Beta", value: "beta" },
+] as const;
+
+/**
+ * Which builds this computer updates to. Developer mode only: the beta feed is
+ * for the people testing a release before it ships.
+ */
+function ReleaseChannel() {
+  const developerMode = useDeveloperMode();
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setReleaseChannelMutation = useMutation(
+    rpcClient.preferences.setReleaseChannel.mutationOptions({
+      onError: () => {
+        toast.error("Failed to change the release channel");
+      },
+    }),
+  );
+
+  if (!developerMode) {
+    return null;
+  }
+
+  const channel = preferences?.releaseChannel ?? "latest";
+  const triggerLabel =
+    RELEASE_CHANNELS.find((option) => option.value === channel)?.label ??
+    channel;
+
+  return (
+    <SettingsSection title="Release channel">
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="release-channel">Update from</Label>
+            <p className="text-xs text-muted-foreground">
+              Beta gets prereleases as soon as they ship. Moving back to Stable
+              keeps this build until a newer stable release passes it.
+            </p>
+          </div>
+          <Select
+            disabled={setReleaseChannelMutation.isPending}
+            onValueChange={(value) => {
+              const option = RELEASE_CHANNELS.find((o) => o.value === value);
+              if (option) {
+                setReleaseChannelMutation.mutate({
+                  channel: option.value === "latest" ? undefined : option.value,
+                });
+              }
+            }}
+            value={channel}
+          >
+            <SelectTrigger
+              className="bg-card bg-none dark:bg-gray-700"
+              id="release-channel"
+            >
+              {triggerLabel}
+            </SelectTrigger>
+            <SelectContent align="end" position="popper">
+              {RELEASE_CHANNELS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </Card>
     </SettingsSection>

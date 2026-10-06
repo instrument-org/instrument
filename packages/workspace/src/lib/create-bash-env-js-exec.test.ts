@@ -183,6 +183,68 @@ describe("js-exec takes Node's options", () => {
   });
 });
 
+describe("js-exec runs import and export as a module, as node detects them", () => {
+  const imports = `import fs from "node:fs";\nimport { join } from "path";\nconsole.log(fs.readdirSync(join("/mnt", "Docs", "sub")).length);\n`;
+
+  it.each([
+    ["a .js file", "work/esm.js", imports],
+    [
+      "a .js file with export",
+      "work/esm.js",
+      `export const n = 2;\nconsole.log(n);\n`,
+    ],
+    [
+      "a .js file reading import.meta",
+      "work/esm.js",
+      `console.log(typeof import.meta);\n`,
+    ],
+    [
+      "a .cjs file using require",
+      "work/c.cjs",
+      `const fs = require("fs");\nconsole.log(fs.readdirSync("/mnt/Docs/sub").length);\n`,
+    ],
+    [
+      "CommonJS with a dynamic import",
+      "work/d.js",
+      `const important = 2;\nconsole.log(typeof import("fs").then, important);\n`,
+    ],
+  ])("%s", async (_name, file, source) => {
+    await fs.writeFile(path.join(taskRoot, file), source);
+    const result = await run(`js-exec ${file}`);
+    expect(result).toMatchObject({ exitCode: 0, stderr: "" });
+    expect(result.stdout).not.toBe("");
+  });
+
+  it.each([
+    [
+      "-e",
+      `js-exec -e 'import fs from "fs"; console.log(fs.readdirSync("/mnt/Docs/sub").length)'`,
+    ],
+    [
+      "stdin",
+      `printf 'import fs from "fs";\\nconsole.log(fs.readdirSync("/mnt/Docs/sub").length)\\n' | js-exec`,
+    ],
+  ])("in %s code", async (_name, command) => {
+    const result = await run(command);
+    expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "2\n" });
+  });
+
+  it("keeps the script's arguments and its own -m", async () => {
+    await fs.writeFile(
+      path.join(taskRoot, "work", "args.js"),
+      `import process from "process";\nconsole.log(JSON.stringify(process.argv.slice(2)));\n`,
+    );
+    expect(await run("js-exec work/args.js -m x")).toMatchObject({
+      exitCode: 0,
+      stdout: `["-m","x"]\n`,
+    });
+    expect(await run("js-exec -m work/args.js x")).toMatchObject({
+      exitCode: 0,
+      stdout: `["x"]\n`,
+    });
+  });
+});
+
 describe("js-exec gives its Node shims Node's shapes", () => {
   it("puts the executable first in process.argv, so slice(2) is the script's arguments", async () => {
     await fs.writeFile(

@@ -1,8 +1,8 @@
 # Studio wireframe kit
 
-The pieces of Studio, for drawing a proposed flow with `create-page`'s wireframe template. That template owns everything else: the page shell, true-size frames, the enlarged view, click and changed marks, the marks toggle, and the Share button. This folder only makes the frames look like this product rather than like software in general.
+The pieces of Studio, for drawing a proposed flow with the `wireframe` skill. That skill owns everything else: the page shell, true-size frames, the enlarged view, click and changed marks, the marks toggle, and the Share button. This folder only makes the frames look like this product rather than like software in general.
 
-`create-page` comes from the `instrument-org/skills` registry. Its wireframe template looks for this folder and reads this file when it finds one.
+`wireframe` comes from the `instrument-org/skills` registry. It looks for this folder and reads this file when it finds one.
 
 ## The window
 
@@ -13,7 +13,7 @@ node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<surface>-<
 RAW=3 node .agents/wireframe-kit/build.mjs part.js out.html   # also writes out.raw.html: frame 3 alone at true size
 ```
 
-It reads the skill from `~/.claude/skills/create-page`, or from `CREATE_PAGE_DIR`.
+It reads the skill from `~/.claude/skills/wireframe`, or from `WIREFRAME_SKILL_DIR`.
 
 ```js
 const META = {
@@ -44,27 +44,27 @@ const states = [
 ];
 ```
 
-| Function                                                                                 | Draws                                                                                                                                                                 |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `appWindow({ bar, on, body, over, railMark, user })`                                     | The whole window: bar and rail on the gray ground, `body` in the rounded card, `over` on a layer over everything                                                      |
-| `winBar({ tabs, active, right })`                                                        | The 40px bar: back and forward, the window's tabs, and the right corner where status pills go                                                                         |
-| `barTab(t, { on })`                                                                      | One window tab; `{ chats: true, title }` is a Chats tab                                                                                                               |
-| `rail(on, { mark, user })`                                                               | The 76px rail: New (feather), Chat, Files, Browser, Apps, Discover, and Settings or the signed-in avatar                                                              |
-| `noChatOpen()`                                                                           | What Chat shows beside the inbox with nothing open. There is no Home page                                                                                             |
-| `inboxCol({ on, w, rows, waiting })`, `row(r, { on })`                                   | The 320px inbox: the Chats picker, Starred, Drafts, All, search, and hairline-divided rows; `on: -1` opens none                                                       |
-| `thread({ title, body, working, tiles, head, foot, reply })`                             | A chat: header (the work in flight at its right while `working` names a step), centered transcript, then its tiles and the reply box                                  |
-| `threadHead`, `you`, `agent`, `workLine`, `replyBox`                                     | Its pieces: the sage user bubble, the white agent bubble, the work in flight (spinner, step, +N; `compact` for the count), the "Talk to Instrument" pill              |
-| `fileRow(key)`, `pageRow(site)`                                                          | A file or page the agent linked, in the transcript                                                                                                                    |
-| `chatTiles(tabs, active)`, `chatTile(t, { on })`                                         | A chat's tiles in a row over its reply box: 96px, picture cropped from the top, mark and name under it, the one shown large ringed, New at the end                    |
-| `paneCard({ tab, body, w })`                                                             | The pane flush beside a chat: location row ending in the × that puts it away, and the page                                                                            |
-| `locRow(tab, { close, expand })`, `page(tab)`                                            | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the Lisbon sites, the files, a fresh tab)                                                      |
-| `placeCard({ tab, body, loc })`                                                          | Files, Browser, an app or a skill filling the card under its location row (`loc: false` for Apps and Discover)                                                        |
-| `finder({ pick })`                                                                       | Files' Finder                                                                                                                                                         |
-| `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)`                         | The floating chat, 420 wide at the bottom right with its tiles over its reply box; `peek` opens a tile in a card over the conversation, with Expand and ×             |
-| `miniBar`, `menu(items, pos)`, `sheet(inner, size)`                                      | A minimized chat, a popover menu, a modal sheet over a dimmed window                                                                                                  |
-| `composeWin({ title, model, words, h, over })`, `modelTrigger(name, { mark, warn })`     | The draft: a 600-wide compose window docked at the bottom right, the model control and the arrow in its head, the words, the band with the ways in; pass it as `over` |
-| `replyBoxOpen({ extras, text })`, `modelProblem(text)`, `plusMenu({ left, top, model })` | The reply box opened up with a row over the words (the amber model notice leads it), and its plus menu, where the reply box offers the model                          |
-| `onboardWin({ body, foot, tone })`, `onboardLogin()`, `brandMark(cls)`                   | Onboarding's own 480x600 window (brand or subtle gradient), its sign-in step as built, and the app mark                                                               |
+| Function                                                                                 | Draws                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `appWindow({ bar, on, body, over, railMark, user })`                                     | The whole window: bar and rail on the gray ground, `body` in the rounded card, `over` on a layer over everything                                                                                                                                                              |
+| `winBar({ tabs, active, right })`                                                        | The 40px bar: back and forward, the window's tabs, and the right corner where status pills go                                                                                                                                                                                 |
+| `barTab(t, { on })`                                                                      | One window tab; `{ chats: true, title }` is a Chats tab                                                                                                                                                                                                                       |
+| `rail(on, { mark, user })`                                                               | The 76px rail: New (feather), Chat, Files, Browser, Apps, and Settings or the signed-in avatar                                                                                                                                                                                |
+| `noChatOpen()`                                                                           | What Chat shows beside the inbox with nothing open. There is no Home page                                                                                                                                                                                                     |
+| `inboxCol({ on, w, rows, waiting })`, `row(r, { on })`                                   | The 320px inbox: the Chats picker, Starred, Drafts, All, search, and hairline-divided rows; `on: -1` opens none                                                                                                                                                               |
+| `thread({ title, body, working, tiles, head, foot, reply })`                             | A chat: header (the work in flight at its right while `working` names a step), centered transcript, then its tiles and the reply box                                                                                                                                          |
+| `threadHead`, `you`, `agent`, `workLine`, `replyBox`                                     | Its pieces: the sage user bubble, the white agent bubble, the work in flight (spinner, step, +N; `compact` for the count), the "Talk to Instrument" pill                                                                                                                      |
+| `fileRow(key)`, `pageRow(site)`                                                          | A file or page the agent linked, in the transcript                                                                                                                                                                                                                            |
+| `chatTiles(tabs, active, { more })`, `chatTile(t, { on, icon })`                         | A chat's tiles in a row over its reply box: 96px, the picture at the tile's width from the top with its mark on a small corner badge, the name under it, the one shown large ringed, New at the end; `more` draws the paging arrows over fades, `icon` a tile with no picture |
+| `paneCard({ tab, body, w })`                                                             | The pane flush beside a chat: location row ending in the × that puts it away, and the page                                                                                                                                                                                    |
+| `locRow(tab, { close, expand })`, `page(tab)`                                            | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the Lisbon sites, the files, a fresh tab)                                                                                                                                                              |
+| `placeCard({ tab, body, loc })`                                                          | Files, Browser, an app or a skill filling the card under its location row (`loc: false` for Apps)                                                                                                                                                                             |
+| `finder({ pick })`                                                                       | Files' Finder                                                                                                                                                                                                                                                                 |
+| `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)`                         | The floating chat, 420 wide at the bottom right with its tiles over its reply box; `peek` opens a tile in a card over the conversation, with Expand and ×                                                                                                                     |
+| `miniBar`, `menu(items, pos)`, `sheet(inner, size)`                                      | A minimized chat, a popover menu, a modal sheet over a dimmed window                                                                                                                                                                                                          |
+| `composeWin({ title, model, words, h, over })`, `modelTrigger(name, { mark, warn })`     | The draft: a 600-wide compose window docked at the bottom right, the model control and the arrow in its head, the words, the band with the ways in; pass it as `over`                                                                                                         |
+| `replyBoxOpen({ extras, text })`, `modelProblem(text)`, `plusMenu({ left, top, model })` | The reply box opened up with a row over the words (the amber model notice leads it), and its plus menu, where the reply box offers the model                                                                                                                                  |
+| `onboardWin({ body, foot, tone })`, `onboardLogin()`, `brandMark(cls)`                   | Onboarding's own 480x600 window (brand or subtle gradient), its sign-in step as built, and the app mark                                                                                                                                                                       |
 
 A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Lisbon trip itinerary with ticket prices" (`LISBON_TITLE`, `lisbon(stage)` for its transcript); keep to it so a round's files compare. It and the other `ROWS` are invented rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
 
@@ -94,7 +94,7 @@ Unlike the window, these are drawn from macOS and a generic browser rather than 
 node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
 ```
 
-Not in the kit yet, so drawn by hand when a round needs it: Settings, Apps and Discover's contents, and the dark theme.
+Not in the kit yet, so drawn by hand when a round needs it: Settings, Apps' contents, and the dark theme.
 
 ## Changing the kit
 
@@ -117,9 +117,9 @@ When the product moves, measure it again rather than trusting this file: boot a 
 
 ## Naming a page
 
-`create-page`'s wireframe template sets the rule: the surface, a colon, then what this take tries, with the claim in the line under it. The surfaces, in the words to use:
+The `wireframe` skill sets the rule: the surface, a colon, then what this take tries, with the claim in the line under it. The surfaces, in the words to use:
 
-Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Discover, Onboarding, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
+Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Onboarding, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
 
 A page about how two surfaces share the screen names the pair (_Page and chat: chat as corner picture_). Takes on one question share the surface so they sort together: _Chat tiles: dock over reply box_, _Chat tiles: dock under reply box_.
 

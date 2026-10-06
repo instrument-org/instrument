@@ -2,71 +2,90 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
-  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
 } from "@/client/components/ui/command";
-import { Label } from "@/client/components/ui/label";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { Switch } from "@/client/components/ui/switch";
 import {
-  getGroupedModelsEntries,
-  groupAndFilterModels,
-} from "@/client/lib/group-models";
-import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
+  type Connection,
+  connectionsOf,
+  isFoldedAway,
+  type PickerRow,
+  rowsForConnection,
+  rowsForSearch,
+} from "@/client/lib/model-picker-rows";
+import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
   modelNameFromURI,
+  readModelURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
-import uFuzzy from "@leeoniya/ufuzzy";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  type RefObject,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { toast } from "sonner";
-
-const fuzzy = new uFuzzy({ intraMode: 1 });
-
-/**
- * How tall the panel asks to be before the window has any say. Roughly the Auto
- * row, the search field and six model rows: enough that the list reads as a list
- * rather than a peephole, and short enough that a picker hanging off one control
- * in the composer does not answer with a full-height panel.
- */
-const PANEL_MAX_HEIGHT = "27rem";
+import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
-import { ModelBadges } from "./model-badges";
+import { ModelMakerIcon } from "./model-maker-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-interface MatchedModel {
-  model: AIGatewayModel.Type;
-  nameRanges: null | number[];
-  providerRanges: null | number[];
-}
+/**
+ * The size the panel asks for before the window has a say: a rail of
+ * connections and a list wide enough to read a model's name and the line
+ * under it, and tall enough that a provider's list reads as a list. Fixed
+ * rather than fitted to the list, so moving between connections does not
+ * resize the panel under the pointer.
+ */
+const PANEL_WIDTH = "42.5rem";
+const PANEL_HEIGHT = "32.5rem";
 
-interface ModelPickerProps {
+/** The chosen model's row, the same pressed state the inbox's filters use. */
+const CHOSEN = "bg-accent text-accent-foreground";
+
+type ListError = NonNullable<
+  RPCOutput["gateway"]["models"]["list"]["errors"]
+>[number];
+
+/** A connection as the rail shows it: one that listed models, or one whose list failed. */
+type RailEntry = Connection & { failed?: ListError };
+
+export function ModelPicker({
+  align = "start",
+  anchorOnly = false,
+  className = "",
+  disabled = false,
+  errors,
+  isError = false,
+  isLoading = false,
+  models,
+  modelURI,
+  notice,
+  onAction,
+  onAddProvider,
+  onClose,
+  onOpenChange,
+  onValueChange,
+  open: openProp,
+  placeholder = "Select a model",
+  selectedModel,
+}: {
+  /** Which edge of the trigger the panel lines up with: the end for a trigger at the right of its row. */
+  align?: "end" | "start";
   /**
    * Render no button of its own: the panel hangs off an empty box the caller
    * places, for a surface that offers the picker from a menu instead.
@@ -79,13 +98,15 @@ interface ModelPickerProps {
   anchorOnly?: boolean;
   className?: string;
   disabled?: boolean;
-  errors?: RPCOutput["gateway"]["models"]["list"]["errors"];
+  errors?: ListError[];
   isError?: boolean;
-  isInvalidOurModel?: boolean;
   isLoading?: boolean;
   models?: AIGatewayModel.Type[];
   /** The current selection, which the models list may no longer resolve. */
   modelURI?: AIGatewayModelURI.Type;
+  /** What the composer is saying about the chosen model, repeated over the list. */
+  notice?: ModelNotice | null;
+  onAction?: (action: ModelAction) => void;
   onAddProvider?: () => void;
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
@@ -94,146 +115,36 @@ interface ModelPickerProps {
   open?: boolean;
   placeholder?: string;
   selectedModel?: AIGatewayModel.Type;
-}
-
-type VirtualRow =
-  | { groupName: string; type: "header" }
-  | { matched: MatchedModel; type: "item" };
-
-export function ModelPicker({
-  anchorOnly = false,
-  className = "",
-  disabled = false,
-  errors,
-  isError = false,
-  isInvalidOurModel = false,
-  isLoading = false,
-  models,
-  modelURI,
-  onAddProvider,
-  onClose,
-  onOpenChange,
-  onValueChange,
-  open: openProp,
-  placeholder = "Select a model",
-  selectedModel,
-}: ModelPickerProps) {
+}) {
   const [open, setOpen] = useState(false);
   const isOpen = openProp ?? open;
-  const [searchQuery, setSearchQuery] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
-  const modelsWithoutAuto = useMemo(
-    () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
-    [models],
-  );
-  const groupedModels = useMemo(
-    () => groupAndFilterModels({ models: modelsWithoutAuto }),
-    [modelsWithoutAuto],
-  );
-
-  type GroupedMatchedModels = Record<string, MatchedModel[]>;
-
-  const filteredGroupedModels = useMemo((): GroupedMatchedModels => {
-    const entries = getGroupedModelsEntries(groupedModels);
-    const result: GroupedMatchedModels = {};
-
-    for (const [groupName, modelGroup] of entries) {
-      if (!searchQuery) {
-        result[groupName] = modelGroup.map((model) => ({
-          model,
-          nameRanges: null,
-          providerRanges: null,
-        }));
-        continue;
-      }
-
-      const joined = modelGroup.map((m) =>
-        joinFuzzyFields([m.providerName, m.name]),
-      );
-      const haystack = joined.map((j) => j.haystack);
-      const indexes = fuzzy.filter(haystack, searchQuery);
-
-      if (!indexes || indexes.length === 0) {
-        result[groupName] = [];
-        continue;
-      }
-
-      const info = fuzzy.info(indexes, haystack, searchQuery);
-      const order = fuzzy.sort(info, haystack, searchQuery);
-
-      result[groupName] = order.flatMap((orderIdx) => {
-        const modelIdx = info.idx[orderIdx] ?? -1;
-        const model = modelGroup[modelIdx];
-        const fields = joined[modelIdx];
-        if (!model || !fields) {
-          return [];
-        }
-        const [providerRanges, nameRanges] = fields.splitRanges(
-          info.ranges[orderIdx] ?? null,
-        );
-        return [
-          {
-            model,
-            nameRanges: nameRanges ?? null,
-            providerRanges: providerRanges ?? null,
-          },
-        ];
-      });
-    }
-
-    return result;
-  }, [groupedModels, searchQuery]);
 
   const closePopover = () => {
     setOpen(false);
-    setSearchQuery("");
     onClose?.();
   };
 
-  const hasModels = modelsWithoutAuto.length > 0;
-  const hasErrors = !!errors?.length;
-  // A failed list still opens. The panel is where the failure is explained and
-  // where a provider is added, so a picker that refuses to open over it leaves
-  // the user reading "Failed to load models" on a button that does nothing.
-  const isSelectDisabled = disabled || isLoading;
-  const hasOurProviderError =
-    errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
-    false;
-
-  const isAutoMode = selectedModel?.providerId === OUR_MODELS.text.id;
-
-  // A selection outlives the list it came from, so a model the list no longer
-  // resolves still gets named and flagged rather than silently reading as an
-  // empty picker.
-  const unresolvedName =
-    !selectedModel && modelURI ? modelNameFromURI(modelURI) : null;
-  const isUnavailable = isInvalidOurModel || !!unresolvedName;
-  const selectedName = selectedModel?.name.trim() ?? unresolvedName;
-  // A restriction carries its own explanation; anything else unavailable is a
-  // model no connected provider serves.
-  const unavailableReason =
-    selectedModel?.restricted?.message ??
-    "No connected AI provider offers this model. Pick another one, or switch to Auto.";
-
+  const isProblem = notice?.tone === "problem";
+  const selectedName =
+    selectedModel?.name.trim() ??
+    (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
-      ? "Failed to load models"
-      : hasModels
+      ? "Couldn't load models"
+      : models?.length
         ? placeholder
         : "No models available";
 
   return (
     <Popover
-      onOpenChange={(newOpen) => {
-        if (newOpen) {
+      onOpenChange={(next) => {
+        if (next) {
           setOpen(true);
         } else {
           closePopover();
         }
-        onOpenChange?.(newOpen);
+        onOpenChange?.(next);
       }}
       open={isOpen}
     >
@@ -245,337 +156,355 @@ export function ModelPicker({
             aria-expanded={isOpen}
             aria-label="Model"
             className={cn(
-              "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
+              "flex h-auto max-w-full items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
               "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
-              "max-w-full",
+              isProblem &&
+                "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
               className,
             )}
-            disabled={isSelectDisabled}
+            disabled={disabled || isLoading}
             role="combobox"
             size="sm"
             variant="ghost"
           >
-            <div className="flex w-full min-w-0 items-center">
-              {selectedName ? (
-                <div className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="shrink-0">
-                        {selectedModel && !isUnavailable ? (
-                          <AIProviderIcon
-                            className="size-4"
-                            type={selectedModel.params.provider}
-                          />
-                        ) : (
-                          <WarningIcon className="size-4 text-muted-foreground/60" />
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {selectedModel && !isUnavailable ? (
-                        <p>{selectedModel.providerName}</p>
+            {selectedName ? (
+              <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0">
+                      {selectedModel && !isProblem ? (
+                        <AIProviderIcon
+                          className="size-4"
+                          type={selectedModel.params.provider}
+                        />
                       ) : (
-                        <p>{unavailableReason}</p>
+                        <WarningIcon className="size-4" />
                       )}
-                    </TooltipContent>
-                  </Tooltip>
-                  <span className="min-w-0 flex-1 truncate">
-                    {selectedName}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs leading-4 font-medium opacity-50">
-                  {placeholderText}
-                </span>
-              )}
-            </div>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {isProblem ? notice.text : selectedModel?.providerName}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
+              </span>
+            ) : (
+              <span className="text-xs leading-4 font-medium opacity-50">
+                {placeholderText}
+              </span>
+            )}
             <CaretDownIcon className="size-3 shrink-0" />
           </Button>
         </PopoverTrigger>
       )}
       <PopoverContent
-        align="start"
-        className="flex w-80 flex-col p-0"
-        maxHeight={PANEL_MAX_HEIGHT}
+        align={align}
+        className="flex flex-col p-0"
+        maxHeight={PANEL_HEIGHT}
+        style={{
+          height: PANEL_HEIGHT,
+          maxWidth: "var(--radix-popover-content-available-width)",
+          width: PANEL_WIDTH,
+        }}
       >
-        <Command label="Search models" shouldFilter={false}>
-          {/*
-            One scroll for the whole panel. Holding the Auto row and the search
-            field still cost the model list the height they took, which in a
-            short window (or a zoomed-in one) left the list a sliver scrolling
-            beneath them. So the Auto row scrolls away like everything else, and
-            the search field alone sticks to the top of what it leaves, since a
-            list you are scrolling is a list you may still want to search.
-
-            `relative` because this is what the virtualized list below measures
-            its own offset against.
-          */}
-          <div
-            className="relative min-h-0 overflow-y-auto"
-            data-slot="model-picker-scroll"
-            ref={scrollRef}
-          >
-            <AutoModeSwitch
-              autoModel={autoModel}
-              checked={isAutoMode}
-              isUnavailable={isUnavailable}
-              onCheckedChange={(checked) => {
-                if (checked && autoModel) {
-                  onValueChange(autoModel.uri);
-                } else {
-                  onValueChange("" as AIGatewayModelURI.Type);
-                }
-              }}
-              selectedName={selectedName}
-            />
-            {autoModel && <hr className="border-t" />}
-            {hasModels && (
-              <CommandInput
-                autoFocus
-                className="h-9"
-                containerClassName={cn(
-                  // Above the rows, which are positioned and would otherwise
-                  // paint over it on their way past.
-                  "sticky top-0 z-10 bg-popover",
-                  isAutoMode && "border-b-0",
-                )}
-                onValueChange={setSearchQuery}
-                placeholder="Search models..."
-                value={searchQuery}
-              />
-            )}
-            {/*
-              `cmdk` caps this at 300px and scrolls it, which would be a second
-              scroll inside the panel's own.
-            */}
-            <CommandList className="max-h-none! overflow-visible!">
-              {hasErrors && (
-                <ErrorsGroup
-                  errors={errors}
-                  hasOurProviderError={hasOurProviderError}
-                />
-              )}
-              {hasModels ? null : (
-                <NoProvidersMessage
-                  hasAutoModel={!!autoModel}
-                  onAddProvider={() => {
-                    closePopover();
-                    onAddProvider?.();
-                  }}
-                />
-              )}
-              {isError && (
-                <CommandGroup>
-                  <CommandItem disabled>Failed to load models</CommandItem>
-                </CommandGroup>
-              )}
-              {hasModels && (
-                <ModelGroups
-                  groupedModels={filteredGroupedModels}
-                  onAddProvider={() => {
-                    closePopover();
-                    onAddProvider?.();
-                  }}
-                  onSelectModel={(model) => {
-                    if (model.restricted) {
-                      toast.info(`${model.name.trim()} is unavailable`, {
-                        description: model.restricted.message,
-                        dismissible: true,
-                        duration: 7000,
-                      });
-                    } else {
-                      onValueChange(model.uri);
-                    }
-                    closePopover();
-                  }}
-                  scrollRef={scrollRef}
-                  selectedModel={selectedModel}
-                />
-              )}
-            </CommandList>
-          </div>
-        </Command>
+        {isOpen && (
+          <PickerPanel
+            errors={errors ?? []}
+            isError={isError}
+            models={models ?? []}
+            modelURI={modelURI}
+            notice={notice}
+            onAction={(action) => {
+              onAction?.(action);
+              if (action.kind !== "retry") {
+                closePopover();
+              }
+            }}
+            onAddProvider={() => {
+              closePopover();
+              onAddProvider?.();
+            }}
+            onPick={(model) => {
+              onValueChange(model.uri);
+              closePopover();
+            }}
+            selectedModel={selectedModel}
+          />
+        )}
       </PopoverContent>
     </Popover>
   );
 }
 
-function AutoModeSwitch({
-  autoModel,
-  checked,
-  isUnavailable,
-  onCheckedChange,
-  selectedName,
+/**
+ * The panel's insides, mounted only while it is open, so each opening starts
+ * on the chosen model's connection with an empty search.
+ */
+function PickerPanel({
+  errors,
+  isError,
+  models,
+  modelURI,
+  notice,
+  onAction,
+  onAddProvider,
+  onPick,
+  selectedModel,
 }: {
-  autoModel?: AIGatewayModel.Type;
-  checked: boolean;
-  isUnavailable: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  selectedName: null | string;
+  errors: ListError[];
+  isError: boolean;
+  models: AIGatewayModel.Type[];
+  modelURI?: AIGatewayModelURI.Type;
+  notice?: ModelNotice | null;
+  onAction: (action: ModelAction) => void;
+  onAddProvider: () => void;
+  onPick: (model: AIGatewayModel.Type) => void;
+  selectedModel?: AIGatewayModel.Type;
 }) {
-  const switchId = useId();
+  const listed = connectionsOf(models);
+  const rail: RailEntry[] = [
+    ...listed,
+    // A connection whose list failed lists nothing, so it would vanish from
+    // the rail at the moment it most needs explaining.
+    ...errors
+      .filter((error) => !listed.some((entry) => entry.id === error.config.id))
+      .map((error) => ({
+        failed: error,
+        id: error.config.id,
+        isOurs: error.config.type === OUR_MODELS.providerType,
+        name: error.config.displayName ?? error.config.type,
+        provider: error.config.type,
+      })),
+  ];
 
-  if (!autoModel) {
-    return null;
-  }
+  const chosenConnection =
+    selectedModel?.params.providerConfigId ??
+    (modelURI ? readModelURI(modelURI)?.providerConfigId : undefined);
+  const [openId, setOpenId] = useState(
+    () =>
+      rail.find((entry) => entry.id === chosenConnection)?.id ?? rail[0]?.id,
+  );
+  const [query, setQuery] = useState("");
+  // A chosen model the recommendations leave out opens the whole list,
+  // since the picker's first answer is what is chosen.
+  const [showAll, setShowAll] = useState(
+    () =>
+      selectedModel !== undefined &&
+      selectedModel.params.providerConfigId === openId &&
+      isFoldedAway(models, selectedModel),
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // cmdk always lights an item, the first if nothing else, so a panel that
+  // had not been touched opened with one row looking pointed at. The light is
+  // not drawn until a key or the pointer is used in the panel. Holding cmdk's
+  // value empty does not do it: cmdk keeps its own pick of the first item and
+  // shows it at the next update.
+  const [engaged, setEngaged] = useState(false);
+  const engage = () => {
+    setEngaged(true);
+  };
 
-  if (isUnavailable && !checked) {
-    return (
-      <div
-        className="flex flex-col gap-2 px-4 py-3"
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
-      >
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium">
-            {selectedName
-              ? `${selectedName} is unavailable`
-              : "Selected model is unavailable"}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            Switch to Auto, or pick another model below.
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            className="flex-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCheckedChange(true);
-            }}
-            size="sm"
-          >
-            Switch to Auto
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const opened = rail.find((entry) => entry.id === openId);
+  const searching = query.trim().length > 0;
+  const rows: PickerRow[] = searching
+    ? rowsForSearch({ models, query })
+    : opened && !opened.failed
+      ? rowsForConnection({ connectionId: opened.id, models, showAll })
+      : [];
+  // A newer release of the chosen model is offered on the chosen row itself,
+  // beside what replaced it, rather than in a banner of its own.
+  const offer =
+    notice?.tone === "offer" && notice.action?.kind === "switch"
+      ? notice.action
+      : undefined;
+  const autoRow = !searching && rows[0]?.type === "auto" ? rows[0] : undefined;
 
   return (
-    // The whole row toggles, which is the point of it, and a `Label` is how a
-    // row does that without claiming to be a control it is not: it was a `div`
-    // with `role="button"` and no way to focus or press it, so it announced a
-    // button that a keyboard could not reach and wrapped a switch in the
-    // bargain. The switch is the control; the label is its hit area and its
-    // name. Same shape as the row checkboxes in `tasks-data-table/columns.tsx`.
-    <Label
-      className="flex flex-col items-stretch gap-1 px-4 py-3 select-none hover:bg-accent"
-      htmlFor={switchId}
-      onClick={(e) => {
-        // The label would otherwise activate the switch itself, on top of this.
-        e.preventDefault();
-        e.stopPropagation();
-        onCheckedChange(!checked);
-      }}
+    <Command
+      className="flex min-h-0 flex-1 flex-col [&:not([data-engaged])_[data-selected=true]:not([data-chosen]):not([data-solid])]:bg-transparent"
+      data-engaged={engaged || undefined}
+      label="Search models"
+      onKeyDownCapture={engage}
+      onPointerMoveCapture={engage}
+      shouldFilter={false}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Auto</span>
-        <Switch
-          checked={checked}
-          className="pointer-events-none"
-          id={switchId}
-          onCheckedChange={onCheckedChange}
+      <div className="shrink-0 border-b p-2">
+        <CommandInput
+          autoFocus
+          className="h-8 py-0"
+          containerClassName="h-8 rounded-lg bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
+          onValueChange={setQuery}
+          placeholder="Search models"
+          value={query}
         />
       </div>
-      <span className="text-xs font-normal text-muted-foreground">
-        Selects the best model for your task
-      </span>
-    </Label>
-  );
-}
-
-function ErrorsGroup({
-  errors,
-  hasOurProviderError,
-}: {
-  errors: NonNullable<RPCOutput["gateway"]["models"]["list"]["errors"]>;
-  hasOurProviderError: boolean;
-}) {
-  return (
-    <CommandGroup
-      // An error explains why a provider's models are missing, so it keeps its
-      // height and the list below it absorbs the squeeze instead.
-      className="shrink-0"
-      heading={
-        <div className="flex w-full items-center justify-between">
-          <span>Errors</span>
-          <Button
-            className="h-6 px-2 text-xs"
-            onClick={() => {
-              if (hasOurProviderError) {
-                openSettings({ tab: "General" });
-              } else {
-                openSettings({
-                  showNewProviderDialog: false,
-                  tab: "Providers",
-                });
-              }
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {hasOurProviderError ? "Check account" : "Edit providers"}
-          </Button>
-        </div>
-      }
-    >
-      {errors.map((error) => (
-        <CommandItem
-          className="flex cursor-default items-center py-2 data-disabled:opacity-80!"
-          disabled
-          key={error.config.id}
+      <div className="flex min-h-0 flex-1">
+        <nav
+          aria-label="Providers"
+          className="flex w-50 shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-muted/40 p-2"
         >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex items-center gap-1 text-xs">
+          {rail.map((entry) => (
+            <button
+              aria-current={
+                !searching && entry.id === openId ? "true" : undefined
+              }
+              className={cn(
+                "flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+                !searching &&
+                  entry.id === openId &&
+                  "bg-black/[0.06] font-medium dark:bg-white/10",
+              )}
+              key={entry.id}
+              onClick={() => {
+                setOpenId(entry.id);
+                setQuery("");
+                setShowAll(false);
+              }}
+              type="button"
+            >
               <AIProviderIcon
-                className="size-3 shrink-0"
-                type={error.config.type}
+                className="size-4 shrink-0"
+                type={entry.provider}
               />
-              <span className="text-muted-foreground">
-                {error.config.displayName}
+              <span className="min-w-0 flex-1 truncate">
+                {entry.name}
+                {/* Named for what pressing it shows, so the accessibility
+                    tree says where the rest of the models are while the
+                    list holds one connection's. */}
+                <span className="sr-only"> models</span>
               </span>
-            </div>
-            <span className="line-clamp-2 text-xs wrap-break-word">
-              {error.message}
-            </span>
-          </div>
-          <WarningCircleIcon className="mt-0.5 ml-2 size-4 shrink-0 self-start text-destructive" />
-        </CommandItem>
-      ))}
-    </CommandGroup>
+              {entry.failed ? (
+                <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
+              ) : (
+                entry.id === chosenConnection && (
+                  // Where the chosen model lives, so browsing another
+                  // connection does not lose it.
+                  <>
+                    <CheckIcon
+                      aria-hidden
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="sr-only">(has the chosen model)</span>
+                  </>
+                )
+              )}
+            </button>
+          ))}
+          <span className="flex-1" />
+          <button
+            className="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
+            onClick={onAddProvider}
+            type="button"
+          >
+            <PlusIcon className="size-4 shrink-0" />
+            Add a provider
+          </button>
+        </nav>
+        <div
+          className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
+          data-slot="model-picker-scroll"
+          ref={scrollRef}
+        >
+          <CommandList className="max-h-none! overflow-visible! p-2">
+            {opened?.failed && !searching ? (
+              <FailedConnection
+                error={opened.failed}
+                isOurs={opened.isOurs}
+                onRetry={() => {
+                  onAction({ kind: "retry", label: "Retry" });
+                }}
+              />
+            ) : isError ? (
+              <EmptyMessage text="Couldn't load models">
+                <Button
+                  onClick={() => {
+                    onAction({ kind: "retry", label: "Retry" });
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  Retry
+                </Button>
+              </EmptyMessage>
+            ) : rail.length === 0 ? (
+              <EmptyMessage text={`Connect a provider to use ${APP_NAME}`}>
+                <AddProviderButton onClick={onAddProvider} />
+              </EmptyMessage>
+            ) : rows.length === 0 ? (
+              <EmptyMessage
+                text={
+                  searching
+                    ? "No matching models"
+                    : "This provider lists no models"
+                }
+              >
+                <AddProviderButton onClick={onAddProvider} />
+              </EmptyMessage>
+            ) : (
+              <>
+                {/* Auto leads its connection's list, set apart from the
+                    models under it rather than being the first of them. */}
+                {autoRow && rows.length === 1 ? (
+                  <AutoOnly
+                    chosen={selectedModel?.uri === autoRow.model.uri}
+                    model={autoRow.model}
+                    onPick={onPick}
+                  />
+                ) : autoRow ? (
+                  <AutoRow
+                    chosen={selectedModel?.uri === autoRow.model.uri}
+                    model={autoRow.model}
+                    onPick={onPick}
+                  />
+                ) : null}
+                {autoRow && rows.length > 1 && (
+                  <div className="mx-2.5 my-2 h-px bg-border" />
+                )}
+                <VirtualRows
+                  offer={offer}
+                  onAction={onAction}
+                  onPick={onPick}
+                  onShowAll={setShowAll}
+                  rows={autoRow ? rows.slice(1) : rows}
+                  scrollRef={scrollRef}
+                  selectedModel={selectedModel}
+                />
+              </>
+            )}
+          </CommandList>
+        </div>
+      </div>
+    </Command>
   );
 }
 
-function ModelGroups({
-  groupedModels,
-  onAddProvider,
-  onSelectModel,
+function VirtualRows({
+  offer,
+  onAction,
+  onPick,
+  onShowAll,
+  rows,
   scrollRef,
   selectedModel,
 }: {
-  groupedModels: Record<string, MatchedModel[]>;
-  onAddProvider: () => void;
-  onSelectModel: (model: AIGatewayModel.Type) => void;
-  /** The panel's scroll, which this list is only one part of. */
+  offer?: ModelAction;
+  onAction: (action: ModelAction) => void;
+  onPick: (model: AIGatewayModel.Type) => void;
+  onShowAll: (showAll: boolean) => void;
+  rows: PickerRow[];
+  /** The list's scroll, which also holds the notice and Auto above the rows. */
   scrollRef: RefObject<HTMLDivElement | null>;
   selectedModel?: AIGatewayModel.Type;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
-  // Where this list starts within that scroll, which is what the virtualizer
-  // needs to turn a scroll position into a range of rows.
-  //
-  // Read after every render rather than off a dependency list: what moves the
-  // list is anything above it changing height -- the Auto row swapping for its
-  // unavailable state, a provider error arriving -- and every one of those is
-  // already a render of this component. There is no observer for an element
-  // that moved without resizing, so a narrower trigger would be a list of the
-  // reasons it can move, kept by hand, one prop away from being wrong. The
-  // chain of updates the rule warns about is what the equality guard rules
-  // out: a position that has not moved writes nothing.
+  // Where the rows start within the scroll, read after every render: what
+  // moves them is the notice or Auto above them coming and going, and
+  // each of those is already a render of this component. The equality guard
+  // keeps a position that has not moved from writing anything.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -586,40 +515,29 @@ function ModelGroups({
     }
   });
 
-  const rows = useMemo<VirtualRow[]>(() => {
-    const flat: VirtualRow[] = [];
-    for (const [groupName, matchedGroup] of Object.entries(groupedModels)) {
-      if (matchedGroup.length === 0) {
-        continue;
-      }
-      flat.push({ groupName, type: "header" });
-      for (const matched of matchedGroup) {
-        flat.push({ matched, type: "item" });
-      }
-    }
-    return flat;
-  }, [groupedModels]);
-
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
-    estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),
+    estimateSize: (index) => {
+      const row = rows[index];
+      return row?.type === "header"
+        ? 28
+        : row?.type === "model" && row.sub
+          ? 48
+          : 36;
+    },
     getScrollElement: () => scrollRef.current,
     // `offsetHeight`, not `getBoundingClientRect()`: the picker sits inside CSS
     // `zoom`, where the rect is the on-screen height while the row offsets and
-    // spacer height this feeds are layout px. Measuring the rect reports every
-    // row as `zoom x` its own height, spacing the list out with gaps and
-    // stretching the scroll range to match.
-    measureElement: (el) => el.offsetHeight,
-    // Same unit, for the scrollport this reads its visible range from. The
-    // stock one measures the rect and would believe the panel `zoom x` taller
-    // than the rows filling it are.
-    observeElementRect: (instance, cb) => {
+    // spacer height this feeds are layout px.
+    measureElement: (element) => element.offsetHeight,
+    // Same unit, for the scrollport this reads its visible range from.
+    observeElementRect: (instance, callback) => {
       const element = instance.scrollElement;
       if (!element) {
         return;
       }
       const measure = () => {
-        cb({ height: element.offsetHeight, width: element.offsetWidth });
+        callback({ height: element.offsetHeight, width: element.offsetWidth });
       };
       measure();
       const observer = new ResizeObserver(measure);
@@ -632,100 +550,92 @@ function ModelGroups({
     scrollMargin,
   });
 
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-6">
-        <p className="text-sm text-muted-foreground">No matching models</p>
-        <Button onClick={onAddProvider} size="sm" variant="outline">
-          <PlusIcon className="mr-2 size-4" />
-          Add an AI provider
-        </Button>
-        <p className="max-w-64 text-center text-xs text-muted-foreground">
-          The model you&apos;re looking for might be available from a different
-          provider
-        </p>
-      </div>
-    );
-  }
+  // Opens with the chosen model in view, wherever it falls in a long list:
+  // the picker's first answer is what is chosen, and the highlight that
+  // starts on it is no use below the fold. Once per opening, so it never
+  // fights a scroll the user started.
+  const chosenIndex = rows.findIndex(
+    (row) =>
+      (row.type === "auto" || row.type === "model") &&
+      row.model.uri === selectedModel?.uri,
+  );
+  const scrolledToChosen = useRef(false);
+  // Every render until it lands: the panel measures itself after its first
+  // paint, and a scroll asked of a box with no height yet goes nowhere.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (
+      scrolledToChosen.current ||
+      chosenIndex <= 0 ||
+      !scroll ||
+      scroll.clientHeight === 0
+    ) {
+      return;
+    }
+    scrolledToChosen.current = true;
+    virtualizer.scrollToIndex(chosenIndex, { align: "center" });
+  });
 
   return (
-    // Sized to hold every row, rendered or not, so the panel's scroll runs the
-    // length of the whole list rather than of the handful currently in the DOM.
     <div
       className="relative w-full"
       data-slot="model-list"
       ref={listRef}
-      style={{ height: `${virtualizer.getTotalSize()}px` }}
+      style={{ height: `${String(virtualizer.getTotalSize())}px` }}
     >
-      {virtualizer.getVirtualItems().map((virtualItem) => {
-        const row = rows[virtualItem.index];
+      {virtualizer.getVirtualItems().map((item) => {
+        const row = rows[item.index];
         if (!row) {
           return null;
         }
-        // Row offsets are measured from the top of the panel's scroll; this
-        // box starts partway down it.
-        const offset = virtualItem.start - scrollMargin;
-
-        if (row.type === "header") {
-          return (
-            <div
-              className="absolute top-0 right-1 left-1 px-2 py-1.5 text-xs font-medium text-muted-foreground"
-              data-index={virtualItem.index}
-              key={virtualItem.key}
-              ref={virtualizer.measureElement}
-              style={{ transform: `translateY(${offset}px)` }}
-            >
-              {row.groupName}
-            </div>
-          );
-        }
-
-        const { matched } = row;
-        const { model, nameRanges, providerRanges } = matched;
         return (
           <div
-            className="absolute top-0 right-1 left-1"
-            data-index={virtualItem.index}
-            key={virtualItem.key}
+            className="absolute top-0 right-0 left-0"
+            data-index={item.index}
+            key={item.key}
             ref={virtualizer.measureElement}
-            style={{ transform: `translateY(${offset}px)` }}
+            style={{
+              transform: `translateY(${String(item.start - scrollMargin)}px)`,
+            }}
           >
-            <CommandItem
-              className="flex w-full items-center justify-between px-2 py-2"
-              onSelect={() => {
-                onSelectModel(model);
-              }}
-              value={model.uri}
-            >
-              <div className="flex items-center">
-                <CheckIcon
-                  className={cn(
-                    "mr-2 size-4 shrink-0",
-                    selectedModel?.uri === model.uri
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                />
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm">
-                    <FuzzyHighlight ranges={nameRanges} text={model.name} />
-                  </span>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <AIProviderIcon
-                      className="size-3 shrink-0"
-                      type={model.params.provider}
-                    />
-                    <FuzzyHighlight
-                      ranges={providerRanges}
-                      text={model.providerName}
-                    />
-                  </div>
-                </div>
+            {row.type === "header" ? (
+              <div className="flex items-center gap-2 px-2.5 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">
+                {row.provider && (
+                  <AIProviderIcon className="size-3.5" type={row.provider} />
+                )}
+                {row.label}
               </div>
-              <div className="mt-1 ml-2 flex gap-1 self-start">
-                <ModelBadges model={model} />
-              </div>
-            </CommandItem>
+            ) : row.type === "auto" ? (
+              <AutoRow
+                chosen={selectedModel?.uri === row.model.uri}
+                model={row.model}
+                onPick={onPick}
+              />
+            ) : row.type === "show-all" || row.type === "show-fewer" ? (
+              <CommandItem
+                className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground"
+                onSelect={() => {
+                  onShowAll(row.type === "show-all");
+                }}
+                value={row.type}
+              >
+                {row.type === "show-all" ? (
+                  <CaretDownIcon className="size-4 shrink-0" />
+                ) : (
+                  <CaretUpIcon className="size-4 shrink-0" />
+                )}
+                {row.type === "show-all" ? "Show all models" : "Show fewer"}
+              </CommandItem>
+            ) : (
+              <ModelRow
+                chosen={selectedModel?.uri === row.model.uri}
+                offer={selectedModel?.uri === row.model.uri ? offer : undefined}
+                onAction={onAction}
+                onPick={onPick}
+                row={row}
+              />
+            )}
           </div>
         );
       })}
@@ -733,34 +643,258 @@ function ModelGroups({
   );
 }
 
-function NoProvidersMessage({
-  hasAutoModel,
-  onAddProvider,
+/**
+ * Auto, the way Instrument is meant to be used: one line like every model
+ * row, so it reads as one of the options, set apart by the recommendation in
+ * the brand color after its name and the rule under it.
+ */
+function AutoRow({
+  chosen,
+  model,
+  onPick,
 }: {
-  hasAutoModel: boolean;
-  onAddProvider: () => void;
+  chosen: boolean;
+  model: AIGatewayModel.Type;
+  onPick: (model: AIGatewayModel.Type) => void;
 }) {
   return (
-    <div
+    <CommandItem
+      data-chosen={chosen || undefined}
       className={cn(
-        "flex flex-col items-center gap-3 py-6",
-        !hasAutoModel && "border-t",
+        "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
+        chosen && CHOSEN,
       )}
+      onSelect={() => {
+        onPick(model);
+      }}
+      value={model.uri}
     >
-      <p
+      <AIProviderIcon
+        className="size-4 shrink-0"
+        type={OUR_MODELS.providerType}
+      />
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className={cn("shrink-0 text-sm", chosen && "font-medium")}>
+          Auto
+        </span>
+        <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300">
+          Recommended
+        </span>
+        <span
+          className={cn(
+            "truncate text-xs",
+            chosen ? "opacity-80" : "text-muted-foreground",
+          )}
+        >
+          Included with your subscription
+        </span>
+      </span>
+      {chosen && (
+        <>
+          <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />
+          <span className="sr-only">(chosen)</span>
+        </>
+      )}
+    </CommandItem>
+  );
+}
+
+/**
+ * Auto when it is all a connection offers, as Instrument does at launch: a
+ * single row alone in the pane read as a list with nothing in it, so the
+ * one option is drawn as the answer, centered, with the one thing to do
+ * about it. Still an item of the list, so the keyboard reaches it.
+ */
+function AutoOnly({
+  chosen,
+  model,
+  onPick,
+}: {
+  chosen: boolean;
+  model: AIGatewayModel.Type;
+  onPick: (model: AIGatewayModel.Type) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
+      <AIProviderIcon className="size-9" type={OUR_MODELS.providerType} />
+      <div className="flex flex-col items-center gap-1">
+        <span className="flex items-center gap-2 text-base font-medium">
+          Auto
+          <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
+            Recommended
+          </span>
+        </span>
+        <span className="text-sm text-muted-foreground">
+          Included with your subscription
+        </span>
+      </div>
+      <CommandItem
+        data-solid
+        data-chosen={chosen || undefined}
+        aria-label={chosen ? "Auto (chosen)" : "Use Auto"}
         className={cn(
-          "text-center text-muted-foreground",
-          hasAutoModel ? "text-xs" : "max-w-64 text-sm",
+          "mt-1 flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium",
+          chosen
+            ? "text-foreground"
+            : "bg-brand-600 text-white data-[selected=true]:bg-brand-700 data-[selected=true]:text-white dark:bg-brand-500 dark:data-[selected=true]:bg-brand-600",
         )}
+        onSelect={() => {
+          onPick(model);
+        }}
+        value={model.uri}
       >
-        {hasAutoModel
-          ? `Add an AI provider to use other models`
-          : `Connect a provider to use ${APP_NAME}`}
-      </p>
-      <Button onClick={onAddProvider} size="sm" variant="outline">
-        <PlusIcon className="mr-2 size-4" />
-        Add an AI provider
-      </Button>
+        {chosen ? (
+          <>
+            <CheckIcon aria-hidden className="size-4" />
+            In use
+          </>
+        ) : (
+          "Use Auto"
+        )}
+      </CommandItem>
     </div>
+  );
+}
+
+function ModelRow({
+  chosen,
+  offer,
+  onAction,
+  onPick,
+  row,
+}: {
+  chosen: boolean;
+  /** On the chosen row, the newer release to switch to, beside what replaced it. */
+  offer?: ModelAction;
+  onAction: (action: ModelAction) => void;
+  onPick: (model: AIGatewayModel.Type) => void;
+  row: Extract<PickerRow, { type: "model" }>;
+}) {
+  const { model } = row;
+  return (
+    <CommandItem
+      data-chosen={chosen || undefined}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-2.5",
+        row.sub ? "py-1.5" : "min-h-9",
+        chosen && CHOSEN,
+      )}
+      disabled={Boolean(model.restricted)}
+      onSelect={() => {
+        onPick(model);
+      }}
+      value={model.uri}
+    >
+      <ModelMakerIcon author={model.author} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={cn("truncate text-sm", chosen && "font-medium")}>
+          <FuzzyHighlight
+            ranges={row.nameRanges ?? null}
+            text={model.name.trim()}
+          />
+        </span>
+        {row.sub && (
+          <span className="flex min-w-0 items-center gap-2 text-xs">
+            <span
+              className={cn(
+                "truncate",
+                chosen ? "opacity-80" : "text-muted-foreground",
+              )}
+            >
+              {row.sub}
+            </span>
+            {offer && (
+              <button
+                className="shrink-0 font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300"
+                onClick={(event) => {
+                  // The row picks the model it names; this picks its successor.
+                  event.stopPropagation();
+                  onAction(offer);
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                type="button"
+              >
+                {offer.label}
+              </button>
+            )}
+          </span>
+        )}
+      </span>
+      {chosen && (
+        <>
+          <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />
+          <span className="sr-only">(chosen)</span>
+        </>
+      )}
+    </CommandItem>
+  );
+}
+
+function FailedConnection({
+  error,
+  isOurs,
+  onRetry,
+}: {
+  error: ListError;
+  isOurs: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <EmptyMessage
+      detail={error.message}
+      text={`Couldn't load models from ${error.config.displayName ?? "this provider"}`}
+    >
+      <div className="flex gap-2">
+        <Button onClick={onRetry} size="sm" variant="outline">
+          Retry
+        </Button>
+        <Button
+          onClick={() => {
+            if (isOurs) {
+              openSettings({ tab: "General" });
+            } else {
+              openSettings({ showNewProviderDialog: false, tab: "Providers" });
+            }
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {isOurs ? "Check account" : "Edit providers"}
+        </Button>
+      </div>
+    </EmptyMessage>
+  );
+}
+
+function EmptyMessage({
+  children,
+  detail,
+  text,
+}: {
+  children?: React.ReactNode;
+  detail?: string;
+  text: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+      <p className="text-sm text-muted-foreground">{text}</p>
+      {detail && (
+        <p className="line-clamp-3 max-w-80 text-xs text-muted-foreground">
+          {detail}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function AddProviderButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button onClick={onClick} size="sm" variant="outline">
+      <PlusIcon className="mr-2 size-4" />
+      Add a provider
+    </Button>
   );
 }

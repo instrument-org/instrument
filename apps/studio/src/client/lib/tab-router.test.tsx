@@ -6,11 +6,11 @@ describe("createTabRouter", () => {
   it.each([
     ["the start", 0, "/chats"],
     ["the middle", 1, "/apps"],
-    ["the end", 2, "/discover"],
+    ["the end", 2, "/release-notes"],
   ])("comes back at %s of a saved history", (_case, index, pathname) => {
     const router = createTabRouter({
       history: {
-        entries: ["/chats", "/apps", "/discover"],
+        entries: ["/chats", "/apps", "/release-notes"],
         index,
       },
       pathname: "/chats",

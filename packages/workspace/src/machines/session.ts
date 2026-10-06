@@ -51,6 +51,11 @@ type SessionMachineEvent =
   | {
       /** Stop the step in flight so the message runs as the next turn. */
       interrupt?: boolean;
+      /**
+       * The model the sender picked, which the next turn this session starts
+       * runs on. A step already in flight finishes on the model it began with.
+       */
+      model: AIGatewayModel.Type;
       saved?: boolean;
       type: "addMessage";
       value: SessionMessage.UserWithParts;
@@ -300,6 +305,7 @@ export const sessionMachine = setup({
     addMessage: {
       actions: [
         assign({
+          model: ({ event }) => event.model,
           queuedMessages: ({ context, event }) => [
             ...context.queuedMessages,
             event.value,

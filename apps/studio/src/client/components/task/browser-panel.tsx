@@ -32,6 +32,7 @@ import {
   ZoomStepperControl,
 } from "@/client/components/zoom-controls";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
+import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { useGuest } from "@/client/hooks/use-browser-targets";
@@ -109,11 +110,16 @@ export function TaskBrowserPanel({
    * Where the bar goes: over the page as its own row, nowhere, or into
    * elements the window keeps for it. Drawn there it loses the arrows and
    * the address, which that row has of its own; reload goes beside the
-   * row's arrows (`reloadInto`) and the page's controls and menu to its end.
+   * row's arrows (`reloadInto`), the page's state into the address field
+   * (`fieldInto`), and the page's controls and menu to its end.
    */
   chrome?:
     | boolean
-    | { into: HTMLElement | null; reloadInto?: HTMLElement | null };
+    | {
+        fieldInto?: HTMLElement | null;
+        into: HTMLElement | null;
+        reloadInto?: HTMLElement | null;
+      };
   // See FileViewer: set when the surface is already drawn around this.
   className?: string;
   /**
@@ -158,6 +164,7 @@ export function TaskBrowserPanel({
   const [draftUrl, setDraftUrl] = useState("");
   const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   // null = the panel's natural size ("Actual size"). Applied via CDP device
   // emulation with a scale computed from the panel's live bounds (see
   // device-emulation.ts) rather than resizing the webview element, which
@@ -293,7 +300,15 @@ export function TaskBrowserPanel({
         setDraftUrl(detail.validatedURL);
       }
     };
+    // The zoom is the guest's, and moves without the panel: a chord pressed
+    // in the page, or a site the guest's zoom was already set for.
+    const readZoom = () => {
+      setZoomFactor(guest.zoom());
+    };
+    readZoom();
     const stops = [
+      guest.on("did-navigate", readZoom),
+      guest.on("zoom-set", readZoom),
       guest.on("did-navigate", clearFailure),
       guest.on("did-navigate-in-page", clearFailure),
       guest.on("did-start-loading", clearFailure),
@@ -327,22 +342,12 @@ export function TaskBrowserPanel({
     }
   }, [active, focusAddress, targetId]);
 
-  // Close the overflow menu when the host window loses focus. Clicking into the
-  // guest `<webview>` (a separate WebContents) blurs the host window but never
-  // dispatches a pointer/focus event Radix can see, so its own outside-dismiss
-  // never fires and the menu would otherwise stay stuck open over the page.
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const close = () => {
-      setMenuOpen(false);
-    };
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("blur", close);
-    };
-  }, [menuOpen]);
+  useCloseOnWindowBlur(menuOpen, () => {
+    setMenuOpen(false);
+  });
+  useCloseOnWindowBlur(zoomOpen, () => {
+    setZoomOpen(false);
+  });
 
   const guestNow = () => getGuest(targetId);
 
@@ -364,6 +369,16 @@ export function TaskBrowserPanel({
     }
     current.setZoom(factor);
     setZoomFactor(factor);
+  };
+  const stepZoom = (direction: "in" | "out") => {
+    applyZoom(
+      steppedZoom({
+        direction,
+        factor: zoomFactor,
+        max: BROWSER_ZOOM_MAX,
+        min: BROWSER_ZOOM_MIN,
+      }),
+    );
   };
 
   const currentUrl = () => {
@@ -451,24 +466,10 @@ export function TaskBrowserPanel({
                   canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
                   canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
                   onZoomIn={() => {
-                    applyZoom(
-                      steppedZoom({
-                        direction: "in",
-                        factor: zoomFactor,
-                        max: BROWSER_ZOOM_MAX,
-                        min: BROWSER_ZOOM_MIN,
-                      }),
-                    );
+                    stepZoom("in");
                   }}
                   onZoomOut={() => {
-                    applyZoom(
-                      steppedZoom({
-                        direction: "out",
-                        factor: zoomFactor,
-                        max: BROWSER_ZOOM_MAX,
-                        min: BROWSER_ZOOM_MIN,
-                      }),
-                    );
+                    stepZoom("out");
                   }}
                   readout={
                     <ZoomLevelMenu
@@ -608,6 +609,59 @@ export function TaskBrowserPanel({
             {menu}
           </>
         );
+        // The zoom, said in the address field only while the page is not at
+        // its own size, the one setting people forget they changed. A press
+        // on it is the zoom's stepper, the same one the menu holds.
+        const isZoomed = Math.abs(zoomFactor - 1) > 0.001;
+        const fieldZoom = isZoomed && (
+          <DropdownMenu
+            modal={false}
+            onOpenChange={setZoomOpen}
+            open={zoomOpen}
+          >
+            <DropdownMenuTrigger
+              aria-label="Zoom"
+              className="flex h-5 shrink-0 items-center rounded-full bg-foreground/8 px-1.5 font-medium text-foreground/70 tabular-nums hover:bg-foreground/12 hover:text-foreground data-[state=open]:bg-foreground/12"
+            >
+              {Math.round(zoomFactor * 100)}%
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="flex items-center gap-1.5 p-1.5"
+            >
+              <ZoomStepperControl
+                canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
+                onZoomIn={() => {
+                  stepZoom("in");
+                }}
+                onZoomOut={() => {
+                  stepZoom("out");
+                }}
+                readout={
+                  <ZoomLevelMenu
+                    compact
+                    max={BROWSER_ZOOM_MAX}
+                    min={BROWSER_ZOOM_MIN}
+                    nested
+                    onSelect={applyZoom}
+                    zoom={zoomFactor}
+                  />
+                }
+                size="sm"
+              />
+              <Button
+                onClick={() => {
+                  applyZoom(1);
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                Reset
+              </Button>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
         const rowReload = (
           <TabRowControl
             chord="reloadPage"
@@ -689,6 +743,7 @@ export function TaskBrowserPanel({
             <>
               {chrome.reloadInto && createPortal(rowReload, chrome.reloadInto)}
               {chrome.into && createPortal(controls, chrome.into)}
+              {chrome.fieldInto && createPortal(fieldZoom, chrome.fieldInto)}
             </>
           );
         }

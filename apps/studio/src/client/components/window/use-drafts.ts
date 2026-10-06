@@ -252,7 +252,14 @@ export function useDrafts({
     }
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
-    const viewing = draftContext(id).catch(() => undefined);
+    // The chips the draft showed go with it, for the transcript to draw.
+    const viewing = draftContext(id)
+      .then((read) =>
+        read && send.attached.length > 0
+          ? { ...read, attached: send.attached }
+          : read,
+      )
+      .catch(() => undefined);
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
@@ -314,7 +321,6 @@ export function useDrafts({
           id: chatId,
           modelURI: send.modelURI,
           newSessionId: sessionId,
-          output: send.output,
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           // A context that cannot be gathered is a chat told less, not a

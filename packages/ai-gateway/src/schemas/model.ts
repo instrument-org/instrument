@@ -124,6 +124,12 @@ export namespace AIGatewayModel {
      * guess read off the id.
      */
     releasedAt: z.iso.date().optional(),
+    /**
+     * The canonical id of the model in the same provider's list that replaced
+     * this one: a higher version of its series, read off the ids by
+     * `markReplacedModels`. Absent when nothing newer is listed.
+     */
+    replacedBy: AIGatewayModelURI.CanonicalIdSchema.optional(),
     restricted: RestrictionSchema.optional(),
     /**
      * For a model that stands for another, such as `instrument/auto`, the

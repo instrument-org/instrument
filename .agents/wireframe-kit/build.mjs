@@ -1,8 +1,8 @@
 // node build.mjs <part.js> <out.html>
-// Builds a create-page wireframe of the Studio window from the skill's starter, the
-// wireframe template's main.html, this kit (brands.js + window.js + mac.js) and a part that
-// defines META and states. CREATE_PAGE_DIR points at the create-page skill when it is
-// not installed at ~/.claude/skills/create-page.
+// Builds a wireframe of the Studio window from the wireframe skill's shell.html and
+// main.html, this kit (brands.js + window.js + mac.js) and a part that defines META and
+// states. WIREFRAME_SKILL_DIR points at the wireframe skill when it is not installed at
+// ~/.claude/skills/wireframe.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -13,13 +13,10 @@ if (!partPath || !outPath)
   throw new Error("usage: node build.mjs <part.js> <out.html>");
 const here = path.dirname(new URL(import.meta.url).pathname);
 const SKILL =
-  process.env.CREATE_PAGE_DIR ??
-  path.join(os.homedir(), ".claude/skills/create-page");
-const starter = fs.readFileSync(path.join(SKILL, "starter.html"), "utf8");
-let main = fs.readFileSync(
-  path.join(SKILL, "templates/wireframe/main.html"),
-  "utf8",
-);
+  process.env.WIREFRAME_SKILL_DIR ??
+  path.join(os.homedir(), ".claude/skills/wireframe");
+const starter = fs.readFileSync(path.join(SKILL, "shell.html"), "utf8");
+let main = fs.readFileSync(path.join(SKILL, "main.html"), "utf8");
 const kit = ["brands.js", "window.js", "mac.js"]
   .map((f) => fs.readFileSync(path.join(here, f), "utf8"))
   .join("\n");

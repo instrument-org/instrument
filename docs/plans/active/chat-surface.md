@@ -1,6 +1,6 @@
 # Plan: chat surface
 
-Status: slices 1 through 8 built, except suggesting the output, which waits on open question 7; 9 landed under its own plan, [app-level tabs](../completed/app-level-tabs.md).
+Status: slices 1 through 8 built; 9 landed under its own plan, [app-level tabs](../completed/app-level-tabs.md). The output dropdown slice 8 built was later removed with page types: the person never picks what kind of thing comes back.
 
 ---
 
@@ -11,7 +11,7 @@ The 2.0 draft window grew into a corner. Its head carries the name, the topic, t
 ## Decisions
 
 - **Chat, not thread.** Everything a person reads says "chat": "New chat", never "New thread". Code names can follow separately.
-- **The draft's head stays a chat.** The person is starting a chat, so the head says "New chat", followed by the topic. Its dropdown is where an output is picked by hand, which is rare; once one is picked or suggested the head reads "Make a [page type] in [topic]". Suggesting the output from the draft's words does most of the work. Both pills are filled by Instrument when it is confident (the topic already is, from the draft's words), tinted while they are its pick, removable with × (and then left alone for that draft), and pickable by hand. "in" is the only joiner.
+- **The draft's head stays a chat.** The person is starting a chat, so the head says "New chat", followed by the topic. There is no output or page type to pick: whether an answer comes back as a page is the agent's call, made with the `create-page` skill on its own. The topic pill is filled by Instrument when it is confident, from the draft's words, tinted while it is its pick, removable with × (and then left alone for that draft), and pickable by hand. "in" is the only joiner.
 - **One topic picker.** A search field that also makes a topic, best fit first, New topic at the foot; the same component in the draft head, on rows, and in a chat's head.
 - **Bringing things in is two steps.** A fresh draft's band shows tiles to open (Web, This Mac, Apps) and, under them and smaller, a place to attach a file or a folder that is also the drop zone, leaving room above for typing; the whole window takes a drop. Pressing Apps opens the Apps landing page (the same page the rail's Apps place shows, without its prompts to connect more) in the band, and pressing an app goes into that app's own page there, so a connected Gmail can be opened and browsed in the draft; naming an app in the words is the @ mention, not the tile. Pressing Web opens the browser right there in its own zero state (bookmarks, recents, an address bar), with no popover in between; This Mac opens the Finder the same way. A dropped or pasted file opens as a tab, never a chip. The first zero state never shows tabs; once something is open, bringing in more goes through +, which opens a new tab showing the same zero state.
 - **Apps are named in the words.** Typing @ (or an app's name) offers connected apps by their marks; the pick becomes a token in the line, deleted like a word. The Apps choice opens the same list.
@@ -27,20 +27,6 @@ The 2.0 draft window grew into a corner. Its head carries the name, the topic, t
 - **App-level tabs belong to the person.** A file can be opened from its thumbnail as the person's own tab in the window bar; the chat keeps its thumbnail. The agent never opens or closes app-level tabs.
 - **Popping out deselects.** A popped-out chat stays listed in Chats and is simply no longer the selected row; seeing it in both places is fine. No placeholder, no badge.
 - **Thumbnails carry no status badges.** Which are live is an implementation detail, never drawn.
-
-## Suggesting the output
-
-Filling the head's output from the draft's words uses the same decision model that files a draft under a topic. A blind test across 120 page kinds picked the right kind about 95% of the time when it was confident (0.7 and up), and suggested a page for fewer than 3% of ordinary chat messages. What made that work, and has to carry into the build:
-
-- Options that are not pages (an answer, an action, an image, a file) beside the page kinds, so a request for an image or a Markdown file does not land on the nearest page kind.
-- Generic kinds (an email draft, a how-to, a should-I, a pros and cons) never auto-suggested; they draw almost every false alarm. They stay pickable by hand.
-- Only confident picks shown; nothing is shown in between.
-
-Page types will come from onboarding rather than a fixed catalog, so the classifier reads each type's description when it asks, and a new type should pass a check before it is offered: a few natural requests for it are recognized, and a few nearby chat messages are not.
-
-## Out of scope
-
-- New page templates.
 
 ## Rail thumbnails, measured
 
@@ -65,11 +51,10 @@ So thumbnails are pictures, never scaled live pages: a guest can be shown in onl
 4. Can two chats be maximized as modals at once, or does a second replace the first?
 5. Does a pasted image leave a mark in the words as well as a tab?
 6. Where does the model picker live once the + is not the best home for it?
-7. Where do the page types the output dropdown offers come from: the shipped templates, a catalog generated at onboarding, or both? Suggesting the output from the draft's words waits on this, since each type needs a description the classifier reads and a check that it is recognized before it is offered.
 
 ## What changes in code
 
-- `compose-window.tsx`: the head becomes a sentence component shared by the topic and output pickers; the band's zero state becomes the chooser; drops and pastes route to the draft's tab group instead of the attachment list; app chips become editor tokens with an @ trigger.
+- `compose-window.tsx`: the head becomes a sentence of "New chat" and the topic picker; the band's zero state becomes the chooser; drops and pastes route to the draft's tab group instead of the attachment list; app chips become editor tokens with an @ trigger.
 - Topic picker: one search-or-create component, reused wherever a topic is chosen.
 - `RightPane` and the pane toggle go. A rail component reads the chat's tab group (the data the pane read) and draws thumbnails; browser guests stay mounted but draw as snapshots except the focused one and the agent's.
 - The full view reuses the pane's tab contents at a new layout, for Chats and the popped-out window alike.
@@ -93,5 +78,5 @@ Each step lands and is checked in the app on its own.
 5. The draft's zero state: tiles over a slim attach row, Web opening the browser inline, Apps opening the Apps landing page.
 6. The rail and the full view in Chats; the pane, its New tab page, and the tasks pane go.
 7. The popped-out chat's rail, maximize as a modal, and staying listed in Chats.
-8. The head's output dropdown and suggesting the output, with the shared topic picker.
+8. The head's shared topic picker.
 9. App-level tabs, with their own plan.

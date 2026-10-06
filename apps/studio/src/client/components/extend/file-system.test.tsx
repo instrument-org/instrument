@@ -20,6 +20,7 @@ function renderList() {
   const onSelectionChange = vi.fn();
   const onOpenSeveral = vi.fn();
   const onFileOpen = vi.fn();
+  const onTrash = vi.fn();
   renderWithProviders(
     <FileSystem
       defaultView="list"
@@ -27,6 +28,7 @@ function renderList() {
       onFileOpen={onFileOpen}
       onOpenSeveral={onOpenSeveral}
       onSelectionChange={onSelectionChange}
+      onTrash={onTrash}
     />,
   );
   const row = (name: string) => screen.getByRole("option", { name });
@@ -43,12 +45,25 @@ function renderList() {
     (onOpenSeveral.mock.lastCall?.[0] as FileSystemItem[] | undefined)?.map(
       (item) => item.path,
     );
+  const trashed = () =>
+    (onTrash.mock.lastCall?.[0] as FileSystemItem[] | undefined)?.map(
+      (item) => item.path,
+    );
   /** A real mouse click: the press, then the click with how many it is. */
   const mouseClick = (name: string, detail = 1) => {
     fireEvent.pointerDown(row(name), { button: 0, pointerType: "mouse" });
     fireEvent.click(row(name), { detail });
   };
-  return { mouseClick, onFileOpen, opened, reported, row, selected };
+  return {
+    mouseClick,
+    onFileOpen,
+    onTrash,
+    opened,
+    reported,
+    row,
+    selected,
+    trashed,
+  };
 }
 
 describe("FileSystem", () => {
@@ -198,6 +213,18 @@ describe("FileSystem", () => {
 
       fireEvent.keyDown(row("c.txt"), { key: "a", metaKey: true });
       expect(reported()).toEqual(FILES.map((file) => file.path));
+    });
+
+    it("hands every selected row to the Trash on ⌘⌫, and nothing on ⌫ alone", () => {
+      const { onTrash, row, trashed } = renderList();
+
+      fireEvent.click(row("b.txt"));
+      fireEvent.click(row("d.txt"), { metaKey: true });
+      fireEvent.keyDown(row("d.txt"), { key: "Backspace" });
+      expect(onTrash).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(row("d.txt"), { key: "Backspace", metaKey: true });
+      expect(trashed()).toEqual(["b.txt", "d.txt"]);
     });
 
     it("draws every selected row as selected", () => {

@@ -282,6 +282,11 @@ export type FileSystemProps = {
   ) => void;
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
+  /**
+   * What is selected, to the Trash, by the platform's key for it: ⌘⌫ on the
+   * Mac, Delete elsewhere. Left out, the key is nobody's here.
+   */
+  onTrash?: (items: FileSystemItem[]) => void;
   onViewChange?: (view: FileSystemView) => void;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
@@ -1612,6 +1617,7 @@ export function FileSystem({
   onSelectionChange,
   onShowHiddenFilesChange,
   onSortChange,
+  onTrash,
   onViewChange,
   prefetchChildren,
   ref,
@@ -2752,6 +2758,15 @@ export function FileSystem({
         return true;
       case "space":
         return true;
+      case "trash": {
+        const picked = selectedPathsOf(selectionRef.current).flatMap((path) => {
+          const each = entryOf(path);
+          return each ? [each] : [];
+        });
+        if (!onTrash || picked.length === 0) return false;
+        onTrash(picked);
+        return true;
+      }
       case "type-ahead": {
         const current = nav.current;
         const { match, state } = typeAhead({

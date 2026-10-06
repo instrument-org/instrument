@@ -69,6 +69,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -652,8 +653,8 @@ export function ComputerPage({
         const [only] = hostPaths;
         toast(
           undoable.length === 1 && only
-            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the Trash`
-            : `Moved ${undoable.length} items to the Trash`,
+            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
+            : `Moved ${undoable.length} items to the ${getTrashTerminology()}`,
           {
             action: {
               label: "Undo",
@@ -1440,6 +1441,7 @@ export function ComputerPage({
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
+                onTrash={(picked) => void trash(picked)}
                 onViewChange={(view) => {
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
@@ -1848,7 +1850,7 @@ function FolderMenuItems({
           <Separator />
           <Item onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
-            <span>Move to Trash</span>
+            <span>Move to {getTrashTerminology()}</span>
           </Item>
           <Separator />
           {onRename ? (

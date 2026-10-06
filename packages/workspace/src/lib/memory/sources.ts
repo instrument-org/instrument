@@ -36,11 +36,13 @@ export type MemorySource = z.output<typeof MemorySourceSchema>;
 
 interface KnownSource {
   /**
-   * What has to exist for the tool to count as installed. A folder alone is
-   * left by an uninstall and by a tool that has only ever been opened, so the
-   * marker is a file the tool writes once it has something to say.
+   * What has to exist for the tool to count as installed, any one of them. A
+   * folder alone is left by an uninstall and by a tool that has only ever
+   * been opened, so a marker is a file the tool writes once it has something
+   * to say. A `*` segment stands for any one entry, for a tool that keeps
+   * what it knows under a folder per project.
    */
-  marker: string[];
+  markers: string[][];
   name: string;
   /** Under the home directory, the way the tool itself writes it. */
   segments: string[];
@@ -49,34 +51,43 @@ interface KnownSource {
 
 const KNOWN: KnownSource[] = [
   {
-    marker: ["CLAUDE.md"],
+    markers: [["CLAUDE.md"], ["projects", "*", "memory"]],
     name: "Claude Code",
     segments: [".claude"],
     site: "https://claude.ai",
   },
   {
-    marker: ["AGENTS.md"],
+    markers: [["AGENTS.md"]],
     name: "Codex",
     segments: [".codex"],
     site: "https://openai.com",
   },
   {
-    marker: ["GEMINI.md"],
+    markers: [["GEMINI.md"]],
     name: "Gemini CLI",
     segments: [".gemini"],
     site: "https://gemini.google.com",
   },
   {
-    marker: ["rules"],
+    markers: [["rules"]],
     name: "Cursor",
     segments: [".cursor"],
     site: "https://cursor.com",
   },
   {
-    marker: ["AGENTS.md"],
+    markers: [["AGENTS.md"]],
     name: "opencode",
     segments: [".config", "opencode"],
     site: "https://opencode.ai",
+  },
+  {
+    markers: [
+      ["memories", "global_rules.md"],
+      ["memories", "*"],
+    ],
+    name: "Windsurf",
+    segments: [".codeium", "windsurf"],
+    site: "https://windsurf.com",
   },
 ];
 
@@ -90,12 +101,10 @@ export async function listMemorySources(
   const found = await Promise.all(
     KNOWN.map(async (source) => {
       const dir = path.join(homeDir, ...source.segments);
-      const marker = path.join(dir, ...source.marker);
-      const exists = await fs
-        .access(marker)
-        .then(() => true)
-        .catch(() => false);
-      return exists
+      const marked = await Promise.all(
+        source.markers.map((marker) => exists(dir, marker)),
+      );
+      return marked.includes(true)
         ? {
             home: ["~", ...source.segments].join("/"),
             name: source.name,
@@ -106,4 +115,26 @@ export async function listMemorySources(
     }),
   );
   return found.flatMap((source) => (source ? [source] : []));
+}
+
+/** Whether the path under `dir` is there, with `*` matching any one entry. */
+async function exists(dir: string, segments: string[]): Promise<boolean> {
+  const [first, ...rest] = segments;
+  if (first === undefined) {
+    return true;
+  }
+  if (first !== "*") {
+    const next = path.join(dir, first);
+    return rest.length === 0
+      ? fs
+          .access(next)
+          .then(() => true)
+          .catch(() => false)
+      : exists(next, rest);
+  }
+  const entries = await fs.readdir(dir).catch(() => []);
+  const found = await Promise.all(
+    entries.map((entry) => exists(path.join(dir, entry), rest)),
+  );
+  return found.includes(true);
 }

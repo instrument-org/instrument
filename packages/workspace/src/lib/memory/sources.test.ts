@@ -53,6 +53,32 @@ describe("listMemorySources", () => {
     expect(await listMemorySources(home)).toEqual([]);
   });
 
+  it("finds Claude Code by a project's memory when there is no CLAUDE.md", async () => {
+    await install(
+      ".claude",
+      "projects",
+      "-Users-me-code-app",
+      "memory",
+      "x.md",
+    );
+
+    const found = await listMemorySources(home);
+    expect(found.map((source) => source.name)).toEqual(["Claude Code"]);
+  });
+
+  it("passes over Claude Code projects that kept no memory", async () => {
+    await install(".claude", "projects", "-Users-me-code-app", "session.jsonl");
+
+    expect(await listMemorySources(home)).toEqual([]);
+  });
+
+  it("finds Windsurf by its memories folder", async () => {
+    await install(".codeium", "windsurf", "memories", "global_rules.md");
+
+    const found = await listMemorySources(home);
+    expect(found.map((source) => source.home)).toEqual(["~/.codeium/windsurf"]);
+  });
+
   it("lists several, in the order it knows them", async () => {
     await install(".codex", "AGENTS.md");
     await install(".claude", "CLAUDE.md");

@@ -552,11 +552,18 @@ export function createBashDescription({
     .filter(([name]) => allowedCommandNames.includes(name))
     .map(([name, description]) => `  ${name} - ${description}`);
 
+  const listedCustom = customCommandDefs().filter(
+    (cmd) => cmd.listInDescription,
+  );
+  // A custom command that shadows a builtin of the same name (mktemp) is
+  // named once, under its own description.
+  const builtins = namedOnly.filter(
+    (name) => !listedCustom.some((cmd) => cmd.name === name),
+  );
+
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...customCommandDefs()
-      .filter((cmd) => cmd.listInDescription)
-      .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...listedCustom.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 
@@ -593,7 +600,7 @@ export function createBashDescription({
 
     TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
+    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${builtins.join(", ")}
 
     IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_NATIVE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 

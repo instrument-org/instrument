@@ -39,7 +39,6 @@ import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
-import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
@@ -57,6 +56,10 @@ import {
   write,
 } from "./utils";
 import { resolveChat } from "../src/lib/record-folders";
+import { ensureChat } from "../src/lib/chat/chat-records";
+import { createTopic, updateTopic } from "../src/lib/chat/topics";
+import { StoreId } from "../src/schemas/store-id";
+import { type WorkspaceConfig } from "../src/types";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -147,6 +150,14 @@ export interface RunMetrics {
    * chat case, never a task's. Absent when it never wrote any.
    */
   firstTextMs?: number;
+  /** See `EvalCase.marks`: milliseconds to each, `null` when never seen. */
+  marks?: Record<string, null | number>;
+  /**
+   * Shell calls anywhere in the tree whose output refused them or named an
+   * unknown flag, option or command: a call the agent got wrong. `task`
+   * counts the ones that ran a `task` command, the hand-off calls.
+   */
+  refusals: { all: number; task: number };
   /** `task fork` and `task new` commands the run's own agent ran. */
   taskCommands: { fork: number; new: number };
   /** Tasks the run started, however deep. */
@@ -249,6 +260,12 @@ export interface EvalCase {
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
+  /**
+   * Called with a follow-up's position just before it is sent, for a case
+   * that has to see what the run had made by then: a draft the follow-up
+   * asks to change, say.
+   */
+  beforeFollowUp?: (position: number) => Promise<void> | void;
   files?: FileUpload.Type[];
   /**
    * `inPlace` attaches the folder where it is rather than a per-run copy:
@@ -293,7 +310,17 @@ export interface EvalCase {
    * chat's transcript plus one per task it made.
    */
   kind?: "chat" | "task";
+  /**
+   * Moments to time: from the user message containing `after` being sent
+   * (the first message when absent) to the first assistant text streamed in
+   * the run's own task that matches `match`, so how long the user waited
+   * for one answer in particular. Recorded in the run's metrics and in
+   * `$HOME/.eval-marks/<task id>.json`, where an assertion reads them, `null`
+   * when nothing matched.
+   */
+  marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
+  /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
   /**
    * Run before the case's task is created, with the run's home and workspace
@@ -311,6 +338,12 @@ export interface EvalCase {
    * agree on it; a run that mixes them is refused.
    */
   taskSystemAppend?: () => string;
+  /**
+   * Topics the chat is filed under from its first message, made before the
+   * run with these instructions, the way a chat started from a topic in the
+   * window is. Chat cases only.
+   */
+  topics?: { instructions: string; name: string }[];
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
@@ -538,6 +571,13 @@ export async function runEvals(
         }
         await evalCase.setup?.();
         const folders = privateFoldersFor(evalCase, index) ?? [];
+        if (evalCase.topics && evalCase.kind === "chat") {
+          return openChatUnderTopics(evalCase, evalCase.topics, {
+            context,
+            folders,
+            uri,
+          });
+        }
         return call(
           taskRoute.create,
           {
@@ -575,6 +615,38 @@ export async function runEvals(
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
+      // See `EvalCase.marks`. Each is timed from when its message is sent.
+      const marks: {
+        after?: string;
+        at?: number;
+        match: RegExp;
+        name: string;
+        sentAt?: number;
+      }[] = (evalCase.marks ?? []).map((mark) => ({
+        ...mark,
+        sentAt:
+          mark.after === undefined || evalCase.prompt.includes(mark.after)
+            ? startedAt
+            : undefined,
+      }));
+      const roles = new Map<string, string | undefined>();
+      const roleOf = async (part: SessionMessagePart.Type) => {
+        const { messageId, sessionId: partSessionId } = part.metadata;
+        const known = roles.get(messageId);
+        if (known) {
+          return known;
+        }
+        const stored = await Store.getMessages({
+          messageIds: [messageId],
+          sessionId: partSessionId,
+          taskId: id,
+        });
+        const role = stored.isOk() ? stored.value[0]?.role : undefined;
+        if (role) {
+          roles.set(messageId, role);
+        }
+        return role;
+      };
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -640,6 +712,23 @@ export async function runEvals(
               const role = stored.isOk() ? stored.value[0]?.role : undefined;
               if (role === undefined || role === "assistant") {
                 firstTextAt ??= seenAt;
+              }
+            }
+
+            if (part.type === "text") {
+              const open = marks.filter(
+                (mark) =>
+                  mark.sentAt !== undefined &&
+                  mark.at === undefined &&
+                  mark.match.test(part.text),
+              );
+              if (open.length > 0) {
+                const seenAt = Date.now();
+                if ((await roleOf(part)) !== "user") {
+                  for (const mark of open) {
+                    mark.at ??= seenAt;
+                  }
+                }
               }
             }
 
@@ -781,10 +870,21 @@ export async function runEvals(
         // A message sent into a turn in progress is heard between its steps,
         // and that turn's end is the one still awaited; sent to a session at
         // rest, it starts a turn of its own.
+        await evalCase.beforeFollowUp?.(position);
         const steering = isTimed(followUp) && isWorking(id);
         write(
           `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
         );
+        const sendingAt = Date.now();
+        for (const mark of marks) {
+          if (
+            mark.sentAt === undefined &&
+            mark.after !== undefined &&
+            followUp.prompt.includes(mark.after)
+          ) {
+            mark.sentAt = sendingAt;
+          }
+        }
         await call(
           messageRoute.create,
           { id, modelURI: uri, prompt: followUp.prompt, sessionId },
@@ -844,12 +944,32 @@ export async function runEvals(
         treeUsage.outputTokens += one.outputTokens;
         treeUsage.totalTokens += one.totalTokens;
       }
+      const markTimes =
+        marks.length > 0
+          ? Object.fromEntries(
+              marks.map((mark) => [
+                mark.name,
+                mark.at === undefined || mark.sentAt === undefined
+                  ? null
+                  : mark.at - mark.sentAt,
+              ]),
+            )
+          : undefined;
+      if (markTimes) {
+        const marksDir = path.join(os.homedir(), ".eval-marks");
+        fs.mkdirSync(marksDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(marksDir, `${id}.json`),
+          JSON.stringify(markTimes),
+        );
+      }
       const metrics = {
         ...(await metricsFor(id, childTaskIds, {
           doneAt,
           firstTextAt,
           startedAt,
         })),
+        ...(markTimes ? { marks: markTimes } : {}),
         cacheReadTokens: [usage, ...childUsages].reduce(
           (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
           0,
@@ -985,6 +1105,53 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 }
 
 /**
+ * Opens a chat filed under `topics` the way the window's first send from a
+ * topic does: the chat's record, then its first message with the topic ids,
+ * which tag the chat before that message is written, so its note carries
+ * their instructions.
+ */
+async function openChatUnderTopics(
+  evalCase: EvalCase,
+  topics: NonNullable<EvalCase["topics"]>,
+  {
+    context,
+    folders,
+    uri,
+  }: {
+    context: {
+      workspaceConfig: WorkspaceConfig;
+      workspaceRef: WorkspaceActorRef;
+    };
+    folders: { path: string }[];
+    uri: string;
+  },
+): Promise<{ id: TaskId; sessionId: StoreId.Session }> {
+  const topicIds: string[] = [];
+  for (const { instructions, name } of topics) {
+    const topic = await createTopic({ name });
+    await updateTopic(topic.id, { instructions });
+    topicIds.push(topic.id);
+  }
+  const newSessionId = StoreId.newSessionId();
+  const id = await ensureChat(newSessionId, evalCase.prompt);
+  const { sessionId } = await call(
+    messageRoute.create,
+    {
+      files: evalCase.files,
+      folders: folders.length > 0 ? folders : undefined,
+      id,
+      modelURI: uri,
+      newSessionId,
+      prompt: evalCase.prompt,
+      topics: topicIds,
+      viewing: evalCase.viewing,
+    },
+    { context },
+  );
+  return { id, sessionId };
+}
+
+/**
  * Appends to the task agent's system prompt for the rest of the process,
  * both where the baseline is built and where a stored one is checked
  * against it, so the two agree and the baseline is not rebuilt every turn.
@@ -1010,6 +1177,13 @@ function appendToTaskSystemPrompt(extra: () => string) {
     );
   };
 }
+
+/**
+ * What a shell says when it turns a call down: the product's own refusals
+ * ("refuses", "refused") and a command line it could not parse.
+ */
+const REFUSED =
+  /\brefus(?:es|ed|ing)\b|not yours to run|unknown (?:flag|option|command|subcommand|argument)|unrecognized (?:option|argument|command)|invalid (?:flag|option)/i;
 
 /** See `RunMetrics`. */
 async function metricsFor(
@@ -1050,10 +1224,30 @@ async function metricsFor(
     }
   }
   let toolCalls = 0;
+  const refusals = { all: 0, task: 0 };
   for (const one of [taskId, ...childTaskIds]) {
     for (const session of await sessionsFor(one)) {
       for (const message of session.messages) {
         toolCalls += message.parts.filter((part) => isToolPart(part)).length;
+        for (const part of message.parts) {
+          if (part.type !== "tool-bash") {
+            continue;
+          }
+          const said =
+            part.state === "output-available"
+              ? part.output.output
+              : part.state === "output-error"
+                ? part.errorText
+                : "";
+          if (REFUSED.test(said)) {
+            refusals.all += 1;
+            if (
+              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
+            ) {
+              refusals.task += 1;
+            }
+          }
+        }
       }
     }
   }
@@ -1061,6 +1255,7 @@ async function metricsFor(
     doneMs: doneAt - startedAt,
     firstTextMs:
       firstTextAt === undefined ? undefined : firstTextAt - startedAt,
+    refusals,
     taskCommands,
     tasksCreated: childTaskIds.length,
     toolCalls,

@@ -2,6 +2,7 @@ import { type CommandContext, defineCommand, latin1FromBytes } from "just-bash";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
+import { APP_COMMAND } from "./app-command";
 import { NODE_COMMAND } from "./node";
 import { PNPM_COMMAND } from "./pnpm";
 
@@ -13,7 +14,7 @@ import { PNPM_COMMAND } from "./pnpm";
  * packages far more often than the Python does.
  */
 export const JS_EXEC_COMMAND = {
-  description: `Run JavaScript or TypeScript (QuickJS, Node-compatible built-ins: fs, path, child_process, fetch) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts, but resolves NO packages, not even installed ones, and cannot open a file over 8 MB. Code that imports a package runs with \`${NODE_COMMAND.name}\`. \`.ts\` files are type-stripped by extension; inline TypeScript needs \`--strip-types\`.`,
+  description: `Run JavaScript or TypeScript (QuickJS, Node-compatible built-ins: fs, path, child_process, fetch) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts, but resolves NO packages, not even installed ones, and cannot open a file over 8 MB. Code that imports a package runs with \`${NODE_COMMAND.name}\`. \`.ts\` files are type-stripped by extension; inline TypeScript needs \`--strip-types\`. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value.`,
   name: "js-exec",
 } as const;
 

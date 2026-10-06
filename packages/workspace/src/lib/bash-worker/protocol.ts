@@ -55,6 +55,8 @@ export type FromWorker =
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | { pid: number; state: "settled" | "started"; type: "tree" }
+  /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
+  | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
   | { requestId: number; taskId: TaskId; type: "venv" };
 
 export type ToWorker =
@@ -80,6 +82,8 @@ export type ToWorker =
   | { callId: number; error: WireError; type: "call-error" }
   | { callId: number; result: WireResult; type: "call-result" }
   | { id: number; type: "abort" }
+  | { callId: number; error: WireError; type: "tool-error" }
+  | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
       result: TaskVenvError | undefined;

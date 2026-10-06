@@ -882,6 +882,30 @@ describe("listChats", () => {
       sites: ["www.instacart.com", "www.costco.com"],
     });
   });
+
+  it("holds a page chipped beside the one in view", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "compare these", 1, {
+      viewing: {
+        attached: [
+          { kind: "page", title: "Cart", url: "https://www.amazon.com/cart" },
+          {
+            kind: "page",
+            title: "Store",
+            url: "https://www.instacart.com/store",
+          },
+        ],
+        page: { title: "Store", url: "https://www.instacart.com/store" },
+        screen: "browser",
+        url: "https://www.instacart.com/store",
+      },
+    });
+
+    const [chat] = await listChats();
+
+    expect(chat?.holds.sites).toEqual(["www.instacart.com", "www.amazon.com"]);
+  });
 });
 
 describe("liveChatList", () => {

@@ -68,6 +68,7 @@ import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
+import { SentChips } from "./window/context-chip";
 import { Wordmark } from "./wordmark";
 
 // How far the rows a group holds sit inside its head line: the room a working
@@ -552,6 +553,7 @@ export function ChatStream({
       const fileAttachments: SessionMessagePart.Type[] = [];
       let projectContextPart: SessionMessagePart.DataPart | undefined;
       let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
+      let sentChips: SessionMessageDataPart.SentChip[] = [];
       const seenSourceIds = new Set<string>();
 
       // The conversation's own replies land whole: while a step is still
@@ -617,6 +619,12 @@ export function ChatStream({
         if (message.role === "user" && part.type === "data-projectContext") {
           projectContextPart = part;
           continue;
+        }
+
+        // Drawn over the message as chips; the note the agent read stays a
+        // developer-mode row of its own.
+        if (message.role === "user" && part.type === "data-viewContext") {
+          sentChips = part.data.attached ?? [];
         }
 
         if (message.role === "user" && part.type === "data-reply") {
@@ -748,6 +756,13 @@ export function ChatStream({
               folders={userFolders}
               key={`folders-${message.id}`}
             />,
+          );
+        }
+
+        // Over the files, as the chips stood over the words they went with.
+        if (sentChips.length > 0) {
+          messageElements.unshift(
+            <SentChips chips={sentChips} key={`sent-chips-${message.id}`} />,
           );
         }
 

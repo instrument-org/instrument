@@ -113,10 +113,9 @@ const RAIL = [
   ["files", "Files", "ph-folder"],
   ["browser", "Browser", "ph-globe"],
   ["apps", "Apps", "ph-shapes"],
-  ["discover", "Discover", "ph-map-trifold"],
 ];
 
-/** The 76px app rail on the ground. `on` is chat | files | browser | apps | discover | "" (nothing lit). `user` draws the signed-in avatar in place of Settings. */
+/** The 76px app rail on the ground. `on` is chat | files | browser | apps | "" (nothing lit). `user` draws the signed-in avatar in place of Settings. */
 const rail = (on = "chat", { mark = {}, user = false } = {}) => `
   <nav class="flex w-[76px] shrink-0 flex-col items-center gap-3 pt-1 pb-2">
     <div class="flex w-15 flex-col items-center gap-0.5 py-1.5">
@@ -336,18 +335,27 @@ const locRow = (t, { close = false, expand = false } = {}) => `
     ${close ? `<i class="ph ph-x px-1 text-[15px]"></i>` : ""}
   </div>`;
 
-/** One of a chat's tiles: its picture filling a 4:3 box from the top, over its mark and name. `on` rings the one shown large; a page an agent drives has its name in the brand color (the app's shimmer). */
-const chatTile = (t, { on = false } = {}) => `
-  <div class="flex w-24 shrink-0 flex-col gap-1.5">
-    <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}"><div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div></div>
-    <span class="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground"><span class="grid size-3 shrink-0 place-items-center overflow-hidden text-[9px]">${tabMark(t, "size-3 text-[6px]")}</span><span class="truncate ${t.agent ? "text-brand-600" : ""}">${tabTitle(t)}</span></span>
+/** One of a chat's tiles: its picture at the tile's width, hung from the top, its mark on a badge at the picture's lower left, and its name under it at the tile's whole width. `on` rings the one shown large and sets it, name in the foreground ink, on the rail's lit-place plate; a page an agent drives has its name in the brand color (the app's shimmer). `icon` draws a tile with no picture: that icon large in the box, and no badge. */
+const chatTile = (t, { on = false, icon = "" } = {}) => `
+  <div class="flex w-24 shrink-0 flex-col gap-1.5 ${on ? "-m-1.5 box-content rounded-xl bg-foreground/[0.08] p-1.5" : ""}">
+    <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}">${
+      icon
+        ? `<div class="grid h-full place-items-center">${icon}</div>`
+        : `<div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div><span class="absolute bottom-1 left-1 grid size-4 place-items-center rounded-sm bg-white/85">${tabMark(t, "size-3 text-[6px]")}</span>`
+    }</div>
+    <span class="truncate px-0.5 text-[11px] leading-4 ${on ? "font-medium text-foreground" : t.agent ? "text-brand-600" : "text-muted-foreground"}">${tabTitle(t)}</span>
   </div>`;
 
-/** A chat's tiles in a row over its reply box (thread's `tiles`): one per thing it holds, oldest first, then New. `active` is the one shown large, -1 for none; past the column's width the row scrolls sideways. */
-const chatTiles = (tabs, active = -1) => `
-  <div class="mb-2 flex items-start gap-2 overflow-hidden p-0.5">
-    ${tabs.map((t, i) => chatTile(t, { on: i === active })).join("")}
-    <div class="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>New</div>
+/** A chat's tiles in a row over its reply box (thread's `tiles`): one per thing it holds, oldest first, then New. `active` is the one shown large, -1 for none. Past the column's width the row pages with a round arrow over a fade at each end it runs past (`more`: \"right\", \"left\" or \"both\"). */
+const rowEnd = (side) =>
+  `<div class="pointer-events-none absolute inset-y-0 ${side === "left" ? "left-0 justify-start bg-gradient-to-r pl-1" : "right-0 justify-end bg-gradient-to-l pr-1"} flex w-16 items-start from-background via-background/80 to-transparent pt-6"><span class="grid size-7 place-items-center rounded-full bg-background text-foreground shadow-md ring-1 ring-border"><i class="ph ph-caret-${side} text-[13px]"></i></span></div>`;
+const chatTiles = (tabs, active = -1, { more = "" } = {}) => `
+  <div class="relative mb-2">
+    <div class="flex items-start gap-2 overflow-hidden p-0.5">
+      ${tabs.map((t, i) => chatTile(t, { on: i === active })).join("")}
+      <div class="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>New</div>
+    </div>
+    ${more === "left" || more === "both" ? rowEnd("left") : ""}${more === "right" || more === "both" ? rowEnd("right") : ""}
   </div>`;
 
 /** The pane beside a chat, flush with a border: its location row, ending in the × that puts it away, and the page. The chat's tiles are over its reply box, not here. */
@@ -463,7 +471,7 @@ const page = (t) =>
 
 // ---- places --------------------------------------------------------------------
 
-/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps and Discover). Its tabs are the window's, in the bar. */
+/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
 const placeCard = ({ tab, body, loc = true }) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${loc ? locRow(tab) : ""}

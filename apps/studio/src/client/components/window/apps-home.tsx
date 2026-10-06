@@ -143,8 +143,8 @@ export function AppsHome({
 
   return (
     <div className="@container/apps h-full min-h-0 overflow-y-auto">
-      {/* As a page, Discover's column and head: centered, with room around
-        it. Inside a draft, the narrower column the draft's frame allows. */}
+      {/* As a page, a centered column and head with room around it. Inside
+        a draft, the narrower column the draft's frame allows. */}
       <div
         className={cn(
           "mx-auto w-full",
@@ -388,10 +388,9 @@ function CatalogTile({
     kind: "screen",
   });
   return (
-    // Discover's card, chunkier: the shadow's hairline as the edge, lifting
-    // under the pointer. 72px tall around a 32px button, so the button sits
-    // 20px from the top, the bottom and the end, the inset the icon keeps at
-    // the start.
+    // A card, the shadow's hairline as its edge, lifting under the pointer.
+    // 72px tall around a 32px button, so the button sits 20px from the top,
+    // the bottom and the end, the inset the icon keeps at the start.
     <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"

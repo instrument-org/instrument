@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "2.0.0-beta.51",
+  "version": "2.0.0-beta.53",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -130,6 +130,7 @@
     "@julr/vite-plugin-validate-env": "^2.2.0",
     "@leeoniya/ufuzzy": "^1.0.19",
     "@lezer/highlight": "^1.2.3",
+    "@lobehub/icons-static-svg": "1.95.1",
     "@medv/finder": "4.0.2",
     "@milkdown/crepe": "7.22.2",
     "@milkdown/kit": "7.22.2",

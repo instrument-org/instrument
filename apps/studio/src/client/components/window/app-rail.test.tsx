@@ -48,7 +48,6 @@ describe("AppRail", () => {
       ["Files", null],
       ["Browser", null],
       ["Apps", null],
-      ["Discover", null],
       ["Settings", null],
     ]);
   });
@@ -61,8 +60,6 @@ describe("AppRail", () => {
     expect(onChoose).toHaveBeenLastCalledWith("files", { newTab: false });
     fireEvent.click(rail.getByRole("button", { name: "Apps" }));
     expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: false });
-    fireEvent.click(rail.getByRole("button", { name: "Discover" }));
-    expect(onChoose).toHaveBeenLastCalledWith("discover", { newTab: false });
   });
 
   it("asks for a tab of its own on a middle click or a click with Command", () => {

@@ -1627,6 +1627,7 @@ describe("sessionMachine", () => {
       };
       result.actor.send({
         interrupt: true,
+        model: createMockAIGatewayModel(),
         type: "addMessage",
         value: message,
       });
@@ -1659,6 +1660,63 @@ describe("sessionMachine", () => {
             <text state="done">I'm done.</text>
           </assistant>
         </session>"
+      `);
+    });
+
+    // The sender's model is the one the next turn runs on, so a task the
+    // chat messages after the user switched models moves with the picker.
+    it("runs the message's turn on the model it was sent with", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [writeFileChunks, finishChunks],
+      });
+      result.actor.start();
+
+      await waitFor(
+        result.actor,
+        (state) => state.context.agentRef !== undefined,
+      );
+      const agentRef = result.actor.getSnapshot().context.agentRef;
+      if (!agentRef) {
+        throw new Error("The agent never started");
+      }
+      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+
+      const messageId = StoreId.newMessageId();
+      result.actor.send({
+        interrupt: true,
+        model: createMockAIGatewayModel({ canonicalId: "switched-model-id" }),
+        type: "addMessage",
+        value: {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: defaultSessionId,
+              },
+              text: "Carry on.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      });
+
+      const session = await runTestMachine(result);
+      expect(
+        sessionToShorthand(session)
+          .split("\n")
+          .filter((line) => /<assistant |data-modelChange/.test(line))
+          .map((line) => line.trim()),
+      ).toMatchInlineSnapshot(`
+        [
+          "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<data-modelChange from="mock-model-id" to="switched-model-id" />",
+          "<assistant finishReason="stop" tokens="13" model="switched-model-id" provider="instrument">",
+        ]
       `);
     });
 
@@ -1704,7 +1762,12 @@ describe("sessionMachine", () => {
         if (saved) {
           await Store.saveMessageWithParts(steer, result.taskId);
         }
-        result.actor.send({ saved, type: "addMessage", value: steer });
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          saved,
+          type: "addMessage",
+          value: steer,
+        });
 
         const session = await runTestMachine(result);
         expect(sessionToShorthand(session)).toMatchInlineSnapshot(`

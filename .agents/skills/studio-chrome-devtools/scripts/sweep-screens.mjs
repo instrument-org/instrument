@@ -94,7 +94,6 @@ export default async (app, args = {}) => {
     "/chats",
     "/files",
     "/browser",
-    "/discover",
     "/apps",
     slug && `/apps/${slug}`,
     chat && `/tasks?chat=${chat.id}`,

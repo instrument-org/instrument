@@ -7,8 +7,6 @@ import { type TaskCommandContext } from "./context";
 import { folderSubcommand } from "./folder";
 import { listSubcommand } from "./list";
 import { logSubcommand } from "./log";
-import { modelSubcommand } from "./model";
-import { modelsSubcommand } from "./models";
 import { newSubcommand } from "./new";
 import { renameSubcommand } from "./rename";
 import { searchSubcommand } from "./search";
@@ -36,8 +34,6 @@ ${[
   searchSubcommand,
   showSubcommand,
   logSubcommand,
-  modelSubcommand,
-  modelsSubcommand,
   wakeSubcommand,
   renameSubcommand,
   trashSubcommand,
@@ -52,8 +48,6 @@ const runTask = defineSubcommands<TaskCommandContext>({
     folder: folderSubcommand,
     list: listSubcommand,
     log: logSubcommand,
-    model: modelSubcommand,
-    models: modelsSubcommand,
     new: newSubcommand,
     rename: renameSubcommand,
     search: searchSubcommand,

@@ -136,12 +136,6 @@ const config: Configuration = {
       from: "../../registry/skills",
       to: "registry/skills",
     },
-    // The pictures the Discover screen shows of each page template's examples.
-    {
-      filter: ["**/*.png"],
-      from: "../../registry/captures",
-      to: "registry/captures",
-    },
     {
       filter: ["**/*"],
       from: "../../packages/workspace/system-skills",
@@ -265,8 +259,6 @@ const config: Configuration = {
       NSRemindersUsageDescription: `${APP_NAME} reads and adds to your reminders when you ask it to, like what is due today or a new reminder.`,
       // Asked the first time a task controls each app, named in the ask.
       NSAppleEventsUsageDescription: `${APP_NAME} works in this app when you ask it to, like adding a reminder or a calendar event.`,
-      // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
-      NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
       NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,
       NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and keeps what it makes in Documents/${APP_NAME}.`,
       NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,

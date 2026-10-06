@@ -9,7 +9,7 @@ Every plan starts with a `Status:` line directly under the title, saying where t
 
 When a plan moves, fix the links pointing at it. Sibling links inside one directory become `../active/…` or `../completed/…` across the boundary.
 
-Wireframes are working artifacts drawn with `create-page`'s wireframe template and the Studio kit in [`.agents/wireframe-kit/`](../../.agents/wireframe-kit/KIT.md), and live outside the repository. A plan says in its own prose what a wireframe settled rather than linking one. `wireframes-*.html` beside the plans stays gitignored, so one written here by habit is never committed.
+Wireframes are working artifacts drawn with the `wireframe` skill and the Studio kit in [`.agents/wireframe-kit/`](../../.agents/wireframe-kit/KIT.md), and live outside the repository. A plan says in its own prose what a wireframe settled rather than linking one. `wireframes-*.html` beside the plans stays gitignored, so one written here by habit is never committed.
 
 ## Active
 
@@ -31,7 +31,7 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 
 | Plan | Status |
 | --- | --- |
-| [Chat surface](active/chat-surface.md) | slices 1-9 built, one open question |
+| [Chat surface](active/chat-surface.md) | slices 1-9 built |
 | [What the classic window took with it](active/after-the-classic-window.md) | open list |
 | [Grouped activities](active/grouped-activities.md) — one heading over a run of tool calls | built, headings flag off |
 | [Presentation syntax](active/presentation-syntax.md) — how the agent presents files, data, and artifacts | file group built, rest proposed |

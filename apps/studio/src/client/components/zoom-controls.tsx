@@ -1,6 +1,7 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { steppedZoom } from "@/shared/zoom";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
@@ -291,12 +292,16 @@ export function ZoomStepperControl({
 }
 
 /**
- * Transient readout of the window UI zoom ({@link zoomAtom}): a corner pill
- * that appears on any zoom change (keyboard, wheel/pinch, or the settings
+ * Transient readout of the window UI zoom ({@link zoomAtom}): a pill at the
+ * top center, just under the window's bar, that appears on any zoom change (keyboard, wheel/pinch, or the settings
  * stepper) and fades out shortly after the last change, so the user gets
  * feedback that something changed without persistent chrome. Includes a reset
  * button; hovering the pill keeps it up so the button stays reachable. Meant to
  * mount once outside the zoomed root so it stays a constant size at any zoom.
+ *
+ * Top center because that is where the eye is while the content grows, and
+ * named as the app's because the same chord zooms a page when one holds the
+ * keyboard, which says its own level in the address field instead.
  */
 export function ZoomToast() {
   const [zoom, setZoom] = useAtom(zoomAtom);
@@ -326,9 +331,12 @@ export function ZoomToast() {
   return (
     <div
       className={cn(
-        "fixed right-4 bottom-4 z-50 flex items-center gap-1 rounded-full border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-popover-foreground shadow-md transition-opacity duration-200",
+        "fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-popover-foreground shadow-md transition-opacity duration-200",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
+      // On-screen px, outside the zoomed root: the bar is drawn at the zoom,
+      // so its bottom edge moves with it.
+      style={{ top: TOOLBAR_HEIGHT * zoom + 8 }}
       onMouseEnter={() => {
         clearTimeout(hideTimer.current);
       }}
@@ -339,7 +347,9 @@ export function ZoomToast() {
         }, ZOOM_TOAST_MS);
       }}
     >
-      <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
+      <span>
+        App zoom <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
+      </span>
       <button
         aria-label="Reset zoom to 100%"
         className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"

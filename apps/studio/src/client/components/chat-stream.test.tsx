@@ -1295,3 +1295,83 @@ describe("ChatStream in the conversation, and a reply", () => {
     });
   });
 });
+
+describe("ChatStream and what a message went with", () => {
+  it("draws the chips a message was sent with over its words, and only those", () => {
+    const { container } = renderMessages(
+      [
+        {
+          ...userMessage("Is this a good price?"),
+          parts: [
+            prose("Is this a good price?"),
+            {
+              data: {
+                attached: [
+                  {
+                    kind: "page",
+                    title: "Amazon.com: Kettle",
+                    url: "https://www.amazon.com/dp/B0",
+                  },
+                  {
+                    items: [
+                      { kind: "file", path: "/Users/someone/budget.csv" },
+                    ],
+                    kind: "paths",
+                  },
+                ],
+                page: {
+                  title: "Amazon.com: Kettle",
+                  url: "https://www.amazon.com/dp/B0",
+                },
+                screen: "browser",
+                tabs: [
+                  { at: "https://example.com/", id: "t1", title: "Other" },
+                ],
+                url: "https://www.amazon.com/dp/B0",
+              },
+              metadata: metadata(),
+              type: "data-viewContext",
+            },
+          ],
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    const chips = [
+      ...container.querySelectorAll('[data-slot="sent-chip"]'),
+    ].map((chip) => chip.textContent);
+    expect(chips).toEqual(["Amazon.com: Kettle", "budget.csv"]);
+    expect(screen.queryByRole("button", { name: /Leave out/ })).toBeNull();
+    const words = screen.getByText("Is this a good price?");
+    expect(
+      screen.getByText("Amazon.com: Kettle").compareDocumentPosition(words) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("draws no chips for a message whose view went without any", () => {
+    const { container } = renderMessages(
+      [
+        {
+          ...userMessage("What is this?"),
+          parts: [
+            prose("What is this?"),
+            {
+              data: {
+                page: { title: "Example", url: "https://example.com/" },
+                screen: "browser",
+                url: "https://example.com/",
+              },
+              metadata: metadata(),
+              type: "data-viewContext",
+            },
+          ],
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(container.querySelector('[data-slot="sent-chips"]')).toBeNull();
+  });
+});

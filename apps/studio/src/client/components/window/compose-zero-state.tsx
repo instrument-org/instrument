@@ -156,8 +156,8 @@ export function WebStart({
   };
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      {/* Discover's column and the Apps place's, so moving between the
-          three places never moves the edges the page is read against. */}
+      {/* The Apps place's column, so moving between the two places never
+          moves the edges the page is read against. */}
       <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
         <PageSection title="Bookmarks">
           {bookmarks.length === 0 ? (

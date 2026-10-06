@@ -2,22 +2,15 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import {
   APPS_HREF,
   BROWSER_HREF,
-  type ChosenItem,
   type ComposePlacement,
   type Draft,
   draftGroupOf,
   draftSnapshotsAtom,
   findersByTabAtom,
   NEW_TAB_HREF,
-  paneOpenByGroupAtom,
   type ScreenView,
   screenViewsAtom,
-  type WindowTab,
 } from "@/client/atoms/window";
-import {
-  FileSystemFolderGlyph,
-  FileTypeIcon,
-} from "@/client/components/extend/file-system";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -37,10 +30,12 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { type FileUpload } from "@instrument-org/workspace/client";
+import {
+  type FileUpload,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -59,11 +54,7 @@ import {
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
-import {
-  type BrowserTabsHandle,
-  type PageChromeSlots,
-  TabIcon,
-} from "./browser-tabs";
+import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
@@ -74,28 +65,19 @@ import {
 import { ComposeZeroState } from "./compose-zero-state";
 import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
-import {
-  behindTabOf,
-  includedItemsOf,
-  includedTabOf,
-  isGroupShown,
-  tabInView,
-} from "./draft-context";
-import { computerTabOf, pageTabTitle } from "./file-tabs";
+import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
+import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
+import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
 import { segmentsOf } from "./host-path";
-import { IdeaSketch } from "./idea-sketch";
-import { type Idea } from "./ideas";
 import { LinkSurface } from "./link-surface";
-import { OutputPicker } from "./output-picker";
-import { screenPresentation } from "./screen-presentation";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
-import { useIdeas } from "./use-ideas";
+import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
 import { parseHref } from "./window-href";
@@ -103,11 +85,11 @@ import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
+  /** The chips over the words at the press, which the chat's first message is drawn with. */
+  attached: SessionMessageDataPart.SentChip[];
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
-  /** The kind of page the response should come back as, when one was picked. */
-  output?: { name: string; title: string };
   prompt: string;
 }
 
@@ -129,9 +111,6 @@ const COMPOSE_HEIGHT = 640;
 const WORDS_BASE_HEIGHT = 72;
 
 const NO_TITLES = new Map<never, never>();
-
-/** What a chip of the draft's is, as its tooltip says it. */
-const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -220,7 +199,7 @@ export function ComposeBar({
  * bottom-right corner, or grown to fill the window inset from its edges, and
  * put down to a bar along the window's foot. Its head carries the draft's
  * name, the topic it will be filed under, the composer's controls (the plus
- * menu, the output picker, the model, the arrow) and the window's own three
+ * menu, the model, the arrow) and the window's own three
  * buttons; under it the words on white, borderless, and under those a gray
  * band that is the draft's own pane: the four doors when nothing is gathered
  * yet, and otherwise the gathered things as tabs with the one up drawn large,
@@ -292,19 +271,7 @@ export function ComposeWindow({
   const activeHref = useRouterState({
     select: (routerState) => routerState.location.href,
   });
-  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
-  const inView =
-    appTabs.selectedId === null
-      ? undefined
-      : tabInView({
-          activeHref,
-          appTabId: appTabs.selectedId,
-          groupTab: windowTabs.active,
-          isGroupTabShown: isGroupShown(
-            windowTabs.groupOnScreen,
-            paneOpenByGroup,
-          ),
-        });
+  const inView = useTabInView();
   const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
     id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
   );
@@ -335,6 +302,23 @@ export function ComposeWindow({
     behind !== undefined &&
     (behindItems === undefined || behindItems.length > 0);
 
+  // The chips as the press finds them, which the chat's first message is
+  // drawn with, so the transcript shows what went the way the draft did.
+  const volumes = useComputerVolumes();
+  const names = { appsBySlug, ...(volumes ? { volumes } : {}) };
+  const attached = [
+    ...chosen.map(({ kind, path }) => ({
+      items: [{ kind, path }],
+      kind: "paths" as const,
+    })),
+    ...(showsIncluded
+      ? [heldChipOf({ items: includedItems, tab: included }, names)]
+      : []),
+    ...(showsBehind
+      ? [heldChipOf({ items: behindItems, tab: behind }, names)]
+      : []),
+  ];
+
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
   const key = { draftId: draft.id, scope: "draft" as const };
@@ -362,8 +346,6 @@ export function ComposeWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
-  const ideas = useIdeas();
-  const output = ideas.data?.find((idea) => idea.name === draft.output);
   const topic = topics.find((entry) => entry.id === draft.topicId);
   // Retired topics stay nameable on a draft already filed under one, but are
   // never offered or picked again.
@@ -647,17 +629,9 @@ export function ComposeWindow({
           >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
-                <OutputHead
-                  onChange={(name) => {
-                    onChange((current) => {
-                      const { output: _dropped, ...rest } = current;
-                      return name === undefined
-                        ? rest
-                        : { ...rest, output: name };
-                    });
-                  }}
-                  output={output}
-                />
+                <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
+                  New chat
+                </span>
                 <TopicSlot
                   onClear={() => {
                     onChange((current) => {
@@ -798,17 +772,7 @@ export function ComposeWindow({
                   modelURI={modelURI}
                   onModelChange={onModelChange}
                   onSubmit={(send) => {
-                    onStart({
-                      ...send,
-                      ...(output
-                        ? {
-                            output: {
-                              name: output.name,
-                              title: output.title,
-                            },
-                          }
-                        : {}),
-                    });
+                    onStart({ ...send, attached });
                   }}
                   placeholder="What do you need?"
                   ref={inputRef}
@@ -861,64 +825,6 @@ export function ComposeWindow({
   );
 }
 
-/**
- * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, in the row an attached file lands
- * in, since it goes with the words as a file does. One quiet line, its mark
- * and name in grey with an x that leaves it out, so it takes no room from
- * the words and does not ask to be read; what it is for is in its tooltip.
- * Nothing of the thing itself is drawn in the draft, which stands over it.
- */
-export function IncludedChip({
-  appsBySlug,
-  items,
-  onLeaveOut,
-  said = SENT_WITH_MESSAGE,
-  tab,
-}: {
-  appsBySlug: Map<
-    string,
-    { icon?: string | undefined; name: string; site: string | undefined }
-  >;
-  /** What the thing points at on this computer, which the chip names in place of the tab. */
-  items: ChosenItem[] | undefined;
-  onLeaveOut: () => void;
-  /** What the chip's tooltip says it is. */
-  said?: string;
-  tab: WindowTab;
-}) {
-  const volumes = useComputerVolumes();
-  const [one] = items ?? [];
-  const name =
-    items !== undefined && items.length > 1
-      ? `${items.length} items`
-      : one === undefined
-        ? tab.kind === "page"
-          ? pageTabTitle(tab) || "Page"
-          : screenPresentation(tab.href, {
-              appsBySlug,
-              ...(volumes ? { volumes } : {}),
-            }).title
-        : nameOfPath(one.path);
-  return (
-    <ContextChip
-      label={
-        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
-      }
-      mark={
-        items?.length === 1 && one !== undefined ? (
-          <ItemMark item={one} />
-        ) : (
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        )
-      }
-      name={name}
-      onLeaveOut={onLeaveOut}
-      slot="included-chip"
-    />
-  );
-}
-
 /** One of a window's own buttons: minimize, expand, close. */
 export function WindowButton({
   children,
@@ -944,161 +850,10 @@ export function WindowButton({
   );
 }
 
-/** A chip's tooltip: what the chip means, then where the things it names are. */
-function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
-  return (
-    <span className="flex flex-col gap-1">
-      <span>{said}</span>
-      {paths.map((path) => (
-        <span className="break-all opacity-70" key={path}>
-          {path}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/** A file or folder the draft was opened on by name, held for the chat until it is left out. */
-function ChosenChip({
-  item,
-  onLeaveOut,
-}: {
-  item: ChosenItem;
-  onLeaveOut: () => void;
-}) {
-  return (
-    <ContextChip
-      label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
-      mark={<ItemMark item={item} />}
-      name={nameOfPath(item.path)}
-      onLeaveOut={onLeaveOut}
-      slot="chosen-chip"
-    />
-  );
-}
-
 /**
  * The address of the computer screen standing in a folder, as the computer
  * route reads it, for a tab whose folder browser has walked somewhere.
  */
-/**
- * One quiet line at the head of the words: a mark and a name in grey with an
- * x that leaves the thing out, so it takes no room from the words and does
- * not ask to be read; what it is is in its tooltip.
- */
-function ContextChip({
-  label,
-  mark,
-  name,
-  onLeaveOut,
-  slot,
-}: {
-  label: ReactNode;
-  mark: ReactNode;
-  name: string;
-  onLeaveOut: () => void;
-  slot: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-2 text-xs text-muted-foreground ring-1 ring-border/70"
-          data-slot={slot}
-        >
-          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-            {mark}
-          </span>
-          <span className="truncate">{name}</span>
-          <button
-            aria-label={`Leave out ${name}`}
-            className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
-            onClick={onLeaveOut}
-            type="button"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent collisionPadding={10} maxWidth="20rem">
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-/** One thing the draft holds, as its mark: a page's icon, or a screen's. */
-function HeldMark({
-  appsBySlug,
-  tab,
-}: {
-  appsBySlug: Map<
-    string,
-    { icon?: string | undefined; name: string; site: string | undefined }
-  >;
-  tab: WindowTab;
-}) {
-  if (tab.kind === "page") {
-    return <TabIcon favicon={tab.favicon} url={tab.url} />;
-  }
-  return screenPresentation(tab.href, { appsBySlug }).icon;
-}
-
-/** A file's type icon, or the folder glyph for a folder. */
-function ItemMark({ item }: { item: ChosenItem }) {
-  return item.kind === "folder" ? (
-    <FileSystemFolderGlyph className="h-3 w-auto" />
-  ) : (
-    <FileTypeIcon fileName={nameOfPath(item.path)} />
-  );
-}
-
-/** The last name in a path, which is what a chip calls the thing. */
-function nameOfPath(path: string) {
-  return segmentsOf(path).at(-1) ?? path;
-}
-
-/**
- * What the draft is, as the head's first words: "New chat" until a page type
- * is picked, then "Make a" and that type. The words open the catalog of page
- * types, which is rare enough to live behind them rather than beside the send,
- * and whose Clear goes back to a chat.
- */
-function OutputHead({
-  onChange,
-  output,
-}: {
-  onChange: (name: string | undefined) => void;
-  output: Idea | undefined;
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-0.5">
-      <OutputPicker onChange={onChange} value={output?.name}>
-        <button
-          aria-label={output ? `Output: ${output.title}` : "Pick an output"}
-          className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
-          type="button"
-        >
-          {output ? (
-            <>
-              <span className="shrink-0">
-                {/^[aeiou]/i.test(output.title) ? "Make an" : "Make a"}
-              </span>
-              <IdeaSketch
-                className="h-4 w-auto shrink-0 drop-shadow-xs"
-                rows={output.sketch ?? []}
-              />
-              <span className="max-w-40 min-w-0 truncate">{output.title}</span>
-            </>
-          ) : (
-            <span className="shrink-0">New chat</span>
-          )}
-          <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
-        </button>
-      </OutputPicker>
-    </span>
-  );
-}
 
 /**
  * The topic the chat will be filed under, after what the draft is, joined by

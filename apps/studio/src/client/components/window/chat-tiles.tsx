@@ -25,6 +25,8 @@ import {
   type BrowserTargetId,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -37,6 +39,9 @@ import { computerName } from "./computer-name";
 import { useComputerVolumes } from "./computer-volumes";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
+
+/** How much of the row a page leaves in view on its far side: about a tile, so the reader keeps their place. */
+const PAGE_KEEP = 96;
 
 /** A layout change that lands at once, for tiles moved by anything but a drag. */
 const STILL = { layout: { duration: 0 } };
@@ -116,6 +121,53 @@ export function ChatTiles({
     }
     count.current = tabs.length;
   }, [tabs.length]);
+  // Whether the row runs past either end, for the arrows that page it there.
+  const [ends, setEnds] = useState({ left: false, right: false });
+  const readEnds = () => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    const next = rowEnds(list);
+    setEnds((current) =>
+      current.left === next.left && current.right === next.right
+        ? current
+        : next,
+    );
+  };
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    const update = () => {
+      const next = rowEnds(list);
+      setEnds((current) =>
+        current.left === next.left && current.right === next.right
+          ? current
+          : next,
+      );
+    };
+    update();
+    // The row itself as the column around it resizes, and its tiles as
+    // they come and go.
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    if (list.firstElementChild) {
+      observer.observe(list.firstElementChild);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, [tabs.length]);
+  /** One row's width along, less a tile, so the last tile in view is still in view after. */
+  const page = (direction: -1 | 1) => {
+    const list = listRef.current;
+    list?.scrollBy({
+      behavior: "smooth",
+      left: direction * Math.max(list.clientWidth - PAGE_KEEP, PAGE_KEEP),
+    });
+  };
   // The chosen tile is brought into the row's view, so the ring is never
   // scrolled out of sight. Offsets are layout px, which is what scrollLeft
   // is in under the window's zoom.
@@ -139,10 +191,17 @@ export function ChatTiles({
     }
   }, [chosenId]);
   return (
-    <section aria-label="What this chat has open" className="mb-2 select-none">
+    <section
+      aria-label="What this chat has open"
+      // Pulled out by the row's padding, which leaves the chosen tile's
+      // plate room inside the scroll's clip while the tiles stay in line
+      // with the composer.
+      className="relative -mx-1 -mt-1 mb-1 select-none"
+    >
       <motion.div
-        className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-0.5"
+        className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-1.5"
         layoutScroll
+        onScroll={readEnds}
         // A wheel that only turns up and down scrolls the row sideways.
         onWheel={(event) => {
           const list = event.currentTarget;
@@ -226,7 +285,68 @@ export function ChatTiles({
           </DropdownMenuContent>
         </DropdownMenu>
       </motion.div>
+      {ends.left && (
+        <RowEnd
+          onPress={() => {
+            page(-1);
+          }}
+          side="left"
+        />
+      )}
+      {ends.right && (
+        <RowEnd
+          onPress={() => {
+            page(1);
+          }}
+          side="right"
+        />
+      )}
     </section>
+  );
+}
+
+/** Whether a row scrolled sideways has more past its left and its right end. */
+function rowEnds(list: HTMLElement) {
+  return {
+    left: list.scrollLeft > 1,
+    right: list.scrollLeft + list.clientWidth < list.scrollWidth - 1,
+  };
+}
+
+/**
+ * An end of the row with more past it: the row fades there under a round
+ * arrow that pages it one row's width that way. It stands over the fade and
+ * off the tiles, so it never takes a press meant for one.
+ */
+function RowEnd({
+  onPress,
+  side,
+}: {
+  onPress: () => void;
+  side: "left" | "right";
+}) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-y-0 flex w-16 items-start pt-7",
+        side === "left"
+          ? "left-0 justify-start bg-linear-to-r from-background via-background/80 to-transparent pl-1"
+          : "right-0 justify-end bg-linear-to-l from-background via-background/80 to-transparent pr-1",
+      )}
+    >
+      <button
+        aria-label={side === "left" ? "Show earlier" : "Show more"}
+        className="pointer-events-auto grid size-7 place-items-center rounded-full bg-background text-foreground shadow-md ring-1 ring-border hover:bg-accent"
+        onClick={onPress}
+        type="button"
+      >
+        {side === "left" ? (
+          <CaretLeftIcon className="size-3.5" />
+        ) : (
+          <CaretRightIcon className="size-3.5" />
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -253,24 +373,35 @@ function AddTile({
 }
 
 /**
- * A picture filling its tile, cropped from the top down: the head of a page
- * or a document is what says what it is, so that is the part kept.
+ * A picture at its tile's full width, hung from the top and cut off at the
+ * tile's foot: the head of a page or a document is what says what it is, so
+ * it is kept whole across, never cropped at the sides. A picture wider than
+ * the tile's shape leaves the card's ground under it. The tile's mark rides
+ * its lower corner; a tile with no picture shows its mark large instead.
  */
 function FittedPicture({
+  mark,
   onError,
   src,
 }: {
+  /** What the tile is, worn on the picture's corner, which the picture alone may not say. */
+  mark: ReactNode;
   onError?: () => void;
   src: string;
 }) {
   return (
-    <img
-      alt=""
-      className="size-full object-cover object-top"
-      draggable={false}
-      onError={onError}
-      src={src}
-    />
+    <>
+      <img
+        alt=""
+        className="absolute inset-x-0 top-0 h-auto w-full"
+        draggable={false}
+        onError={onError}
+        src={src}
+      />
+      <span className="pointer-events-none absolute bottom-1 left-1 grid size-4 place-items-center rounded-sm bg-background/85 [&_img]:size-3 [&_svg]:size-3">
+        {mark}
+      </span>
+    </>
   );
 }
 
@@ -297,10 +428,12 @@ function keyOf(tab: WindowTab): string {
  */
 function PagePicture({
   isOnScreen,
+  mark,
   tab,
   targetId,
 }: {
   isOnScreen: boolean;
+  mark: ReactNode;
   tab: Extract<WindowTab, { kind: "page" }>;
   targetId: BrowserTargetId;
 }) {
@@ -398,7 +531,7 @@ function PagePicture({
   const shownUrl = isOnScreen ? (heldUrl ?? latestUrl) : latestUrl;
 
   if (shownUrl) {
-    return <FittedPicture src={shownUrl} />;
+    return <FittedPicture mark={mark} src={shownUrl} />;
   }
   return (
     <span className="[&_img]:size-6 [&_svg]:size-6">
@@ -464,8 +597,8 @@ function ChatTile({
           taskTitles,
           ...(volumes ? { volumes } : {}),
         }).title;
-  // What the tile is by its mark, beside its name: a page's site, a file's
-  // type, a folder, an app.
+  // What the tile is by its mark, on its picture's corner: a page's site, a
+  // file's type, a folder, an app.
   const mark =
     tab.kind === "page" ? (
       <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
@@ -477,7 +610,14 @@ function ChatTile({
       />
     );
   const tile = (isWorking: boolean) => (
-    <div className="group/tile relative flex flex-col gap-1.5">
+    // The one up sits on a plate, the way the rail lights the place the
+    // window is in.
+    <div
+      className={cn(
+        "group/tile relative flex flex-col gap-1.5",
+        isChosen && "-m-1.5 rounded-xl bg-foreground/8 p-1.5",
+      )}
+    >
       <button
         aria-label={title}
         className="flex flex-col gap-1.5 text-left outline-none"
@@ -507,6 +647,7 @@ function ChatTile({
           {tab.kind === "page" ? (
             <PagePicture
               isOnScreen={isChosen}
+              mark={mark}
               tab={tab}
               targetId={targetOf(tab)}
             />
@@ -515,15 +656,20 @@ function ChatTile({
               appsBySlug={appsBySlug}
               chatTitles={chatTitles}
               href={tab.href}
+              mark={mark}
             />
           )}
         </span>
-        {/* Every tile names what it is by its mark as well, which its
-            picture hides: a page's site, a file's type, a folder, an app. */}
-        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
-          <span className="grid size-3 shrink-0 place-items-center [&_img]:size-3 [&_svg]:size-3">
-            {mark}
-          </span>
+        {/* The name alone, at the tile's whole width: the mark is on the
+            picture, or is the picture when there is none. */}
+        <span
+          className={cn(
+            "flex min-w-0 px-0.5 text-[11px] leading-4",
+            isChosen
+              ? "font-medium text-foreground"
+              : "text-muted-foreground group-hover/tile:text-foreground",
+          )}
+        >
           <span className={cn("truncate", isWorking && "brand-shiny-text")}>
             {title}
           </span>
@@ -531,7 +677,11 @@ function ChatTile({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        className={cn(
+          "absolute grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100",
+          // On the picture's corner either way: the plate's padding moves it in.
+          isChosen ? "top-2.5 right-2.5" : "top-1 right-1",
+        )}
         onClick={onClose}
         type="button"
       >
@@ -552,7 +702,7 @@ function ChatTile({
   );
 }
 
-/** A screen's small mark beside its name: a file's type, a folder, or the screen's own icon. */
+/** A screen's small mark on its picture: a file's type, a folder, or the screen's own icon. */
 function ScreenMark({
   appsBySlug,
   chatTitles,
@@ -577,10 +727,12 @@ function ScreenPicture({
   appsBySlug,
   chatTitles,
   href,
+  mark,
 }: {
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
   chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
   href: string;
+  mark: ReactNode;
 }) {
   const { resolvedTheme } = useTheme();
   const location = screenLocation(href, { appsBySlug, chatTitles });
@@ -603,6 +755,7 @@ function ScreenPicture({
     if (picture && failed !== picture) {
       return (
         <FittedPicture
+          mark={mark}
           onError={() => {
             setFailed(picture);
           }}

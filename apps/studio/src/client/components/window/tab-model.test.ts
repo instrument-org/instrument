@@ -399,7 +399,7 @@ describe("groups handed over and dropped", () => {
   it("hands a draft's tabs to a chat, the one up still up, beside what the chat already had", () => {
     const state = selectTab(
       windowOf([
-        screenTab("early", "/discover", OTHER),
+        screenTab("early", "/release-notes", OTHER),
         screenTab("d-apps", "/apps", DRAFT),
         screenTab("d-files", "/files", DRAFT),
       ]),

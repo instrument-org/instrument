@@ -18,8 +18,6 @@ describe("isGroupScreenHref", () => {
   it.each([
     "/release-notes",
     "/debug/errors",
-    "/discover",
-    "/discover/receipt",
     "/skills/create-page",
     "/memory/no-stevia",
     "/apps/linear/settings",

@@ -1,8 +1,8 @@
-# Reloading the app destroys every task browser
+# Reloading the app destroys every in-app browser page
 
 **Status:** contained. Recorded 2026-08-12. Checked 2026-10-02: the guest is still a renderer `<webview>`, Cmd+R still reloads only the page on screen, and the app reload is still developer-only; whether the 2.0 window's tabs reopen a lost page at its URL was not checked.
 
-Reloading the renderer takes every task's browser with it. The page the user was on is gone, the browser comes back at `about:blank`, and the task's `agent-browser` daemon sessions are closed underneath a running agent. This is why the app reload is a developer-mode affordance rather than a chord any user can hit.
+Reloading the renderer takes every page of the in-app browser with it. The page the user was on is gone, the browser comes back at `about:blank`, and the `agent-browser` daemon sessions driving those pages are closed underneath a running agent. This is why the app reload is a developer-mode affordance rather than a chord any user can hit.
 
 ## Why it happens
 
@@ -11,7 +11,7 @@ The guest is a `<webview>` element in the renderer's document, deliberately — 
 What follows is not just the elements going away:
 
 - Each guest's `destroyed` fires, `handleDetach` deletes the main-process entry, and the desired-target set the pool reconciles against empties ([manager.ts](../../apps/studio/src/electron-main/browser-view/manager.ts), [entry.ts](../../apps/studio/src/electron-main/browser-view/entry.ts)).
-- Destruction reaches the task's lifecycle machine as `targetDestroyedExternally`, which sends it to `Stopping` — so the machine closes the task's remaining targets and calls `closeAgentBrowserSessionsForSessions` ([task-browser.ts](../../packages/workspace/src/machines/task-browser.ts)). An agent mid-`agent-browser` loses its CDP connection and its session.
+- Destruction reaches the lifecycle machine of the guest's owner (the window, or a task no chat owns) as `targetDestroyedExternally`, which sends it to `Stopping` — so the machine closes the owner's remaining targets and calls `closeAgentBrowserSessionsForSessions` ([task-browser.ts](../../packages/workspace/src/machines/task-browser.ts)). An agent mid-`agent-browser` loses its CDP connection and its session.
 - The panel remounts, sees no attached target, and auto-opens a fresh one at `about:blank`.
 
 What survives: the browser profile on disk, so cookies and storage are intact and a re-navigation lands logged in; and `lastUrl`/`lastTitle` per session in the session store ([browser-state.ts](../../packages/workspace/src/lib/browser-state.ts)), so the app still knows the page it lost.

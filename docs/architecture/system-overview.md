@@ -84,6 +84,6 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 
 - [ai-gateway.md](ai-gateway.md) — model proxy and model library.
 - [agent-sandbox.md](agent-sandbox.md) — how tool access is contained.
-- [in-app-browser.md](in-app-browser.md) — the per-task browser the agent and user share.
+- [in-app-browser.md](in-app-browser.md) — the one browser in the app, which the user drives and a chat's tasks can drive too.
 - [`packages/workspace/AGENTS.md`](../../packages/workspace/AGENTS.md) — RPC, tools, agents, machines, server.
 - [`apps/studio/AGENTS.md`](../../apps/studio/AGENTS.md) — renderer, windows, RPC surface, where things live.

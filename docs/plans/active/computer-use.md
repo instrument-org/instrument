@@ -22,9 +22,9 @@ Computer Use is the agent operating the user's native apps: reading a window's a
 ## Open
 
 - **Watch it act.** Grant Accessibility and Screen Recording to a build launched through Launch Services, then run tasks against Finder, Notes, and Preview: whether background delivery works per app, how large `get_window_state` output gets on Electron and web-heavy apps, and how many turns a simple job takes.
-- **Packaged build.** The SDK's native library must be unpacked (`asarUnpack`), and the nested `cua-driver` executable must be signed before the app is signed and notarized. Not yet checked in a signed build.
+- **Packaged build.** The SDK derives its native library's path from its own module URL and hands it to dlopen, which cannot read an asar, so a packaged build imports the SDK from `app.asar.unpacked` by path and `@trycua` and `@ubjs` are unpacked whole. The signed preview build signs the nested `cua-driver` and the SDK's library with the app's Developer ID and passes notarization.
 - **Windows and Linux.** No grants to wait for, but Windows needs an interactive session and its UI Automation helper (`cua-driver-uia.exe`, vendored), and Linux needs X11 or XWayland with AT-SPI. Neither has been run.
 - **Size.** The universal `cua-driver` is about 71 MB and the SDK's per-platform library about 54 MB.
-- **Release cadence.** Cua ships several releases a week, and the repo's minimum release age holds the SDK a week behind. Bumping means moving the SDK and the download script's version together.
+- **Release cadence.** Cua ships several releases a week, faster than the repo's minimum release age, so the pinned version is an exact-version exclusion in `pnpm-workspace.yaml`. Bumping means moving that exclusion, the SDK, and the download script's version together.
 - **Onboarding.** Settings is the only place to grant access; an onboarding step would ask before the first task needs it.
 - **Prompt guidance.** The command's description calls it a last resort after files, CLIs, the app commands, `osascript`, and `agent-browser`. No eval covers when the agent should reach for it.

@@ -22,7 +22,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const CUA_DRIVER_VERSION = "0.30.4";
+const CUA_DRIVER_VERSION = "0.33.4";
 
 const RESOURCES_DIR = path.resolve(
   import.meta.dirname,

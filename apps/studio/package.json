@@ -71,7 +71,7 @@
     "@orpc/tanstack-query": "catalog:",
     "@parcel/watcher": "2.6.0",
     "@tanstack/query-core": "^5.104.0",
-    "@trycua/cua-driver": "0.30.4",
+    "@trycua/cua-driver": "0.33.4",
     "@vscode/ripgrep": "^1.18.0",
     "@zkochan/cmd-shim": "^7.0.0",
     "arctic": "^3.6.0",

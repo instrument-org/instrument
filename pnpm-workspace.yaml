@@ -70,6 +70,16 @@ minimumReleaseAgeExclude:
   - "@orpc/server@1.15.2"
   - "@orpc/shared@1.15.2"
   - "@orpc/standard-server-aws-lambda@1.15.2"
+  # Computer Use spike: the driver SDK pinned ahead of the cutoff for its
+  # macOS window and element fixes. Exact versions, so every later Cua release
+  # still waits out the guard. Keep in step with download-cua-driver.ts.
+  - "@trycua/cua-driver@0.33.4"
+  - "@trycua/cua-driver-darwin-arm64@0.33.4"
+  - "@trycua/cua-driver-darwin-x64@0.33.4"
+  - "@trycua/cua-driver-linux-arm64-gnu@0.33.4"
+  - "@trycua/cua-driver-linux-x64-gnu@0.33.4"
+  - "@trycua/cua-driver-win32-arm64-msvc@0.33.4"
+  - "@trycua/cua-driver-win32-x64-msvc@0.33.4"
   - "@orpc/standard-server-fastify@1.15.2"
   - "@orpc/standard-server-fetch@1.15.2"
   - "@orpc/standard-server-node@1.15.2"

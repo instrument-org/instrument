@@ -407,7 +407,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         // without it came from elsewhere and would attach with whatever
         // webPreferences its attributes asked for. Reject it.
         log.warn(
-          `rejected webview attach (foreign partition) partition=${params.partition}`,
+          `rejected webview attach (foreign partition) partition=${params.partition ?? "none"}`,
         );
         event.preventDefault();
         return;

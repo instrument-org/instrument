@@ -47,7 +47,7 @@ export interface BrowserConfig {
    * every attempt a task makes to look at what it wrote dies on a protocol
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
-  hasNoWindow?: boolean;
+  hasNoWindow: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   /**
    * Whether ads and trackers are blocked in this task's tabs: off when the

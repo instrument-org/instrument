@@ -27,7 +27,7 @@ const BrowserStateSchema = z.object({
    * sites its work used: the pages themselves are too many to keep and too
    * many to draw, and a host is the mark a person recognizes.
    */
-  visitedHosts: z.array(z.string()).optional(),
+  visitedHosts: z.array(z.string()).default([]),
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;

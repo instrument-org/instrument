@@ -1204,6 +1204,9 @@ function seedFeedback() {
   }
 }
 
+/** 18% of 240, written as the user would accept it: 43.2 or 43.20. */
+const QUICK_ANSWER = /\b43\.20?(?!\d)/;
+
 /** The quick question, answered within 20 seconds of being asked. */
 const answeredTheQuickQuestion: Assertion = {
   check: ({ sessions, taskId }) => {
@@ -1215,16 +1218,29 @@ const answeredTheQuickQuestion: Assertion = {
         : fail(text, `answered after ${(waited / 1000).toFixed(1)}s`);
     }
     const asked = sentAt(sessions, "18% of 240");
-    return fail(
-      text,
-      asked === undefined
-        ? "the question was never sent"
-        : said(sessions).some(
-              (one) => one.at >= asked && /43\.2\b/.test(one.text),
-            )
-          ? "answered, but the time was not recorded"
-          : "never answered 43.2",
+    if (asked === undefined) {
+      return fail(text, "the question was never sent");
+    }
+    // No mark: a run scored before the pattern matched how it answered.
+    // The answering message's start is when its turn began, which for an
+    // answer in a turn of its own is within its generation time of the
+    // answer itself.
+    const answer = said(sessions).find(
+      (one) => one.at >= asked && QUICK_ANSWER.test(one.text),
     );
+    if (!answer) {
+      return fail(text, "never answered 43.2");
+    }
+    const waitedAbout = answer.at - asked;
+    return waitedAbout <= 20_000
+      ? pass(
+          text,
+          `about ${(waitedAbout / 1000).toFixed(1)}s, from message times`,
+        )
+      : fail(
+          text,
+          `answered after about ${(waitedAbout / 1000).toFixed(1)}s, from message times`,
+        );
   },
   text: "answered 18% of 240 (43.2) within 20 seconds of being asked",
 };
@@ -2162,7 +2178,7 @@ const SCENARIOS: Scenario[] = [
     followUps: [
       { afterMs: 10_000, prompt: "unrelated, quick: what's 18% of 240?" },
     ],
-    marks: [{ after: "18% of 240", match: /43\.2\b/, name: "quick answer" }],
+    marks: [{ after: "18% of 240", match: QUICK_ANSWER, name: "quick answer" }],
     prompt: `There are ${FEEDBACK_COUNT} customer feedback notes in this folder. Read each one and write a short personal reply to it, one file per note in a Replies folder inside this folder, named like the note (feedback-001.txt gets reply-001.txt). Mention the specific thing they wrote about.`,
     sent: [path.join(HOME, "Documents", "Feedback")],
     setup: seedFeedback,

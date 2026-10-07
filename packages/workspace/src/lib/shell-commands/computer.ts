@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { type CommandContext, defineCommand } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -9,8 +10,12 @@ import { type ComputerUseHost } from "../../types";
 import { filterShellOutput } from "../filter-shell-output";
 import { getCurrentDate } from "../get-current-date";
 import { getScreenshotsDir, taskDir } from "../task-dir-utils";
+import { readTaskRecord } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
-import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  resolveReadOnlyHostPath,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { resolveCommandContext } from "./utils";
 
@@ -72,6 +77,9 @@ export function createComputerCommand({
   layout: WorkspaceFsLayout;
   taskId: TaskId;
 }) {
+  // Resolved on the first call and kept for the shell's life: renaming the
+  // task midway must not start a second session and lose the index map.
+  let session: string | undefined;
   return defineCommand(COMPUTER_COMMAND.name, async (args, ctx) => {
     const host = getWorkspaceConfig().computerUse;
     if (!host?.isEnabled()) {
@@ -144,8 +152,10 @@ export function createComputerCommand({
 
     // One driver session per task, so element indices from one call stay
     // valid for the next and parallel tasks keep separate state. Starting
-    // returns the live one when it exists.
-    const session = `instrument-${taskId}`;
+    // returns the live one when it exists. Its name is what the agent cursor's
+    // badge shows the person, so it is the task's name, and the agent cannot
+    // pick another.
+    session ??= await sessionLabel(taskId);
     const started = await run([
       "call",
       "start_session",
@@ -154,11 +164,24 @@ export function createComputerCommand({
     if (started.exitCode !== 0) {
       return started;
     }
+    // The cursor otherwise appears only with the first click, after the agent
+    // has already been reading windows; showing it from the start says
+    // something is at work on the desktop.
+    await run([
+      "call",
+      "set_agent_cursor_enabled",
+      JSON.stringify({ enabled: true, session }),
+    ]);
 
+    const { session: _ignored, ...toolInput } = input.value;
     const driverArgs = [
       "call",
       subcommand,
-      JSON.stringify(input.value),
+      JSON.stringify(
+        subcommand === "launch_app"
+          ? withHostPaths(toolInput, layout, ctx)
+          : toolInput,
+      ),
       "--session",
       session,
     ];
@@ -303,6 +326,43 @@ function withoutMenuBar(tree: string) {
     kept.push(line);
   }
   return kept.join("\n");
+}
+
+/**
+ * The cursor badge's text: the app's name and the task's, short enough for a
+ * badge under a pointer.
+ */
+async function sessionLabel(taskId: TaskId) {
+  const name = (await readTaskRecord(taskDir(taskId))).settings?.name;
+  const label = name ? `${APP_NAME}: ${name}` : APP_NAME;
+  return label.length > 48 ? `${label.slice(0, 47).trimEnd()}…` : label;
+}
+
+/**
+ * `launch_app` opens the files in `urls` in the app it launches, which reads
+ * the real filesystem, so each sandbox path becomes the host path behind it.
+ * The read-only resolver reaches the task and the attached folders; a path no
+ * mount owns is passed through for the driver to refuse.
+ */
+function withHostPaths(
+  input: Record<string, unknown>,
+  layout: WorkspaceFsLayout,
+  ctx: CommandContext,
+) {
+  const urls = z.array(z.string()).safeParse(input.urls);
+  if (!urls.success) {
+    return input;
+  }
+  return {
+    ...input,
+    urls: urls.data.map((url) => {
+      if (url.includes("://")) {
+        return url;
+      }
+      const virtual = ctx.fs.resolvePath(ctx.cwd, url);
+      return resolveReadOnlyHostPath(layout, virtual) ?? url;
+    }),
+  };
 }
 
 async function createScreenshotPath(taskId: TaskId) {

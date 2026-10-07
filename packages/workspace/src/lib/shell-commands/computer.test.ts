@@ -8,6 +8,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { type ComputerUseHost } from "../../types";
 import { shellLayout } from "../create-bash-env";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createComputerCommand } from "./computer";
 
@@ -118,15 +119,39 @@ esac
     expect(result.stdout).toContain("not a tool here");
   });
 
-  it("runs the tool in the task's session on the private socket", async () => {
+  it("runs the tool in the task's own session, with the cursor shown, on the private socket", async () => {
     useHost();
-    const result = await run(["click", '{"pid":844,"element_index":3}']);
+    const result = await run([
+      "click",
+      '{"pid":844,"element_index":3,"session":"preview-edit"}',
+    ]);
     expect(result.exitCode).toBe(0);
     const calls = (await readFile(log, "utf8")).trim().split("\n");
-    expect(calls).toEqual([
-      `call start_session {"session":"instrument-${taskId}"} --socket /tmp/cua.sock`,
-      `call click {"pid":844,"element_index":3} --session instrument-${taskId} --socket /tmp/cua.sock`,
+    expect(calls).toMatchInlineSnapshot(`
+      [
+        "call start_session {"session":"Instrument"} --socket /tmp/cua.sock",
+        "call set_agent_cursor_enabled {"enabled":true,"session":"Instrument"} --socket /tmp/cua.sock",
+        "call click {"pid":844,"element_index":3} --session Instrument --socket /tmp/cua.sock",
+      ]
+    `);
+  });
+
+  it("hands launch_app the host path behind a sandbox path", async () => {
+    useHost();
+    await run([
+      "launch_app",
+      '{"bundle_id":"com.apple.Preview","urls":["work/shot.png","https://example.com"]}',
     ]);
+    const launch = (await readFile(log, "utf8"))
+      .trim()
+      .split("\n")
+      .find((call) => call.startsWith("call launch_app"));
+    expect(launch).toContain(
+      JSON.stringify([
+        path.join(taskDir(taskId), "work", "shot.png"),
+        "https://example.com",
+      ]),
+    );
   });
 
   it("trims a window snapshot to its markdown tree without the menu bar", async () => {

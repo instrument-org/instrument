@@ -76,7 +76,7 @@ overrides:
 patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  just-bash@3.4.1: 2b9ce38db7263ef7c15469afe259ca2fc7b744e0d812eaead5c11d880c5ee74d
+  just-bash@3.6.0: e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe
   micromark-extension-gfm-table@2.1.1: df69698554d58e36e0cb8741ec0b37585066f12ddd4396b11511eb2e3d2e9d8e
   sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
@@ -985,8 +985,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       just-bash:
-        specifier: ^3.4.1
-        version: 3.4.1(patch_hash=2b9ce38db7263ef7c15469afe259ca2fc7b744e0d812eaead5c11d880c5ee74d)(supports-color@10.1.0)
+        specifier: ^3.6.0
+        version: 3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0)
       lru-cache:
         specifier: ^11.5.2
         version: 11.5.2
@@ -2257,21 +2257,6 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
-
-  '@jitl/quickjs-ffi-types@0.32.0':
-    resolution: {integrity: sha512-v9T+GQpmk43VDJ7d72sf0Nexhk+ArvtUihW27dy7lqAl0zBObFKtSBBIm5RBjwIhE8VwsPPm9PNuvPvNqLWUEg==}
-
-  '@jitl/quickjs-wasmfile-debug-asyncify@0.32.0':
-    resolution: {integrity: sha512-EX8zbXwGqCgAE764M+qvkHtyXDi/FUoMBea0JnES7vCM3P7a2+EOZOjGv85wtZ2sJhI1oJ+nekmqpOODFDY+hw==}
-
-  '@jitl/quickjs-wasmfile-debug-sync@0.32.0':
-    resolution: {integrity: sha512-LeYWrPGC1uNCTBWvibo3ZLJj0CSVNYUXvJpXMCmuQ5Sap2cCACc3uvGvYV4homHHBAzfw5akoTqMMS4YFRtw+Q==}
-
-  '@jitl/quickjs-wasmfile-release-asyncify@0.32.0':
-    resolution: {integrity: sha512-3oSwPfja12ICz4aIblB58cuY8JlEq5Txt8Cut4VLo+LH47QN+mzCnSgnbB03hWzg1LBcc+VyyI9UOag7a1NF+Q==}
-
-  '@jitl/quickjs-wasmfile-release-sync@0.32.0':
-    resolution: {integrity: sha512-BKNDI/TPBfGlLNGYpLrhcDGXmIk4xHm4MRAisOBnOzpXVn9HZWsfmMAc9WMBrAHjvvds6HOikKeaOBKdPdpVrg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -6855,6 +6840,10 @@ packages:
     resolution: {integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
+  guarded-fetch@0.1.3:
+    resolution: {integrity: sha512-PSaNyJk8VJlUVEhMHPXT/Z/WgNrLBh43WaYQJiu1qvyCuPQA+kgFMNmAOxI3GU3uXrCkO/xRW11XjcswrksYOA==}
+    engines: {node: '>=20.19'}
+
   h3@1.15.3:
     resolution: {integrity: sha512-z6GknHqyX0h9aQaTx22VZDf6QyZn+0Nh+Ym8O/u0SGSkyF5cuTJYKlc8MkzW3Nzf9LE1ivcpmYC3FUGpywhuUQ==}
 
@@ -7067,6 +7056,10 @@ packages:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
 
+  ipaddr.js@2.2.0:
+    resolution: {integrity: sha512-Ag3wB2o37wslZS19hZqorUnrnzSkpOVy+IiiDEiTqNubEYpYuHWIf6K4psgN2ZWKExS4xhVCrRVfb/wfW8fWJA==}
+    engines: {node: '>= 10'}
+
   iron-webcrypto@1.2.1:
     resolution: {integrity: sha512-feOM6FaSr6rEABp/eDfVseKyTMDt+KGpeB35SkVn9Tyn0CqvVsY3EwI0v5i8nMHyJnzCIQf7nsy3p41TPkJZhg==}
 
@@ -7259,9 +7252,9 @@ packages:
     resolution: {integrity: sha512-wy8OTjwsJwQRnQJkKnMJJ9vcytRdBPAgIF/Hy6+s1dAj42BHMKiyL8JzEieIl3JY7idt8eyHwBWTO8mh/+mtwA==}
     hasBin: true
 
-  just-bash@3.4.1:
-    resolution: {integrity: sha512-OfrDvaJ+pDEaJQYeIri6Y36WncX+8nbfizGUHwj60MxuInYtQhfzDHRIhv3nw55ZoulXFOk9rdDb90HuydiX8w==}
-    engines: {node: '>=20.18.1'}
+  just-bash@3.6.0:
+    resolution: {integrity: sha512-2COjEgcHdqKXeQSiNfPAHmpwQx4S8wATaIwog83g2t645U5tom6FED4CBBdr3M+0ioX4xZ26eODw3/nD6RQ6xw==}
+    engines: {node: '>=20.19'}
     hasBin: true
 
   katex@0.16.47:
@@ -8506,13 +8499,6 @@ packages:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
     engines: {node: '>=10'}
 
-  quickjs-emscripten-core@0.32.0:
-    resolution: {integrity: sha512-QFnPfjFey8EqknSrSxe1hZrf1/8z7/6s1QzGOmKo6++02r7QRRX7ZoyNaZh7JuVjWsVW87KnQrbZqnHkOAzUyg==}
-
-  quickjs-emscripten@0.32.0:
-    resolution: {integrity: sha512-So0Sqw869y/S2oE3Nuc0uT3Dhqgvsj8FSrwBdsuTosVsG8ME5/OcudU1GxsrIFdFABgy17GHnTVO9TYV/bLQcA==}
-    engines: {node: '>=16.0.0'}
-
   radash@12.1.1:
     resolution: {integrity: sha512-h36JMxKRqrAxVD8201FrCpyeNuUY9Y5zZwujr20fFO77tpUtGa6EZzfKw/3WaiBX95fq7+MpsuMLNdSnORAwSA==}
     engines: {node: '>=14.18.0'}
@@ -8752,6 +8738,15 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
+  run@2.1.3:
+    resolution: {integrity: sha512-KUurW05zgjtZ2su0cBURC1q2RG/Uq0uzV3qURDsXqiKh03p9IXABQK4Qem56cFMqjT8TdQ2iTWsePrMprQWIRA==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      typescript: '>=5.1.6 <7'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   rw@1.3.3:
     resolution: {integrity: sha512-PdhdWy89SiZogBLaw42zdeqtRJ//zFd2PgQavcICDUgJT5oW10QCRKbJ6bg4r0/UY2M6BWd5tkxuGFRvCkgfHQ==}
 
@@ -8908,8 +8903,8 @@ packages:
     resolution: {integrity: sha512-bSiSngZ/jWeX93BqeIAbImyTbEihizcwNjFoRUIY/T1wWQsfsm2Vw1agPKylXvQTU7iASGdHhyqRlqQzfz+Htg==}
     engines: {node: '>=18'}
 
-  smol-toml@1.8.0:
-    resolution: {integrity: sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==}
+  smol-toml@1.9.0:
+    resolution: {integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==}
     engines: {node: '>= 18'}
 
   solid-js@1.9.15:
@@ -9302,6 +9297,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
 
@@ -9329,6 +9329,10 @@ packages:
   undici@6.28.0:
     resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
     engines: {node: '>=18.17'}
+
+  undici@7.29.0:
+    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+    engines: {node: '>=20.18.1'}
 
   undici@7.30.0:
     resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
@@ -11123,24 +11127,6 @@ snapshots:
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.3
-
-  '@jitl/quickjs-ffi-types@0.32.0': {}
-
-  '@jitl/quickjs-wasmfile-debug-asyncify@0.32.0':
-    dependencies:
-      '@jitl/quickjs-ffi-types': 0.32.0
-
-  '@jitl/quickjs-wasmfile-debug-sync@0.32.0':
-    dependencies:
-      '@jitl/quickjs-ffi-types': 0.32.0
-
-  '@jitl/quickjs-wasmfile-release-asyncify@0.32.0':
-    dependencies:
-      '@jitl/quickjs-ffi-types': 0.32.0
-
-  '@jitl/quickjs-wasmfile-release-sync@0.32.0':
-    dependencies:
-      '@jitl/quickjs-ffi-types': 0.32.0
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -15834,6 +15820,11 @@ snapshots:
   graphql@16.14.2:
     optional: true
 
+  guarded-fetch@0.1.3:
+    dependencies:
+      ipaddr.js: 2.2.0
+      undici: 7.29.0
+
   h3@1.15.3:
     dependencies:
       cookie-es: 1.2.2
@@ -16135,6 +16126,8 @@ snapshots:
 
   ipaddr.js@1.9.1: {}
 
+  ipaddr.js@2.2.0: {}
+
   iron-webcrypto@1.2.1: {}
 
   is-alphabetical@2.0.1: {}
@@ -16288,23 +16281,23 @@ snapshots:
 
   jsonrepair@3.15.0: {}
 
-  just-bash@3.4.1(patch_hash=2b9ce38db7263ef7c15469afe259ca2fc7b744e0d812eaead5c11d880c5ee74d)(supports-color@10.1.0):
+  just-bash@3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0):
     dependencies:
       diff: 8.0.4
       fast-xml-parser: 5.11.0
       file-type: 21.3.4(supports-color@10.1.0)
+      guarded-fetch: 0.1.3
       ini: 6.0.0
-      minimatch: 10.2.6
       modern-tar: 0.7.7
       papaparse: 5.6.0
-      quickjs-emscripten: 0.32.0
       re2js: 1.3.3
+      run: 2.1.3(typescript@5.9.3)
       seek-bzip: 2.0.0
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       sprintf-js: 1.1.3
       sql.js: 1.14.1
       turndown: 7.2.4
-      undici: 7.30.0
+      typescript: 5.9.3
       yaml: 2.9.0
     transitivePeerDependencies:
       - supports-color
@@ -16334,7 +16327,7 @@ snapshots:
       oxc-parser: 0.137.0
       oxc-resolver: 11.21.3
       picomatch: 4.0.7
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
       strip-json-comments: 5.0.3
       tinyglobby: 0.2.17
       unbash: 4.0.11
@@ -17715,18 +17708,6 @@ snapshots:
 
   quick-lru@5.1.1: {}
 
-  quickjs-emscripten-core@0.32.0:
-    dependencies:
-      '@jitl/quickjs-ffi-types': 0.32.0
-
-  quickjs-emscripten@0.32.0:
-    dependencies:
-      '@jitl/quickjs-wasmfile-debug-asyncify': 0.32.0
-      '@jitl/quickjs-wasmfile-debug-sync': 0.32.0
-      '@jitl/quickjs-wasmfile-release-asyncify': 0.32.0
-      '@jitl/quickjs-wasmfile-release-sync': 0.32.0
-      quickjs-emscripten-core: 0.32.0
-
   radash@12.1.1: {}
 
   radashi@12.6.0: {}
@@ -18088,6 +18069,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  run@2.1.3(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   rw@1.3.3: {}
 
   safe-buffer@5.1.2: {}
@@ -18260,7 +18245,7 @@ snapshots:
       ansi-styles: 6.2.1
       is-fullwidth-code-point: 5.0.0
 
-  smol-toml@1.8.0: {}
+  smol-toml@1.9.0: {}
 
   solid-js@1.9.15:
     dependencies:
@@ -18665,6 +18650,8 @@ snapshots:
 
   typescript@5.9.2: {}
 
+  typescript@5.9.3: {}
+
   ufo@1.6.1: {}
 
   uint8array-extras@1.4.0: {}
@@ -18685,6 +18672,8 @@ snapshots:
   undici-types@7.18.2: {}
 
   undici@6.28.0: {}
+
+  undici@7.29.0: {}
 
   undici@7.30.0: {}
 

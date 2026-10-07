@@ -1,6 +1,6 @@
 import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
-import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
+import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
@@ -80,7 +80,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 /**
- * The task's in-app browser, hosted in the artifact panel. The guest `<webview>`
+ * A page of the in-app browser, hosted in the artifact panel. The guest `<webview>`
  * lives in the body-mounted pool; {@link useBrowserSlot} measures a slot and
  * tells the pool to show the guest over it while the panel is visible, plus
  * navigation controls and an overflow menu (zoom, open externally, copy URL).
@@ -89,7 +89,7 @@ import { toast } from "sonner";
  * While the guest is being created or after it's reaped, `active` is false and
  * we show a status body.
  */
-export function TaskBrowserPanel({
+export function BrowserPanel({
   active,
   chrome = true,
   className,

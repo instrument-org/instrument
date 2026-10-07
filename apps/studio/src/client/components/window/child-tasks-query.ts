@@ -49,31 +49,6 @@ export function taskRecordOptions(id: TaskId) {
   });
 }
 
-/**
- * The chat each task was filed in, for the tasks named: a task filed in no
- * chat, or one that is gone, is in the map with none. A task not in it is
- * one not read yet.
- */
-export function useTaskChats(
-  ids: readonly TaskId[],
-): ReadonlyMap<TaskId, ChatId | undefined> {
-  const records = useQueries({
-    queries: ids.map((id) => ({ ...taskRecordOptions(id), retry: false })),
-  });
-  const known = new Map<TaskId, ChatId | undefined>();
-  ids.forEach((id, index) => {
-    const record = records[index];
-    if (record?.isError) {
-      known.set(id, undefined);
-      return;
-    }
-    if (record?.data) {
-      known.set(id, record.data.chatId);
-    }
-  });
-  return known;
-}
-
 /** Each task's title, kept current, for the tasks named. */
 export function useTaskTitlesOf(ids: readonly TaskId[]): Map<TaskId, string> {
   return useQueries({

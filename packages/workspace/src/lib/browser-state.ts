@@ -20,14 +20,6 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const BLANK_PAGE_URL = "about:blank";
 
 const BrowserStateSchema = z.object({
-  // Set when the lifecycle machine reaped this session's browser, cleared once
-  // a user message has carried the fact to the model. A reap is invisible from
-  // anything the model can observe -- the tab it was driving is simply not the
-  // one it left -- so the fact has to be recorded where the next turn can find
-  // it rather than inferred from whatever target happens to exist by then.
-  closedAt: z.date().optional(),
-  lastTitle: z.string().optional(),
-  lastUrl: z.string().optional(),
   lastUsedAt: z.date(),
   /**
    * The hosts this session's browser has been on, oldest first, each once,
@@ -35,7 +27,7 @@ const BrowserStateSchema = z.object({
    * sites its work used: the pages themselves are too many to keep and too
    * many to draw, and a host is the mark a person recognizes.
    */
-  visitedHosts: z.array(z.string()).optional(),
+  visitedHosts: z.array(z.string()).default([]),
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;
@@ -106,93 +98,10 @@ export function navigateTarget({
   });
 }
 
-/** Note that this session's browser was torn down, for the next turn to report. */
-export function recordBrowserClosed({
-  sessionId,
-  taskId,
-}: {
-  sessionId: StoreId.Session;
-  taskId: TaskId;
-}) {
-  return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
-    const current = yield* getBrowserState(taskId, sessionId);
-    // Nothing was ever loaded here, so there is nothing the model needs to hear
-    // about and nothing for a reopened tab to restore.
-    if (!current?.lastUrl) {
-      return ok(undefined);
-    }
-    yield* setParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      { ...current, closedAt: new Date() },
-      BrowserStateSchema,
-      storage,
-    );
-    return ok(undefined);
-  });
-}
-
-export function recordBrowserUse({
-  sessionId,
-  signal,
-  taskId,
-  title,
-  url,
-}: {
-  sessionId: StoreId.Session;
-  signal?: AbortSignal;
-  taskId: TaskId;
-  title?: string;
-  url?: string;
-}) {
-  return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
-    const current = yield* getBrowserState(taskId, sessionId, { signal });
-    // A blank page is not a page anyone was on, so it never becomes the page a
-    // reopened tab restores or the one a teardown notice names. Recording it
-    // would also erase the real page still sitting in `lastUrl`, which is the
-    // one worth keeping: every command that opens a target for a task that
-    // needs no page at all passes through here.
-    const nextUrl = url === BLANK_PAGE_URL ? undefined : url;
-    // A page the browser did not have before, which decides what becomes of
-    // the title.
-    const isNewPage = nextUrl !== undefined && nextUrl !== current?.lastUrl;
-    const state: BrowserState = {
-      ...current,
-      ...(nextUrl
-        ? {
-            // A title belongs to the page it was read from: arriving somewhere
-            // new drops the one the last page had, and naming the page already
-            // recorded keeps it. Only some of the traffic through here carries a
-            // title at all -- `show <url>` carries none -- so a command that
-            // reveals the page the session is already on would otherwise throw
-            // that page's own title away.
-            lastTitle: isNewPage ? title : (title ?? current?.lastTitle),
-            lastUrl: nextUrl,
-          }
-        : {}),
-      lastUsedAt: new Date(),
-      ...(isNewPage
-        ? { visitedHosts: withVisit(current?.visitedHosts, nextUrl) }
-        : {}),
-    };
-    yield* setParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      state,
-      BrowserStateSchema,
-      storage,
-      { signal },
-    );
-
-    return ok(undefined);
-  });
-}
-
 /**
- * Add the hosts of pages a session's work is on to what it has visited,
- * without the rest of {@link recordBrowserUse}: a chat's task works in tabs
- * of the chat, opened behind whatever the user has up, so the page it lands
- * on is not this session's to record.
+ * Add the hosts of pages a session's work is on to what it has visited: a
+ * chat's task works in tabs of the chat, opened behind whatever the user has
+ * up, so the hosts are what is the session's to record.
  */
 export function recordVisitedHosts({
   sessionId,
@@ -235,39 +144,27 @@ export function recordVisitedHosts({
 }
 
 /**
- * Put a freshly opened tab back on the page its session was last on, or, for
- * a session that never recorded one, on the page the caller remembers the tab
- * at (a window tab the person browsed in, which no agent command recorded).
+ * Put a freshly opened window tab back on the page the window remembers it
+ * at, which the window keeps for a tab the person browsed in.
  *
  * Only ever acts on a blank target, so it cannot disturb a live page: this runs
  * on every panel mount, and most of those find a browser that was never reaped
- * and is sitting on the page the user left. The alternative is that coming back
- * to a task whose browser aged out shows a blank tab and loses the page without
- * ever saying so.
+ * and is sitting on the page the user left.
  */
 export function restoreLastPage({
   fallbackUrl,
-  sessionId,
   targetId,
   taskId,
 }: {
-  /** Where the tab goes when its session recorded no page. */
+  /** Where the tab goes. */
   fallbackUrl?: string;
-  sessionId: StoreId.Session;
   targetId: BrowserTargetId;
   taskId: TaskId;
 }) {
   return safeTry(async function* () {
-    const current = yield* getBrowserState(taskId, sessionId);
-    const recorded =
-      current?.lastUrl && current.lastUrl !== BLANK_PAGE_URL
-        ? current.lastUrl
-        : undefined;
-    const url = recorded ?? fallbackUrl;
-    if (!url || url === BLANK_PAGE_URL) {
+    if (!fallbackUrl || fallbackUrl === BLANK_PAGE_URL) {
       return ok(undefined);
     }
-
     // The browser calls throw rather than returning a Result, and safeTry only
     // catches what it is yielded, so an unreachable guest would otherwise take
     // the whole open with it.
@@ -278,40 +175,13 @@ export function restoreLastPage({
       if (!target || target.url !== BLANK_PAGE_URL) {
         return ok(undefined);
       }
-      await browser.sendCommand(targetId, "Page.navigate", { url });
+      await browser.sendCommand(targetId, "Page.navigate", {
+        url: fallbackUrl,
+      });
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
     return ok(undefined);
-  });
-}
-
-/**
- * Consume the pending teardown notice, if there is one.
- *
- * Reporting clears it, so a reap is announced to the model exactly once rather
- * than heading every message until the browser happens to be used again.
- */
-export function takeBrowserClosed(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-  { signal }: { signal?: AbortSignal } = {},
-) {
-  return safeTry<BrowserState | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
-    const current = yield* getBrowserState(taskId, sessionId, { signal });
-    if (!current?.closedAt) {
-      return ok(undefined);
-    }
-    const { closedAt: _closedAt, ...cleared } = current;
-    yield* setParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      cleared,
-      BrowserStateSchema,
-      storage,
-      { signal },
-    );
-    return ok(current);
   });
 }
 

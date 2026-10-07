@@ -775,6 +775,35 @@ function isDue(registration: Registration | undefined): boolean {
   );
 }
 
+/** The longest a request waits on a refresh before going out without it. */
+const EXPIRED_REFRESH_WAIT_MS = 10 * 1000;
+
+/**
+ * Replace every access token that has already expired, and wait for it. A
+ * launch after the app was closed for over an hour finds every token expired
+ * and the refresh timers not yet fired, so a request read from the configs
+ * right away would carry a token the API refuses.
+ */
+export async function refreshExpiredTokens(): Promise<void> {
+  await Promise.all(
+    registrations()
+      .filter(
+        (registration) =>
+          registration.refreshToken &&
+          (registration.expiresAt ?? 0) <= Date.now(),
+      )
+      .map(async (registration) => {
+        const grant = grantOf(registration.id);
+        grant.send({ type: "refreshDue" });
+        await waitFor(
+          grant,
+          (snapshot) => !snapshot.matches({ active: "refreshing" }),
+          { timeout: EXPIRED_REFRESH_WAIT_MS },
+        ).catch(noop);
+      }),
+  );
+}
+
 /** Keep every account's token fresh; call once at startup. */
 export function scheduleRefresh(): void {
   for (const registration of registrations()) {

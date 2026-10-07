@@ -364,6 +364,11 @@ async function onSessionDone(
   if (stoppedByChat.delete(id)) {
     return;
   }
+  // A chat nobody has written in has no conversation to report to: the eval
+  // harness runs a task case in one (`evals/lib/start-run.ts`).
+  if (!(await getTaskState(taskDir(chatId))).selectedModelURI) {
+    return;
+  }
 
   const usage = await getTaskUsageSummary(id);
   // Read as the turn ends rather than at delivery, a debounce later: a process

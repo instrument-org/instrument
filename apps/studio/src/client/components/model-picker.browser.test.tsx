@@ -199,7 +199,7 @@ describe("ModelPicker in a browser", () => {
     await openPicker(olderSonnet, { notice, onAction });
 
     await userEvent.click(
-      page.getByRole("button", { name: "Switch to Claude Sonnet 5.5" }),
+      page.getByRole("button", { name: "Switch", exact: true }),
     );
     expect(onAction).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "switch", model: sonnet }),

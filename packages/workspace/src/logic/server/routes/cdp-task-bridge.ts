@@ -58,9 +58,8 @@ interface Held {
  * it, since that tab is the user's. Nothing here ever selects a tab in the
  * window: switching tabs is the agent's business alone.
  *
- * Each attached tab is a `TargetSession`, the same wiring the page endpoint
- * gives its one page, so the local-file gate, the held navigate, and the
- * teardown hold per tab.
+ * Each attached tab is a `TargetSession` (`cdp-bridge.ts`), so the
+ * local-file gate, the held navigate, and the teardown hold per tab.
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
@@ -86,10 +85,10 @@ export function handleTaskCdpClient(
       clientWs.send(JSON.stringify(payload));
     }
   };
-  const answer = (id: number | undefined, result: unknown) => {
+  const answer = (id: number, result: unknown) => {
     send({ id, result });
   };
-  const refuse = (id: number | undefined, message: string) => {
+  const refuse = (id: number, message: string) => {
     send({ error: { code: -32_000, message }, id });
   };
   /** A browser-level event, which carries no session. */
@@ -255,7 +254,7 @@ export function handleTaskCdpClient(
     });
   };
 
-  const createTarget = async (id: number | undefined, params: unknown) => {
+  const createTarget = async (id: number, params: unknown) => {
     const url = (params as undefined | { url?: unknown })?.url;
     const address =
       typeof url === "string" && url !== "about:blank" ? url : undefined;
@@ -308,7 +307,7 @@ export function handleTaskCdpClient(
     } satisfies Protocol.Target.CreateTargetResponse);
   };
 
-  const closeTarget = async (id: number | undefined, params: unknown) => {
+  const closeTarget = async (id: number, params: unknown) => {
     const tabId = (params as undefined | { targetId?: unknown })?.targetId;
     const tabs = await held();
     const tab = tabs.find((entry) => entry.tabId === tabId);
@@ -390,7 +389,7 @@ export function handleTaskCdpClient(
         break;
       }
     }
-    if (typeof method === "string" && method.startsWith("Target.")) {
+    if (method.startsWith("Target.")) {
       send({ error: { code: -32_601, message: "Method not found" }, id });
       return;
     }
@@ -407,11 +406,20 @@ export function handleTaskCdpClient(
       answer(id, {});
       return;
     }
+    // A page's own command arrives on its session, behind that page's file
+    // gate and teardown. Sent here with none, it would reach a tab with
+    // neither, so only the Browser domain is taken here; agent-browser's
+    // provider connection is never a direct page, so it sends nothing else
+    // without a session.
+    if (!method.startsWith("Browser.")) {
+      send({ error: { code: -32_601, message: "Method not found" }, id });
+      return;
+    }
     // Anything else asked of the browser as a whole (its version, the window
     // a tab is in) is answered by a tab it holds, the one it names first.
     const named = (params as undefined | { targetId?: unknown })?.targetId;
     const tab = now.find((entry) => entry.tabId === named) ?? now[0];
-    if (!tab || typeof method !== "string") {
+    if (!tab) {
       refuse(id, "This task has no tab open.");
       return;
     }
@@ -435,6 +443,20 @@ export function handleTaskCdpClient(
           (entry) => entry.sessionId === message.sessionId,
         )
       : undefined;
+    // The Target domain is answered here over the tabs the task holds,
+    // whichever session it arrives on: forwarded on a tab's session it would
+    // reach a debugger that sees every Electron target, the app window among
+    // them.
+    if (
+      message.sessionId &&
+      message.method.startsWith("Target.") &&
+      message.method !== "Target.setAutoAttach"
+    ) {
+      queue = queue
+        .then(() => handleBrowserCommand(message))
+        .catch(workspaceConfig.captureException);
+      return;
+    }
     if (message.sessionId) {
       if (!session) {
         refuse(message.id, `No session ${message.sessionId}`);

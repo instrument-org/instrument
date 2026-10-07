@@ -2,7 +2,7 @@
 
 **Status:** fixed in cb4a6b2f3, checked 2026-10-02; the passkey paragraph at the end is overtaken, since `app.configureWebAuthn` is now called (`web-authn.ts`, b0be0007f). Measured 2026-09-04 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against `accounts.google.com`. The fix is in `apps/studio/src/electron-main/lib/user-agent.ts`.
 
-A user opened YouTube Music in the task browser, entered their Google address, and got **"Couldn't sign you in — This browser or app may not be secure"** at `accounts.google.com/v3/signin/rejected`. The obvious reading is that Google detected an embedded browser and that our disguise was not good enough. It is the wrong way round: the disguise was the reason. A UA carrying no product token at all — the exact string [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md) and [task-browser-self-report](task-browser-self-report.md) worked to make coherent — is what Google refuses. Any honest product token clears it.
+A user opened YouTube Music in the in-app browser, entered their Google address, and got **"Couldn't sign you in — This browser or app may not be secure"** at `accounts.google.com/v3/signin/rejected`. The obvious reading is that Google detected an embedded browser and that our disguise was not good enough. It is the wrong way round: the disguise was the reason. A UA carrying no product token at all — the exact string [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md) and [in-app-browser-self-report](in-app-browser-self-report.md) worked to make coherent — is what Google refuses. Any honest product token clears it.
 
 ## What was measured
 
@@ -30,7 +30,7 @@ Ten rejections without a product token, twelve passes with one, across three ide
 
 ## Why, as far as this goes
 
-Not established, and worth stating as inference. The runtime fails checks a real Chrome passes — `window.chrome` is a hollow object here and absent inside an iframe, per [task-browser-self-report](task-browser-self-report.md) — so a UA claiming to be stock Chrome makes a claim the page can check and disprove. An honest product token makes no such claim, and Google evidently does not object to Chromium-derived desktop browsers as a class. That reading fits every cell above, but the mechanism was not observed; only the outcome was.
+Not established, and worth stating as inference. The runtime fails checks a real Chrome passes — `window.chrome` is a hollow object here and absent inside an iframe, per [in-app-browser-self-report](in-app-browser-self-report.md) — so a UA claiming to be stock Chrome makes a claim the page can check and disprove. An honest product token makes no such claim, and Google evidently does not object to Chromium-derived desktop browsers as a class. That reading fits every cell above, but the mechanism was not observed; only the outcome was.
 
 What does not survive is the folklore this code was written against: that stripping the `Electron` token is how you get past Google's embedded-browser block. Here it is what causes it.
 

@@ -47,13 +47,13 @@ Grouped by area; status is the short form of each file's own line.
 | Finding | Status |
 | --- | --- |
 | [An entitlement that signs, notarizes, and will not launch](an-entitlement-that-notarizes-and-will-not-launch.md) — team-scoped entitlements need an embedded provisioning profile; every gate passes and launchd still refuses | resolved, entitlement re-landed |
-| [What refuses the task browser](what-refuses-the-task-browser.md) — the standing register: identity, escalation ladder, and where each known refusal stands | standing |
+| [What refuses the in-app browser](what-refuses-the-in-app-browser.md) — the standing register: identity, escalation ladder, and where each known refusal stands | standing |
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
 | [Agent clicks land where the element was](agent-clicks-land-where-the-element-was.md) | worked around, open upstream |
 | [`open` returned before the page had loaded](open-returns-before-the-page-loads.md) — the bridge answered `Page.navigate` on commit, so `open` returned onto a document still parsing | fixed, measured |
-| [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) | contained |
+| [App reload destroys every in-app browser page](app-reload-destroys-the-in-app-browser.md) | contained |
 | [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md) — the open is denied before a tab exists, so nothing happens and nothing says so | fixed; real tabs for the person |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by focus reclaim |
 | [The guest's raster surface is capped at 1.3x the viewport](browser-guest-raster-cap.md) — Blink's compositing rect; past it captures crop invisibly | open, traced to source |
@@ -65,7 +65,7 @@ Grouped by area; status is the short form of each file's own line.
 | [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
 | [A bare Chrome identity is what Google refuses](a-bare-chrome-identity-is-what-google-refuses.md) — the token strip meant to make the browser look ordinary is what got it blocked | fixed |
 | [The client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md) — Electron emits none, so the header identity is entirely what we write | brand mismatch fixed |
-| [What the task browser reports about itself](task-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed |
+| [What the in-app browser reports about itself](in-app-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed |
 
 ### Renderer and layout
 
@@ -110,6 +110,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured; superseded in part |
 | [Reasoning effort was never connected](reasoning-effort-was-never-connected.md) | fixed |
 | [Which Workers AI models can run the product](which-workers-ai-models-can-run-the-product.md) | measured |
+| [Apple's Foundation Models cannot run the product](apple-foundation-models-cannot-run-the-product.md): the on-device model passed 9 of 24 small agent tasks; the cloud model sits behind an entitlement | closed, on-device measured |
 | [Non-Anthropic models get no cache breakpoints](non-anthropic-models-get-no-cache-breakpoints.md) | resolved, no change |
 | [A reply that arrives twice](a-reply-that-arrives-twice.md) — a GPT-5 `commentary` and `final_answer` with the same words, flattened by OpenRouter's chat bridge; what proved it and what the Responses route needed | fixed |
 

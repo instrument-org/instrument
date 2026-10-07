@@ -111,34 +111,25 @@ describe("chat folder names", () => {
 });
 
 describe("record folders", () => {
-  it("puts a chat under chats/, its tasks inside it, and other tasks under tasks/", async () => {
+  it("puts a chat under chats/ and its tasks inside it", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
     const child = await make("2026-09-24-transcribe-the-recording", chat);
-    const loose = await make("2026-08-07-dinner-near-broadway");
 
-    expect([chat, child, loose].map((id) => relative(taskDir(id))))
+    expect([chat, child].map((id) => relative(taskDir(id))))
       .toMatchInlineSnapshot(`
         [
           "chats/2026-09-24-transcribe-a-note",
           "chats/2026-09-24-transcribe-a-note/tasks/2026-09-24-transcribe-the-recording",
-          "tasks/2026-08-07-dinner-near-broadway",
         ]
       `);
     expect(chatOfSession(SESSION)).toBe(chat);
     expect(sessionOfChat(chat)).toBe(SESSION);
-    expect([resolveChat(chat), resolveChat(child), resolveChat(loose)]).toEqual(
-      [chat, undefined, undefined],
-    );
-    const { tasks } = await getTasks(getWorkspaceConfig());
+    expect([resolveChat(chat), resolveChat(child)]).toEqual([chat, undefined]);
+    const { tasks } = await getTasks();
     expect(
       tasks.map((task) => [task.id, task.isChat, task.chatId ?? null]).sort(),
     ).toMatchInlineSnapshot(`
       [
-        [
-          "2026-08-07-dinner-near-broadway",
-          false,
-          null,
-        ],
         [
           "2026-09-24-transcribe-a-note",
           true,
@@ -151,18 +142,26 @@ describe("record folders", () => {
         ],
       ]
     `);
-    expect([owningChat(child), owningChat(chat), owningChat(loose)]).toEqual([
-      chat,
-      undefined,
-      undefined,
-    ]);
-    expect([chatOf(child), chatOf(chat), chatOf(loose)]).toEqual([
-      chat,
-      chat,
-      undefined,
-    ]);
+    expect([owningChat(child), owningChat(chat)]).toEqual([chat, undefined]);
+    expect([chatOf(child), chatOf(chat)]).toEqual([chat, chat]);
     expect(relative(taskDir(WINDOW_ID))).toBe(".instrument/window");
     expect(recordIdTaken(WINDOW_ID)).toBe(true);
+  });
+
+  it("makes no task without the chat that starts it", async () => {
+    const made = await initializeTask(
+      {
+        initialSettings: { name: "loose" },
+        taskId: TaskIdSchema.parse("2026-08-07-dinner-near-broadway"),
+        workspaceConfig: getWorkspaceConfig(),
+      },
+      {},
+    );
+
+    expect(made.isErr() && made.error.message).toBe(
+      "Task 2026-08-07-dinner-near-broadway has no chat to start it.",
+    );
+    await expect(fs.readdir(path.join(rootDir, "tasks"))).rejects.toThrow();
   });
 
   it("finds chats and their tasks from disk in a fresh process", async () => {
@@ -176,7 +175,7 @@ describe("record folders", () => {
     expect(chatOfSession(SESSION)).toBe(chat);
   });
 
-  it("keeps ids unique across chats, their tasks, and the flat tasks", async () => {
+  it("keeps ids unique across chats and their tasks", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
     await make("taken", chat);
 
@@ -220,14 +219,12 @@ describe("resolveRecord", () => {
   it("says what each record is, and which chat holds a task", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
     const child = await make("2026-09-24-transcribe-the-recording", chat);
-    const loose = await make("2026-08-07-dinner-near-broadway");
 
     expect(
-      [chat, child, loose].map((id) => resolveRecord(id)._unsafeUnwrap()),
+      [chat, child].map((id) => resolveRecord(id)._unsafeUnwrap()),
     ).toEqual([
       { id: chat, kind: "chat" },
       { chatId: chat, id: child, kind: "task" },
-      { id: loose, kind: "task" },
     ]);
   });
 
@@ -248,7 +245,7 @@ describe("resolveRecord", () => {
     ).toThrow("No record has the id 2026-09-24-never-made.");
   });
 
-  it("finds a record made on disk behind the index", async () => {
+  it("finds a chat made on disk behind the index, and no task flat under tasks/", async () => {
     await makeChat("2026-09-24-a-chat");
     // The index has been read; these folders appear after it.
     await fs.mkdir(path.join(rootDir, "tasks", "made-elsewhere"), {
@@ -271,10 +268,7 @@ describe("resolveRecord", () => {
       JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
     );
 
-    expect(resolveRecord("made-elsewhere")._unsafeUnwrap()).toEqual({
-      id: "made-elsewhere",
-      kind: "task",
-    });
+    expect(resolveRecord("made-elsewhere").isErr()).toBe(true);
     expect(resolveRecord("2026-09-25-other")._unsafeUnwrap()).toEqual({
       id: "2026-09-25-other",
       kind: "chat",

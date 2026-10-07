@@ -97,9 +97,11 @@ describe("js-exec inside the sandbox", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Result too large");
     expect(result.stderr).toContain(
-      "js-exec: js-exec reads a file whole through an 8 MB bridge",
+      "File exceeds JavaScript bridge read limit",
+    );
+    expect(result.stderr).toContain(
+      "js-exec: js-exec reads a file whole through a bridge that carries at most",
     );
   });
 });
@@ -377,9 +379,52 @@ describe("js-exec gives its Node shims Node's shapes", () => {
     );
     const result = await run("js-exec work/fail.js");
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe(
-      "at /task/work/fail.js:2:17: EROFS: read-only file system, open '/mnt/Docs/x.txt'\n",
+    // The column is the runtime's own reckoning; the line is the agent's.
+    expect(result.stderr).toMatch(
+      /^at \/task\/work\/fail\.js:2:\d+: EROFS: read-only file system, open '\/mnt\/Docs\/x\.txt'\n$/,
     );
+  });
+
+  it.each([
+    [
+      "a missing module",
+      "require('nope-pkg');",
+      "Cannot find module 'nope-pkg'",
+    ],
+    [
+      "a failed execSync",
+      "require('child_process').execSync('false');",
+      "Command failed: false",
+    ],
+  ])("reports %s at the script's own line", async (_name, line, message) => {
+    await fs.writeFile(
+      path.join(taskRoot, "work", "fail.js"),
+      `const x = 1;\n${line}\n`,
+    );
+    const result = await run("js-exec work/fail.js");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/^at \/task\/work\/fail\.js:2:\d+: /);
+    expect(result.stderr).toContain(message);
+    expect(result.stderr).not.toContain("bootstrap");
+  });
+
+  it("lets a script declare fs, path, module, and exports at its top level", async () => {
+    await fs.writeFile(
+      path.join(taskRoot, "work", "shadow.js"),
+      `const fs = require("fs");\nconst path = require("path");\nconst module = { name: "mine" };\nlet exports = 1;\nconsole.log(fs.readdirSync(path.join("/mnt/Docs", "sub")).length, module.name, exports);\n`,
+    );
+    expect(await run("js-exec work/shadow.js")).toMatchObject({
+      exitCode: 0,
+      stderr: "",
+      stdout: "2 mine 1\n",
+    });
+  });
+
+  it("prints a Stats without its internal fields", async () => {
+    const result = await run(
+      `js-exec -e 'console.log(Object.keys(fs.statSync("/mnt/Docs/readme.txt")).filter((k) => k.startsWith("_")).length, JSON.stringify(fs.statSync("/mnt/Docs/readme.txt")).includes("_kind"))'`,
+    );
+    expect(result).toMatchObject({ exitCode: 0, stdout: "0 false\n" });
   });
 
   it("writes process.stdout and process.stderr, a line at a time", async () => {
@@ -409,7 +454,7 @@ describe("js-exec explains the runtime's own limits", () => {
     );
     const result = await run("js-exec work/p.mjs");
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Cannot find module 'fs/promises'");
+    expect(result.stderr).toContain("fs/promises");
     expect(result.stderr).toContain(
       "js-exec: 'fs/promises' is a subpath of a built-in module, and js-exec loads only the module itself: `import fs from 'node:fs'` and reach it from there (fs/promises is fs.promises, path/posix is path.posix).",
     );

@@ -109,7 +109,7 @@ export function SubscriptionCard() {
 
         <div className="space-y-1">
           <p className="text-sm font-semibold">
-            You&apos;ve enjoyed all of your free AI usage
+            You&apos;ve used all of your free AI usage
           </p>
           <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
             <p>

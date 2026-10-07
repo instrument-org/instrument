@@ -13,9 +13,10 @@
  * block a no-op rather than a conflict. See
  * `docs/architecture/just-bash-upstream.md` for what each block waits on.
  *
- * Runs as a script in the shared realm, so everything stays inside the IIFE:
- * a top-level `const fs` here would collide with the same declaration in the
- * agent's script.
+ * The runtime runs it after its own Node shims, in the same function body as
+ * the agent's script or as a module the agent's module imports first, so
+ * everything stays inside the IIFE: a top-level `const fs` here would collide
+ * with the same declaration in the agent's code.
  */
 export const JS_EXEC_BOOTSTRAP = `(function () {
   "use strict";
@@ -81,18 +82,16 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
     ENOSPC: -28, ENOTDIR: -20, ENOTEMPTY: -39, EPERM: -1, EROFS: -30, EXDEV: -18,
   };
   var ERRNO_MESSAGE = /^(E[A-Z0-9]+): (.*?)(?:, [a-z]+ '.*')?$/;
-  // An uncaught error is reported at its innermost frame, which the shims
-  // here, the runtime's own, and the apply() between them would otherwise be.
-  var SHIM_FRAME = /\\((?:bootstrap\\.js|<compat>):\\d+|\\(native\\)/;
   function describe(error, syscall, target, dest) {
     if (!(error instanceof Error)) return error;
-    if (typeof error.stack === "string") {
-      error.stack = error.stack.split("\\n").filter(function (line) { return !SHIM_FRAME.test(line); }).join("\\n");
-    }
     if (typeof error.code === "string") return error;
     var match = ERRNO_MESSAGE.exec(error.message);
     if (match === null) return error;
-    error.code = match[1];
+    // A getter rather than a value: the runtime takes a value it finds on an
+    // uncaught error's own \`code\` for its own failure code, and then reports
+    // the agent's error as a host failure, unlocated, with its path redacted.
+    var code = match[1];
+    Object.defineProperty(error, "code", { configurable: true, enumerable: true, get: function () { return code; }, set: function (value) { code = value; } });
     if (match[1] in ERRNO) error.errno = ERRNO[match[1]];
     error.syscall = syscall;
     error.path = String(target);
@@ -270,8 +269,6 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
   }
 
   // --- console ---
-  if (typeof console.info !== "function") console.info = console.log;
-  if (typeof console.debug !== "function") console.debug = console.log;
   if (typeof console.dir !== "function") console.dir = function (value) { console.log(value); };
   if (typeof console.trace !== "function") console.trace = console.error;
 
@@ -290,6 +287,39 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
       return input === undefined ? "" : Buffer.from(input).toString(this.encoding === "utf-8" ? "utf8" : this.encoding);
     };
     globalThis.TextDecoder = TextDecoder;
+  }
+
+  // --- stack traces ---
+  // An uncaught error is located at its innermost frame. For an fs error,
+  // a missing module, or a failed execSync, that frame is in the runtime's
+  // Node shims or in this bootstrap, which run in the same file ahead of the
+  // agent's code, so the runtime reports it as a bootstrap error rather than
+  // at the agent's line. Leave every frame up to this point in that file, and
+  // the native apply() between the shims, out of every stack. Last, so the
+  // range covers everything above.
+  if (typeof Error.prepareStackTrace !== "function") {
+    var here = (function () {
+      Error.prepareStackTrace = function (_error, callsites) { return callsites[0]; };
+      try {
+        return new Error().stack;
+      } finally {
+        Error.prepareStackTrace = undefined;
+      }
+    })();
+    if (here !== null && typeof here === "object" && typeof here.getFileName === "function") {
+      var shimFile = here.getFileName();
+      var shimEnd = here.getLineNumber();
+      Error.prepareStackTrace = function (_error, callsites) {
+        var lines = [];
+        for (var f = 0; f < callsites.length; f++) {
+          var site = callsites[f];
+          if (site.isNative()) continue;
+          if (site.getFileName() === shimFile && site.getLineNumber() <= shimEnd) continue;
+          lines.push("    at " + (site.getFunctionName() || "<anonymous>") + " (" + site.getFileName() + ":" + site.getLineNumber() + ":" + site.getColumnNumber() + ")\\n");
+        }
+        return lines.join("");
+      };
+    }
   }
 })();
 `;

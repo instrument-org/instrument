@@ -169,10 +169,7 @@ function usePageGuest(page: undefined | WindowTab): {
   const attached = useBrowserTargets();
   const target =
     page?.kind === "page"
-      ? encodeBrowserTargetId(
-          page.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(page.id),
-        )
+      ? encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id))
       : undefined;
   const isAttached = target !== undefined && attached.has(target);
   const guest = useGuestNavigation(isAttached ? target : null);

@@ -525,7 +525,7 @@ function UnlistedTile({
           {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
         </span>
         <span className="block truncate text-[13px] leading-snug text-muted-foreground">
-          Instrument finds how it connects and sets it up.
+          Instrument will figure out how to connect it for you.
         </span>
       </span>
       <GlyphButton onClick={onConnect} size="sm">

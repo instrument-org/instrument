@@ -109,6 +109,11 @@ minimumReleaseAgeExclude:
   - "@milkdown/prose@7.22.2"
   - "@milkdown/transformer@7.22.2"
   - "@milkdown/utils@7.22.2"
+  # The agent's sandbox, taken five days after release with its patch rebuilt
+  # and verified against it. Exact version, so later just-bash releases still
+  # wait out the guard; the entry goes inert once 3.6.0 passes the cutoff and
+  # can be dropped.
+  - "just-bash@3.6.0"
 
 overrides:
   "@electron/rebuild>node-abi": 4.35.0
@@ -127,7 +132,7 @@ overrides:
 patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   conf@14.0.0: patches/conf@14.0.0.patch
-  just-bash@3.4.1: patches/just-bash@3.4.1.patch
+  just-bash@3.6.0: patches/just-bash@3.6.0.patch
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
   sonner@2.0.7: patches/sonner@2.0.7.patch
 

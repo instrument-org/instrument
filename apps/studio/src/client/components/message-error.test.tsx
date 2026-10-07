@@ -185,6 +185,31 @@ describe("MessageError", () => {
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeNull();
   });
 
+  // The gateway's own sentence is written for its logs, so a refused model
+  // reads as ours, naming the model the turn ran on.
+  it.each([
+    ["model-not-allowed", "Your plan doesn't include Test Model."],
+    ["model-not-found", "Instrument doesn't offer Test Model anymore."],
+    ["no-model-requested", "This chat doesn't have a model chosen."],
+  ])("says what a %s refusal means", (code, sentence) => {
+    const { container } = renderError({
+      error: {
+        kind: "api-call",
+        message: "Forbidden",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code, message: "The requested model is not allowed." },
+        }),
+        statusCode: 403,
+        url: "http://localhost/ai-gateway/providers/instrument/responses",
+      },
+    });
+
+    expect(screen.getByText("Test Model isn't available")).not.toBeNull();
+    expect(screen.getByText(sentence)).not.toBeNull();
+    expect(container.textContent).not.toContain("requested model");
+  });
+
   it("names ChatGPT when its plan's limit was reached", () => {
     renderError({
       error: {
@@ -199,7 +224,7 @@ describe("MessageError", () => {
       provider: "chatgpt-account",
     });
 
-    expect(screen.getByText("ChatGPT usage limit reached")).not.toBeNull();
+    expect(screen.getByText("ChatGPT is out of usage for now")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
   });
 

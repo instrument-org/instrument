@@ -1,6 +1,6 @@
 # The browser guest stacks under the renderer's own layers
 
-**Status:** verified on macOS. The 2.0 window no longer parks the pane's page under a draft window or a thread's small view. Dialogs, sheets and alert dialogs still register through `useCoversGuests`, and `TaskBrowserPanel` reads the count through `useIsGuestCovered` (`hooks/use-guest-covered.ts`) to park its page while a dialog covers it. Checked 2026-10-02.
+**Status:** verified on macOS. The 2.0 window no longer parks the pane's page under a draft window or a thread's small view. Dialogs, sheets and alert dialogs still register through `useCoversGuests`, and `BrowserPanel` reads the count through `useIsGuestCovered` (`hooks/use-guest-covered.ts`) to park its page while a dialog covers it. Checked 2026-10-02.
 
 ## The belief
 

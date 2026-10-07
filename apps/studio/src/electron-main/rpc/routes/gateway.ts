@@ -1,4 +1,5 @@
 import { liveRead } from "@instrument-org/workspace/electron";
+import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-plan";
 import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,
@@ -33,6 +34,7 @@ const list = base
   })
   .output(ListSchema)
   .handler(async ({ context }) => {
+    await refreshExpiredTokens();
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const modelsForProviders = await fetchModelResultsForProviders(providers, {
       captureException: context.workspaceConfig.captureException,

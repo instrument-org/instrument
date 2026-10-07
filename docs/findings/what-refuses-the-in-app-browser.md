@@ -1,10 +1,10 @@
-# What refuses the task browser
+# What refuses the in-app browser
 
 **Status:** standing register, checked 2026-10-02. One row per refusal we have met, with what each one turned out to be and where it stands. The per-issue findings linked from the table carry the measurements and their dates; this file is the map, so a new refusal can be placed against the ones already understood instead of re-derived.
 
 Read it before spending on a refusal. Every entry below was explained wrongly at least once, and every wrong explanation came of reasoning from a single clean-looking measurement instead of running a control. The subject invites that failure specifically: these hosts answer inconsistently, so a plausible mechanism is always available and usually wrong.
 
-## What the task browser presents
+## What the in-app browser presents
 
 One identity, everywhere, not varied by host. It names the app rather than claiming to be Google Chrome, because a claim a site can check and disprove is worse than no claim.
 
@@ -21,7 +21,7 @@ Both halves move together or neither does. The header is ours to write, because 
 
 ## The escalation ladder
 
-1. **The task browser.** A `<webview>` guest on the workspace's persistent profile — one profile shared by every task, so a sign-in survives across tasks and restarts.
+1. **The in-app browser.** A `<webview>` guest on the workspace's persistent profile — one profile shared by every task, so a sign-in survives across tasks and restarts.
 2. **The user's own Chrome**, via `agent-browser --profile`. A real Chrome with the user's real profile, where there is nothing to detect and passkeys work.
 3. Nothing below that. Reaching past the browser to a scripted HTTP client is not a third rung; it is measurably worse, per the 429 row.
 
@@ -67,7 +67,7 @@ The gap between this browser and a real Chrome is narrower than it looks, and al
 - **Every permission request is denied**, because there is no browser chrome in which to prompt, so `Notification.permission` reads `denied` where an untouched Chrome reads `default`.
 - **`screen.colorDepth` and window geometry disagree with Chrome**, the second contradictorily: the guest reports the host window's outer bounds against its own layout viewport.
 
-[task-browser-self-report](task-browser-self-report.md) measures each against a real Chrome on the same machine, along with the several that turned out not to be differences at all.
+[in-app-browser-self-report](in-app-browser-self-report.md) measures each against a real Chrome on the same machine, along with the several that turned out not to be differences at all.
 
 Closing any of them means an upstream Electron change, a native bridge, or rung 2. It does not mean writing the values from page script.
 

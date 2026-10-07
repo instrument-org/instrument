@@ -1,8 +1,8 @@
-# What the task browser reports about itself
+# What the in-app browser reports about itself
 
 **Status:** current, except that the identity the guest presents has changed since. It names the app rather than Google Chrome, because a UA claiming to be stock Chrome is what Google's sign-in refuses — see [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md). Everything measured here about the surface behind that name still holds. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Three earlier readings in this file were wrong and are corrected in place, each with the reason: every one of them came of skipping a control, which is the failure mode this subject invites. Checked 2026-10-02: Studio still pins Electron 42.3.3.
 
-A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, and comparing every answer against a real Chrome on the same machine rather than against what a specification says it should be. This records where the two differ, what each difference is worth, and which of them turned out not to be differences at all. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
+A user reported that a large retail site refused the in-app browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, and comparing every answer against a real Chrome on the same machine rather than against what a specification says it should be. This records where the two differ, what each difference is worth, and which of them turned out not to be differences at all. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
 ## How to take the reading again
 
@@ -43,7 +43,7 @@ The finding above carried this as the loudest open item, on the reasoning that t
 
 The published technique for detecting it puts a non-configurable `stack` getter on an `Error`, passes the error to `console.debug`, and counts getter accesses on a later tick -- the client serializes the object out of band to build the console payload, and that read is the tell. Run against a throwaway Electron main process across four conditions, the getter is never touched: no debugger attached, `Runtime.enable` sent, `Runtime.disable` sent after it, and with a listener actively consuming events. That last run recorded four `Runtime.consoleAPICalled` events, so the domain was genuinely enabled and delivering while the getter stayed untouched.
 
-A hosted conformance suite pointed at a real task browser guest agrees, reporting no leak for that check. Treat it as closed in Chromium 148 rather than as something we carry.
+A hosted conformance suite pointed at a real in-app browser guest agrees, reporting no leak for that check. Treat it as closed in Chromium 148 rather than as something we carry.
 
 An earlier reading here claimed the opposite. It used a regex with an overridden `toString` instead of an error's `stack` getter, and `console.debug` invokes `toString` on a regex whether or not any client is attached, so it reported a positive in every condition including the control. The lesson is cheap to restate: a detection probe is worth nothing until its negative control has been run.
 
@@ -118,7 +118,7 @@ What survives for the agent's own guidance does not depend on the mechanism, whi
 
 The converse is worth stating too, because both this file and the agent's guidance point at the browser as the remedy. A real browser was refused by this host minutes either side of a scripted client being served. Staying in the browser is the better bet and not a guarantee, so the honest end of that path is telling the user the site is refusing, not working down a list of clients.
 
-This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains. Reproduced again since, within three page views and with a real browser on the same machine unaffected, which rules volume out for that refusal as firmly as this section rules it out for these. It has its own row in [what-refuses-the-task-browser](what-refuses-the-task-browser.md); do not read this section as having explained it.
+This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains. Reproduced again since, within three page views and with a real browser on the same machine unaffected, which rules volume out for that refusal as firmly as this section rules it out for these. It has its own row in [what-refuses-the-in-app-browser](what-refuses-the-in-app-browser.md); do not read this section as having explained it.
 
 Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
 

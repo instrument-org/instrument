@@ -71,6 +71,8 @@ import {
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
 import { servePageEditorBoot } from "./page-editor/sessions";
+import { platformApiQueryClient } from "./platform-api/client";
+import { startPlatformApiReachability } from "./platform-api/reachability";
 import { initializeRPC } from "./rpc/initialize";
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
@@ -204,6 +206,13 @@ async function bootstrapPrimaryInstance() {
   serveResolvedTheme();
   serveKeptState();
   servePageEditorBoot();
+
+  // Early, so the first requests to a local API server that is not running
+  // already find it known as down.
+  startPlatformApiReachability({
+    onReachableAgain: () =>
+      void platformApiQueryClient.refetchQueries({ type: "active" }),
+  });
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 

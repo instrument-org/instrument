@@ -82,7 +82,6 @@ export function useOpeners({
     isChatOnScreen: chatOfGroup(windowTabs.groupOnScreen) !== undefined,
     up: active && {
       isFresh: isFreshTab(active),
-      isTasks: active.kind === "page" && Boolean(active.taskId),
       kind: active.kind,
     },
   };

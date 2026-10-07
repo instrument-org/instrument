@@ -19,11 +19,12 @@ import { createActor } from "xstate";
 import { type TaskId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { defaultTaskName } from "../src/lib/default-task-name";
 import { message as messageRoute } from "../src/rpc/routes/message";
-import { task as taskRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { startRun } from "../evals/lib/start-run";
 import { env } from "./lib/env";
 
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [
@@ -276,14 +277,15 @@ rl.on("line", (input) => {
         savedSessionId = sessionId;
       });
     } else {
-      void call(
-        taskRoute.create,
+      void startRun(
         {
           files,
+          kind: "task",
           modelURI: MODEL_URI,
+          name: defaultTaskName(prompt),
           prompt,
         },
-        { context },
+        context,
       ).then((newTask) => {
         taskId = newTask.id;
         savedSessionId = newTask.sessionId;

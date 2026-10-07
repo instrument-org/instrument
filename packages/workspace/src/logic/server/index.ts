@@ -37,6 +37,7 @@ export const workspaceServerLogic = fromCallback<
     app.use<string, AIGatewayEnv>(
       `${AI_GATEWAY_API_PATH}/*`,
       async (c, next) => {
+        await input.workspaceConfig.refreshExpiredCredentials?.();
         c.set(
           "getAIProviderConfigs",
           input.workspaceConfig.getAIProviderConfigs,

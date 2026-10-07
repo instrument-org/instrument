@@ -8,7 +8,7 @@ A throwaway Electron main process loaded a page through a session with and witho
 
 Two results matter.
 
-**Electron emits no UA client-hint headers at all.** Not on plain HTTP, not on HTTPS, not after an `Accept-CH` response, not with a trusted certificate. `ElectronBrowserContext::GetClientHintsControllerDelegate()` returns `nullptr`, so the browser process has nothing to attach hints from. `navigator.userAgentData` is unaffected because it is served on the Blink side from `embedder_support::GetUserAgentMetadata()`. So every `sec-ch-ua*` header the task browser sends is one we wrote, and deleting the injection does not fall back to a native value. It falls back to silence, which pairs a Chrome-shaped UA string with the header set of a pre-2021 browser.
+**Electron emits no UA client-hint headers at all.** Not on plain HTTP, not on HTTPS, not after an `Accept-CH` response, not with a trusted certificate. `ElectronBrowserContext::GetClientHintsControllerDelegate()` returns `nullptr`, so the browser process has nothing to attach hints from. `navigator.userAgentData` is unaffected because it is served on the Blink side from `embedder_support::GetUserAgentMetadata()`. So every `sec-ch-ua*` header the in-app browser sends is one we wrote, and deleting the injection does not fall back to a native value. It falls back to silence, which pairs a Chrome-shaped UA string with the header set of a pre-2021 browser.
 
 **The brands disagreed across surfaces.** The header claimed a browser the page denied:
 
@@ -33,7 +33,7 @@ Which requests get hints at all is the same question asked about the transport. 
 
 **The compatibility case for the Google Chrome brand was never captured** — and when one finally was, it argued the other way. Google's sign-in refuses the bare-Chrome UA this file treats as the fixed point, whatever the brand list says, and accepts any UA carrying a product token. So the brand is now the app's own, beside Chromium, which is what every Chromium-derived browser reports. The measurement is in [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md); the reasoning above about generating the list rather than writing one is unaffected, because the generator is the same and only its third entry changed.
 
-**`Runtime.enable` is unrelated, and turned out not to matter.** `agent-browser` enables the CDP `Runtime` domain on every attached page and child target, which this finding once called a louder signal than any header. Measured since, the published detection for it does not fire on Chromium 148, with the domain demonstrably enabled and delivering events. Do not spend on it without re-measuring first. That reading, and the one check that does fail, are in [task-browser-self-report](task-browser-self-report.md).
+**`Runtime.enable` is unrelated, and turned out not to matter.** `agent-browser` enables the CDP `Runtime` domain on every attached page and child target, which this finding once called a louder signal than any header. Measured since, the published detection for it does not fire on Chromium 148, with the domain demonstrably enabled and delivering events. Do not spend on it without re-measuring first. That reading, and the one check that does fail, are in [in-app-browser-self-report](in-app-browser-self-report.md).
 
 ## What not to do
 

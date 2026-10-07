@@ -1,5 +1,7 @@
 # Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch
 
+> Retired with the move to just-bash 3.6.0, whose `js-exec` runs on `run` and loads modules in script mode; the part was dropped from the patch. The dynamic `import()` case in `create-bash-env-js-exec.test.ts` stays as the guard.
+
 Date: 2026-10-06
 
 Narrows [2026-08-27-no-local-just-bash-patches.md](2026-08-27-no-local-just-bash-patches.md), which stands for everything else, the same way the earlier `carry-the-*-patch` decisions do.

@@ -5,7 +5,7 @@ import {
   modelNameFromURI,
   readModelURI,
 } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS } from "@instrument-org/shared";
+import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 
 /**
  * Where the chosen model stands, read once and shared by everything that talks
@@ -42,6 +42,14 @@ export type ModelStatus =
       fixIsSameModel?: boolean;
       kind: "gone";
       name: string;
+      /** The provider it was chosen through, when that can still be named. */
+      provider?: string;
+      /**
+       * Why it is gone, as far as the list can tell: the connection it came
+       * through lists nothing at all any more (removed, or signed out of), or
+       * still lists models and this one is not among them.
+       */
+      reason: "disconnected" | "dropped";
     }
   /** Chosen through a provider whose list failed to load, so whether it is still offered is unknown. */
   | { kind: "provider-failed"; message: string; name: string; provider: string }
@@ -70,6 +78,7 @@ export function readModelStatus({
   isLoading = false,
   models = [],
   modelURI,
+  providerNames,
 }: {
   dismissedOffers: ReadonlySet<string>;
   errors?: ModelListError[];
@@ -77,6 +86,8 @@ export function readModelStatus({
   isLoading?: boolean;
   models?: AIGatewayModel.Type[];
   modelURI?: AIGatewayModelURI.Type;
+  /** What each kind of provider is called, for naming a connection that is no longer there. */
+  providerNames?: ReadonlyMap<AIProviderType, string>;
 }): ModelStatus {
   if (isLoading) {
     return { kind: "loading" };
@@ -135,9 +146,24 @@ export function readModelStatus({
       };
     }
     const fix = replacementFor(source, models, auto);
+    // A connection that still lists anything is still connected, and its own
+    // name is the one the user gave it. One that lists nothing is named by
+    // its kind, except the custom kind, whose generic name says nothing.
+    const stillListed =
+      source &&
+      models.find(
+        (entry) => entry.params.providerConfigId === source.providerConfigId,
+      );
+    const provider =
+      stillListed?.providerName.trim() ??
+      (source && source.provider !== "openai-compatible"
+        ? providerNames?.get(source.provider)
+        : undefined);
     return {
       kind: "gone",
       name,
+      reason: stillListed ? "dropped" : "disconnected",
+      ...(provider && { provider }),
       ...withFix(fix),
       ...(fix &&
         fix.canonicalId === source?.canonicalId && { fixIsSameModel: true }),
@@ -217,13 +243,9 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
     }
     case "newer": {
       return {
-        action: {
-          kind: "switch",
-          label: `Switch to ${status.newer.name.trim()}`,
-          model: status.newer,
-        },
+        action: { kind: "switch", label: "Switch", model: status.newer },
         dismissible: true,
-        text: `${status.newer.name.trim()} is available`,
+        text: `A newer version, ${status.newer.name.trim()}, is out`,
         tone: "offer",
       };
     }
@@ -242,13 +264,13 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
           ? {
               action: {
                 kind: "switch" as const,
-                label: `Use it through ${status.fix.providerName}`,
+                label: `Switch to ${status.fix.providerName.trim()}`,
                 model: status.fix,
               },
             }
           : switchTo(status.fix)),
         dismissible: false,
-        text: `${status.name} is no longer available`,
+        text: goneText(status),
         tone: "problem",
       };
     }
@@ -295,9 +317,28 @@ const switchTo = (fix: AIGatewayModel.Type | undefined) =>
           kind: "switch" as const,
           label:
             fix.providerId === OUR_MODELS.text.id
-              ? "Use Auto"
+              ? "Switch to Auto"
               : `Switch to ${fix.name.trim()}`,
           model: fix,
         },
       }
     : { action: { kind: "choose" as const, label: "Choose a model" } };
+
+/**
+ * What happened to a model that is gone, as far as the list can say: its
+ * connection went away, or the connection stopped offering it. Said with the
+ * provider's name where there is one, since that is what the user changed or
+ * what changed under them.
+ */
+function goneText({
+  name,
+  provider,
+  reason,
+}: Extract<ModelStatus, { kind: "gone" }>) {
+  if (!provider) {
+    return `${name} isn't available anymore`;
+  }
+  return reason === "dropped"
+    ? `${provider} doesn't offer ${name} anymore`
+    : `${provider} isn't connected anymore, so ${name} isn't available`;
+}

@@ -215,6 +215,21 @@ describe("ChatGPT account refresh", () => {
     });
   });
 
+  it("hands out the replacement for an expired token once refreshExpiredTokens settles", async () => {
+    seedAccount({ expiresAt: Date.now() - 1000 });
+    const refreshed = plan.refreshExpiredTokens();
+    tokenResponse.resolve(
+      json({
+        access_token: "access-2",
+        expires_in: 3600,
+        refresh_token: "refresh-2",
+      }),
+    );
+    await refreshed;
+
+    expect(plan.chatGPTPlanProviderConfigs()[0]?.apiKey).toBe("access-2");
+  });
+
   it("does not sign out a newer grant when a refresh of the old one is refused", async () => {
     seedAccount();
     startRefresh();

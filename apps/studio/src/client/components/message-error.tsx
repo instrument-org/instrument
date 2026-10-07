@@ -126,12 +126,11 @@ export function MessageError({
   const needsAutoRecovery =
     !!platformError && requiresAutoModelRecovery(message);
   const title = needsAutoRecovery
-    ? modelName
-      ? `${modelName} is unavailable`
-      : "Model unavailable"
+    ? `${modelName ?? "This model"} isn't available`
     : summary;
   const body = needsAutoRecovery
-    ? platformError.message || error.message
+    ? (modelRefusal(platformError.code, modelName) ??
+      (platformError.message || error.message))
     : detail;
   // Unclassified, our sentence is only that something failed, so the
   // provider's own line is the one that says what; on a classified error ours
@@ -273,8 +272,9 @@ function describeForProvider(
   }
   if (classification === "usage-limit") {
     return {
-      detail: `You've reached the limit your ChatGPT plan allows ${APP_NAME}. Review it in ChatGPT's usage settings, or switch to another model.`,
-      summary: "ChatGPT usage limit reached",
+      detail:
+        "Your ChatGPT plan has hit its limit. You can check your usage in ChatGPT, or switch to another model.",
+      summary: "ChatGPT is out of usage for now",
     };
   }
   if (classification === "auth") {
@@ -285,6 +285,29 @@ function describeForProvider(
     };
   }
   return described;
+}
+
+/**
+ * Our own sentence for why our gateway refused a model, in place of the
+ * platform's, which is written for whoever reads its logs. Undefined for a
+ * code this does not know, which falls back to the platform's words.
+ */
+function modelRefusal(code: string | undefined, modelName: string | undefined) {
+  const model = modelName ?? "this model";
+  switch (code) {
+    case "model-not-allowed": {
+      return `Your plan doesn't include ${model}.`;
+    }
+    case "model-not-found": {
+      return `${APP_NAME} doesn't offer ${model} anymore.`;
+    }
+    case "no-model-requested": {
+      return "This chat doesn't have a model chosen.";
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 function detailFacts(

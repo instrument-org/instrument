@@ -1,3 +1,4 @@
+import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-plan";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import { macHelperBinPath } from "@/electron-main/lib/mac-native";
@@ -158,6 +159,7 @@ export function createWorkspaceActor() {
       // set is prepared per machine, so several workspaces or a workspace the
       // user moves all source from one copy of it.
       preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
+      refreshExpiredCredentials: refreshExpiredTokens,
       registryDir: getRegistryDir(),
       rootDir,
       systemSkillsDir: app.isPackaged

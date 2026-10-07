@@ -4,6 +4,7 @@ import { type Worker, type WorkerOptions } from "node:worker_threads";
 import { omit, pick } from "radashi";
 
 import { getWorkspaceServerPort } from "../../logic/server/url";
+import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import {
@@ -39,6 +40,8 @@ interface PendingExec {
    * command sees the turn and output sink it would have seen on this thread.
    */
   inContext: <R>(callback: () => R) => R;
+  /** Makes a `js-exec` script's app tool calls for the task the shell belongs to. */
+  invokeTool: AppToolInvoker;
   /** The main-thread shell proxied commands run in, built on first use. */
   mainBash?: Promise<BashRunner>;
   mainBashFactory: () => Promise<BashRunner>;
@@ -85,6 +88,7 @@ export function bashWorkerEnabled(): boolean {
 export function createRemoteBash(
   options: BashEnvOptions,
   mainBashFactory: () => Promise<BashRunner>,
+  invokeTool: AppToolInvoker = appToolHook(options.taskId),
 ): BashRunner {
   return {
     exec: (command, { signal, ...execOptions }: ExecOptions = {}) =>
@@ -105,6 +109,7 @@ export function createRemoteBash(
         const entry: PendingExec = {
           calls: new Map(),
           inContext: AsyncLocalStorage.snapshot(),
+          invokeTool,
           mainBashFactory,
           reject: (error) => {
             settle();
@@ -262,6 +267,10 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       });
       return;
     }
+    case "tool": {
+      await runProxiedTool(instance, message);
+      return;
+    }
     case "tree": {
       if (message.state === "started") {
         instance.trees.add(message.pid);
@@ -362,5 +371,39 @@ async function runProxiedCall(
     });
   } finally {
     entry.calls.delete(message.callId);
+  }
+}
+
+/** Makes one `js-exec` app tool call for the worker, in the exec's async context. */
+async function runProxiedTool(
+  instance: WorkerInstance,
+  message: Extract<FromWorker, { type: "tool" }>,
+) {
+  const entry = instance.pending.get(message.id);
+  // In `calls` beside the proxied commands, so the worker's `call-abort`
+  // and a dying worker stop it the same way.
+  const controller = new AbortController();
+  entry?.calls.set(message.callId, controller);
+  try {
+    if (!entry) {
+      throw new Error(
+        `tools.${message.path}: the shell that ran this has already finished`,
+      );
+    }
+    const signal = entry.signal
+      ? AbortSignal.any([controller.signal, entry.signal])
+      : controller.signal;
+    const value = await entry.inContext(() =>
+      entry.invokeTool(message.path, message.argsJson, signal),
+    );
+    instance.post({ callId: message.callId, type: "tool-result", value });
+  } catch (error) {
+    instance.post({
+      callId: message.callId,
+      error: toWireError(error),
+      type: "tool-error",
+    });
+  } finally {
+    entry?.calls.delete(message.callId);
   }
 }

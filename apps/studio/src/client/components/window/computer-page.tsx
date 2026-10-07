@@ -24,7 +24,7 @@ import {
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
+import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
@@ -457,7 +457,7 @@ export function ComputerPage({
             return {
               ...stamps,
               ...(entry.path === instrumentPath
-                ? { glyphSrc: INSTRUMENT_FOLDER_GLYPH_URL }
+                ? { glyphSrc: OUTPUT_FOLDER_GLYPH_URL }
                 : {}),
               hasChildren: true,
               kind: "folder",

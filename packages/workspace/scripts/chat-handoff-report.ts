@@ -30,7 +30,7 @@ if (!workspaceRootDir) {
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
 
-const { tasks } = await getTasks(buildReportWorkspaceConfig(absolute), {
+const { tasks } = await getTasks({
   direction: "asc",
   sortBy: "createdAt",
 });

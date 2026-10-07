@@ -1,5 +1,6 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
+import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { openLogin } from "@/client/atoms/login-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
@@ -252,6 +253,7 @@ export const PromptInput = ({
   // Read on every render rather than at pick time: a selection made before a
   // policy change, a withdrawn model or a newer release can change underneath
   // the user without anything here being touched.
+  const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const modelStatus = readModelStatus({
     dismissedOffers: new Set(dismissedOffers),
     errors: modelsErrors,
@@ -259,6 +261,9 @@ export const PromptInput = ({
     isLoading: modelsIsLoading,
     models,
     modelURI,
+    providerNames: new Map(
+      [...providerMetadataMap].map(([type, metadata]) => [type, metadata.name]),
+    ),
   });
   const modelNotice = noticeFor(modelStatus);
   const addProvider = () => {
@@ -638,7 +643,9 @@ export const PromptInput = ({
 
   const validateSubmission = () => {
     if (modelStatus.kind === "loading") {
-      toast.info("Loading models", { description: "Send again in a moment." });
+      toast.info("Models are still loading", {
+        description: "Try sending again in a moment.",
+      });
       return false;
     }
     // The same sentence and the same fix the notice row shows, so a send that

@@ -46,7 +46,13 @@ export function ModelNoticeRow({
             : "text-yellow-700 dark:text-yellow-300",
         )}
       />
-      <span className="min-w-0 flex-1 truncate" title={notice.detail}>
+      {/* Wraps rather than truncates: a notice that says what happened runs
+          past one line beside its button in a narrow composer, and a cut
+          sentence hides the part that says why. */}
+      <span
+        className="min-w-0 flex-1 leading-snug text-pretty"
+        title={notice.detail}
+      >
         {notice.text}
       </span>
       {notice.action && (

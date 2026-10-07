@@ -38,6 +38,11 @@ const PROVIDERS: Record<string, ProviderReasoning> = {
     levels: { high: "high", low: "low", max: "max", medium: "medium" },
     options: (effort) => ({ anthropic: { effort } }),
   },
+  // The Claude account's CLI, which names its levels as Anthropic does.
+  "claude-account": {
+    levels: { high: "high", low: "low", max: "max", medium: "medium" },
+    options: (effort) => ({ "claude-account": { effort } }),
+  },
   google: {
     // `minimal` is the lowest thinking this provider offers and the nearest
     // thing it has to off, so `none` lands there rather than nowhere.

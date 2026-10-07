@@ -42,4 +42,4 @@ Nothing about this is what a tab-open *asked for*. The real fix is [browser popu
 ## Related
 
 - [in-app-browser.md](../architecture/in-app-browser.md) — the popup shape policy and where the guest lives.
-- [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) — the other way a browser action produces a surprising nothing.
+- [App reload destroys every in-app browser page](app-reload-destroys-the-in-app-browser.md) — the other way a browser action produces a surprising nothing.

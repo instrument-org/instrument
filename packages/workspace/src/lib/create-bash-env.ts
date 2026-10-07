@@ -26,6 +26,7 @@ import {
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
+import { type AppToolInvoker, appToolHook } from "./app-tool-hook";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   createFgCommand,
@@ -189,6 +190,10 @@ function stubCommand(
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // always errors in this environment; replaced with a stub below
+  // Writes under /tmp, which no mount covers, so every call fails. A task's
+  // shell gets ours (shell-commands/mktemp.ts) instead; the chat's writes no
+  // files, so it gets none.
+  "mktemp",
 ]);
 
 const STATIC_STUB_COMMANDS = [
@@ -761,7 +766,13 @@ export async function createLocalBashEnv({
   sessionId,
   standIn,
   taskId,
+  invokeTool = appToolHook(taskId),
 }: BashEnvOptions & {
+  /**
+   * Answers a `js-exec` script's `tools.<slug>.<tool>()`; the bash worker
+   * sets one that makes the call on the main thread, where credentials are.
+   */
+  invokeTool?: AppToolInvoker;
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
@@ -896,6 +907,7 @@ export async function createLocalBashEnv({
     // gets neither.
     javascript: (chat === undefined || chat.full === true) && {
       bootstrap: JS_EXEC_BOOTSTRAP,
+      invokeTool,
     },
     python: chat === undefined || chat.full === true,
   });

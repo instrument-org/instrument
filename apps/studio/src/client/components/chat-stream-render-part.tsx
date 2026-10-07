@@ -15,7 +15,7 @@ import {
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
-import { isReasoningPartVisible } from "./reasoning-utils";
+import { isReasoningPartLive, isReasoningPartVisible } from "./reasoning-utils";
 import { isPartBeingWritten } from "./transcript-layout";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
@@ -149,10 +149,14 @@ export function renderChatPart({
       return null;
     }
     const streaming = ctx.isToolStreaming(part, message);
+    // A part can carry a start with no end long after the run that wrote it
+    // died, so the record alone never means "running now": the live session
+    // has to agree, which is what `isToolStreaming` already establishes.
+    const isRunning = streaming && isToolPartRunning(part, message);
     if (
       !isToolCallVisible({
         isDeveloperMode: ctx.isDeveloperMode,
-        isStreaming: streaming,
+        isRunning,
         part,
       })
     ) {
@@ -164,10 +168,7 @@ export function renderChatPart({
     const row = (
       <ToolCall
         isDeveloperMode={ctx.isDeveloperMode}
-        // A part can carry a start with no end long after the run that wrote it
-        // died, so the record alone never means "running now": the live session
-        // has to agree, which is what `isToolStreaming` already establishes.
-        isRunning={streaming && isToolPartRunning(part)}
+        isRunning={isRunning}
         isStreaming={streaming}
         key={part.metadata.id}
         onRetry={ctx.onRetry}
@@ -204,7 +205,7 @@ export function renderChatPart({
       <ReasoningMessage
         createdAt={part.metadata.createdAt}
         endedAt={part.metadata.endedAt}
-        isLoading={isLive && part.state === "streaming"}
+        isLoading={isReasoningPartLive({ isLive, part })}
         isStandIn={isStandIn}
         key={part.metadata.id}
         rowId={part.metadata.id}

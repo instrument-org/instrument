@@ -10,16 +10,9 @@ import { type WorkspaceServerParentRef } from "../types";
 import { setupCdpWebSocketBridge } from "./cdp-sockets";
 
 const handled = vi.hoisted(() => ({
-  page: [] as string[],
   task: [] as string[],
 }));
 
-vi.mock(import("./cdp-bridge"), () => ({
-  handleCdpClient: (client, targetId) => {
-    handled.page.push(targetId);
-    client.close();
-  },
-}));
 vi.mock(import("./cdp-task-bridge"), () => ({
   handleTaskCdpClient: (client, taskId) => {
     handled.task.push(taskId);
@@ -28,13 +21,11 @@ vi.mock(import("./cdp-task-bridge"), () => ({
 }));
 
 const TASK_ID = "read-the-page";
-const TARGET_ID = "1/ses_01M3AX9RF3C2E9RTATMB602W0B";
 
 let server: Server;
 let port: number;
 
 beforeEach(async () => {
-  handled.page = [];
   handled.task = [];
   server = createServer();
   setupCdpWebSocketBridge(
@@ -70,12 +61,9 @@ function connect(url: string, headers: Record<string, string> = {}) {
 }
 
 describe("setupCdpWebSocketBridge", () => {
-  it.each([
-    { kind: "task" as const, id: TASK_ID },
-    { kind: "page" as const, id: TARGET_ID },
-  ])("accepts a $kind path carrying the launch's secret", async (target) => {
-    expect(await connect(cdpBridgeUrl(port, target))).toBe("open");
-    expect(handled[target.kind]).toEqual([target.id]);
+  it("accepts a task's path carrying the launch's secret", async () => {
+    expect(await connect(cdpBridgeUrl(port, TASK_ID))).toBe("open");
+    expect(handled.task).toEqual([TASK_ID]);
   });
 
   it.each([
@@ -84,14 +72,14 @@ describe("setupCdpWebSocketBridge", () => {
       "a wrong secret",
       `${CDP_BASE_PATH}/not-the-secret/devtools/task/${TASK_ID}`,
     ],
-    ["an empty secret", `${CDP_BASE_PATH}//devtools/page/${TARGET_ID}`],
+    ["an empty secret", `${CDP_BASE_PATH}//devtools/task/${TASK_ID}`],
   ])("refuses a path with %s", async (_name, path) => {
     expect(await connect(`ws://127.0.0.1:${port}${path}`)).toBe(403);
-    expect(handled).toEqual({ page: [], task: [] });
+    expect(handled.task).toEqual([]);
   });
 
   it("refuses an upgrade carrying an Origin header, secret or not", async () => {
-    const url = cdpBridgeUrl(port, { id: TASK_ID, kind: "task" });
+    const url = cdpBridgeUrl(port, TASK_ID);
 
     expect(await connect(url, { Origin: "https://example.com" })).toBe(403);
     expect(handled.task).toEqual([]);

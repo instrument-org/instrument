@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { mkdir } from "node:fs/promises";
 import http from "node:http";
 import {
   afterAll,
@@ -13,8 +14,12 @@ import {
 } from "vitest";
 import { z } from "zod";
 
+import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { loadApp } from "../apps/store";
+import { createLocalBashEnv } from "../create-bash-env";
+import { taskDir } from "../task-dir-utils";
+import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { knowTask } from "../../test/helpers/mock-task-config";
@@ -170,5 +175,63 @@ describe("app call --out", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("BEGIN_APP_RESULT");
     expect(result.stdout).toContain("2 issues: one, two");
+  });
+});
+
+describe("js-exec tools.*", () => {
+  async function script(code: string, id = taskId) {
+    await mkdir(taskDir(id), { recursive: true });
+    const bash = await createLocalBashEnv({
+      sessionId: StoreId.newSessionId(),
+      taskId: id,
+    });
+    return bash.exec(`js-exec <<'EOF'
+${code}
+EOF`);
+  }
+
+  it("hands a structured result back as a value", async () => {
+    const result = await script(
+      `const { issues, total } = await tools.${slug}.issues({});
+console.log(total, issues.join("+"));`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("2 one+two\n");
+  });
+
+  it.each([
+    ["json_text", "console.log(r.length, r[2].id)", "3 3\n"],
+    ["prose", "console.log(typeof r, r.split('\\n').length)", "string 2\n"],
+  ])("hands %s's text back parsed where it is JSON", async (tool, use, out) => {
+    const result = await script(
+      `const r = await tools["${slug}"].${tool}();
+${use}`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe(out);
+  });
+
+  it("throws a refusal into the script", async () => {
+    const result = await script(
+      `try { await tools.${slug}.broken({ project: 1 }); } catch (error) { console.log(error.message); }`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "tools.tracker.broken: project is required
+      The tool refused the call. If the arguments were the problem, \`app tool tracker broken\` shows the JSON it takes.
+      "
+    `);
+  });
+
+  it("refuses an app the task was not handed", async () => {
+    const scoped = TaskIdSchema.parse("app-call-scoped-task");
+    knowTask(scoped);
+    (await updateTaskSettings(scoped, { apps: ["notes"] }))._unsafeUnwrap();
+    const result = await script(`await tools.${slug}.issues();`, scoped);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "at <stdin>:1:26: tools.tracker.issues: this task was not handed the app "tracker". Apps it has: notes.
+      "
+    `);
   });
 });

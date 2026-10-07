@@ -444,11 +444,12 @@ export const BashTool = setupTool({
  */
 function browserSkillText(skill: BrowserSkill, toolCallId: string) {
   const truncation = skill.contentTruncated
-    ? `\n\nOnly the beginning of the skill fits here. Read \`${skill.directory}/SKILL.md\` for the rest before relying on it.`
+    ? `\n\nOnly the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
     : "";
+  const references = `\`${AGENT_BROWSER_COMMAND.name} skills get core --full\` prints the references it links to.`;
   return [
     systemNote`
-      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so the skill of the same name comes with its output below. Follow it for the rest of your browser work; there is no need to load it. The files its instructions link to (\`references/...\`) are under \`${skill.directory}/\`.
+      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}
     `.trim(),
     "",
     boundedSkillBody({

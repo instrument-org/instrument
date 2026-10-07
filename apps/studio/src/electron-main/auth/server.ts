@@ -26,12 +26,12 @@ import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import {
   CHATGPT_CALLBACK_PATH,
   receiveChatGPTCallback,
-} from "@/electron-main/lib/chatgpt-plan";
+} from "@/electron-main/lib/chatgpt-account";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
-import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
 import {
@@ -43,20 +43,6 @@ import {
 } from "@instrument-org/workspace/electron";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
-
-function focusAppWindow() {
-  const target = getForegroundWindow();
-  if (target) {
-    if (target.isMinimized()) {
-      target.restore();
-    }
-    target.show();
-    // Temporarily set always-on-top to reliably bring window to front on Windows
-    target.setAlwaysOnTop(true);
-    target.focus();
-    target.setAlwaysOnTop(false);
-  }
-}
 
 const DEFAULT_PORT =
   process.env.NODE_ENV === "development"
@@ -412,7 +398,7 @@ async function start() {
         // Signed in, with plan access left unchecked on OpenAI's page.
         return c.html(
           renderAuthPage({
-            headline: "ChatGPT plan access is off",
+            headline: "ChatGPT account access is off",
             kind: "declined",
             service: chatGPT,
           }),

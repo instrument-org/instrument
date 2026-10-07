@@ -264,7 +264,7 @@ const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
 
 // The sign-in stores a clean room can start from, as the app names them in a
 // workspace's settings folder (workspace-management.ts in Studio). Not the
-// ChatGPT plan: its refresh token rotates on every use, so a clean room holding
+// ChatGPT account: its refresh token rotates on every use, so a clean room holding
 // a copy would sign the developer's own instance out the first time either
 // refreshed.
 const SIGN_IN_FILES = ["session-dev.json", "providers.json"];

@@ -496,7 +496,7 @@ export function CommandMenu({
             Nothing matches “{words}”
             {chatsByMeaning.failed ? (
               <span className="text-xs">
-                The decision model could not be reached
+                Instrument couldn’t search your chats by meaning right now.
               </span>
             ) : null}
           </div>

@@ -19,7 +19,7 @@ export function apiURL({
       const finalPath = path.startsWith("/v1") ? path : `/v1${path}`;
       return `${baseURL}${finalPath}`;
     }
-    case "chatgpt":
+    case "chatgpt-account":
     case "openai":
     case "opencode-go":
     case "opencode-zen":

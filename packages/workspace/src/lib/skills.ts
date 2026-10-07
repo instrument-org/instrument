@@ -11,6 +11,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
+import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 
 export const FILE_LIST_LIMIT = 50;
@@ -251,8 +252,15 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
     }
   }
 
+  // agent-browser's guide comes with the first browser command
+  // (`browser-skill-delivery.ts`), from the installed CLI with what differs
+  // here; a copy installed anywhere else describes a different setup.
   const skills = qualifySkillNames(
-    await dedupeIdenticalCopies([...skillMap.values()]),
+    await dedupeIdenticalCopies(
+      [...skillMap.values()].filter(
+        (skill) => skill.name !== AGENT_BROWSER_GUIDE_NAME,
+      ),
+    ),
   );
   return skills.map((skill) =>
     BUNDLED_SOURCES.has(skill.source)

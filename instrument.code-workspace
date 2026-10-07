@@ -38,5 +38,6 @@
     "yaml.schemas": {
       "https://json.schemastore.org/pnpm-workspace": "pnpm-workspace.yaml",
     },
+    "js/ts.tsdk.path": "node_modules/@typescript/native-preview",
   },
 }

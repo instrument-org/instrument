@@ -11,7 +11,7 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { isWorkspaceFolder } from "@/client/lib/path-utils";
+import { isOutputFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
@@ -116,7 +116,7 @@ function AppsChip({ apps }: { apps: string[] | undefined }) {
   }
   if (apps.length === 0) {
     return (
-      <Chip label="Apps" title="No app was handed to this task">
+      <Chip label="Apps" title="This task can’t use any connected apps.">
         none
       </Chip>
     );
@@ -164,7 +164,9 @@ function Chip({
  * rather than reading as though nothing were set.
  */
 function EffortChip({ task }: { task: Task }) {
-  const models = useQuery(rpcClient.gateway.models.list.queryOptions());
+  const models = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
   );
@@ -175,7 +177,7 @@ function EffortChip({ task }: { task: Task }) {
   const effort = task.reasoningEffort ?? fromModel;
   if (!effort) {
     return (
-      <Chip label="Effort" title="No level chosen; the model's default applies">
+      <Chip label="Effort" title="This task uses the model’s default effort.">
         provider default
       </Chip>
     );
@@ -233,7 +235,7 @@ function TaskBrief({ task }: { task: Task }) {
   // The workspace folder is every task's, so only the ones it was handed
   // besides are worth a chip.
   const folders = Object.values(state.data?.attachedFolders ?? {}).filter(
-    (folder) => !isWorkspaceFolder(folder.path),
+    (folder) => !isOutputFolder(folder.path),
   );
   const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
     const decoded = decodeBrowserTargetId(held.id);
@@ -294,7 +296,7 @@ function useOpenFileNamedByTask(taskId: Task["id"]) {
       const hostPath = hostPaths?.[bare];
       if (error || !hostPath) {
         toast(`Nothing at “${filePath}”`, {
-          description: "Not a path the task can reach.",
+          description: "The task can’t reach this path.",
         });
         return;
       }

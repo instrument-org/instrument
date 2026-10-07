@@ -82,7 +82,6 @@ export function useOpeners({
     isChatOnScreen: chatOfGroup(windowTabs.groupOnScreen) !== undefined,
     up: active && {
       isFresh: isFreshTab(active),
-      isTasks: active.kind === "page" && Boolean(active.taskId),
       kind: active.kind,
     },
   };
@@ -231,7 +230,7 @@ export function useOpeners({
       void queryClient
         .fetchQuery(taskRecordOptions(task))
         .then(
-          (record) => record.chatId,
+          (record) => (record.isChat ? undefined : record.chatId),
           () => undefined,
         )
         .then((filedIn) => {

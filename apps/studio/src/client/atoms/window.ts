@@ -9,7 +9,6 @@ import { type TabHistory as ScreenHistory, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
   type SessionMessageDataPart,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom, type SetStateAction } from "jotai";
 import { atomFamily } from "jotai/utils";
@@ -248,8 +247,6 @@ export interface BrowserTab {
   openedAt: number;
   /** The address it was opened at, which a pin asks for again; the page may have moved on from it. */
   openedUrl?: string;
-  /** The task whose browser this is, when it is not the window's own: a task the conversation started, browsing in the user's sight. */
-  taskId?: TaskId;
   /** The page's title, as it last announced it; kept so a tab not yet shown still says what it is. */
   title?: string;
   /** The last page it showed, opened again when the tab comes back. */

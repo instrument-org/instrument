@@ -172,16 +172,11 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // quickjs-emscripten backs just-bash's `js-exec`, which the workspace
-    // enables. Its index requires all four wasm variants by name, so each
-    // variant's small `index`/`ffi` entry has to ship, but a variant only
-    // loads its `emscripten-module` glue and wasm when asked for, and
-    // `getQuickJS()` asks for release-sync alone. The other three variants'
-    // modules (~5MB), the release variant's browser and Cloudflare glue, and
-    // the package's 2.3MB browser bundle are weight nothing loads.
-    "!**/node_modules/quickjs-emscripten/dist/index.global.js",
-    "!**/node_modules/@jitl/quickjs-wasmfile-{debug-sync,debug-asyncify,release-asyncify}/dist/emscripten-module.*",
-    "!**/node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.{browser,cloudflare}.*",
+    // typescript ships only as the optional peer of `run`, the runtime under
+    // just-bash's `js-exec`, which strips types with Node's own
+    // `stripTypeScriptTypes` and loads the package only on a Node without it.
+    // Electron's Node has it, so the package's ~20MB is weight nothing loads.
+    "!**/node_modules/typescript/**",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.

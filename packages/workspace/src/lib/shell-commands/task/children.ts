@@ -1,4 +1,4 @@
-import { type Task } from "../../../schemas/task";
+import { type TaskInChat } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { listChildTasks } from "../../chat/children";
 import { getTask } from "../../get-tasks";
@@ -9,7 +9,7 @@ import { type TaskCommandContext } from "./context";
 export async function requireChild(
   rawId: string | undefined,
   { chatId }: TaskCommandContext,
-): Promise<Task> {
+): Promise<TaskInChat> {
   if (!rawId) {
     throw new Error("a task id is required. See `task list`.");
   }
@@ -20,7 +20,7 @@ export async function requireChild(
   // Every chat's tasks can be read from any chat; steering one is its own
   // chat's alone (requireOwnChild).
   const task = await getTask(parsed.data);
-  if (task.isErr() || task.value.chatId === undefined) {
+  if (task.isErr() || task.value.isChat) {
     // An id is most often mistyped from the title it was given rather than
     // copied from what `new` printed, so the nearest of the chat's own
     // tasks is offered in the same reply, where `task list` costs a turn.
@@ -42,15 +42,10 @@ export async function requireChild(
 export async function requireOwnChild(
   rawId: string | undefined,
   context: TaskCommandContext,
-): Promise<Task> {
+): Promise<TaskInChat> {
   const task = await requireChild(rawId, context);
-  const filedIn =
-    task.chatId === undefined ? undefined : sessionOfChat(task.chatId);
-  if (
-    task.chatId === context.chatId ||
-    task.chatId === undefined ||
-    filedIn === undefined
-  ) {
+  const filedIn = sessionOfChat(task.chatId);
+  if (task.chatId === context.chatId || filedIn === undefined) {
     return task;
   }
   const chat = await Store.getSession(filedIn, task.chatId);
@@ -66,7 +61,10 @@ export async function requireOwnChild(
  * is the date plus the brief's first words, and a guess from the title gets
  * the words right and their order or their tail wrong.
  */
-function nearestChildId(rawId: string, children: Task[]): string | undefined {
+function nearestChildId(
+  rawId: string,
+  children: TaskInChat[],
+): string | undefined {
   const words = new Set(rawId.split("-").filter((word) => word.length > 2));
   if (words.size === 0) {
     return undefined;

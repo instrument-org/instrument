@@ -1,10 +1,9 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { WebSocket } from "ws";
+import { z } from "zod";
 
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
-import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import {
   agentPathOfFileUrl,
   isLocalAddress,
@@ -24,28 +23,23 @@ export interface CdpEventFrame<E extends CdpEventName = CdpEventName> {
   params: CdpEventParams<E>;
   sessionId: string;
 }
-export interface CdpRequest {
-  id?: number;
-  method?: string;
-  params?: unknown;
-  sessionId?: string;
-}
+/**
+ * A command from the agent. `sessionId` names the tab it is for, and is
+ * absent on a command for the browser as a whole; `params` is absent on a
+ * command that takes none.
+ */
+const CdpRequestSchema = z.object({
+  id: z.number().int(),
+  method: z.string(),
+  params: z.unknown().optional(),
+  sessionId: z.string().optional(),
+});
+export type CdpRequest = z.output<typeof CdpRequestSchema>;
 export type CdpResponse =
-  | { error: { code: number; message: string }; id?: number }
-  | { id?: number; result: unknown };
+  | { error: { code: number; message: string }; id: number }
+  | { id: number; result: unknown };
 type CdpEventName = keyof ProtocolMapping.Events;
 type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
-
-// Commands that operate on the browser-level target tree. We intercept these
-// and return synthetic responses scoped to just the single WebContentsView
-// target so agent-browser doesn't discover or attach to unrelated Electron
-// targets (the Studio renderer, DevTools windows, etc.). The table of CDP
-// methods says which they are.
-const INTERCEPTED_TARGET_COMMANDS = new Set<string>(
-  cdpMethodsHandled("page", "override").filter((method) =>
-    method.startsWith("Target."),
-  ),
-);
 
 // How long a `Page.navigate` answer is held for the main frame's load before
 // it is released anyway. Under agent-browser's 30s per-command timeout with
@@ -184,21 +178,43 @@ const TEARDOWN_RESETS: [string, Record<string, unknown>][] = [
  */
 const connectionsByTarget = new Map<BrowserTargetId, number>();
 
-/** Checks an agent can switch off on its page, each with the params that switch it back on. */
-const RELAXED_CHECKS: Record<string, Record<string, unknown>> = {
-  "Page.setBypassCSP": { enabled: false },
-  "Security.setIgnoreCertificateErrors": { ignore: false },
+/**
+ * Settings an agent can change on its page that would go on acting for the
+ * person after it leaves, each with the command that puts it back: a check
+ * switched off, an emulated place, time, language or browser, a trace left
+ * running.
+ */
+const UNDONE_ON_LEAVING: Record<string, [string, Record<string, unknown>]> = {
+  "Emulation.setGeolocationOverride": [
+    "Emulation.clearGeolocationOverride",
+    {},
+  ],
+  "Emulation.setLocaleOverride": ["Emulation.setLocaleOverride", {}],
+  "Emulation.setTimezoneOverride": [
+    "Emulation.setTimezoneOverride",
+    { timezoneId: "" },
+  ],
+  "Emulation.setUserAgentOverride": [
+    "Emulation.setUserAgentOverride",
+    { userAgent: "" },
+  ],
+  "Page.setBypassCSP": ["Page.setBypassCSP", { enabled: false }],
+  "Security.setIgnoreCertificateErrors": [
+    "Security.setIgnoreCertificateErrors",
+    { ignore: false },
+  ],
+  "Tracing.start": ["Tracing.end", {}],
 };
 
 /**
  * What a connection left on its page that would go on acting there for the
  * person after the agent leaves: a script run in every new document (one
  * that reads a password field as it is typed, say), a binding the page can
- * call, a security check switched off.
+ * call, a setting in `UNDONE_ON_LEAVING`.
  */
 interface LeftOnPage {
   bindings: Set<string>;
-  relaxed: Set<string>;
+  changed: Set<string>;
   scripts: Set<string>;
 }
 
@@ -234,9 +250,13 @@ function noteLeftOnPage(
       );
       return;
     }
+    case "Tracing.end": {
+      left.changed.delete("Tracing.start");
+      return;
+    }
     default: {
-      if (method in RELAXED_CHECKS) {
-        left.relaxed.add(method);
+      if (method in UNDONE_ON_LEAVING) {
+        left.changed.add(method);
       }
     }
   }
@@ -255,10 +275,10 @@ function undoLeftOnPage(left: LeftOnPage): [string, Record<string, unknown>][] {
       "Runtime.removeBinding",
       { name },
     ]),
-    ...[...left.relaxed].map((method): [string, Record<string, unknown>] => [
-      method,
-      RELAXED_CHECKS[method] ?? {},
-    ]),
+    ...[...left.changed].flatMap((method) => {
+      const undo = UNDONE_ON_LEAVING[method];
+      return undo ? [undo] : [];
+    }),
   ];
 }
 
@@ -333,62 +353,6 @@ export function createLocalFileGate({
   };
 }
 
-/**
- * A connection pinned to one page: the page endpoint, which a chat's
- * conversation and a task no chat owns are handed. The `Target.*` domain is
- * answered here with that one page, so the agent can never discover or attach
- * to any other.
- */
-export function handleCdpClient(
-  clientWs: WebSocket,
-  targetId: BrowserTargetId,
-  workspaceConfig: WorkspaceConfig,
-  workspaceRef: WorkspaceServerParentRef,
-) {
-  const send = (payload: CdpEventFrame | CdpResponse) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify(payload));
-    }
-  };
-  const session = openTargetSession({
-    onDetach: () => {
-      clientWs.close(1001, "Target detached");
-    },
-    send,
-    sessionId: `session-${targetId}`,
-    targetId,
-    workspaceConfig,
-    workspaceRef,
-  });
-
-  clientWs.on("message", (data) => {
-    const message = parseCdpMessage(data);
-    if (!message) {
-      return;
-    }
-    // Intercept Target.* commands that would otherwise leak all Electron
-    // targets through the browser-level debugger.
-    if (
-      typeof message.method === "string" &&
-      INTERCEPTED_TARGET_COMMANDS.has(message.method)
-    ) {
-      handleInterceptedTargetCommand(
-        clientWs,
-        message.id,
-        message.method,
-        message.params,
-        targetId,
-        workspaceConfig,
-      );
-      return;
-    }
-    session.run(message);
-  });
-
-  clientWs.on("close", session.end);
-  clientWs.on("error", session.end);
-}
-
 /** The refusal of a local file the agent's own tools could not read. */
 export function notYourFile(url: string) {
   return {
@@ -448,7 +412,7 @@ export function openTargetSession({
   let ended = false;
   const leftOnPage: LeftOnPage = {
     bindings: new Set(),
-    relaxed: new Set(),
+    changed: new Set(),
     scripts: new Set(),
   };
   const fileGate = createLocalFileGate({
@@ -543,9 +507,6 @@ export function openTargetSession({
 
   const handleCommand = async (message: CdpRequest) => {
     const { id, method, params } = message;
-    if (typeof method !== "string") {
-      return;
-    }
 
     // A local file opens at its `file://` address for the agent exactly as it
     // does for the person, and only when the agent's own tools could read it:
@@ -693,20 +654,23 @@ export function openTargetSession({
   };
 }
 
-/** A frame from the agent, or undefined for one that is not JSON. */
+/** A command from the agent, or undefined for a frame that is not one: not JSON, or with no id or method. */
 export function parseCdpMessage(
   data: ArrayBuffer | Buffer | Buffer[],
 ): CdpRequest | undefined {
+  const raw = Buffer.isBuffer(data)
+    ? data.toString("utf8")
+    : Array.isArray(data)
+      ? Buffer.concat(data).toString("utf8")
+      : Buffer.from(data).toString("utf8");
+  let parsed: unknown;
   try {
-    const raw = Buffer.isBuffer(data)
-      ? data.toString("utf8")
-      : Array.isArray(data)
-        ? Buffer.concat(data).toString("utf8")
-        : Buffer.from(data).toString("utf8");
-    return JSON.parse(raw) as CdpRequest;
+    parsed = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  const request = CdpRequestSchema.safeParse(parsed);
+  return request.success ? request.data : undefined;
 }
 
 /** The address an event is about, when it names one. */
@@ -727,132 +691,6 @@ function addressOfEvent(params: unknown) {
     event?.frame?.url ??
     event?.url;
   return typeof url === "string" ? url : undefined;
-}
-
-function handleInterceptedTargetCommand(
-  clientWs: WebSocket,
-  id: number | undefined,
-  method: string,
-  params: unknown,
-  targetId: BrowserTargetId,
-  workspaceConfig: WorkspaceConfig,
-) {
-  const send = (payload: CdpResponse) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify(payload));
-    }
-  };
-
-  switch (method) {
-    case "Target.activateTarget":
-    case "Target.closeTarget": {
-      // Silently succeed; lifecycle is managed by BrowserViewManager.
-      send({ id, result: {} });
-      return;
-    }
-
-    case "Target.attachToTarget": {
-      const p = params as Protocol.Target.AttachToTargetRequest | undefined;
-      const requestedId = p?.targetId;
-      // Only allow attaching to the target this connection owns.
-      if (requestedId && requestedId !== targetId) {
-        send({
-          error: {
-            code: -32_000,
-            message: `Target ${requestedId} is not accessible from this connection`,
-          },
-          id,
-        });
-        return;
-      }
-      // The WebContentsView debugger is already attached at the browser level;
-      // Electron doesn't support Target.attachToTarget with our integer-based
-      // targetId. Return a synthetic sessionId - commands sent with this
-      // sessionId are stripped of it and forwarded directly to the debugger.
-      const result: Protocol.Target.AttachToTargetResponse = {
-        sessionId: `session-${targetId}`,
-      };
-      send({ id, result });
-      return;
-    }
-    case "Target.createBrowserContext":
-    case "Target.disposeBrowserContext": {
-      // Electron doesn't support CDP browser context management. Return a
-      // synthetic context ID so agent-browser's recording flow can proceed.
-      // Download behavior is handled via Browser.setDownloadBehavior interception
-      // in BrowserViewManager.
-      const result: Protocol.Target.CreateBrowserContextResponse = {
-        browserContextId: `context-${targetId}`,
-      };
-      send({ id, result });
-      return;
-    }
-
-    case "Target.createTarget": {
-      // agent-browser may try to open a new tab; redirect it to the existing
-      // target rather than creating one (which is not supported on a
-      // WebContentsView debugger). If a URL was requested, navigate to it.
-      const cp = params as Protocol.Target.CreateTargetRequest | undefined;
-      const url = cp?.url;
-      const result: Protocol.Target.CreateTargetResponse = { targetId };
-      if (url && url !== "about:blank") {
-        workspaceConfig.browser
-          .sendCommand(targetId, "Page.navigate", { url })
-          .then(() => {
-            send({ id, result });
-          })
-          .catch(() => {
-            send({ id, result });
-          });
-      } else {
-        send({ id, result });
-      }
-      return;
-    }
-
-    case "Target.getTargets": {
-      // Return a synthetic single-target list scoped to just this view.
-      // The underlying Target.getTargets leaks all Electron targets because
-      // the WebContentsView debugger is browser-level.
-      const result: Protocol.Target.GetTargetsResponse = {
-        targetInfos: [
-          {
-            attached: true,
-            canAccessOpener: false,
-            targetId,
-            title: "",
-            type: "page",
-            url: "",
-          },
-        ],
-      };
-      send({ id, result });
-      return;
-    }
-
-    case "Target.setAutoAttach": {
-      // Do not forward to Electron. Forwarding causes Electron to emit
-      // Target.attachedToTarget events for real iframe sub-sessions. Those
-      // real sub-session IDs leak into agent-browser's iframe_sessions map,
-      // causing subsequent CDP commands (Page.enable, Network.enable,
-      // Accessibility.getFullAXTree) to be sent with the wrong session ID
-      // and potentially hang or fail. We are running in a flat, single-target
-      // model; Electron's WebContentsView debugger already auto-attaches to
-      // frames at the browser level.
-      send({ id, result: {} });
-      return;
-    }
-
-    case "Target.setDiscoverTargets": {
-      // Acknowledge but do nothing; we don't emit Target.targetCreated events.
-      send({ id, result: {} });
-      return;
-    }
-
-    default: {
-      send({ error: { code: -32_601, message: "Method not found" }, id });
-    }
-  }
 }
 
 /** The host folders behind every mount of a layout. */

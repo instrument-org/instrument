@@ -68,6 +68,7 @@ extend-exclude = [
   "packages/workspace/directory-icons/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
+  "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",
   # Recorded agent sessions and the documents they produced. The text is model

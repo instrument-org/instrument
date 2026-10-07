@@ -39,6 +39,7 @@ import { Route as DebugComponentsColorsRouteImport } from './routes/debug/compon
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
 import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
+import { Route as DebugComponentsModelNoticesRouteImport } from './routes/debug/components/model-notices'
 import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/components/onboarding'
 import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
 import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
@@ -204,6 +205,12 @@ const DebugComponentsFormElementsRoute =
     path: '/form-elements',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
+const DebugComponentsModelNoticesRoute =
+  DebugComponentsModelNoticesRouteImport.update({
+    id: '/model-notices',
+    path: '/model-notices',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
 const DebugComponentsOnboardingRoute =
   DebugComponentsOnboardingRouteImport.update({
     id: '/onboarding',
@@ -295,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
   '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
@@ -334,6 +342,7 @@ export interface FileRoutesByTo {
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -377,6 +386,7 @@ export interface FileRoutesById {
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
   '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
@@ -421,6 +431,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/model-notices'
     | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
@@ -460,6 +471,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/model-notices'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -502,6 +514,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/model-notices'
     | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
@@ -738,6 +751,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsFormElementsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/model-notices': {
+      id: '/debug/components/model-notices'
+      path: '/model-notices'
+      fullPath: '/debug/components/model-notices'
+      preLoaderRoute: typeof DebugComponentsModelNoticesRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/onboarding': {
       id: '/debug/components/onboarding'
       path: '/onboarding'
@@ -879,6 +899,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
   DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
+  DebugComponentsModelNoticesRoute: typeof DebugComponentsModelNoticesRoute
   DebugComponentsOnboardingRoute: typeof DebugComponentsOnboardingRouteWithChildren
   DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
   DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
@@ -895,6 +916,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
   DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,
+  DebugComponentsModelNoticesRoute: DebugComponentsModelNoticesRoute,
   DebugComponentsOnboardingRoute: DebugComponentsOnboardingRouteWithChildren,
   DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
   DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,

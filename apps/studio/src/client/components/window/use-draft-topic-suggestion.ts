@@ -6,12 +6,14 @@ import { useEffect, useState } from "react";
 import { type Topic } from "./chats";
 
 /**
- * How sure the decision model has to be before it files a draft. Measured on
- * realistic drafts, a clear fit comes back near 1 and a vague or unrelated
- * message goes to `none`, so the bar sits high: a missed filing costs a click,
- * a wrong one costs trust.
+ * How sure the decision model has to be before it files a draft. Clef-flash
+ * picks the right topic but scores plain fits 0.7-0.9 where Jev gives near 1.
+ * Over 91 hand-labeled drafts and 247 real opening messages it filed nothing
+ * clearly wrong at 0.7 or more; below that, pasted agent prompts and near-misses
+ * ("download speed" as Downloads) start to be filed. A suggestion is cheap to
+ * take off, so the bar sits at the edge of that.
  */
-const CONFIDENT = 0.8;
+const CONFIDENT = 0.7;
 /** Fewer words than this say too little to file by ("hey", "one question"). */
 const MIN_WORDS = 4;
 /** A pause in typing, so the draft is read once it says something, not per word. */
@@ -64,12 +66,15 @@ export function useDraftTopicSuggestion({
               questions: {
                 topic: {
                   criteria: { [NONE]: "No topic clearly fits", ...criteria },
-                  instructions:
-                    "The state is a message starting a new chat. Which of the user's topics should the chat be filed under? Pick none unless one clearly fits.",
+                  // A sentence holding the message rather than the message
+                  // as the state: read as the state, a long pasted message
+                  // drew a fit under the bar and pasted agent prompts were
+                  // filed under unrelated topics.
+                  instructions: `Which of the user's topics should a new chat be filed under when it opens with "${settled.replace(/\s+/g, " ")}"? Pick none unless one clearly fits.`,
                   type: "choice",
                 },
               },
-              state: settled,
+              state: {},
             },
             { signal },
           )

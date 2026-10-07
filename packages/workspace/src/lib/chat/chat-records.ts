@@ -2,7 +2,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { chatFolderName } from "../generate-task-folder-name";
 import { getCurrentDate } from "../get-current-date";
-import { initializeTask } from "../initialize-task";
+import { initializeChat } from "../initialize-task";
 import {
   chatIds,
   chatOfSession,
@@ -39,17 +39,12 @@ export async function ensureChat(
       title: firstWords,
     }),
   );
-  const made = await initializeTask(
-    {
-      initialSettings: {
-        chatSessionId: sessionId,
-        name: CHAT_RECORD_NAME,
-      },
-      taskId: chatId,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
+  const made = await initializeChat({
+    chatId,
+    initialSettings: { name: CHAT_RECORD_NAME },
+    sessionId,
+    workspaceConfig: getWorkspaceConfig(),
+  });
   if (made.isErr()) {
     // Two sends racing for the same new chat: the other one made it.
     const raced = chatOfSession(sessionId);

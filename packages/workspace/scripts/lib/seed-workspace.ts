@@ -24,18 +24,22 @@ import path from "node:path";
 import { ulid } from "ulid";
 
 import { TASKS_DIR_NAME } from "../../src/constants";
-import { initializeTask } from "../../src/lib/initialize-task";
+import { copyTask } from "../../src/lib/copy-task";
+import { initializeChat, initializeTask } from "../../src/lib/initialize-task";
 import { newTaskId } from "../../src/lib/new-task-id";
 import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { taskDir } from "../../src/lib/task-dir-utils";
 import { setTaskState } from "../../src/lib/task-record";
+import { updateTaskSettings } from "../../src/lib/task-settings";
+import { placeTaskAt } from "../../src/lib/record-folders";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
 import { FolderAttachment } from "../../src/schemas/folder-attachment";
 import {
   AbsolutePathSchema,
   RelativePathSchema,
+  TaskDirSchema,
 } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
@@ -285,9 +289,11 @@ function rebaseTimestamps<T extends Record<string, unknown>>(
 }
 
 /**
- * Seeds one record: a task no chat owns, a task inside the chat named by
- * `chatId`, or a chat's own record when `task` is a chat, which holds
- * its session as the chat's and takes no task scaffold.
+ * Seeds one record: a task inside the chat named by `chatId`, a chat's own
+ * record when `task` is a chat, which holds its session as the chat's and
+ * takes no task scaffold, or, with neither, a task flat under `tasks/` as 1.x
+ * left one, which the layout migration moves into a chat of its own at the
+ * app's next boot.
  */
 async function seedTask({
   chatId,
@@ -346,17 +352,26 @@ async function seedTask({
     : rebased.session;
 
   const result = await safeTry(async function* () {
-    yield* await initializeTask(
-      {
-        ...(chatId ? { chatId } : {}),
-        initialSettings: isChat
-          ? { chatSessionId: chatSession.id, name: task.name }
-          : { name: task.name },
-        taskId: id,
+    if (isChat) {
+      yield* await initializeChat({
+        chatId: ChatIdSchema.parse(id),
+        initialSettings: { name: task.name },
+        sessionId: chatSession.id,
         workspaceConfig,
-      },
-      {},
-    );
+      });
+    } else if (chatId !== undefined) {
+      yield* await initializeTask(
+        {
+          chatId,
+          initialSettings: { name: task.name },
+          taskId: id,
+          workspaceConfig,
+        },
+        {},
+      );
+    } else {
+      yield* seedLegacyTaskFolder({ id, name: task.name, workspaceConfig });
+    }
 
     yield* Store.saveSession(chatSession, id);
     for (const message of rebased.messages) {
@@ -377,6 +392,38 @@ async function seedTask({
 
   return id;
 }
+
+/**
+ * A task's folder flat under `tasks/`, laid down the way 1.x made one: the
+ * default scaffold and its settings. The app never makes one now, so it is
+ * placed in this process's index by hand, for the store writes that follow.
+ */
+function seedLegacyTaskFolder({
+  id,
+  name,
+  workspaceConfig,
+}: {
+  id: TaskId;
+  name: string;
+  workspaceConfig: WorkspaceConfig;
+}) {
+  const dir = TaskDirSchema.parse(path.join(workspaceConfig.tasksDir, id));
+  placeTaskAt(id, LEGACY_SEED_CHAT_ID, dir);
+  return copyTask({
+    includePrivateFolder: false,
+    sourceDir: workspaceConfig.defaultTaskTemplateDir,
+    targetDir: dir,
+  }).andThen(() =>
+    updateTaskSettings(id, {
+      createdAt: new Date(),
+      createdWithAppVersion: workspaceConfig.appVersion,
+      name,
+    }),
+  );
+}
+
+/** The chat a 1.x task is filed under while it is seeded; it has no folder. */
+const LEGACY_SEED_CHAT_ID = ChatIdSchema.parse("legacy-seed");
 
 /**
  * Fresh ids for the session, its messages and its parts, plus the timestamp

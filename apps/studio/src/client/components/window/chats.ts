@@ -1,4 +1,5 @@
 import { type RPCOutput } from "@/client/rpc/client";
+import { placeholderTitle } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
@@ -228,10 +229,10 @@ export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
  * words yet.
  */
 export function draftTitle(words: string): string {
-  return (
+  return placeholderTitle(
     stripMarkdown(renderSkillMentionsAsText(words))
       .split("\n")
       .map((line) => line.trim())
-      .find(Boolean) ?? "New chat"
+      .find(Boolean) ?? "New chat",
   );
 }

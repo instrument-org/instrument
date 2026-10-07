@@ -579,6 +579,7 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   const browser: BrowserConfig = {
+    hasNoWindow: false,
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
         // Resolve only after the destruction listener fires (which happens as

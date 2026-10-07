@@ -9,7 +9,7 @@ import { defineConfig } from "electron-vite";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
@@ -268,9 +268,10 @@ function createValidateProductionEnv(
   };
 }
 
-// just-bash starts its WebAssembly runtimes (`python`, `js-exec`, `sqlite3`)
-// in workers it finds with `new URL("./worker.js", import.meta.url)`, so it
-// has to run from its own package folder. The build externalizes it with the
+// just-bash starts its `python` and `sqlite3` WebAssembly runtimes in workers
+// it finds with `new URL("./worker.js", import.meta.url)`, so it has to run
+// from its own package folder. (`js-exec` runs on the `run` package, which
+// builds its worker from inline source.) The build externalizes it with the
 // rest of the monorepo's dependencies; dev bundles those into out/main, where
 // the worker file does not exist and every run waits out the script timeout
 // without a word. Dev externalizes it at its resolved path instead, since
@@ -285,7 +286,14 @@ function externalizeJustBashInDev(): Plugin {
         ...options,
         skipSelf: true,
       });
-      return resolved && { external: true, id: resolved.id };
+      // As a file URL: Node's ESM loader takes a POSIX path as one, but reads
+      // a Windows path's drive letter as a URL scheme and refuses to load it.
+      return (
+        resolved && {
+          external: true,
+          id: pathToFileURL(resolved.id).href,
+        }
+      );
     },
   };
 }

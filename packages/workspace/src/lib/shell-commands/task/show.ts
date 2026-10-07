@@ -94,7 +94,7 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
-    `tabs: ${describeHeldTabs(state.browserTabs ?? [])}`,
+    `tabs: ${describeHeldTabs(state.browserTabs)}`,
     // A fork-only chat's tasks work in its own folder, which is no news.
     ...(isForkOnlyEnabled()
       ? []

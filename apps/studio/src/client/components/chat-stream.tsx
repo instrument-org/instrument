@@ -35,7 +35,10 @@ import {
   WorkingGroupHeading,
 } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
-import { isAwaitingUser } from "./message-part/tool-call-utils";
+import {
+  isAwaitingUser,
+  isToolPartRunning,
+} from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -984,7 +987,8 @@ export function ChatStream({
       <WarningIcon />
       <AlertDescription className="flex flex-col gap-3">
         <div className="text-xs">
-          Agent was stopped due to reaching maximum unattended steps.
+          Instrument paused after working on its own for a while. Continue to
+          let it keep going.
         </div>
         <Button onClick={onContinue} size="sm" variant="secondary">
           Resume the agent
@@ -1246,7 +1250,8 @@ function hasVisibleAssistantParts({
           message,
           partIndex,
         }),
-        isStreaming,
+        isRunning:
+          isStreaming && isToolPart(part) && isToolPartRunning(part, message),
         part,
       })
     );

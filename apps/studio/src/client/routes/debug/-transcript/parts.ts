@@ -43,20 +43,36 @@ export const OUR_MODEL: AIGatewayModel.Type = {
   uri: `anthropic/claude-sonnet-5?provider=${OUR_PROVIDER_CONFIG.type}&providerConfigId=${OUR_PROVIDER_CONFIG.id}` as AIGatewayModelURI.Type,
 };
 
-/** A model on the user's ChatGPT plan, for the errors only that plan sends. */
-export const CHATGPT_PLAN_MODEL: AIGatewayModel.Type = {
+/** A model on the user's ChatGPT account, for the errors only that plan sends. */
+export const CHATGPT_ACCOUNT_MODEL: AIGatewayModel.Type = {
   author: "openai",
   canonicalId: "gpt-5.6-sol" as AIGatewayModel.CanonicalId,
   features: ["inputText", "outputText", "tools"],
   name: "GPT-5.6 Sol",
   params: {
-    provider: "chatgpt",
-    providerConfigId: AIProviderConfigIdSchema.parse("chatgpt-plan"),
+    provider: "chatgpt-account",
+    providerConfigId: AIProviderConfigIdSchema.parse("chatgpt-account"),
   },
   providerId: "gpt-5.6-sol" as AIGatewayModel.ProviderId,
-  providerName: "ChatGPT plan",
+  providerName: "ChatGPT account",
   tags: [],
-  uri: "openai/gpt-5.6-sol?provider=chatgpt&providerConfigId=chatgpt-plan" as AIGatewayModelURI.Type,
+  uri: "openai/gpt-5.6-sol?provider=chatgpt-account&providerConfigId=chatgpt-account" as AIGatewayModelURI.Type,
+};
+
+/** A model on the user's Claude subscription, run through Claude Code. */
+export const CLAUDE_ACCOUNT_MODEL: AIGatewayModel.Type = {
+  author: "anthropic",
+  canonicalId: "claude-sonnet-5-5" as AIGatewayModel.CanonicalId,
+  features: ["inputText", "outputText", "tools"],
+  name: "Sonnet",
+  params: {
+    provider: "claude-account",
+    providerConfigId: AIProviderConfigIdSchema.parse("claude-account"),
+  },
+  providerId: "claude-sonnet-5-5" as AIGatewayModel.ProviderId,
+  providerName: "Claude account",
+  tags: [],
+  uri: "anthropic/claude-sonnet-5-5?provider=claude-account&providerConfigId=claude-account" as AIGatewayModelURI.Type,
 };
 
 /** A file the turn touched, for the grid of what changed. */

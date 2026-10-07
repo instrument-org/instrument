@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   useTargetAgentActivity,
@@ -21,10 +20,7 @@ import { getGuest } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type BrowserTargetId,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -542,23 +538,18 @@ function PagePicture({
 
 /**
  * Whether an agent is at work in a page, the way the tab strip asks it: a
- * task's own browser by the task, a page of the chat's handed to a task by
- * its guest.
+ * page of the chat's a task holds, by its guest.
  */
 function PageWorking({
   children,
   isChatWorking,
-  tab,
   targetId,
 }: {
   children: (isWorking: boolean) => ReactNode;
   isChatWorking: boolean;
-  tab: Extract<WindowTab, { kind: "page" }>;
   targetId: BrowserTargetId;
 }) {
-  return tab.taskId ? (
-    <TaskWorking taskId={tab.taskId}>{children}</TaskWorking>
-  ) : (
+  return (
     <TargetWorking isChatWorking={isChatWorking} targetId={targetId}>
       {children}
     </TargetWorking>
@@ -690,11 +681,7 @@ function ChatTile({
     </div>
   );
   return tab.kind === "page" ? (
-    <PageWorking
-      isChatWorking={isChatWorking}
-      tab={tab}
-      targetId={targetOf(tab)}
-    >
+    <PageWorking isChatWorking={isChatWorking} targetId={targetOf(tab)}>
       {tile}
     </PageWorking>
   ) : (
@@ -791,14 +778,4 @@ function TargetWorking({
 }) {
   const isDriven = useTargetAgentActivity(targetId);
   return children(isChatWorking && isDriven);
-}
-
-function TaskWorking({
-  children,
-  taskId,
-}: {
-  children: (isWorking: boolean) => ReactNode;
-  taskId: TaskId;
-}) {
-  return children(useBrowserAgentActivity(taskId));
 }

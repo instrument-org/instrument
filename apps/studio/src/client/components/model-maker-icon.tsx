@@ -1,3 +1,4 @@
+import { VendorMark } from "@/client/components/vendor-mark";
 import { cn } from "@/client/lib/utils";
 import arcee from "@lobehub/icons-static-svg/icons/arcee-color.svg?raw";
 import aws from "@lobehub/icons-static-svg/icons/aws-color.svg?raw";
@@ -64,29 +65,6 @@ const MAKERS: Record<string, { src: string }> = {
   "zai-org": { src: zhipu },
 };
 
-/**
- * A mark's ink, the parts drawn in the page's text color rather than a brand
- * color: `currentColor`, and the white some colored marks hard-code for a
- * dark tile they assume (Kimi's K). Both follow the theme once inlined, which
- * an `<img>` cannot do, since it neither inherits a color nor knows the ground.
- */
-const INK = /fill="(?:currentColor|#fff|#FFF|#ffffff|#FFFFFF)"/g;
-
-const inked = new Map<string, string>();
-function inkedMarkup(svg: string): string {
-  let markup = inked.get(svg);
-  if (markup === undefined) {
-    markup = svg
-      .replace(INK, 'fill="currentColor"')
-      .replace(/ (?:width|height)="1em"/g, "")
-      .replace(/ style="[^"]*"/, "")
-      // The row names the model; a title would add the maker to its text.
-      .replace(/<title>[^<]*<\/title>/, "");
-    inked.set(svg, markup);
-  }
-  return markup;
-}
-
 /** Whose model it is, in color where the maker has a mark, else a neutral glyph. */
 export function ModelMakerIcon({
   author,
@@ -105,15 +83,6 @@ export function ModelMakerIcon({
     );
   }
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-flex shrink-0 text-foreground [&>svg]:size-full",
-        className,
-      )}
-      // Markup from a pinned package's own SVG files, not from anything a
-      // user or a provider supplies.
-      dangerouslySetInnerHTML={{ __html: inkedMarkup(maker.src) }}
-    />
+    <VendorMark className={cn("text-foreground", className)} svg={maker.src} />
   );
 }

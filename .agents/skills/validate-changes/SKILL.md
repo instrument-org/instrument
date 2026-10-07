@@ -105,7 +105,7 @@ Committed cases live in `packages/workspace/evals/cases/` (`pnpm eval list
 behavior is worth guarding permanently. Details in the
 `workspace-evals` skill.
 
-**The browser here is not the app's.** The managed task browser lives in the
+**The browser here is not the app's.** The in-app browser lives in the
 Electron app, so an eval run has no Studio guest: the harness stubs the
 browser targets. `agent-browser` still works, because with no Studio target it
 launches a Chromium of its own, so `open`, clicks, snapshots and our wrapper

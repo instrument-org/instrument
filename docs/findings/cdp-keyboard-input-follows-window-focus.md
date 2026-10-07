@@ -4,7 +4,7 @@
 
 ## Symptom
 
-An agent driving a task browser sent a multi-line block of text with `agent-browser keyboard inserttext` and `agent-browser keyboard type`. The text was never entered into the page. It went into Studio's own prompt input instead, and because the prompt editor submits on unmodified Enter, every newline in the payload submitted a message. A two-command sequence over a twenty-line document queued roughly forty-five messages.
+An agent driving the in-app browser sent a multi-line block of text with `agent-browser keyboard inserttext` and `agent-browser keyboard type`. The text was never entered into the page. It went into Studio's own prompt input instead, and because the prompt editor submits on unmodified Enter, every newline in the payload submitted a message. A two-command sequence over a twenty-line document queued roughly forty-five messages.
 
 This reads like a CDP target mix-up or an escape from the guest's web contents. It is neither. The commands were addressed to the correct target and dispatched on that target's own debugger the whole time.
 

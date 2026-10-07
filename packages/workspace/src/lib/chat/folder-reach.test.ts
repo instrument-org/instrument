@@ -53,6 +53,7 @@ function held(
   }[]
 ): TaskState {
   return {
+    browserTabs: [],
     attachedFolders: Object.fromEntries(
       folders.map((folder) => {
         const mountName = folder.mountName ?? path.basename(folder.path);
@@ -116,7 +117,7 @@ describe("folderReach", () => {
   });
 
   it("gives a chat that holds nothing the home and workspace folders", async () => {
-    const folders = await folderReach(chatId, {});
+    const folders = await folderReach(chatId, { browserTabs: [] });
 
     expect(
       Object.values(folders).map(({ access, path: folderPath }) => ({
@@ -193,6 +194,6 @@ describe("folderReach", () => {
     world.topics = [topic("Cooking", [elsewhere])];
     world.tagged = [];
 
-    expect(await reach({})).toHaveLength(2);
+    expect(await reach({ browserTabs: [] })).toHaveLength(2);
   });
 });

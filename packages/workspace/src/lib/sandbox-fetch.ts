@@ -42,7 +42,9 @@ export function createSandboxFetch({
   maxResponseSize: number;
 }): SecureFetch {
   return (url, options = {}) =>
-    runTrusted(() => request(url, options, maxResponseSize));
+    DefenseInDepthBox.runTrustedAsync(() =>
+      request(url, options, maxResponseSize),
+    );
 }
 
 async function request(
@@ -88,16 +90,6 @@ async function request(
       throw new NetworkAccessDeniedError(target, reason);
     });
   }
-}
-
-/**
- * just-bash 3.4.1 publishes no declarations for its security module (its
- * `files` list leaves `dist/security` out), so `DefenseInDepthBox` arrives
- * untyped. This is the signature its source gives `runTrustedAsync`.
- */
-function runTrusted<T>(run: () => Promise<T>): Promise<T> {
-  // oxlint-disable-next-line typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return
-  return DefenseInDepthBox.runTrustedAsync(run);
 }
 
 async function checkedUrl(

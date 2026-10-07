@@ -383,6 +383,7 @@ export const workspaceMachine = setup({
       oneAgentMode?: WorkspaceConfig["oneAgentMode"];
       pnpmBinPath: string;
       preparedSkillsDir: string;
+      refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
       rootDir: string;
       systemSkillsDir: string;
@@ -428,6 +429,9 @@ export const workspaceMachine = setup({
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
+      ...(input.refreshExpiredCredentials
+        ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
+        : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),

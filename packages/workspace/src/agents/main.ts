@@ -74,20 +74,20 @@ interface MountedFolderAttachment {
  * -- the bash tool description -- and enforced by the wrapper, which explains
  * itself when it refuses. What is left here is policy, which is durable.
  */
-const AD_BLOCKING_GUIDANCE = `- The task browser blocks ads and trackers. When a page looks broken (a missing button, an empty embed, a checkout or sign-in that never loads), run \`agent-browser adblock off\`, reload, and retry before calling the site broken; it applies to this task's tabs only, and \`adblock on\` restores it.`;
+const AD_BLOCKING_GUIDANCE = `- The in-app browser blocks ads and trackers. When a page looks broken (a missing button, an empty embed, a checkout or sign-in that never loads), run \`agent-browser adblock off\`, reload, and retry before calling the site broken; it applies to this task's tabs only, and \`adblock on\` restores it.`;
 
 export function browserTargetingGuidance() {
   if (!getWorkspaceConfig().isExternalBrowserEnabled()) {
     return [
-      `- When a page needs an account, open it in the task browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the task.`,
+      `- When a page needs an account, open it in the in-app browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the task.`,
       AD_BLOCKING_GUIDANCE,
     ].join("\n");
   }
   return [
     AD_BLOCKING_GUIDANCE,
-    `- Bare commands drive the managed task browser the user watches in the app, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the task needs the user's logins, when a site blocks the task browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.`,
-    `- Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the task browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.`,
-    `- Treat a refusal as a fork rather than an ending. When the task browser is blocked, challenged, or cannot finish a sign-in, name what refused you and offer to retry the same step in the user's own browser with \`--profile\`, in the same reply and without waiting to be asked. Asking them to clear the block themselves is one option, not the whole answer, and ending on it while a browser that could have worked went unmentioned is the failure to avoid.`,
+    `- Bare commands drive the in-app browser the user watches, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the task needs the user's logins, when a site blocks the in-app browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.`,
+    `- Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the in-app browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.`,
+    `- Treat a refusal as a fork rather than an ending. When the in-app browser is blocked, challenged, or cannot finish a sign-in, name what refused you and offer to retry the same step in the user's own browser with \`--profile\`, in the same reply and without waiting to be asked. Asking them to clear the block themselves is one option, not the whole answer, and ending on it while a browser that could have worked went unmentioned is the failure to avoid.`,
   ].join("\n");
 }
 

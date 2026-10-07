@@ -1,7 +1,7 @@
 import { parse } from "tldts";
 
 /**
- * The task browser's address bar doubles as a search box. Input that resolves
+ * The in-app browser's address bar doubles as a search box. Input that resolves
  * to a host is navigated to; anything else is treated as a query and handed to
  * a web search, rather than being force-loaded as a (usually broken) https://
  * URL. This mirrors how a browser omnibox routes typed input.

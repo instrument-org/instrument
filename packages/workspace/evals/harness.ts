@@ -22,6 +22,7 @@ import { AGENTS } from "../src/agents/all";
 import { attachChats, workspaceMachine } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
@@ -37,17 +38,18 @@ import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
-import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
+import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type TaskId } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
+import { startRun } from "./lib/start-run";
 import {
   buildProviderConfigs,
   c,
@@ -301,7 +303,8 @@ export interface EvalCase {
    * once a service is reachable: handing one to a task, and calling it.
    *
    * One apps directory serves every case in a run, so these are listed in every
-   * case's context, not only this one's. Run an app case on its own.
+   * case's context, not only this one's. Run an app case on its own. A task
+   * case is handed these, as a chat's `task new --app` would.
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
@@ -353,7 +356,8 @@ export interface EvalCase {
   /**
    * Which agent answers the prompt. A chat delegates to tasks it
    * creates inside the same workspace, so a run of that kind produces the
-   * chat's transcript plus one per task it made.
+   * chat's transcript plus one per task it made. A task case runs the task
+   * agent in a task of a chat the run makes for it (`startRun`).
    */
   kind?: "chat" | "task";
   /**
@@ -502,6 +506,11 @@ export async function runEvals(
   if (taskSystemAppend) {
     appendToTaskSystemPrompt(taskSystemAppend);
   }
+  // Shells run in the bash worker, as they do in Studio. On this thread,
+  // just-bash's defenses wrap the whole process's environment while a script
+  // runs, which breaks anything else here that writes it, the Claude Agent
+  // SDK among them.
+  setBashWorkerFactory(createTsxBashWorker);
 
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
@@ -639,18 +648,23 @@ export async function runEvals(
             uri,
           });
         }
-        return call(
-          taskRoute.create,
+        return startRun(
           {
+            // A task case is handed the apps it declares, the way a chat
+            // hands them, so it hears about them in its context.
+            apps:
+              evalCase.kind === "chat"
+                ? undefined
+                : evalCase.apps?.map((app) => app.slug),
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
-            chat: evalCase.kind === "chat",
+            kind: evalCase.kind ?? "task",
             modelURI: uri,
             name: evalCase.name,
             prompt: evalCase.prompt,
             viewing: evalCase.viewing,
           },
-          { context },
+          context,
         );
       });
       // Chained off the settled result so one failed creation does not strand

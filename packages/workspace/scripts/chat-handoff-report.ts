@@ -30,7 +30,7 @@ if (!workspaceRootDir) {
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
 
-const { tasks } = await getTasks(buildReportWorkspaceConfig(absolute), {
+const { tasks } = await getTasks({
   direction: "asc",
   sortBy: "createdAt",
 });
@@ -67,7 +67,7 @@ for (const task of tasks) {
   const last = texts.at(-1) ?? "";
   rows.push({
     files: fileWrites,
-    kind: task.chatId ? "task" : "conversation",
+    kind: task.isChat ? "conversation" : "task",
     lastReply: last.length,
     name: task.title,
     outputTokens: usage.outputTokens,

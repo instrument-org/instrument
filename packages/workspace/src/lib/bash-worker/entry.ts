@@ -39,6 +39,10 @@ const calls = new Map<
   number,
   { reject: (error: Error) => void; resolve: (result: WireResult) => void }
 >();
+const toolCalls = new Map<
+  number,
+  { reject: (error: Error) => void; resolve: (value: string) => void }
+>();
 const chunkAcks = new Map<number, () => void>();
 const venvRequests = new Map<
   number,
@@ -111,6 +115,16 @@ port.on("message", (message: ToWorker) => {
       void runExec(message);
       return;
     }
+    case "tool-error": {
+      toolCalls.get(message.callId)?.reject(fromWireError(message.error));
+      toolCalls.delete(message.callId);
+      return;
+    }
+    case "tool-result": {
+      toolCalls.get(message.callId)?.resolve(message.value);
+      toolCalls.delete(message.callId);
+      return;
+    }
     case "venv-result": {
       venvRequests.get(message.requestId)?.(message.result);
       venvRequests.delete(message.requestId);
@@ -151,6 +165,8 @@ async function runExec({
   try {
     const bash = await createLocalBashEnv({
       ...bashEnv,
+      invokeTool: (path, argsJson, signal) =>
+        invokeTool({ argsJson, id, path, signal }),
       standIn: (name) => standIn(id, name),
     });
     const run = () =>
@@ -172,6 +188,44 @@ function sendChunk(id: number, text: string) {
     const seq = nextChunkSeq++;
     chunkAcks.set(seq, resolve);
     post({ id, seq, text, type: "chunk" });
+  });
+}
+
+/**
+ * A `js-exec` script's app tool call, made on the main thread. An abort of the
+ * script's signal stops it there, as it does a proxied command.
+ */
+function invokeTool({
+  argsJson,
+  id,
+  path,
+  signal,
+}: {
+  argsJson: string;
+  id: number;
+  path: string;
+  signal: AbortSignal | undefined;
+}) {
+  return new Promise<string>((resolve, reject) => {
+    const callId = nextCallId++;
+    const onAbort = () => {
+      post({ callId, type: "call-abort" });
+    };
+    const settle = () => {
+      signal?.removeEventListener("abort", onAbort);
+    };
+    toolCalls.set(callId, {
+      reject: (error) => {
+        settle();
+        reject(error);
+      },
+      resolve: (value) => {
+        settle();
+        resolve(value);
+      },
+    });
+    signal?.addEventListener("abort", onAbort, { once: true });
+    post({ argsJson, callId, id, path, type: "tool" });
   });
 }
 

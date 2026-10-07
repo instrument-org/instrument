@@ -46,12 +46,12 @@ async function runTab(input: SubcommandInput, context: TaskCommandContext) {
     );
   }
   const state = await getTaskState(taskDir(task.id));
-  const current = state.browserTabs ?? [];
+  const current = state.browserTabs;
   if (none) {
     if (current.length === 0) {
       return `${task.id} holds no tabs; it opens one of its own already.\n`;
     }
-    await setTaskState(taskDir(task.id), { browserTabs: undefined });
+    await setTaskState(taskDir(task.id), { browserTabs: [] });
     return `${task.id} let go of every tab it held; they stay open. It opens a tab of its own from here.\n`;
   }
   const handed = await resolveTabs([...named, ...adds]);
@@ -68,7 +68,7 @@ async function runTab(input: SubcommandInput, context: TaskCommandContext) {
       .map((id) => ({ id, openedBy: "handed" as const })),
   ];
   await setTaskState(taskDir(task.id), {
-    browserTabs: next.length > 0 ? next : undefined,
+    browserTabs: next,
   });
   const shared = await tabsHeldElsewhere(handed, context.chatId, task.id);
   return `${task.id} now holds ${next.length > 0 ? `tabs ${next.map((held) => tabIdOf(held.id)).join(", ")}` : "no tabs"}. It acts on them from its next browser command.\n${shared}`;

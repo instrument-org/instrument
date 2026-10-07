@@ -3,7 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
+import { type TaskDir } from "../schemas/paths";
+import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { type TaskSettingsUpdate } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
@@ -14,7 +16,13 @@ import { getCurrentDate } from "./get-current-date";
 import { forgetRecord, placeChat, placeTask } from "./record-folders";
 import { updateTaskSettings } from "./task-settings";
 
-export async function initializeTask(
+type InitialSettings = Omit<
+  TaskSettingsUpdate,
+  "chatSessionId" | "createdWithAppVersion"
+>;
+
+/** Makes a task inside the chat that starts it, under that chat's `tasks/`. */
+export function initializeTask(
   {
     chatId,
     initialSettings,
@@ -22,28 +30,64 @@ export async function initializeTask(
     workspaceConfig,
   }: {
     /** The chat that starts the task, whose `tasks/` folder it goes in. */
-    chatId?: ChatId;
-    initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
+    chatId: ChatId;
+    initialSettings: InitialSettings;
     taskId: TaskId;
     workspaceConfig: WorkspaceConfig;
   },
   _options: { signal?: AbortSignal },
 ) {
+  return initializeRecord({
+    initialSettings,
+    isChat: false,
+    place: () => placeTask(taskId, chatId),
+    taskId,
+    workspaceConfig,
+  });
+}
+
+/** Makes a chat under `chats/`, holding `sessionId` as its one session. */
+export function initializeChat({
+  chatId,
+  initialSettings,
+  sessionId,
+  workspaceConfig,
+}: {
+  chatId: ChatId;
+  initialSettings: InitialSettings;
+  sessionId: StoreId.Session;
+  workspaceConfig: WorkspaceConfig;
+}) {
+  return initializeRecord({
+    initialSettings: { ...initialSettings, chatSessionId: sessionId },
+    isChat: true,
+    place: () => placeChat(chatId, sessionId),
+    taskId: chatId,
+    workspaceConfig,
+  });
+}
+
+async function initializeRecord({
+  initialSettings,
+  isChat,
+  place,
+  taskId,
+  workspaceConfig,
+}: {
+  initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
+  isChat: boolean;
+  place: () => TaskDir;
+  taskId: TaskId;
+  workspaceConfig: WorkspaceConfig;
+}) {
   // Lets go of the id reserved below when any later step fails, so a chat or
   // task that was never made does not hold its name in the index.
   let release: (() => void) | undefined;
   return safeTry(async function* () {
-    // A chat's folder goes under `chats/`, a task a chat started goes inside
-    // that chat, and any other task goes flat under `tasks/`. The id is
-    // reserved in the index before its folder exists, which is what refuses
-    // a name another chat just took.
-    const { chatSessionId } = initialSettings;
-    const isChat = chatSessionId !== undefined;
+    // The id is reserved in the index before its folder exists, which is
+    // what refuses a name another chat just took.
     const dir = yield* Result.fromThrowable(
-      () =>
-        isChat
-          ? placeChat(ChatIdSchema.parse(taskId), chatSessionId)
-          : placeTask(taskId, chatId),
+      place,
       (error) =>
         new TypedError.Conflict(
           error instanceof Error ? error.message : String(error),

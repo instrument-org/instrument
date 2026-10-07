@@ -111,13 +111,13 @@ export function ChatGPTPlanCard() {
           </div>
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className="truncate font-medium text-foreground">
-              {accounts.length > 0 ? "ChatGPT plan" : "Use your ChatGPT plan"}
+              ChatGPT account
             </h3>
             {accounts.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {waiting === NEW_ACCOUNT
                   ? "Finish signing in with ChatGPT in your browser."
-                  : `${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
+                  : "Pay for ChatGPT Plus or Pro? Use it here."}
               </p>
             )}
           </div>

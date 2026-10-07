@@ -54,9 +54,25 @@ export const CHATGPT_PLAN_MODEL: AIGatewayModel.Type = {
     providerConfigId: AIProviderConfigIdSchema.parse("chatgpt-plan"),
   },
   providerId: "gpt-5.6-sol" as AIGatewayModel.ProviderId,
-  providerName: "ChatGPT plan",
+  providerName: "ChatGPT account",
   tags: [],
   uri: "openai/gpt-5.6-sol?provider=chatgpt&providerConfigId=chatgpt-plan" as AIGatewayModelURI.Type,
+};
+
+/** A model on the user's Claude subscription, run through Claude Code. */
+export const CLAUDE_PLAN_MODEL: AIGatewayModel.Type = {
+  author: "anthropic",
+  canonicalId: "claude-sonnet-5-5" as AIGatewayModel.CanonicalId,
+  features: ["inputText", "outputText", "tools"],
+  name: "Sonnet",
+  params: {
+    provider: "claude-plan",
+    providerConfigId: AIProviderConfigIdSchema.parse("claude-plan"),
+  },
+  providerId: "claude-sonnet-5-5" as AIGatewayModel.ProviderId,
+  providerName: "Claude account",
+  tags: [],
+  uri: "anthropic/claude-sonnet-5-5?provider=claude-plan&providerConfigId=claude-plan" as AIGatewayModelURI.Type,
 };
 
 /** A file the turn touched, for the grid of what changed. */

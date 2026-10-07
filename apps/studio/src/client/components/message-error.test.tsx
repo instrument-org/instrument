@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
@@ -13,6 +14,16 @@ type MessageErrorData = NonNullable<
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    auth: {
+      live: {
+        hasToken: {
+          experimental_liveOptions: () => ({
+            queryFn: () => Promise.resolve(false),
+            queryKey: ["auth", "hasToken"],
+          }),
+        },
+      },
+    },
     gateway: {
       models: {
         live: {
@@ -190,6 +201,25 @@ describe("MessageError", () => {
 
     expect(screen.getByText("ChatGPT usage limit reached")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
+  });
+
+  it("offers Instrument when the Claude plan's limit was reached", async () => {
+    renderError({
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "You've hit your limit",
+        name: "AI_APICallError",
+        statusCode: 429,
+        url: "claude-plan://",
+      },
+      provider: "claude-plan",
+    });
+
+    expect(screen.getByText("Claude usage limit reached")).not.toBeNull();
+    expect(
+      await screen.findByRole("button", { name: `Try ${APP_NAME}` }),
+    ).not.toBeNull();
   });
 
   it("says nothing about a throttle the session already got past", () => {

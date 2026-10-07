@@ -5,6 +5,7 @@ import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialo
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { ProviderConfigListItem } from "@/client/components/provider-config-list-item";
 import { ChatGPTPlanCard } from "@/client/components/settings/chatgpt-plan-card";
+import { ClaudePlanCard } from "@/client/components/settings/claude-plan-card";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
@@ -48,6 +49,7 @@ export function ProvidersSection({
       </div>
 
       <ChatGPTPlanCard />
+      <ClaudePlanCard />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {providerConfigs?.length === 0 ? (

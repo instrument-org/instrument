@@ -2,6 +2,7 @@ import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_PLAN_MODEL,
+  CLAUDE_PLAN_MODEL,
   file,
   folder,
   OUR_MODEL,
@@ -1498,6 +1499,32 @@ done`,
           url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
         },
         CHATGPT_PLAN_MODEL,
+      ),
+    ],
+  },
+  {
+    id: "claude-plan-errors",
+    name: "Claude account refusals",
+    script: [
+      user("Summarize this thread for me."),
+      // Shaped as the Claude account's model reports a spent subscription:
+      // the CLI's own sentence, under our usage-limit code.
+      fail(
+        {
+          classification: "usage-limit",
+          kind: "api-call",
+          message: "You've hit your limit · resets 1:50pm",
+          name: "AI_APICallError",
+          responseBody: JSON.stringify({
+            error: {
+              message: "You've hit your limit · resets 1:50pm",
+              type: "claude_plan_usage_limit_exceeded",
+            },
+          }),
+          statusCode: 429,
+          url: "claude-plan://",
+        },
+        CLAUDE_PLAN_MODEL,
       ),
     ],
   },

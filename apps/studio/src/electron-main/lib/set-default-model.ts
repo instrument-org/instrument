@@ -44,6 +44,32 @@ export async function setChatGPTPlanDefaultModel({
   return chosen.name.trim();
 }
 
+/**
+ * Connecting a Claude account is asked for to use the subscription, so it
+ * makes the model Claude Code recommends the default. Answers with the
+ * model's name, so the connection can say what changed.
+ */
+export async function setClaudePlanDefaultModel(): Promise<string | undefined> {
+  const config = getAIProviderConfigs().find(
+    (candidate) => candidate.type === "claude-plan",
+  );
+  if (!config) {
+    return undefined;
+  }
+  const [result] = await fetchModelResultsForProviders([config], {
+    captureException: captureServerException,
+    modelCache: diskModelCache,
+  });
+  const models = result?.ok ? result.value : [];
+  const chosen =
+    models.find((model) => model.tags.includes("default")) ?? models[0];
+  if (!chosen) {
+    return undefined;
+  }
+  setDefaultModelURI(chosen.uri);
+  return chosen.name.trim();
+}
+
 export async function setDefaultModel(options?: {
   onlyIfOurModel?: boolean;
   onlyIfUnset?: boolean;

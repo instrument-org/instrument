@@ -6,9 +6,12 @@ import {
   refreshAfterWake as refreshChatGPTPlanAfterWake,
   scheduleRefresh as scheduleChatGPTPlanRefresh,
 } from "@/electron-main/lib/chatgpt-plan";
+import { refreshClaudePlanStatus } from "@/electron-main/lib/claude-plan";
+import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
@@ -214,6 +217,18 @@ async function bootstrapPrimaryInstance() {
   // A signed-in ChatGPT plan's access token lasts an hour.
   scheduleChatGPTPlanRefresh();
   powerMonitor.on("resume", refreshChatGPTPlanAfterWake);
+
+  // The Claude plan is whatever the CLI says: someone installs it or signs
+  // in from a terminal, then comes back to the app.
+  // A workspace with no model chosen yet runs on the subscription it found.
+  void refreshClaudePlanStatus().then(async (found) => {
+    if (found.kind === "signed-in" && !getDefaultModelURI()) {
+      await setClaudePlanDefaultModel();
+    }
+  });
+  app.on("browser-window-focus", () => {
+    void refreshClaudePlanStatus();
+  });
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,

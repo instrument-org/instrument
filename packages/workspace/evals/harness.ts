@@ -24,6 +24,7 @@ import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
+import { isTypedByUser } from "../src/lib/typed-by-user";
 import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
@@ -171,6 +172,15 @@ export interface RunMetrics {
   /** Tool calls by every agent in the tree. */
   toolCalls: number;
   /**
+   * Each message the user typed, in order: how long from it being sent to
+   * the conversation's last reply before the next one (or the end), the
+   * tokens the conversation's own replies spent in that span, and the
+   * characters of text they showed. The conversation's own, not its tasks'.
+   */
+  turns?: { chars: number; ms: number; tokens: number }[];
+  /** `duringWork` follow-ups sent after the turn ended instead of inside it. */
+  duringWorkMissed?: number;
+  /**
    * Characters of assistant text in the run's own sessions: what the user
    * reads. For a chat that is the chat's replies, not its tasks'.
    */
@@ -294,7 +304,8 @@ export interface EvalCase {
    * in the tree as well, the way a person waits to read a reply before
    * answering it. `afterMs` sends that long after the previous message
    * without waiting at all, so it lands while the work is under way, as a
-   * correction typed mid-job does.
+   * correction typed mid-job does. `duringWork` sends it while the
+   * conversation's own agent has a tool call in flight.
    */
   followUps?: (FollowUp | string)[];
   /**
@@ -381,6 +392,15 @@ type ChooseAnswer = z.output<typeof Choose.outputSchema>;
 
 interface FollowUp {
   afterMs?: number;
+  /**
+   * Sent while the conversation's own agent is mid tool work: once it has
+   * finished `afterToolCalls` tool calls since the previous message was sent,
+   * at the moment its next call is in flight. For a message that has to land
+   * inside foreground work rather than between turns. Sent when the turn ends
+   * instead, should it end first; `duringWorkMissed` in the run's metrics
+   * counts those.
+   */
+  duringWork?: { afterToolCalls: number };
   prompt: string;
   settled?: boolean;
 }
@@ -624,6 +644,14 @@ export async function runEvals(
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
+      // See `FollowUp.duringWork`: the run's own finished tool calls, and
+      // who is waiting for one to be in flight after enough of them.
+      const ownToolsDone = new Set<string>();
+      const ownToolsStarted = new Set<string>();
+      let workWaiter:
+        | { afterCalls: number; baseline: number; resolve: () => void }
+        | undefined;
+      let duringWorkMissed = 0;
       // See `EvalCase.marks`. Each is timed from when its message is sent.
       const marks: {
         after?: string;
@@ -741,6 +769,28 @@ export async function runEvals(
               }
             }
 
+            if (isToolPart(part)) {
+              if (
+                part.state === "output-available" ||
+                part.state === "output-error"
+              ) {
+                ownToolsDone.add(part.toolCallId);
+              } else if (
+                part.state === "input-available" &&
+                !ownToolsStarted.has(part.toolCallId)
+              ) {
+                ownToolsStarted.add(part.toolCallId);
+                if (
+                  workWaiter &&
+                  ownToolsDone.size - workWaiter.baseline >=
+                    workWaiter.afterCalls
+                ) {
+                  workWaiter.resolve();
+                  workWaiter = undefined;
+                }
+              }
+            }
+
             if (
               part.type === "tool-choose" &&
               part.state === "input-available" &&
@@ -835,7 +885,11 @@ export async function runEvals(
       const followUps = (evalCase.followUps ?? []).map((followUp) =>
         typeof followUp === "string" ? { prompt: followUp } : followUp,
       );
-      const isTimed = (followUp?: FollowUp) => followUp?.afterMs !== undefined;
+      const isTimed = (followUp?: FollowUp) =>
+        followUp?.afterMs !== undefined || followUp?.duringWork !== undefined;
+      // Counted from each message sent, so a `duringWork` follow-up waits on
+      // tool calls of the turn it is meant to land in.
+      let toolsAtLastSend = 0;
       let turn = waitForSessionDone(sessionId, id, {
         timeoutMs: remainingMs(),
       });
@@ -864,7 +918,23 @@ export async function runEvals(
         if (stoppedBy || outcome === "timeout") {
           break;
         }
-        if (followUp.afterMs !== undefined) {
+        if (followUp.duringWork !== undefined) {
+          const { afterToolCalls } = followUp.duringWork;
+          const inFlight = new Promise<"in flight">((resolve) => {
+            workWaiter = {
+              afterCalls: afterToolCalls,
+              baseline: toolsAtLastSend,
+              resolve: () => {
+                resolve("in flight");
+              },
+            };
+          });
+          const first = await Promise.race([inFlight, turn]);
+          workWaiter = undefined;
+          if (first !== "in flight") {
+            duringWorkMissed += 1;
+          }
+        } else if (followUp.afterMs !== undefined) {
           await new Promise((resolve) =>
             setTimeout(
               resolve,
@@ -900,6 +970,7 @@ export async function runEvals(
           { context },
         );
         lastSentAt = Date.now();
+        toolsAtLastSend = ownToolsDone.size;
         if (!steering) {
           turn = waitForSessionDone(sessionId, id, {
             timeoutMs: remainingMs(),
@@ -979,6 +1050,12 @@ export async function runEvals(
           startedAt,
         })),
         ...(markTimes ? { marks: markTimes } : {}),
+        ...(evalCase.followUps?.some(
+          (followUp) =>
+            typeof followUp !== "string" && followUp.duringWork !== undefined,
+        )
+          ? { duringWorkMissed }
+          : {}),
         cacheReadTokens: [usage, ...childUsages].reduce(
           (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
           0,
@@ -1207,11 +1284,13 @@ async function metricsFor(
   const own = await Store.getSessions(taskId);
   let visibleChars = 0;
   const taskCommands = { fork: 0, new: 0 };
+  const turns: NonNullable<RunMetrics["turns"]> = [];
   for (const session of own.isOk() ? own.value : []) {
     const withParts = await Store.getSessionWithMessagesAndParts(
       session.id,
       taskId,
     );
+    turns.push(...turnsOf(withParts.isOk() ? withParts.value.messages : []));
     for (const message of withParts.isOk() ? withParts.value.messages : []) {
       if (message.role !== "assistant") {
         continue;
@@ -1226,7 +1305,7 @@ async function metricsFor(
             ...command.matchAll(/(?:^|[\n;&|])\s*task fork\b/g),
           ].length;
           taskCommands.new += [
-            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
+            ...command.matchAll(/(?:^|[\n;&|])\s*(?:task|background) new\b/g),
           ].length;
         }
       }
@@ -1251,7 +1330,9 @@ async function metricsFor(
           if (REFUSED.test(said)) {
             refusals.all += 1;
             if (
-              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
+              /(?:^|[\n;&|(])\s*(?:task|background)\s+[a-z]/.test(
+                part.input?.command ?? "",
+              )
             ) {
               refusals.task += 1;
             }
@@ -1275,8 +1356,57 @@ async function metricsFor(
     taskCommands,
     tasksCreated: childTaskIds.length,
     toolCalls,
+    turns,
     visibleChars,
   };
+}
+
+/**
+ * Each message the user typed and the replies that answered it: the
+ * assistant messages after it up to the next message of the user's or of the
+ * harness (a wake), timed to the last of them finishing. See `RunMetrics`.
+ */
+function turnsOf(
+  messages: Session.WithMessagesAndParts["messages"],
+): NonNullable<RunMetrics["turns"]> {
+  const turns: NonNullable<RunMetrics["turns"]> = [];
+  messages.forEach((message, index) => {
+    if (
+      message.role !== "user" ||
+      message.metadata.inherited ||
+      !isTypedByUser(message)
+    ) {
+      return;
+    }
+    const next = messages.findIndex(
+      (later, at) => at > index && later.role === "user",
+    );
+    const replies = messages
+      .slice(index + 1, next === -1 ? undefined : next)
+      .filter((reply) => reply.role === "assistant");
+    const last = replies.at(-1);
+    const endedAt = last
+      ? (last.metadata.finishedAt ?? last.metadata.createdAt).getTime()
+      : message.metadata.createdAt.getTime();
+    turns.push({
+      chars: replies.reduce(
+        (sum, reply) =>
+          sum +
+          reply.parts.reduce(
+            (chars, part) =>
+              chars + (part.type === "text" ? part.text.trim().length : 0),
+            0,
+          ),
+        0,
+      ),
+      ms: endedAt - message.metadata.createdAt.getTime(),
+      tokens: replies.reduce(
+        (sum, reply) => sum + (reply.metadata.usage?.totalTokens ?? 0),
+        0,
+      ),
+    });
+  });
+  return turns;
 }
 
 function sanitizeCanonicalId(canonicalId: string): string {

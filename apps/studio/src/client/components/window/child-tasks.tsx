@@ -164,7 +164,9 @@ function Chip({
  * rather than reading as though nothing were set.
  */
 function EffortChip({ task }: { task: Task }) {
-  const models = useQuery(rpcClient.gateway.models.list.queryOptions());
+  const models = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
   );

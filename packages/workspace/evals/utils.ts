@@ -6,9 +6,11 @@ import {
   noopModelCache,
 } from "@instrument-org/ai-gateway";
 import {
+  AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
   CHATGPT_PLAN_PROVIDER_CONFIG,
+  CLAUDE_PLAN_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import path from "node:path";
@@ -350,6 +352,17 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
       apiKey: env.APP_CHATGPT_PLAN_TOKEN,
       cacheIdentifier: "chatgpt-plan",
       id: AIProviderConfigIdSchema.parse("chatgpt-plan"),
+    });
+  }
+
+  // A Claude account, run through the Claude Code CLI this path names, as
+  // Studio does once it finds the CLI signed in.
+  if (env.APP_CLAUDE_CODE_PATH) {
+    configs.push({
+      ...CLAUDE_PLAN_PROVIDER_CONFIG,
+      apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
+      executablePath: env.APP_CLAUDE_CODE_PATH,
+      id: AIProviderConfigIdSchema.parse(CLAUDE_PLAN_PROVIDER_CONFIG.id),
     });
   }
 

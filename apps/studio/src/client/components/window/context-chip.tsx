@@ -23,7 +23,7 @@ import { screenPresentation, type ScreenNames } from "./screen-presentation";
 type SentChip = SessionMessageDataPart.SentChip;
 
 /** What a chip of the composer's is, as its tooltip says it. */
-export const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
+const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
 
 /** What a chip over a sent message is, as its tooltip says it. */
 const SENT_WITH_THIS_MESSAGE = "Instrument saw this with your message.";

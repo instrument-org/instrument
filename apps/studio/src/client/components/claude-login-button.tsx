@@ -60,19 +60,38 @@ export function ClaudeLoginButton({
     }
   });
 
-  const continueWithClaude = async () => {
+  const continueWithClaude = async (justInstalled = false) => {
     setHint(undefined);
     const current = await connect();
     switch (current?.kind) {
-      case "not-installed": {
-        openLink(INSTALL_URL, { addReferral: false });
-        setHint("Install Claude Code, sign in to it, then continue.");
-        return;
-      }
+      case "not-installed":
       case "outdated": {
-        setHint(
-          `Update Claude Code (${current.version} is too old), then continue.`,
-        );
+        // A chosen copy is the person's to fix; otherwise install ours, the
+        // version this build drives, and carry on to the sign-in.
+        if (
+          justInstalled ||
+          !current.canInstall ||
+          current.source === "chosen"
+        ) {
+          if (current.kind === "not-installed" && !current.canInstall) {
+            openLink(INSTALL_URL, { addReferral: false });
+          }
+          setHint(
+            current.kind === "outdated"
+              ? `Update Claude Code (${current.version} is too old), then continue.`
+              : "Install Claude Code, sign in to it, then continue.",
+          );
+          return;
+        }
+        setWaiting(true);
+        await rpcClient.claudePlan.install.call({});
+        const after = await rpcClient.claudePlan.refresh.call({});
+        if (after.install?.state === "failed") {
+          setWaiting(false);
+          setHint(`Claude Code didn't install: ${after.install.failed}`);
+          return;
+        }
+        await continueWithClaude(true);
         return;
       }
       case "signed-out":
@@ -108,10 +127,16 @@ export function ClaudeLoginButton({
       </BrowserHandoffButton>
       <p className="text-center text-xs text-foreground/60">
         {hint ??
-          (waiting
-            ? "Finish signing in to Claude in the terminal and your browser"
-            : caption)}
+          (status?.install?.state === "downloading"
+            ? `Installing Claude Code, ${installPercent(status.install)}% done`
+            : waiting
+              ? "Finish signing in to Claude in the terminal and your browser"
+              : caption)}
       </p>
     </div>
   );
+}
+
+function installPercent({ received, total }: { received: number; total: number }) {
+  return total > 0 ? Math.round((received / total) * 100) : 0;
 }

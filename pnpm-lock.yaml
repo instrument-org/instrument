@@ -141,6 +141,9 @@ importers:
 
   apps/studio:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.285
+        version: 0.3.285(@anthropic-ai/sdk@0.129.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.1.0)(zod@4.6.5))(zod@4.6.5)
       '@electron-toolkit/preload':
         specifier: ^3.0.2
         version: 3.0.2(electron@44.4.5(supports-color@10.1.0))
@@ -834,7 +837,7 @@ importers:
         specifier: ^5.0.10
         version: 5.0.10(zod@4.6.5)
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.285
+        specifier: 0.3.285
         version: 0.3.285(@anthropic-ai/sdk@0.129.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.1.0)(zod@4.6.5))(zod@4.6.5)
       '@anthropic-ai/sdk':
         specifier: ^0.129.0

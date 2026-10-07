@@ -1,3 +1,8 @@
+import {
+  downloadClaudeCode,
+  installedCopy,
+  wantedRelease,
+} from "@/electron-main/lib/claude-code-download";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
@@ -44,7 +49,22 @@ export interface ClaudeCodeSetup {
   executablePath?: string;
 }
 
-export type ClaudePlanStatus = { setup: ClaudeCodeSetup } & (
+/**
+ * Our own copy of Claude Code being installed, or why the last try failed.
+ * Undefined while nothing is under way.
+ */
+export type ClaudeCodeInstall =
+  | { failed: string; state: "failed" }
+  | { received: number; state: "downloading"; total: number };
+
+export type ClaudePlanStatus = {
+  /** Whether this platform has a Claude Code build we can install. */
+  canInstall: boolean;
+  install: ClaudeCodeInstall | undefined;
+  setup: ClaudeCodeSetup;
+  /** Whose copy runs: one the person chose, ours, or one found on the system. */
+  source: "chosen" | "ours" | "system" | undefined;
+} & (
   | { kind: "not-installed" }
   | { executablePath: string; kind: "outdated"; version: string }
   | { executablePath: string; kind: "signed-out"; version: string }
@@ -64,7 +84,14 @@ export type ClaudePlanStatus = { setup: ClaudeCodeSetup } & (
     }
 );
 
-let status: ClaudePlanStatus = { kind: "not-installed", setup: {} };
+let status: ClaudePlanStatus = {
+  canInstall: false,
+  install: undefined,
+  kind: "not-installed",
+  setup: {},
+  source: undefined,
+};
+let install: ClaudeCodeInstall | undefined;
 let lastRefresh = 0;
 let refreshing: Promise<ClaudePlanStatus> | undefined;
 
@@ -146,12 +173,21 @@ export async function claudePlanUsage() {
 
 async function readStatus(): Promise<ClaudePlanStatus> {
   const chosen = setup();
-  const result = await readCLI(chosen);
-  return { ...result, setup: chosen };
+  const found = await findExecutable(chosen.executablePath);
+  const result = await readCLI(found?.executablePath, chosen);
+  return {
+    ...result,
+    canInstall: wantedRelease() !== undefined,
+    install,
+    setup: chosen,
+    source: found?.source,
+  };
 }
 
-async function readCLI(chosen: ClaudeCodeSetup) {
-  const executablePath = await findExecutable(chosen.executablePath);
+async function readCLI(
+  executablePath: string | undefined,
+  chosen: ClaudeCodeSetup,
+) {
   if (!executablePath) {
     return { kind: "not-installed" as const };
   }
@@ -281,18 +317,69 @@ function candidatePaths() {
   ];
 }
 
-async function findExecutable(chosen: string | undefined) {
-  // A path the person chose is the only one tried: falling back to another
-  // install would sign in someone they did not pick.
-  for (const candidate of chosen ? [chosen] : candidatePaths()) {
-    try {
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // Not here.
+/**
+ * The CLI to run: the one the person chose, which is the only one tried when
+ * set, since falling back to another would sign in someone they did not pick;
+ * else our own copy, which matches the SDK by construction; else one found
+ * where people install it.
+ */
+async function findExecutable(chosen: string | undefined): Promise<
+  | { executablePath: string; source: "chosen" | "ours" | "system" }
+  | undefined
+> {
+  if (chosen) {
+    return (await isExecutable(chosen))
+      ? { executablePath: chosen, source: "chosen" }
+      : undefined;
+  }
+  const ours = await installedCopy();
+  if (ours) {
+    return { executablePath: ours, source: "ours" };
+  }
+  for (const candidate of candidatePaths()) {
+    if (await isExecutable(candidate)) {
+      return { executablePath: candidate, source: "system" };
     }
   }
   return undefined;
+}
+
+async function isExecutable(file: string) {
+  try {
+    await access(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Install our own copy of the Claude Code release this build drives, then
+ * look again. Progress and failure ride on the status.
+ */
+export async function installClaudeCode() {
+  if (install?.state === "downloading") {
+    return;
+  }
+  const publish = (next: ClaudeCodeInstall | undefined) => {
+    install = next;
+    status = { ...status, install };
+    publisher.publish("claude-plan.updated", null);
+  };
+  publish({ received: 0, state: "downloading", total: 0 });
+  try {
+    await downloadClaudeCode(({ received, total }) => {
+      publish({ received, state: "downloading", total });
+    });
+    publish(undefined);
+  } catch (error) {
+    log.warn("Couldn't install Claude Code", error);
+    publish({
+      failed: error instanceof Error ? error.message : String(error),
+      state: "failed",
+    });
+  }
+  await refreshClaudePlanStatus({ force: true });
 }
 
 /**

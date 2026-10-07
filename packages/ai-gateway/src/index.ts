@@ -12,6 +12,10 @@ export {
   type ClaudePlanUsage,
   fetchClaudePlanUsage,
 } from "./lib/providers/claude-plan/fetch-usage";
+export {
+  type ClaudeCodeRelease,
+  claudeCodeRelease,
+} from "./lib/providers/claude-plan/release";
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";

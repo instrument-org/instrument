@@ -1,4 +1,10 @@
+import { openLogin } from "@/client/atoms/login-modal";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import {
@@ -16,43 +22,43 @@ import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { capitalize } from "radashi";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const INSTALL_URL = "https://code.claude.com/docs/en/setup";
 
+/** A usage window this full is worth pointing out a way past. */
+const RUNNING_LOW_PERCENT = 80;
+
 type Status = RPCOutput["claudePlan"]["refresh"];
 
 /**
- * The Claude plan as a row among the providers, beside the ChatGPT plan's. It
- * only reports what the Claude Code CLI on this computer says: installing and
- * signing in both happen in the CLI, never in the app.
+ * The Claude account as a row among the providers, beside the ChatGPT
+ * account's. Signing in happens in Claude Code, Anthropic's own app, which
+ * Instrument installs a copy of when the computer has none it can use. When
+ * something stands in the way, the card says what and offers the one press
+ * that fixes it.
  */
 export function ClaudePlanCard() {
   const { data: status } = useQuery(
     rpcClient.claudePlan.live.status.experimental_liveOptions(),
   );
-  const openLink = useOpenExternalLink();
-  const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
-  const refresh = useMutation(rpcClient.claudePlan.refresh.mutationOptions());
-  const [command, setCommand] = useState<string | undefined>();
+  const [signingIn, setSigningIn] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
   const connecting = useRef(false);
 
   // Signed in from the terminal this card opened: the account is connected,
   // as from onboarding, so its recommended model becomes the default.
   useEffect(() => {
-    if (
-      command === undefined ||
-      status?.kind !== "signed-in" ||
-      connecting.current
-    ) {
+    if (!signingIn || status?.kind !== "signed-in" || connecting.current) {
       return;
     }
     connecting.current = true;
-    setCommand(undefined);
+    setSigningIn(false);
     void rpcClient.claudePlan.connect.call({}).then((result) => {
       connecting.current = false;
       toast.success("Connected your Claude account", {
@@ -61,8 +67,7 @@ export function ClaudePlanCard() {
           : "Its models are in the model picker.",
       });
     });
-  }, [command, status?.kind]);
-  const [settingUp, setSettingUp] = useState(false);
+  }, [signingIn, status?.kind]);
 
   if (!status) {
     return null;
@@ -70,70 +75,45 @@ export function ClaudePlanCard() {
 
   return (
     <Card className="gap-0 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center">
-            <AIProviderIcon type="claude-plan" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="truncate font-medium text-foreground">
-              Claude account
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {describe(status, command)}
-            </p>
-          </div>
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center">
+          <AIProviderIcon type="claude-plan" />
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {status.kind === "not-installed" && (
-            <Button
-              onClick={() => {
-                openLink(INSTALL_URL, { addReferral: false });
-              }}
-              variant="outline"
-            >
-              Install Claude Code
-            </Button>
-          )}
-          {(status.kind === "signed-out" || status.kind === "not-a-plan") && (
-            <Button
-              disabled={signIn.isPending}
-              onClick={() => {
-                void signIn.mutateAsync({}).then((result) => {
-                  setCommand(result.opened ? "opened" : result.command);
-                });
-              }}
-            >
-              Sign in
-            </Button>
-          )}
+        <div className="min-w-0 flex-1 space-y-1">
+          <h3 className="truncate font-medium text-foreground">
+            Claude account
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {status.kind === "signed-in"
+              ? [status.email, status.plan && capitalize(status.plan)]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "Pay for Claude Pro or Max? Use it here."}
+          </p>
         </div>
       </div>
-      {status.kind === "signed-in" && <PlanUsage />}
-      <div className="mt-2 flex items-center gap-1 pl-9">
-        {status.kind !== "signed-in" && (
-          <Button
-            className="text-muted-foreground"
-            disabled={refresh.isPending}
-            onClick={() => {
-              refresh.mutate({});
-            }}
-            size="xs"
-            variant="ghost"
-          >
-            Check again
-          </Button>
-        )}
-        <Button
-          className="text-muted-foreground"
-          onClick={() => {
+      <div className="pl-11">
+        <Problem
+          onSetup={() => {
             setSettingUp(true);
           }}
-          size="xs"
-          variant="ghost"
-        >
-          Installation and account…
-        </Button>
+          onSigningIn={setSigningIn}
+          signingIn={signingIn}
+          status={status}
+        />
+        {status.kind === "signed-in" && <PlanUsage />}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">{sourceLine(status)}</p>
+          <Button
+            onClick={() => {
+              setSettingUp(true);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Installation and account…
+          </Button>
+        </div>
       </div>
       <SetupDialog
         onOpenChange={setSettingUp}
@@ -144,16 +124,238 @@ export function ClaudePlanCard() {
   );
 }
 
+/** What stands between the person and their subscription, and the press that fixes it. */
+function Problem({
+  onSetup,
+  onSigningIn,
+  signingIn,
+  status,
+}: {
+  onSetup: () => void;
+  onSigningIn: (signingIn: boolean) => void;
+  signingIn: boolean;
+  status: Status;
+}) {
+  const openLink = useOpenExternalLink();
+  const install = useMutation(rpcClient.claudePlan.install.mutationOptions());
+  const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
+  const refresh = useMutation(rpcClient.claudePlan.refresh.mutationOptions());
+  const [command, setCommand] = useState<string>();
+
+  const installButton = status.canInstall ? (
+    <Button
+      key="install"
+      onClick={() => {
+        install.mutate({});
+      }}
+    >
+      Install Claude Code
+    </Button>
+  ) : (
+    <Button
+      key="install"
+      onClick={() => {
+        openLink(INSTALL_URL, { addReferral: false });
+      }}
+    >
+      Get Claude Code
+    </Button>
+  );
+  const ownCopyButton = (
+    <Button key="own-copy" onClick={onSetup} variant="outline">
+      Use my own copy…
+    </Button>
+  );
+  const signInButton = (
+    <Button
+      disabled={signIn.isPending}
+      key="sign-in"
+      onClick={() => {
+        onSigningIn(true);
+        void signIn.mutateAsync({}).then((result) => {
+          setCommand(result.opened ? undefined : result.command);
+        });
+      }}
+    >
+      Sign in
+    </Button>
+  );
+  const checkAgainButton = (
+    <Button
+      disabled={refresh.isPending}
+      key="check-again"
+      onClick={() => {
+        refresh.mutate({});
+      }}
+      variant="outline"
+    >
+      Check again
+    </Button>
+  );
+
+  if (status.install?.state === "downloading") {
+    const { received, total } = status.install;
+    const percent = total > 0 ? (received / total) * 100 : 0;
+    return (
+      <Callout title="Installing Claude Code">
+        <p>
+          {total > 0
+            ? `${megabytes(received)} of ${megabytes(total)} MB. You can keep working while it downloads.`
+            : "Starting the download."}
+        </p>
+        <Progress className="mt-1 w-full" value={percent} />
+      </Callout>
+    );
+  }
+  if (status.install?.state === "failed") {
+    return (
+      <Callout
+        actions={[installButton, ownCopyButton]}
+        title="Claude Code didn't install"
+        warning
+      >
+        <p>{status.install.failed}</p>
+      </Callout>
+    );
+  }
+
+  switch (status.kind) {
+    case "not-installed": {
+      return status.setup.executablePath ? (
+        <Callout
+          actions={[
+            <Button key="setup" onClick={onSetup}>
+              Choose another…
+            </Button>,
+          ]}
+          title="Claude Code isn't at the path you chose"
+          warning
+        >
+          <p>Nothing runs at {status.setup.executablePath}.</p>
+        </Callout>
+      ) : (
+        <Callout
+          actions={[installButton, ownCopyButton]}
+          title="Install Claude Code to use your subscription"
+        >
+          <p>
+            {APP_NAME} runs your Claude subscription through Claude Code,
+            Anthropic&apos;s own app. You sign in to it with your Claude
+            account.
+          </p>
+        </Callout>
+      );
+    }
+    case "outdated": {
+      return (
+        <Callout
+          actions={
+            status.source === "chosen" ? [ownCopyButton] : [installButton]
+          }
+          title="This Claude Code is too old"
+          warning
+        >
+          <p>
+            Claude Code {status.version} is older than {APP_NAME} needs.
+            {status.source === "chosen"
+              ? " Update it, or choose another."
+              : ` Install the version ${APP_NAME} works with.`}
+          </p>
+        </Callout>
+      );
+    }
+    case "signed-out":
+    case "not-a-plan": {
+      const title =
+        status.kind === "signed-out"
+          ? "Sign in to Claude Code"
+          : "Claude Code is signed in with an API key";
+      if (signingIn) {
+        return (
+          <Callout actions={[checkAgainButton]} title={title}>
+            <p>
+              {command
+                ? `Run ${command} in a terminal, then come back.`
+                : `Finish signing in in the terminal and your browser. ${APP_NAME} picks it up when you come back.`}
+            </p>
+          </Callout>
+        );
+      }
+      return (
+        <Callout actions={[signInButton]} title={title} warning>
+          <p>
+            {status.kind === "signed-out"
+              ? "Sign in with the Claude account your Pro or Max subscription is on. It opens in a terminal and finishes in your browser."
+              : `${APP_NAME} uses a Claude subscription. Sign in again with your Claude account.`}
+          </p>
+        </Callout>
+      );
+    }
+    case "signed-in": {
+      return null;
+    }
+  }
+}
+
+function Callout({
+  actions = [],
+  children,
+  title,
+  warning = false,
+}: {
+  actions?: ReactNode[];
+  children: ReactNode;
+  title: string;
+  warning?: boolean;
+}) {
+  return (
+    <Alert className="mt-4 py-4" variant={warning ? "warning" : "default"}>
+      {warning && <WarningIcon />}
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>
+        {children}
+        {actions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">{actions}</div>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** Which Claude Code is in use, for someone working out why it behaves as it does. */
+function sourceLine(status: Status) {
+  if (status.kind === "not-installed") {
+    return "";
+  }
+  const whose =
+    status.source === "ours"
+      ? `installed by ${APP_NAME}`
+      : status.source === "chosen"
+        ? "the copy you chose"
+        : "found on this computer";
+  return `Claude Code ${status.version}, ${whose}`;
+}
+
+function megabytes(bytes: number) {
+  return Math.round(bytes / 1_000_000);
+}
+
 /** The plan's usage windows, read when the card shows and on request. */
 function PlanUsage() {
   const usage = useQuery({
     ...rpcClient.claudePlan.usage.queryOptions(),
     staleTime: 60_000,
   });
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const windows = usage.data?.windows ?? [];
+  const runningLow = windows.some(
+    (window) => window.used >= RUNNING_LOW_PERCENT,
+  );
 
   return (
-    <div className="mt-4 flex flex-col gap-3 pl-11">
+    <div className="mt-4 flex flex-col gap-3">
       {windows.map((window) => (
         <div className="flex flex-col gap-1.5" key={window.label}>
           <div className="flex items-baseline justify-between gap-4 text-sm">
@@ -172,10 +374,30 @@ function PlanUsage() {
           )}
         </div>
       ))}
+      {runningLow && hasToken === false && (
+        <Callout
+          actions={[
+            <Button
+              key="try"
+              onClick={() => {
+                openLogin({ hideManualProvider: true });
+              }}
+            >
+              Try {APP_NAME}
+            </Button>,
+          ]}
+          title="Your subscription is running low"
+        >
+          <p>
+            {APP_NAME}&apos;s own models keep you going until your Claude usage
+            resets.
+          </p>
+        </Callout>
+      )}
       <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
         <p>
           {usage.isError
-            ? "Couldn't read your plan's usage from Claude Code."
+            ? "Couldn't read your subscription's usage from Claude Code."
             : `Your Claude account's usage, including outside ${APP_NAME}.`}
         </p>
         <div className="flex shrink-0 items-center gap-1">
@@ -200,8 +422,9 @@ function PlanUsage() {
 }
 
 /**
- * Which Claude Code install and config folder to use, for a computer with more
- * than one, or an install we did not find.
+ * Which Claude Code install and which Claude sign-in to use, for a computer
+ * with more than one. Each field takes a pasted path or one chosen in the
+ * system's own panel.
  */
 function SetupDialog({
   onOpenChange,
@@ -218,46 +441,50 @@ function SetupDialog({
   );
   const [configDir, setConfigDir] = useState(setup.configDir ?? "");
 
+  const choose = async (
+    kind: "configDir" | "executable",
+    set: (path: string) => void,
+  ) => {
+    const chosen = await rpcClient.claudePlan.pick.call({ kind });
+    if (chosen) {
+      set(chosen.path);
+    }
+  };
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent maxWidth="34rem">
+      <DialogContent maxWidth="36rem">
         <DialogHeader>
           <DialogTitle>Claude Code installation and account</DialogTitle>
           <DialogDescription>
-            Choose an installation and account when you have more than one.
-            Leave either blank to use the default.
+            {APP_NAME} installs and uses its own copy of Claude Code. Choose
+            another here when you want {APP_NAME} to use a copy or a Claude
+            sign-in of your own. Leave a field empty to use the default.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claude-executable">Claude Code installation</Label>
-            <Input
-              id="claude-executable"
-              onChange={(event) => {
-                setExecutablePath(event.target.value);
-              }}
-              placeholder="~/.local/bin/claude"
-              value={executablePath}
-            />
-            <p className="text-xs text-muted-foreground">
-              The full path to the claude executable.
-            </p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="claude-config-dir">Account folder</Label>
-            <Input
-              id="claude-config-dir"
-              onChange={(event) => {
-                setConfigDir(event.target.value);
-              }}
-              placeholder="~/.claude"
-              value={configDir}
-            />
-            <p className="text-xs text-muted-foreground">
-              The config folder holding the Claude sign-in to use, as
-              CLAUDE_CONFIG_DIR names it.
-            </p>
-          </div>
+          <PathField
+            description="The claude program to run."
+            id="claude-executable"
+            label="Claude Code installation"
+            onChange={setExecutablePath}
+            onChoose={() => {
+              void choose("executable", setExecutablePath);
+            }}
+            placeholder={`The copy ${APP_NAME} installs`}
+            value={executablePath}
+          />
+          <PathField
+            description="A folder you signed in to Claude with through CLAUDE_CONFIG_DIR, for a second Claude account. Your usual sign-in needs nothing here."
+            id="claude-config-dir"
+            label="Account folder"
+            onChange={setConfigDir}
+            onChoose={() => {
+              void choose("configDir", setConfigDir);
+            }}
+            placeholder="Your usual Claude sign-in"
+            value={configDir}
+          />
         </div>
         <DialogFooter>
           <Button
@@ -284,33 +511,41 @@ function SetupDialog({
   );
 }
 
-function describe(status: Status, command: string | undefined) {
-  switch (status.kind) {
-    case "not-installed": {
-      return status.setup.executablePath
-        ? `Nothing runs at ${status.setup.executablePath}. Check the path under Installation and account.`
-        : "Pay for Claude Pro or Max? Use it here, through Claude Code. Install it and sign in, then come back. Already installed somewhere else? Choose where under Installation and account.";
-    }
-    case "outdated": {
-      return `Claude Code ${status.version} is too old for ${APP_NAME}. Update it, then come back.`;
-    }
-    case "signed-out": {
-      if (command === "opened") {
-        return "Finish signing in to Claude in the terminal and your browser, then come back.";
-      }
-      if (command) {
-        return `Run ${command} in a terminal, then come back.`;
-      }
-      return "Pay for Claude Pro or Max? Use it here. Sign in to Claude Code with the account your subscription is on.";
-    }
-    case "not-a-plan": {
-      return "Claude Code is signed in with an API key or a cloud provider, not a Claude subscription. Sign in again with your Claude account.";
-    }
-    case "signed-in": {
-      // The CLI names the subscription in lowercase: `pro`, `max`.
-      return [status.email, status.plan && capitalize(status.plan)]
-        .filter(Boolean)
-        .join(" · ");
-    }
-  }
+function PathField({
+  description,
+  id,
+  label,
+  onChange,
+  onChoose,
+  placeholder,
+  value,
+}: {
+  description: string;
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  onChoose: () => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          className="min-w-0 flex-1"
+          id={id}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+          placeholder={placeholder}
+          value={value}
+        />
+        <Button onClick={onChoose} variant="outline">
+          Choose…
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
 }

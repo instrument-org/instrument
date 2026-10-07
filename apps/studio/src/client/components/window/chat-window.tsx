@@ -395,10 +395,7 @@ export function ChatWindow({
         }}
         tabs={tabs}
         targetOf={(tab) =>
-          encodeBrowserTargetId(
-            tab.taskId ?? WINDOW_ID,
-            StoreId.SessionSchema.parse(tab.id),
-          )
+          encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
         }
         taskTitles={taskTitles}
       />

@@ -16,16 +16,6 @@ import { NavControls } from "@/client/components/nav-controls";
 import { OnboardingZoomRoot } from "@/client/components/onboarding/zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { WindowBorder } from "@/client/components/window-border";
@@ -54,7 +44,6 @@ import {
   type ChatId,
   encodeBrowserTargetId,
   StoreId,
-  type TaskId,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
@@ -493,40 +482,9 @@ function WindowShell({
     );
   }, [opened, queryClient]);
 
-  // Closing a task's browser tab closes the browser, and the task loses its
-  // page; while the task is in it, the user is asked first.
-  const [closingBrowser, setClosingBrowser] = useState<{
-    id: string;
-    taskId: TaskId;
-    title: string;
-  }>();
-  const closeTaskBrowser = (id: string, taskId: TaskId) => {
-    void rpcClient.workspace.browser.close.call({
-      id: taskId,
-      sessionId: StoreId.SessionSchema.parse(id),
-    });
-    windowTabs.close(id);
-  };
   const requestClose = (id: string) => {
     // Any group's: a popped-out chat's rail closes its tabs here too.
-    const tab = windowTabs.allTabs.find((entry) => entry.id === id);
-    if (tab?.kind !== "page" || !tab.taskId) {
-      windowTabs.close(id);
-      return;
-    }
-    const { taskId } = tab;
-    void rpcClient.workspace.task.status
-      .call({ id: taskId })
-      .then((status) => {
-        if (status.isWorking) {
-          setClosingBrowser({ id, taskId, title: status.title });
-        } else {
-          closeTaskBrowser(id, taskId);
-        }
-      })
-      .catch(() => {
-        closeTaskBrowser(id, taskId);
-      });
+    windowTabs.close(id);
   };
 
   usePageThumbnailHousekeeping();
@@ -950,44 +908,6 @@ function WindowShell({
               </ActiveTabProvider>,
               stage,
             )}
-            <AlertDialog
-              onOpenChange={(open) => {
-                if (!open) {
-                  setClosingBrowser(undefined);
-                }
-              }}
-              open={closingBrowser !== undefined}
-            >
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {closingBrowser
-                      ? `“${closingBrowser.title}” is using this page`
-                      : ""}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    A task is still using this browser. If you close it, the
-                    task will carry on without it.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep it open</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      if (closingBrowser) {
-                        closeTaskBrowser(
-                          closingBrowser.id,
-                          closingBrowser.taskId,
-                        );
-                      }
-                      setClosingBrowser(undefined);
-                    }}
-                  >
-                    Close anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
             {/* Asked for from a chat's head or a draft's, so the topic it
               makes is filed on that chat or draft as it lands. */}
             <NewTopicDialog

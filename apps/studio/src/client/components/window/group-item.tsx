@@ -96,10 +96,7 @@ export function GroupItem({
   );
   const targetId =
     up.kind === "page"
-      ? encodeBrowserTargetId(
-          up.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(up.id),
-        )
+      ? encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(up.id))
       : undefined;
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),

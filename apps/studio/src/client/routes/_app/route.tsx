@@ -209,10 +209,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       }}
       tabs={tabs}
       targetOf={(tab) =>
-        encodeBrowserTargetId(
-          tab.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(tab.id),
-        )
+        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
       }
       taskTitles={shell.childTitles}
     />

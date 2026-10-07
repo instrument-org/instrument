@@ -280,17 +280,13 @@ export function BrowserTabs({
   );
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
-    encodeBrowserTargetId(
-      tab.taskId ?? WINDOW_ID,
-      StoreId.SessionSchema.parse(tab.id),
-    );
+    encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id));
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
 
-  // The chat's own browser is the tab on screen; a task's tab is the
-  // task's to drive.
-  const activeTarget = active && !active.taskId ? targetOf(active) : null;
+  // The chat's own browser is the tab on screen.
+  const activeTarget = active ? targetOf(active) : null;
   useEffect(() => {
     void rpcClient.workspace.window.setActiveTab.call({
       targetId: activeTarget,
@@ -346,7 +342,7 @@ export function BrowserTabs({
   // them: the pages navigate by the user's hand and by an agent's, so the
   // strip is told rather than polled. Listeners are put on each guest once it
   // has attached, and again for a tab that arrives later.
-  const tabIds = tabs.map((tab) => `${tab.taskId ?? ""}:${tab.id}`).join(",");
+  const tabIds = tabs.map((tab) => tab.id).join(",");
   useEffect(() => {
     const patch = (
       id: string,
@@ -354,13 +350,12 @@ export function BrowserTabs({
     ) => {
       change((current) => patchPage(current, id, changes));
     };
-    const cleanups = tabIds.split(",").map((key) => {
-      const [owner, id] = key.split(":");
+    const cleanups = tabIds.split(",").map((id) => {
       if (!id) {
         return;
       }
       const target = encodeBrowserTargetId(
-        owner ? (owner as TaskId) : WINDOW_ID,
+        WINDOW_ID,
         StoreId.SessionSchema.parse(id),
       );
       if (!attached.has(target)) {
@@ -557,7 +552,7 @@ export function BrowserTabs({
           return;
         }
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? WINDOW_ID,
+          id: WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           url,
         });
@@ -588,12 +583,10 @@ export function BrowserTabs({
         // opening twice: a file has one tab per place, the way it has one tab
         // in Files, and a link to a page a task left open is that page.
         // Only the exact address counts, so a second page on a site still
-        // gets a tab of its own. Among the group's own: another chat's tab
-        // is that chat's, and a task's own guest is the task's, driving
-        // where the task drives it.
+        // gets a tab of its own. Only the group's own: another chat's tab
+        // is that chat's.
         const atAddress = latest.current.tabs.find(
-          (tab) =>
-            tab.group === key && !tab.taskId && sameAddress(tab.url, url),
+          (tab) => tab.group === key && sameAddress(tab.url, url),
         );
         if (atAddress) {
           if (options?.show || key === latest.current.group) {
@@ -653,13 +646,12 @@ export function BrowserTabs({
         }
         // The tabs a task can be handed: the group's own, since a note is
         // written for the chat that is up (or the draft being written) and
-        // another chat's tab is that chat's; a task's tab is already that
-        // task's.
+        // another chat's tab is that chat's.
         const groupKey =
           tabId === undefined ? latest.current.group : current.group;
-        const own = all.filter((tab) => tab.group === groupKey && !tab.taskId);
+        const own = all.filter((tab) => tab.group === groupKey);
         const base: PageContext = {
-          ...(current.taskId ? {} : { tab: current.id }),
+          tab: current.id,
           tabs: own.map((tab) => ({
             id: tab.id,
             title: tab.title ?? "",
@@ -702,7 +694,7 @@ export function BrowserTabs({
           return false;
         }
         void rpcClient.workspace.browser.open.call({
-          id: tab.taskId ?? WINDOW_ID,
+          id: WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
           ...(tab.url && tab.url !== "about:blank" ? { url: tab.url } : {}),
         });
@@ -714,16 +706,6 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeTarget],
   );
-
-  const taskIdsWithTabs = [
-    ...new Set(
-      allTabs
-        .flatMap((tab) => [tab, ...(tab.past ?? []), ...(tab.future ?? [])])
-        .flatMap((visit) =>
-          visit.kind === "page" && visit.taskId ? [visit.taskId] : [],
-        ),
-    ),
-  ];
 
   // A file shown as a page has its text a step away, which the page's menu
   // offers; a site's page has nothing here to show that way.
@@ -761,9 +743,6 @@ export function BrowserTabs({
 
   return (
     <div className="relative h-full min-h-0">
-      {taskIdsWithTabs.map((id) => (
-        <BrowserHold key={id} taskId={id} />
-      ))}
       {tabs.flatMap((tab) => {
         const filePath = hostPathOfFileUrl(tab.url);
         return filePath === undefined
@@ -831,7 +810,7 @@ export function BrowserTabs({
               })}
           restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          taskId={active.taskId ?? WINDOW_ID}
+          taskId={WINDOW_ID}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -883,25 +862,6 @@ export function TabIcon({
 }
 
 /**
- * Holds a task's browser for as long as the window has a tab of it: the task
- * page's leases, taken here instead, since the page for a task the
- * conversation started is never open.
- */
-function BrowserHold({ taskId }: { taskId: TaskId }) {
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: taskId, level: "retained" },
-    }),
-  );
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: taskId, level: "visible" },
-    }),
-  );
-  return null;
-}
-
-/**
  * A draft window's page, drawn into its band with the browser's own bar,
  * since the band has no row above it to carry the address. Under a provider
  * of its own, since the pane around the strip is inactive while a draft
@@ -938,7 +898,7 @@ function ComposePagePanel({
         relayoutKey={host.place}
         restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
-        taskId={tab.taskId ?? taskId}
+        taskId={taskId}
       />
     </ActiveTabProvider>,
     host.into,
@@ -986,9 +946,7 @@ function FilePageReload({
 function isEditablePage(tab: BrowserTab) {
   const filePath = hostPathOfFileUrl(tab.url);
   return (
-    !tab.taskId &&
-    filePath !== undefined &&
-    getFileType({ filename: filePath }) === "html"
+    filePath !== undefined && getFileType({ filename: filePath }) === "html"
   );
 }
 

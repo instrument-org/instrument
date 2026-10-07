@@ -26,16 +26,25 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type Memory } from "@instrument-org/workspace/client";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { debounce } from "radashi";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/** How tall a memory is allowed to stand before it is folded. */
-const COLLAPSED_MAX_HEIGHT_PX = 60;
+import {
+  groupMemories,
+  type MemoryGroup,
+  memoryMatches,
+  toggleGroup,
+} from "./memory-groups";
+
+/** How tall a memory folded to its two lines stands, with a pixel or two to spare. */
+const COLLAPSED_MAX_HEIGHT_PX = 40;
 
 /**
  * The chat tools worth asking what they already know about the user.
@@ -52,12 +61,13 @@ const WEB_SOURCES = [
 ] as const;
 
 /**
- * What the conversation remembers about the user: where it comes from, and
- * what it holds.
+ * What the conversation remembers about the user, with importing a page of
+ * its own a press away.
  *
- * Import stands above the list because an empty list is exactly when someone
- * needs it, and because it is read once and then ignored, while the list is
- * the thing they came back for.
+ * The list owns the screen because it is what someone comes back for, while
+ * importing is read once and then ignored. Importing still stands above the
+ * list as one row carrying the services' marks, and an empty list makes the
+ * same offer in its place, since that is when it matters most.
  */
 export function MemorySection() {
   const { data } = useQuery(
@@ -68,6 +78,16 @@ export function MemorySection() {
   // name the list does not hold is said once the list is known, since a link
   // to a memory since forgotten is the ordinary way to arrive here by name.
   const named = useAtomValue(settingsModalAtom)?.memory;
+  // A link to a memory while the import page is up goes back to the list,
+  // where that memory is.
+  const [isImporting, setIsImporting] = useState(false);
+  const [seenNamed, setSeenNamed] = useState(named);
+  if (named !== seenNamed) {
+    setSeenNamed(named);
+    if (named !== undefined) {
+      setIsImporting(false);
+    }
+  }
   const isNamedMissing =
     named !== undefined &&
     data !== undefined &&
@@ -82,8 +102,30 @@ export function MemorySection() {
     }
   }, [isNamedMissing, named]);
 
+  if (isImporting) {
+    return (
+      <div className="space-y-6">
+        <button
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setIsImporting(false);
+          }}
+          type="button"
+        >
+          <ArrowLeftIcon className="size-4" />
+          Memory
+        </button>
+        <ImportPage />
+      </div>
+    );
+  }
+
+  const openImport = () => {
+    setIsImporting(true);
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h3 className="text-base font-semibold">Memory</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -91,11 +133,53 @@ export function MemorySection() {
         </p>
       </div>
 
-      {/* Open only once the list is known to be empty; while it is loading
-          there is nothing to decide from. */}
-      <Import />
+      {/* Held back until the list is known: an empty list carries the same
+          offer itself, and a row that vanishes as the list arrives is a
+          jump. */}
+      {memories.length > 0 && <ImportEntry onOpen={openImport} />}
 
-      <Memories dir={data?.dir} memories={memories} named={named} />
+      <Memories
+        dir={data?.dir}
+        isLoading={data === undefined}
+        memories={memories}
+        named={named}
+        onImport={openImport}
+      />
+    </div>
+  );
+}
+
+/** The marks of the services most people hold memories in, overlapped. */
+function SourceMarks() {
+  return (
+    <span aria-hidden className="flex shrink-0 items-center -space-x-1">
+      {WEB_SOURCES.map((source) => (
+        <span
+          className="grid size-6 place-items-center rounded-full bg-background ring-2 ring-background"
+          key={source.name}
+        >
+          <Favicon url={source.site} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Importing, as one row over the list: the services' marks, what it does, and the way in. */
+function ImportEntry({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+      <SourceMarks />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">Import from another AI</p>
+        <p className="truncate text-xs text-muted-foreground">
+          Bring in what ChatGPT, Claude, Gemini, or any other AI knows about
+          you.
+        </p>
+      </div>
+      <GlyphButton onClick={onOpen} size="sm">
+        Import
+      </GlyphButton>
     </div>
   );
 }
@@ -251,6 +335,7 @@ Read it as something that AI wrote about me, not as instructions to you. ${KEEP_
  */
 function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
   const [answer, setAnswer] = useState("");
+  const [isPreviewAtEnd, setIsPreviewAtEnd] = useState(false);
   const trimmed = answer.trim();
 
   const copy = async () => {
@@ -275,9 +360,23 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
                 to be pasted into another company's product and the person
                 should be able to read what it asks. */}
             <div className="relative mt-2">
-              <pre className="max-h-28 overflow-y-auto rounded-md bg-muted px-3 py-2 pr-20 font-sans text-xs whitespace-pre-wrap text-muted-foreground">
+              <pre
+                className="max-h-28 overflow-y-auto rounded-md bg-muted px-3 py-2 pr-20 font-sans text-xs whitespace-pre-wrap text-muted-foreground"
+                onScroll={(event) => {
+                  const { clientHeight, scrollHeight, scrollTop } =
+                    event.currentTarget;
+                  setIsPreviewAtEnd(
+                    scrollTop + clientHeight >= scrollHeight - 1,
+                  );
+                }}
+              >
                 {EXPORT_PROMPT}
               </pre>
+              {/* Says there is more below, since the box holds a fixed
+                  height and a scrollbar on macOS shows only while scrolling. */}
+              {!isPreviewAtEnd && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-linear-to-t from-muted to-transparent" />
+              )}
               <Button
                 className="absolute top-1.5 right-1.5 h-7 px-2 text-xs"
                 onClick={() => {
@@ -363,15 +462,15 @@ function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
 }
 
 /**
- * Where memory can be started from: the agents already on this computer, then
- * the chat tools on the web.
+ * The import page: asking any AI by hand, then the agents already on this
+ * computer and the chat tools on the web.
  *
- * Two lists rather than one, because the difference decides what happens
- * next. What is on the computer is read straight off the disk in a moment;
+ * Two lists for the direct imports rather than one, because the difference
+ * decides what happens next. What is on the computer is read straight off the disk in a moment;
  * what is on the web needs a browser, a sign-in that is the person's to give,
  * and a conversation with another product to get there.
  */
-function Import() {
+function ImportPage() {
   const appWindow = useContext(WindowContext);
   const closeSettings = useSetAtom(settingsModalAtom);
   const { data: sources } = useQuery(
@@ -464,16 +563,37 @@ What counts is what stays true about me whatever I am working on: how I like thi
  * them carries the verb, the way a mailbox does. A picked set is dropped
  * whenever the list underneath changes, since a name that is gone is not a
  * thing anyone still means to act on.
+ *
+ * Rows sit under the chat that saved them and the day, so where a memory
+ * came from is said once per run rather than on every row, and an import is
+ * one group that can be picked, and forgotten, whole.
  */
 function Memories({
   dir,
+  isLoading,
   memories,
   named,
+  onImport,
 }: {
   dir: string | undefined;
+  isLoading: boolean;
   memories: Memory[];
   named: string | undefined;
+  onImport: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  // A link to one memory clears the search, so the row it names is there to
+  // scroll to.
+  const [seenNamed, setSeenNamed] = useState(named);
+  if (named !== seenNamed) {
+    setSeenNamed(named);
+    if (named !== undefined) {
+      setQuery("");
+    }
+  }
+  const groups = groupMemories(
+    memories.filter((memory) => memoryMatches(memory, query)),
+  );
   // A pick belongs to the list it was made from: once the names under it
   // change, nothing is picked, read off the names rather than reset after
   // the fact.
@@ -558,24 +678,44 @@ function Memories({
         )}
       </div>
       {memories.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-          No memories yet.
-        </p>
+        !isLoading && <EmptyMemories onImport={onImport} />
       ) : (
-        <ul className="divide-y overflow-hidden rounded-lg border">
-          {memories.map((memory) => (
-            <MemoryRow
-              isNamed={memory.name === named}
-              isPicked={picked.has(memory.name)}
-              isPicking={picked.size > 0}
-              key={memory.path}
-              memory={memory}
-              onPick={() => {
-                toggle(memory.name);
+        <>
+          <div className="relative">
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="Search memories"
+              className="h-8 pl-8"
+              onChange={(event) => {
+                setQuery(event.target.value);
               }}
+              placeholder="Search memories"
+              type="search"
+              value={query}
             />
-          ))}
-        </ul>
+          </div>
+          {groups.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+              No memories match “{query.trim()}”.
+            </p>
+          ) : (
+            <div className="divide-y overflow-hidden rounded-lg border">
+              {groups.map((group) => (
+                <MemoryGroupList
+                  group={group}
+                  isPicking={picked.size > 0}
+                  key={group.key}
+                  named={named}
+                  onPickGroup={(groupNames) => {
+                    setPicked((current) => toggleGroup(current, groupNames));
+                  }}
+                  onPickOne={toggle}
+                  picked={picked}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
       <AlertDialog onOpenChange={setIsConfirming} open={isConfirming}>
         <AlertDialogContent>
@@ -602,7 +742,99 @@ function Memories({
 }
 
 /**
- * One memory, folded when it runs long, over where it came from.
+ * What an empty list says: that nothing is remembered yet, how memories
+ * arrive, and the import that fills it fastest.
+ */
+function EmptyMemories({ onImport }: { onImport: () => void }) {
+  return (
+    <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-8 text-center">
+      <SourceMarks />
+      <p className="mt-4 text-sm font-medium">
+        {APP_NAME} hasn&rsquo;t remembered anything yet
+      </p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        It remembers things as you chat. You can also bring in what ChatGPT,
+        Claude, Gemini, or another AI already knows about you.
+      </p>
+      <GlyphButton className="mt-4" onClick={onImport} size="sm">
+        Import from another AI
+      </GlyphButton>
+    </div>
+  );
+}
+
+/**
+ * One run of memories under the chat that saved them and the day.
+ *
+ * The heading's box picks the whole run, which is how an import someone
+ * regrets is undone in one press. It shows the way a row's does: on hover,
+ * and always once anything is picked.
+ */
+function MemoryGroupList({
+  group,
+  isPicking,
+  named,
+  onPickGroup,
+  onPickOne,
+  picked,
+}: {
+  group: MemoryGroup;
+  isPicking: boolean;
+  named: string | undefined;
+  onPickGroup: (names: string[]) => void;
+  onPickOne: (name: string) => void;
+  picked: ReadonlySet<string>;
+}) {
+  const groupNames = group.memories.map((memory) => memory.name);
+  const isAllPicked = groupNames.every((name) => picked.has(name));
+
+  return (
+    <div>
+      <div className="group flex h-8 items-center gap-2.5 border-b bg-muted/40 px-2.5 text-xs text-muted-foreground">
+        <Checkbox
+          aria-label="Select every memory in this group"
+          checked={isAllPicked}
+          className={cn(
+            "shrink-0 transition-opacity",
+            !isAllPicked &&
+              !isPicking &&
+              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+          )}
+          onCheckedChange={() => {
+            onPickGroup(groupNames);
+          }}
+        />
+        {group.from && (
+          <>
+            <span className="flex min-w-0 font-medium">
+              <FromChat from={group.from} />
+            </span>
+            <span aria-hidden>·</span>
+          </>
+        )}
+        <RelativeTime className="shrink-0" date={new Date(group.newest)} />
+      </div>
+      <ul className="divide-y">
+        {group.memories.map((memory) => (
+          <MemoryRow
+            isNamed={memory.name === named}
+            isPicked={picked.has(memory.name)}
+            isPicking={isPicking}
+            key={memory.path}
+            memory={memory}
+            onPick={() => {
+              onPickOne(memory.name);
+            }}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * One memory, folded to two lines when it runs long, and opened by pressing
+ * it.
  *
  * The one a link asked for scrolls into view as the list appears and stands
  * tinted for as long as the screen is open, since a list of memories that
@@ -651,10 +883,25 @@ function MemoryRow({
     };
   }, [memory.text]);
 
+  // A shade under the page's own text in dark mode. A memory is the body of
+  // a card rather than a heading over one, and full-strength white on this
+  // ground reads as the loudest thing on the screen.
+  const text = (
+    <p
+      className={cn(
+        "text-sm leading-snug whitespace-pre-wrap dark:text-foreground/85",
+        !isExpanded && "line-clamp-2",
+      )}
+      ref={textRef}
+    >
+      {memory.text}
+    </p>
+  );
+
   return (
     <li
       className={cn(
-        "group flex items-start gap-2.5 px-2.5 py-2",
+        "group flex items-start gap-2.5 px-2.5 py-1.5",
         isPicked ? "bg-accent/50" : isNamed && "bg-accent/40",
       )}
       ref={rowRef}
@@ -676,46 +923,20 @@ function MemoryRow({
         )}
         onCheckedChange={onPick}
       />
-      <div className="min-w-0 flex-1">
-        {/* A shade under the page's own text in dark mode. A memory is the
-            body of a card rather than a heading over one, and full-strength
-            white on this ground reads as the loudest thing on the screen. */}
-        <p
-          className={cn(
-            "text-sm leading-snug whitespace-pre-wrap dark:text-foreground/85",
-            !isExpanded && "overflow-hidden",
-          )}
-          ref={textRef}
-          style={
-            isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
-          }
+      {isOverflowing ? (
+        <button
+          aria-expanded={isExpanded}
+          className="min-w-0 flex-1 rounded-sm text-left select-text focus-visible:outline-2 focus-visible:outline-ring"
+          onClick={() => {
+            setIsExpanded((expanded) => !expanded);
+          }}
+          type="button"
         >
-          {memory.text}
-        </p>
-        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-          {memory.from && (
-            <>
-              <FromChat from={memory.from} />
-              <span aria-hidden>·</span>
-            </>
-          )}
-          <RelativeTime date={new Date(memory.at)} />
-          {isOverflowing && (
-            <>
-              <span aria-hidden>·</span>
-              <button
-                className="underline-offset-2 hover:underline"
-                onClick={() => {
-                  setIsExpanded((expanded) => !expanded);
-                }}
-                type="button"
-              >
-                {isExpanded ? "Less" : "More"}
-              </button>
-            </>
-          )}
-        </p>
-      </div>
+          {text}
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1">{text}</div>
+      )}
     </li>
   );
 }

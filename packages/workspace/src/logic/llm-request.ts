@@ -326,15 +326,12 @@ export const llmRequestLogic = fromPromise<
     // parameter is not part of it.
     const taskSettings = await getTaskSettings(taskDir(input.taskId));
 
-    // A Claude account signed in to Instrument searches through our web_search
-    // tool, which our own search serves. Otherwise it searches with Claude
-    // Code's own WebSearch, inside the agent's step, rather than through
-    // web_search, whose search on this account would be a separate Claude
-    // Code process with a model of its own in front of the same WebSearch.
-    // What WebSearch finds arrives as sources.
+    // A Claude account searches with Claude Code's own WebSearch, inside the
+    // agent's step, rather than through our web_search tool, whose search on
+    // this account is a separate Claude Code process with a model of its own
+    // in front of the same WebSearch. What it finds arrives as sources.
     const searchesNatively =
-      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type &&
-      !(await getWorkspaceConfig().getUser?.());
+      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
     const providerOptions = providerOptionsForModel(aiSDKModel, {
       effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
       reasoning: input.model.reasoning,

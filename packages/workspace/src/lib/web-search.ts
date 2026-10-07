@@ -6,11 +6,7 @@ import {
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
-import {
-  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
-  OUR_MODELS,
-  type WorkspaceServerURL,
-} from "@instrument-org/shared";
+import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
@@ -106,17 +102,11 @@ export async function* webSearch({
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
-  // Our search endpoint meters against the signed-in user's credits, so it
+  // Our search endpoint meters against the signed-in user's credits, so it only
   // serves the models we already bill for. A model running on a key the user
   // brought searches through that provider instead: that is the option costing
   // them nothing extra, and it needs no second API key from them.
-  const ours = callingModel.params.provider === OUR_MODELS.providerType;
-  // A Claude account's own search is a WebSearch model call inside Claude
-  // Code, which ours is much faster than, so it is offered ours too. Anything
-  // ours refuses falls back to that WebSearch rather than reaching the agent.
-  const claudeAccount =
-    callingModel.params.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
-  if (ours || claudeAccount) {
+  if (callingModel.params.provider === OUR_MODELS.providerType) {
     const platformResult = await searchWithPlatform({
       prompt,
       signal,
@@ -124,7 +114,7 @@ export async function* webSearch({
     });
     if (
       platformResult.isOk() ||
-      (ours && USER_ACTIONABLE.has(platformResult.error.errorType))
+      USER_ACTIONABLE.has(platformResult.error.errorType)
     ) {
       yield platformResult;
       return;

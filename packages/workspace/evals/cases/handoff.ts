@@ -2557,7 +2557,9 @@ const ARM_SWITCHES: Record<
   f: { oneAgent: "fork-on-interrupt" },
   g: { oneAgent: "fork-only" },
   "g-nudge": { firstLine: "nudge", oneAgent: "fork-only" },
+  "g-note": { firstLine: "turn-note", oneAgent: "fork-only" },
   "g-off": { firstLine: "tools-off", oneAgent: "fork-only" },
+  "g-pre": { firstLine: "preamble", oneAgent: "fork-only" },
   "g-say": { firstLine: "say", oneAgent: "fork-only" },
   h: { oneAgent: "background" },
   v: {},
@@ -2583,8 +2585,8 @@ function requireArm(arm: string) {
  * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
  * the prototype in the foreground only; e, today's chat with a fuller
  * hand-off; f, c forking a turn the user interrupts; g, the fork-only
- * design; g-off, g-say and g-nudge, g under each first-line mechanism
- * (`lib/first-line-mode.ts`); h, g calling its forks background; b, a task
+ * design; g-off, g-say, g-nudge, g-pre and g-note, g under each first-line
+ * mechanism (`lib/first-line-mode.ts`); h, g calling its forks background; b, a task
  * given the words directly; v, b in the chat's voice.
  */
 function arms(scenario: Scenario): EvalCase[] {
@@ -2648,6 +2650,8 @@ function arms(scenario: Scenario): EvalCase[] {
     make("g-off", chat),
     make("g-say", chat),
     make("g-nudge", chat),
+    make("g-pre", chat),
+    make("g-note", chat),
     make("h", chat),
     make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
   ];

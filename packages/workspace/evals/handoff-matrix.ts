@@ -29,8 +29,9 @@
  * - g: one agent whose only tasks are forks in the chat's folder, with a
  *   prompt of its own and fork on interrupt
  *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
- * - g-off, g-say, g-nudge: g under each first-line mechanism
- *   (`INSTRUMENT_EVAL_FIRST_LINE=tools-off|say|nudge`, `lib/first-line-mode.ts`).
+ * - g-off, g-say, g-nudge, g-pre, g-note: g under each first-line mechanism
+ *   (`INSTRUMENT_EVAL_FIRST_LINE=tools-off|say|nudge|preamble|turn-note`,
+ *   `lib/first-line-mode.ts`).
  * - h: g, where the agent's word for its forks is "background"
  *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
  * - b, v: round one's task-given-the-words arms, off by default.
@@ -107,8 +108,16 @@ const ARM_ENV: Record<string, Record<string, string>> = {
     INSTRUMENT_EVAL_FIRST_LINE: "nudge",
     INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
   },
+  "g-note": {
+    INSTRUMENT_EVAL_FIRST_LINE: "turn-note",
+    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
+  },
   "g-off": {
     INSTRUMENT_EVAL_FIRST_LINE: "tools-off",
+    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
+  },
+  "g-pre": {
+    INSTRUMENT_EVAL_FIRST_LINE: "preamble",
     INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
   },
   "g-say": {
@@ -1042,7 +1051,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,g-pre,g-note,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

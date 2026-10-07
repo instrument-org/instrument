@@ -533,7 +533,7 @@ export async function runEvals(
       // Arms C (`1`) and D (`foreground`) of the one-agent comparison.
       oneAgentMode: () =>
         parseOneAgentMode(process.env.INSTRUMENT_EVAL_ONE_AGENT),
-      // Arms g-off, g-say and g-nudge: g with a first-line mechanism.
+      // Arms g-off, g-say, g-nudge, g-pre and g-note: g with a first-line mechanism.
       firstLineMode: () =>
         parseFirstLineMode(process.env.INSTRUMENT_EVAL_FIRST_LINE),
       // Arm E: today's chat and tasks, with the chat's background on a task.

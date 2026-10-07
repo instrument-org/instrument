@@ -33,13 +33,15 @@
  * `--cases guide,email --arms a,c`. `--out` adds to an existing output folder.
  *
  * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`),
- * Workers AI (`glm`, or `cf:<id>`), and one metered model cleared for spend,
- * `or-luna` (`openai/gpt-5.6-luna` through OpenRouter); anything else
+ * Workers AI (`glm`, or `cf:<id>`), and the metered models cleared for spend
+ * through OpenRouter: `or-luna` (`openai/gpt-5.6-luna`), `or-luna6`
+ * (`openai/gpt-6-luna`) and `or-glm` (`z-ai/glm-5.3-flash`); anything else
  * metered is refused. Every metered provider key is blanked in the child's
  * environment, so nothing a run does can fall back to one, except the
- * OpenRouter key on an `or-luna` run, where `evals/lib/pin-openrouter-model.ts`
- * refuses any OpenRouter request naming another model (an image model, a
- * search model). `openrouter-usage` reads the key's spend, before and after.
+ * OpenRouter key on an `or-*` run, where `evals/lib/pin-openrouter-model.ts`
+ * refuses any OpenRouter request naming a model other than that run's own (an
+ * image model, a search model, another cleared model). `openrouter-usage`
+ * reads the key's spend, before and after.
  */
 import dotenv from "dotenv";
 import { execFileSync, spawn } from "node:child_process";
@@ -106,13 +108,35 @@ const SMALL = new Set(
 const WORKERS_AI = "providerConfigId=workers-ai-config-id";
 const PLAN = "providerConfigId=chatgpt-plan";
 
-/** The one metered model a run may spend on, through OpenRouter. */
-const OPENROUTER_MODEL = "openai/gpt-5.6-luna";
-const OPENROUTER_LUNA = `${OPENROUTER_MODEL}?provider=openrouter&providerConfigId=openrouter-config-id`;
+/**
+ * The metered models a run may spend on, through OpenRouter, by alias. A run
+ * on one is pinned to that model alone.
+ */
+const OPENROUTER_MODELS: Record<string, string> = {
+  "or-glm": "z-ai/glm-5.3-flash",
+  "or-luna": "openai/gpt-5.6-luna",
+  "or-luna6": "openai/gpt-6-luna",
+};
+
+function openRouterUri(model: string): string {
+  return `${model}?provider=openrouter&providerConfigId=openrouter-config-id`;
+}
+
+/** The OpenRouter model a resolved URI is pinned to, if it is a cleared one. */
+function pinnedOpenRouterModel(uri?: string): string | undefined {
+  return Object.values(OPENROUTER_MODELS).find(
+    (model) => uri === openRouterUri(model),
+  );
+}
 
 const MODEL_ALIASES: Record<string, string> = {
   glm: `zai-org/glm-5.3-flash?provider=openai-compatible&${WORKERS_AI}`,
-  "or-luna": OPENROUTER_LUNA,
+  ...Object.fromEntries(
+    Object.entries(OPENROUTER_MODELS).map(([alias, model]) => [
+      alias,
+      openRouterUri(model),
+    ]),
+  ),
   "plan-luna": `openai/gpt-5.6-luna?provider=chatgpt&${PLAN}`,
   "plan-sol": `openai/gpt-5.6-sol?provider=chatgpt&${PLAN}`,
 };
@@ -205,9 +229,13 @@ function resolveModel(model: string): string {
     ? `${model.slice(3).replace(/^@cf\//, "")}?provider=openai-compatible&${WORKERS_AI}`
     : (MODEL_ALIASES[model] ?? model);
   const isPlan = uri.includes("provider=chatgpt&") && uri.includes(PLAN);
-  if (!isPlan && !uri.includes(WORKERS_AI) && uri !== OPENROUTER_LUNA) {
+  if (
+    !isPlan &&
+    !uri.includes(WORKERS_AI) &&
+    pinnedOpenRouterModel(uri) === undefined
+  ) {
     throw new Error(
-      `Refusing ${model}: this runner spends only on the ChatGPT plan, Workers AI, and ${OPENROUTER_MODEL} through OpenRouter (or-luna), never another metered model.`,
+      `Refusing ${model}: this runner spends only on the ChatGPT plan, Workers AI, and ${Object.keys(OPENROUTER_MODELS).join(", ")} through OpenRouter, never another metered model.`,
     );
   }
   return uri;
@@ -287,7 +315,7 @@ async function run() {
 
 /**
  * The environment a child runs in: the arm's switches, no metered keys but
- * the OpenRouter one on an `or-luna` run, pinned to its one model.
+ * the OpenRouter one on an `or-*` run, pinned to its one model.
  */
 function childEnv(
   arm: string,
@@ -301,12 +329,14 @@ function childEnv(
   for (const key of METERED_KEYS) {
     env[key] = "";
   }
-  const metered = model === OPENROUTER_LUNA;
+  const pinned = pinnedOpenRouterModel(model);
   return {
     ...env,
-    ...(metered ? { APP_OPENROUTER_API_KEY: openRouterKey() } : {}),
+    ...(pinned === undefined
+      ? {}
+      : { APP_OPENROUTER_API_KEY: openRouterKey() }),
     INSTRUMENT_EVAL_HOME: home,
-    INSTRUMENT_EVAL_OPENROUTER_MODEL: metered ? OPENROUTER_MODEL : "",
+    INSTRUMENT_EVAL_OPENROUTER_MODEL: pinned ?? "",
     NO_COLOR: "1",
     ...ARM_ENV[arm],
   };
@@ -314,7 +344,7 @@ function childEnv(
 
 /**
  * The OpenRouter key, from this shell or the package's `.env`, for an
- * `or-luna` run and for reading the key's spend. Never printed.
+ * `or-*` run and for reading the key's spend. Never printed.
  */
 function openRouterKey(): string {
   const fromEnv = process.env.APP_OPENROUTER_API_KEY;
@@ -327,7 +357,7 @@ function openRouterKey(): string {
     : undefined;
   if (!key) {
     throw new Error(
-      "or-luna needs APP_OPENROUTER_API_KEY, in this shell or the package's .env.",
+      "or-* models need APP_OPENROUTER_API_KEY, in this shell or the package's .env.",
     );
   }
   return key;
@@ -912,7 +942,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

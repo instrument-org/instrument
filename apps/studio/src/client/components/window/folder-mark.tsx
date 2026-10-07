@@ -1,5 +1,5 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
+import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { INSTRUMENT_FOLDER } from "@/shared/computer-href";

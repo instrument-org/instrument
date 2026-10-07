@@ -6,7 +6,7 @@ import {
   MENU_TARGET_CLASSNAME,
   SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
-import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
+import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   ContextMenu,

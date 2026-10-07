@@ -240,8 +240,8 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
       <div>
         <h4 className="text-sm font-medium">Import from any AI</h4>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ask the AI you already use what it knows about you, and bring the
-          answer here.
+          Adds to what {APP_NAME} already knows, never replaces it. Repeat it
+          for each AI you use.
         </p>
       </div>
       <div className="divide-y rounded-lg border">

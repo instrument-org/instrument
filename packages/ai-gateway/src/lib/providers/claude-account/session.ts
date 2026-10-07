@@ -110,6 +110,9 @@ export class ClaudeCodeSession {
           this.stderrTail.splice(0, this.stderrTail.length - 20);
         },
         strictMcpConfig: true,
+        // Claude Code streams a thinking block with its text left out unless
+        // asked for a summary, which is what shows as the model's reasoning.
+        thinking: { display: "summarized", type: "adaptive" },
         // A call to one of our tools by its own name, as our prompts write
         // it, reaches the same tool as its prefixed name.
         toolAliases: Object.fromEntries(

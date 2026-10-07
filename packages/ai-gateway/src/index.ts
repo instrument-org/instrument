@@ -7,7 +7,7 @@ export type { TypedError as AIGatewayTypedError } from "./lib/errors";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
-export { chatGPTPlanDefaultModel } from "./lib/fetch-models/chatgpt";
+export { chatGPTAccountDefaultModel } from "./lib/fetch-models/chatgpt";
 export {
   type ClaudeAccountUsage,
   fetchClaudeAccountUsage,

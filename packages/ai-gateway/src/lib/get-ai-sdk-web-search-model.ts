@@ -20,7 +20,7 @@ import {
   createXAISDK,
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
-import { chatGPTPlanSearchModel } from "./fetch-models/chatgpt";
+import { chatGPTAccountSearchModel } from "./fetch-models/chatgpt";
 import { type ModelCache } from "./model-cache";
 import {
   filterWebSearchConfigs,
@@ -39,7 +39,7 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   "vercel",
   // Last, so a search from a chat on another provider spends the user's
   // plan only when nothing else can search.
-  "chatgpt",
+  "chatgpt-account",
   "claude-account",
 ];
 
@@ -87,7 +87,7 @@ export async function getAISDKWebSearchModel({
       };
       break;
     }
-    case "chatgpt": {
+    case "chatgpt-account": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
       // Always the plan's lightest model, not thinking and reading little: a
       // search is a lookup, and on the plan every search model's own
@@ -101,8 +101,9 @@ export async function getAISDKWebSearchModel({
           // The account's own catalog decides, so a newer Luna is used the
           // day the plan lists it. The chat's model stands in only when the
           // catalog was never read.
-          chatGPTPlanSearchModel(modelCache?.read(config.cacheIdentifier) ?? [])
-            ?.providerId ?? callingModel.providerId,
+          chatGPTAccountSearchModel(
+            modelCache?.read(config.cacheIdentifier) ?? [],
+          )?.providerId ?? callingModel.providerId,
         ),
         providerOptions: {
           openai: { reasoningEffort: "none" },

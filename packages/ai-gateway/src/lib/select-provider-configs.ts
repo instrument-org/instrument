@@ -48,8 +48,8 @@ export function selectProviderConfigs<
       break;
     }
     if (
-      (providerType === "chatgpt" &&
-        result.some((c) => c.type === "chatgpt")) ||
+      (providerType === "chatgpt-account" &&
+        result.some((c) => c.type === "chatgpt-account")) ||
       providerType === "claude-account"
     ) {
       continue;

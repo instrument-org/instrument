@@ -1,4 +1,4 @@
-# A ChatGPT plan cannot generate images, so a plan-only user has no image tool
+# A ChatGPT account cannot generate images, so a plan-only user has no image tool
 
 **Status:** known, by design upstream. Checked 2026-10-04 against OpenAI's [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations) for Sign in with ChatGPT.
 
@@ -8,7 +8,7 @@ The plan token works only on `POST /v1/responses`, with `store: false` and `stre
 
 ## What we do
 
-The `chatgpt` entry in [`metadata.ts`](../../packages/ai-gateway/src/lib/providers/metadata.ts) carries only the `webSearch` tag, so `filterImageGenerationConfigs` never offers it. Image generation from a chat on the plan goes to another configured provider by `PROVIDER_TYPE_PRIORITY` in [`get-ai-sdk-image-model.ts`](../../packages/ai-gateway/src/lib/get-ai-sdk-image-model.ts). With only a ChatGPT plan signed in, there is none, and the tool fails with "No provider with image generation support found".
+The `chatgpt-account` entry in [`metadata.ts`](../../packages/ai-gateway/src/lib/providers/metadata.ts) carries only the `webSearch` tag, so `filterImageGenerationConfigs` never offers it. Image generation from a chat on the plan goes to another configured provider by `PROVIDER_TYPE_PRIORITY` in [`get-ai-sdk-image-model.ts`](../../packages/ai-gateway/src/lib/get-ai-sdk-image-model.ts). With only a ChatGPT account signed in, there is none, and the tool fails with "No provider with image generation support found".
 
 ## What might change it
 

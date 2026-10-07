@@ -1,5 +1,5 @@
 /**
- * The Responses API behind a ChatGPT plan accepts a narrower request than the
+ * The Responses API behind a ChatGPT account accepts a narrower request than the
  * public one: every request streams, nothing is stored, and a set of fields
  * the platform takes is refused outright. The SDK and our callers write the
  * ordinary shape, so the proxy rewrites a request on its way out rather than
@@ -72,14 +72,15 @@ export async function collapseResponsesStream(
     {
       error: {
         code: "stream_ended_early",
-        message: "The ChatGPT plan's stream ended without a completed response",
+        message:
+          "The ChatGPT account's stream ended without a completed response",
       },
     },
     { status: 502 },
   );
 }
 
-export function rewriteChatGPTPlanResponsesBody(
+export function rewriteChatGPTAccountResponsesBody(
   body: Record<string, unknown>,
   { sessionId }: { sessionId?: null | string } = {},
 ): { body: Record<string, unknown>; streamed: boolean } {

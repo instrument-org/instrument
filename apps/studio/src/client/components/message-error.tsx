@@ -268,7 +268,7 @@ function describeForProvider(
     }
     return described;
   }
-  if (provider !== "chatgpt") {
+  if (provider !== "chatgpt-account") {
     return described;
   }
   if (classification === "usage-limit") {
@@ -321,7 +321,7 @@ function detailsText(facts: [string, string][], body: string | undefined) {
  * Instrument's own models, as a choice and never as a silent fallback.
  */
 function isPlanProvider(provider: string | undefined) {
-  return provider === "chatgpt" || provider === "claude-account";
+  return provider === "chatgpt-account" || provider === "claude-account";
 }
 
 function errorActions({
@@ -391,7 +391,7 @@ function errorActions({
     if (provider === "claude-account") {
       return [...offer, providerSettings, ...tryAgain];
     }
-    return provider === "chatgpt"
+    return provider === "chatgpt-account"
       ? [
           ...offer,
           {
@@ -408,7 +408,7 @@ function errorActions({
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
-    return provider === "chatgpt" || provider === "claude-account"
+    return provider === "chatgpt-account" || provider === "claude-account"
       ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }

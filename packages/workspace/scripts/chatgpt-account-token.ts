@@ -1,8 +1,8 @@
 /**
- * Print the ChatGPT plan access token Studio holds for a signed-in account,
+ * Print the ChatGPT account access token Studio holds for a signed-in account,
  * so a script or an eval can run against the plan the way the app does:
  *
- *   APP_CHATGPT_PLAN_TOKEN=$(pnpm --silent script:chatgpt-plan-token) pnpm eval run ...
+ *   APP_CHATGPT_ACCOUNT_TOKEN=$(pnpm --silent script:chatgpt-account-token) pnpm eval run ...
  *
  * With several accounts signed in, `--email <address>` picks one; without it,
  * the first one signed in answers.
@@ -59,19 +59,22 @@ const storeDir = [
   userData,
 ].find((dir) =>
   existsSync(
-    path.join(dir, values.dev ? "chatgpt-plan.json" : "chatgpt-plan.json.enc"),
+    path.join(
+      dir,
+      values.dev ? "chatgpt-account.json" : "chatgpt-account.json.enc",
+    ),
   ),
 );
 if (!storeDir) {
-  throw new Error(`No ChatGPT plan under ${userData}`);
+  throw new Error(`No ChatGPT account under ${userData}`);
 }
 
 const store = StoreSchema.parse(
   JSON.parse(
     values.dev
-      ? readFileSync(path.join(storeDir, "chatgpt-plan.json"), "utf8")
+      ? readFileSync(path.join(storeDir, "chatgpt-account.json"), "utf8")
       : decryptSafeStorage(
-          readFileSync(path.join(storeDir, "chatgpt-plan.json.enc"), "utf8"),
+          readFileSync(path.join(storeDir, "chatgpt-account.json.enc"), "utf8"),
         ),
   ),
 );
@@ -99,7 +102,7 @@ if (minutesLeft <= 0) {
 }
 
 process.stderr.write(
-  `ChatGPT plan token for ${account.email ?? "the account"} valid for ${minutesLeft} more minutes\n`,
+  `ChatGPT account token for ${account.email ?? "the account"} valid for ${minutesLeft} more minutes\n`,
 );
 process.stdout.write(account.accessToken);
 

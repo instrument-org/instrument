@@ -1,7 +1,7 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
-  CHATGPT_PLAN_MODEL,
+  CHATGPT_ACCOUNT_MODEL,
   CLAUDE_ACCOUNT_MODEL,
   file,
   folder,
@@ -1448,8 +1448,8 @@ done`,
     ],
   },
   {
-    id: "chatgpt-plan-errors",
-    name: "ChatGPT plan refusals",
+    id: "chatgpt-account-errors",
+    name: "ChatGPT account refusals",
     script: [
       user("Summarize this thread for me."),
       // Recorded after the app was disconnected in ChatGPT's settings.
@@ -1471,9 +1471,9 @@ done`,
             status: 401,
           }),
           statusCode: 401,
-          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-account/responses",
         },
-        CHATGPT_PLAN_MODEL,
+        CHATGPT_ACCOUNT_MODEL,
       ),
       user("Try that again."),
       // Recorded with the app switched off in ChatGPT's usage settings.
@@ -1496,9 +1496,9 @@ done`,
             type: "error",
           }),
           statusCode: 400,
-          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-account/responses",
         },
-        CHATGPT_PLAN_MODEL,
+        CHATGPT_ACCOUNT_MODEL,
       ),
     ],
   },

@@ -26,7 +26,7 @@ import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import {
   CHATGPT_CALLBACK_PATH,
   receiveChatGPTCallback,
-} from "@/electron-main/lib/chatgpt-plan";
+} from "@/electron-main/lib/chatgpt-account";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
@@ -398,7 +398,7 @@ async function start() {
         // Signed in, with plan access left unchecked on OpenAI's page.
         return c.html(
           renderAuthPage({
-            headline: "ChatGPT plan access is off",
+            headline: "ChatGPT account access is off",
             kind: "declined",
             service: chatGPT,
           }),

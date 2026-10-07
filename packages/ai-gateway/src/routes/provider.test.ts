@@ -92,14 +92,14 @@ describe("provider proxy auth headers", () => {
   });
 });
 
-describe("ChatGPT plan responses", () => {
+describe("ChatGPT account responses", () => {
   it("sends the session as the session-id header the plan caches by", async () => {
     const headers = await forwardedHeaders(
       {
         apiKey: "plan-token",
-        cacheIdentifier: "chatgpt",
-        id: AIProviderConfigId("chatgpt"),
-        type: "chatgpt",
+        cacheIdentifier: "chatgpt-account",
+        id: AIProviderConfigId("chatgpt-account"),
+        type: "chatgpt-account",
       },
       {
         body: JSON.stringify({ input: [], model: "gpt-5.6-sol", stream: true }),

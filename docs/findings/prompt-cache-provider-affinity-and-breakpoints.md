@@ -1,6 +1,6 @@
 # Prompt cache provider affinity and breakpoint gaps
 
-**Status:** still open, deliberately deferred, checked 2026-10-02. The ChatGPT plan route alone now sends a per-session `prompt_cache_key` (620d455bf, `chatgpt-plan-request.ts`); direct OpenAI Responses requests still send none. See "Why this remains deferred" for what would have to change first.
+**Status:** still open, deliberately deferred, checked 2026-10-02. The ChatGPT account route alone now sends a per-session `prompt_cache_key` (620d455bf, `chatgpt-account-request.ts`); direct OpenAI Responses requests still send none. See "Why this remains deferred" for what would have to change first.
 
 ## Finding
 

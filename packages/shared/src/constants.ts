@@ -108,9 +108,9 @@ export const OUR_PROVIDER_CONFIG = {
  * identifier come from the account's registration, and its key is the
  * account's current OAuth access token.
  */
-export const CHATGPT_PLAN_PROVIDER_CONFIG = {
+export const CHATGPT_ACCOUNT_PROVIDER_CONFIG = {
   displayName: "ChatGPT account",
-  type: "chatgpt",
+  type: "chatgpt-account",
 } as const;
 
 /**

@@ -11,9 +11,9 @@ import { isOpenCodeProviderConfig } from "../lib/opencode";
 import { apiURL } from "../lib/providers/api-url";
 import {
   collapseResponsesStream,
-  rewriteChatGPTPlanResponsesBody,
+  rewriteChatGPTAccountResponsesBody,
   withoutRetryOnSpentLimit,
-} from "../lib/providers/chatgpt-plan-request";
+} from "../lib/providers/chatgpt-account-request";
 import { setProviderAuthHeaders } from "../lib/providers/set-auth-headers";
 import { setAttributionHeaders } from "../lib/set-attribution-headers";
 import { setClientHeaders } from "../lib/set-client-headers";
@@ -73,11 +73,11 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   }
 
   if (
-    config.type === "chatgpt" &&
+    config.type === "chatgpt-account" &&
     context.req.raw.method === "POST" &&
     pathResult.data === "/responses"
   ) {
-    const { body, streamed } = rewriteChatGPTPlanResponsesBody(
+    const { body, streamed } = rewriteChatGPTAccountResponsesBody(
       await context.req.json<Record<string, unknown>>(),
       { sessionId },
     );

@@ -52,7 +52,7 @@ Coverage spanned OpenAI, Anthropic, Google, xAI, Qwen, Moonshot, MiniMax, Z-AI, 
 
 The quirk is per provider type, and a model family says nothing about the provider type that reaches it. Testing `x-ai/grok-4.5` **through OpenRouter** exercises OpenRouter's endpoint and the OpenRouter provider package. The `x-ai` provider type goes direct through `@ai-sdk/xai`, a different converter against a different API, and remains untested.
 
-`supportsMultipartToolResults` is therefore true for `anthropic`, `chatgpt`, `google`, `openai`, `openrouter`, and the app's own provider type, which is served by OpenRouter and inherits its capabilities. Every other type still splits.
+`supportsMultipartToolResults` is therefore true for `anthropic`, `chatgpt-account`, `google`, `openai`, `openrouter`, and the app's own provider type, which is served by OpenRouter and inherits its capabilities. Every other type still splits.
 
 Clearing another one means the same two checks: read that provider package's tool-result converter to confirm it preserves content parts, then send the shape to real models on that provider and confirm the API accepts it, parallel tool calls included.
 

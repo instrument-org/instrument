@@ -27,7 +27,7 @@ export function ChatGPTLoginButton({
   // leaves the button to the newer one.
   const attempts = useRef(0);
   const [declinedAccountId, setDeclinedAccountId] = useState<string>();
-  const signIn = useMutation(rpcClient.chatgptPlan.signIn.mutationOptions());
+  const signIn = useMutation(rpcClient.chatgptAccount.signIn.mutationOptions());
 
   const continueWithChatGPT = async () => {
     const attempt = ++attempts.current;
@@ -48,7 +48,7 @@ export function ChatGPTLoginButton({
         // holds until then, since the sign-in is not done for the user until
         // it is.
         if (result.account) {
-          await rpcClient.chatgptPlan.chooseDefaultModel
+          await rpcClient.chatgptAccount.chooseDefaultModel
             .call({ accountId: result.account.id })
             .catch(() => {});
         }
@@ -84,11 +84,11 @@ export function ChatGPTLoginButton({
     <div className="flex w-full flex-col items-center gap-y-2">
       <BrowserHandoffButton
         className={className}
-        icon={<AIProviderIcon className="size-4" type="chatgpt" />}
+        icon={<AIProviderIcon className="size-4" type="chatgpt-account" />}
         onCancel={() => {
           attempts.current++;
           setWaiting(false);
-          void rpcClient.chatgptPlan.cancelSignIn.call();
+          void rpcClient.chatgptAccount.cancelSignIn.call();
         }}
         onStart={() => {
           void continueWithChatGPT();

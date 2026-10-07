@@ -194,9 +194,9 @@ describe("MessageError", () => {
           "The ChatGPT user has reached their Subscription Sharing usage limit.",
         name: "AI_APICallError",
         statusCode: 400,
-        url: "http://localhost/ai-gateway/providers/chatgpt-plan/responses",
+        url: "http://localhost/ai-gateway/providers/chatgpt-account/responses",
       },
-      provider: "chatgpt",
+      provider: "chatgpt-account",
     });
 
     expect(screen.getByText("ChatGPT usage limit reached")).not.toBeNull();

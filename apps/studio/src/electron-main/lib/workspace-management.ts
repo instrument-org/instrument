@@ -37,7 +37,7 @@ export interface WorkspaceListing {
 
 /**
  * The credential stores a new workspace can start from: who you are signed in
- * as, and your keys. A ChatGPT plan is not one of them: its refresh token
+ * as, and your keys. A ChatGPT account is not one of them: its refresh token
  * rotates on every use, so two workspaces holding one copy would each spend it
  * and whichever refreshed second would be signed out (or both, if the provider
  * revokes the family). Connected apps stay behind too, since their tokens

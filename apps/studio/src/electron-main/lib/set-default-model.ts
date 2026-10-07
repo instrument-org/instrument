@@ -6,7 +6,7 @@ import {
 import {
   type AIGatewayModel,
   AIGatewayModelURI,
-  chatGPTPlanDefaultModel,
+  chatGPTAccountDefaultModel,
   fetchModelResultsForProviders,
 } from "@instrument-org/ai-gateway";
 import { OUR_MODELS } from "@instrument-org/shared";
@@ -16,17 +16,17 @@ import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 /**
  * Signing in with ChatGPT is asked for to use the plan, so it makes the plan's
- * everyday model the default; `chatGPTPlanDefaultModel` says which. Only for
+ * everyday model the default; `chatGPTAccountDefaultModel` says which. Only for
  * the first account: adding another leaves the default where it was. Answers
  * with the model's name, so the sign-in can say what changed.
  */
-export async function setChatGPTPlanDefaultModel({
+export async function setChatGPTAccountDefaultModel({
   accountId,
 }: {
   accountId: string;
 }): Promise<string | undefined> {
   const chatGPTConfigs = getAIProviderConfigs().filter(
-    (candidate) => candidate.type === "chatgpt",
+    (candidate) => candidate.type === "chatgpt-account",
   );
   const [config] = chatGPTConfigs;
   if (chatGPTConfigs.length !== 1 || config?.id !== accountId) {
@@ -36,7 +36,9 @@ export async function setChatGPTPlanDefaultModel({
     captureException: captureServerException,
     modelCache: diskModelCache,
   });
-  const chosen = result?.ok ? chatGPTPlanDefaultModel(result.value) : undefined;
+  const chosen = result?.ok
+    ? chatGPTAccountDefaultModel(result.value)
+    : undefined;
   if (!chosen) {
     return undefined;
   }

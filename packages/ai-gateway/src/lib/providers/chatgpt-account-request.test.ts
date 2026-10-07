@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   collapseResponsesStream,
-  rewriteChatGPTPlanResponsesBody,
+  rewriteChatGPTAccountResponsesBody,
   withoutRetryOnSpentLimit,
-} from "./chatgpt-plan-request";
+} from "./chatgpt-account-request";
 
-describe("rewriteChatGPTPlanResponsesBody", () => {
+describe("rewriteChatGPTAccountResponsesBody", () => {
   it("forces streaming without storage and drops refused fields", () => {
     expect(
-      rewriteChatGPTPlanResponsesBody({
+      rewriteChatGPTAccountResponsesBody({
         include: ["reasoning.encrypted_content"],
         input: [
           { content: "Be brief.", role: "system" },

@@ -9,7 +9,7 @@ import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
-  CHATGPT_PLAN_PROVIDER_CONFIG,
+  CHATGPT_ACCOUNT_PROVIDER_CONFIG,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
@@ -346,14 +346,14 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   }
 
   // A plan Studio signs in to with ChatGPT, under the fixed id
-  // `chatgpt-plan`. The app gives each account an id of its own, so a model
+  // `chatgpt-account`. The app gives each account an id of its own, so a model
   // URI copied from a real transcript needs its `providerConfigId` swapped.
-  if (env.APP_CHATGPT_PLAN_TOKEN) {
+  if (env.APP_CHATGPT_ACCOUNT_TOKEN) {
     configs.push({
-      ...CHATGPT_PLAN_PROVIDER_CONFIG,
-      apiKey: env.APP_CHATGPT_PLAN_TOKEN,
-      cacheIdentifier: "chatgpt-plan",
-      id: AIProviderConfigIdSchema.parse("chatgpt-plan"),
+      ...CHATGPT_ACCOUNT_PROVIDER_CONFIG,
+      apiKey: env.APP_CHATGPT_ACCOUNT_TOKEN,
+      cacheIdentifier: "chatgpt-account",
+      id: AIProviderConfigIdSchema.parse("chatgpt-account"),
     });
   }
 

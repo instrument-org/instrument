@@ -40,7 +40,7 @@ const PROVIDER_METADATA = {
     type: "cerebras",
     url: addRef("https://www.cerebras.ai"),
   },
-  chatgpt: {
+  "chatgpt-account": {
     api: {
       defaultBaseURL: "https://api.openai.com",
     },
@@ -52,7 +52,7 @@ const PROVIDER_METADATA = {
     // The plan's route takes OpenAI's hosted `web_search` tool; it refuses
     // image generation.
     tags: ["webSearch"],
-    type: "chatgpt",
+    type: "chatgpt-account",
     url: addRef("https://chatgpt.com"),
   },
   "claude-account": {

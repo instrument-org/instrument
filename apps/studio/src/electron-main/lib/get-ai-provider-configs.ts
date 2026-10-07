@@ -1,4 +1,4 @@
-import { chatGPTPlanProviderConfigs } from "@/electron-main/lib/chatgpt-plan";
+import { chatGPTAccountProviderConfigs } from "@/electron-main/lib/chatgpt-account";
 import { claudeAccountProviderConfigs } from "@/electron-main/lib/claude-account";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { getProviderConfigsStore } from "@/electron-main/stores/workspace/provider-configs";
@@ -21,7 +21,7 @@ export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
     });
   }
 
-  keyBasedProviderConfigs.push(...chatGPTPlanProviderConfigs());
+  keyBasedProviderConfigs.push(...chatGPTAccountProviderConfigs());
   keyBasedProviderConfigs.push(...claudeAccountProviderConfigs());
 
   return keyBasedProviderConfigs;

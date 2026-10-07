@@ -22,9 +22,9 @@ export interface ProviderErrorClassification {
 const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["api_error", "transient"], // Anthropic `error.type`
   ["authentication_error", "auth"], // Anthropic `error.type`
-  ["chatpass_v2_invalid_authorization_context", "auth"], // ChatGPT plan
+  ["chatpass_v2_invalid_authorization_context", "auth"], // ChatGPT account
   ["claude_account_usage_limit_exceeded", "usage-limit"], // Claude account, our own
-  ["chatpass_v2_scope_not_authorized", "auth"], // ChatGPT plan
+  ["chatpass_v2_scope_not_authorized", "auth"], // ChatGPT account
   ["context_length_exceeded", "context-overflow"], // OpenAI
   ["empty_image_file", "unsendable-content"], // OpenAI
   ["failed_to_download_image", "unsendable-content"], // OpenAI
@@ -46,7 +46,7 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["rate_limit_error", "rate-limit"], // Anthropic `error.type`
   ["rate_limit_exceeded", "rate-limit"], // OpenAI
   ["request_too_large", "context-overflow"], // Anthropic `error.type`, on a 413
-  // The ChatGPT plan's usage codes. The limit arrives inside a stream that
+  // The ChatGPT account's usage codes. The limit arrives inside a stream that
   // opened with a 200, so the SDK reports it under a 400 and the code is the
   // only evidence of what it was. Switching the app off in ChatGPT's usage
   // settings answers with the same code as spending the allowance.
@@ -56,7 +56,7 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["subscription_sharing_usage_unavailable", "transient"],
   ["subscription_sharing_user_not_eligible", "auth"],
   ["subscription_sharing_user_unavailable", "transient"],
-  ["token_revoked", "auth"], // ChatGPT plan, disconnected in ChatGPT's settings
+  ["token_revoked", "auth"], // ChatGPT account, disconnected in ChatGPT's settings
   ["unsupported_image_media_type", "unsendable-content"], // OpenAI
 ]);
 

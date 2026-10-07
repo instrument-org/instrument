@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type * as ChatGPTPlanModule from "./chatgpt-plan";
+import type * as ChatGPTAccountModule from "./chatgpt-account";
 
 let stored: Record<string, unknown> = {};
 
@@ -98,7 +98,7 @@ function storedAccount(id = ACCOUNT_ID) {
   return registrations[id];
 }
 
-let plan: typeof ChatGPTPlanModule;
+let plan: typeof ChatGPTAccountModule;
 let tokenResponse: ReturnType<typeof deferred<Response>>;
 const revoked: string[] = [];
 // What our API answers for the sign-in setup; undefined fails the request.
@@ -107,7 +107,7 @@ let setupRequest: RequestInit | undefined;
 
 beforeEach(async () => {
   vi.resetModules();
-  plan = await import("./chatgpt-plan");
+  plan = await import("./chatgpt-account");
   tokenResponse = deferred<Response>();
   revoked.length = 0;
   servedSetup = undefined;
@@ -149,10 +149,10 @@ afterEach(() => {
 
 /** Starts the refresh that reading a nearly expired token sets off. */
 function startRefresh() {
-  plan.chatGPTPlanProviderConfigs();
+  plan.chatGPTAccountProviderConfigs();
 }
 
-describe("ChatGPT plan refresh", () => {
+describe("ChatGPT account refresh", () => {
   it("saves the refreshed tokens onto the account it refreshed", async () => {
     seedAccount();
     startRefresh();
@@ -260,7 +260,7 @@ describe("several ChatGPT accounts", () => {
 
     expect(
       plan
-        .chatGPTPlanProviderConfigs()
+        .chatGPTAccountProviderConfigs()
         .map(({ apiKey, cacheIdentifier, displayName, id }) => ({
           apiKey,
           cacheIdentifier,
@@ -271,19 +271,19 @@ describe("several ChatGPT accounts", () => {
       [
         {
           "apiKey": "access-1",
-          "cacheIdentifier": "chatgpt-plan-account-1",
+          "cacheIdentifier": "chatgpt-account-account-1",
           "displayName": "me@example.com",
           "id": "account-1",
         },
         {
           "apiKey": "access-work",
-          "cacheIdentifier": "chatgpt-plan-account-2",
+          "cacheIdentifier": "chatgpt-account-account-2",
           "displayName": "me@example.com (2)",
           "id": "account-2",
         },
         {
           "apiKey": "access-other",
-          "cacheIdentifier": "chatgpt-plan-account-3",
+          "cacheIdentifier": "chatgpt-account-account-3",
           "displayName": "other@example.com",
           "id": "account-3",
         },
@@ -294,7 +294,7 @@ describe("several ChatGPT accounts", () => {
   it("names a lone account for ChatGPT, so its email stays out of the model picker", () => {
     stored = { registrations: { [personal.id]: personal } };
 
-    expect(plan.chatGPTPlanProviderConfigs()[0]?.displayName).toBe(
+    expect(plan.chatGPTAccountProviderConfigs()[0]?.displayName).toBe(
       "ChatGPT account",
     );
   });
@@ -312,7 +312,7 @@ describe("several ChatGPT accounts", () => {
       },
     };
 
-    expect(plan.chatGPTPlanStatus()).toMatchInlineSnapshot(`
+    expect(plan.chatGPTAccountsStatus()).toMatchInlineSnapshot(`
       {
         "accounts": [
           {

@@ -4,7 +4,9 @@ import { AIGatewayModel } from "../../../schemas/model";
 import { AIGatewayModelURI } from "../../../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../../../schemas/provider-config";
 import { addHeuristicTags } from "../../add-heuristic-tags";
+import { canonicalizeAnthropicModelId } from "../../canonicalize-model-id";
 import { TypedError } from "../../errors";
+import { generateModelName } from "../../generate-model-name";
 import { getModelFeatures } from "../../get-model-features";
 import { getProviderMetadata } from "../metadata";
 import { ClaudePlanSession } from "./session";
@@ -53,6 +55,7 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
     const recommended = listed.find(
       (model) => model.value === "default",
     )?.resolvedModel;
+    const recommendedId = recommended && canonicalIdOf(recommended);
 
     return listed.flatMap((model) => {
       // The CLI's recommendation, which is also listed under its own name.
@@ -67,16 +70,16 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
       }
       seen.add(id);
       const providerId = AIGatewayModel.ProviderIdSchema.parse(id);
-      const canonicalId = AIGatewayModel.CanonicalIdSchema.parse(
-        model.resolvedModel ?? id,
-      );
+      // Named from the id rather than from a list of known models, so one the
+      // account gets before we have heard of it still reads as a model.
+      const canonicalId = canonicalIdOf(model.resolvedModel ?? id);
       return [
         addHeuristicTags(
           {
             author,
             canonicalId,
             features: getModelFeatures(canonicalId),
-            name: model.displayName,
+            name: generateModelName(canonicalId),
             params,
             providerId,
             providerName: config.displayName ?? metadata.name,
@@ -87,7 +90,7 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
                   mandatory: false,
                 }
               : undefined,
-            tags: canonicalId === recommended ? ["default"] : [],
+            tags: canonicalId === recommendedId ? ["default"] : [],
             uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),
           },
           config,
@@ -95,4 +98,15 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
       ];
     });
   });
+}
+
+/**
+ * The id other providers list the same model under: `claude-opus-5-5` (or a
+ * dated build, or a context variant like `claude-fable-5-1[1m]`) becomes
+ * `claude-opus-5.5`, so features, tags and names line up with theirs.
+ */
+function canonicalIdOf(id: string) {
+  return AIGatewayModel.CanonicalIdSchema.parse(
+    canonicalizeAnthropicModelId(id.replace(/\[[^\]]*\]$/, "")),
+  );
 }

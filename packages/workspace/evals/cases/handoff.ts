@@ -2545,7 +2545,10 @@ const REACH = [HOME, WORKSPACE];
  * this check, a d case run without its switch would quietly run today's chat
  * and be scored as the foreground prototype.
  */
-const ARM_SWITCHES: Record<string, { context?: string; oneAgent?: string }> = {
+const ARM_SWITCHES: Record<
+  string,
+  { context?: string; firstLine?: string; oneAgent?: string }
+> = {
   a: {},
   b: {},
   c: { oneAgent: "1" },
@@ -2553,6 +2556,9 @@ const ARM_SWITCHES: Record<string, { context?: string; oneAgent?: string }> = {
   e: { context: "1" },
   f: { oneAgent: "fork-on-interrupt" },
   g: { oneAgent: "fork-only" },
+  "g-nudge": { firstLine: "nudge", oneAgent: "fork-only" },
+  "g-off": { firstLine: "tools-off", oneAgent: "fork-only" },
+  "g-say": { firstLine: "say", oneAgent: "fork-only" },
   h: { oneAgent: "background" },
   v: {},
 };
@@ -2561,9 +2567,14 @@ function requireArm(arm: string) {
   const wanted = ARM_SWITCHES[arm] ?? {};
   const oneAgent = process.env.INSTRUMENT_EVAL_ONE_AGENT || undefined;
   const context = process.env.INSTRUMENT_EVAL_TASK_CONTEXT || undefined;
-  if (oneAgent !== wanted.oneAgent || context !== wanted.context) {
+  const firstLine = process.env.INSTRUMENT_EVAL_FIRST_LINE || undefined;
+  if (
+    oneAgent !== wanted.oneAgent ||
+    context !== wanted.context ||
+    firstLine !== wanted.firstLine
+  ) {
     throw new Error(
-      `Arm ${arm} runs with INSTRUMENT_EVAL_ONE_AGENT=${wanted.oneAgent ?? "(unset)"} and INSTRUMENT_EVAL_TASK_CONTEXT=${wanted.context ?? "(unset)"}; this process has ${oneAgent ?? "(unset)"} and ${context ?? "(unset)"}.`,
+      `Arm ${arm} runs with INSTRUMENT_EVAL_ONE_AGENT=${wanted.oneAgent ?? "(unset)"}, INSTRUMENT_EVAL_TASK_CONTEXT=${wanted.context ?? "(unset)"} and INSTRUMENT_EVAL_FIRST_LINE=${wanted.firstLine ?? "(unset)"}; this process has ${oneAgent ?? "(unset)"}, ${context ?? "(unset)"} and ${firstLine ?? "(unset)"}.`,
     );
   }
 }
@@ -2572,8 +2583,9 @@ function requireArm(arm: string) {
  * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
  * the prototype in the foreground only; e, today's chat with a fuller
  * hand-off; f, c forking a turn the user interrupts; g, the fork-only
- * design; h, g calling its forks background; b, a task given the words
- * directly; v, b in the chat's voice.
+ * design; g-off, g-say and g-nudge, g under each first-line mechanism
+ * (`lib/first-line-mode.ts`); h, g calling its forks background; b, a task
+ * given the words directly; v, b in the chat's voice.
  */
 function arms(scenario: Scenario): EvalCase[] {
   const sent = [
@@ -2633,6 +2645,9 @@ function arms(scenario: Scenario): EvalCase[] {
     make("e", chat),
     make("f", chat),
     make("g", chat),
+    make("g-off", chat),
+    make("g-say", chat),
+    make("g-nudge", chat),
     make("h", chat),
     make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
   ];

@@ -28,6 +28,7 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
+import { parseFirstLineMode } from "../src/lib/first-line-mode";
 import { FORK_ON_INTERRUPT, parseOneAgentMode } from "../src/lib/one-agent";
 import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
@@ -172,6 +173,11 @@ export interface RunMetrics {
   /** Tool calls by every agent in the tree. */
   toolCalls: number;
   /**
+   * Each message the user typed, in order, by how the conversation's own
+   * replies to it began: see `TurnShape`.
+   */
+  turnShapes?: TurnShape[];
+  /**
    * Each message the user typed, in order: how long from it being sent to
    * the conversation's last reply before the next one (or the end), the
    * tokens the conversation's own replies spent in that span, and the
@@ -185,6 +191,27 @@ export interface RunMetrics {
    * reads. For a chat that is the chat's replies, not its tasks'.
    */
   visibleChars: number;
+}
+
+/**
+ * How the conversation's replies to one typed message began: the first
+ * non-empty text, verbatim; whether it came before the first tool call
+ * (absent when nothing called a tool); how many text parts and tool calls
+ * the replies held, so a turn that needed no tools and said two things shows
+ * as such; and each step's tokens, cached input included.
+ */
+export interface TurnShape {
+  firstText?: string;
+  steps: {
+    cacheReadTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    text: boolean;
+    toolCalls: number;
+  }[];
+  textBeforeTool?: boolean;
+  textParts: number;
+  toolCalls: number;
 }
 
 /**
@@ -506,6 +533,9 @@ export async function runEvals(
       // Arms C (`1`) and D (`foreground`) of the one-agent comparison.
       oneAgentMode: () =>
         parseOneAgentMode(process.env.INSTRUMENT_EVAL_ONE_AGENT),
+      // Arms g-off, g-say and g-nudge: g with a first-line mechanism.
+      firstLineMode: () =>
+        parseFirstLineMode(process.env.INSTRUMENT_EVAL_FIRST_LINE),
       // Arm E: today's chat and tasks, with the chat's background on a task.
       isTaskContextEnabled: () =>
         process.env.INSTRUMENT_EVAL_TASK_CONTEXT === "1",
@@ -1285,12 +1315,16 @@ async function metricsFor(
   let visibleChars = 0;
   const taskCommands = { fork: 0, new: 0 };
   const turns: NonNullable<RunMetrics["turns"]> = [];
+  const turnShapes: TurnShape[] = [];
   for (const session of own.isOk() ? own.value : []) {
     const withParts = await Store.getSessionWithMessagesAndParts(
       session.id,
       taskId,
     );
     turns.push(...turnsOf(withParts.isOk() ? withParts.value.messages : []));
+    turnShapes.push(
+      ...turnShapesOf(withParts.isOk() ? withParts.value.messages : []),
+    );
     for (const message of withParts.isOk() ? withParts.value.messages : []) {
       if (message.role !== "assistant") {
         continue;
@@ -1357,8 +1391,59 @@ async function metricsFor(
     tasksCreated: childTaskIds.length,
     toolCalls,
     turns,
+    turnShapes,
     visibleChars,
   };
+}
+
+/** See `TurnShape`. */
+function turnShapesOf(
+  messages: Session.WithMessagesAndParts["messages"],
+): TurnShape[] {
+  const shapes: TurnShape[] = [];
+  messages.forEach((message, index) => {
+    if (
+      message.role !== "user" ||
+      message.metadata.inherited ||
+      !isTypedByUser(message)
+    ) {
+      return;
+    }
+    const next = messages.findIndex(
+      (later, at) => at > index && later.role === "user",
+    );
+    const replies = messages
+      .slice(index + 1, next === -1 ? undefined : next)
+      .filter((reply) => reply.role === "assistant");
+    const parts = replies.flatMap((reply) => reply.parts);
+    const texts = parts.filter(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    );
+    const firstText = parts.findIndex(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    );
+    const firstTool = parts.findIndex((part) => isToolPart(part));
+    const first = parts[firstText];
+    shapes.push({
+      ...(first?.type === "text" ? { firstText: first.text.trim() } : {}),
+      steps: replies.map((reply) => ({
+        cacheReadTokens:
+          reply.metadata.usage?.inputTokenDetails.cacheReadTokens ?? 0,
+        inputTokens: reply.metadata.usage?.inputTokens ?? 0,
+        outputTokens: reply.metadata.usage?.outputTokens ?? 0,
+        text: reply.parts.some(
+          (part) => part.type === "text" && part.text.trim() !== "",
+        ),
+        toolCalls: reply.parts.filter((part) => isToolPart(part)).length,
+      })),
+      ...(firstTool === -1
+        ? {}
+        : { textBeforeTool: firstText !== -1 && firstText < firstTool }),
+      textParts: texts.length,
+      toolCalls: parts.filter((part) => isToolPart(part)).length,
+    });
+  });
+  return shapes;
 }
 
 /**

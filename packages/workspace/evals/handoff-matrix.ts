@@ -29,6 +29,8 @@
  * - g: one agent whose only tasks are forks in the chat's folder, with a
  *   prompt of its own and fork on interrupt
  *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
+ * - g-off, g-say, g-nudge: g under each first-line mechanism
+ *   (`INSTRUMENT_EVAL_FIRST_LINE=tools-off|say|nudge`, `lib/first-line-mode.ts`).
  * - h: g, where the agent's word for its forks is "background"
  *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
  * - b, v: round one's task-given-the-words arms, off by default.
@@ -54,6 +56,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as _ from "radashi";
+
+import type { TurnShape } from "./harness";
 
 const PACKAGE_DIR = path.resolve(import.meta.dirname, "..");
 
@@ -99,6 +103,18 @@ const ARM_ENV: Record<string, Record<string, string>> = {
   e: { INSTRUMENT_EVAL_TASK_CONTEXT: "1" },
   f: { INSTRUMENT_EVAL_ONE_AGENT: "fork-on-interrupt" },
   g: { INSTRUMENT_EVAL_ONE_AGENT: "fork-only" },
+  "g-nudge": {
+    INSTRUMENT_EVAL_FIRST_LINE: "nudge",
+    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
+  },
+  "g-off": {
+    INSTRUMENT_EVAL_FIRST_LINE: "tools-off",
+    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
+  },
+  "g-say": {
+    INSTRUMENT_EVAL_FIRST_LINE: "say",
+    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
+  },
   h: { INSTRUMENT_EVAL_ONE_AGENT: "background" },
   v: {},
 };
@@ -200,6 +216,7 @@ interface RunRecord {
     tasksCreated: number;
     toolCalls: number;
     turns?: { chars: number; ms: number; tokens: number }[];
+    turnShapes?: TurnShape[];
     visibleChars: number;
   };
   model: string;
@@ -337,6 +354,7 @@ function childEnv(
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.INSTRUMENT_EVAL_ONE_AGENT;
+  delete env.INSTRUMENT_EVAL_FIRST_LINE;
   delete env.INSTRUMENT_EVAL_TASK_CONTEXT;
   delete env.APP_CHATGPT_PLAN_TOKEN;
   for (const key of METERED_KEYS) {
@@ -934,13 +952,82 @@ function summarize(outDir: string) {
             `- ${record.slug}-${record.arm} ${modelName(record.model)} #${record.trial}: ${assertion.text}: ${assertion.evidence.slice(0, 240).replaceAll("\n", " ")}`,
         ),
     );
-  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n`;
+  const firstLines = firstLineReport(records.filter(isScorable));
+  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
   fs.writeFileSync(path.join(outDir, "report.md"), report);
   fs.writeFileSync(
     path.join(outDir, "matrix.json"),
     JSON.stringify(records, null, 2),
   );
   process.stdout.write(`${report}\n${outDir}\n`);
+}
+
+/**
+ * How each arm's replies began, per model: the figures for the first-line
+ * arms, then every run's first line verbatim, so filler and a guess stated
+ * before any check can be read.
+ */
+function firstLineReport(records: RunRecord[]): string {
+  const seconds = (ms?: number) =>
+    ms === undefined ? "-" : `${(ms / 1000).toFixed(1)}`;
+  const groups = Object.entries(
+    _.group(records, (record) => `${record.arm}|${modelName(record.model)}`),
+  ).toSorted(([a], [b]) => a.localeCompare(b));
+  const rows = groups.map(([key, list = []]) => {
+    const [arm = "", model = ""] = key.split("|");
+    const pick = (read: (record: RunRecord) => number | undefined) =>
+      median(
+        list.flatMap((record) => {
+          const value = read(record);
+          return value === undefined ? [] : [value];
+        }),
+      );
+    const opened = list.flatMap((record) => {
+      const first = record.metrics?.turnShapes?.[0]?.textBeforeTool;
+      return first === undefined ? [] : [first];
+    });
+    const noToolTurns = list.flatMap(
+      (record) =>
+        record.metrics?.turnShapes?.filter((shape) => shape.toolCalls === 0) ??
+        [],
+    );
+    return `| ${arm} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pick((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${opened.filter(Boolean).length}/${opened.length} | ${seconds(pick((record) => record.metrics?.doneMs))} | ${Math.round(pick((record) => record.treeTokens) ?? 0)} | ${noToolTurns.filter((shape) => shape.textParts > 1).length}/${noToolTurns.length} |`;
+  });
+  const lines = groups.map(([key, list = []]) => {
+    const runs = list
+      .toSorted(
+        (a, b) =>
+          SLUGS.indexOf(a.slug) - SLUGS.indexOf(b.slug) || a.trial - b.trial,
+      )
+      .map((record) => {
+        const shapes = record.metrics?.turnShapes ?? [];
+        const first = shapes[0];
+        const order =
+          first?.textBeforeTool === undefined
+            ? "no tools"
+            : first.textBeforeTool
+              ? "text first"
+              : "tool first";
+        const later = shapes
+          .slice(1)
+          .map(
+            (shape, at) =>
+              `  - turn ${at + 2}${shape.toolCalls === 0 ? `, no tools, ${shape.textParts} text parts` : ""}: ${JSON.stringify(shape.firstText ?? "")}`,
+          );
+        return [
+          `- ${record.slug} #${record.trial} (${seconds(record.metrics?.firstTextMs)}s, ${order}${first?.toolCalls === 0 && first.textParts > 1 ? `, ${first.textParts} text parts` : ""}): ${JSON.stringify(first?.firstText ?? "")}`,
+          ...later,
+        ].join("\n");
+      });
+    return `### ${key.replace("|", " on ")}\n\n${runs.join("\n")}`;
+  });
+  return [
+    "| arm | model | pass | median first text s | worst first text s | first turns with text before the first tool | median done s | median tokens | no-tool turns with more than one text part |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows,
+    "",
+    ...lines,
+  ].join("\n");
 }
 
 if (subcommand === "summarize" && target) {
@@ -955,7 +1042,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

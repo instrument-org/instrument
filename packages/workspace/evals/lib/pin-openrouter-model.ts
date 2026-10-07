@@ -11,7 +11,9 @@
  * OpenRouter that is not a read (a GET, which spends nothing) has to name the
  * pinned model and no other, or it is answered with a 403 here and never
  * sent. Each refusal is written to stderr as an `openrouter-guard refused`
- * line, so the matrix can say which side path tried.
+ * line, so the matrix can say which side path tried, and each request let
+ * through as an `openrouter-request` line saying how many tools it offered
+ * and its `tool_choice`, so a run's log shows what each step was sent with.
  */
 const pinned = process.env.INSTRUMENT_EVAL_OPENROUTER_MODEL || undefined;
 
@@ -53,6 +55,7 @@ globalThis.fetch = async (input, init) => {
       { status: 403 },
     );
   }
+  process.stderr.write(`openrouter-request ${requestShape(body)}\n`);
   return realFetch(href, {
     ...init,
     body,
@@ -78,5 +81,20 @@ function modelsIn(body: string): string[] {
     ];
   } catch {
     return [];
+  }
+}
+
+/** How many tools a request body offers and the `tool_choice` it names. */
+function requestShape(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (typeof parsed !== "object" || parsed === null) {
+      return "unparsed";
+    }
+    const tools = "tools" in parsed ? parsed.tools : undefined;
+    const choice = "tool_choice" in parsed ? parsed.tool_choice : undefined;
+    return `tools=${Array.isArray(tools) ? tools.length : 0} tool_choice=${JSON.stringify(choice ?? null)}`;
+  } catch {
+    return "unparsed";
   }
 }

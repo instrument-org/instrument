@@ -75,6 +75,8 @@ interface PublisherEvents {
   "chatgpt-plan.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
+  // Whether the platform API answers changed (development builds only).
+  "platform-api.reachability.updated": null;
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

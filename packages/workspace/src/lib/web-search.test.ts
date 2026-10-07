@@ -202,6 +202,68 @@ describe("webSearch", () => {
     });
   });
 
+  describe("a Claude account", () => {
+    it("searches through the platform endpoint", async () => {
+      const model = createMockAIGatewayModel({ provider: "claude-account" });
+      const searchWeb = vi.fn<WebSearchClient>(() =>
+        Promise.resolve({
+          data: { costDollars: 0.007, results: [] },
+          ok: true,
+        }),
+      );
+
+      createMockTaskConfig(
+        TaskIdSchema.parse("2026-10-07-web-search-claude-account"),
+        {
+          model,
+          webSearch: searchWeb,
+          webSearchModel: { model: neverCalledSearchModel() },
+        },
+      );
+
+      const results = await collect(model);
+
+      expect(searchWeb).toHaveBeenCalledOnce();
+      expect(results.at(-1)?._unsafeUnwrap().kind).toBe("excerpts");
+    });
+
+    it.each(["not-authenticated", "payment-required"] as const)(
+      "falls back to the account's own search when ours answers %s",
+      async (errorType) => {
+        const model = createMockAIGatewayModel({ provider: "claude-account" });
+
+        createMockTaskConfig(
+          TaskIdSchema.parse(`2026-10-07-web-search-claude-${errorType}`),
+          {
+            model,
+            webSearch: () =>
+              Promise.resolve({ errorMessage: "No.", errorType, ok: false }),
+            webSearchModel: {
+              model: new MockLanguageModelV4({
+                doStream: () =>
+                  Promise.resolve({
+                    stream: simulateReadableStream({
+                      chunks: [
+                        ...textDelta("What WebSearch found."),
+                        finishPart,
+                      ],
+                    }),
+                  }),
+              }),
+            },
+          },
+        );
+
+        const results = await collect(model);
+        const last = results.at(-1)?._unsafeUnwrap();
+
+        expect(last?.kind === "summary" && last.text).toBe(
+          "What WebSearch found.",
+        );
+      },
+    );
+  });
+
   describe("a first-party model", () => {
     it("searches through the platform endpoint", async () => {
       const model = createMockAIGatewayModel();

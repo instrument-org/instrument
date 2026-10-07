@@ -92,6 +92,15 @@ const CASES: Record<string, string> = {
 
 const SLUGS = Object.keys(CASES);
 
+/**
+ * Per-run token caps above the harness's default, for cases whose runs pass
+ * it while still on track: `long-work` on Haiku does.
+ * `--max-run-tokens` sets one cap for every case instead.
+ */
+const CASE_MAX_RUN_TOKENS: Record<string, number> = {
+  "long-work": 2_500_000,
+};
+
 /** Cases that need the plan's own web search, which Workers AI runs lack. */
 const PLAN_ONLY = new Set(["research"]);
 
@@ -257,6 +266,7 @@ const { positionals, values } = parseArgs({
     cases: { type: "string" },
     concurrency: { default: "4", type: "string" },
     "max-run-seconds": { default: "900", type: "string" },
+    "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
     out: { type: "string" },
     repeat: { default: "1", type: "string" },
@@ -493,6 +503,12 @@ async function runOne(
         "--json",
         "--max-run-seconds",
         values["max-run-seconds"],
+        ...((values["max-run-tokens"] ?? CASE_MAX_RUN_TOKENS[slug])
+          ? [
+              "--max-run-tokens",
+              values["max-run-tokens"] ?? String(CASE_MAX_RUN_TOKENS[slug]),
+            ]
+          : []),
       ],
       env,
       log,
@@ -1112,7 +1128,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,g-pre,g-note,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--max-run-tokens n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,g-pre,g-note,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

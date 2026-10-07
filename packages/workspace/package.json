@@ -30,6 +30,7 @@
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
     "script:query-task-db": "tsx scripts/query-task-db.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",
+    "script:refresh-agent-browser-guide": "tsx scripts/refresh-agent-browser-guide.ts",
     "script:refresh-directory-icons": "tsx scripts/refresh-directory-icons.ts",
     "script:sync-directory-registry": "tsx scripts/sync-directory-registry.ts",
     "script:run-bash": "node --import tsx scripts/run-bash.ts",

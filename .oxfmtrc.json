@@ -9,6 +9,7 @@
     "pnpm-lock.yaml",
     "llm-cache.local/",
     "routeTree.gen.ts",
+    "*.generated.ts",
     "apps/studio/electron.vite.config.*.mjs",
     "apps/studio/resources/tailwind-browser.js",
     "dist/",

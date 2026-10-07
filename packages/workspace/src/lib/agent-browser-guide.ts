@@ -1,35 +1,17 @@
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import path from "node:path";
-
 import { MOUNT } from "../mount-points";
-import { unpackAsarPath } from "./asar";
+import {
+  AGENT_BROWSER_CORE_GUIDE,
+  AGENT_BROWSER_CORE_REFERENCES,
+} from "./agent-browser-core-guide.generated";
 
 /**
- * How to use `agent-browser` here: the CLI's own core guide, as the installed
- * release ships it, led by what is different in this app.
+ * How to use `agent-browser` here: the CLI's own core guide, as the release
+ * the app pins ships it, led by what is different in this app.
  *
- * The guide comes from the npm package (`skill-data/core`), the same text
- * `agent-browser skills get core` prints, so it always matches the binary
- * the agent runs and never needs copying by hand. Sections about setting up
- * or running agent-browser elsewhere (installing it, naming sessions, MCP,
- * the dashboard) are left out by heading, and the addendum covers the rest.
- * Tests fail when a release renames a section left out, or starts teaching a
- * command this app refuses without the addendum saying so.
+ * The guide is generated into the repository from the installed release
+ * (`agent-browser-guide-source.ts` says how, and which sections it leaves
+ * out), so it matches the binary the agent runs and nothing is copied by hand.
  */
-
-/** The upstream sections that describe a setup this app does for the agent, by their exact heading. */
-export const LEFT_OUT_SECTIONS = [
-  "## Always use your own session",
-  "## Quickstart",
-  "## MCP integration",
-  "## eve agent integration",
-  "### Persist session across runs",
-  "### Run multiple browsers in parallel",
-  "## Diagnosing install issues",
-  "## Observability Dashboard",
-  "## When to load another skill",
-] as const;
 
 /** What differs in this app, read before the upstream guide. */
 export const INSTRUMENT_ADDENDUM = `# agent-browser in Instrument
@@ -38,7 +20,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## The browser you drive
 
-- Commands drive the app's in-app browser, the one the user watches. Its connection, profile, and lifecycle are managed for you: never name a session, and \`--session\` is ignored. Cookies and sign-ins last for the whole task.
+- Commands drive the app's in-app browser, the one the user watches. Its connection, profile, and lifecycle are managed for you, so never name a session: \`--session\`, \`--session-name\`, and \`--namespace\` are refused. Cookies and sign-ins last for the whole task.
 - You work in the tabs of the user's chat that this task holds. \`tab list\` shows them; \`tab new <url>\` opens another (at most eight) behind whatever the user has up; \`tab <id>\` switches, and refs do not carry across, so snapshot again; \`tab close <id>\` closes one you opened. A tab handed to you is the user's: work in it, never close it. Tabs stay in the chat after the task, so close scratch tabs and leave result pages open. Page popups (\`window.open\`) are unavailable.
 - A call that ends on a page-changing command (\`open\`, \`click\`, \`press\`, \`select\`, \`check\`, a tab switch) comes back with the page's snapshot attached under \`Page after\`. Act on those refs instead of running \`snapshot -i\` again.
 - Ads and trackers are blocked. When a page looks broken (a missing button, an empty embed, a sign-in that never loads), run \`agent-browser adblock off\`, reload, and retry; \`adblock on\` restores it.
@@ -63,93 +45,10 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 The app manages these, so they are refused: \`auth\` (the credential vault), \`state\`, \`session\`, \`close\`, \`connect\`, \`batch\`, \`plugin\`, \`mcp\`, \`chat\`, \`dashboard\`, \`stream\`, \`doctor\`, \`inspect\`, \`install\`, \`upgrade\`, \`launch\`, \`--config\`, and \`--executable-path\`. Run each command on its own instead of batching, and diagnose with \`console\`, \`errors\`, \`network\`, and \`screenshot\`. Of \`skills\`, only \`agent-browser skills get core\` (add \`--full\` for its references) works, and prints this guide.`;
 
-const req = createRequire(import.meta.url);
-
-/** The core guide's folder in the installed package, on disk even in a packaged build. */
-function coreSkillDir(): string {
-  return unpackAsarPath(
-    path.join(
-      path.dirname(req.resolve("agent-browser/package.json")),
-      "skill-data",
-      "core",
-    ),
-  );
-}
-
-/** A Markdown file's text without its frontmatter. */
-function withoutFrontmatter(text: string): string {
-  return text.replace(/^---\n[\s\S]*?\n---\n+/, "");
-}
-
 /**
- * The upstream guide with `LEFT_OUT_SECTIONS` removed. A heading is a line
- * starting with `#` outside a fenced code block, whose shell comments start
- * the same way; a section runs to the next heading of its level or above.
- */
-export function withoutSections(
-  markdown: string,
-  headings: readonly string[],
-): string {
-  const kept: string[] = [];
-  let inFence = false;
-  let skippingLevel: number | undefined;
-  for (const line of markdown.split("\n")) {
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-    }
-    const heading = inFence ? undefined : /^(#{1,6}) /.exec(line);
-    if (heading?.[1] !== undefined) {
-      const level = heading[1].length;
-      if (skippingLevel !== undefined && level <= skippingLevel) {
-        skippingLevel = undefined;
-      }
-      if (skippingLevel === undefined && headings.includes(line.trim())) {
-        skippingLevel = level;
-      }
-    }
-    if (skippingLevel === undefined) {
-      kept.push(line);
-    }
-  }
-  return kept.join("\n");
-}
-
-/** The headings of a Markdown text, outside fenced code. */
-export function headingsOf(markdown: string): string[] {
-  let inFence = false;
-  return markdown.split("\n").flatMap((line) => {
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-      return [];
-    }
-    return !inFence && /^#{1,6} /.test(line) ? [line.trim()] : [];
-  });
-}
-
-/** The upstream core guide as the installed release ships it, frontmatter removed. */
-export function upstreamCoreGuide(): string {
-  return withoutFrontmatter(
-    readFileSync(path.join(coreSkillDir(), "SKILL.md"), "utf8"),
-  );
-}
-
-/** The upstream core guide's references, each under a heading naming its file. */
-function upstreamCoreReferences(): string {
-  const dir = path.join(coreSkillDir(), "references");
-  return ["commands.md", "snapshot-refs.md", "trust-boundaries.md"]
-    .map(
-      (name) =>
-        `\n\n---\n\n<!-- references/${name} -->\n\n${readFileSync(path.join(dir, name), "utf8")}`,
-    )
-    .join("");
-}
-
-/**
- * The guide the agent reads: the addendum, then the upstream core guide
- * without the sections left out, and with `full` the references the guide
- * links to that apply here.
+ * The guide the agent reads: the addendum, then the upstream core guide, and
+ * with `full` the references it links to that apply here.
  */
 export function agentBrowserGuide({ full = false } = {}): string {
-  const upstream = withoutSections(upstreamCoreGuide(), LEFT_OUT_SECTIONS);
-  return `${INSTRUMENT_ADDENDUM}\n\n---\n\n${upstream.trim()}${full ? upstreamCoreReferences() : ""}\n`;
+  return `${INSTRUMENT_ADDENDUM}\n\n---\n\n${AGENT_BROWSER_CORE_GUIDE}${full ? AGENT_BROWSER_CORE_REFERENCES : ""}`;
 }

@@ -152,9 +152,6 @@ const accountChip = (email: string, service: AuthService) =>
 const group = (...children: unknown[]) =>
   html`<div class="flex flex-col items-center gap-5">${children}</div>`;
 
-// A single mark on a success page sends one ring out as it lands.
-const pulsing = (mark: unknown) => html`<div class="auth-pulse">${mark}</div>`;
-
 // A success page's button sits further down than the others, past the
 // account it names.
 const openAppSpaced = html`<div class="pt-6">${openApp}</div>`;
@@ -186,7 +183,7 @@ function renderOutcome(outcome: AuthOutcome) {
     case "signed-in": {
       return {
         arrive: true,
-        body: html`${pulsing(appMark("size-20"))}
+        body: html`${appMark("size-20")}
         ${group(
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
@@ -199,7 +196,7 @@ function renderOutcome(outcome: AuthOutcome) {
       const { email, service } = outcome;
       return {
         arrive: true,
-        body: html`${service.mark ? pairedMarks(service) : pulsing(pairedMarks(service))}
+        body: html`${pairedMarks(service)}
         ${group(
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
@@ -360,10 +357,7 @@ export function renderAuthPage(
               );
             }
           }
-          /* A success page arrives rather than appearing: the mark lands with a
-                 little overshoot (two marks slide together and the arrows between
-                 them pop), then the heading and button rise in, all in under a
-                 second. */
+          /* A success page arrives: the mark pops in (two marks slide together and the arrows pop), then the rest rises in. */
           @media (prefers-reduced-motion: no-preference) {
             .auth-arrive > * {
               animation: auth-rise 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -392,23 +386,6 @@ export function renderAuthPage(
             .auth-meet > :nth-child(2) {
               animation-delay: 240ms;
             }
-            .auth-pulse {
-              position: relative;
-            }
-            .auth-pulse::after {
-              content: "";
-              position: absolute;
-              inset: -4px;
-              border-radius: 28%;
-              border: 2px solid rgb(13 116 102 / 0.5);
-              animation: auth-ring 900ms 200ms ease-out both;
-              pointer-events: none;
-            }
-            @media (prefers-color-scheme: dark) {
-              .auth-pulse::after {
-                border-color: rgb(94 234 212 / 0.45);
-              }
-            }
           }
           @keyframes auth-pop {
             from {
@@ -420,19 +397,6 @@ export function renderAuthPage(
             from {
               opacity: 0;
               transform: translateY(8px);
-            }
-          }
-          @keyframes auth-ring {
-            from {
-              opacity: 0;
-              transform: scale(0.85);
-            }
-            20% {
-              opacity: 1;
-            }
-            to {
-              opacity: 0;
-              transform: scale(1.6);
             }
           }
         </style>

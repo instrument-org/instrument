@@ -280,34 +280,7 @@ export async function openClaudeSignIn(): Promise<{
   try {
     pendingSignIn?.cancel();
     await mkdir(accountDir(), { recursive: true });
-    const signIn = await startClaudeCodeSignIn({
-      configDir: accountDir(),
-      executablePath,
-    });
-    pendingSignIn = signIn;
-    setStatus({
-      ...status,
-      signInLink: signIn.linkForAnotherDevice,
-      signingIn: true,
-    });
-    const timer = setTimeout(() => {
-      signIn.cancel();
-    }, SIGN_IN_TIMEOUT_MS);
-    void signIn.completion
-      .catch((error: unknown) => {
-        log.info("Claude sign-in ended without finishing", error);
-      })
-      .finally(() => {
-        clearTimeout(timer);
-        if (pendingSignIn === signIn) {
-          pendingSignIn = undefined;
-        }
-        void refreshClaudePlanStatus({ force: true }).then((after) => {
-          if (after.kind === "signed-in") {
-            focusAppWindow();
-          }
-        });
-      });
+    const signIn = await beginSignIn(executablePath);
     await shell.openExternal(signIn.url);
     return { command: undefined, opened: true, via: "browser" };
   } catch (error) {
@@ -317,6 +290,59 @@ export async function openClaudeSignIn(): Promise<{
     );
     return { ...(await openTerminalSignIn(executablePath)), via: "terminal" };
   }
+}
+
+/** Sign-ins a code was pasted into, which a refused code ends. */
+const codePasted = new WeakSet<ClaudeCodeSignIn>();
+
+/** The sign-in replacing one a refused code ended, while it starts. */
+let replacing: Promise<unknown> | undefined;
+
+/**
+ * Start Claude Code's sign-in and wait on it in the background, keeping the
+ * status's link current. A pasted code Anthropic refuses ends Claude Code's
+ * sign-in, and only the process that made a link can redeem its codes, so
+ * that one is replaced at once by a new sign-in with a new link, and the
+ * person stays on the code field rather than starting over.
+ */
+async function beginSignIn(executablePath: string) {
+  const signIn = await startClaudeCodeSignIn({
+    configDir: accountDir(),
+    executablePath,
+  });
+  pendingSignIn = signIn;
+  setStatus({
+    ...status,
+    signInLink: signIn.linkForAnotherDevice,
+    signingIn: true,
+  });
+  const timer = setTimeout(() => {
+    signIn.cancel();
+  }, SIGN_IN_TIMEOUT_MS);
+  const finish = () => {
+    clearTimeout(timer);
+    if (pendingSignIn === signIn) {
+      pendingSignIn = undefined;
+    }
+    void refreshClaudePlanStatus({ force: true }).then((after) => {
+      if (after.kind === "signed-in") {
+        focusAppWindow();
+      }
+    });
+  };
+  void signIn.completion.then(finish, (error: unknown) => {
+    log.info("Claude sign-in ended without finishing", error);
+    if (codePasted.has(signIn) && pendingSignIn === signIn) {
+      clearTimeout(timer);
+      replacing = beginSignIn(executablePath).catch((restartError: unknown) => {
+        log.warn("Couldn't restart Claude sign-in", restartError);
+        finish();
+      });
+      return;
+    }
+    finish();
+  });
+  return signIn;
 }
 
 /**
@@ -334,14 +360,17 @@ export async function submitClaudeSignInCode(
     };
   }
   try {
+    codePasted.add(signIn);
     await signIn.submitCode(pasted);
     return { error: undefined };
   } catch (error) {
+    if (error instanceof Error && error.message.includes("look like")) {
+      return { error: error.message };
+    }
+    await replacing;
     return {
       error:
-        error instanceof Error && error.message.includes("look like")
-          ? error.message
-          : "Claude didn't accept that code. Copy it again, or start over.",
+        "Claude didn't accept that code. Copy the sign-in link again for a new one, then paste the code it gives you.",
     };
   }
 }

@@ -48,6 +48,7 @@ export function ClaudeSignInCode({
     setSubmitting(false);
     if (result.error) {
       setError(result.error);
+      setCode("");
     }
   };
 

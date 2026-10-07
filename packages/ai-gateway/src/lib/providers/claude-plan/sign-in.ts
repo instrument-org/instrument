@@ -67,9 +67,12 @@ export async function startClaudeCodeSignIn({
     const started = StartedSchema.parse(
       await session.control("claudeAuthenticate", true),
     );
+    let finished = false;
     const completion = session
       .control("claudeOAuthWaitForCompletion")
-      .then(() => undefined)
+      .then(() => {
+        finished = true;
+      })
       .finally(() => {
         session.close();
       });
@@ -82,7 +85,15 @@ export async function startClaudeCodeSignIn({
       linkForAnotherDevice: started.manualUrl,
       submitCode: async (pasted) => {
         const { code, state } = splitPastedCode(pasted, stateOfLink);
-        await session.control("claudeOAuthCallback", code, state);
+        try {
+          await session.control("claudeOAuthCallback", code, state);
+        } catch (error) {
+          // A code that works finishes the sign-in, which closes the session,
+          // sometimes before Claude Code answers the callback itself.
+          if (!finished) {
+            throw error;
+          }
+        }
       },
       url: started.automaticUrl,
     };

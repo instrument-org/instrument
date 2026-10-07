@@ -112,14 +112,30 @@ export const CDP_METHODS = {
   "Emulation.setEmulatedMedia": {
     why: "also sent by the bridge when a connection closes, to put the page back",
   },
-  "Emulation.setGeolocationOverride": {},
-  "Emulation.setLocaleOverride": {},
+  "Emulation.clearGeolocationOverride": {
+    sender: "bridge",
+    why: "sent when a connection closes, to take back a location the agent set",
+  },
+  "Emulation.setGeolocationOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
+  "Emulation.setLocaleOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
   "Emulation.setScriptExecutionDisabled": {
     sender: "bridge",
     why: "sent when a connection closes, to put the page back",
   },
-  "Emulation.setTimezoneOverride": {},
-  "Emulation.setUserAgentOverride": {},
+  "Emulation.setTimezoneOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
+  "Emulation.setUserAgentOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
   "Fetch.continueRequest": {
     why: "also sent by the bridge to release a request paused on a page the agent may not see",
   },
@@ -292,8 +308,13 @@ export const CDP_METHODS = {
     task: "override",
     why: TARGET_TREE,
   },
-  "Tracing.end": {},
-  "Tracing.start": {},
+  "Tracing.end": {
+    why: "also sent by the bridge when a connection closes on a trace the agent started",
+  },
+  "Tracing.start": {
+    session: "wrapped",
+    why: "recorded, and ended when the connection closes, so no trace outlives the agent",
+  },
   "WebMCP.cancelInvocation": {},
   "WebMCP.enable": {},
   "WebMCP.invokeTool": {},

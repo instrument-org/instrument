@@ -170,21 +170,43 @@ const TEARDOWN_RESETS: [string, Record<string, unknown>][] = [
  */
 const connectionsByTarget = new Map<BrowserTargetId, number>();
 
-/** Checks an agent can switch off on its page, each with the params that switch it back on. */
-const RELAXED_CHECKS: Record<string, Record<string, unknown>> = {
-  "Page.setBypassCSP": { enabled: false },
-  "Security.setIgnoreCertificateErrors": { ignore: false },
+/**
+ * Settings an agent can change on its page that would go on acting for the
+ * person after it leaves, each with the command that puts it back: a check
+ * switched off, an emulated place, time, language or browser, a trace left
+ * running.
+ */
+const UNDONE_ON_LEAVING: Record<string, [string, Record<string, unknown>]> = {
+  "Emulation.setGeolocationOverride": [
+    "Emulation.clearGeolocationOverride",
+    {},
+  ],
+  "Emulation.setLocaleOverride": ["Emulation.setLocaleOverride", {}],
+  "Emulation.setTimezoneOverride": [
+    "Emulation.setTimezoneOverride",
+    { timezoneId: "" },
+  ],
+  "Emulation.setUserAgentOverride": [
+    "Emulation.setUserAgentOverride",
+    { userAgent: "" },
+  ],
+  "Page.setBypassCSP": ["Page.setBypassCSP", { enabled: false }],
+  "Security.setIgnoreCertificateErrors": [
+    "Security.setIgnoreCertificateErrors",
+    { ignore: false },
+  ],
+  "Tracing.start": ["Tracing.end", {}],
 };
 
 /**
  * What a connection left on its page that would go on acting there for the
  * person after the agent leaves: a script run in every new document (one
  * that reads a password field as it is typed, say), a binding the page can
- * call, a security check switched off.
+ * call, a setting in `UNDONE_ON_LEAVING`.
  */
 interface LeftOnPage {
   bindings: Set<string>;
-  relaxed: Set<string>;
+  changed: Set<string>;
   scripts: Set<string>;
 }
 
@@ -220,9 +242,13 @@ function noteLeftOnPage(
       );
       return;
     }
+    case "Tracing.end": {
+      left.changed.delete("Tracing.start");
+      return;
+    }
     default: {
-      if (method in RELAXED_CHECKS) {
-        left.relaxed.add(method);
+      if (method in UNDONE_ON_LEAVING) {
+        left.changed.add(method);
       }
     }
   }
@@ -241,10 +267,10 @@ function undoLeftOnPage(left: LeftOnPage): [string, Record<string, unknown>][] {
       "Runtime.removeBinding",
       { name },
     ]),
-    ...[...left.relaxed].map((method): [string, Record<string, unknown>] => [
-      method,
-      RELAXED_CHECKS[method] ?? {},
-    ]),
+    ...[...left.changed].flatMap((method) => {
+      const undo = UNDONE_ON_LEAVING[method];
+      return undo ? [undo] : [];
+    }),
   ];
 }
 
@@ -378,7 +404,7 @@ export function openTargetSession({
   let ended = false;
   const leftOnPage: LeftOnPage = {
     bindings: new Set(),
-    relaxed: new Set(),
+    changed: new Set(),
     scripts: new Set(),
   };
   const fileGate = createLocalFileGate({

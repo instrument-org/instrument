@@ -568,6 +568,68 @@ describe("openTargetSession on a local page", () => {
     `);
   });
 
+  it("puts back the place, time, language, and browser it emulated, and ends its trace, when it leaves", async () => {
+    const { close, command, sendCommand } = connect();
+    await command("Emulation.setGeolocationOverride", {
+      latitude: 1,
+      longitude: 2,
+    });
+    await command("Emulation.setTimezoneOverride", {
+      timezoneId: "Asia/Tokyo",
+    });
+    await command("Emulation.setLocaleOverride", { locale: "ja-JP" });
+    await command("Emulation.setUserAgentOverride", { userAgent: "bot" });
+    await command("Tracing.start", {});
+    sendCommand.mockClear();
+    close();
+    const undone = sendCommand.mock.calls
+      .map(([, method, params]) => [method, params])
+      .filter(([method]) =>
+        /^(?:Emulation\.(?:clearGeolocation|setTimezone|setLocale|setUserAgent)|Tracing\.)/.test(
+          String(method),
+        ),
+      );
+    expect(undone).toMatchInlineSnapshot(`
+      [
+        [
+          "Emulation.clearGeolocationOverride",
+          {},
+        ],
+        [
+          "Emulation.setTimezoneOverride",
+          {
+            "timezoneId": "",
+          },
+        ],
+        [
+          "Emulation.setLocaleOverride",
+          {},
+        ],
+        [
+          "Emulation.setUserAgentOverride",
+          {
+            "userAgent": "",
+          },
+        ],
+        [
+          "Tracing.end",
+          {},
+        ],
+      ]
+    `);
+  });
+
+  it("ends no trace the agent already ended", async () => {
+    const { close, command, sendCommand } = connect();
+    await command("Tracing.start", {});
+    await command("Tracing.end", {});
+    sendCommand.mockClear();
+    close();
+    expect(
+      sendCommand.mock.calls.some(([, method]) => method === "Tracing.end"),
+    ).toBe(false);
+  });
+
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {
     const target = BrowserTargetIdSchema.parse(
       "t1/ses_00000000018888888888888889",

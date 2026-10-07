@@ -24,6 +24,7 @@ export const providerApp = new Hono<AIGatewayEnv>();
 
 providerApp.all("/:providerConfigId/*", async (context) => {
   const { providerConfigId } = context.req.param();
+  await context.var.refreshExpiredCredentials?.(providerConfigId);
   const configs = context.var.getAIProviderConfigs();
   if (configs.length === 0) {
     return context.json({ error: "No AI providers have been configured" }, 500);

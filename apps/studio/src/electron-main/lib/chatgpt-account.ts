@@ -779,16 +779,19 @@ function isDue(registration: Registration | undefined): boolean {
 const EXPIRED_REFRESH_WAIT_MS = 10 * 1000;
 
 /**
- * Replace every access token that has already expired, and wait for it. A
- * launch after the app was closed for over an hour finds every token expired
- * and the refresh timers not yet fired, so a request read from the configs
- * right away would carry a token the API refuses.
+ * Replace the access token of `accountId`, or of every account without one,
+ * if it has already expired, and wait for it. A launch after the app was
+ * closed for over an hour finds every token expired and the refresh timers
+ * not yet fired, so a request read from the configs right away would carry a
+ * token the API refuses. An id that names no account, such as another
+ * provider's config, waits on nothing.
  */
-export async function refreshExpiredTokens(): Promise<void> {
+export async function refreshExpiredTokens(accountId?: string): Promise<void> {
   await Promise.all(
     registrations()
       .filter(
         (registration) =>
+          (accountId === undefined || registration.id === accountId) &&
           registration.refreshToken &&
           (registration.expiresAt ?? 0) <= Date.now(),
       )

@@ -230,6 +230,17 @@ describe("ChatGPT account refresh", () => {
     expect(plan.chatGPTAccountProviderConfigs()[0]?.apiKey).toBe("access-2");
   });
 
+  it("waits on nothing for a config that is not a ChatGPT account", async () => {
+    seedAccount({ expiresAt: Date.now() - 1000 });
+    // The token endpoint never answers, so waiting on the account would hang.
+    await plan.refreshExpiredTokens("openrouter-config");
+
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      TOKEN_URL,
+      expect.anything(),
+    );
+  });
+
   it("does not sign out a newer grant when a refresh of the old one is refused", async () => {
     seedAccount();
     startRefresh();

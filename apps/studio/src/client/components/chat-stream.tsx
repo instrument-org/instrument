@@ -35,7 +35,10 @@ import {
   WorkingGroupHeading,
 } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
-import { isAwaitingUser } from "./message-part/tool-call-utils";
+import {
+  isAwaitingUser,
+  isToolPartRunning,
+} from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -1246,7 +1249,8 @@ function hasVisibleAssistantParts({
           message,
           partIndex,
         }),
-        isStreaming,
+        isRunning:
+          isStreaming && isToolPart(part) && isToolPartRunning(part, message),
         part,
       })
     );

@@ -530,9 +530,10 @@ describe("ChatStream groups the agent never named", () => {
     ).not.toContain("brand-shiny-text");
   });
 
-  // Every call in a batch streamed in and waiting its turn, so none of them
-  // draws: the run is still working, and still says so.
-  it("stays on screen while every call it holds waits for the queue", () => {
+  // A batch streamed in and not yet started. The first call is next, and the
+  // runtime marks it started a moment later, so it draws through that moment;
+  // the one behind it waits its turn and draws nothing.
+  it("draws the call next in line and holds the ones queued behind it", () => {
     renderParts(
       [
         blankThinking(),
@@ -543,7 +544,8 @@ describe("ChatStream groups the agent never named", () => {
     );
 
     expect(screen.getByText(/^Working/)).toBeDefined();
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(screen.queryByText("Reading the second quarter")).toBeNull();
   });
 
   it("counts up how long the run has been working", () => {

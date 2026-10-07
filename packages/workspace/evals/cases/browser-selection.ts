@@ -64,7 +64,7 @@ const stopOnAgentBrowser =
     return command.includes("agent-browser") && predicate(command);
   };
 
-const usedTaskBrowserOnly: Assertion = {
+const usedInAppBrowserOnly: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
     const external = commands.filter((command) =>
@@ -231,7 +231,7 @@ const recoveredFromBlockedSubcommand: Assertion = {
 export const BROWSER_SELECTION_EVALS = [
   // Clean research must stay on the in-app browser.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-research",
     prompt:
       "Open https://example.com in the browser and tell me the exact page title.",
@@ -239,7 +239,7 @@ export const BROWSER_SELECTION_EVALS = [
   }),
   // Local app work must stay on the in-app browser.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-localhost",
     prompt:
       "Open http://localhost:5173 in a browser and describe what the page shows.",
@@ -281,7 +281,7 @@ export const BROWSER_SELECTION_EVALS = [
   }),
   // A file the agent produced belongs in the in-app browser, which serves it.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-local-file",
     prompt:
       "Create an HTML file with a heading that says Hello, then open it in a browser and confirm the heading renders.",

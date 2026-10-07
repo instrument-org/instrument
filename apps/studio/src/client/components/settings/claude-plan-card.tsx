@@ -285,7 +285,7 @@ function Problem({
         <Callout actions={[signInButton]} title={title} warning>
           <p>
             {status.kind === "signed-out"
-              ? "Sign in with the Claude account your Pro or Max subscription is on. It opens in a terminal and finishes in your browser."
+              ? `${status.expired ? "Your Claude sign-in ran out. " : ""}Sign in with the Claude account your Pro or Max subscription is on. It opens in a terminal and finishes in your browser.`
               : `${APP_NAME} uses a Claude subscription. Sign in again with your Claude account.`}
           </p>
         </Callout>

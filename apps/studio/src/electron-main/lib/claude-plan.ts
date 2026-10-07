@@ -67,7 +67,13 @@ export type ClaudePlanStatus = {
 } & (
   | { kind: "not-installed" }
   | { executablePath: string; kind: "outdated"; version: string }
-  | { executablePath: string; kind: "signed-out"; version: string }
+  | {
+      executablePath: string;
+      /** Signed in once, but the sign-in has run out and needs doing again. */
+      expired?: boolean;
+      kind: "signed-out";
+      version: string;
+    }
   // Signed in, but to an API key or a cloud provider rather than a plan.
   | {
       authMethod: string;
@@ -214,6 +220,14 @@ async function readCLI(
   if (!parsed.success || !parsed.data.loggedIn) {
     return { executablePath, kind: "signed-out" as const, version };
   }
+  if (parsed.data.authMethod === "claude.ai" && (await isExpired(executablePath, chosen))) {
+    return {
+      executablePath,
+      expired: true,
+      kind: "signed-out" as const,
+      version,
+    };
+  }
   if (parsed.data.authMethod !== "claude.ai") {
     return {
       authMethod: parsed.data.authMethod ?? "unknown",
@@ -229,6 +243,24 @@ async function readCLI(
     plan: parsed.data.subscriptionType ?? undefined,
     version,
   };
+}
+
+/**
+ * Whether a claude.ai sign-in has run out. The JSON status still says signed
+ * in until a request tries to renew it; the text status says "Expired".
+ */
+async function isExpired(executablePath: string, chosen: ClaudeCodeSetup) {
+  const stdout = await run(executablePath, ["auth", "status", "--text"], {
+    env: cliEnv(chosen),
+    timeout: 10_000,
+  }).then(
+    (result) => result.stdout,
+    (error: unknown) =>
+      typeof error === "object" && error !== null && "stdout" in error
+        ? String(error.stdout)
+        : "",
+  );
+  return /\bExpired\b/i.test(stdout);
 }
 
 /**

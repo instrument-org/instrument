@@ -99,11 +99,16 @@ const maxRunSeconds = values["max-run-seconds"]
 // Every positional past the subcommand is a pattern, matched as alternatives.
 // Reading only the first silently ran a subset: `run region unreadable` looked
 // like it covered both suites and covered one.
+// A pattern that is an eval's whole name means that eval alone, so a name
+// that begins another (`handoff-guide-g`, `handoff-guide-g-say`) still picks
+// out one.
 const namePatterns = positionals.slice(1);
 const matchesPattern = (name: string) =>
   namePatterns.length === 0 ||
   namePatterns.some((pattern) =>
-    name.toLowerCase().includes(pattern.toLowerCase()),
+    EVALS.some((one) => one.name.toLowerCase() === pattern.toLowerCase())
+      ? name.toLowerCase() === pattern.toLowerCase()
+      : name.toLowerCase().includes(pattern.toLowerCase()),
   );
 const patternLabel = namePatterns.join(", ");
 

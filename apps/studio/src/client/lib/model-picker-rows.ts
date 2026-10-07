@@ -14,7 +14,7 @@ import { joinFuzzyFields } from "./join-fuzzy-fields";
 export interface Connection {
   id: string;
   isOurs: boolean;
-  /** As Settings names it: "Anthropic", "ChatGPT plan", or an account's email when there are several. */
+  /** As Settings names it: "Anthropic", "ChatGPT account", or an account's email when there are several. */
   name: string;
   provider: AIProviderType;
 }

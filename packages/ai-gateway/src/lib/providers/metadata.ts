@@ -40,20 +40,34 @@ const PROVIDER_METADATA = {
     type: "cerebras",
     url: addRef("https://www.cerebras.ai"),
   },
-  chatgpt: {
+  "chatgpt-account": {
     api: {
       defaultBaseURL: "https://api.openai.com",
     },
     // Added by signing in with ChatGPT, never with a key.
     canAddManually: false,
-    description: "GPT models on your ChatGPT Plus or Pro plan",
+    description: "GPT models on your ChatGPT Plus or Pro subscription",
     name: "ChatGPT",
     quirks: { supportsMultipartToolResults: true },
     // The plan's route takes OpenAI's hosted `web_search` tool; it refuses
     // image generation.
     tags: ["webSearch"],
-    type: "chatgpt",
+    type: "chatgpt-account",
     url: addRef("https://chatgpt.com"),
+  },
+  "claude-account": {
+    api: {
+      defaultBaseURL: "",
+    },
+    // Added by signing in through Instrument's copy of Claude Code, never with a key.
+    canAddManually: false,
+    description: "Claude models on your Claude Pro or Max subscription",
+    name: "Claude",
+    quirks: { supportsMultipartToolResults: true },
+    // Searches with Claude Code's own WebSearch, run on Anthropic's side.
+    tags: ["webSearch"],
+    type: "claude-account",
+    url: addRef("https://claude.ai"),
   },
   deepinfra: {
     api: {

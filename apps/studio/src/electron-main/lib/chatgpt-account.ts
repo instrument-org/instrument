@@ -6,7 +6,7 @@ import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
   APP_NAME,
-  CHATGPT_PLAN_PROVIDER_CONFIG,
+  CHATGPT_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { safeStorage, shell } from "electron";
@@ -47,7 +47,7 @@ import {
  * through the synthesized provider configs.
  */
 
-const log = logger.scope("chatgpt-plan");
+const log = logger.scope("chatgpt-account");
 
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -122,7 +122,7 @@ export interface ChatGPTAccountStatus {
   state: ChatGPTAccountState;
 }
 
-export interface ChatGPTPlanStatus {
+export interface ChatGPTAccountsStatus {
   /** In the order they were first signed in to. */
   accounts: ChatGPTAccountStatus[];
   signingIn: boolean;
@@ -142,7 +142,7 @@ export interface ChatGPTSignInResult {
  * is whatever is current; one close to expiring starts a refresh so the next
  * request carries the replacement.
  */
-export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
+export function chatGPTAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
   const all = registrations();
   return all.flatMap((registration) => {
     if (
@@ -156,12 +156,12 @@ export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
     }
     return [
       {
-        ...CHATGPT_PLAN_PROVIDER_CONFIG,
+        ...CHATGPT_ACCOUNT_PROVIDER_CONFIG,
         apiKey: registration.accessToken,
-        cacheIdentifier: `chatgpt-plan-${registration.id}`,
+        cacheIdentifier: `chatgpt-account-${registration.id}`,
         displayName:
           all.length === 1
-            ? CHATGPT_PLAN_PROVIDER_CONFIG.displayName
+            ? CHATGPT_ACCOUNT_PROVIDER_CONFIG.displayName
             : labelFor(registration, all),
         id: registration.id,
       },
@@ -174,7 +174,7 @@ export function chatGPTPlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
  * them: the email, and the name when the token carried one. Undefined while
  * no account is signed in.
  */
-export function chatGPTPlanUser():
+export function chatGPTAccountUser():
   | undefined
   | { email: string; name?: string } {
   const registration = registrations().find(
@@ -185,7 +185,7 @@ export function chatGPTPlanUser():
     : undefined;
 }
 
-export function chatGPTPlanStatus(): ChatGPTPlanStatus {
+export function chatGPTAccountsStatus(): ChatGPTAccountsStatus {
   const all = registrations();
   return {
     accounts: all.map((registration) => accountStatus(registration, all)),
@@ -307,12 +307,12 @@ function getStore(): Store<StoreShape> {
             : safeStorage.decryptString(Buffer.from(value, "base64"));
           return StoreSchema.parse(JSON.parse(json));
         } catch (error) {
-          log.error("Failed to read the ChatGPT plan store", error);
+          log.error("Failed to read the ChatGPT account store", error);
           return defaults;
         }
       },
       fileExtension: is.dev ? "json" : "json.enc",
-      name: "chatgpt-plan",
+      name: "chatgpt-account",
       serialize: (value) => {
         const json = JSON.stringify(value);
         if (is.dev) {
@@ -331,7 +331,7 @@ function getStore(): Store<StoreShape> {
       },
     });
     STORE.onDidAnyChange(() => {
-      publisher.publish("chatgpt-plan.updated", null);
+      publisher.publish("chatgpt-account.updated", null);
       publisher.publish("provider-config.updated", null);
     });
   }
@@ -499,12 +499,12 @@ export function signInWithChatGPT({
       if (pendingSignIn === entry) {
         pendingSignIn = null;
       }
-      publisher.publish("chatgpt-plan.updated", null);
+      publisher.publish("chatgpt-account.updated", null);
     }),
     state,
   };
   pendingSignIn = entry;
-  publisher.publish("chatgpt-plan.updated", null);
+  publisher.publish("chatgpt-account.updated", null);
   return entry.promise;
 }
 

@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import {
@@ -78,6 +79,9 @@ export function MessageError({
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const openLink = useOpenExternalLink();
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
@@ -138,6 +142,14 @@ export function MessageError({
       : undefined;
 
   const actions = errorActions({
+    instrumentOffer:
+      classification === "usage-limit" && isPlanProvider(provider)
+        ? hasToken === undefined
+          ? undefined
+          : hasToken
+            ? modelsData?.models.find(isAuto)
+            : "sign-up"
+        : undefined,
     switchTo: needsAutoRecovery
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
@@ -239,7 +251,23 @@ function describeForProvider(
     provider,
   }: { classification: string | undefined; provider: string | undefined },
 ): { detail: string; summary: string } {
-  if (provider !== "chatgpt") {
+  if (provider === "claude-account") {
+    if (classification === "usage-limit") {
+      return {
+        detail: `You've reached your Claude subscription's usage limit. It starts over when the window resets; Settings shows when. Until then, switch to another model.`,
+        summary: "Claude usage limit reached",
+      };
+    }
+    if (classification === "auth") {
+      return {
+        detail:
+          "Claude Code isn't signed in to your Claude account anymore. Sign in again from Settings, or switch to another model.",
+        summary: "Signed out of Claude",
+      };
+    }
+    return described;
+  }
+  if (provider !== "chatgpt-account") {
     return described;
   }
   if (classification === "usage-limit") {
@@ -311,7 +339,16 @@ function detailsText(facts: [string, string][], body: string | undefined) {
   return body ? [...lines, "", body].join("\n") : lines.join("\n");
 }
 
+/**
+ * A plan the user brings, whose limit is theirs to reach. Running out offers
+ * Instrument's own models, as a choice and never as a silent fallback.
+ */
+function isPlanProvider(provider: string | undefined) {
+  return provider === "chatgpt-account" || provider === "claude-account";
+}
+
 function errorActions({
+  instrumentOffer,
   switchTo,
   classification,
   kind,
@@ -320,6 +357,8 @@ function errorActions({
   openLink,
   provider,
 }: {
+  /** Instrument's Auto to switch to, or signing up for Instrument to get it. */
+  instrumentOffer: AIGatewayModel.Type | "sign-up" | undefined;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
@@ -351,8 +390,33 @@ function errorActions({
     ];
   }
   if (classification === "usage-limit") {
-    return provider === "chatgpt"
+    const offer: ErrorAction[] =
+      instrumentOffer === "sign-up"
+        ? [
+            {
+              label: `Try ${APP_NAME}`,
+              onClick: () => {
+                openLogin({ hideManualProvider: true });
+              },
+            },
+          ]
+        : instrumentOffer && onModelChange
+          ? [
+              {
+                label: "Switch to Auto",
+                onClick: () => {
+                  onModelChange(instrumentOffer.uri);
+                  toast.success("Switched to Auto");
+                },
+              },
+            ]
+          : [];
+    if (provider === "claude-account") {
+      return [...offer, providerSettings, ...tryAgain];
+    }
+    return provider === "chatgpt-account"
       ? [
+          ...offer,
           {
             label: "Manage usage",
             onClick: () => {
@@ -367,7 +431,7 @@ function errorActions({
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
-    return provider === "chatgpt"
+    return provider === "chatgpt-account" || provider === "claude-account"
       ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }

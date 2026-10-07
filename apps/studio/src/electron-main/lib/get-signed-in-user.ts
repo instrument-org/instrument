@@ -1,4 +1,4 @@
-import { chatGPTPlanUser } from "@/electron-main/lib/chatgpt-plan";
+import { chatGPTAccountUser } from "@/electron-main/lib/chatgpt-account";
 import {
   platformApiQueryClient,
   platformApiRpcClient,
@@ -19,7 +19,7 @@ export async function getSignedInUser(): Promise<
   undefined | { email: string; name?: string }
 > {
   if (!hasToken()) {
-    return chatGPTPlanUser();
+    return chatGPTAccountUser();
   }
   try {
     const me = await platformApiQueryClient.fetchQuery(
@@ -27,6 +27,6 @@ export async function getSignedInUser(): Promise<
     );
     return { email: me.email, name: me.name };
   } catch {
-    return chatGPTPlanUser();
+    return chatGPTAccountUser();
   }
 }

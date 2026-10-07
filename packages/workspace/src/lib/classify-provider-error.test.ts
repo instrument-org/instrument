@@ -37,7 +37,7 @@ const cases: {
     name: "an error the SDK did not raise",
   },
   {
-    // Recorded from a ChatGPT plan with the app switched off in ChatGPT's
+    // Recorded from a ChatGPT account with the app switched off in ChatGPT's
     // usage settings: the stream opened, then carried this, and the SDK
     // raised it under a 400.
     error: apiCallError({
@@ -48,7 +48,7 @@ const cases: {
       statusCode: 400,
     }),
     expected: { evidence: "structured", kind: "usage-limit" },
-    name: "a ChatGPT plan's usage limit inside a stream",
+    name: "a ChatGPT account's usage limit inside a stream",
   },
   {
     error: apiCallError({ message: "Unauthorized", statusCode: 401 }),

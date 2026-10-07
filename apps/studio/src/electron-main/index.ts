@@ -3,12 +3,18 @@
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
-  refreshAfterWake as refreshChatGPTPlanAfterWake,
-  scheduleRefresh as scheduleChatGPTPlanRefresh,
-} from "@/electron-main/lib/chatgpt-plan";
+  refreshAfterWake as refreshChatGPTAccountAfterWake,
+  scheduleRefresh as scheduleChatGPTAccountRefresh,
+} from "@/electron-main/lib/chatgpt-account";
+import {
+  keepClaudeCodeCurrent,
+  refreshClaudeAccountStatus,
+} from "@/electron-main/lib/claude-account";
+import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
@@ -220,9 +226,22 @@ async function bootstrapPrimaryInstance() {
     workspaceConfig,
   } = await timeBootStep("createWorkspaceActor", createWorkspaceActor);
 
-  // A signed-in ChatGPT plan's access token lasts an hour.
-  scheduleChatGPTPlanRefresh();
-  powerMonitor.on("resume", refreshChatGPTPlanAfterWake);
+  // A signed-in ChatGPT account's access token lasts an hour.
+  scheduleChatGPTAccountRefresh();
+  powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+
+  // The Claude account is whatever the CLI says: someone installs it or signs
+  // in from a terminal, then comes back to the app.
+  // A workspace with no model chosen yet runs on the subscription it found.
+  void refreshClaudeAccountStatus().then(async (found) => {
+    if (found.kind === "signed-in" && !getDefaultModelURI()) {
+      await setClaudeAccountDefaultModel();
+    }
+  });
+  void keepClaudeCodeCurrent();
+  app.on("browser-window-focus", () => {
+    void refreshClaudeAccountStatus();
+  });
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,

@@ -151,7 +151,7 @@ describe("settings migration", () => {
       ).toBe(true);
 
       // Kept for an older build sharing this userData, except page
-      // thumbnails (a cache), the ChatGPT plan (a rotating token), and in a
+      // thumbnails (a cache), the ChatGPT account (a rotating token), and in a
       // packaged build the files holding secrets.
       const root = fs.readdirSync(userDataDir).toSorted();
       expect(root).toEqual(
@@ -246,18 +246,18 @@ describe("settings migration", () => {
     }
   });
 
-  it("moves the ChatGPT plan rather than copying it", () => {
+  it("moves the ChatGPT account rather than copying it", () => {
     seedLegacy("dev");
-    write("chatgpt-plan.json", { accounts: [] });
+    write("chatgpt-account.json", { accounts: [] });
     migrateBoth();
-    expect(fs.existsSync(path.join(userDataDir, "chatgpt-plan.json"))).toBe(
+    expect(fs.existsSync(path.join(userDataDir, "chatgpt-account.json"))).toBe(
       false,
     );
     expect(
       fs.existsSync(
         path.join(
           workspaceSettingsDirOf(defaultWorkspacePath(userDataDir)),
-          "chatgpt-plan.json",
+          "chatgpt-account.json",
         ),
       ),
     ).toBe(true);

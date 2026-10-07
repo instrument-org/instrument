@@ -90,6 +90,38 @@ describe("demoteSupersededModels", () => {
     `);
   });
 
+  it("keeps Fable current beside a newer Opus and Sonnet", () => {
+    expect(
+      stillRecommended([
+        createModel("anthropic/claude-opus-5.5"),
+        createModel("anthropic/claude-sonnet-5.5"),
+        createModel("anthropic/claude-fable-5.1"),
+        createModel("anthropic/claude-haiku-4.5"),
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "claude-opus-5.5",
+        "claude-sonnet-5.5",
+        "claude-fable-5.1",
+      ]
+    `);
+  });
+
+  it("lets a later Fable replace an earlier one", () => {
+    expect(
+      stillRecommended([
+        createModel("anthropic/claude-fable-5.1"),
+        createModel("anthropic/claude-fable-5.5"),
+        createModel("anthropic/claude-opus-5.5"),
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "claude-fable-5.5",
+        "claude-opus-5.5",
+      ]
+    `);
+  });
+
   it("reads a tier spelled after the version the same way", () => {
     expect(
       stillRecommended([

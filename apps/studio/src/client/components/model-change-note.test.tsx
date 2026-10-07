@@ -59,14 +59,14 @@ describe("ModelChangeNote", () => {
           {
             modelId: "gpt-5.6-luna",
             name: "GPT-5.6-Luna",
-            providerName: "ChatGPT plan",
+            providerName: "ChatGPT account",
           },
         )}
       />,
     );
 
     expect(noteText()).toBe(
-      "Switched model from GPT-6 Luna on Instrument to GPT-5.6-Luna on ChatGPT plan",
+      "Switched model from GPT-6 Luna on Instrument to GPT-5.6-Luna on ChatGPT account",
     );
   });
 

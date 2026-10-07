@@ -1,5 +1,5 @@
 import { liveRead } from "@instrument-org/workspace/electron";
-import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-plan";
+import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,

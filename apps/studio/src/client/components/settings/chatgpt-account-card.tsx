@@ -26,18 +26,21 @@ const USAGE_URL = "https://chatgpt.com/settings/usage";
 const NEW_ACCOUNT = "new";
 
 type Account = NonNullable<
-  Exclude<RPCOutput["chatgptPlan"]["signIn"], { outcome: "failed" }>["account"]
+  Exclude<
+    RPCOutput["chatgptAccount"]["signIn"],
+    { outcome: "failed" }
+  >["account"]
 >;
 
 /**
- * The ChatGPT plan as a row among the providers, laid out like
+ * The ChatGPT account as a row among the providers, laid out like
  * `ProviderConfigListItem` so it reads as one of them: the mark, a name and a
  * line, and the actions at the right. Each signed-in account is a line of its
  * own under the name, and adding another stays a quiet link below them.
  */
-export function ChatGPTPlanCard() {
+export function ChatGPTAccountCard() {
   const { data: status } = useQuery(
-    rpcClient.chatgptPlan.live.status.experimental_liveOptions(),
+    rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
   );
   const openLink = useOpenExternalLink();
   const [waiting, setWaiting] = useState<null | string>(null);
@@ -45,8 +48,10 @@ export function ChatGPTPlanCard() {
   // leaves the buttons to the newer one.
   const attempts = useRef(0);
 
-  const signIn = useMutation(rpcClient.chatgptPlan.signIn.mutationOptions());
-  const signOut = useMutation(rpcClient.chatgptPlan.signOut.mutationOptions());
+  const signIn = useMutation(rpcClient.chatgptAccount.signIn.mutationOptions());
+  const signOut = useMutation(
+    rpcClient.chatgptAccount.signOut.mutationOptions(),
+  );
   // Sign out forgets the account, and its button sits where a pass through
   // Settings can catch it, so it asks first.
   const [confirmingSignOut, setConfirmingSignOut] = useState<Account | null>(
@@ -84,7 +89,7 @@ export function ChatGPTPlanCard() {
     // screen, and the settings window may already be closed.
     const title = `Signed in to ${account.label}`;
     const id = toast.success(title);
-    const { name } = await rpcClient.chatgptPlan.chooseDefaultModel
+    const { name } = await rpcClient.chatgptAccount.chooseDefaultModel
       .call({ accountId: account.id })
       .catch(() => ({ name: undefined }));
     toast.success(title, {
@@ -97,7 +102,7 @@ export function ChatGPTPlanCard() {
   const cancelSignIn = () => {
     attempts.current++;
     setWaiting(null);
-    void rpcClient.chatgptPlan.cancelSignIn.call();
+    void rpcClient.chatgptAccount.cancelSignIn.call();
   };
 
   const accounts = status?.accounts ?? [];
@@ -107,17 +112,17 @@ export function ChatGPTPlanCard() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center">
-            <AIProviderIcon type="chatgpt" />
+            <AIProviderIcon type="chatgpt-account" />
           </div>
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className="truncate font-medium text-foreground">
-              {accounts.length > 0 ? "ChatGPT plan" : "Use your ChatGPT plan"}
+              ChatGPT account
             </h3>
             {accounts.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {waiting === NEW_ACCOUNT
                   ? "Finish signing in with ChatGPT in your browser."
-                  : `${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
+                  : "Pay for ChatGPT Plus or Pro? Use it here."}
               </p>
             )}
           </div>

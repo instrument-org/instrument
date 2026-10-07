@@ -13,11 +13,11 @@ import { outranksRelease, readModelRelease } from "../read-model-release";
 import { fetchOpenAIModels } from "./openai";
 
 /**
- * The catalog a ChatGPT plan answers `/v1/models` with: the models this
+ * The catalog a ChatGPT account answers `/v1/models` with: the models this
  * account may use, in the order ChatGPT shows them. It is not the API's
  * `{ data: [{ id }] }` list.
  */
-const ChatGPTPlanModelsSchema = z.object({
+const ChatGPTAccountModelsSchema = z.object({
   models: z.array(
     z.object({
       context_window: z.number().int().positive().optional(),
@@ -32,7 +32,7 @@ const ChatGPTPlanModelsSchema = z.object({
   ),
 });
 
-export function fetchAndParseChatGPTPlanModels(
+export function fetchAndParseChatGPTAccountModels(
   config: AIGatewayProviderConfig.Type,
 ) {
   return Result.gen(function* () {
@@ -41,11 +41,14 @@ export function fetchAndParseChatGPTPlanModels(
     const data = yield* fetchOpenAIModels(config, { cache: false });
 
     const { models } = yield* Result.try(
-      () => ChatGPTPlanModelsSchema.parse(data),
+      () => ChatGPTAccountModelsSchema.parse(data),
       (error) =>
-        new TypedError.Parse("Failed to validate the ChatGPT plan's models", {
-          cause: error,
-        }),
+        new TypedError.Parse(
+          "Failed to validate the ChatGPT account's models",
+          {
+            cause: error,
+          },
+        ),
     );
 
     const metadata = getProviderMetadata(config.type);
@@ -119,9 +122,9 @@ const SEARCH_TIERS = ["luna", "sol", "terra"];
  * The model a ChatGPT sign-in makes the default: the newest Sol the account
  * lists, then Luna, then the first model it lists at all.
  */
-export function chatGPTPlanDefaultModel<Model extends { canonicalId: string }>(
-  models: Model[],
-): Model | undefined {
+export function chatGPTAccountDefaultModel<
+  Model extends { canonicalId: string },
+>(models: Model[]): Model | undefined {
   return newestOfTiers(models, DEFAULT_TIERS) ?? models[0];
 }
 
@@ -129,9 +132,9 @@ export function chatGPTPlanDefaultModel<Model extends { canonicalId: string }>(
  * The model a web search on the plan runs: the newest Luna the account
  * lists, then Sol, then Terra. Undefined when it lists none of them.
  */
-export function chatGPTPlanSearchModel<Model extends { canonicalId: string }>(
-  models: Model[],
-): Model | undefined {
+export function chatGPTAccountSearchModel<
+  Model extends { canonicalId: string },
+>(models: Model[]): Model | undefined {
   return newestOfTiers(models, SEARCH_TIERS);
 }
 

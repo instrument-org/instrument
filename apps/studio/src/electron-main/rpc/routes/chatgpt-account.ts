@@ -4,12 +4,12 @@ import { captureServerException } from "@/electron-main/lib/capture-server-excep
 import {
   cancelChatGPTSignIn,
   type ChatGPTSignInResult,
-  chatGPTPlanStatus,
+  chatGPTAccountsStatus,
   signInWithChatGPT,
   signOutOfChatGPT,
   verifyAccounts,
-} from "@/electron-main/lib/chatgpt-plan";
-import { setChatGPTPlanDefaultModel } from "@/electron-main/lib/set-default-model";
+} from "@/electron-main/lib/chatgpt-account";
+import { setChatGPTAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { z } from "zod";
@@ -18,9 +18,9 @@ import { publisher } from "../publisher";
 
 const live = {
   status: base.handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("chatgpt-plan.updated", { signal });
+    const changes = publisher.subscribe("chatgpt-account.updated", { signal });
     void verifyAccounts();
-    yield* liveRead({ changes: [changes], read: chatGPTPlanStatus });
+    yield* liveRead({ changes: [changes], read: chatGPTAccountsStatus });
   }),
 };
 
@@ -51,7 +51,7 @@ const signIn = base
           // of those.
           getWorkspaceState().set("hasCompletedProviderSetup", true);
           context.workspaceConfig.captureEvent("provider.created", {
-            provider_type: "chatgpt",
+            provider_type: "chatgpt-account",
           });
         }
         return result;
@@ -77,7 +77,7 @@ const signIn = base
 const chooseDefaultModel = base
   .input(z.object({ accountId: z.string() }))
   .handler(async ({ input }) => ({
-    name: await setChatGPTPlanDefaultModel(input),
+    name: await setChatGPTAccountDefaultModel(input),
   }));
 
 const signOut = base
@@ -89,7 +89,7 @@ const cancelSignIn = base.handler(() => {
   cancelChatGPTSignIn();
 });
 
-export const chatgptPlan = {
+export const chatgptAccount = {
   cancelSignIn,
   chooseDefaultModel,
   live,

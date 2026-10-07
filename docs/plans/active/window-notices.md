@@ -32,7 +32,7 @@ Speculative, to try:
 - **Chats that finished or need you, while the inbox is off screen** (in Files, Browser, Apps). A chat waiting on an answer and one that just finished each get a row; opening the chat clears it. Back in Chat the inbox's dots carry it. The colors (amber for needs you, brand green for finished, following the inbox's dots) are a first guess to experiment with.
 - **Providers that stopped working.** `gateway.models.list` returns `errors` per provider config, which today surface only inside the model picker's panel when someone opens it. A provider whose key was revoked or whose list fails to load is a candidate row, opening Settings > Providers.
 - **Apps that lost their connection.** A connected app whose OAuth grant fails (a revoked refresh token, `packages/workspace/src/lib/apps/mcp/oauth-provider.ts`) currently fails at the next call. A row could say so before the agent trips on it.
-- **A signed-out ChatGPT plan**, if the plan's token stops refreshing.
+- **A signed-out ChatGPT account**, if the plan's token stops refreshing.
 - **What's new in the product**, rarely if ever. Easy to abuse, so only with care.
 
 The test for a candidate: something the person would want to know about, that is not visible where they are, and that has a place to go fix it.

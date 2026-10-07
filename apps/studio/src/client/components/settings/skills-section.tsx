@@ -14,6 +14,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
@@ -47,6 +48,10 @@ export function SkillsSection() {
     }
   }
   const ask = useAsk();
+  // Back from a skill returns to the list rather than closing Settings.
+  useModalBack(() => {
+    setOpenName(null);
+  }, openName !== null);
 
   if (openName !== null) {
     return (

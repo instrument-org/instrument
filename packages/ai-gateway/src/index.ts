@@ -20,6 +20,7 @@ export { claudeCodeEnvironment } from "./lib/providers/claude-plan/environment";
 export {
   type ClaudeCodeSignIn,
   startClaudeCodeSignIn,
+  UnusableCodeError,
 } from "./lib/providers/claude-plan/sign-in";
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";

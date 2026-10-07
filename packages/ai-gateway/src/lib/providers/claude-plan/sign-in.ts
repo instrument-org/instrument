@@ -111,11 +111,22 @@ export async function startClaudeCodeSignIn({
 export function splitPastedCode(pasted: string, stateOfLink: string | null) {
   const [code = "", state] = pasted.trim().split("#", 2);
   if (!code) {
-    throw new Error("That doesn't look like a sign-in code.");
+    throw new UnusableCodeError("That doesn't look like a sign-in code.");
   }
   const resolvedState = state ?? stateOfLink;
   if (!resolvedState) {
-    throw new Error("That code is missing the part after the #.");
+    throw new UnusableCodeError("That code is missing the part after the #.");
+  }
+  // A code carries the state of the link it came from, and only the sign-in
+  // that made that link can redeem it. Sending one from an earlier link would
+  // fail, and a failed code ends the sign-in it was sent to.
+  if (state && stateOfLink && state !== stateOfLink) {
+    throw new UnusableCodeError(
+      "That code is from an earlier sign-in link. Copy the sign-in link again, then paste the code it gives you.",
+    );
   }
   return { code, state: resolvedState };
 }
+
+/** A pasted code refused before it reached Claude Code, saying why. */
+export class UnusableCodeError extends Error {}

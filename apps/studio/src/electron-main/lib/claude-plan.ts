@@ -13,6 +13,7 @@ import {
   type ClaudeCodeSignIn,
   fetchClaudePlanUsage,
   startClaudeCodeSignIn,
+  UnusableCodeError,
 } from "@instrument-org/ai-gateway";
 import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
@@ -278,7 +279,7 @@ export async function openClaudeSignIn(): Promise<{
   }
   const { executablePath } = current;
   try {
-    pendingSignIn?.cancel();
+    cancelSignIn(pendingSignIn);
     await mkdir(accountDir(), { recursive: true });
     const signIn = await beginSignIn(executablePath);
     await shell.openExternal(signIn.url);
@@ -294,6 +295,14 @@ export async function openClaudeSignIn(): Promise<{
 
 /** Sign-ins a code was pasted into, which a refused code ends. */
 const codePasted = new WeakSet<ClaudeCodeSignIn>();
+
+/** Ends a sign-in on purpose, which no new one replaces. */
+function cancelSignIn(signIn: ClaudeCodeSignIn | undefined) {
+  if (signIn) {
+    codePasted.delete(signIn);
+    signIn.cancel();
+  }
+}
 
 /** The sign-in replacing one a refused code ended, while it starts. */
 let replacing: Promise<unknown> | undefined;
@@ -317,7 +326,7 @@ async function beginSignIn(executablePath: string) {
     signingIn: true,
   });
   const timer = setTimeout(() => {
-    signIn.cancel();
+    cancelSignIn(signIn);
   }, SIGN_IN_TIMEOUT_MS);
   const finish = () => {
     clearTimeout(timer);
@@ -364,7 +373,7 @@ export async function submitClaudeSignInCode(
     await signIn.submitCode(pasted);
     return { error: undefined };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("look like")) {
+    if (error instanceof UnusableCodeError) {
       return { error: error.message };
     }
     await replacing;
@@ -395,7 +404,7 @@ export async function signOutOfClaude() {
 
 /** Give up on a sign-in still waiting on the browser. */
 export function cancelClaudeSignIn() {
-  pendingSignIn?.cancel();
+  cancelSignIn(pendingSignIn);
   pendingSignIn = undefined;
   setStatus({ ...status, signInLink: undefined, signingIn: false });
 }

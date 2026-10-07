@@ -9,7 +9,7 @@ import { defineConfig } from "electron-vite";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
@@ -286,7 +286,14 @@ function externalizeJustBashInDev(): Plugin {
         ...options,
         skipSelf: true,
       });
-      return resolved && { external: true, id: resolved.id };
+      // As a file URL: Node's ESM loader takes a POSIX path as one, but reads
+      // a Windows path's drive letter as a URL scheme and refuses to load it.
+      return (
+        resolved && {
+          external: true,
+          id: pathToFileURL(resolved.id).href,
+        }
+      );
     },
   };
 }

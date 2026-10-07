@@ -19,6 +19,9 @@
  * - **e, today with a fuller hand-off:** a, with tasks also given the user's
  *   own words, memories and topic instructions
  *   (`INSTRUMENT_EVAL_TASK_CONTEXT=1`).
+ * - **f, one agent that forks on interrupt:** c, where a message the user
+ *   sends mid-turn forks the turn's work to the background instead of
+ *   ending it (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
  * - **b, direct** and **v, direct in the chat's voice:** round one's arms,
  *   which showed a task without the chat's context fails. Kept runnable, off
  *   by default in `evals/handoff-matrix.ts`.
@@ -1960,6 +1963,7 @@ const ARM_SWITCHES: Record<string, { context?: string; oneAgent?: string }> = {
   c: { oneAgent: "1" },
   d: { oneAgent: "foreground" },
   e: { context: "1" },
+  f: { oneAgent: "fork-on-interrupt" },
   v: {},
 };
 
@@ -1977,7 +1981,8 @@ function requireArm(arm: string) {
 /**
  * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
  * the prototype in the foreground only; e, today's chat with a fuller
- * hand-off; b, a task given the words directly; v, b in the chat's voice.
+ * hand-off; f, c forking a turn the user interrupts; b, a task given the
+ * words directly; v, b in the chat's voice.
  */
 function arms(scenario: Scenario): EvalCase[] {
   const sent = [
@@ -2035,6 +2040,7 @@ function arms(scenario: Scenario): EvalCase[] {
     make("c", chat),
     make("d", chat),
     make("e", chat),
+    make("f", chat),
     make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
   ];
 }

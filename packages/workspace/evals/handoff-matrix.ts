@@ -12,6 +12,7 @@
  *   node --import tsx evals/handoff-matrix.ts summarize <dir>
  *   node --import tsx evals/handoff-matrix.ts rescore <dir>
  *   node --import tsx evals/handoff-matrix.ts plan-usage
+ *   node --import tsx evals/handoff-matrix.ts openrouter-usage
  *
  * Arms, each set by an environment variable the harness reads:
  *
@@ -22,17 +23,25 @@
  *   (`INSTRUMENT_EVAL_ONE_AGENT=foreground`).
  * - e: today's chat, with tasks also given the user's own words, memories
  *   and topic instructions (`INSTRUMENT_EVAL_TASK_CONTEXT=1`).
+ * - f: c, where a message the user sends mid-turn has the harness fork the
+ *   turn's work to the background rather than end it
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
  * - b, v: round one's task-given-the-words arms, off by default.
  *
  * Each arm's runs, logs and homes go in a folder of the arm's own under the
  * output folder. `--cases` and `--arms` narrow the matrix:
  * `--cases guide,email --arms a,c`. `--out` adds to an existing output folder.
  *
- * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`) and
- * Workers AI (`glm`, or `cf:<id>`); anything metered is refused, and every
- * metered provider key is blanked in the child's environment, so nothing a
- * run does can fall back to one.
+ * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`),
+ * Workers AI (`glm`, or `cf:<id>`), and one metered model cleared for spend,
+ * `or-luna` (`openai/gpt-5.6-luna` through OpenRouter); anything else
+ * metered is refused. Every metered provider key is blanked in the child's
+ * environment, so nothing a run does can fall back to one, except the
+ * OpenRouter key on an `or-luna` run, where `evals/lib/pin-openrouter-model.ts`
+ * refuses any OpenRouter request naming another model (an image model, a
+ * search model). `openrouter-usage` reads the key's spend, before and after.
  */
+import dotenv from "dotenv";
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -78,10 +87,11 @@ const ARM_ENV: Record<string, Record<string, string>> = {
   c: { INSTRUMENT_EVAL_ONE_AGENT: "1" },
   d: { INSTRUMENT_EVAL_ONE_AGENT: "foreground" },
   e: { INSTRUMENT_EVAL_TASK_CONTEXT: "1" },
+  f: { INSTRUMENT_EVAL_ONE_AGENT: "fork-on-interrupt" },
   v: {},
 };
 
-const DEFAULT_ARMS = ["a", "c", "d", "e"];
+const DEFAULT_ARMS = ["a", "c", "d", "e", "f"];
 
 /** A first reply later than this held the user waiting on a foreground turn. */
 const BLOCKING_MS = 20_000;
@@ -96,8 +106,13 @@ const SMALL = new Set(
 const WORKERS_AI = "providerConfigId=workers-ai-config-id";
 const PLAN = "providerConfigId=chatgpt-plan";
 
+/** The one metered model a run may spend on, through OpenRouter. */
+const OPENROUTER_MODEL = "openai/gpt-5.6-luna";
+const OPENROUTER_LUNA = `${OPENROUTER_MODEL}?provider=openrouter&providerConfigId=openrouter-config-id`;
+
 const MODEL_ALIASES: Record<string, string> = {
   glm: `zai-org/glm-5.3-flash?provider=openai-compatible&${WORKERS_AI}`,
+  "or-luna": OPENROUTER_LUNA,
   "plan-luna": `openai/gpt-5.6-luna?provider=chatgpt&${PLAN}`,
   "plan-sol": `openai/gpt-5.6-sol?provider=chatgpt&${PLAN}`,
 };
@@ -133,7 +148,13 @@ interface RunRecord {
   assertions: { evidence: string; passed: boolean; text: string }[];
   erroredRequests: number;
   exitCode: number | null;
+  /**
+   * OpenRouter requests `pin-openrouter-model.ts` refused because they named
+   * a model the run was not cleared to spend on.
+   */
+  guardRefusals?: number;
   metrics?: {
+    autoForks?: number;
     cacheReadTokens?: number;
     doneMs: number;
     firstTextMs?: number;
@@ -184,9 +205,9 @@ function resolveModel(model: string): string {
     ? `${model.slice(3).replace(/^@cf\//, "")}?provider=openai-compatible&${WORKERS_AI}`
     : (MODEL_ALIASES[model] ?? model);
   const isPlan = uri.includes("provider=chatgpt&") && uri.includes(PLAN);
-  if (!isPlan && !uri.includes(WORKERS_AI)) {
+  if (!isPlan && !uri.includes(WORKERS_AI) && uri !== OPENROUTER_LUNA) {
     throw new Error(
-      `Refusing ${model}: this runner spends only on the ChatGPT plan and Workers AI, never a metered key.`,
+      `Refusing ${model}: this runner spends only on the ChatGPT plan, Workers AI, and ${OPENROUTER_MODEL} through OpenRouter (or-luna), never another metered model.`,
     );
   }
   return uri;
@@ -264,8 +285,15 @@ async function run() {
   summarize(outDir);
 }
 
-/** The environment a child runs in: the arm's switches, no metered keys. */
-function childEnv(arm: string, home: string): NodeJS.ProcessEnv {
+/**
+ * The environment a child runs in: the arm's switches, no metered keys but
+ * the OpenRouter one on an `or-luna` run, pinned to its one model.
+ */
+function childEnv(
+  arm: string,
+  home: string,
+  model?: string,
+): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.INSTRUMENT_EVAL_ONE_AGENT;
   delete env.INSTRUMENT_EVAL_TASK_CONTEXT;
@@ -273,12 +301,83 @@ function childEnv(arm: string, home: string): NodeJS.ProcessEnv {
   for (const key of METERED_KEYS) {
     env[key] = "";
   }
+  const metered = model === OPENROUTER_LUNA;
   return {
     ...env,
+    ...(metered ? { APP_OPENROUTER_API_KEY: openRouterKey() } : {}),
     INSTRUMENT_EVAL_HOME: home,
+    INSTRUMENT_EVAL_OPENROUTER_MODEL: metered ? OPENROUTER_MODEL : "",
     NO_COLOR: "1",
     ...ARM_ENV[arm],
   };
+}
+
+/**
+ * The OpenRouter key, from this shell or the package's `.env`, for an
+ * `or-luna` run and for reading the key's spend. Never printed.
+ */
+function openRouterKey(): string {
+  const fromEnv = process.env.APP_OPENROUTER_API_KEY;
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const file = path.join(PACKAGE_DIR, ".env");
+  const key = fs.existsSync(file)
+    ? dotenv.parse(fs.readFileSync(file)).APP_OPENROUTER_API_KEY
+    : undefined;
+  if (!key) {
+    throw new Error(
+      "or-luna needs APP_OPENROUTER_API_KEY, in this shell or the package's .env.",
+    );
+  }
+  return key;
+}
+
+/**
+ * What the OpenRouter key has spent, as OpenRouter reports it, and what the
+ * account has left, for reading before and after a matrix. Reading it spends
+ * nothing. Prints figures only, never the key.
+ */
+async function openRouterUsage() {
+  const headers = { Authorization: `Bearer ${openRouterKey()}` };
+  const [key, credits] = await Promise.all(
+    ["key", "credits"].map(async (route) => {
+      const response = await fetch(`https://openrouter.ai/api/v1/${route}`, {
+        headers,
+      });
+      const body: unknown = await response.json().catch(() => undefined);
+      const data =
+        typeof body === "object" && body !== null && "data" in body
+          ? (body.data as Record<string, unknown>)
+          : undefined;
+      return { data, status: response.status };
+    }),
+  );
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        account:
+          credits?.data === undefined
+            ? { status: credits?.status }
+            : {
+                totalCredits: credits.data.total_credits,
+                totalUsage: credits.data.total_usage,
+              },
+        at: new Date().toISOString(),
+        key:
+          key?.data === undefined
+            ? { status: key?.status }
+            : {
+                limit: key.data.limit,
+                limitRemaining: key.data.limit_remaining,
+                usage: key.data.usage,
+                usageDaily: key.data.usage_daily,
+              },
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 async function runOne(
@@ -292,7 +391,7 @@ async function runOne(
 ): Promise<RunRecord> {
   const key = `${slug}-${arm}-${modelName(model)}-${trial}`;
   const dir = armDir(outDir, arm);
-  const env = childEnv(arm, path.join(dir, "homes", key));
+  const env = childEnv(arm, path.join(dir, "homes", key), model);
   const log = fs.createWriteStream(path.join(dir, "logs", `${key}.log`));
   let stdout = "";
   let stderr = "";
@@ -344,6 +443,7 @@ async function runOne(
     assertions: [],
     erroredRequests: 0,
     exitCode,
+    guardRefusals: stderr.match(/^openrouter-guard refused/gm)?.length ?? 0,
     model,
     rateLimitWaits: stderr.match(/^rate-limit wait/gm)?.length ?? 0,
     resultsDir: /Results\s*:\s*(\S+)/.exec(stderr)?.[1],
@@ -434,6 +534,8 @@ function spawnRun(
       "./evals/lib/memoize-model-catalogs.ts",
       "--import",
       "./evals/lib/retry-workers-ai-rate-limits.ts",
+      "--import",
+      "./evals/lib/pin-openrouter-model.ts",
       "evals/cli.ts",
       ...args,
     ],
@@ -689,7 +791,7 @@ function summarize(outDir: string) {
           whole(pick((record) => record.treeTokens)),
           whole(pick((record) => record.metrics?.cacheReadTokens)),
           whole(pick((record) => record.metrics?.visibleChars)),
-          `${whole(pick((record) => record.metrics?.tasksCreated))} (${list.filter((record) => (record.metrics?.taskCommands?.fork ?? 0) > 0).length}f/${list.filter((record) => (record.metrics?.taskCommands?.new ?? 0) > 0).length}n)`,
+          `${whole(pick((record) => record.metrics?.tasksCreated))} (${list.filter((record) => (record.metrics?.taskCommands?.fork ?? 0) > 0).length}f/${list.filter((record) => (record.metrics?.taskCommands?.new ?? 0) > 0).length}n/${list.filter((record) => (record.metrics?.autoForks ?? 0) > 0).length}i)`,
           `${list.reduce((sum, record) => sum + (record.metrics?.refusals?.task ?? 0), 0)}/${list.reduce((sum, record) => sum + (record.metrics?.refusals?.all ?? 0), 0)}`,
           quick.length > 0
             ? quick
@@ -704,6 +806,9 @@ function summarize(outDir: string) {
               : "",
             list.some((record) => record.stoppedBy)
               ? `${list.filter((record) => record.stoppedBy).length} stopped`
+              : "",
+            list.some((record) => (record.guardRefusals ?? 0) > 0)
+              ? `${list.reduce((sum, record) => sum + (record.guardRefusals ?? 0), 0)} OpenRouter requests refused by the guard`
               : "",
             list.some((record) => (record.rateLimitWaits ?? 0) > 0)
               ? `${list.filter((record) => (record.rateLimitWaits ?? 0) > 0).length} waited on rate limits`
@@ -738,7 +843,7 @@ function summarize(outDir: string) {
     "tokens",
     "cached",
     "visible chars",
-    "tasks (runs that forked/ran task new)",
+    "tasks (runs that forked/ran task new/forked on interrupt)",
     "refusals task/all",
     "quick answer s",
     "notes",
@@ -786,7 +891,7 @@ function summarize(outDir: string) {
             `- ${record.slug}-${record.arm} ${modelName(record.model)} #${record.trial}: ${assertion.text}: ${assertion.evidence.slice(0, 240).replaceAll("\n", " ")}`,
         ),
     );
-  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\` and how many ran \`task new\`. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n`;
+  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n`;
   fs.writeFileSync(path.join(outDir, "report.md"), report);
   fs.writeFileSync(
     path.join(outDir, "matrix.json"),
@@ -803,9 +908,11 @@ if (subcommand === "summarize" && target) {
   await run();
 } else if (subcommand === "plan-usage") {
   await planUsage();
+} else if (subcommand === "openrouter-usage") {
+  await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

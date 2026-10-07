@@ -9,6 +9,7 @@ import {
 } from "@instrument-org/shared/skill-mention";
 import {
   convertToModelMessages,
+  isToolUIPart,
   type ModelMessage,
   type ToolSet,
   type UIMessage,
@@ -17,7 +18,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { TASK_FOLDER_NAMES, TOOL_SAY_PARAM_NAME } from "../../constants";
 import { adoptedTaskModelNote } from "../../lib/adopted-task-model-text";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
@@ -300,9 +301,34 @@ export namespace SessionMessage {
       agentName?: AgentName;
     } = {},
   ): Promise<ModelMessage[]> {
-    return convertToModelMessages(toUIMessages(messages, { agentName }), {
-      tools,
-    });
+    return convertToModelMessages(
+      toUIMessages(messages, { agentName }).map(withoutToolSay),
+      { tools },
+    );
+  }
+
+  /**
+   * A message with the `say` taken off its tool calls' inputs (the first-line
+   * `say` mode, `lib/first-line.ts`). The say that opened a turn is already a
+   * text part ahead of its call, and the rest were never shown, so reading
+   * them back would tell the model it said lines the user never saw.
+   */
+  function withoutToolSay(message: UIMessage): UIMessage {
+    return {
+      ...message,
+      parts: message.parts.map((part) => {
+        if (
+          !isToolUIPart(part) ||
+          typeof part.input !== "object" ||
+          part.input === null ||
+          !(TOOL_SAY_PARAM_NAME in part.input)
+        ) {
+          return part;
+        }
+        const { [TOOL_SAY_PARAM_NAME]: _say, ...input } = part.input;
+        return { ...part, input };
+      }),
+    };
   }
 
   /**

@@ -227,6 +227,103 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("leaves a call's say out of the input it replays", async () => {
+    const { sessionId } = baseMetadata();
+    const messageId = StoreId.newMessageId();
+    const call = (n: number, say: string): SessionMessagePart.Type => ({
+      input: {
+        activity: "Totaling the invoices",
+        command: `cat invoice-${n}.txt`,
+        explanation: "Reading an invoice",
+        say,
+        yieldMs: 1000,
+      },
+      metadata: {
+        createdAt: mockDate,
+        endedAt: mockDate,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+        toolName: "bash",
+      },
+      output: {
+        command: `cat invoice-${n}.txt`,
+        commands: ["cat"],
+        durationMs: 0,
+        exitCode: 0,
+        omittedBytes: 0,
+        output: "",
+      },
+      state: "output-available",
+      toolCallId: StoreId.ToolCallSchema.parse(`call_say_${n}`),
+      type: "tool-bash",
+    });
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: {
+          aiGatewayModel: undefined,
+          createdAt: mockDate,
+          finishReason: "tool-calls",
+          modelId: "claude-haiku-5.5",
+          providerId: "openrouter",
+          sessionId,
+        },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId,
+            },
+            state: "done",
+            text: "Reading the invoices.",
+            type: "text",
+          },
+          call(1, "Reading the invoices."),
+          call(2, "Still reading."),
+        ],
+        role: "assistant",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(
+      result.flatMap((message) =>
+        typeof message.content === "string"
+          ? []
+          : message.content.flatMap((content) =>
+              content.type === "text"
+                ? [content.text]
+                : content.type === "tool-call"
+                  ? [content.input]
+                  : [],
+            ),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "Reading the invoices.",
+        {
+          "activity": "Totaling the invoices",
+          "command": "cat invoice-1.txt",
+          "explanation": "Reading an invoice",
+          "yieldMs": 1000,
+        },
+        {
+          "activity": "Totaling the invoices",
+          "command": "cat invoice-2.txt",
+          "explanation": "Reading an invoice",
+          "yieldMs": 1000,
+        },
+      ]
+    `);
+  });
+
   it("replays persisted bounded tool output byte for byte", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();

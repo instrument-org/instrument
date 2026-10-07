@@ -227,7 +227,7 @@ describe("ChatGPT account refresh", () => {
     );
     await refreshed;
 
-    expect(plan.chatGPTPlanProviderConfigs()[0]?.apiKey).toBe("access-2");
+    expect(plan.chatGPTAccountProviderConfigs()[0]?.apiKey).toBe("access-2");
   });
 
   it("does not sign out a newer grant when a refresh of the old one is refused", async () => {

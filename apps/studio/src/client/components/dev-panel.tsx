@@ -96,6 +96,8 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   one_agent: "o",
   one_agent_foreground: "f",
   one_agent_fork_on_interrupt: "i",
+  one_agent_fork_only: "k",
+  one_agent_fork_only_background: "g",
   task_context: "t",
 };
 

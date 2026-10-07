@@ -11,6 +11,8 @@ const defaultFeatures: Features = {
   one_agent: false,
   one_agent_foreground: false,
   one_agent_fork_on_interrupt: false,
+  one_agent_fork_only: false,
+  one_agent_fork_only_background: false,
   task_context: false,
 };
 

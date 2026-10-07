@@ -160,6 +160,11 @@ export function createWorkspaceActor() {
         if (!isFeatureEnabled("one_agent")) {
           return undefined;
         }
+        if (isFeatureEnabled("one_agent_fork_only")) {
+          return isFeatureEnabled("one_agent_fork_only_background")
+            ? "background"
+            : "fork-only";
+        }
         return isFeatureEnabled("one_agent_foreground") ? "foreground" : "fork";
       },
       pnpmBinPath: getPNPMBinPath(),

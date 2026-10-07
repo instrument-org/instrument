@@ -7,6 +7,8 @@ export const FeatureNameSchema = z.enum([
   "one_agent",
   "one_agent_foreground",
   "one_agent_fork_on_interrupt",
+  "one_agent_fork_only",
+  "one_agent_fork_only_background",
   "task_context",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
@@ -47,6 +49,16 @@ export const FEATURE_METADATA: Record<
     description:
       "With One Agent on, a message sent while the chat is mid-work forks that work to the background where it stands, and the chat answers the message, instead of the work stopping. One such fork per chat at a time. No effect with One Agent, No Background.",
     title: "One Agent, Fork on Interrupt",
+  },
+  one_agent_fork_only: {
+    description:
+      "With One Agent on, every task is a fork of the chat working in the chat's own folder: no briefed tasks, no task folders, one prompt of its own, and fork on interrupt always on. Overrides One Agent, No Background.",
+    title: "One Agent, Fork Only",
+  },
+  one_agent_fork_only_background: {
+    description:
+      "With One Agent, Fork Only on, the agent calls that work background work and starts it with a `background` command rather than `task`. The app still shows tasks.",
+    title: "One Agent, Fork Only, Background Wording",
   },
   task_context: {
     description:

@@ -213,6 +213,9 @@ export class ClaudePlanSession {
     // than as the Zod shapes the high-level registration wants.
     server.server.setRequestHandler(ListToolsRequestSchema, () => ({
       tools: tools.map((tool) => ({
+        // Always in the prompt, as with every other provider, rather than
+        // deferred behind Claude Code's tool search, which we leave off.
+        _meta: { "anthropic/alwaysLoad": true },
         description: tool.description,
         inputSchema: { ...tool.inputSchema, type: "object" as const },
         name: tool.name,

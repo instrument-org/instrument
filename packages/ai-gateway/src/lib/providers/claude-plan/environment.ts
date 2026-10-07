@@ -30,5 +30,11 @@ export function claudeCodeEnvironment(
   if (configDir) {
     env.CLAUDE_CONFIG_DIR = configDir;
   }
+  // Claude Code cuts an MCP tool's description at 2,048 characters and its
+  // result at 25,000 tokens. Our tools are served to it over MCP, and some of
+  // their descriptions run far longer, so the model would see a different
+  // tool than every other provider does. Our tools cap their own output.
+  env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH = "1000000";
+  env.MAX_MCP_OUTPUT_TOKENS = "1000000";
   return env;
 }

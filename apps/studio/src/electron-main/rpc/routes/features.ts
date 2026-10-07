@@ -1,18 +1,18 @@
 import {
   computerPermissionStatus,
   isComputerUseReady,
+  markComputerUseSetupResume,
   openComputerPermissionSettings,
   requestAccessibility,
   requestScreenRecording,
   verifyComputerUse,
 } from "@/electron-main/lib/computer-driver";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
-import { noop } from "radashi";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
 import { eventIterator } from "@orpc/server";
-import { shell } from "electron";
+import { app, shell } from "electron";
 import { z } from "zod";
 
 import { base } from "../base";
@@ -85,7 +85,11 @@ const computerUse = {
    */
   relaunch: base.handler(async () =>
     canRelaunch()
-      ? { outcome: await relaunchApp({ beforeRestart: noop }) }
+      ? {
+          outcome: await relaunchApp({
+            beforeRestart: markComputerUseSetupResume,
+          }),
+        }
       : { outcome: "unsupported" as const },
   ),
   requestAccessibility: base.handler(() => requestAccessibility()),
@@ -96,6 +100,8 @@ const computerUse = {
    * renamed in macOS 27.
    */
   status: base.handler(() => ({
+    // What macOS calls the app in its prompts, which the screen mirrors.
+    appName: app.getName(),
     canRelaunch: canRelaunch(),
     macOSMajor:
       process.platform === "darwin"

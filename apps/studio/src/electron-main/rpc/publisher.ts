@@ -116,7 +116,8 @@ interface PublisherEvents {
     | "zoomReset"
     | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
-    | { index: number; type: "selectTab" };
+    | { index: number; type: "selectTab" }
+    | { tab: "Computer Use"; type: "openSettings" };
   // Something from outside was asked of the app window before it could take
   // it, and waits for it.
   "window.asks-waiting": null;

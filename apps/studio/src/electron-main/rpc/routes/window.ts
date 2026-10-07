@@ -10,6 +10,7 @@ import { z } from "zod";
 const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
+  z.object({ tab: z.literal("Computer Use"), type: z.literal("openSettings") }),
 ]);
 
 const events = {

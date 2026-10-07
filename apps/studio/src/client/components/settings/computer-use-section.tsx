@@ -57,6 +57,7 @@ export function ComputerUseSection() {
           </>
         )}
         <TestStep
+          appName={data.appName}
           number={data.permissions.supported ? 3 : 1}
           ready={data.ready}
           onFinished={() => {
@@ -91,9 +92,15 @@ function AccessibilityStep({ data }: { data: Status }) {
       {!done && (
         <>
           <p>
-            Choose Allow, then in the window macOS opens, turn on Instrument
-            under Privacy &amp; Security, {pane}.
+            Choose Allow. macOS shows the prompt below; choose Open System
+            Settings in it, then turn on {data.appName} in the list.
           </p>
+          <SystemPrompt
+            body="Grant access to this application in Privacy & Security settings."
+            buttons={["Open System Settings", "Deny"]}
+            highlight="Open System Settings"
+            title={`“${data.appName}” would like to control this computer using accessibility features.`}
+          />
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={request.isPending}
@@ -139,10 +146,8 @@ function ScreenRecordingStep({ data }: { data: Status }) {
   if (!data.permissions.supported) {
     return null;
   }
-  const state = data.permissions.screenRecording;
-  const done = state === "granted";
+  const done = data.permissions.screenRecording === "granted";
   const pane = screenRecordingPaneName(data.macOSMajor);
-  const neverAsked = state === "not-determined";
 
   return (
     <Step
@@ -154,43 +159,48 @@ function ScreenRecordingStep({ data }: { data: Status }) {
       {!done && (
         <>
           <p>
-            {neverAsked
-              ? `Choose Allow and macOS asks once. If you miss it, turn on Instrument under Privacy & Security, ${pane}.`
-              : `Turn on Instrument under Privacy & Security, ${pane}. macOS applies it the next time Instrument opens, so relaunch afterward.`}
+            Choose Allow. macOS asks only the first time; after that, the pane
+            opens with {data.appName} in its list, and you turn it on there.
+          </p>
+          <SystemPrompt
+            body="Grant access to this application in Privacy & Security settings."
+            buttons={["Open System Settings", "Deny"]}
+            highlight="Open System Settings"
+            title={`“${data.appName}” would like to record this computer's screen and audio.`}
+          />
+          <p>
+            macOS applies this grant only after {data.appName} restarts. Once it
+            is on, relaunch, and {data.appName} reopens on this screen.
           </p>
           <div className="flex flex-wrap gap-2">
-            {neverAsked && (
-              <Button
-                disabled={request.isPending}
-                onClick={() => {
-                  request.mutate(undefined);
-                }}
-                size="sm"
-              >
-                Allow
-              </Button>
-            )}
+            <Button
+              disabled={request.isPending}
+              onClick={() => {
+                request.mutate(undefined);
+              }}
+              size="sm"
+            >
+              Allow
+            </Button>
             <Button
               onClick={() => {
                 openSettings.mutate({ permission: "screen-recording" });
               }}
               size="sm"
-              variant={neverAsked ? "outline" : "default"}
+              variant="outline"
             >
               Open {pane}
             </Button>
-            {!neverAsked && (
-              <Button
-                disabled={relaunch.isPending}
-                onClick={() => {
-                  relaunch.mutate(undefined);
-                }}
-                size="sm"
-                variant="outline"
-              >
-                {data.canRelaunch ? "Relaunch Instrument" : "Check again"}
-              </Button>
-            )}
+            <Button
+              disabled={relaunch.isPending}
+              onClick={() => {
+                relaunch.mutate(undefined);
+              }}
+              size="sm"
+              variant="outline"
+            >
+              {data.canRelaunch ? `Relaunch ${data.appName}` : "Check again"}
+            </Button>
           </div>
         </>
       )}
@@ -199,10 +209,12 @@ function ScreenRecordingStep({ data }: { data: Status }) {
 }
 
 function TestStep({
+  appName,
   number,
   onFinished,
   ready,
 }: {
+  appName: string;
   number: number;
   onFinished: () => void;
   ready: boolean;
@@ -216,24 +228,43 @@ function TestStep({
 
   return (
     <Step
-      description="Takes one small picture of the screen through the same driver the agent uses."
+      description="Watch the agent's cursor move across this window, then see the picture of your screen it takes. It moves only a drawn cursor, clicks nothing, and keeps the picture nowhere."
       done={result?.ok === true}
       doneLabel="Passed"
       failed={result?.ok === false}
       number={number}
       title="Try it"
     >
-      {isMacOS() && (
-        <p>
-          macOS may ask whether Instrument can bypass the system's private
-          window picker and record the screen directly. Choose Allow; the agent
-          needs it to see windows.
-        </p>
+      {isMacOS() && result?.ok !== true && (
+        <>
+          <p>
+            The first time, macOS asks once more, so the agent can see windows
+            directly. Choose Allow.
+          </p>
+          <SystemPrompt
+            body={`This will allow ${appName} to record your screen and system audio, including personal or sensitive information that may be visible or audible.`}
+            buttons={["Allow", "Open System Settings"]}
+            highlight="Allow"
+            title={`“${appName}” is requesting to bypass the system private window picker and directly access your screen and audio.`}
+          />
+        </>
       )}
       {result?.ok === false && (
-        <p className="text-destructive">Didn't work: {result.detail}</p>
+        <p className="text-destructive">That didn't work: {result.detail}</p>
       )}
-      {result?.ok === true && <p>Worked. The driver can see the screen.</p>}
+      {result?.ok === true && (
+        <figure className="space-y-1.5">
+          <img
+            alt="Your screen, as the agent sees it"
+            className="w-full max-w-md rounded-md border"
+            src={result.image}
+          />
+          <figcaption className="text-muted-foreground">
+            This is your screen as the agent sees it. The picture stays on this
+            page and is gone when you leave it.
+          </figcaption>
+        </figure>
+      )}
       <div>
         <Button
           disabled={!ready || verify.isPending}
@@ -243,10 +274,57 @@ function TestStep({
           size="sm"
           variant={result?.ok ? "outline" : "default"}
         >
-          {verify.isPending ? "Testing…" : "Run a test"}
+          {verify.isPending
+            ? "Watch the cursor…"
+            : result?.ok
+              ? "Run it again"
+              : "Run a test"}
         </Button>
       </div>
     </Step>
+  );
+}
+
+/**
+ * A drawing of the system prompt the person is about to meet, with the button
+ * to choose ringed: they see the real one over this window and should know it
+ * on sight. A likeness rather than a copy; macOS words these per version.
+ */
+function SystemPrompt({
+  body,
+  buttons,
+  highlight,
+  title,
+}: {
+  body: string;
+  buttons: string[];
+  highlight: string;
+  title: string;
+}) {
+  return (
+    <div
+      aria-label="What the macOS prompt looks like"
+      className="max-w-72 space-y-3 rounded-2xl border bg-muted p-4"
+      role="img"
+    >
+      <div className="size-9 rounded-lg bg-primary/20" />
+      <p className="text-xs leading-snug font-semibold">{title}</p>
+      <p className="text-xs leading-snug text-muted-foreground">{body}</p>
+      <div className="space-y-1.5">
+        {buttons.map((label) => (
+          <div
+            className={
+              label === highlight
+                ? "rounded-full bg-primary py-1 text-center text-xs text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-muted"
+                : "rounded-full bg-background py-1 text-center text-xs"
+            }
+            key={label}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

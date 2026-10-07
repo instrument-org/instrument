@@ -1,8 +1,11 @@
 import type { EmbeddedCuaDriverHostLike } from "@trycua/cua-driver";
 
-import { app, shell, systemPreferences } from "electron";
-import { existsSync } from "node:fs";
+import { app, desktopCapturer, shell, systemPreferences } from "electron";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { noop, sleep } from "radashi";
+import { z } from "zod";
 
 import { logger } from "./electron-logger";
 import { getAppUnpackedPath, getResourcePath } from "./resource-path";
@@ -105,12 +108,16 @@ export function requestAccessibility(): ComputerPermissionStatus {
 /**
  * The system's Screen Recording prompt. macOS asks once per app; after an
  * answer only the pane can change it, and a grant made there reaches this
- * process only after it relaunches.
+ * process only after it relaunches. Asking is also what lists the app in the
+ * pane, so the person finds a switch to turn on rather than having to add the
+ * app with its plus button. Electron reports a never-asked app as denied, so
+ * this runs on every request rather than only the first.
  */
 export async function requestScreenRecording(): Promise<ComputerPermissionStatus> {
   if (process.platform === "darwin") {
-    const { requestMacOsPermissions } = await loadSdk();
-    requestMacOsPermissions();
+    await desktopCapturer
+      .getSources({ thumbnailSize: { height: 1, width: 1 }, types: ["screen"] })
+      .catch(noop);
   }
   return computerPermissionStatus();
 }
@@ -120,6 +127,9 @@ export async function openComputerPermissionSettings(
 ) {
   if (process.platform !== "darwin") {
     return;
+  }
+  if (permission === "screen-recording") {
+    await requestScreenRecording();
   }
   // These anchors still resolve on macOS 27, where the Accessibility pane is
   // titled Device Control and Data Access.
@@ -131,13 +141,16 @@ export async function openComputerPermissionSettings(
 }
 
 /**
- * One real capture through the driver, so setup ends on proof rather than on
- * two checkmarks, and so macOS's direct-capture consent ("bypass the private
- * window picker") appears here, while the person is looking at Settings,
- * rather than in the middle of a task.
+ * Proof that setup worked, made with the driver the agent uses. The agent's
+ * cursor sweeps across this app's own window, which moves only the drawn
+ * overlay, never the real pointer, and clicks nothing; then one capture of
+ * the screen comes back to show the person. That capture is also what raises
+ * macOS's direct-capture consent ("bypass the private window picker"), so it
+ * appears here, while the person is reading about it, rather than mid-task.
+ * The image is handed to the page and kept nowhere.
  */
 export async function verifyComputerUse(): Promise<
-  { detail: string; ok: false } | { ok: true }
+  { detail: string; ok: false } | { image: string; ok: true }
 > {
   const access = await connectComputerDriver();
   if (access.status === "needs-permission") {
@@ -151,24 +164,113 @@ export async function verifyComputerUse(): Promise<
   }
   const mod = await loadSdk();
   const driver = mod.CuaDriver.connect(access.socketPath);
+  const call = (tool: string, input: Record<string, unknown>) =>
+    driver.callTool(tool, JSON.stringify(input));
+  const session = `${app.getName()} setup`;
   try {
-    const result = await driver.callTool(
-      "get_desktop_state",
-      JSON.stringify({ max_image_dimension: 64 }),
-    );
-    return result.isError || result.images.length === 0
+    await call("start_session", { session });
+    await call("set_agent_cursor_enabled", { enabled: true, session });
+    await sweepCursorOverOwnWindow(call, session).catch((error: unknown) => {
+      logger.warn("[computer] cursor demo did not run", error);
+    });
+    const result = await call("get_desktop_state", {
+      max_image_dimension: 640,
+      session,
+    });
+    const [image] = result.images;
+    return result.isError || image === undefined
       ? { detail: result.text || "The driver returned no image.", ok: false }
-      : { ok: true };
+      : {
+          image: `data:${image.mimeType};base64,${image.dataBase64}`,
+          ok: true,
+        };
   } catch (error) {
     return {
       detail: error instanceof Error ? error.message : String(error),
       ok: false,
     };
   } finally {
+    await call("end_session", { session }).catch(noop);
     if (mod.CuaDriver.instanceOf(driver)) {
       driver.uniffiDestroy();
     }
   }
+}
+
+const WindowListSchema = z.object({
+  windows: z.array(
+    z.object({
+      bounds: z.object({ height: z.number(), width: z.number() }),
+      window_id: z.number(),
+    }),
+  ),
+});
+
+/** A few points across the largest window this process has on screen. */
+async function sweepCursorOverOwnWindow(
+  call: (
+    tool: string,
+    input: Record<string, unknown>,
+  ) => Promise<{ structuredJson?: string; text: string }>,
+  session: string,
+) {
+  const listed = await call("list_windows", {
+    on_screen_only: true,
+    pid: process.pid,
+  });
+  const parsed = WindowListSchema.safeParse(
+    JSON.parse(listed.structuredJson ?? listed.text),
+  );
+  const window = parsed.success
+    ? parsed.data.windows.toSorted(
+        (a, b) =>
+          b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height,
+      )[0]
+    : undefined;
+  if (!window) {
+    return;
+  }
+  const target = {
+    kind: "window",
+    pid: process.pid,
+    window_id: window.window_id,
+  };
+  const { height, width } = window.bounds;
+  for (const [fx, fy] of [
+    [0.25, 0.3],
+    [0.75, 0.3],
+    [0.7, 0.75],
+    [0.3, 0.7],
+    [0.5, 0.5],
+  ] as const) {
+    await call("move_cursor", {
+      session,
+      target,
+      x: Math.round(width * fx),
+      y: Math.round(height * fy),
+    });
+    await sleep(450);
+  }
+}
+
+const RESUME_MARKER = "computer-use-resume";
+
+/**
+ * Leaves word for the next launch to reopen the Computer Use setup screen, so
+ * a relaunch made from it lands the person back where they were.
+ */
+export function markComputerUseSetupResume() {
+  writeFileSync(path.join(app.getPath("userData"), RESUME_MARKER), "");
+}
+
+/** Whether this launch follows a relaunch from the setup screen, once. */
+export function takeComputerUseSetupResume(): boolean {
+  const marker = path.join(app.getPath("userData"), RESUME_MARKER);
+  if (!existsSync(marker)) {
+    return false;
+  }
+  rmSync(marker, { force: true });
+  return true;
 }
 
 /**

@@ -37,7 +37,8 @@ let appWindow: BrowserWindow | null = null;
  */
 export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
-  | { href: string; type: "openScreen" };
+  | { href: string; type: "openScreen" }
+  | { tab: "Computer Use"; type: "openSettings" };
 
 /**
  * Asks made before the window's page was there to take them, in order:
@@ -99,6 +100,14 @@ function isFolder(hostPath: string) {
  */
 export function openAppScreen(href: string) {
   askAppWindow({ href, type: "openScreen" });
+}
+
+/**
+ * Puts a Settings section up over the window, in the window that is open or
+ * in the one this opens: where a relaunch made from that section returns.
+ */
+export function openAppSettings(tab: "Computer Use") {
+  askAppWindow({ tab, type: "openSettings" });
 }
 
 /**

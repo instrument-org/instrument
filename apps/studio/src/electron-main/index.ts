@@ -6,6 +6,7 @@ import {
   refreshAfterWake as refreshChatGPTPlanAfterWake,
   scheduleRefresh as scheduleChatGPTPlanRefresh,
 } from "@/electron-main/lib/chatgpt-plan";
+import { takeComputerUseSetupResume } from "@/electron-main/lib/computer-driver";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
@@ -14,6 +15,7 @@ import {
   getAppWindow,
   openAppFile,
   openAppScreen,
+  openAppSettings,
   openAppWindow,
   updateAppWindowBackgroundColor,
   warmAppWindowBehind,
@@ -253,6 +255,9 @@ async function bootstrapPrimaryInstance() {
     openOnboarding();
   } else {
     openAppWindow();
+  }
+  if (takeComputerUseSetupResume()) {
+    openAppSettings("Computer Use");
   }
 
   // Let the initial window render before running the best-effort cache warmup.

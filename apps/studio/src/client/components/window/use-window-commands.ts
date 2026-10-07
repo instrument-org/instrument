@@ -322,7 +322,7 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, or a screen by its route. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, or a Settings section. */
 function answer(
   handlers: {
     openFile: (hostPath: string) => void;
@@ -330,9 +330,18 @@ function answer(
   },
   ask: RPCOutput["window"]["takePending"][number],
 ) {
-  if (ask.type === "openFile") {
-    handlers.openFile(ask.hostPath);
-  } else {
-    handlers.openScreen(ask.href);
+  switch (ask.type) {
+    case "openFile": {
+      handlers.openFile(ask.hostPath);
+      break;
+    }
+    case "openScreen": {
+      handlers.openScreen(ask.href);
+      break;
+    }
+    case "openSettings": {
+      openSettings({ tab: ask.tab });
+      break;
+    }
   }
 }

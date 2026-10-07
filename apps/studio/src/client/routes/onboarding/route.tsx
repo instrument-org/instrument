@@ -96,6 +96,9 @@ function nameOf(ask: WaitingAsk) {
   if (ask.type === "openFile") {
     return baseName(ask.hostPath);
   }
+  if (ask.type === "openSettings") {
+    return ask.tab;
+  }
   const url = new URL(ask.href, "studio:/");
   const root = url.searchParams.get("root");
   return url.pathname === "/files" && root ? baseName(root) : undefined;

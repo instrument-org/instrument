@@ -4,9 +4,11 @@ import { z } from "zod";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { agentBrowserGuide } from "./agent-browser-guide";
+import {
+  AGENT_BROWSER_GUIDE_NAME,
+  agentBrowserGuide,
+} from "./agent-browser-guide";
 import { applyContextRollover } from "./apply-context-rollover";
-import { SKILL_NAMES } from "./skill-names";
 import { SKILL_ORIGINS } from "./skill-provenance";
 import { truncateSkillContent } from "./skills";
 import { Store } from "./store";
@@ -95,7 +97,7 @@ function browserSkillInWindow(
       ) {
         return (
           part.output.state === "success" &&
-          part.output.skillName === SKILL_NAMES.agentBrowser &&
+          part.output.skillName === AGENT_BROWSER_GUIDE_NAME &&
           part.output.origin === APP_NAME_SLUG
         );
       }
@@ -111,7 +113,7 @@ function loadBrowserSkill(): BrowserSkill {
     content: body.content,
     contentTruncated: body.truncated,
     directory: "",
-    name: SKILL_NAMES.agentBrowser,
+    name: AGENT_BROWSER_GUIDE_NAME,
     origin: APP_NAME_SLUG,
   };
 }

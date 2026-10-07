@@ -13,6 +13,9 @@ import {
  * out), so it matches the binary the agent runs and nothing is copied by hand.
  */
 
+/** The name the guide goes by where a skill would: in the bash result that carries it, and a skill folder it overrides. */
+export const AGENT_BROWSER_GUIDE_NAME = "agent-browser";
+
 /** What differs in this app, read before the upstream guide. */
 export const INSTRUMENT_ADDENDUM = `# agent-browser in Instrument
 

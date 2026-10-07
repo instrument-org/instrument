@@ -11,7 +11,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
-import { SKILL_NAMES } from "./skill-names";
+import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 
 export const FILE_LIST_LIMIT = 50;
@@ -258,7 +258,7 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skills = qualifySkillNames(
     await dedupeIdenticalCopies(
       [...skillMap.values()].filter(
-        (skill) => skill.name !== SKILL_NAMES.agentBrowser,
+        (skill) => skill.name !== AGENT_BROWSER_GUIDE_NAME,
       ),
     ),
   );

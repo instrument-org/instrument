@@ -110,6 +110,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured; superseded in part |
 | [Reasoning effort was never connected](reasoning-effort-was-never-connected.md) | fixed |
 | [Which Workers AI models can run the product](which-workers-ai-models-can-run-the-product.md) | measured |
+| [Apple's Foundation Models cannot run the product](apple-foundation-models-cannot-run-the-product.md): the on-device model passed 9 of 24 small agent tasks; the cloud model sits behind an entitlement | closed, on-device measured |
 | [Non-Anthropic models get no cache breakpoints](non-anthropic-models-get-no-cache-breakpoints.md) | resolved, no change |
 | [A reply that arrives twice](a-reply-that-arrives-twice.md) — a GPT-5 `commentary` and `final_answer` with the same words, flattened by OpenRouter's chat bridge; what proved it and what the Responses route needed | fixed |
 

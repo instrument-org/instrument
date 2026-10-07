@@ -196,6 +196,35 @@ describe("oneAgent", () => {
       expect(inBackground).not.toMatch(/(?<![\w/.-])tasks?(?![\w/-])/i);
     });
 
+    it("moves how a turn opens to a closing preamble section under the preamble first-line mode", () => {
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({
+        ...config,
+        firstLineMode: () => "preamble",
+        oneAgentMode: () => "fork-only",
+      });
+      let preamble: string;
+      try {
+        preamble = oneAgent.systemPrompt();
+      } finally {
+        setWorkspaceConfig(config);
+      }
+      const closing = preamble.split(/^# /m).at(-1) ?? "";
+      expect(closing.startsWith("Before your first tool call\n")).toBe(true);
+      expect(closing).toContain("8 to 15 words");
+      expect(closing).toContain("Starting a task to compare");
+      expect(preamble).not.toContain("One line, then act");
+      expect(forkOnly).not.toContain("Before your first tool call");
+      expect(
+        preamble.replace(/\n\n# Before your first tool call\n[\s\S]*$/, ""),
+      ).toBe(
+        forkOnly.replace(
+          /^- One line, then act.*$/m,
+          "- How a turn opens is the last section below.",
+        ),
+      );
+    });
+
     it("forks on interrupt always, and is what the evals' switch names", () => {
       expect(inMode("fork-only", isForkOnInterruptEnabled)).toBe(true);
       expect(inMode("background", isForkOnInterruptEnabled)).toBe(true);

@@ -82,6 +82,10 @@ export const NUDGE_NOTE = systemNote`
   The user has not seen a reply yet. Say one line to them about what you are doing, then continue.
 `;
 
+export const TURN_NOTE = systemNote`
+  Before using any tool, write one sentence to the user about what you'll do. If no tool is needed, just answer.
+`;
+
 /** What the next step of a turn is sent with under a mode. */
 export interface FirstLineStep {
   /** A note appended to this request alone. */
@@ -104,6 +108,11 @@ export function firstLineStep(
     case "say": {
       return { takesSay: !turn.said };
     }
+    case "turn-note": {
+      return turn.byUser && turn.steps === 0
+        ? { note: TURN_NOTE, takesSay: false }
+        : { takesSay: false };
+    }
     case "tools-off": {
       if (!turn.byUser) {
         return { takesSay: false };
@@ -115,6 +124,8 @@ export function firstLineStep(
         ? { note: AFTER_FIRST_LINE_NOTE, takesSay: false }
         : { takesSay: false };
     }
+    // The preamble is in the system prompt; no step is sent differently.
+    case "preamble":
     case undefined: {
       return { takesSay: false };
     }

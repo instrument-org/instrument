@@ -19,6 +19,11 @@ import { getWorkspaceConfig } from "./workspace-config";
  *   as a text part ahead of the call.
  * - `nudge`: when a turn's first tool results are back and nothing has been
  *   said, the next step carries a note asking for the line.
+ * - `preamble`: instruction only. The one agent's system prompt ends with a
+ *   section asking for one short sentence before the first tool call of a
+ *   turn, with examples (`agents/one-simple.ts`).
+ * - `turn-note`: instruction only. The first step of each turn the user
+ *   started carries a note asking for one sentence before any tool.
  *
  * Notes ride on the one request they are for and are never stored.
  */
@@ -30,7 +35,11 @@ export function firstLineMode(): FirstLineMode | undefined {
 export function parseFirstLineMode(
   value: string | undefined,
 ): FirstLineMode | undefined {
-  return value === "nudge" || value === "say" || value === "tools-off"
+  return value === "nudge" ||
+    value === "preamble" ||
+    value === "say" ||
+    value === "tools-off" ||
+    value === "turn-note"
     ? value
     : undefined;
 }

@@ -184,10 +184,18 @@ export type OneAgentMode = "background" | "fork" | "fork-only" | "foreground";
  * How the one agent's chat gets a line to the user before its work, an
  * experiment the evals switch on (`lib/first-line.ts`): `tools-off` makes the
  * first step of a turn the user started text only, `say` offers every tool
- * call a line to the user that the harness shows as text, and `nudge` asks for
- * a line once the turn's first tool results are back with nothing said yet.
+ * call a line to the user that the harness shows as text, `nudge` asks for
+ * a line once the turn's first tool results are back with nothing said yet,
+ * `preamble` gives the system prompt a section asking for the line before the
+ * first call, and `turn-note` asks for it in a note on the first step of each
+ * turn the user started.
  */
-export type FirstLineMode = "nudge" | "say" | "tools-off";
+export type FirstLineMode =
+  | "nudge"
+  | "preamble"
+  | "say"
+  | "tools-off"
+  | "turn-note";
 
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;

@@ -16,6 +16,7 @@ import {
   NUDGE_NOTE,
   sayOf,
   TOOLS_OFF_NOTE,
+  TURN_NOTE,
   turnSoFar,
 } from "./first-line";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -150,6 +151,30 @@ describe("first line", () => {
       "nudge: only once a turn",
       [asked, message("assistant", ["tool"]), message("assistant", ["tool"])],
       "nudge",
+      { takesSay: false },
+    ],
+    [
+      "turn-note: the first step of a turn the user started",
+      [asked],
+      "turn-note",
+      { note: TURN_NOTE, takesSay: false },
+    ],
+    [
+      "turn-note: a later step",
+      [asked, message("assistant", ["tool"])],
+      "turn-note",
+      { takesSay: false },
+    ],
+    [
+      "turn-note: a turn a finished task started",
+      [message("user", ["wake"])],
+      "turn-note",
+      { takesSay: false },
+    ],
+    [
+      "preamble: no step is sent differently",
+      [asked],
+      "preamble",
       { takesSay: false },
     ],
     [

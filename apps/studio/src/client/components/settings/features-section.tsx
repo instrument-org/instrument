@@ -82,7 +82,7 @@ export function FeaturesSection() {
 function ComputerUseSetupLink() {
   return (
     <p className="text-sm text-muted-foreground">
-      The agent can use other apps once it is set up.{" "}
+      It takes a minute to set up.{" "}
       <button
         className="underline underline-offset-2"
         onClick={() => {

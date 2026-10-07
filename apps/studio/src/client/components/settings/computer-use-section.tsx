@@ -45,14 +45,13 @@ export function ComputerUseSection() {
       <div>
         <h3 className="text-base font-semibold">Computer Use</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Lets the agent work in the other apps on this computer: read their
-          windows, then click, type, and scroll in them, mostly without moving
-          your pointer.
+          With Computer Use, the agent can work in your other apps the way you
+          would, usually without moving your pointer.
         </p>
         <p className="mt-3 text-sm">
           {data.ready
-            ? "Set up. The agent can use the apps on this computer."
-            : "Not set up yet. The agent can't use other apps until these steps are done."}
+            ? "You're all set. The agent can use your other apps."
+            : "Finish these steps so the agent can use your other apps."}
         </p>
       </div>
 
@@ -104,7 +103,7 @@ function AccessibilityStep({
 
   return (
     <Step
-      description={`Lets ${data.appName} read and use the controls in other apps' windows.`}
+      description="The agent needs this to click and type in other apps."
       done={done}
       number={1}
       open={open}
@@ -113,8 +112,7 @@ function AccessibilityStep({
       <div className="flex flex-wrap items-start gap-4">
         <div className="min-w-56 flex-1 space-y-3">
           <p>
-            Choose Allow, then turn on {data.appName} in the {pane} list that
-            macOS opens.
+            Press Allow, then turn on {data.appName} in the list that opens.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -177,7 +175,7 @@ function ScreenRecordingStep({
 
   return (
     <Step
-      description={`Lets ${data.appName} see what other apps' windows show.`}
+      description="The agent needs this to see what's in other apps' windows."
       done={done}
       number={2}
       open={open}
@@ -187,8 +185,8 @@ function ScreenRecordingStep({
         <div className="min-w-56 flex-1 space-y-3">
           <p>
             {asked
-              ? `Turn on ${data.appName} in the ${pane} list, then relaunch. macOS applies this one only after a restart, and ${data.appName} reopens here.`
-              : `Choose Allow, then turn on ${data.appName} in the ${pane} list.`}
+              ? `After you turn on ${data.appName} in the list, relaunch it so macOS applies the change. You'll come right back here.`
+              : `Press Allow, then turn on ${data.appName} in the list that opens.`}
           </p>
           <div className="flex flex-wrap gap-2">
             {asked ? (
@@ -256,7 +254,7 @@ function TestStep({
 
   return (
     <Step
-      description="Watch the agent's cursor cross this window and see what it sees. It clicks nothing and saves nothing."
+      description="Watch the agent's cursor move across this window, then see what the agent sees."
       done={result?.ok === true}
       failed={result?.ok === false}
       number={number}
@@ -278,8 +276,8 @@ function TestStep({
                 src={result.image}
               />
               <figcaption className="text-muted-foreground">
-                Your screen as the agent sees it. This picture is gone when you
-                leave this page.
+                This is your screen as the agent sees it. The picture isn't
+                saved anywhere.
               </figcaption>
             </figure>
           )}
@@ -326,11 +324,13 @@ function PromptHint({
 }) {
   return (
     <aside className="w-48 shrink-0 space-y-2 rounded-xl border bg-muted p-3 text-xs">
-      <p className="text-muted-foreground">macOS asks:</p>
+      <p className="text-muted-foreground">
+        macOS asks this. Press the highlighted button.
+      </p>
       <p className="leading-snug font-medium">{children}</p>
       <div className="flex flex-col gap-1">
-        <span className="rounded-full bg-primary py-0.5 text-center text-primary-foreground">
-          {choose} ← choose this
+        <span className="rounded-full bg-primary py-0.5 text-center text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-muted">
+          {choose}
         </span>
         <span className="rounded-full bg-background py-0.5 text-center text-muted-foreground">
           {other}

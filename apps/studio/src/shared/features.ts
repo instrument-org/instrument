@@ -22,7 +22,7 @@ export const FEATURE_METADATA: Record<
   },
   computer_use: {
     description:
-      "Let the agent operate the apps on this computer: read their windows, click, type, and scroll in them, mostly without taking over your pointer. On macOS, Instrument needs Accessibility and Screen Recording access.",
+      "With Computer Use, the agent can work in your other apps the way you would, usually without moving your pointer.",
     title: "Computer Use",
   },
   context_ring: {

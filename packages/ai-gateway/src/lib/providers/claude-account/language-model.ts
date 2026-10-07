@@ -293,9 +293,15 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
   }
 }
 
+/** What one step reads from and leaves on the process it runs in. */
+export type StepSession = Pick<
+  ClaudeCodeSession,
+  "awaitingToolCallIds" | "builtInTools" | "messages" | "rateLimit" | "stderr"
+>;
+
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
-async function pumpStep(
-  session: ClaudeCodeSession,
+export async function pumpStep(
+  session: StepSession,
   controller: ReadableStreamDefaultController<LanguageModelV4StreamPart>,
 ) {
   const blocks = new Map<

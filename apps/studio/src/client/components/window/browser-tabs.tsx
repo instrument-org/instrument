@@ -33,7 +33,6 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
-import { useTaskChats } from "./child-tasks-query";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
@@ -267,21 +266,6 @@ export function BrowserTabs({
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const setVisited = useSetAtom(visitedPagesAtom);
   const attached = useBrowserTargets();
-  // The chat each browsing task was filed from, which is the group its
-  // browsing lands in; a task filed outside any chat is in the
-  // map with no chat. A task not in it is one not read yet, and its guest
-  // waits for that read rather than landing in no group.
-  const chatOfTask = useTaskChats(
-    [
-      ...new Set(
-        [...attached].flatMap((target) => {
-          const decoded = decodeBrowserTargetId(target);
-          return decoded && decoded.id !== WINDOW_ID ? [decoded.id] : [];
-        }),
-      ),
-    ].toSorted(),
-  );
-
   // Holds every tab's guest for as long as the window is open, the way the
   // task page holds its browser: subscribing is the hold.
   useQuery(
@@ -332,15 +316,11 @@ export function BrowserTabs({
     };
   });
 
-  // A tab closed anywhere takes its guest with it, and a task browsing in a
-  // guest of its own gets a tab the moment it attaches, behind whatever is
-  // up: the user finds it there when they want to watch, and nothing moves
-  // under them.
+  // A tab closed anywhere takes its guest with it.
   const guestMemo = useRef(EMPTY_GUEST_MEMO);
   useEffect(() => {
-    const { add, close, memo } = reconcileGuests({
+    const { close, memo } = reconcileGuests({
       attached,
-      chatOfTask,
       heldIds: everyTabId,
       memo: guestMemo.current,
     });
@@ -360,17 +340,7 @@ export function BrowserTabs({
           guestMemo.current = { ...guestMemo.current, closing };
         });
     }
-    if (add.length === 0) {
-      return;
-    }
-    const openedAt = Date.now();
-    change((current) =>
-      addPages(
-        current,
-        add.map((tab) => ({ ...tab, openedAt })),
-      ),
-    );
-  }, [attached, everyTabId, change, chatOfTask]);
+  }, [attached, everyTabId]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the

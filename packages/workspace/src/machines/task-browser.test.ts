@@ -1,4 +1,3 @@
-import { errAsync, okAsync } from "neverthrow";
 import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,7 +8,6 @@ import {
   waitFor,
 } from "xstate";
 
-import { TypedError } from "../lib/errors";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -55,14 +53,8 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
   closeAllAgentBrowserSessions: vi.fn(asyncNoop),
 }));
 
-vi.mock(import("../lib/browser-state"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  recordBrowserClosed: vi.fn(() => okAsync(undefined)),
-}));
-
 const { closeAgentBrowserSessionsForSessions } =
   await import("../lib/agent-browser-cleanup");
-const { recordBrowserClosed } = await import("../lib/browser-state");
 
 const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
   Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });
@@ -140,7 +132,6 @@ describe("taskBrowserMachine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(closeAgentBrowserSessionsForSessions).mockClear();
-    vi.mocked(recordBrowserClosed).mockClear();
     captureException.mockClear();
     setWorkspaceConfig({ ...getWorkspaceConfig(), captureException });
   });
@@ -272,75 +263,6 @@ describe("taskBrowserMachine", () => {
 
     expect(actor.getSnapshot().value).toBe("Observed");
     expect(browser.closeTarget).not.toHaveBeenCalled();
-  });
-
-  it("records the teardown for each session so the next turn can report it", async () => {
-    const { actor } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(recordBrowserClosed).toHaveBeenCalledTimes(1);
-    expect(recordBrowserClosed).toHaveBeenCalledWith({
-      sessionId: SESSION_A,
-      taskId: id,
-    });
-  });
-
-  it("writes no teardown notice when the reap is a task being trashed", async () => {
-    const { actor } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "forceReap" });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    // The task's folder is already gone by now, so writing the notice would
-    // only produce a NotFound that nothing can act on.
-    expect(recordBrowserClosed).not.toHaveBeenCalled();
-  });
-
-  it("stays quiet when the notice fails because the folder is gone", async () => {
-    // A teardown that outlives the trash, or a folder deleted from outside the
-    // app, reaches this with nowhere to write. Neither is worth reporting.
-    vi.mocked(recordBrowserClosed).mockReturnValueOnce(
-      errAsync(new TypedError.NotFound("Folder /gone does not exist")),
-    );
-    const { actor } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("reports a notice that failed for any other reason", async () => {
-    const failure = new TypedError.Storage("sessions table is locked");
-    vi.mocked(recordBrowserClosed).mockReturnValueOnce(errAsync(failure));
-    const { actor } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(captureException).toHaveBeenCalledWith(failure);
   });
 
   it("cancels the grace period when presence is reacquired", async () => {

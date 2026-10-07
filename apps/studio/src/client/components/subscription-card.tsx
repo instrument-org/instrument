@@ -75,7 +75,7 @@ export function SubscriptionCard() {
     ? subscription.usagePercent
     : subscription.freeUsagePercent;
 
-  const planLabel = hasSubscription ? subscription.plan : "Free";
+  const planLabel = subscription.plan ?? "Free";
 
   // The plan and whether it covers usage, so the card settles in when a
   // change made in the browser lands as the window takes focus.

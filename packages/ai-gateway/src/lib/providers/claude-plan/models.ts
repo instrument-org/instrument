@@ -66,14 +66,19 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
       // An alias names whatever model is current, so the model it resolves
       // to is listed instead and stays put when the alias moves.
       const id = ALIASES.has(model.value) ? model.resolvedModel : model.value;
-      if (!id || seen.has(id)) {
+      if (!id) {
         return [];
       }
-      seen.add(id);
-      const providerId = AIGatewayModel.ProviderIdSchema.parse(id);
       // Named from the id rather than from a list of known models, so one the
-      // account gets before we have heard of it still reads as a model.
+      // account gets before we have heard of it still reads as a model. One
+      // row per model: an alias and a context variant of the same model would
+      // otherwise share its address.
       const canonicalId = canonicalIdOf(model.resolvedModel ?? id);
+      if (seen.has(canonicalId)) {
+        return [];
+      }
+      seen.add(canonicalId);
+      const providerId = AIGatewayModel.ProviderIdSchema.parse(id);
       return [
         addHeuristicTags(
           {

@@ -108,19 +108,20 @@ export const OUR_PROVIDER_CONFIG = {
  * identifier come from the account's registration, and its key is the
  * account's current OAuth access token.
  */
+export const CHATGPT_PLAN_PROVIDER_CONFIG = {
+  displayName: "ChatGPT account",
+  type: "chatgpt",
+} as const;
+
 /**
- * The Claude plan's config, synthesized in the main process while a `claude`
- * CLI the user installed is signed in to a Claude subscription. It carries no
- * key: the CLI holds the sign-in, and requests run through it.
+ * The Claude account's config, synthesized in the main process while
+ * Instrument's own copy of Claude Code is signed in to a Claude subscription.
+ * It carries no key: Claude Code holds the sign-in, and requests run through
+ * it.
  */
 export const CLAUDE_PLAN_PROVIDER_CONFIG = {
   cacheIdentifier: "claude-plan",
   displayName: "Claude account",
   id: "claude-plan",
   type: "claude-plan",
-} as const;
-
-export const CHATGPT_PLAN_PROVIDER_CONFIG = {
-  displayName: "ChatGPT account",
-  type: "chatgpt",
 } as const;

@@ -5,8 +5,9 @@ import {
   type LanguageModelV4Content,
   type LanguageModelV4FinishReason,
   type LanguageModelV4FunctionTool,
-  type LanguageModelV4Prompt,
+  type LanguageModelV4Message,
   type LanguageModelV4StreamPart,
+  type LanguageModelV4ToolResultPart,
   type LanguageModelV4Usage,
 } from "@ai-sdk/provider";
 import {
@@ -15,6 +16,7 @@ import {
   type SDKRateLimitInfo,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
+import { omit } from "radashi";
 import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
@@ -42,9 +44,10 @@ export const CLAUDE_PLAN_PROVIDER_ID = "claude-plan";
 const sessions = new Map<string, ClaudePlanSession>();
 
 /**
- * The user's Claude plan as an AI SDK model, run through the `claude` CLI they
- * installed and signed in to. Each step the model takes is one `doStream`, so
- * our agent loop, tools and transcript work as they do for any other model.
+ * A Claude account's subscription as an AI SDK model, run through the Claude
+ * Code at `executablePath`, signed in through `configDir`. Each step the model
+ * takes is one `doStream`, so our agent loop, tools and transcript work as
+ * they do for any other model.
  */
 export function createClaudePlanLanguageModel({
   configDir,
@@ -70,37 +73,82 @@ export function createClaudePlanLanguageModel({
 }
 
 type Continuation =
-  | { kind: "tool-results"; prompt: LanguageModelV4Prompt }
-  | { kind: "turn"; prompt: LanguageModelV4Prompt };
+  | { kind: "tool-results"; results: LanguageModelV4ToolResultPart[] }
+  | { kind: "turn"; messages: LanguageModelV4Message[] };
 
 /**
- * How a request follows from what the running process last saw, or nothing
- * when it does not and the process has to start over from our transcript.
+ * A message the workspace says for one request and keeps nowhere, such as a
+ * notice of how much context is left. It is sent with the turn it rides on,
+ * and never counts toward what a process has seen, since the next request
+ * leaves it out or says it differently.
  */
-function continuationOf(
-  session: ClaudePlanSession,
-  prompt: LanguageModelV4Prompt,
+function isTransient(message: LanguageModelV4Message) {
+  return message.providerOptions?.instrument?.transient === true;
+}
+
+/**
+ * A request's messages split into the ones a process keeps, with their
+ * fingerprints, and the transient ones that ride along with a turn.
+ */
+export function splitPrompt(prompt: LanguageModelV4Message[]) {
+  const kept = prompt.filter((message) => !isTransient(message));
+  return {
+    kept,
+    keptPrints: kept.map(fingerprintOf),
+    transient: prompt.filter(isTransient),
+  };
+}
+
+/** What one message is, for telling whether a process has already seen it. */
+function fingerprintOf(message: LanguageModelV4Message) {
+  return createHash("sha256")
+    .update(JSON.stringify(omit(message, ["providerOptions"])))
+    .digest("hex");
+}
+
+/**
+ * How a request follows from what the running process saw, or nothing when
+ * it does not and the process has to start over from our transcript. It
+ * follows when every message the process saw opens the request unchanged,
+ * then the reply it gave, then either the results of the tools that reply
+ * called or a new turn.
+ */
+export function continuationOf(
+  session: Pick<ClaudePlanSession, "awaitingToolCallIds" | "seen">,
+  kept: LanguageModelV4Message[],
+  keptPrints: string[],
+  transient: LanguageModelV4Message[],
 ): Continuation | undefined {
-  const unseen = prompt.slice(session.seenCount);
+  const { seen } = session;
+  if (seen.length === 0 || kept.length <= seen.length) {
+    return undefined;
+  }
+  if (seen.some((print, index) => keptPrints[index] !== print)) {
+    return undefined;
+  }
+  const [reply, ...unseen] = kept.slice(seen.length);
+  if (reply?.role !== "assistant") {
+    return undefined;
+  }
   if (session.awaitingToolCallIds.length > 0) {
-    const [last] = unseen;
-    if (unseen.length !== 1 || last?.role !== "tool") {
+    const [results] = unseen;
+    if (unseen.length !== 1 || results?.role !== "tool") {
       return undefined;
     }
-    const answered = new Set(
-      last.content.flatMap((part) =>
-        part.type === "tool-result" ? [part.toolCallId] : [],
-      ),
+    const parts = results.content.filter(
+      (part): part is LanguageModelV4ToolResultPart =>
+        part.type === "tool-result",
     );
+    const answered = new Set(parts.map((part) => part.toolCallId));
     return session.awaitingToolCallIds.every((id) => answered.has(id))
-      ? { kind: "tool-results", prompt }
+      ? { kind: "tool-results", results: parts }
       : undefined;
   }
   return unseen.length > 0 &&
     unseen.every(
       (message) => message.role === "user" || message.role === "system",
     )
-    ? { kind: "turn", prompt }
+    ? { kind: "turn", messages: [...unseen, ...transient] }
     : undefined;
 }
 
@@ -128,8 +176,14 @@ function streamStep({
       (tool): tool is LanguageModelV4FunctionTool => tool.type === "function",
     ),
   };
+  let running: ClaudePlanSession | undefined;
 
   return new ReadableStream<LanguageModelV4StreamPart>({
+    // The reader went away mid-step: its process cannot finish the step for
+    // anyone, so it ends here.
+    cancel: () => {
+      running?.close();
+    },
     start: async (controller) => {
       const shapeKey = sessionShapeKey(shape);
       // A request with no tools is a one-off (a title, a summary), and so is
@@ -142,7 +196,13 @@ function streamStep({
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const ephemeral = slot === undefined || existing?.busy === true;
       let session = ephemeral ? undefined : existing;
-      const continuation = session && continuationOf(session, options.prompt);
+      const { kept, keptPrints, transient } = splitPrompt(options.prompt);
+      const continuation =
+        session && continuationOf(session, kept, keptPrints, transient);
+      const onAbort = () => {
+        running?.close();
+      };
+      options.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
       try {
         if (!continuation || !session) {
@@ -154,6 +214,9 @@ function streamStep({
             );
             session.close();
           }
+          if (key !== undefined && !ephemeral) {
+            closeOtherIdleSlots(key, slot);
+          }
           const created = new ClaudePlanSession(
             slot ?? randomUUID(),
             shape,
@@ -164,55 +227,70 @@ function streamStep({
             },
           );
           session = created;
+          running = created;
           if (!ephemeral) {
             sessions.set(created.key, created);
           }
           created.send(coldStartContent(rest));
-        } else if (continuation.kind === "tool-results") {
-          const last = options.prompt.at(-1);
-          for (const part of last?.role === "tool" ? last.content : []) {
-            if (part.type === "tool-result") {
+        } else {
+          running = session;
+          // Before the step starts, so it runs on the model now asked for.
+          if (session.modelId !== modelId) {
+            await session.setModel(modelId);
+            session.modelId = modelId;
+          }
+          if (continuation.kind === "tool-results") {
+            for (const part of continuation.results) {
               session.resolveToolCall(
                 part.toolCallId,
                 toolResultToMCP(part.output),
               );
             }
+          } else {
+            session.send(turnContent(continuation.messages));
           }
-        } else {
-          session.send(turnContent(options.prompt.slice(session.seenCount)));
-        }
-
-        if (session.modelId !== modelId) {
-          await session.setModel(modelId);
-          session.modelId = modelId;
         }
 
         session.busy = true;
         session.awaitingToolCallIds = [];
-        session.seenCount = options.prompt.length + 1;
+        session.seen = keptPrints;
         session.touch();
 
-        const running = session;
-        const onAbort = () => running.close();
-        options.abortSignal?.addEventListener("abort", onAbort, { once: true });
+        const stepSession = session;
         try {
           controller.enqueue({ type: "stream-start", warnings: [] });
-          await pumpStep(running, controller);
+          await pumpStep(stepSession, controller);
         } finally {
-          options.abortSignal?.removeEventListener("abort", onAbort);
-          running.busy = false;
+          stepSession.busy = false;
+          stepSession.touch();
         }
-        if (ephemeral && running.awaitingToolCallIds.length === 0) {
-          running.close();
+        if (ephemeral) {
+          // Nothing continues a one-off, so a tool call it ended on would
+          // only hold its process open.
+          stepSession.close();
         }
         controller.close();
       } catch (error) {
         session?.close();
         controller.enqueue({ error, type: "error" });
         controller.close();
+      } finally {
+        options.abortSignal?.removeEventListener("abort", onAbort);
       }
     },
   });
+}
+
+/**
+ * Close a session's processes for request shapes it has moved on from (its
+ * tools or prompt changed), so each does not wait out its idle time.
+ */
+function closeOtherIdleSlots(key: string, keep: string | undefined) {
+  for (const [slot, session] of sessions) {
+    if (slot !== keep && slot.startsWith(`${key}:`) && !session.busy) {
+      session.close();
+    }
+  }
 }
 
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
@@ -233,7 +311,10 @@ async function pumpStep(
   const toolCallIds: string[] = [];
   let messageId: string = randomUUID();
   let stopReason: string | null = null;
-  let usage = emptyUsage();
+  // Counted per API message, from its start and its closing delta, and summed
+  // across the messages one step can span (a built-in search runs several).
+  let stepUsage: AnthropicUsage = {};
+  let messageUsage: AnthropicUsage = {};
   let rateLimit = session.rateLimit;
 
   const finish = (finishReason: LanguageModelV4FinishReason) => {
@@ -253,7 +334,7 @@ async function pumpStep(
           }
         : undefined,
       type: "finish",
-      usage,
+      usage: usageOf(stepUsage),
     });
   };
 
@@ -313,7 +394,7 @@ async function pumpStep(
         switch (event.type) {
           case "message_start": {
             messageId = event.message.id;
-            usage = usageOf(event.message.usage);
+            messageUsage = event.message.usage;
             controller.enqueue({
               id: messageId,
               modelId: event.message.model,
@@ -432,10 +513,12 @@ async function pumpStep(
           }
           case "message_delta": {
             stopReason = event.delta.stop_reason;
-            usage = usageOf(event.usage);
+            messageUsage = mergeUsage(messageUsage, event.usage);
             break;
           }
           case "message_stop": {
+            stepUsage = addUsage(stepUsage, messageUsage);
+            messageUsage = {};
             if (stopReason === "tool_use" && toolCallIds.length > 0) {
               session.awaitingToolCallIds = toolCallIds;
               finish({ raw: stopReason, unified: "tool-calls" });
@@ -473,12 +556,41 @@ function finishReasonOf(
   }
 }
 
-function usageOf(usage: {
+interface AnthropicUsage {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
-}): LanguageModelV4Usage {
+}
+
+const USAGE_FIELDS = [
+  "cache_creation_input_tokens",
+  "cache_read_input_tokens",
+  "input_tokens",
+  "output_tokens",
+] as const;
+
+/** A message's usage as its closing delta reports it, keeping what the delta leaves out. */
+function mergeUsage(
+  start: AnthropicUsage,
+  delta: AnthropicUsage,
+): AnthropicUsage {
+  const merged = { ...start };
+  for (const field of USAGE_FIELDS) {
+    merged[field] = delta[field] ?? start[field];
+  }
+  return merged;
+}
+
+function addUsage(a: AnthropicUsage, b: AnthropicUsage): AnthropicUsage {
+  const sum: AnthropicUsage = {};
+  for (const field of USAGE_FIELDS) {
+    sum[field] = (a[field] ?? 0) + (b[field] ?? 0);
+  }
+  return sum;
+}
+
+function usageOf(usage: AnthropicUsage): LanguageModelV4Usage {
   const noCache = usage.input_tokens ?? 0;
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheWrite = usage.cache_creation_input_tokens ?? 0;
@@ -508,7 +620,8 @@ const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
  * `{ "claude-plan": { builtInTools: ["WebSearch"] } }`.
  */
 function builtInToolsOf(options: LanguageModelV4CallOptions) {
-  const asked = options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.builtInTools;
+  const asked =
+    options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.builtInTools;
   return Array.isArray(asked)
     ? asked.filter((tool): tool is string => typeof tool === "string")
     : [];

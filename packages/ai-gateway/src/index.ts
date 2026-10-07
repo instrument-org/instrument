@@ -16,6 +16,7 @@ export {
   type ClaudeCodeRelease,
   claudeCodeRelease,
 } from "./lib/providers/claude-plan/release";
+export { claudeCodeEnvironment } from "./lib/providers/claude-plan/environment";
 export {
   type ClaudeCodeSignIn,
   startClaudeCodeSignIn,

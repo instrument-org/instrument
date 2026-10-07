@@ -59,7 +59,7 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "",
     },
-    // Added by signing in to the Claude Code CLI, never with a key.
+    // Added by signing in through Instrument's copy of Claude Code, never with a key.
     canAddManually: false,
     description: "Claude models on your Claude Pro or Max subscription",
     name: "Claude",

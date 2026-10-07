@@ -8,6 +8,14 @@ import {
 } from "./read-model-release";
 
 /**
+ * Lines their author numbers apart from the rest of the family, so only a
+ * later release of the same line supersedes them. Fable sits above Opus and
+ * Sonnet and has its own releases: Fable 5.1 is current beside Opus 5.5, and a
+ * Fable 5.5 would replace it.
+ */
+const VERSIONED_ON_THEIR_OWN = new Set(["claude-fable"]);
+
+/**
  * Takes `recommended` and `default` off any model an author has since replaced.
  *
  * A version floor can only say how old is too old, and a catalog answers with
@@ -39,14 +47,6 @@ import {
  * Needs a whole provider's list, so it runs beside the fetch rather than in
  * `addHeuristicTags`, which only ever sees one model.
  */
-/**
- * Lines their author numbers apart from the rest of the family, so only a
- * later release of the same line supersedes them. Fable sits above Opus and
- * Sonnet and has its own releases: Fable 5.1 is current beside Opus 5.5, and a
- * Fable 5.5 would replace it.
- */
-const VERSIONED_ON_THEIR_OWN = new Set(["claude-fable"]);
-
 function isVersionedOnItsOwn(release: ModelRelease) {
   // A series is its stem and its tier, `claude-fable|`.
   return VERSIONED_ON_THEIR_OWN.has(release.series.split("|")[0] ?? "");
@@ -90,8 +90,7 @@ export function demoteSupersededModels(
     const generation = familyGeneration.get(release.family) ?? release.version;
     if (
       (newest && outranksRelease(newest, release)) ||
-      (release.version < generation &&
-        !isVersionedOnItsOwn(release))
+      (release.version < generation && !isVersionedOnItsOwn(release))
     ) {
       return {
         ...model,

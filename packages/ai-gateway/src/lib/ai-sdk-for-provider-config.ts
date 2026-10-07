@@ -28,11 +28,14 @@ export async function aiSDKForProviderConfig(
   const packageName = getPackageForProviderType(config.type);
 
   if (config.type === "claude-plan") {
+    if (!config.executablePath) {
+      throw new Error("The Claude account has no Claude Code to run.");
+    }
     const { createClaudePlanLanguageModel } =
       await import("./providers/claude-plan/language-model");
     return createClaudePlanLanguageModel({
       configDir: config.configDir,
-      executablePath: config.executablePath ?? "claude",
+      executablePath: config.executablePath,
     });
   }
 

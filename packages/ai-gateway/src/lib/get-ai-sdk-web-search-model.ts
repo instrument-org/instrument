@@ -118,12 +118,19 @@ export async function getAISDKWebSearchModel({
       // runs on Anthropic's side and draws on the same subscription. Only a
       // chat on the account searches here: a Claude account is never another
       // provider's fallback.
+      if (!config.executablePath) {
+        return Result.error(
+          new TypedError.NotFound(
+            "The Claude account has no Claude Code to run.",
+          ),
+        );
+      }
       const { createClaudePlanLanguageModel } =
         await import("./providers/claude-plan/language-model");
       result = {
         model: createClaudePlanLanguageModel({
           configDir: config.configDir,
-          executablePath: config.executablePath ?? "claude",
+          executablePath: config.executablePath,
         })(callingModel.providerId),
         providerOptions: {
           "claude-plan": { builtInTools: ["WebSearch"] },

@@ -16,6 +16,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { homedir } from "node:os";
 
+import { claudeCodeEnvironment } from "./environment";
+
 /** The MCP server name our tools are served under, and so their prefix. */
 const SERVER_NAME = "instrument";
 export const TOOL_PREFIX = `mcp__${SERVER_NAME}__`;
@@ -27,17 +29,10 @@ const TOOL_USE_ID_META = "claudecode/toolUseId";
 const IDLE_MS = 30 * 60 * 1000;
 
 /**
- * Environment that would point the CLI at something other than the user's
- * plan. An API key in particular wins over the subscription without a word.
+ * How long a session waiting on our tools is kept: long enough for a slow
+ * tool, short enough that one our loop gave up on does not live forever.
  */
-const SCRUBBED_ENV = [
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  "ANTHROPIC_BASE_URL",
-  "CLAUDE_CODE_USE_BEDROCK",
-  "CLAUDE_CODE_USE_FOUNDRY",
-  "CLAUDE_CODE_USE_VERTEX",
-];
+const AWAITING_TOOLS_MS = 3 * 60 * 60 * 1000;
 
 export interface SessionShape {
   /**
@@ -69,8 +64,11 @@ export class ClaudePlanSession {
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
-  /** How many of our prompt messages the CLI has seen, its own reply included. */
-  seenCount = 0;
+  /**
+   * A fingerprint of each message of ours this process has been given, in
+   * order; its own reply to the last one is what comes next.
+   */
+  seen: string[] = [];
   private closed = false;
   private idleTimer: NodeJS.Timeout | undefined;
   private readonly input = new Pushable<SDKUserMessage>();
@@ -85,13 +83,7 @@ export class ClaudePlanSession {
   ) {
     this.builtInTools = new Set(shape.builtInTools);
     this.modelId = shape.modelId;
-    const env: Record<string, string | undefined> = { ...process.env };
-    for (const name of SCRUBBED_ENV) {
-      delete env[name];
-    }
-    if (shape.configDir) {
-      env.CLAUDE_CONFIG_DIR = shape.configDir;
-    }
+    const env = claudeCodeEnvironment(shape.configDir);
     this.query = query({
       options: {
         allowedTools: [`mcp__${SERVER_NAME}`, ...shape.builtInTools],
@@ -154,10 +146,6 @@ export class ClaudePlanSession {
     this.onClose();
   }
 
-  interrupt() {
-    return this.query.interrupt();
-  }
-
   /** Answer a tool call the CLI made, whether or not its MCP call has arrived yet. */
   resolveToolCall(toolCallId: string, result: CallToolResult) {
     this.deferred(toolCallId).resolve(result);
@@ -177,7 +165,8 @@ export class ClaudePlanSession {
    */
   async control(name: string, ...args: unknown[]): Promise<unknown> {
     const target: object = this.query;
-    const method: unknown = name in target ? Reflect.get(target, name) : undefined;
+    const method: unknown =
+      name in target ? Reflect.get(target, name) : undefined;
     if (typeof method !== "function") {
       throw new Error(`This Claude Agent SDK has no ${name}.`);
     }
@@ -199,7 +188,10 @@ export class ClaudePlanSession {
 
   touch() {
     clearTimeout(this.idleTimer);
-    this.idleTimer = setTimeout(() => this.close(), IDLE_MS);
+    this.idleTimer = setTimeout(
+      () => this.close(),
+      this.awaitingToolCallIds.length > 0 ? AWAITING_TOOLS_MS : IDLE_MS,
+    );
     this.idleTimer.unref();
   }
 

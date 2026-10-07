@@ -25,7 +25,7 @@ import { ulid } from "ulid";
 
 import { TASKS_DIR_NAME } from "../../src/constants";
 import { copyTask } from "../../src/lib/copy-task";
-import { initializeTask } from "../../src/lib/initialize-task";
+import { initializeChat, initializeTask } from "../../src/lib/initialize-task";
 import { newTaskId } from "../../src/lib/new-task-id";
 import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
@@ -352,13 +352,18 @@ async function seedTask({
     : rebased.session;
 
   const result = await safeTry(async function* () {
-    if (isChat || chatId !== undefined) {
+    if (isChat) {
+      yield* await initializeChat({
+        chatId: ChatIdSchema.parse(id),
+        initialSettings: { name: task.name },
+        sessionId: chatSession.id,
+        workspaceConfig,
+      });
+    } else if (chatId !== undefined) {
       yield* await initializeTask(
         {
-          ...(chatId ? { chatId } : {}),
-          initialSettings: isChat
-            ? { chatSessionId: chatSession.id, name: task.name }
-            : { name: task.name },
+          chatId,
+          initialSettings: { name: task.name },
           taskId: id,
           workspaceConfig,
         },

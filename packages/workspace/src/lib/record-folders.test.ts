@@ -10,7 +10,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./generate-task-folder-name";
 import { getTasks } from "./get-tasks";
-import { initializeTask } from "./initialize-task";
+import { initializeChat, initializeTask } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
 import {
   chatOf,
@@ -51,11 +51,11 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId?: string) {
+async function make(id: string, chatId: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      ...(chatId ? { chatId: ChatIdSchema.parse(chatId) } : {}),
+      chatId: ChatIdSchema.parse(chatId),
       initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
@@ -68,17 +68,12 @@ async function make(id: string, chatId?: string) {
 
 async function makeChat(name: string, sessionId = SESSION) {
   const taskId = ChatIdSchema.parse(name);
-  const made = await initializeTask(
-    {
-      initialSettings: {
-        chatSessionId: sessionId,
-        name: "Instrument",
-      },
-      taskId,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
+  const made = await initializeChat({
+    chatId: taskId,
+    initialSettings: { name: "Instrument" },
+    sessionId,
+    workspaceConfig: getWorkspaceConfig(),
+  });
   expect(made.isOk()).toBe(true);
   return taskId;
 }
@@ -146,22 +141,6 @@ describe("record folders", () => {
     expect([chatOf(child), chatOf(chat)]).toEqual([chat, chat]);
     expect(relative(taskDir(WINDOW_ID))).toBe(".instrument/window");
     expect(recordIdTaken(WINDOW_ID)).toBe(true);
-  });
-
-  it("makes no task without the chat that starts it", async () => {
-    const made = await initializeTask(
-      {
-        initialSettings: { name: "loose" },
-        taskId: TaskIdSchema.parse("2026-08-07-dinner-near-broadway"),
-        workspaceConfig: getWorkspaceConfig(),
-      },
-      {},
-    );
-
-    expect(made.isErr() && made.error.message).toBe(
-      "Task 2026-08-07-dinner-near-broadway has no chat to start it.",
-    );
-    await expect(fs.readdir(path.join(rootDir, "tasks"))).rejects.toThrow();
   });
 
   it("finds chats and their tasks from disk in a fresh process", async () => {

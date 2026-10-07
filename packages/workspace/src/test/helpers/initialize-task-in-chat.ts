@@ -1,4 +1,4 @@
-import { initializeTask } from "../../lib/initialize-task";
+import { initializeChat, initializeTask } from "../../lib/initialize-task";
 import { resolveChat } from "../../lib/record-folders";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -17,24 +17,22 @@ export async function initializeTaskInChat({
   taskId,
 }: {
   chatId?: ChatId;
-  initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
+  initialSettings: Omit<
+    TaskSettingsUpdate,
+    "chatSessionId" | "createdWithAppVersion"
+  >;
   taskId: TaskId;
 }): Promise<ChatId> {
   const workspaceConfig = getWorkspaceConfig();
   const chat = chatId ?? ChatIdSchema.parse(`${taskId}-chat`);
   if (!resolveChat(chat)) {
     (
-      await initializeTask(
-        {
-          initialSettings: {
-            chatSessionId: StoreId.newSessionId(),
-            name: "Instrument",
-          },
-          taskId: chat,
-          workspaceConfig,
-        },
-        {},
-      )
+      await initializeChat({
+        chatId: chat,
+        initialSettings: { name: "Instrument" },
+        sessionId: StoreId.newSessionId(),
+        workspaceConfig,
+      })
     )._unsafeUnwrap();
   }
   (

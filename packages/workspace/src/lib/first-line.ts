@@ -83,7 +83,7 @@ export const NUDGE_NOTE = systemNote`
 `;
 
 export const TURN_NOTE = systemNote`
-  Before using any tool, write one sentence to the user about what you'll do. If no tool is needed, just answer.
+  Before using any tool, write one sentence to the user about what you'll do, then nothing more until the outcome. If no tool is needed, just answer.
 `;
 
 /** What the next step of a turn is sent with under a mode. */

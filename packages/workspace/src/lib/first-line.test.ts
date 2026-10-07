@@ -19,6 +19,7 @@ import {
   TURN_NOTE,
   turnSoFar,
 } from "./first-line";
+import { systemNoteBody } from "./system-note";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const sessionId = StoreId.newSessionId();
@@ -218,6 +219,12 @@ describe("first line", () => {
     ["text", undefined],
   ])("reads the say of %j", (input, expected) => {
     expect(sayOf(input)).toBe(expected);
+  });
+
+  it("asks turn-note's turn for one sentence, then quiet until the outcome", () => {
+    expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
+      `"Before using any tool, write one sentence to the user about what you'll do, then nothing more until the outcome. If no tool is needed, just answer."`,
+    );
   });
 
   it("offers say first, and as required, to the one agent under the say mode alone", async () => {

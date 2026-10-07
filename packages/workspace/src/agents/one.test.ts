@@ -225,6 +225,23 @@ describe("oneAgent", () => {
       );
     });
 
+    it("keeps the fork-only prompt as it is under the turn-note first-line mode", () => {
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({
+        ...config,
+        firstLineMode: () => "turn-note",
+        oneAgentMode: () => "fork-only",
+      });
+      let turnNote: string;
+      try {
+        turnNote = oneAgent.systemPrompt();
+      } finally {
+        setWorkspaceConfig(config);
+      }
+      expect(turnNote).toBe(forkOnly);
+      expect(turnNote).toContain("One line, then act");
+    });
+
     it("forks on interrupt always, and is what the evals' switch names", () => {
       expect(inMode("fork-only", isForkOnInterruptEnabled)).toBe(true);
       expect(inMode("background", isForkOnInterruptEnabled)).toBe(true);

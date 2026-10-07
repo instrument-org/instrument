@@ -126,7 +126,7 @@ const serviceMark = (service: AuthService, extra = "") =>
 // Instrument and the service side by side, for a connection between them.
 const pairedMarks = (service: AuthService) =>
   service.mark
-    ? html`<div class="flex items-center gap-3">
+    ? html`<div class="auth-meet flex items-center gap-3">
         ${appMark("size-16")}
         ${glyph(ARROWS_LEFT_RIGHT, "size-5 text-stone-400 dark:text-white/40")}
         ${serviceMark(service)}
@@ -151,6 +151,9 @@ const accountChip = (email: string, service: AuthService) =>
 
 const group = (...children: unknown[]) =>
   html`<div class="flex flex-col items-center gap-5">${children}</div>`;
+
+// A single mark on a success page sends one ring out as it lands.
+const pulsing = (mark: unknown) => html`<div class="auth-pulse">${mark}</div>`;
 
 // A success page's button sits further down than the others, past the
 // account it names.
@@ -182,7 +185,8 @@ function renderOutcome(outcome: AuthOutcome) {
   switch (outcome.kind) {
     case "signed-in": {
       return {
-        body: html`${appMark("size-20")}
+        arrive: true,
+        body: html`${pulsing(appMark("size-20"))}
         ${group(
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
@@ -194,7 +198,8 @@ function renderOutcome(outcome: AuthOutcome) {
     case "connected": {
       const { email, service } = outcome;
       return {
-        body: html`${pairedMarks(service)}
+        arrive: true,
+        body: html`${service.mark ? pairedMarks(service) : pulsing(pairedMarks(service))}
         ${group(
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
@@ -315,10 +320,11 @@ export function renderAuthPage(
   page: AuthOutcome | { index: { href: string; label: string }[] },
 ) {
   const {
+    arrive,
     body,
     reference,
     title,
-  }: { body: unknown; reference?: string; title: string } =
+  }: { arrive?: boolean; body: unknown; reference?: string; title: string } =
     "index" in page ? renderIndex(page.index) : renderOutcome(page);
 
   return html`
@@ -354,6 +360,81 @@ export function renderAuthPage(
               );
             }
           }
+          /* A success page arrives rather than appearing: the mark lands with a
+                 little overshoot (two marks slide together and the arrows between
+                 them pop), then the heading and button rise in, all in under a
+                 second. */
+          @media (prefers-reduced-motion: no-preference) {
+            .auth-arrive > * {
+              animation: auth-rise 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+            }
+            .auth-arrive > :nth-child(2) {
+              animation-delay: 160ms;
+            }
+            .auth-arrive > :nth-child(n + 3) {
+              animation-delay: 260ms;
+            }
+            .auth-arrive > :first-child {
+              animation: auth-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+            .auth-arrive > .auth-meet {
+              animation: none;
+            }
+            .auth-meet > * {
+              animation: auth-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+            .auth-meet > :first-child {
+              --from: -28px;
+            }
+            .auth-meet > :last-child {
+              --from: 28px;
+            }
+            .auth-meet > :nth-child(2) {
+              animation-delay: 240ms;
+            }
+            .auth-pulse {
+              position: relative;
+            }
+            .auth-pulse::after {
+              content: "";
+              position: absolute;
+              inset: -4px;
+              border-radius: 28%;
+              border: 2px solid rgb(13 116 102 / 0.5);
+              animation: auth-ring 900ms 200ms ease-out both;
+              pointer-events: none;
+            }
+            @media (prefers-color-scheme: dark) {
+              .auth-pulse::after {
+                border-color: rgb(94 234 212 / 0.45);
+              }
+            }
+          }
+          @keyframes auth-pop {
+            from {
+              opacity: 0;
+              transform: translateX(var(--from, 0)) scale(0.6);
+            }
+          }
+          @keyframes auth-rise {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+          }
+          @keyframes auth-ring {
+            from {
+              opacity: 0;
+              transform: scale(0.85);
+            }
+            20% {
+              opacity: 1;
+            }
+            to {
+              opacity: 0;
+              transform: scale(1.6);
+            }
+          }
         </style>
         <title>
           ${title} · ${APP_NAME}
@@ -361,7 +442,7 @@ export function renderAuthPage(
       </head>
       <body class="min-h-svh">
         <main
-          class="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
+          class="${arrive ? "auth-arrive " : ""}relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
         >
           ${body} ${supportFooter(reference)}
         </main>

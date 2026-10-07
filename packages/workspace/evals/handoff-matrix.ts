@@ -40,8 +40,8 @@
  * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`),
  * Workers AI (`glm`, or `cf:<id>`), and the metered models cleared for spend
  * through OpenRouter: `or-luna` (`openai/gpt-5.6-luna`), `or-luna6`
- * (`openai/gpt-6-luna`) and `or-glm` (`z-ai/glm-5.3-flash`); anything else
- * metered is refused. Every metered provider key is blanked in the child's
+ * (`openai/gpt-6-luna`), `or-glm` (`z-ai/glm-5.3-flash`) and `or-haiku55`
+ * (`anthropic/claude-haiku-5.5`); anything else metered is refused. Every metered provider key is blanked in the child's
  * environment, so nothing a run does can fall back to one, except the
  * OpenRouter key on an `or-*` run, where `evals/lib/pin-openrouter-model.ts`
  * refuses any OpenRouter request naming a model other than that run's own (an
@@ -124,6 +124,7 @@ const PLAN = "providerConfigId=chatgpt-plan";
  */
 const OPENROUTER_MODELS: Record<string, string> = {
   "or-glm": "z-ai/glm-5.3-flash",
+  "or-haiku55": "anthropic/claude-haiku-5.5",
   "or-luna": "openai/gpt-5.6-luna",
   "or-luna6": "openai/gpt-6-luna",
 };
@@ -954,7 +955,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

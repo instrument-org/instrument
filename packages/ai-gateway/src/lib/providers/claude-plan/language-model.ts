@@ -330,13 +330,14 @@ async function pumpStep(
                 toolName: "",
               });
             } else if (block.type === "tool_use") {
-              if (!block.name.startsWith(TOOL_PREFIX)) {
-                throw planError(
-                  "invalid_request",
-                  `Claude Code called its own tool ${block.name}, which should be switched off.`,
-                );
-              }
-              const toolName = block.name.slice(TOOL_PREFIX.length);
+              // Our prompts name a tool as we do (`bash`), and the CLI lists it
+              // under its MCP prefix, so a call can come either way; the
+              // session aliases the bare name to the same tool. A name that is
+              // neither goes to our loop as called, which answers it as an
+              // unknown tool.
+              const toolName = block.name.startsWith(TOOL_PREFIX)
+                ? block.name.slice(TOOL_PREFIX.length)
+                : block.name;
               blocks.set(event.index, {
                 id: block.id,
                 input: "",

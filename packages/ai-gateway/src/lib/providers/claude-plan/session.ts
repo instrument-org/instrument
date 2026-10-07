@@ -110,6 +110,11 @@ export class ClaudePlanSession {
           this.stderrTail.splice(0, this.stderrTail.length - 20);
         },
         strictMcpConfig: true,
+        // A call to one of our tools by its own name, as our prompts write
+        // it, reaches the same tool as its prefixed name.
+        toolAliases: Object.fromEntries(
+          shape.tools.map((tool) => [tool.name, `${TOOL_PREFIX}${tool.name}`]),
+        ),
         systemPrompt: shape.systemPrompt,
         tools: [],
       },

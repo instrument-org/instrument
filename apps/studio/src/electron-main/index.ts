@@ -6,7 +6,10 @@ import {
   refreshAfterWake as refreshChatGPTPlanAfterWake,
   scheduleRefresh as scheduleChatGPTPlanRefresh,
 } from "@/electron-main/lib/chatgpt-plan";
-import { refreshClaudePlanStatus } from "@/electron-main/lib/claude-plan";
+import {
+  keepClaudeCodeCurrent,
+  refreshClaudePlanStatus,
+} from "@/electron-main/lib/claude-plan";
 import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -226,6 +229,7 @@ async function bootstrapPrimaryInstance() {
       await setClaudePlanDefaultModel();
     }
   });
+  void keepClaudeCodeCurrent();
   app.on("browser-window-focus", () => {
     void refreshClaudePlanStatus();
   });

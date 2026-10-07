@@ -1,4 +1,5 @@
 import {
+  currentCopy,
   downloadClaudeCode,
   installedCopy,
   wantedRelease,
@@ -8,6 +9,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import {
   type AIGatewayProviderConfig,
+  claudeCodeEnvironment,
   type ClaudeCodeSignIn,
   fetchClaudePlanUsage,
   startClaudeCodeSignIn,
@@ -18,7 +20,15 @@ import {
   CLAUDE_PLAN_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { execFile, spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  constants,
+  mkdir,
+  mkdtemp,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -126,15 +136,23 @@ export function claudePlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
 }
 
 /** Ask our copy of Claude Code who is signed in, unless that was just done. */
-export function refreshClaudePlanStatus({ force = false } = {}) {
+export function refreshClaudePlanStatus({
+  force = false,
+} = {}): Promise<ClaudePlanStatus> {
   if (refreshing) {
-    return refreshing;
+    // A forced read follows something that just changed, which a read
+    // already under way may have started before.
+    return force
+      ? refreshing.then(() => refreshClaudePlanStatus({ force: true }))
+      : refreshing;
   }
   if (!force && Date.now() - lastRefresh < REFRESH_INTERVAL_MS) {
     return Promise.resolve(status);
   }
   refreshing = readStatus()
     .catch((error: unknown) => {
+      // A status Claude Code could not give (it timed out, or would not
+      // start) says nothing about the sign-in, so the last one stands.
       log.warn("Couldn't read Claude Code's status", error);
       return status;
     })
@@ -184,15 +202,15 @@ async function readStatus(): Promise<ClaudePlanStatus> {
 
 async function readSignIn(executablePath: string) {
   // Exits 1 when signed out, still printing the JSON.
-  const parsed = AuthStatusSchema.safeParse(
-    safeJSON(await statusOutput(executablePath, ["auth", "status"])),
+  const parsed = AuthStatusSchema.parse(
+    JSON.parse(await statusOutput(executablePath, ["auth", "status"])),
   );
-  if (!parsed.success || !parsed.data.loggedIn) {
+  if (!parsed.loggedIn) {
     return { executablePath, kind: "signed-out" as const };
   }
-  if (parsed.data.authMethod !== "claude.ai") {
+  if (parsed.authMethod !== "claude.ai") {
     return {
-      authMethod: parsed.data.authMethod ?? "unknown",
+      authMethod: parsed.authMethod ?? "unknown",
       executablePath,
       kind: "not-a-plan" as const,
     };
@@ -204,21 +222,38 @@ async function readSignIn(executablePath: string) {
     return { executablePath, expired: true, kind: "signed-out" as const };
   }
   return {
-    email: parsed.data.email ?? undefined,
+    email: parsed.email ?? undefined,
     executablePath,
     kind: "signed-in" as const,
-    plan: parsed.data.subscriptionType ?? undefined,
+    plan: parsed.subscriptionType ?? undefined,
   };
 }
 
+/**
+ * What Claude Code prints for a status command. It exits 1 when signed out,
+ * still printing the status, so only a timeout or a failure to start is an
+ * error here.
+ */
 async function statusOutput(executablePath: string, args: string[]) {
-  return run(executablePath, args, { env: cliEnv(), timeout: 10_000 }).then(
-    (result) => result.stdout,
-    (error: unknown) =>
-      typeof error === "object" && error !== null && "stdout" in error
-        ? String(error.stdout)
-        : "",
-  );
+  try {
+    const { stdout } = await run(executablePath, args, {
+      env: cliEnv(),
+      timeout: 20_000,
+    });
+    return stdout;
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "number" &&
+      "stdout" in error &&
+      typeof error.stdout === "string"
+    ) {
+      return error.stdout;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -294,7 +329,9 @@ export async function submitClaudeSignInCode(
 ): Promise<{ error: string | undefined }> {
   const signIn = pendingSignIn;
   if (!signIn) {
-    return { error: "No sign-in is waiting. Press Continue with Claude again." };
+    return {
+      error: "No sign-in is waiting. Press Continue with Claude again.",
+    };
   }
   try {
     await signIn.submitCode(pasted);
@@ -354,15 +391,26 @@ async function openTerminalSignIn(executablePath: string) {
       return { command, opened: error === "" };
     }
     if (process.platform === "win32") {
-      spawn("cmd.exe", ["/c", "start", '""', executablePath, "auth", "login"], {
-        detached: true,
-        env,
-        stdio: "ignore",
-        windowsHide: false,
-      }).unref();
+      // `start` takes the window title as its first quoted argument, so the
+      // line is handed to cmd exactly as written rather than requoted.
+      spawn(
+        "cmd.exe",
+        ["/d", "/s", "/c", `start "" "${executablePath}" auth login`],
+        {
+          detached: true,
+          env,
+          stdio: "ignore",
+          windowsHide: false,
+          windowsVerbatimArguments: true,
+        },
+      ).unref();
       return { command, opened: true };
     }
-    spawn("x-terminal-emulator", ["-e", executablePath, "auth", "login"], {
+    const terminal = await findLinuxTerminal();
+    if (!terminal) {
+      return { command, opened: false };
+    }
+    spawn(terminal, ["-e", executablePath, "auth", "login"], {
       detached: true,
       env,
       stdio: "ignore",
@@ -380,10 +428,31 @@ async function openTerminalSignIn(executablePath: string) {
  * Install our own copy of the Claude Code release this build drives, then
  * look again. Progress and failure ride on the status.
  */
-export async function installClaudeCode() {
-  if (install?.state === "downloading") {
-    return;
+let installing: Promise<void> | undefined;
+
+export function installClaudeCode(): Promise<void> {
+  installing ??= runInstall().finally(() => {
+    installing = undefined;
+  });
+  return installing;
+}
+
+/**
+ * After an app update moved to a newer Claude Code, install it in the
+ * background for anyone who has signed in, rather than waiting for them to
+ * find the account disconnected.
+ */
+export async function keepClaudeCodeCurrent() {
+  const signedInBefore = await stat(accountDir()).then(
+    () => true,
+    () => false,
+  );
+  if (signedInBefore && wantedRelease() && !(await currentCopy())) {
+    await installClaudeCode();
   }
+}
+
+async function runInstall() {
   const publish = (next: ClaudeCodeInstall | undefined) => {
     install = next;
     status = { ...status, install };
@@ -405,26 +474,31 @@ export async function installClaudeCode() {
   await refreshClaudePlanStatus({ force: true });
 }
 
-/**
- * The environment our copy runs in: its own sign-in folder, and no API key
- * that would answer instead of the subscription.
- */
+/** The environment our copy runs in for status checks, as for every request. */
 function cliEnv() {
-  return {
-    ...Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([name]) =>
-          name !== "ANTHROPIC_API_KEY" && name !== "ANTHROPIC_AUTH_TOKEN",
-      ),
-    ),
-    CLAUDE_CONFIG_DIR: accountDir(),
-  };
+  return claudeCodeEnvironment(accountDir());
 }
 
-function safeJSON(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
+/** A terminal that takes `-e <command>`, from the ones Linux desktops ship. */
+async function findLinuxTerminal() {
+  const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
+  for (const name of [
+    "x-terminal-emulator",
+    "gnome-terminal",
+    "konsole",
+    "xterm",
+  ]) {
+    for (const dir of dirs) {
+      const candidate = path.join(dir, name);
+      if (
+        await access(candidate, constants.X_OK).then(
+          () => true,
+          () => false,
+        )
+      ) {
+        return candidate;
+      }
+    }
   }
+  return undefined;
 }

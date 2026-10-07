@@ -11,7 +11,7 @@ import path from "node:path";
 import { once } from "node:events";
 import { finished, pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
-import { app } from "electron";
+import { app, net } from "electron";
 import { z } from "zod";
 
 const log = createScopedLogger("claude-code-download");
@@ -33,7 +33,7 @@ export function wantedRelease(): ClaudeCodeRelease | undefined {
 }
 
 /** Our copy of the release this build drives, when it is installed whole. */
-export async function installedCopy() {
+export async function currentCopy() {
   const release = wantedRelease();
   if (!release) {
     return undefined;
@@ -45,6 +45,46 @@ export async function installedCopy() {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The copy to run: the release this build drives, or, while an update to it
+ * has not been installed yet, the newest one already here, so an app update
+ * does not sign the person out until the download is done.
+ */
+export async function installedCopy() {
+  const current = await currentCopy();
+  const release = wantedRelease();
+  if (current || !release) {
+    return current;
+  }
+  const versions = await readdir(installRoot()).catch(() => []);
+  const newest = versions
+    .filter((entry) => !entry.startsWith("."))
+    .sort(compareVersions)
+    .at(-1);
+  if (!newest) {
+    return undefined;
+  }
+  const binary = path.join(installRoot(), newest, release.binary);
+  return (await stat(binary).then(
+    () => true,
+    () => false,
+  ))
+    ? binary
+    : undefined;
+}
+
+function compareVersions(a: string, b: string) {
+  const left = a.split(".").map(Number);
+  const right = b.split(".").map(Number);
+  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
 }
 
 export interface DownloadProgress {
@@ -72,6 +112,9 @@ export async function downloadClaudeCode(
     );
   }
   const root = installRoot();
+  // A download cut short by a quit leaves its staging folder behind; one at a
+  // time runs, so any found now is left over.
+  await removeEntries(root, (entry) => entry.startsWith(".download-"));
   const staging = path.join(root, `.download-${randomUUID()}`);
   await mkdir(staging, { recursive: true });
   try {
@@ -120,7 +163,7 @@ export async function downloadClaudeCode(
 
     // Every platform this runs on has a `tar` that reads gzip: bsdtar on
     // macOS and Windows 10 and later, GNU tar on Linux.
-    await run("tar", [
+    await run(tarPath(), [
       "-xzf",
       tarball,
       "-C",
@@ -138,7 +181,14 @@ export async function downloadClaudeCode(
     await mkdir(installDir, { recursive: true });
     const installed = path.join(installDir, release.binary);
     await rename(extracted, installed);
-    await removeOtherVersions(root, release.version);
+    // Tidying, after the new copy is in: a copy still running, which Windows
+    // will not delete, is left for the next install rather than failing this one.
+    await removeEntries(
+      root,
+      (entry) => entry !== release.version && !entry.startsWith(".download-"),
+    ).catch((error: unknown) => {
+      log.warn("Couldn't remove an older Claude Code", error);
+    });
     log.info(`Installed Claude Code ${release.version} at ${installed}`);
     return installed;
   } finally {
@@ -147,7 +197,8 @@ export async function downloadClaudeCode(
 }
 
 async function fetchOk(url: string) {
-  const response = await fetch(url);
+  // Electron's network stack, so a system proxy applies as it does to the app.
+  const response = await net.fetch(url);
   if (!response.ok) {
     throw new Error(`${url} answered ${response.status}`);
   }
@@ -160,11 +211,27 @@ async function sha256(file: string) {
   return hash.digest("hex");
 }
 
-/** Copies of other versions, which nothing runs once this one is in. */
-async function removeOtherVersions(root: string, keep: string) {
-  for (const entry of await readdir(root)) {
-    if (entry !== keep && !entry.startsWith(".download-")) {
+/** Removes the entries of `root` that `remove` picks. */
+async function removeEntries(root: string, remove: (entry: string) => boolean) {
+  const entries = await readdir(root).catch(() => []);
+  for (const entry of entries) {
+    if (remove(entry)) {
       await rm(path.join(root, entry), { force: true, recursive: true });
     }
   }
+}
+
+/**
+ * The `tar` to unpack with. On Windows, the one Windows ships, named in full,
+ * since a GNU tar earlier on the PATH would read `C:\\` as a remote host.
+ */
+function tarPath() {
+  if (process.platform !== "win32") {
+    return "tar";
+  }
+  const systemRoot =
+    Object.entries(process.env).find(
+      ([name]) => name.toLowerCase() === "systemroot",
+    )?.[1] ?? "C:\\Windows";
+  return path.join(systemRoot, "System32", "tar.exe");
 }

@@ -32,6 +32,7 @@ export function ClaudePlanCard() {
   );
   const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
   const signOut = useMutation(rpcClient.claudePlan.signOut.mutationOptions());
+  const [hint, setHint] = useState<string>();
   const [showUsage, setShowUsage] = useState(false);
   const wasSigningIn = useRef(false);
 
@@ -73,7 +74,9 @@ export function ClaudePlanCard() {
             <h3 className="truncate font-medium text-foreground">
               Claude account
             </h3>
-            <p className="text-sm text-muted-foreground">{describe(status)}</p>
+            <p className="text-sm text-muted-foreground">
+              {hint ?? describe(status)}
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -111,7 +114,16 @@ export function ClaudePlanCard() {
                 void rpcClient.claudePlan.cancelSignIn.call({});
               }}
               onStart={() => {
-                signIn.mutate({});
+                setHint(undefined);
+                void signIn.mutateAsync({}).then((result) => {
+                  if (!result.opened) {
+                    setHint(
+                      result.command
+                        ? `Run ${result.command} in a terminal, then come back.`
+                        : "Claude Code couldn't be set up on this computer.",
+                    );
+                  }
+                });
               }}
               waiting={waiting}
             >

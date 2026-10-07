@@ -48,7 +48,7 @@ const AuthStatusSchema = z.object({
  * Our copy of Claude Code being installed, or why the last try failed.
  * Undefined while nothing is under way.
  */
-export type ClaudeCodeInstall =
+type ClaudeCodeInstall =
   | { failed: string; state: "failed" }
   | { received: number; state: "downloading"; total: number };
 

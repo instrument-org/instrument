@@ -33,7 +33,7 @@ import {
   TOOL_PREFIX,
 } from "./session";
 
-export const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
+const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
 
 /**
  * The live CLI processes, keyed by our session id and the request's shape. A

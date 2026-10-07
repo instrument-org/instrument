@@ -22,7 +22,7 @@ const TaskFieldsSchema = z.object({
 // a chat's own (its folder under `chats/`) or a task inside the chat whose
 // `tasks/` folder holds it. This is the "full thing" the client fetches when
 // it needs more than an id.
-export const ChatRecordSchema = TaskFieldsSchema.extend({
+const ChatRecordSchema = TaskFieldsSchema.extend({
   isChat: z.literal(true),
 });
 

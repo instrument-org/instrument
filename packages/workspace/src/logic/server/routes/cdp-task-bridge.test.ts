@@ -405,6 +405,22 @@ describe("a task's browser", () => {
     },
   );
 
+  it.each([
+    ["Page.navigate", { url: "file:///Users/me/other/secret.html" }],
+    ["Runtime.evaluate", { expression: "document.body.innerText" }],
+  ])(
+    "refuses %s sent with no session, which would skip the tab's file gate",
+    async (method, params) => {
+      record.browserTabs = [tab().held];
+      const { command, sendCommand } = connect();
+
+      const reply = await command(method, params);
+
+      expect(reply.error?.message).toBe("Method not found");
+      expect(sendCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it("never brings a page forward in the window", async () => {
     const only = tab();
     record.browserTabs = [only.held];

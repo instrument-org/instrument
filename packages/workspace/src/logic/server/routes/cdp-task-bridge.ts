@@ -406,6 +406,15 @@ export function handleTaskCdpClient(
       answer(id, {});
       return;
     }
+    // A page's own command arrives on its session, behind that page's file
+    // gate and teardown. Sent here with none, it would reach a tab with
+    // neither, so only the Browser domain is taken here; agent-browser's
+    // provider connection is never a direct page, so it sends nothing else
+    // without a session.
+    if (typeof method !== "string" || !method.startsWith("Browser.")) {
+      send({ error: { code: -32_601, message: "Method not found" }, id });
+      return;
+    }
     // Anything else asked of the browser as a whole (its version, the window
     // a tab is in) is answered by a tab it holds, the one it names first.
     const named = (params as undefined | { targetId?: unknown })?.targetId;

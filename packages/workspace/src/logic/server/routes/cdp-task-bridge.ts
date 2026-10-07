@@ -58,9 +58,8 @@ interface Held {
  * it, since that tab is the user's. Nothing here ever selects a tab in the
  * window: switching tabs is the agent's business alone.
  *
- * Each attached tab is a `TargetSession`, the same wiring the page endpoint
- * gives its one page, so the local-file gate, the held navigate, and the
- * teardown hold per tab.
+ * Each attached tab is a `TargetSession` (`cdp-bridge.ts`), so the
+ * local-file gate, the held navigate, and the teardown hold per tab.
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
@@ -435,6 +434,21 @@ export function handleTaskCdpClient(
           (entry) => entry.sessionId === message.sessionId,
         )
       : undefined;
+    // The Target domain is answered here over the tabs the task holds,
+    // whichever session it arrives on: forwarded on a tab's session it would
+    // reach a debugger that sees every Electron target, the app window among
+    // them.
+    if (
+      message.sessionId &&
+      typeof message.method === "string" &&
+      message.method.startsWith("Target.") &&
+      message.method !== "Target.setAutoAttach"
+    ) {
+      queue = queue
+        .then(() => handleBrowserCommand(message))
+        .catch(workspaceConfig.captureException);
+      return;
+    }
     if (message.sessionId) {
       if (!session) {
         refuse(message.id, `No session ${message.sessionId}`);

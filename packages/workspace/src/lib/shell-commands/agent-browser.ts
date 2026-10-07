@@ -14,7 +14,6 @@ import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
-import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
@@ -27,24 +26,22 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
+import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { chatOf, resolveChat } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
-  getBrowserSessionDir,
   getDownloadsDir,
   getExternalBrowserTmpDir,
   getScreenshotsDir,
   taskDir,
 } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
@@ -163,10 +160,6 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "stream", // Streaming managed by the workspace.
   "upgrade", // Binary is bundled; agent shouldn't self-update.
 ]);
-
-// Subcommands that open or switch to another page: a task's browser has them,
-// and a connection pinned to one page would quietly act on that page instead.
-const SECOND_PAGE_SUBCOMMANDS = new Set(["tab", "window"]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
 // because the harness controls them via env vars and must always win.
@@ -663,10 +656,6 @@ export function createAgentBrowserCommand({
     if (subcommand === ADBLOCK_SUBCOMMAND) {
       return adblock(workspaceConfig.browser, id, subArgs[1]?.value);
     }
-    const asksForASecondPage =
-      !isExternalBrowserInvocation(args) &&
-      ((subcommand !== undefined && SECOND_PAGE_SUBCOMMANDS.has(subcommand)) ||
-        args.includes("--new-tab"));
     if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
       return {
         exitCode: 1,
@@ -757,7 +746,6 @@ export function createAgentBrowserCommand({
     const browserFreeRead = isBrowserFreeRead(resolvedArgs);
 
     const commandArgs: string[] = [];
-    let targetId: BrowserTargetId | undefined;
     // A chat's task, which drives the tabs it holds rather than one page.
     let drivesHeldTabs = false;
     let pluginRegistry: string | undefined;
@@ -815,30 +803,13 @@ export function createAgentBrowserCommand({
         ...resolvedArgs,
       );
     } else {
-      const resolved = await resolveBrowserTarget({ id, sessionId });
-      if ("error" in resolved) {
-        return { exitCode: 1, stderr: resolved.error, stdout: "" };
+      const refused = await refuseBrowserFor(id);
+      if (refused !== undefined) {
+        return { exitCode: 1, stderr: refused, stdout: "" };
       }
-      if (resolved.kind === "page" && asksForASecondPage) {
-        // A connection pinned to one page would quietly act on that page.
-        return {
-          exitCode: 1,
-          stderr:
-            "agent-browser: this browser has one tab. Open a page in it with `agent-browser open <url>`; the page it replaces stays in its history.\n",
-          stdout: "",
-        };
-      }
-      if (resolved.kind === "page" && resolved.isOwnGuest) {
-        targetId = resolved.targetId;
-      }
-      drivesHeldTabs = resolved.kind === "task";
+      drivesHeldTabs = true;
 
-      const cdpUrl = cdpBridgeUrl(
-        serverPort,
-        resolved.kind === "task"
-          ? { id, kind: "task" }
-          : { id: resolved.targetId, kind: "page" },
-      );
+      const cdpUrl = cdpBridgeUrl(serverPort, id);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -944,14 +915,6 @@ export function createAgentBrowserCommand({
         input: subprocessStdin(ctx.stdin),
       });
     } finally {
-      if (targetId) {
-        await enrichBrowserState({
-          id,
-          sessionId,
-          targetId,
-          taskId,
-        });
-      }
       if (drivesHeldTabs) {
         await recordHeldTabHosts({ sessionId, taskId });
       }
@@ -1071,55 +1034,6 @@ export function isExternalLocalLaunch(args: string[]): boolean {
   );
 }
 
-async function enrichBrowserState({
-  id,
-  sessionId,
-  targetId,
-  taskId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-  targetId: BrowserTargetId;
-  taskId: TaskId;
-}) {
-  try {
-    const targets = await getWorkspaceConfig().browser.listTargets(id);
-    const target = targets.find((t) => t.id === targetId);
-    if (target) {
-      await recordBrowserUseBestEffort({
-        sessionId,
-        taskId,
-        title: target.title,
-        url: target.url,
-      });
-    }
-  } catch (error) {
-    getWorkspaceConfig().captureException(error);
-  }
-}
-
-async function recordBrowserUseBestEffort({
-  sessionId,
-  taskId,
-  title,
-  url,
-}: {
-  sessionId: StoreId.Session;
-  taskId: TaskId;
-  title?: string;
-  url?: string;
-}) {
-  const result = await recordBrowserUse({
-    sessionId,
-    taskId,
-    title,
-    url,
-  });
-  if (result.isErr()) {
-    getWorkspaceConfig().captureException(result.error);
-  }
-}
-
 /**
  * The hosts of the pages in the tabs a chat's task holds, recorded as the
  * sites its work used: read after the command, so a tab it just opened and a
@@ -1149,53 +1063,16 @@ async function recordHeldTabHosts({
 }
 
 /**
- * The browser an invocation acts on.
- *
- * A chat drives the tab on the window's screen, which the window keeps in its
- * own state rather than on any chat's: one page. A task in a chat drives
- * the tabs it holds, through a browser of their own: tabs the conversation
- * handed it, which are the user's and outlive the task, and tabs it opened
- * itself, each opened behind whatever the user has up, so every page a task
- * works in is one the user can find in the chat's tabs and none is put in
- * front of them. Only a task no chat owns still browses in a guest of its
- * own, on its task page.
+ * Why a task cannot browse right now, or nothing when it can. A task drives
+ * the tabs of its chat it holds: tabs the conversation handed it, which are
+ * the user's and outlive the task, and tabs it opened itself, each opened
+ * behind whatever the user has up, so every page a task works in is one the
+ * user can find in the chat's tabs and none is put in front of them. A chat
+ * does not browse; it hands a page to a task.
  */
-async function resolveBrowserTarget({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}): Promise<
-  | { error: string }
-  | { isOwnGuest: boolean; kind: "page"; targetId: BrowserTargetId }
-  | { kind: "task" }
-> {
-  const { browser } = getWorkspaceConfig();
-  const noTabUp = {
-    error:
-      "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
-  };
+async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
   if (resolveChat(id)) {
-    const { browserTargetId: onScreen } = await getWindowState();
-    // The conversation drives the tab on the user's screen and never a
-    // browser of its own; with no tab up there is nothing to drive.
-    return onScreen && browser.getTargetMeta(onScreen)
-      ? { isOwnGuest: false, kind: "page", targetId: onScreen }
-      : noTabUp;
-  }
-  if (!chatOf(id)) {
-    // Idempotent: createTarget returns the existing view for this (id,
-    // sessionId) pair if one is already live, so sub-agents and repeat
-    // invocations within the same session reuse the same browsing surface
-    // (cookies, page, debugger).
-    const target = await browser.createTarget(
-      id,
-      sessionId,
-      getBrowserSessionDir(),
-    );
-    await recordBrowserUseBestEffort({ sessionId, taskId: id });
-    return { isOwnGuest: true, kind: "page", targetId: target.targetId };
+    return "agent-browser: a chat does not browse. Hand the page to a task with `task new --tab <id>`.\n";
   }
   const state = await getTaskState(taskDir(id));
   const heldTabs = state.browserTabs ?? [];
@@ -1205,29 +1082,23 @@ async function resolveBrowserTarget({
       // Tabs closed since: the browser already told the agent they are gone.
       await setTaskState(taskDir(id), { browserTabs: live });
     }
-    return { kind: "task" };
+    return undefined;
   }
   if (heldTabs.some((tab) => tab.openedBy === "handed")) {
     // The user closed the tabs, or the window they were in, since the task
     // was handed them.
-    return {
-      error:
-        "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n",
-    };
+    return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
   }
   if (heldTabs.length > 0) {
     // The task's own tabs, closed by the user or by the conversation: said
     // once, so the task knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
     await setTaskState(taskDir(id), { browserTabs: undefined });
-    return {
-      error:
-        "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n",
-    };
+    return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
   }
   // None yet: agent-browser asks a browser with no pages for one, which the
   // task's browser opens as a tab of the chat behind whatever is up.
-  return { kind: "task" };
+  return undefined;
 }
 
 async function runAgentBrowser(options: SpawnAgentBrowserOptions) {

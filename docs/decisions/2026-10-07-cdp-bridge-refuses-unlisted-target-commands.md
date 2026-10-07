@@ -28,6 +28,8 @@ Checked against agent-browser's source at v0.38.1 (the pinned version, `CDP_METH
 
 ## Implementation
 
-- [Page endpoint refusal](../../packages/workspace/src/logic/server/routes/cdp-bridge.ts)
+The page endpoint was removed later the same day, when every task came to belong to a chat; the rule now lives on the task endpoint, which answers the `Target` domain whichever session a command arrives on.
+
+- [Task endpoint](../../packages/workspace/src/logic/server/routes/cdp-task-bridge.ts)
 - [Table of CDP methods](../../packages/workspace/src/lib/cdp-methods.ts)
-- [Tests](../../packages/workspace/src/logic/server/routes/cdp-bridge.test.ts)
+- [Tests](../../packages/workspace/src/logic/server/routes/cdp-task-bridge.test.ts)

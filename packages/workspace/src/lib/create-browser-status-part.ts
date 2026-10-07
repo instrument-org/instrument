@@ -167,7 +167,7 @@ function createPart({
 
 /**
  * The tabs of its chat a task holds, open ones only, as the task names them;
- * null for a task that holds none, whose browser is a guest of its own. Where
+ * null for a task that holds none yet. Where
  * there is no window (the eval harness) a task browses in a browser of its
  * own whatever it holds, so there is nothing true to tell it.
  */

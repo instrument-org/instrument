@@ -374,6 +374,37 @@ describe("a task's browser", () => {
     },
   );
 
+  it.each([
+    "Target.attachToBrowserTarget",
+    "Target.exposeDevToolsProtocol",
+    "Target.sendMessageToTarget",
+  ])(
+    "refuses %s, a target command the table does not list, on a tab's session too",
+    async (method) => {
+      const only = tab();
+      record.browserTabs = [only.held];
+      const { command, sendCommand } = connect();
+      const attached = await command("Target.attachToTarget", {
+        flatten: true,
+        targetId: only.tabId,
+      });
+      sendCommand.mockClear();
+
+      const browserLevel = await command(method);
+      const onSession = await command(
+        method,
+        {},
+        attached.result?.sessionId as string,
+      );
+
+      expect([browserLevel.error?.message, onSession.error?.message]).toEqual([
+        "Method not found",
+        "Method not found",
+      ]);
+      expect(sendCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it("never brings a page forward in the window", async () => {
     const only = tab();
     record.browserTabs = [only.held];

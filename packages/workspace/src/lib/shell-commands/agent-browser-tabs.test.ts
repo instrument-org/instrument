@@ -143,6 +143,16 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
+describe("a chat", () => {
+  it("does not browse, and is told to hand the page to a task", async () => {
+    const result = await run(["open", "https://example.com"], CHAT_ID);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("a chat does not browse");
+    expect(asks).toEqual([]);
+  });
+});
+
 describe("a task's tab", () => {
   it("connects a task with no tab yet to its browser, which opens one on demand", async () => {
     const result = await run(["open", "https://example.com"]);

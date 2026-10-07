@@ -1,10 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { WebSocket } from "ws";
-
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
-import { cdpMethodsHandled, isKnownCdpMethod } from "../../../lib/cdp-methods";
 import {
   agentPathOfFileUrl,
   isLocalAddress,
@@ -35,17 +32,6 @@ export type CdpResponse =
   | { id?: number; result: unknown };
 type CdpEventName = keyof ProtocolMapping.Events;
 type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
-
-// Commands that operate on the browser-level target tree. We intercept these
-// and return synthetic responses scoped to just the single WebContentsView
-// target so agent-browser doesn't discover or attach to unrelated Electron
-// targets (the Studio renderer, DevTools windows, etc.). The table of CDP
-// methods says which they are.
-const INTERCEPTED_TARGET_COMMANDS = new Set<string>(
-  cdpMethodsHandled("page", "override").filter((method) =>
-    method.startsWith("Target."),
-  ),
-);
 
 // How long a `Page.navigate` answer is held for the main frame's load before
 // it is released anyway. Under agent-browser's 30s per-command timeout with
@@ -331,76 +317,6 @@ export function createLocalFileGate({
       return layout !== undefined && agentPathOfFileUrl(layout, url) !== null;
     },
   };
-}
-
-/**
- * A connection pinned to one page: the page endpoint, which a chat's
- * conversation and a task no chat owns are handed. The `Target.*` domain is
- * answered here with that one page, so the agent can never discover or attach
- * to any other.
- */
-export function handleCdpClient(
-  clientWs: WebSocket,
-  targetId: BrowserTargetId,
-  workspaceConfig: WorkspaceConfig,
-  workspaceRef: WorkspaceServerParentRef,
-) {
-  const send = (payload: CdpEventFrame | CdpResponse) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify(payload));
-    }
-  };
-  const session = openTargetSession({
-    onDetach: () => {
-      clientWs.close(1001, "Target detached");
-    },
-    send,
-    sessionId: `session-${targetId}`,
-    targetId,
-    workspaceConfig,
-    workspaceRef,
-  });
-
-  clientWs.on("message", (data) => {
-    const message = parseCdpMessage(data);
-    if (!message) {
-      return;
-    }
-    // Intercept Target.* commands that would otherwise leak all Electron
-    // targets through the browser-level debugger.
-    if (
-      typeof message.method === "string" &&
-      INTERCEPTED_TARGET_COMMANDS.has(message.method)
-    ) {
-      handleInterceptedTargetCommand(
-        clientWs,
-        message.id,
-        message.method,
-        message.params,
-        targetId,
-        workspaceConfig,
-      );
-      return;
-    }
-    // A Target.* command the table does not list could reach a target other
-    // than this page, so it is refused rather than forwarded, the way the
-    // task endpoint refuses one it does not answer.
-    if (
-      typeof message.method === "string" &&
-      message.method.startsWith("Target.") &&
-      !isKnownCdpMethod(message.method)
-    ) {
-      send({
-        error: { code: -32_601, message: "Method not found" },
-        id: message.id,
-      });
-      return;
-    }
-    session.run(message);
-  });
-
-  clientWs.on("close", session.end);
-  clientWs.on("error", session.end);
 }
 
 /** The refusal of a local file the agent's own tools could not read. */
@@ -741,132 +657,6 @@ function addressOfEvent(params: unknown) {
     event?.frame?.url ??
     event?.url;
   return typeof url === "string" ? url : undefined;
-}
-
-function handleInterceptedTargetCommand(
-  clientWs: WebSocket,
-  id: number | undefined,
-  method: string,
-  params: unknown,
-  targetId: BrowserTargetId,
-  workspaceConfig: WorkspaceConfig,
-) {
-  const send = (payload: CdpResponse) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify(payload));
-    }
-  };
-
-  switch (method) {
-    case "Target.activateTarget":
-    case "Target.closeTarget": {
-      // Silently succeed; lifecycle is managed by BrowserViewManager.
-      send({ id, result: {} });
-      return;
-    }
-
-    case "Target.attachToTarget": {
-      const p = params as Protocol.Target.AttachToTargetRequest | undefined;
-      const requestedId = p?.targetId;
-      // Only allow attaching to the target this connection owns.
-      if (requestedId && requestedId !== targetId) {
-        send({
-          error: {
-            code: -32_000,
-            message: `Target ${requestedId} is not accessible from this connection`,
-          },
-          id,
-        });
-        return;
-      }
-      // The WebContentsView debugger is already attached at the browser level;
-      // Electron doesn't support Target.attachToTarget with our integer-based
-      // targetId. Return a synthetic sessionId - commands sent with this
-      // sessionId are stripped of it and forwarded directly to the debugger.
-      const result: Protocol.Target.AttachToTargetResponse = {
-        sessionId: `session-${targetId}`,
-      };
-      send({ id, result });
-      return;
-    }
-    case "Target.createBrowserContext":
-    case "Target.disposeBrowserContext": {
-      // Electron doesn't support CDP browser context management. Return a
-      // synthetic context ID so agent-browser's recording flow can proceed.
-      // Download behavior is handled via Browser.setDownloadBehavior interception
-      // in BrowserViewManager.
-      const result: Protocol.Target.CreateBrowserContextResponse = {
-        browserContextId: `context-${targetId}`,
-      };
-      send({ id, result });
-      return;
-    }
-
-    case "Target.createTarget": {
-      // agent-browser may try to open a new tab; redirect it to the existing
-      // target rather than creating one (which is not supported on a
-      // WebContentsView debugger). If a URL was requested, navigate to it.
-      const cp = params as Protocol.Target.CreateTargetRequest | undefined;
-      const url = cp?.url;
-      const result: Protocol.Target.CreateTargetResponse = { targetId };
-      if (url && url !== "about:blank") {
-        workspaceConfig.browser
-          .sendCommand(targetId, "Page.navigate", { url })
-          .then(() => {
-            send({ id, result });
-          })
-          .catch(() => {
-            send({ id, result });
-          });
-      } else {
-        send({ id, result });
-      }
-      return;
-    }
-
-    case "Target.getTargets": {
-      // Return a synthetic single-target list scoped to just this view.
-      // The underlying Target.getTargets leaks all Electron targets because
-      // the WebContentsView debugger is browser-level.
-      const result: Protocol.Target.GetTargetsResponse = {
-        targetInfos: [
-          {
-            attached: true,
-            canAccessOpener: false,
-            targetId,
-            title: "",
-            type: "page",
-            url: "",
-          },
-        ],
-      };
-      send({ id, result });
-      return;
-    }
-
-    case "Target.setAutoAttach": {
-      // Do not forward to Electron. Forwarding causes Electron to emit
-      // Target.attachedToTarget events for real iframe sub-sessions. Those
-      // real sub-session IDs leak into agent-browser's iframe_sessions map,
-      // causing subsequent CDP commands (Page.enable, Network.enable,
-      // Accessibility.getFullAXTree) to be sent with the wrong session ID
-      // and potentially hang or fail. We are running in a flat, single-target
-      // model; Electron's WebContentsView debugger already auto-attaches to
-      // frames at the browser level.
-      send({ id, result: {} });
-      return;
-    }
-
-    case "Target.setDiscoverTargets": {
-      // Acknowledge but do nothing; we don't emit Target.targetCreated events.
-      send({ id, result: {} });
-      return;
-    }
-
-    default: {
-      send({ error: { code: -32_601, message: "Method not found" }, id });
-    }
-  }
 }
 
 /** The host folders behind every mount of a layout. */

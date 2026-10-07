@@ -130,6 +130,9 @@ const ARM_ENV: Record<string, Record<string, string>> = {
 
 const DEFAULT_ARMS = ["a", "c", "d", "e", "f"];
 
+/** A tool-using turn that shows the user more messages than this is chatty. */
+const CHATTY_MESSAGES = 2;
+
 /** A first reply later than this held the user waiting on a foreground turn. */
 const BLOCKING_MS = 20_000;
 
@@ -947,6 +950,23 @@ function summarize(outDir: string) {
     ...barRows,
   ].join("\n");
 
+  const byKind = _.group(
+    records.filter(isScorable),
+    (record) =>
+      `${CASES[record.slug] ?? ""}|${record.arm}|${modelName(record.model)}`,
+  );
+  const kindRows = Object.entries(byKind)
+    .map(([key, list = []]) => {
+      const [kind = "", arm = "", model = ""] = key.split("|");
+      return `| ${kind} | ${model} | ${arm} | ${list.filter(passed).length}/${list.length} | ${seconds(pickFrom(list)((record) => record.metrics?.doneMs))} |`;
+    })
+    .toSorted();
+  const kinds = [
+    "| kind | model | arm | pass | median done s |",
+    "| --- | --- | --- | --- | --- |",
+    ...kindRows,
+  ].join("\n");
+
   const failures = records
     .filter(isScorable)
     .filter((record) =>
@@ -962,7 +982,7 @@ function summarize(outDir: string) {
         ),
     );
   const firstLines = firstLineReport(records.filter(isScorable));
-  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
+  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Per kind\n\n${kinds}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
   fs.writeFileSync(path.join(outDir, "report.md"), report);
   fs.writeFileSync(
     path.join(outDir, "matrix.json"),
@@ -995,13 +1015,48 @@ function firstLineReport(records: RunRecord[]): string {
       const first = record.metrics?.turnShapes?.[0]?.textBeforeTool;
       return first === undefined ? [] : [first];
     });
+    const laterOpened = list.flatMap(
+      (record) =>
+        record.metrics?.turnShapes
+          ?.slice(1)
+          .flatMap((shape) =>
+            shape.textBeforeTool === undefined ? [] : [shape.textBeforeTool],
+          ) ?? [],
+    );
     const noToolTurns = list.flatMap(
       (record) =>
         record.metrics?.turnShapes?.filter((shape) => shape.toolCalls === 0) ??
         [],
     );
-    return `| ${arm} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pick((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${opened.filter(Boolean).length}/${opened.length} | ${seconds(pick((record) => record.metrics?.doneMs))} | ${Math.round(pick((record) => record.treeTokens) ?? 0)} | ${noToolTurns.filter((shape) => shape.textParts > 1).length}/${noToolTurns.length} |`;
+    const toolTurns = list.flatMap(
+      (record) =>
+        record.metrics?.turnShapes?.filter((shape) => shape.toolCalls > 0) ??
+        [],
+    );
+    const chatty = toolTurns.filter(
+      (shape) => shape.textParts > CHATTY_MESSAGES,
+    ).length;
+    return `| ${arm} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pick((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${opened.filter(Boolean).length}/${opened.length} | ${laterOpened.filter(Boolean).length}/${laterOpened.length} | ${chatty}/${toolTurns.length} (${toolTurns.length === 0 ? 0 : Math.round((chatty / toolTurns.length) * 100)}%) | ${median(toolTurns.map((shape) => shape.textParts)) ?? "-"} | ${median(list.map((record) => _.max((record.metrics?.turnShapes ?? []).map((shape) => shape.textParts)) ?? 0)) ?? "-"} | ${seconds(pick((record) => record.metrics?.doneMs))} | ${Math.round(pick((record) => record.treeTokens) ?? 0)} | ${noToolTurns.filter((shape) => shape.textParts > 1).length}/${noToolTurns.length} |`;
   });
+  const chattyTurns = groups.flatMap(([key, list = []]) =>
+    list
+      .toSorted(
+        (a, b) =>
+          SLUGS.indexOf(a.slug) - SLUGS.indexOf(b.slug) || a.trial - b.trial,
+      )
+      .flatMap((record) =>
+        (record.metrics?.turnShapes ?? []).flatMap((shape, at) =>
+          shape.toolCalls > 0 && shape.textParts > CHATTY_MESSAGES
+            ? [
+                `- ${key.replace("|", " on ")}, ${record.slug} #${record.trial} turn ${at + 1} (${shape.textParts} messages, ${shape.toolCalls} tool calls)`,
+                ...(shape.texts ?? [shape.firstText ?? ""]).map(
+                  (text) => `  - ${JSON.stringify(text)}`,
+                ),
+              ]
+            : [],
+        ),
+      ),
+  );
   const lines = groups.map(([key, list = []]) => {
     const runs = list
       .toSorted(
@@ -1031,9 +1086,15 @@ function firstLineReport(records: RunRecord[]): string {
     return `### ${key.replace("|", " on ")}\n\n${runs.join("\n")}`;
   });
   return [
-    "| arm | model | pass | median first text s | worst first text s | first turns with text before the first tool | median done s | median tokens | no-tool turns with more than one text part |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    `| arm | model | pass | median first text s | worst first text s | tool-using first turns with text before the first tool | same, later turns | tool-using turns with more than ${CHATTY_MESSAGES} visible messages | median visible messages per tool-using turn | median per-run max visible messages in a turn | median done s | median tokens | no-tool turns with more than one text part |`,
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
+    "",
+    "Visible messages are the non-empty text parts of the chat's own replies to one typed message, each one a message the user sees.",
+    "",
+    `### Tool-using turns with more than ${CHATTY_MESSAGES} visible messages`,
+    "",
+    chattyTurns.join("\n") || "none",
     "",
     ...lines,
   ].join("\n");

@@ -198,7 +198,8 @@ export interface RunMetrics {
  * non-empty text, verbatim; whether it came before the first tool call
  * (absent when nothing called a tool); how many text parts and tool calls
  * the replies held, so a turn that needed no tools and said two things shows
- * as such; and each step's tokens, cached input included.
+ * as such; every non-empty text part, verbatim, each one a message the user
+ * sees; and each step's tokens, cached input included.
  */
 export interface TurnShape {
   firstText?: string;
@@ -211,6 +212,7 @@ export interface TurnShape {
   }[];
   textBeforeTool?: boolean;
   textParts: number;
+  texts?: string[];
   toolCalls: number;
 }
 
@@ -1440,6 +1442,9 @@ function turnShapesOf(
         ? {}
         : { textBeforeTool: firstText !== -1 && firstText < firstTool }),
       textParts: texts.length,
+      texts: texts.flatMap((part) =>
+        part.type === "text" ? [part.text.trim()] : [],
+      ),
       toolCalls: parts.filter((part) => isToolPart(part)).length,
     });
   });

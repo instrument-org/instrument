@@ -46,7 +46,7 @@ const PROVIDER_METADATA = {
     },
     // Added by signing in with ChatGPT, never with a key.
     canAddManually: false,
-    description: "GPT models on your ChatGPT Plus or Pro plan",
+    description: "GPT models on your ChatGPT Plus or Pro subscription",
     name: "ChatGPT",
     quirks: { supportsMultipartToolResults: true },
     // The plan's route takes OpenAI's hosted `web_search` tool; it refuses
@@ -54,6 +54,18 @@ const PROVIDER_METADATA = {
     tags: ["webSearch"],
     type: "chatgpt",
     url: addRef("https://chatgpt.com"),
+  },
+  "claude-plan": {
+    api: {
+      defaultBaseURL: "",
+    },
+    // Added by signing in to the Claude Code CLI, never with a key.
+    canAddManually: false,
+    description: "Claude models on your Claude Pro or Max subscription",
+    name: "Claude",
+    quirks: { supportsMultipartToolResults: true },
+    type: "claude-plan",
+    url: addRef("https://claude.ai"),
   },
   deepinfra: {
     api: {

@@ -27,6 +27,15 @@ export async function aiSDKForProviderConfig(
   const apiKey = internalAPIKey();
   const packageName = getPackageForProviderType(config.type);
 
+  if (config.type === "claude-plan") {
+    const { createClaudePlanLanguageModel } =
+      await import("./providers/claude-plan/language-model");
+    return createClaudePlanLanguageModel({
+      configDir: config.configDir,
+      executablePath: config.executablePath ?? "claude",
+    });
+  }
+
   if (isOpenCodeProviderConfig(config)) {
     return createOpenCodeLanguageModel(config, workspaceServerURL);
   }

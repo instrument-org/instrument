@@ -23,6 +23,7 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["api_error", "transient"], // Anthropic `error.type`
   ["authentication_error", "auth"], // Anthropic `error.type`
   ["chatpass_v2_invalid_authorization_context", "auth"], // ChatGPT plan
+  ["claude_plan_usage_limit_exceeded", "usage-limit"], // Claude plan, our own
   ["chatpass_v2_scope_not_authorized", "auth"], // ChatGPT plan
   ["context_length_exceeded", "context-overflow"], // OpenAI
   ["empty_image_file", "unsendable-content"], // OpenAI
@@ -274,7 +275,10 @@ function weighEvidence({
   // `rate-limit`, which promises that waiting is the fix.
   // A spent plan allowance is answered with a 429 when it is refused up
   // front, and throttling is the wrong reading of it: waiting may not end it.
-  if (codes.includes("subscription_sharing_usage_limit_exceeded")) {
+  if (
+    codes.includes("subscription_sharing_usage_limit_exceeded") ||
+    codes.includes("claude_plan_usage_limit_exceeded")
+  ) {
     return { evidence: "structured", kind: "usage-limit" };
   }
   if (statusCode === 401 || statusCode === 402 || statusCode === 403) {

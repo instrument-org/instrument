@@ -41,14 +41,16 @@ export function selectProviderConfigs<
 
   // 3. Add fallback(s) from ordered provider list to reach maxConfigs. Never a
   // second ChatGPT account: falling over from one plan to another is the
-  // account rotation OpenAI's Sign in with ChatGPT Terms forbid.
+  // account rotation OpenAI's Sign in with ChatGPT Terms forbid. Never the
+  // Claude plan either: it answers only for models picked on it.
   for (const providerType of providerTypePriority) {
     if (result.length >= maxConfigs) {
       break;
     }
     if (
-      providerType === "chatgpt" &&
-      result.some((c) => c.type === "chatgpt")
+      (providerType === "chatgpt" &&
+        result.some((c) => c.type === "chatgpt")) ||
+      providerType === "claude-plan"
     ) {
       continue;
     }

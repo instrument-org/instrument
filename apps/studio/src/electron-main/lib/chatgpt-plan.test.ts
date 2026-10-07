@@ -291,11 +291,11 @@ describe("several ChatGPT accounts", () => {
     `);
   });
 
-  it("names a lone account the plan, so its email stays out of the model picker", () => {
+  it("names a lone account for ChatGPT, so its email stays out of the model picker", () => {
     stored = { registrations: { [personal.id]: personal } };
 
     expect(plan.chatGPTPlanProviderConfigs()[0]?.displayName).toBe(
-      "ChatGPT plan",
+      "ChatGPT account",
     );
   });
 

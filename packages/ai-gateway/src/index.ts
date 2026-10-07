@@ -8,6 +8,10 @@ export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
 export { chatGPTPlanDefaultModel } from "./lib/fetch-models/chatgpt";
+export {
+  type ClaudePlanUsage,
+  fetchClaudePlanUsage,
+} from "./lib/providers/claude-plan/fetch-usage";
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";

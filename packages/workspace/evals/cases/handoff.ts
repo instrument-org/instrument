@@ -22,6 +22,12 @@
  * - **f, one agent that forks on interrupt:** c, where a message the user
  *   sends mid-turn forks the turn's work to the background instead of
  *   ending it (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
+ * - **g, fork only:** one agent whose only tasks are forks in the chat's
+ *   folder, with a prompt of its own and fork on interrupt
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
+ * - **h, fork only, called background:** g, where the agent's word for
+ *   that work is "background" and its command is `background`
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
  * - **b, direct** and **v, direct in the chat's voice:** round one's arms,
  *   which showed a task without the chat's context fails. Kept runnable, off
  *   by default in `evals/handoff-matrix.ts`.
@@ -1908,6 +1914,588 @@ const namedTheLatestBun: Assertion = {
   text: "named Bun's latest release, as fetched at test time",
 };
 
+// ---------------------------------------------------------------------------
+// Round five: a long working chat, foreground work interrupted, and two
+// jobs at once in one folder
+// ---------------------------------------------------------------------------
+
+/** The replies from the user's message containing `words` to their next one. */
+function repliesTo(
+  sessions: Session.WithMessagesAndParts[],
+  words: string,
+): string {
+  const asked = sentAt(sessions, words);
+  if (asked === undefined) {
+    return "";
+  }
+  const next = sessions
+    .flatMap((session) => session.messages)
+    .filter(
+      (message) =>
+        message.role === "user" &&
+        message.metadata.createdAt.getTime() > asked &&
+        !message.parts.some((part) => part.type === "data-taskEvent"),
+    )
+    .map((message) => message.metadata.createdAt.getTime())
+    .toSorted((a, b) => a - b)[0];
+  return said(sessions)
+    .filter((one) => one.at > asked && (next === undefined || one.at < next))
+    .map((one) => one.text)
+    .join("\n");
+}
+
+const REGIONS = ["North", "South", "East", "West"] as const;
+
+/** Who inspects each region, in turn: Mateo covers three regions, no one else more than two. */
+const REGION_INSPECTORS: Record<(typeof REGIONS)[number], string[]> = {
+  East: ["Hana Ito", "Hana Ito", "Mateo Silva"],
+  North: ["Ruth Okafor", "Ruth Okafor", "Mateo Silva"],
+  South: ["Dev Kapoor", "Ruth Okafor", "Dev Kapoor"],
+  West: ["Dev Kapoor", "Mateo Silva", "Dev Kapoor"],
+};
+
+const INSPECTOR_PHONES: Record<string, string> = {
+  "Dev Kapoor": "615-555-0193",
+  "Hana Ito": "615-555-0127",
+  "Mateo Silva": "615-555-0164",
+  "Ruth Okafor": "615-555-0118",
+};
+
+const SITE_NAMES = [
+  "Alder Creek",
+  "Birch Hollow",
+  "Cedar Bend",
+  "Dogwood Run",
+  "Elm Ford",
+  "Fern Gully",
+  "Granite Falls",
+  "Heron Marsh",
+  "Iris Pond",
+  "Juniper Flats",
+  "Kestrel Ridge",
+  "Larch Spring",
+  "Maple Weir",
+  "Nettle Brook",
+  "Oak Shoals",
+  "Pine Narrows",
+  "Quarry Lake",
+  "Reed Basin",
+  "Sumac Draw",
+  "Tamarack Bog",
+  "Upland Seep",
+  "Vervain Creek",
+  "Willow Bar",
+  "Yarrow Glen",
+  "Zinnia Pool",
+  "Ash Cove",
+  "Beech Rapids",
+  "Clover Inlet",
+  "Dune Slough",
+  "Ember Run",
+  "Foxglove Bend",
+  "Gorse Hollow",
+  "Hazel Ford",
+  "Ivy Channel",
+  "Jasper Pool",
+  "Kelp Point",
+];
+
+/**
+ * Thirty-six sites whose readings are known exactly: turbidity is a
+ * permutation, so one site is the murkiest (Granite Falls, 54.5 NTU), and
+ * flags fall on a fixed stride.
+ */
+const SITES = SITE_NAMES.map((name, index) => {
+  const region = REGIONS[index % 4] ?? "North";
+  const turn = Math.floor(index / 4);
+  return {
+    date: new Date(Date.UTC(2026, 2, 2) + index * 4 * DAY_MS)
+      .toISOString()
+      .slice(0, 10),
+    flags: [
+      ...(index % 5 === 2 ? ["erosion"] : []),
+      ...(index % 7 === 3 ? ["invasive species"] : []),
+    ],
+    id: `S-${String(index + 1).padStart(2, "0")}`,
+    inspector: REGION_INSPECTORS[region][turn % 3] ?? "",
+    name,
+    nitrates: [0, 1, 2].map((k) => ((index * 7 + k * 3) % 20) / 4 + 0.5),
+    ph: Math.round((6.2 + ((index * 37) % 25) / 10) * 10) / 10,
+    region,
+    turbidity: ((index * 29 + 5) % 36) * 1.5 + 2,
+  };
+});
+
+const MURKIEST = SITES.toSorted((a, b) => b.turbidity - a.turbidity)[0];
+
+const BUDGET = [
+  ["North", "Sampling kits", "1840.00"],
+  ["North", "Mileage", "612.40"],
+  ["South", "Sampling kits", "1510.00"],
+  ["South", "Mileage", "988.15"],
+  ["East", "Sampling kits", "1295.00"],
+  ["East", "Boat rental", "720.00"],
+  ["West", "Sampling kits", "1720.00"],
+  ["West", "Boat rental", "1150.00"],
+  ["West", "Mileage", "431.90"],
+] as const;
+
+function regionBudget(region: string): number {
+  return BUDGET.filter(([one]) => one === region).reduce(
+    (sum, [, , amount]) => sum + Math.round(Number(amount) * 100),
+    0,
+  );
+}
+
+const TOP_BUDGET_REGION = REGIONS.toSorted(
+  (a, b) => regionBudget(b) - regionBudget(a),
+)[0];
+
+const FIELD_NOTES_FILLER = [
+  "Weather at arrival was overcast with light wind from the southwest.",
+  "Access was by the gravel service road; the gate code still works.",
+  "Banks were walked for fifty meters upstream and downstream of the marker.",
+  "Samples were taken mid-channel at a depth of roughly thirty centimeters.",
+  "Equipment was rinsed with site water before each sample was drawn.",
+  "No wildlife disturbance was observed during the visit.",
+  "Photos were taken from the standard upstream and downstream points.",
+  "The staff gauge was legible and read within the usual seasonal range.",
+];
+
+function seedFieldResearch() {
+  const dir = path.join(HOME, "Documents", "Field Research");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(path.join(dir, "reports"), { recursive: true });
+  for (const site of SITES) {
+    fs.writeFileSync(
+      path.join(
+        dir,
+        "reports",
+        `${site.id.toLowerCase()}-${site.name.toLowerCase().replaceAll(" ", "-")}.md`,
+      ),
+      [
+        `# Site report: ${site.name}`,
+        "",
+        `Site ID: ${site.id}`,
+        `Region: ${site.region}`,
+        `Inspector: ${site.inspector}`,
+        `Visit date: ${site.date}`,
+        `pH: ${site.ph.toFixed(1)}`,
+        `Turbidity (NTU): ${site.turbidity.toFixed(1)}`,
+        `Flags: ${site.flags.length > 0 ? site.flags.join(", ") : "none"}`,
+        "",
+        "## Notes",
+        "",
+        ...FIELD_NOTES_FILLER.map((line) => `- ${line}`),
+        "",
+      ].join("\n"),
+    );
+  }
+  fs.writeFileSync(
+    path.join(dir, "samples.csv"),
+    `site_id,sample,nitrate_mg_l\n${SITES.flatMap((site) =>
+      site.nitrates.map(
+        (value, k) => `${site.id},${k + 1},${value.toFixed(2)}`,
+      ),
+    ).join("\n")}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, "budget.csv"),
+    `region,item,amount\n${BUDGET.map((row) => row.join(",")).join("\n")}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, "inspectors.md"),
+    `# Inspectors\n\n${Object.entries(INSPECTOR_PHONES)
+      .map(([name, phone]) => `- ${name}: ${phone}`)
+      .join("\n")}\n`,
+  );
+}
+
+const FIELD_SUMMARY = /^field[\s_-]?summary$/i;
+
+/**
+ * The answers late in the long chat, each resting on an earlier one: the
+ * murkiest site's inspector's phone, the erosion sites in the region that
+ * spent most, the sites table's size, the inspector covering most regions,
+ * and the murkiest site again, with its pH.
+ */
+const answeredLateTurns: Assertion = {
+  check: ({ sessions }) => {
+    const text = "answered the late turns from what earlier ones established";
+    const inspector = MURKIEST?.inspector ?? "";
+    const erosionInTop = SITES.filter(
+      (site) =>
+        site.region === TOP_BUDGET_REGION && site.flags.includes("erosion"),
+    ).length;
+    const words = ["zero", "one", "two", "three", "four", "five"];
+    const checks: [string, string, (reply: string) => boolean][] = [
+      [
+        "phone",
+        "phone number for that inspector",
+        (reply) =>
+          reply.includes(INSPECTOR_PHONES[inspector] ?? "?") ||
+          reply.includes(
+            (INSPECTOR_PHONES[inspector] ?? "?").replaceAll("-", ""),
+          ),
+      ],
+      [
+        "erosion in the top-budget region",
+        "erosion sites are in the region that spent the most",
+        (reply) =>
+          new RegExp(
+            String.raw`\b(?:${erosionInTop}|${words[erosionInTop] ?? "?"})\b`,
+            "i",
+          ).test(reply) && reply.includes(TOP_BUDGET_REGION ?? "?"),
+      ],
+      [
+        "rows in sites.csv",
+        "How many rows does it have",
+        (reply) => /\b36\b|thirty-six/i.test(reply),
+      ],
+      [
+        "inspector covering most regions",
+        "which inspector covers the most regions",
+        (reply) => /mateo/i.test(reply),
+      ],
+      [
+        "murkiest site and its pH",
+        "Remind me which site had the highest turbidity",
+        (reply) =>
+          reply.includes(MURKIEST?.name ?? "?") &&
+          reply.includes((MURKIEST?.ph ?? 0).toFixed(1)),
+      ],
+    ];
+    const missed = checks.flatMap(([label, words_, ok]) => {
+      const reply = repliesTo(sessions, words_);
+      return ok(reply)
+        ? []
+        : [`${label}: ${JSON.stringify(reply.slice(0, 160))}`];
+    });
+    return missed.length === 0
+      ? pass(text, `${checks.length} of ${checks.length}`)
+      : fail(text, missed.join("; "));
+  },
+  text: "answered the late turns from what earlier ones established",
+};
+
+/** sites.csv, made in the background early on, holds every site's turbidity. */
+const wroteTheSitesTable: Assertion = {
+  check: async (ctx) => {
+    const text = "wrote sites.csv in a Field Summary folder with all 36 sites";
+    const file = (await folderNamed(ctx, FIELD_SUMMARY))
+      .flatMap(({ files }) => files)
+      .find((one) => /sites\.csv$/i.test(one));
+    if (!file) {
+      return fail(text, "no sites.csv in a Field Summary folder");
+    }
+    const body = readText(file);
+    const wrong = SITES.filter((site) => {
+      const line = body.split("\n").find((row) => row.includes(site.name));
+      return !line || !line.includes(String(site.turbidity));
+    }).map((site) => site.name);
+    return wrong.length === 0
+      ? pass(text, `${path.relative(HOME, file)}: all ${SITES.length}`)
+      : fail(text, `missing or wrong: ${wrong.slice(0, 6).join(", ")}`);
+  },
+  text: "wrote sites.csv in a Field Summary folder with all 36 sites",
+};
+
+/** The last turn changed the briefing made in the background mid-chat. */
+const addedNorthBudget: Assertion = {
+  check: async (ctx) => {
+    const text = "the North briefing ends with the North region's total budget";
+    const file = (await folderNamed(ctx, FIELD_SUMMARY))
+      .flatMap(({ files }) => files)
+      .find((one) => /briefing.*\.md$/i.test(path.basename(one)));
+    if (!file) {
+      return fail(text, "no briefing in a Field Summary folder");
+    }
+    const tail = readText(file).trimEnd().split("\n").slice(-4).join("\n");
+    const total = money(regionBudget("North"));
+    return total.some((figure) => tail.includes(figure))
+      ? pass(text, JSON.stringify(tail.slice(-120)))
+      : fail(
+          text,
+          `wanted ${total[1]} at the end: ${JSON.stringify(tail.slice(-200))}`,
+        );
+  },
+  text: "the North briefing ends with the North region's total budget",
+};
+
+/** Bound from today's chat, whose replies run about 150 to 200 characters. */
+const TERSE_MEDIAN_CHARS = 350;
+
+/** Most replies are a line or two, and none is a wall of text. */
+const stayedTerse: Assertion = {
+  check: ({ sessions }) => {
+    const text = `median reply under ${TERSE_MEDIAN_CHARS} characters, none over 1500`;
+    const replies = said(sessions).map((one) => one.text.trim().length);
+    const sorted = replies.toSorted((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+    const longest = sorted.at(-1) ?? 0;
+    const evidence = `${replies.length} replies, median ${median}, longest ${longest}`;
+    return median < TERSE_MEDIAN_CHARS && longest <= 1500
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: `median reply under ${TERSE_MEDIAN_CHARS} characters, none over 1500`,
+};
+
+/** What the run wrote went in the workspace folder or its own, nowhere else. */
+const noStrayFiles: Assertion = {
+  check: async (ctx) => {
+    const text = "wrote nothing outside the workspace folder and its own";
+    const own = await treeDirs(ctx);
+    const stray = recentFilesUnder(HOME, runStartedAt(ctx.sessions))
+      .filter(
+        (file) =>
+          !pathIsInside(file, WORKSPACE) &&
+          !own.some((dir) => pathIsInside(file, dir)),
+      )
+      .map((file) => path.relative(HOME, file));
+    return stray.length === 0
+      ? pass(text, "none")
+      : fail(text, stray.slice(0, 8).join(", "));
+  },
+  text: "wrote nothing outside the workspace folder and its own",
+};
+
+function pathIsInside(file: string, dir: string): boolean {
+  const relative = path.relative(dir, file);
+  return (
+    relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
+  );
+}
+
+/** Forty scans named by number, each a document whose date, kind and sender are in it. */
+const SCAN_KINDS = ["invoice", "receipt", "letter", "statement"] as const;
+const SCAN_SENDERS = [
+  "Corbel Print Shop",
+  "Dalton Hardware",
+  "Northline Air",
+  "Copperleaf Cafe",
+  "Harbor Couriers",
+  "Westgate Storage",
+  "Pixelworks",
+  "Maple & Finch Legal",
+];
+
+const SCANS = Array.from({ length: 40 }, (_, index) => {
+  const kind = SCAN_KINDS[index % SCAN_KINDS.length] ?? "letter";
+  const sender = SCAN_SENDERS[(index * 3) % SCAN_SENDERS.length] ?? "";
+  const date = new Date(Date.UTC(2026, 0, 5) + index * 3 * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+  return {
+    body: `${kind.toUpperCase()}\nFrom: ${sender}\nDate: ${date}\nReference: ${1000 + index * 17}\n\n${kind === "letter" ? "Thank you for your recent visit." : `Amount: $${(40 + index * 13.25).toFixed(2)}`}\n`,
+    date,
+    kind,
+    name: `scan_${String(index + 1).padStart(4, "0")}.txt`,
+  };
+});
+
+function seedScans() {
+  const dir = path.join(HOME, "Documents", "Scans");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  for (const scan of SCANS) {
+    fs.writeFileSync(path.join(dir, scan.name), scan.body);
+  }
+}
+
+/** Every scan renamed date first with its kind, contents intact, none lost. */
+const renamedTheScans: Assertion = {
+  check: () => {
+    const text =
+      "renamed all 40 scans date first with their kind, contents intact";
+    const dir = path.join(HOME, "Documents", "Scans");
+    const present = fs.existsSync(dir)
+      ? fs.readdirSync(dir).filter((name) => !name.startsWith("."))
+      : [];
+    const problems = SCANS.flatMap((scan) => {
+      const holder = present.find(
+        (name) => readText(path.join(dir, name)) === scan.body,
+      );
+      if (!holder) {
+        return [`${scan.name} lost`];
+      }
+      return holder.startsWith(scan.date) &&
+        holder.toLowerCase().includes(scan.kind)
+        ? []
+        : [`${scan.name} is ${holder}`];
+    });
+    return problems.length === 0
+      ? pass(text, `e.g. ${present.toSorted()[0] ?? ""}`)
+      : fail(
+          text,
+          `${problems.length} wrong: ${problems.slice(0, 4).join(", ")}`,
+        );
+  },
+  text: "renamed all 40 scans date first with their kind, contents intact",
+};
+
+/** Two folders whose CSVs are summed to known figures, by file and by warehouse. */
+const SALES_DATA = Array.from({ length: 12 }, (_, index) => {
+  const month = `2025-${String(index + 1).padStart(2, "0")}`;
+  const rows = Array.from({ length: 8 }, (__, row) => ({
+    amount: (1200 + index * 311 + row * 97 + ((index * row) % 7) * 13) / 100,
+    item: ["Mugs", "Lamps", "Socks", "Kettles"][row % 4] ?? "",
+  }));
+  return {
+    cents: rows.reduce((sum, row) => sum + Math.round(row.amount * 100), 0),
+    file: `sales-${month}.csv`,
+    rows,
+  };
+});
+
+const WAREHOUSES = ["Reno", "Dayton", "Macon"];
+
+const STOCK_COUNTS = Array.from({ length: 12 }, (_, index) => ({
+  file: `count-2025-${String(index + 1).padStart(2, "0")}.csv`,
+  rows: Array.from({ length: 9 }, (__, row) => ({
+    sku: `SKU-${100 + row}`,
+    units: 20 + ((index * 13 + row * 7) % 41),
+    warehouse: WAREHOUSES[row % 3] ?? "",
+  })),
+}));
+
+function seedParallel() {
+  const sales = path.join(HOME, "Documents", "Sales Data");
+  const stock = path.join(HOME, "Documents", "Stock Counts");
+  for (const dir of [sales, stock]) {
+    fs.rmSync(dir, { force: true, recursive: true });
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  for (const { file, rows } of SALES_DATA) {
+    fs.writeFileSync(
+      path.join(sales, file),
+      `date,item,amount\n${rows.map((row, at) => `2025-01-${String(at + 1).padStart(2, "0")},${row.item},${row.amount.toFixed(2)}`).join("\n")}\n`,
+    );
+  }
+  for (const { file, rows } of STOCK_COUNTS) {
+    fs.writeFileSync(
+      path.join(stock, file),
+      `warehouse,sku,units\n${rows.map((row) => `${row.warehouse},${row.sku},${row.units}`).join("\n")}\n`,
+    );
+  }
+}
+
+function readJson(file: string): unknown {
+  try {
+    return JSON.parse(readText(file));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The figure a JSON file gives for `key`, however it is shaped: a value under
+ * a key that names it (`{"sales-2025-01": 123.4}`, or nested one level), or
+ * the number in a row that names it (`[{"file": "sales-2025-01.csv",
+ * "total": 123.4}]`).
+ */
+function numberFor(json: unknown, key: string): number | undefined {
+  const asNumber = (value: unknown) =>
+    typeof value === "number"
+      ? value
+      : typeof value === "string" &&
+          value.trim() !== "" &&
+          !Number.isNaN(Number(value))
+        ? Number(value)
+        : undefined;
+  const firstNumber = (value: unknown): number | undefined =>
+    asNumber(value) ??
+    (typeof value === "object" && value !== null
+      ? Object.values(value)
+          .map(asNumber)
+          .find((one) => one !== undefined)
+      : undefined);
+  if (Array.isArray(json)) {
+    for (const item of json as unknown[]) {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        Object.values(item).some(
+          (value) => typeof value === "string" && value.includes(key),
+        )
+      ) {
+        return firstNumber(
+          Object.fromEntries(
+            Object.entries(item).filter(
+              ([, value]) => typeof value !== "string" || !value.includes(key),
+            ),
+          ),
+        );
+      }
+    }
+    return undefined;
+  }
+  if (typeof json !== "object" || json === null) {
+    return undefined;
+  }
+  for (const [name, value] of Object.entries(json)) {
+    if (name.includes(key)) {
+      return firstNumber(value);
+    }
+  }
+  for (const value of Object.values(json)) {
+    const nested = numberFor(value, key);
+    if (nested !== undefined) {
+      return nested;
+    }
+  }
+  return undefined;
+}
+
+const totaledTheSalesFiles: Assertion = {
+  check: () => {
+    const text = "wrote totals.json in Sales Data with every file's total";
+    const json = readJson(
+      path.join(HOME, "Documents", "Sales Data", "totals.json"),
+    );
+    if (json === undefined) {
+      return fail(text, "no readable totals.json in Sales Data");
+    }
+    const wrong = SALES_DATA.filter(({ cents, file }) => {
+      const figure = numberFor(json, file.replace(/\.csv$/, ""));
+      return figure === undefined || Math.round(figure * 100) !== cents;
+    }).map(({ file }) => file);
+    return wrong.length === 0
+      ? pass(text, `all ${SALES_DATA.length}`)
+      : fail(
+          text,
+          `wrong or missing: ${wrong.slice(0, 4).join(", ")}; ${JSON.stringify(json).slice(0, 160)}`,
+        );
+  },
+  text: "wrote totals.json in Sales Data with every file's total",
+};
+
+const totaledTheWarehouses: Assertion = {
+  check: () => {
+    const text =
+      "wrote totals.json in Stock Counts with every warehouse's units";
+    const json = readJson(
+      path.join(HOME, "Documents", "Stock Counts", "totals.json"),
+    );
+    if (json === undefined) {
+      return fail(text, "no readable totals.json in Stock Counts");
+    }
+    const wrong = WAREHOUSES.filter((warehouse) => {
+      const want = STOCK_COUNTS.flatMap(({ rows }) => rows)
+        .filter((row) => row.warehouse === warehouse)
+        .reduce((sum, row) => sum + row.units, 0);
+      return numberFor(json, warehouse) !== want;
+    });
+    return wrong.length === 0
+      ? pass(text, "all three")
+      : fail(
+          text,
+          `wrong or missing: ${wrong.join(", ")}; ${JSON.stringify(json).slice(0, 160)}`,
+        );
+  },
+  text: "wrote totals.json in Stock Counts with every warehouse's units",
+};
+
 const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 
 // ---------------------------------------------------------------------------
@@ -1964,6 +2552,8 @@ const ARM_SWITCHES: Record<string, { context?: string; oneAgent?: string }> = {
   d: { oneAgent: "foreground" },
   e: { context: "1" },
   f: { oneAgent: "fork-on-interrupt" },
+  g: { oneAgent: "fork-only" },
+  h: { oneAgent: "background" },
   v: {},
 };
 
@@ -1981,8 +2571,9 @@ function requireArm(arm: string) {
 /**
  * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
  * the prototype in the foreground only; e, today's chat with a fuller
- * hand-off; f, c forking a turn the user interrupts; b, a task given the
- * words directly; v, b in the chat's voice.
+ * hand-off; f, c forking a turn the user interrupts; g, the fork-only
+ * design; h, g calling its forks background; b, a task given the words
+ * directly; v, b in the chat's voice.
  */
 function arms(scenario: Scenario): EvalCase[] {
   const sent = [
@@ -2041,6 +2632,8 @@ function arms(scenario: Scenario): EvalCase[] {
     make("d", chat),
     make("e", chat),
     make("f", chat),
+    make("g", chat),
+    make("h", chat),
     make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
   ];
 }
@@ -2310,6 +2903,101 @@ const SCENARIOS: Scenario[] = [
       "What's the latest released version of Bun, the JavaScript runtime?",
     setup: fetchLatestBun,
     slug: "research",
+  },
+  {
+    // Sixteen turns of work on one folder of many files: quick answers, two
+    // jobs slow enough for the background, and late turns that only make
+    // sense against earlier answers and the background jobs' files. Measures
+    // what a long working conversation costs each turn.
+    assertions: [
+      answeredLateTurns,
+      wroteTheSitesTable,
+      addedNorthBudget,
+      stayedTerse,
+      noStrayFiles,
+    ],
+    followUps: [
+      { prompt: "Which site had the highest turbidity?", settled: true },
+      { prompt: "Who inspected that site?", settled: true },
+      {
+        prompt: "How many sites did that inspector visit in total?",
+        settled: true,
+      },
+      {
+        prompt:
+          "In the background, go through every report and make a table of all the sites with region, inspector, visit date, pH, turbidity and flags. Save it as sites.csv in a Field Summary folder in my workspace folder.",
+        settled: true,
+      },
+      "While that runs: what's the average nitrate across all the samples in samples.csv?",
+      "Which region spent the most, going by budget.csv?",
+      "Which sites were flagged for erosion?",
+      "Also in the background: write a one-page briefing.md for the North region in that same Field Summary folder, covering its sites, any flags, and its nitrate readings.",
+      {
+        prompt: "What's the phone number for that inspector you named earlier?",
+        settled: true,
+      },
+      { prompt: "Did any site have a pH below 6.5? Which?", settled: true },
+      {
+        prompt:
+          "How many of the erosion sites are in the region that spent the most?",
+        settled: true,
+      },
+      {
+        prompt: "Is sites.csv done? How many rows does it have?",
+        settled: true,
+      },
+      {
+        prompt: "From that table, which inspector covers the most regions?",
+        settled: true,
+      },
+      {
+        prompt:
+          "Remind me which site had the highest turbidity, and what its pH was?",
+        settled: true,
+      },
+      {
+        prompt:
+          "Last thing: add a line at the bottom of briefing.md with the North region's total budget from budget.csv.",
+        settled: true,
+      },
+    ],
+    prompt:
+      "Here's my field research folder. Quick orientation first: how many site reports are in it, and which regions do they cover?",
+    sentReadOnly: [path.join(HOME, "Documents", "Field Research")],
+    setup: seedFieldResearch,
+    slug: "long-work",
+  },
+  {
+    // A job the agent does itself, a few tool calls long, and a quick
+    // question sent while one of those calls is running. One agent that
+    // forks on interrupt carries the job on in the background and answers;
+    // one that does not has to finish or drop it.
+    assertions: [answeredTheQuickQuestion, renamedTheScans],
+    followUps: [
+      {
+        duringWork: { afterToolCalls: 1 },
+        prompt: "unrelated, quick: what's 18% of 240?",
+      },
+    ],
+    marks: [{ after: "18% of 240", match: QUICK_ANSWER, name: "quick answer" }],
+    prompt:
+      "The scans in this folder have useless names. Rename each one from what's inside it to date-kind-sender.txt, like 2026-01-05-invoice-corbel-print-shop.txt, and keep them in this folder.",
+    sent: [path.join(HOME, "Documents", "Scans")],
+    setup: seedScans,
+    slug: "interrupt-foreground",
+  },
+  {
+    // Two background jobs at once whose scratch would naturally share a
+    // name (a totals script, a totals.json), in one folder for the one-agent
+    // arms: both have to come out right.
+    assertions: [totaledTheSalesFiles, totaledTheWarehouses],
+    followUps: [
+      "And another one in the background: in Documents/Stock Counts, add up the units per warehouse across all the CSVs and save totals.json in that folder, mapping each warehouse to its units.",
+    ],
+    prompt:
+      "In the background, total the amount column of each CSV in my Documents/Sales Data folder and save totals.json in that folder, mapping each file name to its total.",
+    setup: seedParallel,
+    slug: "parallel-scratch",
   },
 ];
 

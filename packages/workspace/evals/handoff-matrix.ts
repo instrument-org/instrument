@@ -26,6 +26,11 @@
  * - f: c, where a message the user sends mid-turn has the harness fork the
  *   turn's work to the background rather than end it
  *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
+ * - g: one agent whose only tasks are forks in the chat's folder, with a
+ *   prompt of its own and fork on interrupt
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
+ * - h: g, where the agent's word for its forks is "background"
+ *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
  * - b, v: round one's task-given-the-words arms, off by default.
  *
  * Each arm's runs, logs and homes go in a folder of the arm's own under the
@@ -75,6 +80,9 @@ const CASES: Record<string, string> = {
   "topic-instruction": "context",
   weather: "research",
   research: "research",
+  "long-work": "context",
+  "interrupt-foreground": "background",
+  "parallel-scratch": "background",
 };
 
 const SLUGS = Object.keys(CASES);
@@ -90,6 +98,8 @@ const ARM_ENV: Record<string, Record<string, string>> = {
   d: { INSTRUMENT_EVAL_ONE_AGENT: "foreground" },
   e: { INSTRUMENT_EVAL_TASK_CONTEXT: "1" },
   f: { INSTRUMENT_EVAL_ONE_AGENT: "fork-on-interrupt" },
+  g: { INSTRUMENT_EVAL_ONE_AGENT: "fork-only" },
+  h: { INSTRUMENT_EVAL_ONE_AGENT: "background" },
   v: {},
 };
 
@@ -180,6 +190,7 @@ interface RunRecord {
   metrics?: {
     autoForks?: number;
     cacheReadTokens?: number;
+    duringWorkMissed?: number;
     doneMs: number;
     firstTextMs?: number;
     marks?: Record<string, null | number>;
@@ -187,6 +198,7 @@ interface RunRecord {
     taskCommands?: { fork: number; new: number };
     tasksCreated: number;
     toolCalls: number;
+    turns?: { chars: number; ms: number; tokens: number }[];
     visibleChars: number;
   };
   model: string;
@@ -942,7 +954,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|cf:id> [--repeat n] [--concurrency n] [--cases guide,email] [--arms a,c,d,e,f,g,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

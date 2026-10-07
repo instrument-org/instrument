@@ -85,10 +85,10 @@ export function handleTaskCdpClient(
       clientWs.send(JSON.stringify(payload));
     }
   };
-  const answer = (id: number | undefined, result: unknown) => {
+  const answer = (id: number, result: unknown) => {
     send({ id, result });
   };
-  const refuse = (id: number | undefined, message: string) => {
+  const refuse = (id: number, message: string) => {
     send({ error: { code: -32_000, message }, id });
   };
   /** A browser-level event, which carries no session. */
@@ -254,7 +254,7 @@ export function handleTaskCdpClient(
     });
   };
 
-  const createTarget = async (id: number | undefined, params: unknown) => {
+  const createTarget = async (id: number, params: unknown) => {
     const url = (params as undefined | { url?: unknown })?.url;
     const address =
       typeof url === "string" && url !== "about:blank" ? url : undefined;
@@ -307,7 +307,7 @@ export function handleTaskCdpClient(
     } satisfies Protocol.Target.CreateTargetResponse);
   };
 
-  const closeTarget = async (id: number | undefined, params: unknown) => {
+  const closeTarget = async (id: number, params: unknown) => {
     const tabId = (params as undefined | { targetId?: unknown })?.targetId;
     const tabs = await held();
     const tab = tabs.find((entry) => entry.tabId === tabId);
@@ -389,7 +389,7 @@ export function handleTaskCdpClient(
         break;
       }
     }
-    if (typeof method === "string" && method.startsWith("Target.")) {
+    if (method.startsWith("Target.")) {
       send({ error: { code: -32_601, message: "Method not found" }, id });
       return;
     }
@@ -411,7 +411,7 @@ export function handleTaskCdpClient(
     // neither, so only the Browser domain is taken here; agent-browser's
     // provider connection is never a direct page, so it sends nothing else
     // without a session.
-    if (typeof method !== "string" || !method.startsWith("Browser.")) {
+    if (!method.startsWith("Browser.")) {
       send({ error: { code: -32_601, message: "Method not found" }, id });
       return;
     }
@@ -419,7 +419,7 @@ export function handleTaskCdpClient(
     // a tab is in) is answered by a tab it holds, the one it names first.
     const named = (params as undefined | { targetId?: unknown })?.targetId;
     const tab = now.find((entry) => entry.tabId === named) ?? now[0];
-    if (!tab || typeof method !== "string") {
+    if (!tab) {
       refuse(id, "This task has no tab open.");
       return;
     }
@@ -449,7 +449,6 @@ export function handleTaskCdpClient(
     // them.
     if (
       message.sessionId &&
-      typeof message.method === "string" &&
       message.method.startsWith("Target.") &&
       message.method !== "Target.setAutoAttach"
     ) {

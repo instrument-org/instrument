@@ -1,6 +1,8 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
+import { z } from "zod";
+
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
 import {
   agentPathOfFileUrl,
@@ -21,15 +23,21 @@ export interface CdpEventFrame<E extends CdpEventName = CdpEventName> {
   params: CdpEventParams<E>;
   sessionId: string;
 }
-export interface CdpRequest {
-  id?: number;
-  method?: string;
-  params?: unknown;
-  sessionId?: string;
-}
+/**
+ * A command from the agent. `sessionId` names the tab it is for, and is
+ * absent on a command for the browser as a whole; `params` is absent on a
+ * command that takes none.
+ */
+const CdpRequestSchema = z.object({
+  id: z.number().int(),
+  method: z.string(),
+  params: z.unknown().optional(),
+  sessionId: z.string().optional(),
+});
+export type CdpRequest = z.output<typeof CdpRequestSchema>;
 export type CdpResponse =
-  | { error: { code: number; message: string }; id?: number }
-  | { id?: number; result: unknown };
+  | { error: { code: number; message: string }; id: number }
+  | { id: number; result: unknown };
 type CdpEventName = keyof ProtocolMapping.Events;
 type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
 
@@ -499,9 +507,6 @@ export function openTargetSession({
 
   const handleCommand = async (message: CdpRequest) => {
     const { id, method, params } = message;
-    if (typeof method !== "string") {
-      return;
-    }
 
     // A local file opens at its `file://` address for the agent exactly as it
     // does for the person, and only when the agent's own tools could read it:
@@ -649,20 +654,23 @@ export function openTargetSession({
   };
 }
 
-/** A frame from the agent, or undefined for one that is not JSON. */
+/** A command from the agent, or undefined for a frame that is not one: not JSON, or with no id or method. */
 export function parseCdpMessage(
   data: ArrayBuffer | Buffer | Buffer[],
 ): CdpRequest | undefined {
+  const raw = Buffer.isBuffer(data)
+    ? data.toString("utf8")
+    : Array.isArray(data)
+      ? Buffer.concat(data).toString("utf8")
+      : Buffer.from(data).toString("utf8");
+  let parsed: unknown;
   try {
-    const raw = Buffer.isBuffer(data)
-      ? data.toString("utf8")
-      : Array.isArray(data)
-        ? Buffer.concat(data).toString("utf8")
-        : Buffer.from(data).toString("utf8");
-    return JSON.parse(raw) as CdpRequest;
+    parsed = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  const request = CdpRequestSchema.safeParse(parsed);
+  return request.success ? request.data : undefined;
 }
 
 /** The address an event is about, when it names one. */

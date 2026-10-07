@@ -14,6 +14,7 @@ import {
   createLocalFileGate,
   createMainFrameLoadGate,
   openTargetSession,
+  parseCdpMessage,
 } from "./cdp-bridge";
 
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
@@ -59,6 +60,25 @@ function track(p: Promise<void>): () => boolean {
   });
   return () => done;
 }
+
+describe("parseCdpMessage", () => {
+  it("takes a command with an id and a method, with or without a session", () => {
+    expect(
+      parseCdpMessage(
+        Buffer.from(JSON.stringify({ id: 1, method: "Page.enable" })),
+      ),
+    ).toEqual({ id: 1, method: "Page.enable" });
+  });
+
+  it.each([
+    ["not JSON", "{"],
+    ["no id", JSON.stringify({ method: "Page.enable" })],
+    ["no method", JSON.stringify({ id: 1 })],
+    ["a method that is not a string", JSON.stringify({ id: 1, method: 7 })],
+  ])("drops a frame with %s", (_label, frame) => {
+    expect(parseCdpMessage(Buffer.from(frame))).toBeUndefined();
+  });
+});
 
 describe("createMainFrameLoadGate", () => {
   afterEach(() => {

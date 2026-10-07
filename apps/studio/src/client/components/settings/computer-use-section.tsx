@@ -2,9 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
-import { CircleIcon } from "@phosphor-icons/react/Circle";
-import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
@@ -13,10 +11,11 @@ type Status = RPCOutput["features"]["computerUse"]["status"];
 
 /**
  * Walks the person through what Computer Use needs before the agent is
- * offered it: Accessibility, Screen Recording, then one real capture through
- * the driver. Every step reads its state again whenever the window regains
- * focus, since the grants are given in System Settings and coming back here is
- * when they change.
+ * offered it: Accessibility, Screen Recording, then a test through the
+ * driver. All three stay in view, one line each, and only the step to do next
+ * is open, so the whole path is visible at a glance. Every step reads its
+ * state again whenever the window regains focus, since the grants are given
+ * in System Settings and coming back here is when they change.
  */
 export function ComputerUseSection() {
   const status = useQuery(rpcClient.features.computerUse.status.queryOptions());
@@ -32,6 +31,14 @@ export function ComputerUseSection() {
   if (!data) {
     return null;
   }
+  const permissions = data.permissions;
+  const current = !permissions.supported
+    ? "test"
+    : !permissions.accessibility
+      ? "accessibility"
+      : permissions.screenRecording !== "granted"
+        ? "screen-recording"
+        : "test";
 
   return (
     <div className="space-y-6">
@@ -45,62 +52,70 @@ export function ComputerUseSection() {
         <p className="mt-3 text-sm">
           {data.ready
             ? "Set up. The agent can use the apps on this computer."
-            : "Not set up yet. The agent can't use other apps until the steps below are done."}
+            : "Not set up yet. The agent can't use other apps until these steps are done."}
         </p>
       </div>
 
-      <div className="space-y-4">
-        {data.permissions.supported && (
+      <div className="space-y-2">
+        {permissions.supported && (
           <>
-            <AccessibilityStep data={data} />
-            <ScreenRecordingStep data={data} />
+            <AccessibilityStep
+              data={data}
+              done={permissions.accessibility}
+              open={current === "accessibility"}
+            />
+            <ScreenRecordingStep
+              data={data}
+              done={permissions.screenRecording === "granted"}
+              open={current === "screen-recording"}
+            />
           </>
         )}
         <TestStep
           appName={data.appName}
-          number={data.permissions.supported ? 3 : 1}
-          ready={data.ready}
+          number={permissions.supported ? 3 : 1}
           onFinished={() => {
             void refetchStatus();
           }}
+          open={current === "test"}
+          ready={data.ready}
         />
       </div>
     </div>
   );
 }
 
-function AccessibilityStep({ data }: { data: Status }) {
+function AccessibilityStep({
+  data,
+  done,
+  open,
+}: {
+  data: Status;
+  done: boolean;
+  open: boolean;
+}) {
   const request = useMutation(
     rpcClient.features.computerUse.requestAccessibility.mutationOptions(),
   );
   const openSettings = useMutation(
     rpcClient.features.computerUse.openSettings.mutationOptions(),
   );
-  if (!data.permissions.supported) {
-    return null;
-  }
-  const done = data.permissions.accessibility;
   const pane = accessibilityPaneName(data.macOSMajor);
 
   return (
     <Step
-      description="Lets Instrument read the controls in other apps' windows and click and type in them."
+      description={`Lets ${data.appName} read and use the controls in other apps' windows.`}
       done={done}
       number={1}
+      open={open}
       title={pane}
     >
-      {!done && (
-        <>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-56 flex-1 space-y-3">
           <p>
-            Choose Allow. macOS shows the prompt below; choose Open System
-            Settings in it, then turn on {data.appName} in the list.
+            Choose Allow, then turn on {data.appName} in the {pane} list that
+            macOS opens.
           </p>
-          <SystemPrompt
-            body="Grant access to this application in Privacy & Security settings."
-            buttons={["Open System Settings", "Deny"]}
-            highlight="Open System Settings"
-            title={`“${data.appName}” would like to control this computer using accessibility features.`}
-          />
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={request.isPending}
@@ -121,13 +136,27 @@ function AccessibilityStep({ data }: { data: Status }) {
               Open {pane}
             </Button>
           </div>
-        </>
-      )}
+        </div>
+        {request.isSuccess && (
+          <PromptHint choose="Open System Settings" other="Deny">
+            “{data.appName}” would like to control this computer using
+            accessibility features.
+          </PromptHint>
+        )}
+      </div>
     </Step>
   );
 }
 
-function ScreenRecordingStep({ data }: { data: Status }) {
+function ScreenRecordingStep({
+  data,
+  done,
+  open,
+}: {
+  data: Status;
+  done: boolean;
+  open: boolean;
+}) {
   const request = useMutation(
     rpcClient.features.computerUse.requestScreenRecording.mutationOptions(),
   );
@@ -138,50 +167,51 @@ function ScreenRecordingStep({ data }: { data: Status }) {
     rpcClient.features.computerUse.relaunch.mutationOptions({
       onSuccess: ({ outcome }) => {
         if (outcome === "unsupported") {
-          toast("Quit and reopen Instrument to finish.");
+          toast(`Quit and reopen ${data.appName} to finish.`);
         }
       },
     }),
   );
-  if (!data.permissions.supported) {
-    return null;
-  }
-  const done = data.permissions.screenRecording === "granted";
   const pane = screenRecordingPaneName(data.macOSMajor);
+  const asked = request.isSuccess || openSettings.isSuccess;
 
   return (
     <Step
-      description="Lets Instrument see what other apps' windows show."
+      description={`Lets ${data.appName} see what other apps' windows show.`}
       done={done}
       number={2}
+      open={open}
       title={pane}
     >
-      {!done && (
-        <>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-56 flex-1 space-y-3">
           <p>
-            Choose Allow. macOS asks only the first time; after that, the pane
-            opens with {data.appName} in its list, and you turn it on there.
-          </p>
-          <SystemPrompt
-            body="Grant access to this application in Privacy & Security settings."
-            buttons={["Open System Settings", "Deny"]}
-            highlight="Open System Settings"
-            title={`“${data.appName}” would like to record this computer's screen and audio.`}
-          />
-          <p>
-            macOS applies this grant only after {data.appName} restarts. Once it
-            is on, relaunch, and {data.appName} reopens on this screen.
+            {asked
+              ? `Turn on ${data.appName} in the ${pane} list, then relaunch. macOS applies this one only after a restart, and ${data.appName} reopens here.`
+              : `Choose Allow, then turn on ${data.appName} in the ${pane} list.`}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={request.isPending}
-              onClick={() => {
-                request.mutate(undefined);
-              }}
-              size="sm"
-            >
-              Allow
-            </Button>
+            {asked ? (
+              <Button
+                disabled={relaunch.isPending}
+                onClick={() => {
+                  relaunch.mutate(undefined);
+                }}
+                size="sm"
+              >
+                {data.canRelaunch ? `Relaunch ${data.appName}` : "Check again"}
+              </Button>
+            ) : (
+              <Button
+                disabled={request.isPending}
+                onClick={() => {
+                  request.mutate(undefined);
+                }}
+                size="sm"
+              >
+                Allow
+              </Button>
+            )}
             <Button
               onClick={() => {
                 openSettings.mutate({ permission: "screen-recording" });
@@ -191,19 +221,15 @@ function ScreenRecordingStep({ data }: { data: Status }) {
             >
               Open {pane}
             </Button>
-            <Button
-              disabled={relaunch.isPending}
-              onClick={() => {
-                relaunch.mutate(undefined);
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {data.canRelaunch ? `Relaunch ${data.appName}` : "Check again"}
-            </Button>
           </div>
-        </>
-      )}
+        </div>
+        {request.isSuccess && (
+          <PromptHint choose="Open System Settings" other="Deny">
+            “{data.appName}” would like to record this computer's screen and
+            audio.
+          </PromptHint>
+        )}
+      </div>
     </Step>
   );
 }
@@ -212,11 +238,13 @@ function TestStep({
   appName,
   number,
   onFinished,
+  open,
   ready,
 }: {
   appName: string;
   number: number;
   onFinished: () => void;
+  open: boolean;
   ready: boolean;
 }) {
   const verify = useMutation(
@@ -228,103 +256,87 @@ function TestStep({
 
   return (
     <Step
-      description="Watch the agent's cursor move across this window, then see the picture of your screen it takes. It moves only a drawn cursor, clicks nothing, and keeps the picture nowhere."
+      description="Watch the agent's cursor cross this window and see what it sees. It clicks nothing and saves nothing."
       done={result?.ok === true}
-      doneLabel="Passed"
       failed={result?.ok === false}
       number={number}
+      open={open}
       title="Try it"
     >
-      {isMacOS() && result?.ok !== true && (
-        <>
-          <p>
-            The first time, macOS asks once more, so the agent can see windows
-            directly. Choose Allow.
-          </p>
-          <SystemPrompt
-            body={`This will allow ${appName} to record your screen and system audio, including personal or sensitive information that may be visible or audible.`}
-            buttons={["Allow", "Open System Settings"]}
-            highlight="Allow"
-            title={`“${appName}” is requesting to bypass the system private window picker and directly access your screen and audio.`}
-          />
-        </>
-      )}
-      {result?.ok === false && (
-        <p className="text-destructive">That didn't work: {result.detail}</p>
-      )}
-      {result?.ok === true && (
-        <figure className="space-y-1.5">
-          <img
-            alt="Your screen, as the agent sees it"
-            className="w-full max-w-md rounded-md border"
-            src={result.image}
-          />
-          <figcaption className="text-muted-foreground">
-            This is your screen as the agent sees it. The picture stays on this
-            page and is gone when you leave it.
-          </figcaption>
-        </figure>
-      )}
-      <div>
-        <Button
-          disabled={!ready || verify.isPending}
-          onClick={() => {
-            verify.mutate(undefined);
-          }}
-          size="sm"
-          variant={result?.ok ? "outline" : "default"}
-        >
-          {verify.isPending
-            ? "Watch the cursor…"
-            : result?.ok
-              ? "Run it again"
-              : "Run a test"}
-        </Button>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-56 flex-1 space-y-3">
+          {result?.ok === false && (
+            <p className="text-destructive">
+              That didn't work: {result.detail}
+            </p>
+          )}
+          {result?.ok === true && (
+            <figure className="space-y-1.5">
+              <img
+                alt="Your screen, as the agent sees it"
+                className="w-full max-w-80 rounded-md border"
+                src={result.image}
+              />
+              <figcaption className="text-muted-foreground">
+                Your screen as the agent sees it. This picture is gone when you
+                leave this page.
+              </figcaption>
+            </figure>
+          )}
+          <Button
+            disabled={!ready || verify.isPending}
+            onClick={() => {
+              verify.mutate(undefined);
+            }}
+            size="sm"
+            variant={result?.ok ? "outline" : "default"}
+          >
+            {verify.isPending
+              ? "Watch the cursor…"
+              : result?.ok
+                ? "Run it again"
+                : "Run a test"}
+          </Button>
+        </div>
+        {isMacOS() && verify.isPending && (
+          <PromptHint choose="Allow" other="Open System Settings">
+            “{appName}” is requesting to bypass the system private window picker
+            and directly access your screen and audio.
+          </PromptHint>
+        )}
       </div>
     </Step>
   );
 }
 
 /**
- * A drawing of the system prompt the person is about to meet, with the button
- * to choose ringed: they see the real one over this window and should know it
- * on sight. A likeness rather than a copy; macOS words these per version.
+ * A small likeness of the system prompt the button just raised, beside the
+ * step, with the button to choose marked: the real prompt covers this window,
+ * and this says which answer the agent needs. Only after the press, since
+ * before it there is nothing on screen to recognize.
  */
-function SystemPrompt({
-  body,
-  buttons,
-  highlight,
-  title,
+function PromptHint({
+  children,
+  choose,
+  other,
 }: {
-  body: string;
-  buttons: string[];
-  highlight: string;
-  title: string;
+  children: ReactNode;
+  choose: string;
+  other: string;
 }) {
   return (
-    <div
-      aria-label="What the macOS prompt looks like"
-      className="max-w-72 space-y-3 rounded-2xl border bg-muted p-4"
-      role="img"
-    >
-      <div className="size-9 rounded-lg bg-primary/20" />
-      <p className="text-xs leading-snug font-semibold">{title}</p>
-      <p className="text-xs leading-snug text-muted-foreground">{body}</p>
-      <div className="space-y-1.5">
-        {buttons.map((label) => (
-          <div
-            className={
-              label === highlight
-                ? "rounded-full bg-primary py-1 text-center text-xs text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-muted"
-                : "rounded-full bg-background py-1 text-center text-xs"
-            }
-            key={label}
-          >
-            {label}
-          </div>
-        ))}
+    <aside className="w-48 shrink-0 space-y-2 rounded-xl border bg-muted p-3 text-xs">
+      <p className="text-muted-foreground">macOS asks:</p>
+      <p className="leading-snug font-medium">{children}</p>
+      <div className="flex flex-col gap-1">
+        <span className="rounded-full bg-primary py-0.5 text-center text-primary-foreground">
+          {choose} ← choose this
+        </span>
+        <span className="rounded-full bg-background py-0.5 text-center text-muted-foreground">
+          {other}
+        </span>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -332,45 +344,47 @@ function Step({
   children,
   description,
   done,
-  doneLabel = "Allowed",
   failed = false,
   number,
+  open,
   title,
 }: {
-  children?: ReactNode;
+  children: ReactNode;
   description: string;
   done: boolean;
-  doneLabel?: string;
   failed?: boolean;
   number: number;
+  open: boolean;
   title: string;
 }) {
-  const Icon = done ? CheckCircleIcon : failed ? WarningCircleIcon : CircleIcon;
   return (
     <Card className="flex-row items-start gap-3 p-4">
-      <Icon
+      <span
+        aria-label={done ? "Done" : `Step ${number}`}
         className={
           done
-            ? "mt-0.5 size-5 shrink-0 text-success-700 dark:text-success-300"
+            ? "flex size-6 shrink-0 items-center justify-center rounded-full bg-success-700 text-white dark:bg-success-500"
             : failed
-              ? "mt-0.5 size-5 shrink-0 text-destructive"
-              : "mt-0.5 size-5 shrink-0 text-muted-foreground"
+              ? "flex size-6 shrink-0 items-center justify-center rounded-full bg-destructive text-xs font-medium text-white"
+              : open
+                ? "flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground"
+                : "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium text-muted-foreground"
         }
-        weight={done ? "fill" : "regular"}
-      />
-      <div className="flex-1 space-y-2 text-sm">
-        <div>
-          <p className="font-medium">
-            {number}. {title}
-            {done && doneLabel && (
-              <span className="ml-2 font-normal text-muted-foreground">
-                {doneLabel}
-              </span>
-            )}
+      >
+        {done ? <CheckIcon className="size-3.5" weight="bold" /> : number}
+      </span>
+      <div className="flex-1 space-y-3 text-sm">
+        <div className="pt-0.5">
+          <p
+            className={
+              open || done ? "font-medium" : "font-medium text-muted-foreground"
+            }
+          >
+            {title}
           </p>
           <p className="text-muted-foreground">{description}</p>
         </div>
-        {children}
+        {open && children}
       </div>
     </Card>
   );

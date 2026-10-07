@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
+import { StateArrival } from "@/client/components/state-arrival";
 import { Card } from "@/client/components/ui/card";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
@@ -108,119 +109,125 @@ export function ChatGPTAccountCard() {
   const accounts = status?.accounts ?? [];
 
   return (
-    <Card className="gap-0 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center">
-            <AIProviderIcon type="chatgpt-account" />
+    // The accounts signed in, so the card settles in when a sign-in finished
+    // in the browser lands.
+    <StateArrival
+      state={status && accounts.map((account) => account.id).join(" ")}
+    >
+      <Card className="gap-0 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center">
+              <AIProviderIcon type="chatgpt-account" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="truncate font-medium text-foreground">
+                ChatGPT account
+              </h3>
+              {accounts.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {waiting === NEW_ACCOUNT
+                    ? "Finish signing in with ChatGPT in your browser."
+                    : "Pay for ChatGPT Plus or Pro? Use it here."}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="truncate font-medium text-foreground">
-              ChatGPT account
-            </h3>
-            {accounts.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                {waiting === NEW_ACCOUNT
-                  ? "Finish signing in with ChatGPT in your browser."
-                  : "Pay for ChatGPT Plus or Pro? Use it here."}
-              </p>
+          <div className="flex shrink-0 items-center gap-2">
+            {accounts.length > 0 ? (
+              <Button
+                onClick={() => {
+                  openLink(USAGE_URL, { addReferral: false });
+                }}
+                variant="outline"
+              >
+                Manage usage
+              </Button>
+            ) : (
+              <BrowserHandoffButton
+                onCancel={cancelSignIn}
+                onStart={() => {
+                  void continueWithChatGPT();
+                }}
+                waiting={waiting === NEW_ACCOUNT}
+              >
+                Continue with ChatGPT
+              </BrowserHandoffButton>
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {accounts.length > 0 ? (
-            <Button
-              onClick={() => {
-                openLink(USAGE_URL, { addReferral: false });
-              }}
-              variant="outline"
-            >
-              Manage usage
-            </Button>
-          ) : (
-            <BrowserHandoffButton
-              onCancel={cancelSignIn}
-              onStart={() => {
-                void continueWithChatGPT();
-              }}
-              waiting={waiting === NEW_ACCOUNT}
-            >
-              Continue with ChatGPT
-            </BrowserHandoffButton>
-          )}
-        </div>
-      </div>
-      {accounts.length > 0 && (
-        <div className="mt-1 flex flex-col gap-1 pl-11">
-          {accounts.map((account) => (
-            <AccountRow
-              account={account}
-              key={account.id}
-              onCancelSignIn={cancelSignIn}
-              onSignIn={() => {
-                void continueWithChatGPT(account.id);
-              }}
-              onSignOut={() => {
-                setConfirmingSignOut(account);
-              }}
-              waiting={waiting === account.id}
-            />
-          ))}
-          <div className="flex items-center gap-2">
-            <BrowserHandoffButton
-              className="-ml-2 text-muted-foreground"
-              icon={<PlusIcon />}
-              onCancel={cancelSignIn}
-              onStart={() => {
-                void continueWithChatGPT();
-              }}
-              size="xs"
-              variant="ghost"
-              waiting={waiting === NEW_ACCOUNT}
-            >
-              Add another account
-            </BrowserHandoffButton>
-            {waiting === NEW_ACCOUNT && (
-              <p className="text-xs text-muted-foreground">
-                Finish signing in with ChatGPT in your browser
-              </p>
-            )}
+        {accounts.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1 pl-11">
+            {accounts.map((account) => (
+              <AccountRow
+                account={account}
+                key={account.id}
+                onCancelSignIn={cancelSignIn}
+                onSignIn={() => {
+                  void continueWithChatGPT(account.id);
+                }}
+                onSignOut={() => {
+                  setConfirmingSignOut(account);
+                }}
+                waiting={waiting === account.id}
+              />
+            ))}
+            <div className="flex items-center gap-2">
+              <BrowserHandoffButton
+                className="-ml-2 text-muted-foreground"
+                icon={<PlusIcon />}
+                onCancel={cancelSignIn}
+                onStart={() => {
+                  void continueWithChatGPT();
+                }}
+                size="xs"
+                variant="ghost"
+                waiting={waiting === NEW_ACCOUNT}
+              >
+                Add another account
+              </BrowserHandoffButton>
+              {waiting === NEW_ACCOUNT && (
+                <p className="text-xs text-muted-foreground">
+                  Finish signing in with ChatGPT in your browser
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-      <AlertDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setConfirmingSignOut(null);
-          }
-        }}
-        open={confirmingSignOut !== null}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Sign out of {confirmingSignOut?.label}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Chats on this account’s models will need another model. Signing in
-              again brings it back.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirmingSignOut) {
-                  signOut.mutate({ accountId: confirmingSignOut.id });
-                }
-              }}
-            >
-              Sign out
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card>
+        )}
+        <AlertDialog
+          onOpenChange={(open) => {
+            if (!open) {
+              setConfirmingSignOut(null);
+            }
+          }}
+          open={confirmingSignOut !== null}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Sign out of {confirmingSignOut?.label}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Chats on this account’s models will need another model. Signing
+                in again brings it back.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (confirmingSignOut) {
+                    signOut.mutate({ accountId: confirmingSignOut.id });
+                  }
+                }}
+              >
+                Sign out
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </Card>
+    </StateArrival>
   );
 }
 

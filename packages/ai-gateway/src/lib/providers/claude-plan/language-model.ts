@@ -15,6 +15,7 @@ import {
   type SDKRateLimitInfo,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
 import {
@@ -117,6 +118,7 @@ function streamStep({
   const key = options.headers?.[CLIENT_SESSION_ID_HEADER];
   const { rest, systemPrompt } = splitSystemPrompt(options.prompt);
   const shape: SessionShape = {
+    builtInTools: builtInToolsOf(options),
     configDir,
     effort: effortOf(options),
     executablePath,
@@ -272,6 +274,18 @@ async function pumpStep(
         }
         break;
       }
+      case "user": {
+        for (const source of webSearchSources(message.tool_use_result)) {
+          controller.enqueue({
+            id: randomUUID(),
+            sourceType: "url",
+            title: source.title,
+            type: "source",
+            url: source.url,
+          });
+        }
+        break;
+      }
       case "rate_limit_event": {
         rateLimit = message.rate_limit_info;
         session.rateLimit = rateLimit;
@@ -329,6 +343,13 @@ async function pumpStep(
                 started: false,
                 toolName: "",
               });
+            } else if (
+              block.type === "tool_use" &&
+              session.builtInTools.has(block.name)
+            ) {
+              // Claude Code runs this one itself and carries on; the step
+              // goes on past it, and its results arrive as sources.
+              break;
             } else if (block.type === "tool_use") {
               // Our prompts name a tool as we do (`bash`), and the CLI lists it
               // under its MCP prefix, so a call can come either way; the
@@ -481,6 +502,40 @@ function emptyUsage(): LanguageModelV4Usage {
 }
 
 const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+
+/**
+ * Claude Code's own tools a request asks to have run, as a search does with
+ * `{ "claude-plan": { builtInTools: ["WebSearch"] } }`.
+ */
+function builtInToolsOf(options: LanguageModelV4CallOptions) {
+  const asked = options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.builtInTools;
+  return Array.isArray(asked)
+    ? asked.filter((tool): tool is string => typeof tool === "string")
+    : [];
+}
+
+/** What a WebSearch run by Claude Code reports, as its tool result. */
+const WebSearchOutputSchema = z.object({
+  results: z.array(
+    z.union([
+      z.object({
+        content: z.array(z.object({ title: z.string(), url: z.string() })),
+      }),
+      z.string(),
+    ]),
+  ),
+});
+
+/** The pages a WebSearch Claude Code ran turned up, or none for any other result. */
+function webSearchSources(result: unknown) {
+  const parsed = WebSearchOutputSchema.safeParse(result);
+  if (!parsed.success) {
+    return [];
+  }
+  return parsed.data.results.flatMap((entry) =>
+    typeof entry === "string" ? [] : entry.content,
+  );
+}
 
 function effortOf(options: LanguageModelV4CallOptions) {
   const asked = options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.effort;

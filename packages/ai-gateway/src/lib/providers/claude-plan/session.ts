@@ -40,6 +40,11 @@ const SCRUBBED_ENV = [
 ];
 
 export interface SessionShape {
+  /**
+   * Claude Code's own tools this process may run itself, such as WebSearch,
+   * which runs on Anthropic's side. Every other built-in stays off.
+   */
+  builtInTools: string[];
   /** The CLI's config folder, holding the sign-in it uses, when not its default. */
   configDir: string | undefined;
   effort: EffortLevel | undefined;
@@ -59,6 +64,8 @@ export class ClaudePlanSession {
   awaitingToolCallIds: string[] = [];
   busy = false;
   readonly messages: AsyncIterator<SDKMessage, void>;
+  /** The built-in tools this process runs itself, which our loop never sees. */
+  readonly builtInTools: ReadonlySet<string>;
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
@@ -76,6 +83,7 @@ export class ClaudePlanSession {
     shape: SessionShape,
     private readonly onClose: () => void,
   ) {
+    this.builtInTools = new Set(shape.builtInTools);
     this.modelId = shape.modelId;
     const env: Record<string, string | undefined> = { ...process.env };
     for (const name of SCRUBBED_ENV) {
@@ -86,7 +94,7 @@ export class ClaudePlanSession {
     }
     this.query = query({
       options: {
-        allowedTools: [`mcp__${SERVER_NAME}`],
+        allowedTools: [`mcp__${SERVER_NAME}`, ...shape.builtInTools],
         cwd: homedir(),
         effort: shape.effort,
         env,
@@ -116,7 +124,7 @@ export class ClaudePlanSession {
           shape.tools.map((tool) => [tool.name, `${TOOL_PREFIX}${tool.name}`]),
         ),
         systemPrompt: shape.systemPrompt,
-        tools: [],
+        tools: shape.builtInTools,
       },
       prompt: this.input,
     });
@@ -240,6 +248,7 @@ export class ClaudePlanSession {
  */
 export function sessionShapeKey(shape: SessionShape) {
   return JSON.stringify([
+    shape.builtInTools,
     shape.configDir,
     shape.executablePath,
     shape.effort,

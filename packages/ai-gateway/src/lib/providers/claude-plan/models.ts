@@ -27,6 +27,7 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
       const session = new ClaudePlanSession(
         "models",
         {
+          builtInTools: [],
           configDir: config.configDir,
           effort: undefined,
           executablePath: config.executablePath,

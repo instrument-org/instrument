@@ -64,6 +64,8 @@ const PROVIDER_METADATA = {
     description: "Claude models on your Claude Pro or Max subscription",
     name: "Claude",
     quirks: { supportsMultipartToolResults: true },
+    // Searches with Claude Code's own WebSearch, run on Anthropic's side.
+    tags: ["webSearch"],
     type: "claude-plan",
     url: addRef("https://claude.ai"),
   },

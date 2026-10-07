@@ -27,6 +27,7 @@ export async function fetchClaudePlanUsage({
   const session = new ClaudePlanSession(
     "usage",
     {
+      builtInTools: [],
       configDir,
       effort: undefined,
       executablePath,

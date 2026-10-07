@@ -36,6 +36,7 @@ export async function startClaudeCodeSignIn({
   const session = new ClaudePlanSession(
     "sign-in",
     {
+      builtInTools: [],
       configDir,
       effort: undefined,
       executablePath,

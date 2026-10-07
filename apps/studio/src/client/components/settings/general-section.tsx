@@ -379,7 +379,8 @@ function InterfaceAndTheme() {
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                Scale the interface. Independent of web view zoom.
+                You can make everything in the app larger or smaller. Web pages
+                keep their own zoom.
               </p>
             </div>
             <ZoomStepper />
@@ -428,8 +429,9 @@ function ReleaseChannel() {
           <div className="space-y-1">
             <Label htmlFor="release-channel">Update from</Label>
             <p className="text-xs text-muted-foreground">
-              Beta gets prereleases as soon as they ship. Moving back to Stable
-              keeps this build until a newer stable release passes it.
+              Beta gets new versions as soon as they’re released. If you switch
+              back to Stable, you’ll stay on this version until a newer stable
+              one comes out.
             </p>
           </div>
           <Select

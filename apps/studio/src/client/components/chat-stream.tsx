@@ -987,7 +987,8 @@ export function ChatStream({
       <WarningIcon />
       <AlertDescription className="flex flex-col gap-3">
         <div className="text-xs">
-          Agent was stopped due to reaching maximum unattended steps.
+          Instrument paused after working on its own for a while. Continue to
+          let it keep going.
         </div>
         <Button onClick={onContinue} size="sm" variant="secondary">
           Resume the agent

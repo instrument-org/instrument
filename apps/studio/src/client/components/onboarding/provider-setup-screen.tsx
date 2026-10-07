@@ -119,7 +119,7 @@ export function ProviderSetupScreen({
               <div className="flex items-center justify-center gap-x-2">
                 <BrandLeafIcon className="size-3" />
                 <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                  Create an account to enjoy free AI usage
+                  Create an account to get free AI usage
                 </p>
               </div>
             }

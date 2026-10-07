@@ -966,9 +966,8 @@ function WindowShell({
                       : ""}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    The task is still working in this browser. Closing it takes
-                    the page away mid-work; the task is told, and carries on
-                    without it.
+                    A task is still using this browser. If you close it, the
+                    task will carry on without it.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

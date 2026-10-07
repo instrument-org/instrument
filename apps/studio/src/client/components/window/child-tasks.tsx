@@ -116,7 +116,7 @@ function AppsChip({ apps }: { apps: string[] | undefined }) {
   }
   if (apps.length === 0) {
     return (
-      <Chip label="Apps" title="No app was handed to this task">
+      <Chip label="Apps" title="This task can’t use any connected apps.">
         none
       </Chip>
     );
@@ -175,7 +175,7 @@ function EffortChip({ task }: { task: Task }) {
   const effort = task.reasoningEffort ?? fromModel;
   if (!effort) {
     return (
-      <Chip label="Effort" title="No level chosen; the model's default applies">
+      <Chip label="Effort" title="This task uses the model’s default effort.">
         provider default
       </Chip>
     );
@@ -294,7 +294,7 @@ function useOpenFileNamedByTask(taskId: Task["id"]) {
       const hostPath = hostPaths?.[bare];
       if (error || !hostPath) {
         toast(`Nothing at “${filePath}”`, {
-          description: "Not a path the task can reach.",
+          description: "The task can’t reach this path.",
         });
         return;
       }

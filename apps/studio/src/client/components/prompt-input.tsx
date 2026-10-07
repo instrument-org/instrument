@@ -411,8 +411,8 @@ export const PromptInput = ({
         {
           description:
             duplicates.length === 1
-              ? "That folder has already been attached. Each folder can only be added once."
-              : `${names} have already been attached. Each folder can only be added once.`,
+              ? "That folder is already attached."
+              : `${names} are already attached.`,
         },
       );
     }
@@ -478,8 +478,7 @@ export const PromptInput = ({
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
       toast.info(`“${folderLabel(folderPath)}” is already added`, {
-        description:
-          "That folder has already been attached. Each folder can only be added once.",
+        description: "That folder is already attached.",
       });
       return;
     }

@@ -75,7 +75,8 @@ export function MemorySection() {
   useEffect(() => {
     if (isNamedMissing) {
       toast(`No memory named “${named}”`, {
-        description: `${APP_NAME} may have forgotten it, or never kept one by that name.`,
+        description:
+          "It may have been deleted, or there was never a memory with that name.",
         id: `memory-missing:${named}`,
       });
     }
@@ -552,9 +553,9 @@ function Memories({
                 : `Delete ${picked.size} memories?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {APP_NAME} will stop taking {picked.size === 1 ? "it" : "them"}{" "}
-              into account. It may learn the same thing again if you say it
-              again.
+              {picked.size === 1
+                ? `${APP_NAME} will forget this. If it comes up again in a chat, ${APP_NAME} may remember it again.`
+                : `${APP_NAME} will forget these. If they come up again in a chat, ${APP_NAME} may remember them again.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

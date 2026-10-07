@@ -830,8 +830,8 @@ const BlockedImage = ({
       </TooltipTrigger>
       <TooltipContent maxWidth="20rem">
         <p>
-          Images from the web aren’t loaded here, so opening a file never
-          contacts another site on its own.
+          Images from the web don’t load automatically, to keep your files
+          private.
         </p>
         <p>Click to view the image in your browser.</p>
         {src.length <= 300 && <p className="break-all opacity-70">{src}</p>}

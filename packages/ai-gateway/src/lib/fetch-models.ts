@@ -90,17 +90,12 @@ export function fetchModelsForProvider(
       // fetch would.
       // Variants go first, so a Pro or Fast build cannot stand as its series'
       // current release and demote the base model it is a step up from.
-      // A Claude account's list is the one Anthropic keeps for that account,
-      // current models only, so nothing in it is read as superseded: the
-      // cross-tier reading would take Fable 5.1 off for sitting below Opus
-      // 5.5, when it is Anthropic's top tier.
-      const variants = demoteVariantsOfListedModels(
-        representableModels(rawModels, config, captureException),
-      );
       const models = markReplacedModels(
-        config.type === "claude-plan"
-          ? variants
-          : demoteSupersededModels(variants),
+        demoteSupersededModels(
+          demoteVariantsOfListedModels(
+            representableModels(rawModels, config, captureException),
+          ),
+        ),
       );
 
       // Don't cache an empty list: a transient empty (or filtered-to-nothing)

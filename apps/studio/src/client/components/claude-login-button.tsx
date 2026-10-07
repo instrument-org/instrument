@@ -29,6 +29,7 @@ export function ClaudeLoginButton({
   );
   const openLink = useOpenExternalLink();
   const [waiting, setWaiting] = useState(false);
+  const [via, setVia] = useState<"browser" | "terminal">("browser");
   const [hint, setHint] = useState<string>();
   const connecting = useRef(false);
 
@@ -98,6 +99,7 @@ export function ClaudeLoginButton({
       case "not-a-plan": {
         setWaiting(true);
         const opened = await rpcClient.claudePlan.signIn.call({});
+        setVia(opened.via);
         if (!opened.opened && opened.command) {
           setHint(`Run ${opened.command} in a terminal.`);
         }
@@ -130,7 +132,9 @@ export function ClaudeLoginButton({
           (status?.install?.state === "downloading"
             ? `Installing Claude Code, ${installPercent(status.install)}% done`
             : waiting
-              ? "Finish signing in to Claude in the terminal and your browser"
+              ? via === "browser"
+                ? "Finish signing in to Claude in your browser"
+                : "Finish signing in to Claude in the terminal and your browser"
               : caption)}
       </p>
     </div>

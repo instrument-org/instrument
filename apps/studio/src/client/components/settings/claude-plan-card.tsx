@@ -51,7 +51,7 @@ export function ClaudePlanCard() {
   const [settingUp, setSettingUp] = useState(false);
   const connecting = useRef(false);
 
-  // Signed in from the terminal this card opened: the account is connected,
+  // Signed in from the browser or terminal this card opened: the account is connected,
   // as from onboarding, so its recommended model becomes the default.
   useEffect(() => {
     if (!signingIn || status?.kind !== "signed-in" || connecting.current) {
@@ -141,6 +141,7 @@ function Problem({
   const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
   const refresh = useMutation(rpcClient.claudePlan.refresh.mutationOptions());
   const [command, setCommand] = useState<string>();
+  const [via, setVia] = useState<"browser" | "terminal">("browser");
 
   const installButton = status.canInstall ? (
     <Button
@@ -174,6 +175,7 @@ function Problem({
         onSigningIn(true);
         void signIn.mutateAsync({}).then((result) => {
           setCommand(result.opened ? undefined : result.command);
+          setVia(result.via);
         });
       }}
     >
@@ -276,7 +278,9 @@ function Problem({
             <p>
               {command
                 ? `Run ${command} in a terminal, then come back.`
-                : `Finish signing in in the terminal and your browser. ${APP_NAME} picks it up when you come back.`}
+                : via === "browser"
+                  ? `Finish signing in to Claude in your browser. ${APP_NAME} picks it up as soon as you're done.`
+                  : `Finish signing in in the terminal and your browser. ${APP_NAME} picks it up when you come back.`}
             </p>
           </Callout>
         );
@@ -285,7 +289,7 @@ function Problem({
         <Callout actions={[signInButton]} title={title} warning>
           <p>
             {status.kind === "signed-out"
-              ? `${status.expired ? "Your Claude sign-in ran out. " : ""}Sign in with the Claude account your Pro or Max subscription is on. It opens in a terminal and finishes in your browser.`
+              ? `${status.expired ? "Your Claude sign-in ran out. " : ""}Sign in with the Claude account your Pro or Max subscription is on. It opens in your browser.`
               : `${APP_NAME} uses a Claude subscription. Sign in again with your Claude account.`}
           </p>
         </Callout>

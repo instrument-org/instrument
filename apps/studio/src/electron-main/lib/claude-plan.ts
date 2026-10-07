@@ -8,7 +8,9 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import {
   type AIGatewayProviderConfig,
+  type ClaudeCodeSignIn,
   fetchClaudePlanUsage,
+  startClaudeCodeSignIn,
 } from "@instrument-org/ai-gateway";
 import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
@@ -263,17 +265,65 @@ async function isExpired(executablePath: string, chosen: ClaudeCodeSetup) {
   return /\bExpired\b/i.test(stdout);
 }
 
+/** How long a sign-in waits on the browser before its process is let go. */
+const SIGN_IN_TIMEOUT_MS = 15 * 60 * 1000;
+
+let pendingSignIn: ClaudeCodeSignIn | undefined;
+
 /**
- * Open a terminal running the CLI's own sign-in, which finishes in the
- * browser. Anthropic's flow from end to end: we never see the result, only
- * read who is signed in afterwards. Answers the command, for a platform where
- * no terminal could be opened and the person has to run it themselves.
+ * Start Claude Code's own sign-in and open Anthropic's page in the browser.
+ * The page returns to Claude Code, which stores the sign-in itself; this only
+ * notices it finish. Where that cannot start, Claude Code's sign-in opens in a
+ * terminal instead. Answers how it went: in the browser, in a terminal, or a
+ * command for the person to run where no terminal could be opened.
  */
-export async function openClaudeSignIn() {
+export async function openClaudeSignIn(): Promise<{
+  command: string | undefined;
+  opened: boolean;
+  via: "browser" | "terminal";
+}> {
   const current = await refreshClaudePlanStatus({ force: true });
   if (current.kind === "not-installed") {
-    return { command: undefined, opened: false };
+    return { command: undefined, opened: false, via: "terminal" };
   }
+  try {
+    pendingSignIn?.cancel();
+    const signIn = await startClaudeCodeSignIn({
+      configDir: current.setup.configDir,
+      executablePath: current.executablePath,
+    });
+    pendingSignIn = signIn;
+    const timer = setTimeout(() => {
+      signIn.cancel();
+    }, SIGN_IN_TIMEOUT_MS);
+    void signIn.completion
+      .catch((error: unknown) => {
+        log.info("Claude sign-in ended without finishing", error);
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        if (pendingSignIn === signIn) {
+          pendingSignIn = undefined;
+        }
+        void refreshClaudePlanStatus({ force: true });
+      });
+    await shell.openExternal(signIn.url);
+    return { command: undefined, opened: true, via: "browser" };
+  } catch (error) {
+    log.warn("Couldn't start Claude sign-in in the browser; using a terminal", error);
+    return { ...(await openTerminalSignIn(current)), via: "terminal" };
+  }
+}
+
+/**
+ * Open a terminal running the CLI's own sign-in, which finishes in the
+ * browser. Answers the command, for a platform where no terminal could be
+ * opened and the person has to run it themselves.
+ */
+async function openTerminalSignIn(current: {
+  executablePath: string;
+  setup: ClaudeCodeSetup;
+}) {
   const env = cliEnv(current.setup);
   const command = current.setup.configDir
     ? `CLAUDE_CONFIG_DIR="${current.setup.configDir}" "${current.executablePath}" auth login`

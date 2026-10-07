@@ -163,6 +163,20 @@ export class ClaudePlanSession {
     });
   }
 
+  /**
+   * One of the CLI's control requests the SDK carries without typing, reached
+   * by name. Its answer is the caller's to check.
+   */
+  async control(name: string, ...args: unknown[]): Promise<unknown> {
+    const target: object = this.query;
+    const method: unknown = name in target ? Reflect.get(target, name) : undefined;
+    if (typeof method !== "function") {
+      throw new Error(`This Claude Agent SDK has no ${name}.`);
+    }
+    const result: unknown = await Reflect.apply(method, target, args);
+    return result;
+  }
+
   usage() {
     return this.query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET();
   }

@@ -17,6 +17,11 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import {
+  firstLineContinues,
+  firstLineModeFor,
+  turnSoFar,
+} from "../lib/first-line";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
@@ -330,6 +335,20 @@ export const agentMachine = setup({
         throw new Error(
           `Error loading messages: ${JSON.stringify(messageResults.error)}`,
         );
+      }
+
+      // Under the `tools-off` first-line mode, the text-only first step is
+      // followed by one with tools whatever the agent's own rule says.
+      if (
+        firstLineContinues(
+          firstLineModeFor({
+            agentName: input.agent.name,
+            taskId: input.taskId,
+          }),
+          turnSoFar(messageResults.value),
+        )
+      ) {
+        return true;
       }
 
       return input.agent.shouldContinue({

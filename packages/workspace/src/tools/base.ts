@@ -3,13 +3,23 @@ import { jsonSchema, type JSONSchema7, type Schema, zodSchema } from "ai";
 import { z } from "zod";
 
 import type { AgentName } from "../agents/types";
+import { offersSay } from "../lib/first-line-mode";
 import { isForkOnlyEnabled, ONE_AGENT_NAME } from "../lib/one-agent-mode";
 import {
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
+  TOOL_SAY_PARAM_NAME,
 } from "../constants";
 
 export const BaseInputSchema = z.object({
+  // A line to the user riding on a call, which the harness shows as the
+  // turn's first text (`lib/first-line-mode.ts`, the `say` mode). First, so a
+  // model writing fields in order streams it before the call's work. Offered
+  // only under that mode; every other schema leaves it out.
+  [TOOL_SAY_PARAM_NAME]: z.string().optional().meta({
+    description:
+      "If you have not written to the user yet this turn, one short sentence to them about what you are doing. Otherwise leave it empty.",
+  }),
   // The phase of work the call belongs to, which the UI draws as a heading over
   // the calls that share it. A field on every call rather than a tool of its
   // own: a heading sent as its own call was always its own step, a model round
@@ -35,9 +45,9 @@ export const BaseInputSchema = z.object({
 });
 
 /**
- * Validates with Zod (so a missing `activity` or `explanation` still parses)
- * while emitting a JSON schema that lists both as required, since LLMs will
- * often omit them otherwise.
+ * Validates with Zod (so a missing `activity`, `explanation` or `say` still
+ * parses) while emitting a JSON schema that lists each one offered as
+ * required, since LLMs will often omit them otherwise.
  */
 export function toolInputSchemaForLLM<TSchema extends z.ZodType>(
   schema: TSchema,
@@ -64,11 +74,23 @@ function forceLabelsRequired(
   if (!json.properties) {
     return json;
   }
-  const { [TOOL_ACTIVITY_PARAM_NAME]: activity, ...rest } = json.properties;
-  const properties =
-    labelsPhases(agentName) || activity === undefined ? json.properties : rest;
+  const {
+    [TOOL_ACTIVITY_PARAM_NAME]: activity,
+    [TOOL_SAY_PARAM_NAME]: say,
+    ...rest
+  } = json.properties;
+  const properties = {
+    ...(say !== undefined && offersSay(agentName)
+      ? { [TOOL_SAY_PARAM_NAME]: say }
+      : {}),
+    ...(labelsPhases(agentName) && activity !== undefined
+      ? { [TOOL_ACTIVITY_PARAM_NAME]: activity }
+      : {}),
+    ...rest,
+  };
   const existing = json.required ?? [];
   const missing = [
+    TOOL_SAY_PARAM_NAME,
     TOOL_ACTIVITY_PARAM_NAME,
     TOOL_EXPLANATION_PARAM_NAME,
   ].filter((name) => name in properties && !existing.includes(name));

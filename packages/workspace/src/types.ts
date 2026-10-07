@@ -180,6 +180,15 @@ export interface WorkspaceAppsConfig {
  */
 export type OneAgentMode = "background" | "fork" | "fork-only" | "foreground";
 
+/**
+ * How the one agent's chat gets a line to the user before its work, an
+ * experiment the evals switch on (`lib/first-line.ts`): `tools-off` makes the
+ * first step of a turn the user started text only, `say` offers every tool
+ * call a line to the user that the harness shows as text, and `nudge` asks for
+ * a line once the turn's first tool results are back with nothing said yet.
+ */
+export type FirstLineMode = "nudge" | "say" | "tools-off";
+
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
@@ -198,6 +207,11 @@ export interface WorkspaceConfig {
    * absent altogether where there is no account to read (scripts, evals).
    */
   getUser?: () => Promise<undefined | { email: string; name?: string }>;
+  /**
+   * The first-line experiment the one agent's chat runs under, or none. See
+   * `FirstLineMode`. Absent is none.
+   */
+  firstLineMode?: () => FirstLineMode | undefined;
   /**
    * Where each workspace's index of its chats and tasks is kept: derived,
    * rebuilt from the workspace whenever it is missing or out of date, and

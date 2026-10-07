@@ -10,6 +10,7 @@ import {
   namesSameModel,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
+import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
 import {
   APICallError,
   InvalidToolInputError,
@@ -18,6 +19,7 @@ import {
   parsePartialJson,
   streamText,
 } from "ai";
+import { omit } from "radashi";
 import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
@@ -324,6 +326,23 @@ export const llmRequestLogic = fromPromise<
     // parameter is not part of it.
     const taskSettings = await getTaskSettings(taskDir(input.taskId));
 
+    // A Claude account searches with Claude Code's own WebSearch, inside the
+    // agent's step, rather than through our web_search tool, whose search on
+    // this account is a separate Claude Code process with a model of its own
+    // in front of the same WebSearch. What it finds arrives as sources.
+    const searchesNatively =
+      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+    const providerOptions = providerOptionsForModel(aiSDKModel, {
+      effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
+      reasoning: input.model.reasoning,
+    });
+    if (searchesNatively) {
+      providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type] = {
+        ...providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type],
+        builtInTools: ["WebSearch"],
+      };
+    }
+
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
@@ -358,12 +377,9 @@ export const llmRequestLogic = fromPromise<
         // These are thrown and handled by the catch block
         // no-op to avoid excessive logging
       },
-      providerOptions: providerOptionsForModel(aiSDKModel, {
-        effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
-        reasoning: input.model.reasoning,
-      }),
+      providerOptions,
       toolChoice: input.toolChoice,
-      tools,
+      tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
     });
 
     for await (const part of result.stream) {

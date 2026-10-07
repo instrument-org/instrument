@@ -1,25 +1,30 @@
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
+// A search through our web_search tool leaves its tool part; one a model ran
+// itself, as a Claude account does with Claude Code's WebSearch, leaves only
+// the sources it found.
+const isSearchEvidence = (part: SessionMessagePart.Type) =>
+  part.type === "tool-web_search" || part.type === "source-url";
+
 const stopOnWebSearch = (part: SessionMessagePart.Type) =>
-  part.type === "tool-web_search" &&
-  "state" in part &&
-  part.state === "input-available";
+  (part.type === "tool-web_search" &&
+    "state" in part &&
+    part.state === "input-available") ||
+  part.type === "source-url";
 
 const hasWebSearchPart = (
   sessions: { messages: { parts: SessionMessagePart.Type[] }[] }[],
 ) =>
-  sessions.some((s) =>
-    s.messages.some((m) => m.parts.some((p) => p.type === "tool-web_search")),
-  );
+  sessions.some((s) => s.messages.some((m) => m.parts.some(isSearchEvidence)));
 
 const assertUsedWebSearch: Assertion = {
   check: ({ sessions }) => {
     const used = hasWebSearchPart(sessions);
     return {
       evidence: used
-        ? "Found tool-web_search part in session messages"
-        : "No tool-web_search part found in session messages",
+        ? "Found a web_search tool part or search sources in session messages"
+        : "No web_search tool part or search sources in session messages",
       passed: used,
       text: "Used the web search tool",
     };
@@ -32,8 +37,8 @@ const assertDidNotUseWebSearch: Assertion = {
     const used = hasWebSearchPart(sessions);
     return {
       evidence: used
-        ? "Found tool-web_search part in session messages (unexpected)"
-        : "No tool-web_search part found in session messages",
+        ? "Found a web_search tool part or search sources in session messages (unexpected)"
+        : "No web_search tool part or search sources in session messages",
       passed: !used,
       text: "Did not use the web search tool",
     };

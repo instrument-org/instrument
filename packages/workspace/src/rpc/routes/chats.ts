@@ -30,14 +30,14 @@ import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
-import { TaskSchema } from "../../schemas/task";
+import { TaskInChatSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 /** A task the window filed, as its tasks screen lists it. */
-const ChildTaskSchema = TaskSchema.extend({
+const ChildTaskSchema = TaskInChatSchema.extend({
   // With each one's folder on disk: what a link into `/tasks/<id>` opens.
   dir: z.string(),
   /** Where it stands and the line the list says about it. */

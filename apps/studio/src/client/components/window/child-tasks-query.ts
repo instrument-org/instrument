@@ -32,7 +32,9 @@ export function useChildTask(id: TaskId, enabled = true) {
     enabled,
   });
   const tasks = useQuery({
-    ...childTasksOptions(record.data?.chatId ?? skipToken),
+    ...childTasksOptions(
+      record.data && !record.data.isChat ? record.data.chatId : skipToken,
+    ),
     enabled,
   });
   return tasks.data?.find((task) => task.id === id);

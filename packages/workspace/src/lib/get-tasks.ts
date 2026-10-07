@@ -110,22 +110,25 @@ async function readTask({
 
   const id = taskIdResult.data;
   const ref = resolveRecord(id);
+  if (ref.isErr()) {
+    return err(ref.error);
+  }
   const settings = await getTaskSettings(dir);
   if (requireSettings && !settings) {
     return err(new TypedError.NotFound("No readable settings"));
   }
 
-  const task: Task = {
+  const fields = {
     ...(await taskTimestamps(dir, settings)),
     apps: settings?.apps,
     id,
-    ...(ref.isOk() && ref.value.kind === "task"
-      ? { chatId: ref.value.chatId }
-      : {}),
-    isChat: ref.isOk() && ref.value.kind === "chat",
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };
+  const task: Task =
+    ref.value.kind === "task"
+      ? { ...fields, chatId: ref.value.chatId, isChat: false }
+      : { ...fields, isChat: true };
   return ok(task);
 }
 

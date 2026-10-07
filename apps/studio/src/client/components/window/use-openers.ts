@@ -230,7 +230,7 @@ export function useOpeners({
       void queryClient
         .fetchQuery(taskRecordOptions(task))
         .then(
-          (record) => record.chatId,
+          (record) => (record.isChat ? undefined : record.chatId),
           () => undefined,
         )
         .then((filedIn) => {

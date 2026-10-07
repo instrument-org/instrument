@@ -239,9 +239,6 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
   for (const task of working) {
     const { chatId } = task;
-    if (chatId === undefined) {
-      continue;
-    }
     // The conversation said when it wants to look; the clock stays quiet.
     if (askedWakes.has(task.id)) {
       continue;

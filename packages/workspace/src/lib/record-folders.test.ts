@@ -122,7 +122,9 @@ describe("record folders", () => {
     expect([resolveChat(chat), resolveChat(child)]).toEqual([chat, undefined]);
     const { tasks } = await getTasks();
     expect(
-      tasks.map((task) => [task.id, task.isChat, task.chatId ?? null]).sort(),
+      tasks
+        .map((task) => [task.id, task.isChat, task.isChat ? null : task.chatId])
+        .sort(),
     ).toMatchInlineSnapshot(`
       [
         [

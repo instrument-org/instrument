@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import {
+  ChatIdSchema,
   type SessionMessage,
   StoreId,
   type Task,
@@ -60,6 +61,7 @@ const messageId = StoreId.newMessageId();
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("quarterly-numbers"),
+  chatId: ChatIdSchema.parse("a-chat"),
   isChat: false,
   title: "Quarterly numbers",
   updatedAt: new Date(0),

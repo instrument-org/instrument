@@ -1,4 +1,4 @@
-import { err, ok, safeTry } from "neverthrow";
+import { err, ok, type Result, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
@@ -161,28 +161,29 @@ export function restoreLastPage({
   targetId: BrowserTargetId;
   taskId: TaskId;
 }) {
-  return safeTry(async function* () {
-    if (!fallbackUrl || fallbackUrl === BLANK_PAGE_URL) {
-      return ok(undefined);
-    }
-    // The browser calls throw rather than returning a Result, and safeTry only
-    // catches what it is yielded, so an unreachable guest would otherwise take
-    // the whole open with it.
-    try {
-      const { browser } = getWorkspaceConfig();
-      const targets = await browser.listTargets(taskId);
-      const target = targets.find(({ id }) => id === targetId);
-      if (!target || target.url !== BLANK_PAGE_URL) {
+  return new ResultAsync(
+    (async (): Promise<Result<undefined, Error>> => {
+      if (!fallbackUrl || fallbackUrl === BLANK_PAGE_URL) {
         return ok(undefined);
       }
-      await browser.sendCommand(targetId, "Page.navigate", {
-        url: fallbackUrl,
-      });
-    } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
-    }
-    return ok(undefined);
-  });
+      // The browser calls throw rather than returning a Result, so an
+      // unreachable guest would otherwise take the whole open with it.
+      try {
+        const { browser } = getWorkspaceConfig();
+        const targets = await browser.listTargets(taskId);
+        const target = targets.find(({ id }) => id === targetId);
+        if (!target || target.url !== BLANK_PAGE_URL) {
+          return ok(undefined);
+        }
+        await browser.sendCommand(targetId, "Page.navigate", {
+          url: fallbackUrl,
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+      return ok(undefined);
+    })(),
+  );
 }
 
 function hostnameOf(url: string): string {

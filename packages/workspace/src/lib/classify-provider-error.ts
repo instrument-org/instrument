@@ -153,12 +153,31 @@ export function classifyProviderError(
     return { evidence: "transport", kind: "transient" };
   }
 
+  // The provider's catalog, read just before the request, left out the model
+  // the turn runs on. A ChatGPT plan's catalog has been seen dropping a model
+  // and listing it again seconds later, so the next attempt reads it afresh.
+  if (isUnlistedModel(error)) {
+    return { evidence: "structured", kind: "transient" };
+  }
+
   const streamed = readStreamedError(error);
   if (streamed) {
     return weighEvidence(streamed);
   }
 
   return { evidence: "none", kind: "unknown" };
+}
+
+/** Whether a `gateway-not-listed-error` is anywhere in the cause chain. */
+function isUnlistedModel(error: unknown) {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (property(current, "type") === "gateway-not-listed-error") {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
 }
 
 function asString(value: unknown) {

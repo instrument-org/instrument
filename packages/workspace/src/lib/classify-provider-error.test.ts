@@ -386,3 +386,34 @@ describe("classifyProviderError, on a connection that failed", () => {
     ).toEqual({ evidence: "none", kind: "unknown" });
   });
 });
+
+// The provider's catalog was read and the model was not on it, which a ChatGPT
+// plan has been seen doing for a few seconds at a time. Any other lookup miss
+// is ours to fix and stays unknown.
+describe("classifyProviderError, on a model lookup that missed", () => {
+  function gatewayError(type: string) {
+    return Object.assign(new Error("Model openai/gpt-6.1-sol not found"), {
+      type,
+    });
+  }
+
+  it("retries a model the catalog left out, through the turn's wrapper", () => {
+    expect(
+      classifyProviderError(
+        new Error("Failed to fetch AI SDK model", {
+          cause: gatewayError("gateway-not-listed-error"),
+        }),
+      ),
+    ).toEqual({ evidence: "structured", kind: "transient" });
+  });
+
+  it("leaves a missing provider config alone", () => {
+    expect(
+      classifyProviderError(
+        new Error("Failed to fetch AI SDK model", {
+          cause: gatewayError("gateway-not-found-error"),
+        }),
+      ),
+    ).toEqual({ evidence: "none", kind: "unknown" });
+  });
+});

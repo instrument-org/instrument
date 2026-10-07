@@ -315,6 +315,7 @@ export const llmRequestLogic = fromPromise<
     if (!aiSDKModelResult.ok) {
       throw new Error(
         `Failed to fetch AI SDK model: ${aiSDKModelResult.error.message}`,
+        { cause: aiSDKModelResult.error },
       );
     }
 

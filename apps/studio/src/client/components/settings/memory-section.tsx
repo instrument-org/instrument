@@ -240,8 +240,8 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
       <div>
         <h4 className="text-sm font-medium">Import from any AI</h4>
         <p className="mt-1 text-sm text-muted-foreground">
-          Adds to what {APP_NAME} already knows, never replaces it. Repeat it
-          for each AI you use.
+          Importing adds to what {APP_NAME} remembers, so you can bring in
+          memories from every AI you use.
         </p>
       </div>
       <div className="divide-y rounded-lg border">

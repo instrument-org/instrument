@@ -273,6 +273,22 @@ export async function openClaudeSignIn(): Promise<{
   }
 }
 
+/**
+ * Sign in through Claude Code in a terminal instead, for when the browser
+ * cannot get back to it: a browser on another device, or a computer that
+ * blocks `localhost`. Claude Code then shows Anthropic's page with a code to
+ * paste, and takes the code itself, so it never passes through Instrument.
+ */
+export async function openClaudeTerminalSignIn() {
+  cancelClaudeSignIn();
+  const current = await refreshClaudePlanStatus({ force: true });
+  if (current.kind === "not-installed") {
+    return { command: undefined, opened: false };
+  }
+  await mkdir(accountDir(), { recursive: true });
+  return openTerminalSignIn(current.executablePath);
+}
+
 /** Give up on a sign-in still waiting on the browser. */
 export function cancelClaudeSignIn() {
   pendingSignIn?.cancel();

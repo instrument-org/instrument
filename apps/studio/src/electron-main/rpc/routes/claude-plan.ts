@@ -5,6 +5,7 @@ import {
   claudePlanUsage,
   installClaudeCode,
   openClaudeSignIn,
+  openClaudeTerminalSignIn,
   refreshClaudePlanStatus,
 } from "@/electron-main/lib/claude-plan";
 import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
@@ -26,6 +27,12 @@ const live = {
  * then opens Anthropic's sign-in page in the browser.
  */
 const signIn = base.handler(() => openClaudeSignIn());
+
+/**
+ * Signs in through Claude Code in a terminal, where it takes the code
+ * Anthropic's page shows when the browser cannot get back to it.
+ */
+const signInWithTerminal = base.handler(() => openClaudeTerminalSignIn());
 
 /** Gives up on a sign-in still waiting on the browser. */
 const cancelSignIn = base.handler(() => {
@@ -68,5 +75,6 @@ export const claudePlan = {
   live,
   refresh,
   signIn,
+  signInWithTerminal,
   usage,
 };

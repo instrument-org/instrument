@@ -3,6 +3,7 @@ import { folderReach } from "./chat/folder-reach";
 import { expectStop } from "./chat/wake";
 import { defaultTaskName } from "./default-task-name";
 import { isToolPart } from "./is-tool-part";
+import { inForkWords } from "./one-agent";
 import { chatTaskIds } from "./record-folders";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import {
@@ -203,6 +204,10 @@ const CARRY_ON =
  * been forked: the work goes on, so this reply is for the message alone.
  */
 export function interruptedNote({ name, taskId }: ForkedTurn): string {
+  return inForkWords(interruptedNoteText({ name, taskId }));
+}
+
+function interruptedNoteText({ name, taskId }: ForkedTurn): string {
   return systemNote`
     The user sent this while you were still working on their earlier request. That work was not dropped: it carries on in the background as task ${taskId} ("${name}"), a fork of you that picks up from your last finished step, and you will be told when it finishes. Do not redo it or wait on it; answer this message. If this message changes that work, \`${TASK_COMMAND.name} send ${taskId}\` passes the change on; if it calls the work off, \`${TASK_COMMAND.name} stop ${taskId}\`.
   `.trim();

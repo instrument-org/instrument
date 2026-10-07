@@ -52,7 +52,11 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
 import { chatRefusal } from "./chat-shell-policy";
-import { chatSpokenFor, ONE_AGENT_NAME } from "../lib/one-agent";
+import {
+  chatSpokenFor,
+  isForkOnlyEnabled,
+  ONE_AGENT_NAME,
+} from "../lib/one-agent";
 import { workDir } from "../lib/work-dir";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
@@ -183,7 +187,12 @@ export const BashTool = setupTool({
     const chatId = chatSpokenFor(agentName, taskId);
     const chat = chatId
       ? {
-          childMounts: await childTaskMounts(chatId),
+          // A fork-only chat's tasks work in its own folder, so there is
+          // no task folder to mount.
+          childMounts:
+            agentName === ONE_AGENT_NAME && isForkOnlyEnabled()
+              ? []
+              : await childTaskMounts(chatId),
           full: agentName === ONE_AGENT_NAME,
           id: chatId,
         }

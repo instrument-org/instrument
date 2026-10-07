@@ -5,6 +5,13 @@ import {
   setWorkspaceConfig,
 } from "../lib/workspace-config";
 
+import { createBashDescription } from "../lib/create-bash-env";
+import {
+  inForkWords,
+  isForkOnInterruptEnabled,
+  parseOneAgentMode,
+} from "../lib/one-agent";
+import { type OneAgentMode } from "../types";
 import { TOOL_NAMES } from "../tools/name";
 import { instrumentAgent } from "./instrument";
 import { oneAgent } from "./one";
@@ -99,5 +106,111 @@ describe("oneAgent", () => {
 
   it("leaves no tool-label rule that only the task agent's schema carries", () => {
     expect(prompt).not.toContain("Every call carries an");
+  });
+
+  describe("in the fork-only modes", () => {
+    const inMode = <T>(mode: OneAgentMode, read: () => T): T => {
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({ ...config, oneAgentMode: () => mode });
+      try {
+        return read();
+      } finally {
+        setWorkspaceConfig(config);
+      }
+    };
+    let forkOnly: string;
+    let background: string;
+    beforeAll(() => {
+      forkOnly = inMode("fork-only", () => oneAgent.systemPrompt());
+      background = inMode("background", () => oneAgent.systemPrompt());
+    });
+
+    it("is one prompt of its own, well under the composed one", () => {
+      expect(forkOnly.length).toBeLessThan(prompt.length * 0.6);
+      expect(forkOnly).toContain(
+        "A task is you, continuing in the background with this conversation in hand",
+      );
+      expect(forkOnly).toContain("task new --name '<title>'");
+      expect(forkOnly).toContain("task folder --add");
+    });
+
+    it("carries nothing of briefed tasks or their folders", () => {
+      for (const gone of [
+        "--fresh",
+        "--folder",
+        "/tasks",
+        "brief",
+        "folder self",
+        "a copy of you",
+        "one of this chat's tasks",
+      ]) {
+        expect(forkOnly).not.toContain(gone);
+      }
+    });
+
+    it("keeps the rules the chat and the task agent both had", () => {
+      for (const kept of [
+        "One line, then act, in the same reply",
+        "memory save <name> <<'EOF'",
+        "the save and the start go in one command, the save first",
+        "name scratch files and folders after the job",
+        "Nothing of theirs is deleted or overwritten unless they said so",
+        "in a subfolder named for the job",
+        "IMPORTANT: Never fabricate a URL.",
+        "links it the first time",
+        `\`\`\`files fence`,
+        `\`\`\`message fence`,
+      ]) {
+        expect(forkOnly).toContain(kept);
+      }
+    });
+
+    it("never says task in the background mode", () => {
+      expect(background).not.toMatch(/\btasks?\b/i);
+      expect(background).toContain("background new --name '<title>'");
+      expect(
+        background
+          .replaceAll("background run", "task")
+          .replaceAll("Background runs", "Tasks")
+          .replaceAll("`background`", "`task`")
+          .replaceAll(
+            /\bbackground (new|send|stop|list|show|log|folder)\b/g,
+            "task $1",
+          ),
+      ).toBe(forkOnly);
+    });
+
+    it("lists the fork command without task folders in the shell's description", () => {
+      const described = inMode("fork-only", () =>
+        createBashDescription({ oneAgent: true }),
+      );
+      expect(described).not.toContain("/tasks/<id>");
+      expect(described).toContain(
+        "task - Start, message, stop and read your tasks",
+      );
+      const inBackground = inMode("background", () =>
+        createBashDescription({ oneAgent: true }),
+      );
+      expect(inBackground).toContain("background - Start, message, stop");
+      expect(inBackground).not.toMatch(/(?<![\w/.-])tasks?(?![\w/-])/i);
+    });
+
+    it("forks on interrupt always, and is what the evals' switch names", () => {
+      expect(inMode("fork-only", isForkOnInterruptEnabled)).toBe(true);
+      expect(inMode("background", isForkOnInterruptEnabled)).toBe(true);
+      expect(inMode("fork", isForkOnInterruptEnabled)).toBe(false);
+      expect(parseOneAgentMode("fork-only")).toBe("fork-only");
+      expect(parseOneAgentMode("background")).toBe("background");
+      expect(parseOneAgentMode("fork-on-interrupt")).toBe("fork");
+    });
+
+    it("puts notes about forks in background words only in the background mode", () => {
+      const note =
+        "A task you created has finished: `task send 2026-x` picks it up; see /tasks/2026-x and /task/work.";
+      expect(inMode("fork-only", () => inForkWords(note))).toBe(note);
+      expect(inMode("background", () => inForkWords(note))).toBe(
+        "Background work you created has finished: `background send 2026-x` picks it up; see /tasks/2026-x and /task/work.",
+      );
+    });
   });
 });

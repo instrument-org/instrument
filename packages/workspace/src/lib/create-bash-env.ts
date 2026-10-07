@@ -91,7 +91,17 @@ import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createTabCommand } from "./shell-commands/tab";
 import { TAB_COMMAND } from "./shell-commands/tab-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
-import { createTaskCommand } from "./shell-commands/task/command";
+import {
+  BACKGROUND_COMMAND_NAME,
+  forkCommandName,
+  inForkWords,
+  isForkOnlyEnabled,
+  oneAgentMode,
+} from "./one-agent";
+import {
+  createBackgroundCommand,
+  createTaskCommand,
+} from "./shell-commands/task/command";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
   createValidateSkillCommand,
@@ -573,6 +583,22 @@ const ONE_AGENT_CHAT_COMMAND_LINES = [
   `  (In the chat, each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\` and the workspace's apps at \`${MOUNT.apps}\`.)`,
 ];
 
+/**
+ * The same lines under the fork-only modes, where a task is a fork working
+ * in this same folder and no task has a folder to mount, in the mode's words.
+ */
+function forkOnlyChatCommandLines(): string[] {
+  return [
+    inForkWords(
+      `  ${forkCommandName()} - Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. \`${forkCommandName()} help\` prints the full surface.`,
+    ),
+    `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
+    `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
+    `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
+    `  (In the chat, the workspace's apps are at \`${MOUNT.apps}\`.)`,
+  ];
+}
+
 export function createBashDescription({
   chat = false,
   oneAgent = false,
@@ -599,12 +625,16 @@ export function createBashDescription({
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
-    ...(oneAgent ? ONE_AGENT_CHAT_COMMAND_LINES : []),
+    ...(oneAgent
+      ? isForkOnlyEnabled()
+        ? forkOnlyChatCommandLines()
+        : ONE_AGENT_CHAT_COMMAND_LINES
+      : []),
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
 
-  return dedent`
+  const description = dedent`
     Execute bash commands in the task directory.
 
     IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
@@ -642,6 +672,28 @@ export function createBashDescription({
     Specialized commands:
     ${specializedCommands}
   `.trim();
+  return oneAgent && oneAgentMode() === "background"
+    ? inFolderWords(description)
+    : description;
+}
+
+/**
+ * The shell's description where the agent's word for work in the background
+ * is "background": the working folder it calls the task's is the agent's own
+ * folder, and what is left of "task" is background work (`inForkWords`).
+ */
+function inFolderWords(text: string): string {
+  return inForkWords(
+    text
+      .replaceAll("the task directory", "your folder")
+      .replaceAll("the task root", "your folder's root")
+      .replaceAll("the task folder", "your folder")
+      .replaceAll("into the task first", "into your folder first")
+      .replaceAll("the task's", "your folder's")
+      .replaceAll("per-task", "per-folder")
+      .replaceAll("task-relative", "folder-relative")
+      .replaceAll("managed task browser", "managed browser"),
+  );
 }
 
 /**
@@ -661,6 +713,7 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
   MEMORY_COMMAND.name,
   TAB_COMMAND.name,
   TASK_COMMAND.name,
+  BACKGROUND_COMMAND_NAME,
 ]);
 
 /**
@@ -750,7 +803,16 @@ export async function createLocalBashEnv({
         createMemoryCommand({ chatId: chat.id, sessionId }),
         createAppCommand({ taskId }),
         createTabCommand({ chatId: chat.id }),
-        ...(chat.full ? nativeCommands : []),
+        ...(chat.full
+          ? [
+              createBackgroundCommand({
+                chatId: chat.id,
+                remainingYieldMs,
+                sessionId,
+              }),
+              ...nativeCommands,
+            ]
+          : []),
       ]
     : [createAppCommand({ taskId }), ...nativeCommands];
   const specializedCommandNames = chat
@@ -760,7 +822,7 @@ export async function createLocalBashEnv({
         MEMORY_COMMAND.name,
         APP_COMMAND.name,
         TAB_COMMAND.name,
-        ...(chat.full ? nativeCommandNames : []),
+        ...(chat.full ? [BACKGROUND_COMMAND_NAME, ...nativeCommandNames] : []),
       ]
     : [APP_COMMAND.name, ...nativeCommandNames];
 

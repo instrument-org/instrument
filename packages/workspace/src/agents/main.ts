@@ -76,7 +76,7 @@ interface MountedFolderAttachment {
  */
 const AD_BLOCKING_GUIDANCE = `- The task browser blocks ads and trackers. When a page looks broken (a missing button, an empty embed, a checkout or sign-in that never loads), run \`agent-browser adblock off\`, reload, and retry before calling the site broken; it applies to this task's tabs only, and \`adblock on\` restores it.`;
 
-function browserTargetingGuidance() {
+export function browserTargetingGuidance() {
   if (!getWorkspaceConfig().isExternalBrowserEnabled()) {
     return [
       `- When a page needs an account, open it in the task browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the task.`,

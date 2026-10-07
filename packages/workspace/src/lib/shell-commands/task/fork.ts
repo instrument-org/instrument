@@ -15,7 +15,14 @@ import { initializeTask } from "../../initialize-task";
 import { isToolPart } from "../../is-tool-part";
 import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
-import { ONE_AGENT_NAME, oneAgentMode } from "../../one-agent";
+import {
+  forkCommandName,
+  forksToBackground,
+  inForkWords,
+  isForkOnlyEnabled,
+  ONE_AGENT_NAME,
+  oneAgentMode,
+} from "../../one-agent";
 import { Store } from "../../store";
 import { systemNote } from "../../system-note";
 import { taskDir } from "../../task-dir-utils";
@@ -84,6 +91,31 @@ export const forkSubcommand = subcommand<TaskCommandContext>({
 });
 
 /**
+ * `task new` under the fork-only modes, where every task is a fork: no
+ * `--fresh`, and none of the flags that hand a task what a fork already has
+ * (`--folder`, `--file`, `--app`), since it reaches exactly the chat's
+ * folders, files and apps. Built per call, for the mode's command name.
+ */
+export function forkOnlyNewSubcommand() {
+  const name = forkCommandName();
+  return subcommand<TaskCommandContext>({
+    flags: ["name", "tab"],
+    repeatable: ["tab"],
+    run: runFork,
+    usage: inForkWords(`  ${name} new --name '<title>' [--tab <id>]... <<'EOF'
+  <what to do now>
+  EOF
+      Start a task: you, carrying on in the background with this conversation
+      as it stands, in this same folder and with the same folders, apps and
+      memories, doing what stdin says while you keep answering here. stdin
+      says what to do now and repeats none of the conversation. --tab hands it
+      a tab of the user's, page and all. Prints its id. You are told when it
+      finishes; do not poll it.
+`),
+  });
+}
+
+/**
  * `task new` under the one agent's `foreground` mode, where nothing runs in
  * the background: refused, saying where the work goes instead.
  */
@@ -103,7 +135,7 @@ async function runFork(
   context: TaskCommandContext,
   { cwd, stdin }: SubcommandShell,
 ) {
-  if (oneAgentMode() !== "fork") {
+  if (!forksToBackground(oneAgentMode())) {
     throw new Error(
       `fork: not available in this conversation. Start a task with \`${TASK_COMMAND.name} new\`.`,
     );
@@ -124,6 +156,7 @@ async function runFork(
     );
   }
   const { model, modelURI } = await chatModel("new", context);
+  const forkOnly = isForkOnlyEnabled();
   const chatFolders = await folderReach(context.chatId);
 
   // Every folder the chat reaches comes along at the chat's own path and
@@ -185,6 +218,11 @@ async function runFork(
     }),
   });
   recordHandOff({ kind: "created", taskId });
+  if (forkOnly) {
+    return inForkWords(
+      `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    );
+  }
 
   const reach = Object.values(await folderReach(taskId));
   const grants = granted.map((folder) => {
@@ -341,6 +379,13 @@ export function forkDirective(
     apps.length > 0
       ? `\nThe work uses the connected ${apps.length === 1 ? "app" : "apps"} ${apps.join(", ")}.`
       : "";
+  if (isForkOnlyEnabled()) {
+    const command = forkCommandName();
+    const note = inForkWords(systemNote`
+      Everything above is this conversation as it stood when you were started on the work below, as a task: you, carrying on in the background while the conversation goes on without you. Draw on all of it (the user's words, their memories, what was already found), but do what the assignment says and nothing else the conversation asked for. Nobody watches here: no question, folder request, or app card reaches the user, and \`${command}\`, \`chat\`, \`memory\` and \`tab\` are not in your shell. You share the conversation's folder and the user's folders with it and with any other task, so a file you make here is named for this job, and one that may be open elsewhere is left alone rather than rewritten. Your last message is read back into the conversation, which relays it: a line or two saying what came of it, and a \`\`\`${AGENT_FILES_LANGUAGE} fence naming what you made, placed where the user can reach it. If you cannot go on without something from the user, end with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence instead, one need per line.
+    `).trim();
+    return `${note}\n\nYour assignment:\n${directive}${startFrom}${useApps}`;
+  }
   return `${systemNote`
     Everything above is background context, not your assignment: this chat as it stood when you were forked to work in the background. Draw on it (the user's words, their memories, what was already found), but do what the assignment below says and nothing the conversation asked of the chat. You are one of the chat's tasks now, where nobody watches: no question, folder request, or app card reaches the user from here, and \`${TASK_COMMAND.name}\`, \`chat\`, \`memory\` and \`tab\` are not in your shell. You work in the chat's own folder (\`${MOUNT.task}\`), which the chat keeps using while you run, so write new files rather than rewriting ones it has open; the user's folders are at the same paths. Your last message is read by the chat, which relays it: a line or two saying what came of it, and a \`\`\`${AGENT_FILES_LANGUAGE} fence naming what you made, placed where the user can reach it. If you cannot go on without something from the user, end with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence instead, one need per line.
   `.trim()}\n\nYour assignment:\n${directive}${startFrom}${useApps}`;

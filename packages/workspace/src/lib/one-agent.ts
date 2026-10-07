@@ -5,12 +5,24 @@ import { type TaskId } from "../schemas/task-id";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskSettings } from "../schemas/task-settings";
 import { type TaskState } from "../schemas/task-state";
-import { type OneAgentMode } from "../types";
 import { folderReach } from "./chat/folder-reach";
 import { owningChat, resolveChat, sessionOfChat } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { getTaskSettings } from "./task-settings";
+import { isForkOnly, oneAgentMode } from "./one-agent-mode";
 import { getWorkspaceConfig } from "./workspace-config";
+
+export {
+  BACKGROUND_COMMAND_NAME,
+  FORK_ON_INTERRUPT,
+  forkCommandName,
+  forksToBackground,
+  inForkWords,
+  isForkOnly,
+  isForkOnlyEnabled,
+  oneAgentMode,
+  parseOneAgentMode,
+} from "./one-agent-mode";
 
 /**
  * The agent of the one-agent design (`agents/one.ts`): it answers in a chat
@@ -19,44 +31,21 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const ONE_AGENT_NAME = "instrument-one" satisfies AgentName;
 
 /**
- * How the `one_agent` feature flag has chats run, or none when the host left
- * it off. See `OneAgentMode`.
- */
-export function oneAgentMode(): OneAgentMode | undefined {
-  return getWorkspaceConfig().oneAgentMode?.();
-}
-
-/** How a switch outside the app asks for `fork` mode with fork on interrupt. */
-export const FORK_ON_INTERRUPT = "fork-on-interrupt";
-
-/**
- * A mode spelled the way a switch outside the app gives it (the evals'
- * `INSTRUMENT_EVAL_ONE_AGENT`): `1`, `fork` or `fork-on-interrupt` for
- * `fork`, `foreground`, or anything else for off.
- */
-export function parseOneAgentMode(
-  value: string | undefined,
-): OneAgentMode | undefined {
-  return value === "1" || value === "fork" || value === FORK_ON_INTERRUPT
-    ? "fork"
-    : value === "foreground"
-      ? "foreground"
-      : undefined;
-}
-
-/**
  * Whether a message the user sends mid-turn forks the turn to the background
- * rather than ending it: the `one_agent_fork_on_interrupt` flag, which only
- * the `fork` mode has, since `foreground` has no background to fork to.
+ * rather than ending it: always in the fork-only modes, and in `fork` under
+ * the `one_agent_fork_on_interrupt` flag. `foreground` has no background to
+ * fork to.
  */
 export function isForkOnInterruptEnabled(): boolean {
+  const mode = oneAgentMode();
   return (
-    oneAgentMode() === "fork" &&
-    (getWorkspaceConfig().isForkOnInterruptEnabled?.() ?? false)
+    isForkOnly(mode) ||
+    (mode === "fork" &&
+      (getWorkspaceConfig().isForkOnInterruptEnabled?.() ?? false))
   );
 }
 
-/** The `one_agent` feature flag, in either mode. */
+/** The `one_agent` feature flag, in any mode. */
 export function isOneAgentEnabled(): boolean {
   return oneAgentMode() !== undefined;
 }

@@ -12,7 +12,7 @@ import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { folderReach } from "../lib/chat/folder-reach";
 import { getCurrentDate } from "../lib/get-current-date";
-import { ONE_AGENT_NAME, oneAgentMode } from "../lib/one-agent";
+import { isForkOnly, ONE_AGENT_NAME, oneAgentMode } from "../lib/one-agent";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import {
@@ -24,6 +24,7 @@ import { TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
 import { instrumentAgent, shouldContinueAfterHandingOff } from "./instrument";
 import { mainAgent } from "./main";
+import { forkOnlyPrompt } from "./one-simple";
 import {
   createContextMessage,
   createSystemMessage,
@@ -41,8 +42,9 @@ import {
  * prompt and tool definitions are the chat's byte for byte and a provider's
  * prefix cache can serve the inherited conversation.
  *
- * The prompt is composed from the two agents' own prompts rather than copied
- * out of them, so the chat's voice rules (how it speaks, the files and message
+ * In the fork-only modes the prompt is its own (`agents/one-simple.ts`).
+ * Otherwise it is composed from the two agents' own prompts rather than
+ * copied out of them, so the chat's voice rules (how it speaks, the files and message
  * fences, one line then act) reach it verbatim and move when they move. What
  * it drops is what says the chat does no work: the opening, the bullets that
  * fence its reach, and the lines about tasks' skills and links it can now
@@ -65,7 +67,11 @@ export const oneAgent = setupAgent({
   name: ONE_AGENT_NAME,
 }).create(({ agentTools, name }) => {
   const systemPrompt = () => {
-    const foreground = oneAgentMode() === "foreground";
+    const mode = oneAgentMode();
+    if (isForkOnly(mode)) {
+      return forkOnlyPrompt();
+    }
+    const foreground = mode === "foreground";
     const chat = promptSections(instrumentAgent.systemPrompt());
     const task = promptSections(mainAgent.systemPrompt());
 

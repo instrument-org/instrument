@@ -1,4 +1,4 @@
-import { encodeUtf8ToBytes } from "just-bash";
+import { encodeUtf8ToBytes, InMemoryFs } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -28,7 +28,10 @@ import { getTaskState, setTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
-import { forkSubcommand } from "./task/fork";
+import { type OneAgentMode } from "../../types";
+import { createBackgroundCommand } from "./task/command";
+import { forkOnlyFolderSubcommand } from "./task/folder";
+import { forkOnlyNewSubcommand, forkSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
 const runFork = subcommandRunner(forkSubcommand, "task fork");
@@ -56,10 +59,12 @@ let rootDir: string;
 let context: TaskCommandContext;
 let chatSessionId: StoreId.Session;
 let oneAgentOn = true;
+let mode: OneAgentMode = "fork";
 
 beforeEach(async () => {
   counter += 1;
   oneAgentOn = true;
+  mode = "fork";
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-fork-"));
   // The chat reaches the home folder read and write, so a test that writes
@@ -77,7 +82,7 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
-    oneAgentMode: () => (oneAgentOn ? "fork" : undefined),
+    oneAgentMode: () => (oneAgentOn ? mode : undefined),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
@@ -423,5 +428,120 @@ describe("task fork", () => {
   it("refuses without the one agent", async () => {
     oneAgentOn = false;
     await expect(fork()).rejects.toThrow(/not available/);
+  });
+});
+
+describe("task new under fork-only", () => {
+  const startOnly = async (args: string[], text = "rename them.") => {
+    const handOffs: HandOff[] = [];
+    const result = await withHandOffs(handOffs, () =>
+      subcommandRunner(forkOnlyNewSubcommand(), "task new")(
+        ["--name", "Rename photos", ...args],
+        context,
+        encodeUtf8ToBytes(`Batch ${counter}: ${text}`),
+      ),
+    );
+    return { handOffs, result };
+  };
+
+  const directiveOf = () =>
+    JSON.stringify(
+      sent.events.find(
+        (event) =>
+          typeof event === "object" &&
+          event !== null &&
+          "type" in event &&
+          event.type === "createSession",
+      ),
+    );
+
+  it("forks into the chat's folder, saying nothing of a task folder", async () => {
+    mode = "fork-only";
+    const { handOffs, result } = await startOnly([]);
+    const id = forkId(handOffs);
+    expect(await getTaskSettings(taskDir(id))).toMatchObject({
+      fork: true,
+      workdir: context.chatId,
+    });
+    expect(result.stdout).toContain(`Started task ${id}`);
+    expect(result.stdout).not.toContain("/tasks");
+    const directive = directiveOf();
+    expect(directive).toContain(
+      "as a task: you, carrying on in the background",
+    );
+    expect(directive).toContain("named for this job");
+    expect(directive).not.toContain("one of the chat's tasks");
+  });
+
+  it("refuses --fresh and the flags that hand a fork what it already has", async () => {
+    mode = "fork-only";
+    for (const flag of [
+      ["--fresh"],
+      ["--folder", "/mnt/x"],
+      ["--file", "a"],
+      ["--app", "linear"],
+    ]) {
+      await expect(startOnly(flag)).rejects.toThrow(/unknown flag/);
+    }
+  });
+
+  it("speaks of background work, never a task, in the background mode", async () => {
+    mode = "background";
+    const { result } = await startOnly([]);
+    expect(result.stdout).toMatch(/^Started background work /);
+    expect(result.stdout).not.toMatch(/\btasks?\b/i);
+    const note = /Everything above[^]*?Your assignment/.exec(directiveOf());
+    expect(note?.[0]).toContain("as background work: you, carrying on");
+    expect(note?.[0]).not.toMatch(/\btasks?\b/i);
+  });
+
+  it("gives the chat and its running forks a folder inside one it reaches", async () => {
+    mode = "fork-only";
+    const { handOffs } = await startOnly([]);
+    const id = forkId(handOffs);
+    const writable = Object.values(await folderReach(context.chatId)).find(
+      (folder) => effectiveFolderAccess(folder) === "read-write",
+    );
+    if (!writable) {
+      throw new Error("the chat reaches no writable folder");
+    }
+    const inside = path.join(writable.path, "Sales");
+    await fs.mkdir(inside, { recursive: true });
+    const result = await subcommandRunner(
+      forkOnlyFolderSubcommand(),
+      "task folder",
+    )(["--add", `/mnt/${writable.mountName}/Sales`], context);
+    expect(result.stdout).toContain("You now have");
+    const held = (dir: TaskId) =>
+      getTaskState(taskDir(dir)).then((state) =>
+        Object.values(state.attachedFolders ?? {}).map((folder) => folder.path),
+      );
+    expect(await held(context.chatId)).toContain(inside);
+    expect(await held(id)).toContain(inside);
+  });
+});
+
+describe("the background command", () => {
+  const run = (args: string[]) =>
+    createBackgroundCommand(context).execute(args, {
+      cwd: "/task",
+      env: new Map(),
+      fs: new InMemoryFs(),
+      stdin: encodeUtf8ToBytes(`Batch ${counter}: rename them.`),
+    } as never);
+
+  it("is not there outside the background mode", async () => {
+    mode = "fork-only";
+    expect((await run(["new", "--name", "x"])).exitCode).toBe(127);
+  });
+
+  it("starts a fork in the background mode, in its own words", async () => {
+    mode = "background";
+    const help = await run(["help"]);
+    expect(help.stdout).toContain("background new --name");
+    expect(help.stdout).not.toMatch(/\btasks?\b/i);
+    const started = await run(["new", "--name", "Rename photos"]);
+    expect(started.exitCode).toBe(0);
+    expect(started.stdout).toMatch(/^Started background work /);
   });
 });

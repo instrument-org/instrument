@@ -172,9 +172,13 @@ export interface WorkspaceAppsConfig {
 /**
  * How a chat runs under the `one_agent` flag: `fork` does quick work itself
  * and forks slow work to the background; `foreground` does everything itself,
- * with no background at all.
+ * with no background at all. `fork-only` is `fork` with nothing but forks:
+ * no briefed task, no task folder in sight, the chat's folders as the only
+ * folders, one prompt of its own (`agents/one-simple.ts`), and fork on
+ * interrupt always on. `background` is `fork-only` where the agent's word for
+ * that work is "background" (the `background` command) rather than "task".
  */
-export type OneAgentMode = "fork" | "foreground";
+export type OneAgentMode = "background" | "fork" | "fork-only" | "foreground";
 
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;

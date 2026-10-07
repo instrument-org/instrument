@@ -7,7 +7,15 @@ import { folderReach } from "../../chat/folder-reach";
 import { mountAliases } from "../../chat/mount-paths";
 import { outputFolderPath } from "../../chat/output-folder";
 import { folderLabel } from "../../folder-parent-label";
-import { isOneAgentEnabled } from "../../one-agent";
+import {
+  forkCommandName,
+  inForkWords,
+  isForkOnlyEnabled,
+  isOneAgentEnabled,
+} from "../../one-agent";
+import { chatTaskIds } from "../../record-folders";
+import { taskDir } from "../../task-dir-utils";
+import { getTaskSettings } from "../../task-settings";
 import { effectiveFolderAccess } from "../../workspace-fs-layout";
 import {
   type SubcommandInput,
@@ -51,6 +59,24 @@ export const folderSubcommand = subcommand<TaskCommandContext>({
       as \`send\`, and it is told that too.
 `,
 });
+
+/**
+ * `folder` under the fork-only modes, where a task reaches exactly the
+ * chat's folders: the chat's own grant (`folder self`), with no task to name.
+ * Built per call, for the mode's command name.
+ */
+export function forkOnlyFolderSubcommand() {
+  return subcommand<TaskCommandContext>({
+    flags: ["add"],
+    repeatable: ["add"],
+    run: (input, context) => runSelfFolder(input, context),
+    usage: inForkWords(`  ${forkCommandName()} folder --add <mount>/<folder>...
+      Read and write on a folder inside one you reach read-only (one in the
+      home folder, say), for you and every task you start after this. Prints
+      the path to work in it at.
+`),
+  });
+}
 
 /**
  * Changes which of the user's folders a task may reach.
@@ -181,7 +207,11 @@ async function runSelfFolder(
   }
   const askedAdds = input.all("add");
   if (askedAdds.length === 0) {
-    throw new Error("folder self: --add <mount>/<folder> is required.");
+    throw new Error(
+      isForkOnlyEnabled()
+        ? "--add <mount>/<folder> is required."
+        : "folder self: --add <mount>/<folder> is required.",
+    );
   }
   const chatFolders = await folderReach(context.chatId);
   const adds = resolveFolders(askedAdds, chatFolders);
@@ -209,6 +239,20 @@ async function runSelfFolder(
     const mountPoint = mounted
       ? attachedFolderMountPoint(mounted.mountName)
       : folder.path;
+    // A fork-only chat's tasks reach exactly its folders, the ones already
+    // running included, at the same path.
+    if (isForkOnlyEnabled() && mounted) {
+      for (const taskId of chatTaskIds(context.chatId)) {
+        if ((await getTaskSettings(taskDir(taskId)))?.fork) {
+          await attachFolder({
+            access: folder.access,
+            mountName: mounted.mountName,
+            path: folder.path,
+            taskId,
+          });
+        }
+      }
+    }
     lines.push(
       `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : folder.access}). Work in it there.`,
     );

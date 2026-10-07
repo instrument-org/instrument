@@ -14,6 +14,7 @@ import {
   toChatPaths,
   translateTaskFolderPaths,
 } from "../../chat/mount-paths";
+import { isForkOnlyEnabled } from "../../one-agent";
 import { taskDir } from "../../task-dir-utils";
 import { chatPathOfWorkDir } from "../../work-dir";
 import { taskHold } from "../../task-hold";
@@ -94,7 +95,12 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
     `tabs: ${describeHeldTabs(state.browserTabs ?? [])}`,
-    `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
+    // A fork-only chat's tasks work in its own folder, which is no news.
+    ...(isForkOnlyEnabled()
+      ? []
+      : [
+          `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
+        ]),
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];
   return `${lines.join("\n")}\n`;

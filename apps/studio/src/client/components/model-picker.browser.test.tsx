@@ -152,9 +152,7 @@ describe("ModelPicker in a browser", () => {
         - button "Instrument models (has the chosen model)":
           - img
           - text: Instrument models (has the chosen model)
-        - button "Anthropic models":
-          - img
-          - text: Anthropic models
+        - button "Anthropic models"
         - button "Add a provider"
       - listbox "Suggestions":
         - img
@@ -172,9 +170,7 @@ describe("ModelPicker in a browser", () => {
         - button "Instrument models":
           - img
           - text: Instrument models
-        - button "Anthropic models (has the chosen model)":
-          - img
-          - text: Anthropic models (has the chosen model)
+        - button "Anthropic models (has the chosen model)"
         - button "Add a provider"
       - listbox "Suggestions":
         - text: Latest

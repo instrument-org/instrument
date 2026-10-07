@@ -106,7 +106,7 @@ export function AIProviderEditDialog({
       <DialogContent maxWidth="425px">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AIProviderIcon type={config.type} />
+            <AIProviderIcon company type={config.type} />
             {config.displayName ?? providerMetadata.name}
           </DialogTitle>
           <DialogDescription>{providerMetadata.description}</DialogDescription>

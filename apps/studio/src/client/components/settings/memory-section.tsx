@@ -1,6 +1,6 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { CHATS_HREF } from "@/client/atoms/window";
-import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { VendorMark } from "@/client/components/vendor-mark";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { RelativeTime } from "@/client/components/relative-time";
 import {
@@ -25,7 +25,15 @@ import { displayPath } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIProviderType, APP_NAME } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
+import claudeCode from "@lobehub/icons-static-svg/icons/claudecode-color.svg?raw";
+import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?raw";
+import codex from "@lobehub/icons-static-svg/icons/codex-color.svg?raw";
+import geminiCli from "@lobehub/icons-static-svg/icons/geminicli-color.svg?raw";
+import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
+import grok from "@lobehub/icons-static-svg/icons/grok.svg?raw";
+import openai from "@lobehub/icons-static-svg/icons/openai.svg?raw";
+import opencode from "@lobehub/icons-static-svg/icons/opencode.svg?raw";
 import { type Memory } from "@instrument-org/workspace/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -59,34 +67,33 @@ const COLLAPSED_MAX_HEIGHT_PX = 40;
  * on nothing, and a page that moves breaks nothing here.
  */
 const WEB_SOURCES = [
-  { name: "ChatGPT", provider: "openai", site: "https://chatgpt.com" },
-  { name: "Claude", provider: "anthropic", site: "https://claude.ai" },
-  { name: "Gemini", provider: "google", site: "https://gemini.google.com" },
-  { name: "Grok", provider: "x-ai", site: "https://grok.com" },
-] as const satisfies readonly {
-  name: string;
-  provider: AIProviderType;
-  site: string;
-}[];
+  { mark: openai, name: "ChatGPT", site: "https://chatgpt.com" },
+  { mark: claude, name: "Claude", site: "https://claude.ai" },
+  { mark: gemini, name: "Gemini", site: "https://gemini.google.com" },
+  { mark: grok, name: "Grok", site: "https://grok.com" },
+] as const;
 
 /**
- * The provider a local agent's maker is, by the site its mark comes from, so
- * it is drawn with the same mark as the model picker draws that provider.
+ * The marks of the agents on this computer, by the name the workspace gives
+ * each one: the agent's own rather than its maker's, so Claude Code and
+ * Claude, or Codex and ChatGPT, are told apart in the same grid.
  */
-const PROVIDER_BY_SITE: Record<string, AIProviderType> = {
-  "https://claude.ai": "anthropic",
-  "https://gemini.google.com": "google",
-  "https://openai.com": "openai",
-  "https://opencode.ai": "opencode-zen",
+const LOCAL_MARKS: Record<string, { ink: boolean; svg: string }> = {
+  "Claude Code": { ink: true, svg: claudeCode },
+  // Its glyph sits on a white tile of its own, which stays white in either
+  // theme rather than taking the text color.
+  Codex: { ink: false, svg: codex },
+  "Gemini CLI": { ink: true, svg: geminiCli },
+  opencode: { ink: true, svg: opencode },
 };
 
-/** A source's mark: its provider's when there is one, a folder otherwise. */
-function SourceIcon({ site }: { site: string }) {
-  const provider = PROVIDER_BY_SITE[site];
-  return provider ? (
-    <AIProviderIcon className="size-4" type={provider} />
+/** A local agent's mark, or a folder for one with none. */
+function LocalSourceIcon({ name }: { name: string }) {
+  const mark = LOCAL_MARKS[name];
+  return mark ? (
+    <VendorMark className="size-5" ink={mark.ink} svg={mark.svg} />
   ) : (
-    <FolderIcon className="size-4" />
+    <FolderIcon className="size-5 text-muted-foreground" />
   );
 }
 
@@ -189,11 +196,7 @@ function SourceMarks() {
   return (
     <span aria-hidden className="flex shrink-0 items-center gap-1.5">
       {WEB_SOURCES.map((source) => (
-        <AIProviderIcon
-          className="size-4 text-muted-foreground"
-          key={source.name}
-          type={source.provider}
-        />
+        <VendorMark className="size-4" key={source.name} svg={source.mark} />
       ))}
     </span>
   );
@@ -261,7 +264,7 @@ function AnySourceTile({ onStart }: { onStart: (entry: string) => void }) {
     return (
       <SourceTile
         detail="By name or website"
-        icon={<PlusIcon />}
+        icon={<PlusIcon className="text-muted-foreground" />}
         isDashed
         name="Another AI"
         onStart={() => {
@@ -583,7 +586,7 @@ function ImportPage() {
           {WEB_SOURCES.map((source) => (
             <SourceTile
               detail={new URL(source.site).hostname}
-              icon={<AIProviderIcon type={source.provider} />}
+              icon={<VendorMark className="size-5" svg={source.mark} />}
               key={source.name}
               name={source.name}
               onStart={() => {
@@ -594,7 +597,7 @@ function ImportPage() {
           {sources?.map((source) => (
             <SourceTile
               detail={displayPath(source.home)}
-              icon={<SourceIcon site={source.site} />}
+              icon={<LocalSourceIcon name={source.name} />}
               key={source.path}
               name={source.name}
               onStart={() => {
@@ -1064,7 +1067,7 @@ function SourceTile({
       onClick={onStart}
       type="button"
     >
-      <span className="grid size-6 shrink-0 place-items-center [&>*]:size-5 [&>*]:text-muted-foreground">
+      <span className="grid size-6 shrink-0 place-items-center [&>*]:size-5">
         {icon}
       </span>
       <span className="min-w-0">

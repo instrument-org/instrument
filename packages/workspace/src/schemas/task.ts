@@ -16,8 +16,7 @@ export const TaskSchema = z.object({
   // Whether the record is a chat's own, which its folder being under
   // `chats/` says.
   isChat: z.boolean(),
-  // The chat whose `tasks/` folder holds this task; absent for a chat, and
-  // for a task no chat owns.
+  // The chat whose `tasks/` folder holds this task; absent for a chat.
   chatId: ChatIdSchema.optional(),
   // The level chosen for this task, absent when nobody chose one and the
   // model's own catalog default stands. See TaskSettingsSchema.

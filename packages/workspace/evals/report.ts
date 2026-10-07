@@ -123,7 +123,7 @@ export async function generateReport({
     setWorkspaceConfig(workspaceConfig);
   }
 
-  const listed = await getTasks(workspaceConfig, {
+  const listed = await getTasks({
     direction: "asc",
     sortBy: "createdAt",
   });

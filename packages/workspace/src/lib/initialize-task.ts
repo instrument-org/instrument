@@ -21,7 +21,7 @@ export async function initializeTask(
     taskId,
     workspaceConfig,
   }: {
-    /** The chat that starts the task, whose `tasks/` folder it goes in. */
+    /** The chat that starts the task, whose `tasks/` folder it goes in; required for anything but a chat. */
     chatId?: ChatId;
     initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
@@ -33,17 +33,21 @@ export async function initializeTask(
   // task that was never made does not hold its name in the index.
   let release: (() => void) | undefined;
   return safeTry(async function* () {
-    // A chat's folder goes under `chats/`, a task a chat started goes inside
-    // that chat, and any other task goes flat under `tasks/`. The id is
-    // reserved in the index before its folder exists, which is what refuses
-    // a name another chat just took.
+    // A chat's folder goes under `chats/`, and a task goes inside the chat
+    // that started it. The id is reserved in the index before its folder
+    // exists, which is what refuses a name another chat just took.
     const { chatSessionId } = initialSettings;
     const isChat = chatSessionId !== undefined;
     const dir = yield* Result.fromThrowable(
-      () =>
-        isChat
-          ? placeChat(ChatIdSchema.parse(taskId), chatSessionId)
-          : placeTask(taskId, chatId),
+      () => {
+        if (isChat) {
+          return placeChat(ChatIdSchema.parse(taskId), chatSessionId);
+        }
+        if (chatId === undefined) {
+          throw new Error(`Task ${taskId} has no chat to start it.`);
+        }
+        return placeTask(taskId, chatId);
+      },
       (error) =>
         new TypedError.Conflict(
           error instanceof Error ? error.message : String(error),

@@ -26,8 +26,6 @@ const CHAT_SESSION = StoreId.SessionSchema.parse(
 );
 const CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 const TASK_ID = TaskIdSchema.parse("read-the-page");
-// A task no chat owns, which still browses in a guest of its own.
-const LONE_TASK_ID = TaskIdSchema.parse("lone-task");
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
@@ -110,11 +108,9 @@ async function spawnedCdpUrl() {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
-  for (const id of [TASK_ID, LONE_TASK_ID]) {
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", id), {
-      unplaced: true,
-    });
-  }
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
+    unplaced: true,
+  });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
@@ -123,22 +119,17 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(CHAT_SESSION, CHAT_ID);
-  for (const [taskId, name, chatId] of [
-    [TASK_ID, "Read the page", CHAT_ID],
-    [LONE_TASK_ID, "Lone task", undefined],
-  ] as const) {
-    const made = await initializeTask(
-      {
-        ...(chatId ? { chatId } : {}),
-        initialSettings: { name },
-        taskId,
-        workspaceConfig: getWorkspaceConfig(),
-      },
-      {},
-    );
-    if (made.isErr()) {
-      throw made.error;
-    }
+  const made = await initializeTask(
+    {
+      chatId: CHAT_ID,
+      initialSettings: { name: "Read the page" },
+      taskId: TASK_ID,
+      workspaceConfig: getWorkspaceConfig(),
+    },
+    {},
+  );
+  if (made.isErr()) {
+    throw made.error;
   }
   live = new Set();
   asks = [];
@@ -223,20 +214,4 @@ describe("a task's tab", () => {
     expect(result.exitCode).toBe(0);
     expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
   });
-
-  it.each([
-    { args: ["tab", "new", "https://example.com"] },
-    { args: ["tab", "list"] },
-    { args: ["window", "new"] },
-    { args: ["click", "@e1", "--new-tab"] },
-  ])(
-    "refuses $args to a task no chat owns, whose browser is one page",
-    async ({ args }) => {
-      const result = await run(args, LONE_TASK_ID);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("this browser has one tab");
-      expect(asks).toEqual([]);
-    },
-  );
 });

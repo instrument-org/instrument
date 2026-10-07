@@ -36,7 +36,9 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
-import { placeTask, resolveRecord } from "../../lib/record-folders";
+import { placeTaskAt } from "../../lib/record-folders";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { TaskDirSchema } from "../../schemas/paths";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
@@ -160,14 +162,20 @@ export function createMockTaskConfig(
   return id;
 }
 
+/** The chat every task a test places belongs to; it has no folder of its own. */
+export const MOCK_CHAT_ID = ChatIdSchema.parse("mock-chat");
+
 /**
- * Puts a task no chat owns in the folder index, the way making it would, so
- * `taskDir` answers for it before the test makes its folder, or without one.
+ * Puts a task in the folder index under `MOCK_CHAT_ID`, at the config's
+ * `tasksDir`, so `taskDir` answers for it before the test makes its folder,
+ * or without one.
  */
 export function knowTask(id: TaskId) {
-  if (resolveRecord(id).isErr()) {
-    placeTask(id);
-  }
+  placeTaskAt(
+    id,
+    MOCK_CHAT_ID,
+    TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id)),
+  );
 }
 
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the

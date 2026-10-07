@@ -67,7 +67,7 @@ describe("trashChat", () => {
     const chat = chatFor();
     await make("2026-09-24-first-task", chat);
     await make("2026-09-24-second-task", chat);
-    const other = await make("2026-09-24-not-this-chats");
+    const other = await make("2026-09-24-not-this-chats", chatFor());
 
     const result = await trashChat({
       id: chat,

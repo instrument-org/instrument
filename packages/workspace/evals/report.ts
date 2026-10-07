@@ -123,10 +123,22 @@ export async function generateReport({
     setWorkspaceConfig(workspaceConfig);
   }
 
-  const { tasks } = await getTasks(workspaceConfig, {
+  const listed = await getTasks(workspaceConfig, {
     direction: "asc",
     sortBy: "createdAt",
   });
+  // A task case runs in a chat nobody writes in (`startRun`), which has no
+  // transcript to report.
+  const tasks = (
+    await Promise.all(
+      listed.tasks.map(async (task) =>
+        resolveChat(task.id) &&
+        !(await getTaskState(taskDir(task.id))).selectedModelURI
+          ? []
+          : [task],
+      ),
+    )
+  ).flat();
 
   if (tasks.length === 0) {
     write("No tasks found in workspace.\n");

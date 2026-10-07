@@ -13,6 +13,19 @@ pnpm monorepo for the Instrument desktop app platform.
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
 - On disk, a chat lives under `chats/<id>/`, the tasks it started under `chats/<id>/tasks/<id>/`, and a task no chat owns under `tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. What the window keeps about the chats (seen marks, the tab on screen) is `.instrument/window.json` at the workspace root.
 
+## UI copy
+
+Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
+
+What to avoid:
+
+- **Telegraphic sentences** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."
+- **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
+- **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
+- **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
+
+A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+
 ## Local references
 
 Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.

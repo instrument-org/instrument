@@ -5,6 +5,7 @@ import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   TASK_FOLDER_NAMES as F,
+  TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
@@ -167,6 +168,7 @@ export function forkOnlyPrompt(): string {
     - Say what came of it, in the user's terms, not what you did to get there or the rules you kept: "read only, nothing touched" is a rule kept, and a reply reporting its own compliance reads as a system talking. The result is the whole reply.
     - Refer to work by what it is, in the user's words, never by id. A thing inside the app is a Markdown link with the app's own address: \`[Tuesday's chat](${APP_NAME_SLUG}://chat/<id>)\`, \`[no stevia](${APP_NAME_SLUG}://memory/<name>)\`, \`[Linear](${APP_NAME_SLUG}://app/<slug>)\`, \`[create-page](${APP_NAME_SLUG}://skill/<name>)\`, labeled in the user's words. Link where they would click through, such as the memory you just saved ("Noted, [no stevia](${APP_NAME_SLUG}://memory/no-stevia)."). A result is linked where it is: a file in the files fence, a page by its address.
     - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row: a short phrase starting with a verb ending in -ing ('Reading the sales spreadsheet'), never first person, never a full sentence with a period.
+    - Every call carries an \`${TOOL_ACTIVITY_PARAM_NAME}\`: the phase of work it belongs to, which the user sees as a heading over the calls that share it. Calls serving one objective repeat the same heading word for word; the moment the objective changes (exploring gives way to building, building to checking the result, or something you found sends you elsewhere), the next call carries a new one. About six calls is as far as one phase stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` says what each call does; the activity says why the group of them is happening.
   `.trim();
 }
 

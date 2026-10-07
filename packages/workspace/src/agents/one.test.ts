@@ -158,6 +158,7 @@ describe("oneAgent", () => {
         "in a subfolder named for the job",
         "IMPORTANT: Never fabricate a URL.",
         "links it the first time",
+        "Every call carries an `activity`",
         `\`\`\`files fence`,
         `\`\`\`message fence`,
       ]) {

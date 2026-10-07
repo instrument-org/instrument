@@ -1,6 +1,13 @@
+import { type AgentName } from "../agents/types";
 import { type OneAgentMode } from "../types";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { getWorkspaceConfig } from "./workspace-config";
+
+/**
+ * The agent of the one-agent design (`agents/one.ts`): it answers in a chat
+ * when the `one_agent` flag is on, and in every background run the chat forks.
+ */
+export const ONE_AGENT_NAME = "instrument-one" satisfies AgentName;
 
 /**
  * How the `one_agent` feature flag has chats run, or none when the host left

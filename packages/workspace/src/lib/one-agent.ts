@@ -9,7 +9,7 @@ import { folderReach } from "./chat/folder-reach";
 import { owningChat, resolveChat, sessionOfChat } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { getTaskSettings } from "./task-settings";
-import { isForkOnly, oneAgentMode } from "./one-agent-mode";
+import { isForkOnly, ONE_AGENT_NAME, oneAgentMode } from "./one-agent-mode";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export {
@@ -20,15 +20,10 @@ export {
   inForkWords,
   isForkOnly,
   isForkOnlyEnabled,
+  ONE_AGENT_NAME,
   oneAgentMode,
   parseOneAgentMode,
 } from "./one-agent-mode";
-
-/**
- * The agent of the one-agent design (`agents/one.ts`): it answers in a chat
- * when the `one_agent` flag is on, and in every background run the chat forks.
- */
-export const ONE_AGENT_NAME = "instrument-one" satisfies AgentName;
 
 /**
  * Whether a message the user sends mid-turn forks the turn to the background

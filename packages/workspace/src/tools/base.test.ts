@@ -6,6 +6,11 @@ import {
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../lib/workspace-config";
+import { type OneAgentMode } from "../types";
 import { BaseInputSchema, toolInputSchemaForLLM } from "./base";
 
 const TestSchema = BaseInputSchema.extend({
@@ -86,5 +91,30 @@ describe("toolInputSchemaForLLM", () => {
       .jsonSchema;
     expect(json.properties?.[TOOL_ACTIVITY_PARAM_NAME]).toBeUndefined();
     expect(json.required).toEqual([TOOL_EXPLANATION_PARAM_NAME, "filePath"]);
+  });
+
+  it("requires the one agent's activity under the fork-only modes alone", async () => {
+    const config = getWorkspaceConfig();
+    const required = async (mode: OneAgentMode) => {
+      setWorkspaceConfig({ ...config, oneAgentMode: () => mode });
+      try {
+        return (
+          await asSchema(toolInputSchemaForLLM(TestSchema, "instrument-one"))
+            .jsonSchema
+        ).required;
+      } finally {
+        setWorkspaceConfig(config);
+      }
+    };
+    expect(await required("fork-only")).toEqual([
+      TOOL_ACTIVITY_PARAM_NAME,
+      TOOL_EXPLANATION_PARAM_NAME,
+      "filePath",
+    ]);
+    expect(await required("background")).toContain(TOOL_ACTIVITY_PARAM_NAME);
+    expect(await required("fork")).toEqual([
+      TOOL_EXPLANATION_PARAM_NAME,
+      "filePath",
+    ]);
   });
 });

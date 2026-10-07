@@ -3,6 +3,7 @@ import { jsonSchema, type JSONSchema7, type Schema, zodSchema } from "ai";
 import { z } from "zod";
 
 import type { AgentName } from "../agents/types";
+import { isForkOnlyEnabled, ONE_AGENT_NAME } from "../lib/one-agent-mode";
 import {
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
@@ -14,8 +15,8 @@ export const BaseInputSchema = z.object({
   // own: a heading sent as its own call was always its own step, a model round
   // trip that did nothing else, while a field rides along with work the model
   // was making anyway. Optional and required on the same terms as
-  // `explanation`, below, and offered only to the task agent, whose transcript
-  // is the one drawn in phases.
+  // `explanation`, below, and offered only to agents whose transcript is drawn
+  // in phases (`labelsPhases`).
   [TOOL_ACTIVITY_PARAM_NAME]: z.string().optional().meta({
     description:
       "The phase of work this call belongs to, as a short heading in the present continuous, under about eight words (e.g. 'Charting the quarterly numbers'). Calls serving one objective repeat the same heading word for word. Generate this first.",
@@ -65,13 +66,25 @@ function forceLabelsRequired(
   }
   const { [TOOL_ACTIVITY_PARAM_NAME]: activity, ...rest } = json.properties;
   const properties =
-    agentName === "main" || activity === undefined ? json.properties : rest;
+    labelsPhases(agentName) || activity === undefined ? json.properties : rest;
   const existing = json.required ?? [];
   const missing = [
     TOOL_ACTIVITY_PARAM_NAME,
     TOOL_EXPLANATION_PARAM_NAME,
   ].filter((name) => name in properties && !existing.includes(name));
   return { ...json, properties, required: [...missing, ...existing] };
+}
+
+/**
+ * Whether an agent's calls carry the activity heading: the task agent's, and
+ * the one agent's under the fork-only modes, whose own transcript is the work
+ * (in the chat and in each fork) and is drawn in phases.
+ */
+function labelsPhases(agentName: AgentName): boolean {
+  return (
+    agentName === "main" ||
+    (agentName === ONE_AGENT_NAME && isForkOnlyEnabled())
+  );
 }
 
 export const ProviderOutputSchema = AIGatewayProviderConfig.Schema.pick({

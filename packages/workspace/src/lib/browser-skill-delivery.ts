@@ -1,24 +1,14 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { MOUNT } from "../mount-points";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { agentBrowserGuide } from "./agent-browser-guide";
 import { applyContextRollover } from "./apply-context-rollover";
-import { normalizedPathJoin } from "./normalize-path";
 import { SKILL_NAMES } from "./skill-names";
-import {
-  getSkillProvenance,
-  getWritableSkillsRoot,
-  SKILL_ORIGINS,
-} from "./skill-provenance";
-import {
-  findSkills,
-  getSkillSources,
-  skillsMountSegment,
-  truncateSkillContent,
-} from "./skills";
+import { SKILL_ORIGINS } from "./skill-provenance";
+import { truncateSkillContent } from "./skills";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -32,8 +22,9 @@ export const BrowserSkillSchema = z.object({
   /** Whether `content` is only the head of a body over the skill size limit. */
   contentTruncated: z.boolean(),
   /**
-   * Where the skill sits in the read-only skills mount. Its body links its
-   * references by relative path, and this is what they are relative to.
+   * Where the skill sat in the read-only skills mount, for one delivered from
+   * a skill folder; empty for the guide the CLI ships, whose references come
+   * with `agent-browser skills get core --full`.
    */
   directory: z.string(),
   name: z.string(),
@@ -79,7 +70,7 @@ export async function browserSkillToDeliver({
     if (browserSkillInWindow(window)) {
       return undefined;
     }
-    return await loadBrowserSkill();
+    return loadBrowserSkill();
   } catch (error) {
     getWorkspaceConfig().captureException(error);
     return undefined;
@@ -113,32 +104,14 @@ function browserSkillInWindow(
   );
 }
 
-/**
- * The app's own copy, never a namesake: a machine with upstream's skill
- * installed in another agent's home has two skills answering to the name, and
- * only ours describes this wrapper.
- */
-async function loadBrowserSkill(): Promise<BrowserSkill | undefined> {
-  const workspaceConfig = getWorkspaceConfig();
-  const writableRoot = await getWritableSkillsRoot(workspaceConfig.rootDir);
-  const skill = (await findSkills(getSkillSources(workspaceConfig))).find(
-    (candidate) =>
-      candidate.name === SKILL_NAMES.agentBrowser &&
-      getSkillProvenance(candidate, writableRoot).origin === APP_NAME_SLUG,
-  );
-  if (!skill) {
-    return undefined;
-  }
-  const body = truncateSkillContent(skill.content);
+/** The guide as the installed CLI ships it, led by what differs here (`agent-browser-guide.ts`). */
+function loadBrowserSkill(): BrowserSkill {
+  const body = truncateSkillContent(agentBrowserGuide());
   return {
     content: body.content,
     contentTruncated: body.truncated,
-    directory: normalizedPathJoin(
-      MOUNT.skills,
-      skillsMountSegment(skill.sourceId),
-      skill.name,
-    ),
-    name: skill.id,
+    directory: "",
+    name: SKILL_NAMES.agentBrowser,
     origin: APP_NAME_SLUG,
   };
 }

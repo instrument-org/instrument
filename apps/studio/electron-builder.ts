@@ -73,8 +73,12 @@ const config: Configuration = {
   // electron-builder's automatic native-module unpacking no longer covers it
   // (pnpm 10 was unpacked as a side effect of its top-level reflink `.node`).
   // Unpack it explicitly; afterPack verifies the entry survived.
+  //
+  // agent-browser's own guide (`skill-data/`) is read from disk and handed to
+  // the agent with its first browser command (`agent-browser-guide.ts`).
   asarUnpack: [
     "resources/**",
+    "**/node_modules/agent-browser/skill-data/**",
     "**/node_modules/dugite/git/**",
     "**/node_modules/pnpm/**",
   ],

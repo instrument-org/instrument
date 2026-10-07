@@ -69,17 +69,36 @@ describe("createAgentBrowserCommand", () => {
     );
   });
 
-  it.each([
-    { flag: "--config" },
-    { flag: "--namespace" },
-    { flag: "--session" },
-    { flag: "--session-name" },
-  ])("blocks harness-owned flag $flag", async ({ flag }) => {
-    const result = await command.execute([flag, "value", "open"], mockCtx);
+  it("blocks the harness-owned --config flag", async () => {
+    const result = await command.execute(
+      ["--config", "value", "open"],
+      mockCtx,
+    );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(`flag ${flag} is not allowed`);
+    expect(result.stderr).toContain("flag --config is not allowed");
   });
+
+  it("serves the CLI's core guide, led by what differs in this app", async () => {
+    const result = await command.execute(["skills", "get", "core"], mockCtx);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/^# agent-browser in Instrument\n/);
+    expect(result.stdout).toContain("## The core loop");
+  });
+
+  it.each([
+    ["skills", "get", "electron"],
+    ["skills", "path", "core"],
+  ])(
+    "refuses %s, which describes running agent-browser elsewhere",
+    async (...args) => {
+      const result = await command.execute(args, mockCtx);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("only `skills get core`");
+    },
+  );
 
   it.each([
     { subcommand: "auth" },
@@ -490,6 +509,22 @@ describe("agent-browser routing", () => {
     expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
     expect(env.HOME).not.toBe(os.homedir());
   });
+
+  it.each([["--session"], ["--session-name"], ["--namespace"]])(
+    "ignores %s, which the CLI's guide teaches and the harness sets",
+    async (flag) => {
+      const { args } = await spawnedWith([
+        flag,
+        "mine",
+        "open",
+        "https://example.com",
+      ]);
+
+      expect(args).not.toContain("mine");
+      expect(args.filter((arg) => arg === "--session")).toEqual(["--session"]);
+      expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
+    },
+  );
 
   it("passes upload files to the browser as host-absolute paths", async () => {
     const { args } = await spawnedWith([

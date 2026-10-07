@@ -10,6 +10,7 @@ const defaultFeatures: Features = {
   external_browser: false,
   one_agent: false,
   one_agent_foreground: false,
+  one_agent_fork_on_interrupt: false,
   task_context: false,
 };
 

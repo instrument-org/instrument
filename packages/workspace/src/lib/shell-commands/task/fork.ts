@@ -123,7 +123,6 @@ async function runFork(
       `unexpected ${input.positional.length === 1 ? "argument" : "arguments"} ${input.positional.map((argument) => `"${argument}"`).join(", ")} beside what to do on stdin. A path with a space in it needs quotes.`,
     );
   }
-  const workspaceConfig = getWorkspaceConfig();
   const { model, modelURI } = await chatModel("new", context);
   const chatFolders = await folderReach(context.chatId);
 
@@ -146,12 +145,7 @@ async function runFork(
       `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}: tell them to answer the system's dialog, then run this again.`,
     );
   }
-  const chatGrants = Object.values(chatFolders).map((folder) => ({
-    access: effectiveFolderAccess(folder),
-    mountName: folder.mountName,
-    path: folder.path,
-    source: folder.source,
-  }));
+  const chatGrants = grantsOfChat(chatFolders);
   const granted = resolved
     .filter(
       (folder) =>
@@ -174,17 +168,109 @@ async function runFork(
   const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 
-  const taskId = await newTaskId({ prompt: directive, workspaceConfig });
-  const effort = (await getTaskSettings(taskDir(context.chatId)))
-    ?.reasoningEffort;
+  const taskId = await startFork({
+    chatId: context.chatId,
+    chatSessionId,
+    folders,
+    handedTabs,
+    idFrom: directive,
+    model,
+    modelURI,
+    name,
+    prompt: forkDirective(directive, {
+      apps,
+      files: askedFiles.map((file) =>
+        path.posix.isAbsolute(file) ? file : path.posix.join(cwd, file),
+      ),
+    }),
+  });
+  recordHandOff({ kind: "created", taskId });
+
+  const reach = Object.values(await folderReach(taskId));
+  const grants = granted.map((folder) => {
+    const mounted = reach.find(
+      (held) => path.resolve(held.path) === path.resolve(folder.path),
+    );
+    return {
+      access: mounted ? effectiveFolderAccess(mounted) : folder.access,
+      mountName: mounted?.mountName ?? path.basename(folder.path),
+    };
+  });
+  const grantLine =
+    grants.length > 0
+      ? `It also has ${handedFolders(grants)}, which you do not; \`${TASK_COMMAND.name} folder self --add\` gives you the same.\n`
+      : "";
+  return `Forked ${taskId} ("${name}"). It is running now, in this folder (${MOUNT.task}) and with your folders at the same paths.\n${grantLine}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+}
+
+/** A folder a fork is granted, in the shape `newMessage` takes. */
+type ForkFolder = NonNullable<
+  Parameters<typeof newMessage>[0]["folders"]
+>[number];
+
+/**
+ * Every folder the chat reaches, at the chat's own path and access, so a path
+ * anywhere in the inherited conversation is the same path in the fork.
+ */
+export function grantsOfChat(
+  chatFolders: Awaited<ReturnType<typeof folderReach>>,
+): ForkFolder[] {
+  return Object.values(chatFolders).map((folder) => ({
+    access: effectiveFolderAccess(folder),
+    mountName: folder.mountName,
+    path: folder.path,
+    source: folder.source,
+  }));
+}
+
+/**
+ * Starts a fork of a chat, however it was asked for (`task new` under the
+ * one agent, or a message that interrupted the chat's turn): a task of the
+ * chat's that works in its folder, inherits its conversation, and runs the
+ * one agent on `prompt` as its own first turn. Returns the fork's id once its
+ * session has been asked to start.
+ */
+export async function startFork({
+  chatId,
+  chatSessionId,
+  folders,
+  handedTabs = [],
+  idFrom,
+  keep,
+  model,
+  modelURI,
+  name,
+  prompt,
+  settings,
+}: {
+  chatId: ChatId;
+  chatSessionId: StoreId.Session;
+  folders: ForkFolder[];
+  handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
+  /** What the fork's id is made from. */
+  idFrom: string;
+  /** Which of the chat's messages it inherits, in order; all when absent. */
+  keep?: (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[];
+  model: Parameters<typeof newMessage>[0]["model"];
+  modelURI: Parameters<typeof newMessage>[0]["modelURI"];
+  name: string;
+  /** The fork's first turn, as `forkDirective` writes it. */
+  prompt: string;
+  /** Recorded on the fork's settings beside what every fork carries. */
+  settings?: { forkedOnInterrupt?: boolean };
+}): Promise<TaskId> {
+  const workspaceConfig = getWorkspaceConfig();
+  const taskId = await newTaskId({ prompt: idFrom, workspaceConfig });
+  const effort = (await getTaskSettings(taskDir(chatId)))?.reasoningEffort;
   const initialized = await initializeTask(
     {
-      chatId: context.chatId,
+      chatId,
       initialSettings: {
         fork: true,
         name,
         ...(effort ? { reasoningEffort: effort } : {}),
-        workdir: context.chatId,
+        ...settings,
+        workdir: chatId,
       },
       taskId,
       workspaceConfig,
@@ -206,22 +292,18 @@ async function runFork(
   }
   const sessionId = session.value;
   await inheritConversation({
-    chatId: context.chatId,
+    chatId,
     chatSessionId,
     forkId: taskId,
     forkSessionId: sessionId,
+    keep,
   });
 
   const message = await newMessage({
     folders,
     model,
     modelURI,
-    prompt: forkDirective(directive, {
-      apps,
-      files: askedFiles.map((file) =>
-        path.posix.isAbsolute(file) ? file : path.posix.join(cwd, file),
-      ),
-    }),
+    prompt,
     sessionId,
     taskId,
   });
@@ -239,23 +321,7 @@ async function runFork(
     },
   });
   await recordTaskActivity(taskId);
-  recordHandOff({ kind: "created", taskId });
-
-  const reach = Object.values(await folderReach(taskId));
-  const grants = granted.map((folder) => {
-    const mounted = reach.find(
-      (held) => path.resolve(held.path) === path.resolve(folder.path),
-    );
-    return {
-      access: mounted ? effectiveFolderAccess(mounted) : folder.access,
-      mountName: mounted?.mountName ?? path.basename(folder.path),
-    };
-  });
-  const grantLine =
-    grants.length > 0
-      ? `It also has ${handedFolders(grants)}, which you do not; \`${TASK_COMMAND.name} folder self --add\` gives you the same.\n`
-      : "";
-  return `Forked ${taskId} ("${name}"). It is running now, in this folder (${MOUNT.task}) and with your folders at the same paths.\n${grantLine}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+  return taskId;
 }
 
 /**
@@ -265,7 +331,7 @@ async function runFork(
  * the conversation is background rather than the assignment is the first
  * thing in it.
  */
-function forkDirective(
+export function forkDirective(
   directive: string,
   { apps, files }: { apps: string[]; files: string[] },
 ): string {
@@ -298,11 +364,13 @@ async function inheritConversation({
   chatSessionId,
   forkId,
   forkSessionId,
+  keep = (messages) => messages,
 }: {
   chatId: ChatId;
   chatSessionId: StoreId.Session;
   forkId: TaskId;
   forkSessionId: StoreId.Session;
+  keep?: (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[];
 }) {
   const messages = await Store.getMessagesWithParts({
     sessionId: chatSessionId,
@@ -311,7 +379,7 @@ async function inheritConversation({
   if (messages.isErr()) {
     throw messages.error;
   }
-  for (const message of messages.value) {
+  for (const message of keep(messages.value)) {
     const copy = inherited(message, forkSessionId);
     if (!copy) {
       continue;

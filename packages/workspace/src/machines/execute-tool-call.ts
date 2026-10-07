@@ -28,6 +28,20 @@ const STOPPED_BECAUSE: Record<CancellationReason, string> = {
 };
 
 /**
+ * Whether a tool call ended because its run was stopped (by the user, by a
+ * newer message, or for no reason given) rather than with an outcome of its
+ * own. A call its own timeout ended did finish: the timeout is its outcome.
+ */
+export function wasCutShort(part: SessionMessagePart.ToolPart): boolean {
+  return (
+    part.state === "output-error" &&
+    (["manual", "superseded", "unknown"] as const).some(
+      (reason) => part.errorText === STOPPED_BECAUSE[reason],
+    )
+  );
+}
+
+/**
  * Writes the terminal record for a tool call that will never produce its own
  * output: `output-error` with copy naming why it stopped. Shared by the cancel
  * path here and the agent machine's finishing sweep over dangling parts.

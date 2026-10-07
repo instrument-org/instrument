@@ -5,6 +5,9 @@ import { z } from "zod";
 
 import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { runningForks, stopFork } from "../../lib/fork-on-interrupt";
+import { isForkOnInterruptEnabled } from "../../lib/one-agent";
+import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
 import { cancelHold } from "../../lib/task-hold";
@@ -112,7 +115,7 @@ const run = base
 
 const stop = base
   .input(z.object({ id: TaskIdSchema }))
-  .handler(({ context, input }) => {
+  .handler(async ({ context, input }) => {
     // A task held from starting has no session to stop; stopping it cancels
     // the start instead.
     cancelHold(input.id);
@@ -122,6 +125,14 @@ const stop = base
         id: input.id,
       },
     });
+    // Under fork on interrupt a chat's work can be running in forks the user
+    // never asked for, so stopping the chat stops them too.
+    const chatId = resolveChat(input.id);
+    if (chatId && isForkOnInterruptEnabled()) {
+      for (const forkId of await runningForks(chatId)) {
+        stopFork(forkId);
+      }
+    }
 
     context.workspaceConfig.captureEvent("session.stopped");
   });

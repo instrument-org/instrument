@@ -95,6 +95,7 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   external_browser: "x",
   one_agent: "o",
   one_agent_foreground: "f",
+  one_agent_fork_on_interrupt: "i",
   task_context: "t",
 };
 

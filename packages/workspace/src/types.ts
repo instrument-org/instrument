@@ -206,6 +206,13 @@ export interface WorkspaceConfig {
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
   /**
+   * The `one_agent_fork_on_interrupt` feature flag: under the one agent's
+   * `fork` mode, a message the user sends while the chat's turn is mid-work
+   * forks that turn to the background where it stands
+   * (`lib/fork-on-interrupt.ts`) rather than ending it. Absent is off.
+   */
+  isForkOnInterruptEnabled?: () => boolean;
+  /**
    * The `task_context` feature flag: a task a chat starts gets the chat's
    * topic instructions, memories, and the user's own words as background
    * beside its brief (`lib/chat-background.ts`). Absent is off.

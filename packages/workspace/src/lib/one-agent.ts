@@ -26,19 +26,34 @@ export function oneAgentMode(): OneAgentMode | undefined {
   return getWorkspaceConfig().oneAgentMode?.();
 }
 
+/** How a switch outside the app asks for `fork` mode with fork on interrupt. */
+export const FORK_ON_INTERRUPT = "fork-on-interrupt";
+
 /**
  * A mode spelled the way a switch outside the app gives it (the evals'
- * `INSTRUMENT_EVAL_ONE_AGENT`): `1` or `fork`, `foreground`, or anything else
- * for off.
+ * `INSTRUMENT_EVAL_ONE_AGENT`): `1`, `fork` or `fork-on-interrupt` for
+ * `fork`, `foreground`, or anything else for off.
  */
 export function parseOneAgentMode(
   value: string | undefined,
 ): OneAgentMode | undefined {
-  return value === "1" || value === "fork"
+  return value === "1" || value === "fork" || value === FORK_ON_INTERRUPT
     ? "fork"
     : value === "foreground"
       ? "foreground"
       : undefined;
+}
+
+/**
+ * Whether a message the user sends mid-turn forks the turn to the background
+ * rather than ending it: the `one_agent_fork_on_interrupt` flag, which only
+ * the `fork` mode has, since `foreground` has no background to fork to.
+ */
+export function isForkOnInterruptEnabled(): boolean {
+  return (
+    oneAgentMode() === "fork" &&
+    (getWorkspaceConfig().isForkOnInterruptEnabled?.() ?? false)
+  );
 }
 
 /** The `one_agent` feature flag, in either mode. */

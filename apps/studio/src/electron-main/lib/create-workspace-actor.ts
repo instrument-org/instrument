@@ -147,6 +147,8 @@ export function createWorkspaceActor() {
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
+      isForkOnInterruptEnabled: () =>
+        isFeatureEnabled("one_agent_fork_on_interrupt"),
       isTaskContextEnabled: () => isFeatureEnabled("task_context"),
       modelCache: diskModelCache,
       nodeExecEnv: {

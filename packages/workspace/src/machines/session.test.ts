@@ -28,6 +28,7 @@ import {
   type ActorRefFrom,
   type AnyActorRef,
   createActor,
+  fromPromise,
   SimulatedClock,
   waitFor,
 } from "xstate";
@@ -230,6 +231,7 @@ describe("sessionMachine", () => {
     imageModel,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
+    machine = sessionMachine,
     maxStepCount,
     modelFeatures,
     providerConfigId = "mock-provider-config-id",
@@ -252,6 +254,8 @@ describe("sessionMachine", () => {
     imageModel?: ImageModelV4;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
+    /** The session machine with test stand-ins provided. */
+    machine?: typeof sessionMachine;
     maxStepCount?: number;
     /** What the model takes and gives; the mock's text-and-tools default otherwise. */
     modelFeatures?: AIGatewayModel.ModelFeatures[];
@@ -312,7 +316,7 @@ describe("sessionMachine", () => {
       testTaskConfig,
     );
 
-    const actor = createActor(sessionMachine, {
+    const actor = createActor(machine, {
       ...actorOptions,
       input: {
         agent,
@@ -1808,6 +1812,175 @@ describe("sessionMachine", () => {
         `);
       },
     );
+    describe("forking on interrupt", () => {
+      const forked = {
+        name: "Write the test file",
+        taskId: TaskIdSchema.parse("2026-10-07-fork"),
+      };
+
+      function interruption(text: string): SessionMessage.UserWithParts {
+        const messageId = StoreId.newMessageId();
+        return {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: defaultSessionId,
+              },
+              text,
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+      }
+
+      /**
+       * The session with fork on interrupt standing in: every superseding
+       * message forks, and the fork is `fork`'s answer, its inputs recorded.
+       */
+      async function startForking(fork: () => Promise<unknown>) {
+        const inputs: unknown[] = [];
+        const machine = sessionMachine.provide({
+          actors: {
+            forkInterruptedTurn: fromPromise(async ({ input }) => {
+              inputs.push(input);
+              return (await fork()) as never;
+            }),
+          },
+          guards: { forksOnInterrupt: () => true },
+        });
+        const result = await createActorAndTask({
+          chunkSets: [writeFileChunks, finishChunks],
+          machine,
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        return { inputs, result };
+      }
+
+      // The turn stops as it always does; then it is forked from the turn's
+      // own message, without the one that interrupted it, and the agent that
+      // answers that message is told where the work went.
+      it("forks the superseded turn and tells the next turn where it went", async () => {
+        const { inputs, result } = await startForking(() =>
+          Promise.resolve(forked),
+        );
+        const message = interruption("unrelated, quick: what's 18% of 240?");
+        await Store.saveMessageWithParts(message, result.taskId);
+        result.actor.send({
+          interrupt: true,
+          model: createMockAIGatewayModel(),
+          saved: true,
+          type: "addMessage",
+          value: message,
+        });
+
+        const session = await runTestMachine(result);
+        expect(inputs).toMatchObject([
+          { exclude: [message.id], turnMessageId: defaultMessageId },
+        ]);
+        const shorthand = sessionToShorthand(session);
+        expect(shorthand).toContain(
+          "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
+        );
+        expect(shorthand).toContain(
+          `it carries on in the background as task ${forked.taskId} ("${forked.name}")`,
+        );
+        expect(shorthand).toContain("I'm done.</text>");
+      });
+
+      // Nothing to carry on, or a fork of the chat's already running: the
+      // message runs next as it would without the flag, with no note.
+      it("runs the message plainly when nothing was forked", async () => {
+        const { inputs, result } = await startForking(() =>
+          Promise.resolve(undefined),
+        );
+        result.actor.send({
+          interrupt: true,
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: interruption("Make it about a submarine captain instead."),
+        });
+
+        const session = await runTestMachine(result);
+        expect(inputs).toHaveLength(1);
+        expect(sessionToShorthand(session)).not.toContain("<data-intent>");
+      });
+
+      // Stop is a hard stop: a stop that lands while the turn is ending for
+      // a newer message ends it outright, and nothing is forked.
+      it("forks nothing when the user stops the turn as it ends", async () => {
+        const { inputs, result } = await startForking(() =>
+          Promise.resolve(forked),
+        );
+        result.actor.send({
+          interrupt: true,
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: interruption("Also add a header comment."),
+        });
+        result.actor.send({ type: "stop" });
+
+        const session = await runTestMachine(result);
+        expect(inputs).toEqual([]);
+        expect(sessionToShorthand(session)).not.toContain("<data-intent>");
+      });
+
+      // A stop while the fork is being made leaves the forking state at
+      // once, aborting it, which is what has the fork stop itself.
+      it("aborts a fork in the making when the user stops", async () => {
+        let aborted: AbortSignal | undefined;
+        const machine = sessionMachine.provide({
+          actors: {
+            forkInterruptedTurn: fromPromise(({ signal }) => {
+              aborted = signal;
+              return new Promise<never>(() => undefined);
+            }),
+          },
+          guards: { forksOnInterrupt: () => true },
+        });
+        const result = await createActorAndTask({
+          chunkSets: [writeFileChunks, finishChunks],
+          machine,
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        result.actor.send({
+          interrupt: true,
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: interruption("Also add a header comment."),
+        });
+        await waitFor(result.actor, (state) =>
+          state.matches("ForkingInterruptedTurn"),
+        );
+        result.actor.send({ type: "stop" });
+
+        await runTestMachine(result);
+        expect(aborted?.aborted).toBe(true);
+      });
+    });
   });
 
   describe("running a turn over the stored session", () => {

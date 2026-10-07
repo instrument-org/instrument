@@ -375,6 +375,7 @@ export const workspaceMachine = setup({
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
       isExternalBrowserEnabled: () => boolean;
+      isForkOnInterruptEnabled?: () => boolean;
       isTaskContextEnabled?: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
@@ -411,6 +412,9 @@ export const workspaceMachine = setup({
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.isForkOnInterruptEnabled
+        ? { isForkOnInterruptEnabled: input.isForkOnInterruptEnabled }
+        : {}),
       ...(input.isTaskContextEnabled
         ? { isTaskContextEnabled: input.isTaskContextEnabled }
         : {}),

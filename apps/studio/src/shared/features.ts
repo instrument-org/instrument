@@ -6,6 +6,7 @@ export const FeatureNameSchema = z.enum([
   "external_browser",
   "one_agent",
   "one_agent_foreground",
+  "one_agent_fork_on_interrupt",
   "task_context",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
@@ -41,6 +42,11 @@ export const FEATURE_METADATA: Record<
     description:
       "With One Agent on, the chat does every job itself in the conversation, with no background work. For comparing against One Agent's forks.",
     title: "One Agent, No Background",
+  },
+  one_agent_fork_on_interrupt: {
+    description:
+      "With One Agent on, a message sent while the chat is mid-work forks that work to the background where it stands, and the chat answers the message, instead of the work stopping. One such fork per chat at a time. No effect with One Agent, No Background.",
+    title: "One Agent, Fork on Interrupt",
   },
   task_context: {
     description:

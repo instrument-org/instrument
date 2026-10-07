@@ -33,6 +33,10 @@ export const TaskSettingsSchema = z.object({
   // A background run `task fork` started: it carries its chat's
   // conversation and runs the chat's own agent rather than the task agent.
   fork: z.boolean().optional(),
+  // A fork the harness made rather than the chat: the user wrote while the
+  // chat's turn was mid-work, and the turn went on here
+  // (`lib/fork-on-interrupt.ts`).
+  forkedOnInterrupt: z.boolean().optional(),
   name: z.string().default("Untitled task"),
   // How hard this task's model is asked to think, on every turn it takes. A
   // task the conversation starts copies the conversation's level. Absent

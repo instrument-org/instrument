@@ -17,9 +17,16 @@ import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { chatSpokenFor } from "../lib/one-agent";
+import {
+  type ForkedTurn,
+  forkInterruptedTurn,
+  interruptedNote,
+  keepsTheWork,
+} from "../lib/fork-on-interrupt";
+import { chatSpokenFor, isForkOnInterruptEnabled } from "../lib/one-agent";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
+import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
@@ -70,17 +77,6 @@ type SessionMachineEvent =
       value: ToolCallUpdate;
     };
 
-/**
- * Whether a message is the user's own words rather than a note the harness
- * wrote for the agent: a task finishing, an app changing. Only the user's own
- * words supersede a reply in flight.
- */
-function isTypedByUser(message: SessionMessage.UserWithParts) {
-  return !message.parts.some(
-    (part) => part.type === "data-taskEvent" || part.type === "data-appEvent",
-  );
-}
-
 export const sessionMachine = setup({
   actions: {
     assignEventError: createAssignEventError(),
@@ -88,6 +84,13 @@ export const sessionMachine = setup({
     clearAgentRef: assign({ agentRef: undefined }),
 
     forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
+
+    forgetInterruptedTurn: assign({
+      interruptedTurn: ({ context, event }) =>
+        event.type === "stop" && event.reason === "superseded"
+          ? context.interruptedTurn
+          : undefined,
+    }),
 
     markUsedNonReadOnlyTools: assign({ usedNonReadOnlyTools: true }),
 
@@ -110,6 +113,10 @@ export const sessionMachine = setup({
             taskId: context.taskId,
           },
         }),
+      turnMessageId: (
+        _,
+        { parentMessageId }: { parentMessageId: StoreId.Message },
+      ) => parentMessageId,
     }),
 
     stopAgent: ({ context, event }) => {
@@ -124,6 +131,29 @@ export const sessionMachine = setup({
 
   actors: {
     agentMachine,
+
+    forkInterruptedTurn: fromPromise<
+      ForkedTurn | undefined,
+      {
+        agent: AnyAgent;
+        exclude: StoreId.Message[];
+        sessionId: StoreId.Session;
+        taskId: TaskId;
+        turnMessageId: StoreId.Message;
+      }
+    >(async ({ input, signal }) => {
+      const chatId = chatSpokenFor(input.agent.name, input.taskId);
+      if (!chatId) {
+        return undefined;
+      }
+      return await forkInterruptedTurn({
+        chatId,
+        chatSessionId: input.sessionId,
+        exclude: input.exclude,
+        signal,
+        turnMessageId: input.turnMessageId,
+      });
+    }),
 
     // Where a turn that brings no message of its own begins: everything the
     // agent writes from here lands after the newest message already stored, so
@@ -218,6 +248,15 @@ export const sessionMachine = setup({
     }),
   },
   guards: {
+    // The user wrote to a chat mid-turn, under fork on interrupt, and not to
+    // call the work off: the turn's work goes on in a fork once it stops.
+    forksOnInterrupt: ({ context, event }) =>
+      event.type === "addMessage" &&
+      context.turnMessageId !== undefined &&
+      isForkOnInterruptEnabled() &&
+      chatSpokenFor(context.agent.name, context.taskId) !== undefined &&
+      isTypedByUser(event.value) &&
+      keepsTheWork(event.value),
     isAgentRefActive: ({ context }) =>
       context.agentRef?.getSnapshot().status === "active",
   },
@@ -227,6 +266,11 @@ export const sessionMachine = setup({
       agentRef?: AgentMachineActorRef;
       baseLLMRetryDelayMs: number;
       error?: unknown;
+      /**
+       * The turn a newer message superseded, to fork once it has stopped;
+       * see `forksOnInterrupt`. Its user's message.
+       */
+      interruptedTurn?: StoreId.Message;
       llmRequestChunkTimeoutMs: number;
       maxStepCount: number;
       model: AIGatewayModel.Type;
@@ -238,6 +282,8 @@ export const sessionMachine = setup({
       sessionId: StoreId.Session;
       subscription?: { unsubscribe: () => void };
       taskId: TaskId;
+      /** The message the running or latest turn answers. */
+      turnMessageId?: StoreId.Message;
       usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
@@ -324,8 +370,9 @@ export const sessionMachine = setup({
         // the message as a turn of its own, over everything said so far. A
         // note from a task or an app steers, since the reply in flight is
         // still the reply to what the user said. A sender that asks to
-        // interrupt supersedes any agent's step the same way.
-        enqueueActions(({ context, enqueue, event }) => {
+        // interrupt supersedes any agent's step the same way. Under fork on
+        // interrupt, the superseded turn's work is forked once it stops.
+        enqueueActions(({ check, context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
             return;
@@ -335,6 +382,9 @@ export const sessionMachine = setup({
             (chatSpokenFor(context.agent.name, context.taskId) !== undefined &&
               isTypedByUser(event.value))
           ) {
+            if (check("forksOnInterrupt")) {
+              enqueue.assign({ interruptedTurn: context.turnMessageId });
+            }
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }
@@ -396,13 +446,16 @@ export const sessionMachine = setup({
           },
           target: ".AgentDone",
         },
+        // Any stop but a newer message's own ends the turn's work outright,
+        // so nothing of it is forked.
         stop: [
           {
-            actions: "stopAgent",
+            actions: ["stopAgent", "forgetInterruptedTurn"],
             guard: "isAgentRefActive",
             target: ".Stopping",
           },
           {
+            actions: "forgetInterruptedTurn",
             target: ".AgentDone",
           },
         ],
@@ -411,7 +464,13 @@ export const sessionMachine = setup({
       // A message that arrived while the agent ran is waiting in the queue, and
       // a turn that ends by finalizing the session would drop it. The queue
       // decides whether this is the end: empty, it is.
-      onDone: "ProcessingQueuedMessages",
+      onDone: [
+        {
+          guard: ({ context }) => context.interruptedTurn !== undefined,
+          target: "ForkingInterruptedTurn",
+        },
+        { target: "ProcessingQueuedMessages" },
+      ],
 
       states: {
         AgentDone: { type: "final" },
@@ -517,6 +576,60 @@ export const sessionMachine = setup({
       },
       tags: ["agent.done"],
       type: "final",
+    },
+
+    // The turn a newer message superseded goes on in a fork, and the message
+    // that superseded it says so to the agent that answers it. Nothing to
+    // carry on, or a fork of the chat's already running, and the message
+    // simply runs next, as it does without the flag. A stop here drops the
+    // fork, and one that was made as the stop landed stops with it.
+    ForkingInterruptedTurn: {
+      exit: assign({ interruptedTurn: undefined }),
+      invoke: {
+        input: ({ context }) => {
+          invariant(context.interruptedTurn, "No interrupted turn to fork");
+          return {
+            agent: context.agent,
+            exclude: context.queuedMessages.map((message) => message.id),
+            sessionId: context.sessionId,
+            taskId: context.taskId,
+            turnMessageId: context.interruptedTurn,
+          };
+        },
+        onDone: {
+          actions: assign(({ context, event }) => {
+            const forked = event.output;
+            const [first, ...rest] = context.queuedMessages;
+            if (!forked || !first) {
+              return {};
+            }
+            return {
+              queuedMessages: [
+                withNote(first, interruptedNote(forked)),
+                ...rest,
+              ],
+              // Written again with the note, if the sender wrote it already.
+              savedMessageIds: context.savedMessageIds.filter(
+                (id) => id !== first.id,
+              ),
+            };
+          }),
+          target: "ProcessingQueuedMessages",
+        },
+        onError: {
+          actions: ({ event }) => {
+            getWorkspaceConfig().captureException(event.error, {
+              scopes: ["workspace"],
+            });
+          },
+          target: "ProcessingQueuedMessages",
+        },
+        src: "forkInterruptedTurn",
+      },
+      on: {
+        stop: "ProcessingQueuedMessages",
+      },
+      tags: ["agent.alive"],
     },
 
     ProcessingQueuedMessages: {
@@ -628,3 +741,41 @@ export const sessionMachine = setup({
 });
 
 export type SessionActorRef = ActorRefFrom<typeof sessionMachine>;
+
+/**
+ * A message with a note for the agent beside the user's words, as an intent
+ * part, which the transcript shows only to developers. Added to one the
+ * message already has rather than beside it, since a turn reads one.
+ */
+function withNote(
+  message: SessionMessage.UserWithParts,
+  note: string,
+): SessionMessage.UserWithParts {
+  const existing = message.parts.find((part) => part.type === "data-intent");
+  if (existing?.type === "data-intent") {
+    return {
+      ...message,
+      parts: message.parts.map((part) =>
+        part === existing
+          ? { ...existing, data: { text: `${existing.data.text}\n\n${note}` } }
+          : part,
+      ),
+    };
+  }
+  return {
+    ...message,
+    parts: [
+      ...message.parts,
+      {
+        data: { text: note },
+        metadata: {
+          createdAt: message.metadata.createdAt,
+          id: StoreId.newPartId(),
+          messageId: message.id,
+          sessionId: message.metadata.sessionId,
+        },
+        type: "data-intent",
+      },
+    ],
+  };
+}

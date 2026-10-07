@@ -1,6 +1,7 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
+import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
@@ -30,7 +31,7 @@ export function ClaudePlanCard() {
     rpcClient.claudePlan.live.status.experimental_liveOptions(),
   );
   const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
-  const [terminalCommand, setTerminalCommand] = useState<string>();
+  const signOut = useMutation(rpcClient.claudePlan.signOut.mutationOptions());
   const [showUsage, setShowUsage] = useState(false);
   const wasSigningIn = useRef(false);
 
@@ -93,6 +94,17 @@ export function ClaudePlanCard() {
               />
               Usage
             </Button>
+          ) : null}
+          {status.kind === "signed-in" ? (
+            <Button
+              disabled={signOut.isPending}
+              onClick={() => {
+                signOut.mutate({});
+              }}
+              variant="ghost"
+            >
+              Sign out
+            </Button>
           ) : (
             <BrowserHandoffButton
               onCancel={() => {
@@ -108,33 +120,8 @@ export function ClaudePlanCard() {
           )}
         </div>
       </div>
-      {status.kind !== "signed-in" && (status.signingIn || terminalCommand) && (
-        <p className="mt-2 pl-11 text-xs text-muted-foreground">
-          {terminalCommand ? (
-            `Run ${terminalCommand} in a terminal, then come back.`
-          ) : (
-            <>
-              Trouble signing in?{" "}
-              <button
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() => {
-                  wasSigningIn.current = true;
-                  void rpcClient.claudePlan.signInWithTerminal
-                    .call({})
-                    .then((result) => {
-                      if (!result.opened && result.command) {
-                        setTerminalCommand(result.command);
-                      }
-                    });
-                }}
-                type="button"
-              >
-                Use a terminal instead
-              </button>
-              , where you can paste the code Claude shows.
-            </>
-          )}
-        </p>
+      {status.kind !== "signed-in" && status.signingIn && status.signInLink && (
+        <ClaudeSignInCode className="mt-2 pl-11" link={status.signInLink} />
       )}
       {status.kind === "signed-in" && showUsage && <PlanUsage />}
     </Card>

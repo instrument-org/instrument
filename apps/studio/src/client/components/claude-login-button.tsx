@@ -1,5 +1,6 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
+import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -101,6 +102,9 @@ export function ClaudeLoginButton({
               ? "Finish signing in to Claude in your browser"
               : caption)}
       </p>
+      {pressed && status?.signingIn && status.signInLink && (
+        <ClaudeSignInCode className="w-full" link={status.signInLink} />
+      )}
     </div>
   );
 }

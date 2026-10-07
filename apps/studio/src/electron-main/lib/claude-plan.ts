@@ -54,6 +54,11 @@ export type ClaudePlanStatus = {
   /** Whether this platform has a Claude Code build we can install. */
   canInstall: boolean;
   install: ClaudeCodeInstall | undefined;
+  /**
+   * Anthropic's sign-in page for another device, while a sign-in waits: it
+   * ends on a code the person pastes back here.
+   */
+  signInLink: string | undefined;
   /** A sign-in is open in the browser, waiting on the person. */
   signingIn: boolean;
 } & (
@@ -78,6 +83,7 @@ let status: ClaudePlanStatus = {
   canInstall: false,
   install: undefined,
   kind: "not-installed",
+  signInLink: undefined,
   signingIn: false,
 };
 let install: ClaudeCodeInstall | undefined;
@@ -171,6 +177,7 @@ async function readStatus(): Promise<ClaudePlanStatus> {
       : { kind: "not-installed" as const }),
     canInstall: wantedRelease() !== undefined,
     install,
+    signInLink: pendingSignIn?.linkForAnotherDevice,
     signingIn: pendingSignIn !== undefined,
   };
 }
@@ -243,7 +250,11 @@ export async function openClaudeSignIn(): Promise<{
       executablePath,
     });
     pendingSignIn = signIn;
-    setStatus({ ...status, signingIn: true });
+    setStatus({
+      ...status,
+      signInLink: signIn.linkForAnotherDevice,
+      signingIn: true,
+    });
     const timer = setTimeout(() => {
       signIn.cancel();
     }, SIGN_IN_TIMEOUT_MS);
@@ -274,26 +285,53 @@ export async function openClaudeSignIn(): Promise<{
 }
 
 /**
- * Sign in through Claude Code in a terminal instead, for when the browser
- * cannot get back to it: a browser on another device, or a computer that
- * blocks `localhost`. Claude Code then shows Anthropic's page with a code to
- * paste, and takes the code itself, so it never passes through Instrument.
+ * Hand the waiting sign-in the code Anthropic's page showed on another
+ * device. The code goes straight to Claude Code, which alone can exchange it,
+ * and is never logged or kept. Answers why it was refused, if it was.
  */
-export async function openClaudeTerminalSignIn() {
-  cancelClaudeSignIn();
-  const current = await refreshClaudePlanStatus({ force: true });
-  if (current.kind === "not-installed") {
-    return { command: undefined, opened: false };
+export async function submitClaudeSignInCode(
+  pasted: string,
+): Promise<{ error: string | undefined }> {
+  const signIn = pendingSignIn;
+  if (!signIn) {
+    return { error: "No sign-in is waiting. Press Continue with Claude again." };
   }
-  await mkdir(accountDir(), { recursive: true });
-  return openTerminalSignIn(current.executablePath);
+  try {
+    await signIn.submitCode(pasted);
+    return { error: undefined };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error && error.message.includes("look like")
+          ? error.message
+          : "Claude didn't accept that code. Copy it again, or start over.",
+    };
+  }
+}
+
+/**
+ * Sign our copy of Claude Code out of its Claude account, through Claude
+ * Code's own sign-out. The person's own Claude Code, which keeps its sign-in
+ * elsewhere, stays signed in.
+ */
+export async function signOutOfClaude() {
+  const executablePath = await installedCopy();
+  if (executablePath) {
+    await run(executablePath, ["auth", "logout"], {
+      env: cliEnv(),
+      timeout: 15_000,
+    }).catch((error: unknown) => {
+      log.warn("Claude Code's sign-out failed", error);
+    });
+  }
+  return refreshClaudePlanStatus({ force: true });
 }
 
 /** Give up on a sign-in still waiting on the browser. */
 export function cancelClaudeSignIn() {
   pendingSignIn?.cancel();
   pendingSignIn = undefined;
-  setStatus({ ...status, signingIn: false });
+  setStatus({ ...status, signInLink: undefined, signingIn: false });
 }
 
 /**

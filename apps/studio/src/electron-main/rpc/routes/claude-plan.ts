@@ -5,12 +5,14 @@ import {
   claudePlanUsage,
   installClaudeCode,
   openClaudeSignIn,
-  openClaudeTerminalSignIn,
+  signOutOfClaude,
+  submitClaudeSignInCode,
   refreshClaudePlanStatus,
 } from "@/electron-main/lib/claude-plan";
 import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { z } from "zod";
 
 import { publisher } from "../publisher";
 
@@ -29,15 +31,20 @@ const live = {
 const signIn = base.handler(() => openClaudeSignIn());
 
 /**
- * Signs in through Claude Code in a terminal, where it takes the code
- * Anthropic's page shows when the browser cannot get back to it.
+ * Passes the waiting sign-in the code Anthropic's page showed on another
+ * device, for when the browser could not get back on its own.
  */
-const signInWithTerminal = base.handler(() => openClaudeTerminalSignIn());
+const submitSignInCode = base
+  .input(z.object({ code: z.string().min(1) }))
+  .handler(({ input }) => submitClaudeSignInCode(input.code));
 
 /** Gives up on a sign-in still waiting on the browser. */
 const cancelSignIn = base.handler(() => {
   cancelClaudeSignIn();
 });
+
+/** Signs Instrument's copy of Claude Code out of its Claude account. */
+const signOut = base.handler(() => signOutOfClaude());
 
 /** Looks again, after the person says they have signed in. */
 const refresh = base.handler(() => refreshClaudePlanStatus({ force: true }));
@@ -75,6 +82,7 @@ export const claudePlan = {
   live,
   refresh,
   signIn,
-  signInWithTerminal,
+  signOut,
+  submitSignInCode,
   usage,
 };

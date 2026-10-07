@@ -1,6 +1,6 @@
 import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
-import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
+import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";

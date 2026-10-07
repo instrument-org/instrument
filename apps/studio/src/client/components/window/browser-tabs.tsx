@@ -7,7 +7,7 @@ import {
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { PageFavicon } from "@/client/components/favicon";
-import { BrowserPanel } from "@/client/components/task/browser-panel";
+import { BrowserPanel } from "@/client/components/window/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { getGuest, takeGuestTraversal } from "@/client/lib/browser-pool";

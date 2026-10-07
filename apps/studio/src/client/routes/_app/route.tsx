@@ -54,7 +54,7 @@ import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -186,7 +186,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       chosenId={showsPane ? up.id : undefined}
       isChatWorking={chatRecord?.state === "working"}
       onAddComputer={() => {
-        windowTabs.openScreen(instrumentFolderHref(), {
+        windowTabs.openScreen(outputFolderHref(), {
           group: chat,
           select: true,
         });

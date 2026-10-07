@@ -30,13 +30,13 @@ export function folderHref(
 }
 
 /**
- * The Instrument folder, where what the app makes lands, as the workspace
+ * The output folder, where what the app makes lands, as the workspace
  * places it (`outputFolderPath`): written under `~` so the address is the
  * same on every computer and the workspace expands it where it lists.
  */
-export const INSTRUMENT_FOLDER = "~/Documents/Instrument";
+export const OUTPUT_FOLDER = "~/Documents/Instrument";
 
-/** The address a fresh Finder opens at: standing in the Instrument folder. */
-export function instrumentFolderHref() {
-  return folderHref(INSTRUMENT_FOLDER);
+/** The address a fresh Finder opens at: standing in the output folder. */
+export function outputFolderHref() {
+  return folderHref(OUTPUT_FOLDER);
 }

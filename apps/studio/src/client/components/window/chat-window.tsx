@@ -2,7 +2,7 @@ import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -375,7 +375,7 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(instrumentFolderHref());
+          openHere(outputFolderHref());
         }}
         onAddWeb={() => {
           openHere(BROWSER_HREF);

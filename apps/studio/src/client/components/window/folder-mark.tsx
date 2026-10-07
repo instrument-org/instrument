@@ -1,8 +1,8 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { INSTRUMENT_FOLDER } from "@/shared/computer-href";
+import { OUTPUT_FOLDER } from "@/shared/computer-href";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
@@ -43,13 +43,13 @@ export function FolderMark({
   if (places.data?.volumes.some((volume) => volume.path === hostPath)) {
     return <HardDriveIcon className={iconClassName} />;
   }
-  const instrument =
+  const outputFolder =
     places.data?.favorites.find((place) => place.name === "Instrument")?.path ??
-    expandHomePath(INSTRUMENT_FOLDER, home);
+    expandHomePath(OUTPUT_FOLDER, home);
   return (
     <FileSystemFolderGlyph
       className={cn("w-auto shrink-0", large ? "h-3.5" : "h-3")}
-      {...(hostPath === instrument ? { src: INSTRUMENT_FOLDER_GLYPH_URL } : {})}
+      {...(hostPath === outputFolder ? { src: OUTPUT_FOLDER_GLYPH_URL } : {})}
     />
   );
 }

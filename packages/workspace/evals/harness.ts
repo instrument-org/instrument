@@ -21,6 +21,7 @@ import type { Session } from "../src/schemas/session";
 import { attachChats, workspaceMachine } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
 import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
@@ -38,6 +39,7 @@ import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
+import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type TaskId } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
@@ -333,6 +335,12 @@ export async function runEvals(
   if (dryRun) {
     return { runs: [], workspaceRootDir };
   }
+
+  // Shells run in the bash worker, as they do in Studio. On this thread,
+  // just-bash's defenses wrap the whole process's environment while a script
+  // runs, which breaks anything else here that writes it, the Claude Agent
+  // SDK among them.
+  setBashWorkerFactory(createTsxBashWorker);
 
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();

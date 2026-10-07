@@ -13,6 +13,8 @@ import {
   CLAUDE_PLAN_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
+import { writeFileSync } from "node:fs";
+import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
@@ -361,7 +363,7 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
     configs.push({
       ...CLAUDE_PLAN_PROVIDER_CONFIG,
       apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
-      executablePath: env.APP_CLAUDE_CODE_PATH,
+      executablePath: withRealHome(env.APP_CLAUDE_CODE_PATH),
       id: AIProviderConfigIdSchema.parse(CLAUDE_PLAN_PROVIDER_CONFIG.id),
     });
   }
@@ -378,6 +380,23 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   }
 
   return configs;
+}
+
+/**
+ * The CLI, started with the user's real home rather than the run's sandboxed
+ * one. Claude Code finds its sign-in by `HOME` (and `CLAUDE_CONFIG_DIR` names
+ * a different sign-in altogether), so under the sandbox it reads as signed
+ * out. The CLI runs with every built-in tool off, so it touches nothing there
+ * but its own state.
+ */
+function withRealHome(executablePath: string) {
+  const wrapper = path.join(tmpdir(), "instrument-evals-claude-real-home.sh");
+  writeFileSync(
+    wrapper,
+    `#!/bin/sh\nHOME=${JSON.stringify(userInfo().homedir)} exec ${JSON.stringify(executablePath)} "$@"\n`,
+    { mode: 0o755 },
+  );
+  return wrapper;
 }
 
 /**

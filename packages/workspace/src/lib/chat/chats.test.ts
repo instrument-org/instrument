@@ -319,6 +319,20 @@ describe("listChats", () => {
     expect(chat?.title).toBe("plan a trip to lisbon");
   });
 
+  it("holds a long ask standing for the title to a title's length", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Untitled chat 5");
+    await userSays(
+      taskId,
+      sessionId,
+      "plan a trip to lisbon in october with a day in sintra and a night of fado",
+      1,
+    );
+
+    const [chat] = await listChats();
+    expect(chat?.title).toBe("plan a trip to lisbon in october with…");
+  });
+
   it("lists a chat whose first message has not been saved yet", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Untitled chat 4", 2);

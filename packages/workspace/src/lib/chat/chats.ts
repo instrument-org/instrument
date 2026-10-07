@@ -1,4 +1,8 @@
-import { APP_NAME_SLUG, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  placeholderTitle,
+  TASK_SETTINGS_FILE_NAME,
+} from "@instrument-org/shared";
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -612,7 +616,7 @@ async function chatFor(
     // Until the agent names the chat, the ask's own first words stand for it
     // rather than the placeholder a session is born with.
     title: isUntitledChatSessionTitle(session.title)
-      ? firstLine(root ? textOf(root) : "") || session.title
+      ? placeholderTitle(firstLine(root ? textOf(root) : "")) || session.title
       : session.title,
     titled: !isUntitledChatSessionTitle(session.title),
     topics: session.topics ?? [],

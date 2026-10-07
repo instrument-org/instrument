@@ -23,12 +23,6 @@ export const BrowserSkillSchema = z.object({
   content: z.string(),
   /** Whether `content` is only the head of a body over the skill size limit. */
   contentTruncated: z.boolean(),
-  /**
-   * Where the skill sat in the read-only skills mount, for one delivered from
-   * a skill folder; empty for the guide the CLI ships, whose references come
-   * with `agent-browser skills get core --full`.
-   */
-  directory: z.string(),
   name: z.string(),
   origin: z.enum(SKILL_ORIGINS),
 });
@@ -112,7 +106,6 @@ function loadBrowserSkill(): BrowserSkill {
   return {
     content: body.content,
     contentTruncated: body.truncated,
-    directory: "",
     name: AGENT_BROWSER_GUIDE_NAME,
     origin: APP_NAME_SLUG,
   };

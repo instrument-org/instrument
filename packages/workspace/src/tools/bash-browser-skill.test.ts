@@ -118,7 +118,6 @@ describe("bash attaches the agent-browser skill", () => {
     const first = await bash("agent-browser --help");
     expect(first.browserSkill).toMatchObject({
       content: expect.stringContaining("# agent-browser in Instrument"),
-      directory: "",
       origin: "instrument",
     });
     await record(first);
@@ -146,7 +145,6 @@ describe("bash attaches the agent-browser skill", () => {
         browserSkill: {
           content: "# Browser\n\nOpen, then act on refs.",
           contentTruncated: false,
-          directory: "",
           name: "agent-browser",
           origin: "instrument",
         },

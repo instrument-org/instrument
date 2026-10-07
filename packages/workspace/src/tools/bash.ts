@@ -429,11 +429,7 @@ function browserSkillText(skill: BrowserSkill, toolCallId: string) {
   const truncation = skill.contentTruncated
     ? `\n\nOnly the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
     : "";
-  // A guide delivered from a skill folder, which older sessions hold, links
-  // its references by path; the CLI's own serves them.
-  const references = skill.directory
-    ? `The files its instructions link to (\`references/...\`) are under \`${skill.directory}/\`.`
-    : `\`${AGENT_BROWSER_COMMAND.name} skills get core --full\` prints the references it links to.`;
+  const references = `\`${AGENT_BROWSER_COMMAND.name} skills get core --full\` prints the references it links to.`;
   return [
     systemNote`
       This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}

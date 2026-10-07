@@ -77,6 +77,10 @@ export async function startClaudeCodeSignIn({
         session.close();
       });
     const stateOfLink = new URL(started.manualUrl).searchParams.get("state");
+    const earlierStates = new Set(issuedStates);
+    if (stateOfLink) {
+      issuedStates.add(stateOfLink);
+    }
     return {
       cancel: () => {
         session.close();
@@ -84,7 +88,11 @@ export async function startClaudeCodeSignIn({
       completion,
       linkForAnotherDevice: started.manualUrl,
       submitCode: async (pasted) => {
-        const { code, state } = splitPastedCode(pasted, stateOfLink);
+        const { code, state } = splitPastedCode(
+          pasted,
+          stateOfLink,
+          earlierStates,
+        );
         try {
           await session.control("claudeOAuthCallback", code, state);
         } catch (error) {
@@ -108,7 +116,11 @@ export async function startClaudeCodeSignIn({
  * `#`, as Claude Code's own terminal sign-in expects them pasted. A code
  * pasted without it takes the state from the link it came from.
  */
-export function splitPastedCode(pasted: string, stateOfLink: string | null) {
+export function splitPastedCode(
+  pasted: string,
+  stateOfLink: string | null,
+  earlierStates: ReadonlySet<string> = new Set(),
+) {
   const [code = "", state] = pasted.trim().split("#", 2);
   if (!code) {
     throw new UnusableCodeError("That doesn't look like a sign-in code.");
@@ -117,16 +129,21 @@ export function splitPastedCode(pasted: string, stateOfLink: string | null) {
   if (!resolvedState) {
     throw new UnusableCodeError("That code is missing the part after the #.");
   }
-  // A code carries the state of the link it came from, and only the sign-in
-  // that made that link can redeem it. Sending one from an earlier link would
-  // fail, and a failed code ends the sign-in it was sent to.
-  if (state && stateOfLink && state !== stateOfLink) {
+  // Only the sign-in that made a link can redeem its codes, and a failed code
+  // ends the sign-in it was sent to. A code is refused here only when it
+  // names a link this app made before, which is certain to fail; anything
+  // else goes on to Claude Code as pasted, since the page's format is
+  // Anthropic's to change.
+  if (state && state !== stateOfLink && earlierStates.has(state)) {
     throw new UnusableCodeError(
       "That code is from an earlier sign-in link. Copy the sign-in link again, then paste the code it gives you.",
     );
   }
   return { code, state: resolvedState };
 }
+
+/** The state of every sign-in link made in this process. */
+const issuedStates = new Set<string>();
 
 /** A pasted code refused before it reached Claude Code, saying why. */
 export class UnusableCodeError extends Error {}

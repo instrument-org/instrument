@@ -195,6 +195,14 @@ export interface WorkspaceConfig {
    * then every read derives from the stores.
    */
   indexesDir?: AbsolutePath;
+  /**
+   * Replace any provider credential that has already expired, resolving once
+   * the replacement is in or the wait gave up. The model proxy awaits it
+   * before reading the configs, so a request made before a refresh timer
+   * fires (just after launch or a wake) carries a credential the provider
+   * accepts. Absent where no credential expires.
+   */
+  refreshExpiredCredentials?: () => Promise<void>;
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;

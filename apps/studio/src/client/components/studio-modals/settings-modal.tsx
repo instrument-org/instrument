@@ -26,6 +26,7 @@ import {
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
@@ -63,6 +64,9 @@ export function SettingsModal() {
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useBlockTabNavigation(isOpen);
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   return (
     <Dialog

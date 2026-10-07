@@ -1,5 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
@@ -63,6 +64,18 @@ const WAKE_DEBOUNCE_MS = 1500;
  */
 const OVERDUE_AFTER_MS = ms("4 minutes");
 const OVERDUE_CHECK_MS = ms("30 seconds");
+
+/**
+ * The waits between lookups of a chat's model before a wake gives up on
+ * starting its turn, about two minutes in all.
+ */
+const WAKE_MODEL_RETRY_DELAYS_MS = [
+  ms("2 seconds"),
+  ms("5 seconds"),
+  ms("15 seconds"),
+  ms("30 seconds"),
+  ms("1 minute"),
+];
 
 /** How many of a turn's steps an overdue note carries, latest last. */
 const OVERDUE_STEPS = 6;
@@ -514,23 +527,12 @@ async function wakeWith(
   /** The chat to wake in; the newest one when a caller has no chat. */
   chatSessionId?: StoreId.Session,
 ) {
-  const workspaceConfig = getWorkspaceConfig();
   const state = await getTaskState(taskDir(chatId));
   if (!state.selectedModelURI) {
     throw new Error(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
-  const modelResult = await fetchModel({
-    captureException: workspaceConfig.captureException,
-    configs: workspaceConfig.getAIProviderConfigs(),
-    modelCache: workspaceConfig.modelCache,
-    modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
-  });
-  if (!modelResult.ok) {
-    throw modelResult.error;
-  }
-
   const session = await latestOrNewSessionId(chatId);
   if (session.isErr()) {
     throw session.error;
@@ -562,16 +564,51 @@ async function wakeWith(
   if (written.isErr()) {
     throw new Error(written.error.message);
   }
+
+  // Looked up after the note is written, so a model the chat cannot resolve
+  // yet still leaves the news in the conversation, where the user's next
+  // message carries it to the agent.
+  const model = await wakeModel(
+    AIGatewayModelURI.Schema.parse(state.selectedModelURI),
+  );
   workspaceRef.send({
     type: "addMessage",
     value: {
       agentName: "instrument",
       id: chatId,
       message,
-      model: modelResult.value,
+      model,
       saved: true,
       sessionId,
     },
   });
   await recordTaskActivity(chatId);
+}
+
+/**
+ * The chat's model, asked for again after each wait in
+ * `WAKE_MODEL_RETRY_DELAYS_MS` while the lookup fails, since a provider's
+ * catalog can leave a model out for a moment and list it again.
+ */
+async function wakeModel(modelURI: AIGatewayModelURI.Type) {
+  const workspaceConfig = getWorkspaceConfig();
+  const lookUp = () =>
+    fetchModel({
+      captureException: workspaceConfig.captureException,
+      configs: workspaceConfig.getAIProviderConfigs(),
+      modelCache: workspaceConfig.modelCache,
+      modelURI,
+    });
+  let result = await lookUp();
+  for (const delayMs of WAKE_MODEL_RETRY_DELAYS_MS) {
+    if (result.ok) {
+      break;
+    }
+    await sleep(delayMs);
+    result = await lookUp();
+  }
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.value;
 }

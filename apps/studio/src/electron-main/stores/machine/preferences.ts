@@ -10,17 +10,6 @@ import { z } from "zod";
  * in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
-  /**
-   * Which Claude Code CLI the Claude plan runs through, and which of its
-   * config folders (the sign-in it uses), for a computer with more than one.
-   * Either left out means the CLI's own default.
-   */
-  claudeCode: z
-    .object({
-      configDir: z.string().optional(),
-      executablePath: z.string().optional(),
-    })
-    .catch({}),
   enableUsageMetrics: z.boolean().catch(true),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z

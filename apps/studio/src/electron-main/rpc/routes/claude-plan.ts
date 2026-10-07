@@ -1,19 +1,15 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import {
+  cancelClaudeSignIn,
   claudePlanStatus,
   claudePlanUsage,
   installClaudeCode,
   openClaudeSignIn,
   refreshClaudePlanStatus,
-  setClaudeCodeSetup,
 } from "@/electron-main/lib/claude-plan";
 import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
-import { getCallingWindow } from "@/electron-main/windows/calling-window";
-import { dialog } from "electron";
-import { homedir } from "node:os";
-import { z } from "zod";
 
 import { publisher } from "../publisher";
 
@@ -25,10 +21,18 @@ const live = {
   }),
 };
 
-/** Opens a terminal at the CLI's own sign-in. */
+/**
+ * Signs in to Claude: installs our copy of Claude Code when it is not in yet,
+ * then opens Anthropic's sign-in page in the browser.
+ */
 const signIn = base.handler(() => openClaudeSignIn());
 
-/** Looks again, after the person says they have installed or signed in. */
+/** Gives up on a sign-in still waiting on the browser. */
+const cancelSignIn = base.handler(() => {
+  cancelClaudeSignIn();
+});
+
+/** Looks again, after the person says they have signed in. */
 const refresh = base.handler(() => refreshClaudePlanStatus({ force: true }));
 
 /**
@@ -48,61 +52,21 @@ const connect = base.handler(async ({ context }) => {
   return { modelName: await setClaudePlanDefaultModel(), status };
 });
 
-/** The plan's usage by window, read fresh from the CLI each time. */
-const usage = base.handler(() => claudePlanUsage());
-
 /**
- * Installs our own copy of Claude Code, the release this build drives. The
- * status carries its progress; this answers once it is in or has failed.
+ * Installs our copy of Claude Code, the release this build drives. The status
+ * carries its progress; this answers once it is in or has failed.
  */
 const install = base.handler(() => installClaudeCode());
 
-/**
- * The system's own panel, for the Claude Code executable or the folder of a
- * second Claude sign-in. Both usually sit in hidden folders, so the panel
- * shows them. Answers the chosen path, or null when canceled.
- */
-const pick = base
-  .input(z.object({ kind: z.enum(["executable", "configDir"]) }))
-  .output(z.object({ path: z.string() }).nullable())
-  .handler(async ({ context, input }) => {
-    const options: Electron.OpenDialogOptions = {
-      buttonLabel: "Choose",
-      defaultPath: homedir(),
-      message:
-        input.kind === "executable"
-          ? "Choose the Claude Code executable"
-          : "Choose the folder of the Claude sign-in to use",
-      properties:
-        input.kind === "executable"
-          ? ["openFile", "showHiddenFiles"]
-          : ["openDirectory", "showHiddenFiles", "createDirectory"],
-    };
-    const parentWindow = getCallingWindow(context.webContentsId);
-    const result = await (parentWindow
-      ? dialog.showOpenDialog(parentWindow, options)
-      : dialog.showOpenDialog(options));
-    const [chosen] = result.filePaths;
-    return result.canceled || !chosen ? null : { path: chosen };
-  });
-
-/** Which CLI and config folder to use; empty means the default. */
-const setSetup = base
-  .input(
-    z.object({
-      configDir: z.string().optional(),
-      executablePath: z.string().optional(),
-    }),
-  )
-  .handler(({ input }) => setClaudeCodeSetup(input));
+/** The subscription's usage by window, read fresh from Claude Code each time. */
+const usage = base.handler(() => claudePlanUsage());
 
 export const claudePlan = {
+  cancelSignIn,
   connect,
   install,
   live,
-  pick,
   refresh,
-  setSetup,
   signIn,
   usage,
 };

@@ -194,7 +194,7 @@ describe("a task's tab", () => {
     expect(told.stderr).toContain("the tab this task opened was closed");
     expect(next.exitCode).toBe(0);
     const state = await getTaskState(taskDir(TASK_ID));
-    expect(state.browserTabs).toBeUndefined();
+    expect(state.browserTabs).toEqual([]);
   });
 
   it("is never replaced when it was handed over and the user closed it", async () => {

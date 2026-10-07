@@ -57,7 +57,7 @@ function makeExecuteArgs(
     model,
     signal: AbortSignal.timeout(10_000),
     taskId,
-    taskState: {},
+    taskState: { browserTabs: [] },
   };
 }
 

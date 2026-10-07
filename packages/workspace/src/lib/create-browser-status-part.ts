@@ -82,7 +82,7 @@ async function heldTabsStatus(
 > {
   const { browser } = getWorkspaceConfig();
   const state = await getTaskState(taskDir(taskId));
-  const heldTabs = state.browserTabs ?? [];
+  const heldTabs = state.browserTabs;
   if (heldTabs.length === 0 || browser.hasNoWindow) {
     return null;
   }

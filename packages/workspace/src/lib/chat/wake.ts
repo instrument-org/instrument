@@ -456,7 +456,7 @@ async function openTabsOf(
   taskId: TaskId,
 ): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
-  const held = (await getTaskState(taskDir(taskId))).browserTabs ?? [];
+  const held = (await getTaskState(taskDir(taskId))).browserTabs;
   return held.flatMap((tab) => {
     const decoded = decodeBrowserTargetId(tab.id);
     if (!decoded || !browser.getTargetMeta(tab.id)) {

@@ -101,7 +101,7 @@ export function handleTaskCdpClient(
   /** The tabs the task holds that are open, in the order it came by them. */
   const held = async (): Promise<Held[]> => {
     const state = await getTaskState(taskDir(taskId));
-    return (state.browserTabs ?? []).flatMap((tab) => {
+    return state.browserTabs.flatMap((tab) => {
       const decoded = decodeBrowserTargetId(tab.id);
       return decoded && browser.getTargetMeta(tab.id)
         ? [
@@ -238,19 +238,14 @@ export function handleTaskCdpClient(
   const holdOpened = async (targetId: BrowserTargetId) => {
     const state = await getTaskState(taskDir(taskId));
     await setTaskState(taskDir(taskId), {
-      browserTabs: [
-        ...(state.browserTabs ?? []),
-        { id: targetId, openedBy: "task" },
-      ],
+      browserTabs: [...state.browserTabs, { id: targetId, openedBy: "task" }],
     });
   };
 
   const release = async (targetId: BrowserTargetId) => {
     const state = await getTaskState(taskDir(taskId));
     await setTaskState(taskDir(taskId), {
-      browserTabs: (state.browserTabs ?? []).filter(
-        (tab) => tab.id !== targetId,
-      ),
+      browserTabs: state.browserTabs.filter((tab) => tab.id !== targetId),
     });
   };
 

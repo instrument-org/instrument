@@ -48,7 +48,7 @@ describe("bash attaches the agent-browser skill", () => {
       sessionId,
       signal: new AbortController().signal,
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     });
     if (result.isErr()) {
       throw new Error(result.error.message);

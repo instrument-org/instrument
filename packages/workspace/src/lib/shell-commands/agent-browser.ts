@@ -1088,7 +1088,7 @@ async function recordHeldTabHosts({
   const { browser } = getWorkspaceConfig();
   try {
     const { browserTabs } = await getTaskState(taskDir(taskId));
-    const urls = (browserTabs ?? []).flatMap((tab) => {
+    const urls = browserTabs.flatMap((tab) => {
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
@@ -1114,7 +1114,7 @@ async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
     return "agent-browser: a chat does not browse. Hand the page to a task with `task new --tab <id>`.\n";
   }
   const state = await getTaskState(taskDir(id));
-  const heldTabs = state.browserTabs ?? [];
+  const heldTabs = state.browserTabs;
   const live = await liveHeldTabs(id, heldTabs);
   if (live.length > 0) {
     if (live.length < heldTabs.length) {
@@ -1132,7 +1132,7 @@ async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
     // The task's own tabs, closed by the user or by the conversation: said
     // once, so the task knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
-    await setTaskState(taskDir(id), { browserTabs: undefined });
+    await setTaskState(taskDir(id), { browserTabs: [] });
     return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
   }
   // None yet: agent-browser asks a browser with no pages for one, which the

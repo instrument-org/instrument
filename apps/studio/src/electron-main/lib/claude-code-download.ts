@@ -12,6 +12,7 @@ import { once } from "node:events";
 import { finished, pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import { app, net } from "electron";
+import { Result } from "typescript-result";
 import { z } from "zod";
 
 const log = createScopedLogger("claude-code-download");
@@ -96,104 +97,195 @@ const RegistryVersionSchema = z.object({
   dist: z.object({ integrity: z.string(), tarball: z.string() }),
 });
 
+/** Why our copy of Claude Code could not be installed, by the stage that failed. */
+export class ClaudeCodeInstallError extends Error {
+  readonly type = "claude-code-install";
+  constructor(
+    readonly failedStage:
+      | "download"
+      | "install"
+      | "unpack"
+      | "unsupported"
+      | "verify",
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+/** One stage of the install, whose failure becomes that stage's error. */
+function stage<T>(
+  failedStage: ClaudeCodeInstallError["failedStage"],
+  message: string,
+  work: () => Promise<T>,
+) {
+  return Result.fromAsyncCatching(
+    work,
+    (cause) => new ClaudeCodeInstallError(failedStage, message, { cause }),
+  );
+}
+
 /**
  * Download the Claude Code binary this build drives from npm, where Anthropic
  * publishes it beside the Agent SDK, check it against npm's integrity hash
  * and Anthropic's own checksum, and install it in the app's data folder.
  * Unmodified, and signed in to through its own flow like any other copy.
  */
-export async function downloadClaudeCode(
+export function downloadClaudeCode(
   onProgress: (progress: DownloadProgress) => void,
-): Promise<string> {
-  const release = wantedRelease();
-  if (!release) {
-    throw new Error(
-      `Claude Code isn't built for ${process.platform}-${process.arch}.`,
+) {
+  return Result.gen(async function* () {
+    const release = wantedRelease();
+    if (!release) {
+      return Result.error(
+        new ClaudeCodeInstallError(
+          "unsupported",
+          `Claude Code isn't built for ${process.platform}-${process.arch}.`,
+        ),
+      );
+    }
+    const root = installRoot();
+    const staging = path.join(root, `.download-${randomUUID()}`);
+    yield* await stage(
+      "install",
+      "Couldn't make a folder for the download.",
+      async () => {
+        // A download cut short by a quit leaves its staging folder behind; one
+        // at a time runs, so any found now is left over.
+        await removeEntries(root, (entry) => entry.startsWith(".download-"));
+        await mkdir(staging, { recursive: true });
+      },
     );
+    try {
+      const registry = yield* await stage(
+        "download",
+        "Couldn't find Claude Code on npm.",
+        async () =>
+          RegistryVersionSchema.parse(
+            await (
+              await fetchOk(
+                `https://registry.npmjs.org/${release.packageName.replace("/", "%2f")}/${release.packageVersion}`,
+              )
+            ).json(),
+          ),
+      );
+
+      const tarball = path.join(staging, "package.tgz");
+      const [algorithm, expected] = registry.dist.integrity.split("-", 2);
+      const digest = yield* await stage(
+        "download",
+        "The Claude Code download didn't finish.",
+        () =>
+          downloadTo(
+            registry.dist.tarball,
+            tarball,
+            algorithm ?? "sha512",
+            release.size,
+            onProgress,
+          ),
+      );
+      if (digest !== expected) {
+        return Result.error(
+          new ClaudeCodeInstallError(
+            "verify",
+            "The Claude Code download didn't match npm's integrity hash.",
+          ),
+        );
+      }
+
+      const extracted = path.join(staging, "package", release.binary);
+      const checksum = yield* await stage(
+        "unpack",
+        "Couldn't unpack the Claude Code download.",
+        async () => {
+          // Every platform this runs on has a `tar` that reads gzip: bsdtar on
+          // macOS and Windows 10 and later, GNU tar on Linux.
+          await run(tarPath(), [
+            "-xzf",
+            tarball,
+            "-C",
+            staging,
+            `package/${release.binary}`,
+          ]);
+          return sha256(extracted);
+        },
+      );
+      if (checksum !== release.sha256) {
+        return Result.error(
+          new ClaudeCodeInstallError(
+            "verify",
+            "Claude Code didn't match Anthropic's checksum.",
+          ),
+        );
+      }
+
+      const installed = yield* await stage(
+        "install",
+        "Couldn't install Claude Code in Instrument's folder.",
+        async () => {
+          await chmod(extracted, 0o755);
+          const installDir = path.join(root, release.version);
+          await rm(installDir, { force: true, recursive: true });
+          await mkdir(installDir, { recursive: true });
+          const binary = path.join(installDir, release.binary);
+          await rename(extracted, binary);
+          return binary;
+        },
+      );
+      // Tidying, after the new copy is in: a copy still running, which Windows
+      // will not delete, is left for the next install rather than failing this one.
+      await removeEntries(
+        root,
+        (entry) => entry !== release.version && !entry.startsWith(".download-"),
+      ).catch((error: unknown) => {
+        log.warn("Couldn't remove an older Claude Code", error);
+      });
+      log.info(`Installed Claude Code ${release.version} at ${installed}`);
+      return installed;
+    } finally {
+      await rm(staging, { force: true, recursive: true }).catch(() => {});
+    }
+  });
+}
+
+/** Stream `url` to `file`, reporting progress, and answer its digest in base64. */
+async function downloadTo(
+  url: string,
+  file: string,
+  algorithm: string,
+  expectedSize: number,
+  onProgress: (progress: DownloadProgress) => void,
+) {
+  const response = await fetchOk(url);
+  const total = Number(response.headers.get("content-length")) || expectedSize;
+  if (!response.body) {
+    throw new Error("The download came back empty.");
   }
-  const root = installRoot();
-  // A download cut short by a quit leaves its staging folder behind; one at a
-  // time runs, so any found now is left over.
-  await removeEntries(root, (entry) => entry.startsWith(".download-"));
-  const staging = path.join(root, `.download-${randomUUID()}`);
-  await mkdir(staging, { recursive: true });
-  try {
-    const registry = RegistryVersionSchema.parse(
-      await (
-        await fetchOk(
-          `https://registry.npmjs.org/${release.packageName.replace("/", "%2f")}/${release.packageVersion}`,
-        )
-      ).json(),
-    );
-
-    const tarball = path.join(staging, "package.tgz");
-    const response = await fetchOk(registry.dist.tarball);
-    const total =
-      Number(response.headers.get("content-length")) || release.size;
-    const [algorithm, expected] = registry.dist.integrity.split("-", 2);
-    const hash = createHash(algorithm ?? "sha512");
-    let received = 0;
-    let lastReport = 0;
-    if (!response.body) {
-      throw new Error("The download came back empty.");
+  const hash = createHash(algorithm);
+  const reader = response.body.getReader();
+  const out = createWriteStream(file);
+  let received = 0;
+  let lastReport = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
     }
-    const reader = response.body.getReader();
-    const file = createWriteStream(tarball);
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      hash.update(value);
-      received += value.length;
-      if (!file.write(value)) {
-        await once(file, "drain");
-      }
-      if (Date.now() - lastReport > 250) {
-        lastReport = Date.now();
-        onProgress({ received, total });
-      }
+    hash.update(value);
+    received += value.length;
+    if (!out.write(value)) {
+      await once(out, "drain");
     }
-    file.end();
-    await finished(file);
-    onProgress({ received, total });
-    if (hash.digest("base64") !== expected) {
-      throw new Error("The download didn't match npm's integrity hash.");
+    if (Date.now() - lastReport > 250) {
+      lastReport = Date.now();
+      onProgress({ received, total });
     }
-
-    // Every platform this runs on has a `tar` that reads gzip: bsdtar on
-    // macOS and Windows 10 and later, GNU tar on Linux.
-    await run(tarPath(), [
-      "-xzf",
-      tarball,
-      "-C",
-      staging,
-      `package/${release.binary}`,
-    ]);
-    const extracted = path.join(staging, "package", release.binary);
-    if ((await sha256(extracted)) !== release.sha256) {
-      throw new Error("Claude Code didn't match Anthropic's checksum.");
-    }
-    await chmod(extracted, 0o755);
-
-    const installDir = path.join(root, release.version);
-    await rm(installDir, { force: true, recursive: true });
-    await mkdir(installDir, { recursive: true });
-    const installed = path.join(installDir, release.binary);
-    await rename(extracted, installed);
-    // Tidying, after the new copy is in: a copy still running, which Windows
-    // will not delete, is left for the next install rather than failing this one.
-    await removeEntries(
-      root,
-      (entry) => entry !== release.version && !entry.startsWith(".download-"),
-    ).catch((error: unknown) => {
-      log.warn("Couldn't remove an older Claude Code", error);
-    });
-    log.info(`Installed Claude Code ${release.version} at ${installed}`);
-    return installed;
-  } finally {
-    await rm(staging, { force: true, recursive: true });
   }
+  out.end();
+  await finished(out);
+  onProgress({ received, total });
+  return hash.digest("base64");
 }
 
 async function fetchOk(url: string) {

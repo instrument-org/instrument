@@ -20,17 +20,8 @@ import {
   AIProviderConfigIdSchema,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import { execFile, spawn } from "node:child_process";
-import {
-  access,
-  chmod,
-  constants,
-  mkdir,
-  mkdtemp,
-  stat,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { app, shell } from "electron";
@@ -261,13 +252,11 @@ async function statusOutput(executablePath: string, args: string[]) {
  * Sign in to Claude: install our copy of Claude Code if it is not in yet,
  * then start its own sign-in and open Anthropic's page in the browser. The
  * page returns to Claude Code, which stores the sign-in itself; this only
- * notices it finish and brings the app back to the front. Where the browser
- * sign-in cannot start, Claude Code's sign-in opens in a terminal instead.
+ * notices it finish and brings the app back to the front. Answers why the
+ * sign-in could not start, if it could not.
  */
 export async function openClaudeSignIn(): Promise<{
-  command: string | undefined;
-  opened: boolean;
-  via: "browser" | "terminal";
+  error: string | undefined;
 }> {
   let current = await refreshClaudeAccountStatus({ force: true });
   if (current.kind === "not-installed" && current.canInstall) {
@@ -275,7 +264,12 @@ export async function openClaudeSignIn(): Promise<{
     current = status;
   }
   if (current.kind === "not-installed") {
-    return { command: undefined, opened: false, via: "browser" };
+    // The card already says why an install failed.
+    return {
+      error: current.canInstall
+        ? undefined
+        : "Claude Code isn't available for this computer.",
+    };
   }
   const { executablePath } = current;
   try {
@@ -283,13 +277,13 @@ export async function openClaudeSignIn(): Promise<{
     await mkdir(accountDir(), { recursive: true });
     const signIn = await beginSignIn(executablePath);
     await shell.openExternal(signIn.url);
-    return { command: undefined, opened: true, via: "browser" };
+    return { error: undefined };
   } catch (error) {
-    log.warn(
-      "Couldn't start Claude sign-in in the browser; using a terminal",
-      error,
-    );
-    return { ...(await openTerminalSignIn(executablePath)), via: "terminal" };
+    log.warn("Couldn't start Claude sign-in", error);
+    return {
+      error:
+        "Claude Code couldn't start its sign-in. Try again, or restart Instrument if it keeps happening.",
+    };
   }
 }
 
@@ -410,59 +404,6 @@ export function cancelClaudeSignIn() {
 }
 
 /**
- * Open a terminal running Claude Code's own sign-in, which finishes in the
- * browser. Answers the command, for a platform where no terminal could be
- * opened and the person has to run it themselves.
- */
-async function openTerminalSignIn(executablePath: string) {
-  const env = cliEnv();
-  const command = `CLAUDE_CONFIG_DIR="${accountDir()}" "${executablePath}" auth login`;
-  try {
-    if (process.platform === "darwin") {
-      // A `.command` file opens in the person's own terminal app, with no
-      // automation permission to grant.
-      const dir = await mkdtemp(path.join(tmpdir(), "claude-sign-in-"));
-      const file = path.join(dir, "Sign in to Claude.command");
-      await writeFile(file, `#!/bin/sh\nexec env ${command}\n`);
-      await chmod(file, 0o755);
-      const error = await shell.openPath(file);
-      return { command, opened: error === "" };
-    }
-    if (process.platform === "win32") {
-      // `start` takes the window title as its first quoted argument, so the
-      // line is handed to cmd exactly as written rather than requoted.
-      spawn(
-        "cmd.exe",
-        ["/d", "/s", "/c", `start "" "${executablePath}" auth login`],
-        {
-          detached: true,
-          env,
-          stdio: "ignore",
-          windowsHide: false,
-          windowsVerbatimArguments: true,
-        },
-      ).unref();
-      return { command, opened: true };
-    }
-    const terminal = await findLinuxTerminal();
-    if (!terminal) {
-      return { command, opened: false };
-    }
-    spawn(terminal, ["-e", executablePath, "auth", "login"], {
-      detached: true,
-      env,
-      stdio: "ignore",
-    })
-      .on("error", () => {})
-      .unref();
-    return { command, opened: true };
-  } catch (error) {
-    log.warn("Couldn't open a terminal for Claude sign-in", error);
-    return { command, opened: false };
-  }
-}
-
-/**
  * Install our own copy of the Claude Code release this build drives, then
  * look again. Progress and failure ride on the status.
  */
@@ -497,17 +438,14 @@ async function runInstall() {
     publisher.publish("claude-account.updated", null);
   };
   publish({ received: 0, state: "downloading", total: 0 });
-  try {
-    await downloadClaudeCode(({ received, total }) => {
-      publish({ received, state: "downloading", total });
-    });
+  const installed = await downloadClaudeCode(({ received, total }) => {
+    publish({ received, state: "downloading", total });
+  });
+  if (installed.ok) {
     publish(undefined);
-  } catch (error) {
-    log.warn("Couldn't install Claude Code", error);
-    publish({
-      failed: error instanceof Error ? error.message : String(error),
-      state: "failed",
-    });
+  } else {
+    log.warn("Couldn't install Claude Code", installed.error);
+    publish({ failed: installed.error.message, state: "failed" });
   }
   await refreshClaudeAccountStatus({ force: true });
 }
@@ -515,28 +453,4 @@ async function runInstall() {
 /** The environment our copy runs in for status checks, as for every request. */
 function cliEnv() {
   return claudeCodeEnvironment(accountDir());
-}
-
-/** A terminal that takes `-e <command>`, from the ones Linux desktops ship. */
-async function findLinuxTerminal() {
-  const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  for (const name of [
-    "x-terminal-emulator",
-    "gnome-terminal",
-    "konsole",
-    "xterm",
-  ]) {
-    for (const dir of dirs) {
-      const candidate = path.join(dir, name);
-      if (
-        await access(candidate, constants.X_OK).then(
-          () => true,
-          () => false,
-        )
-      ) {
-        return candidate;
-      }
-    }
-  }
-  return undefined;
 }

@@ -118,13 +118,7 @@ export function ClaudeAccountCard() {
               onStart={() => {
                 setHint(undefined);
                 void signIn.mutateAsync({}).then((result) => {
-                  if (!result.opened) {
-                    setHint(
-                      result.command
-                        ? `Run ${result.command} in a terminal, then come back.`
-                        : "Claude Code couldn't be set up on this computer.",
-                    );
-                  }
+                  setHint(result.error);
                 });
               }}
               waiting={waiting}

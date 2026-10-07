@@ -65,13 +65,9 @@ export function ClaudeLoginButton({
       return;
     }
     const result = await rpcClient.claudeAccount.signIn.call({});
-    if (!result.opened) {
+    if (result.error) {
       setPressed(false);
-      setHint(
-        result.command
-          ? `Run ${result.command} in a terminal.`
-          : "Claude Code couldn't be set up on this computer.",
-      );
+      setHint(result.error);
     }
   };
 

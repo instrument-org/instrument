@@ -356,8 +356,6 @@ describe("handleCdpClient on a local page", () => {
   it.each([
     "Page.disable",
     "Runtime.disable",
-    "Target.sendMessageToTarget",
-    "Target.exposeDevToolsProtocol",
     "Target.getTargetInfo",
     "Page.captureScreenshot",
     "DOM.getDocument",
@@ -391,6 +389,18 @@ describe("handleCdpClient on a local page", () => {
     expect(left.error).toBeUndefined();
     const read = await command("Runtime.evaluate", { expression: "1" });
     expect(read.error).toBeUndefined();
+  });
+
+  it.each([
+    "Target.attachToBrowserTarget",
+    "Target.exposeDevToolsProtocol",
+    "Target.sendMessageToTarget",
+  ])("refuses %s, a target command the table does not list", async (method) => {
+    const { command, sendCommand } = connect();
+    sendCommand.mockClear();
+    const reply = await command(method);
+    expect(reply.error?.message).toBe("Method not found");
+    expect(sendCommand).not.toHaveBeenCalled();
   });
 
   it("refuses to open a file outside the agent's folders", async () => {

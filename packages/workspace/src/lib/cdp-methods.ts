@@ -27,7 +27,10 @@
  * agent-browser {@link CDP_METHODS_READ_FROM} sends (read from its source,
  * since its inspect proxy aside it builds no method name at run time), plus
  * the ones the bridge sends on its own (`sender: "bridge"`). Main warns once
- * for any command that reaches it and is not here.
+ * for any command that reaches it and is not here. A `Target.*` command that
+ * is not here never reaches main: both endpoints refuse it, since it could
+ * name a target other than the agent's tabs (see
+ * docs/decisions/2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md).
  */
 export type CdpHandling = "override" | "passthrough" | "refuse" | "wrapped";
 

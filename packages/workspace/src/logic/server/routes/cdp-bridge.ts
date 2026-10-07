@@ -4,7 +4,7 @@ import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import { WebSocket } from "ws";
 
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
-import { cdpMethodsHandled } from "../../../lib/cdp-methods";
+import { cdpMethodsHandled, isKnownCdpMethod } from "../../../lib/cdp-methods";
 import {
   agentPathOfFileUrl,
   isLocalAddress,
@@ -380,6 +380,20 @@ export function handleCdpClient(
         targetId,
         workspaceConfig,
       );
+      return;
+    }
+    // A Target.* command the table does not list could reach a target other
+    // than this page, so it is refused rather than forwarded, the way the
+    // task endpoint refuses one it does not answer.
+    if (
+      typeof message.method === "string" &&
+      message.method.startsWith("Target.") &&
+      !isKnownCdpMethod(message.method)
+    ) {
+      send({
+        error: { code: -32_601, message: "Method not found" },
+        id: message.id,
+      });
       return;
     }
     session.run(message);

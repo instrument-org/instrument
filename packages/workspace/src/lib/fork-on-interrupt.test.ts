@@ -269,6 +269,13 @@ describe("forkInterruptedTurn", () => {
     sent.onSend = undefined;
     working.ids.clear();
     rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "fork-on-interrupt-"));
+    // The chat reaches the home folder read and write, so a test that writes
+    // into what it reaches would otherwise write into the real one.
+    const home = path.join(rootDir, "home");
+    await fs.mkdir(path.join(home, "Documents", "Instrument"), {
+      recursive: true,
+    });
+    vi.spyOn(os, "homedir").mockReturnValue(home);
     createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
       unplaced: true,
     });
@@ -328,6 +335,7 @@ describe("forkInterruptedTurn", () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await fs.rm(rootDir, { force: true, recursive: true });
   });
 

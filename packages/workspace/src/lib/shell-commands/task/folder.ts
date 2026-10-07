@@ -49,9 +49,6 @@ export const folderSubcommand = subcommand<TaskCommandContext>({
       it at its next step, an idle one it hands a folder carries on with it as
       a new turn. Say what the folder is for on stdin, in the same heredoc form
       as \`send\`, and it is told that too.
-      With the one agent, \`self\` in place of an id gives this conversation
-      itself a folder inside one of its own, read and write unless :ro, mounted
-      beside the one it is in: \`folder self --add <mount>/<folder>\`.
 `,
 });
 

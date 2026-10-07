@@ -9,19 +9,19 @@ export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
 export { chatGPTPlanDefaultModel } from "./lib/fetch-models/chatgpt";
 export {
-  type ClaudePlanUsage,
-  fetchClaudePlanUsage,
-} from "./lib/providers/claude-plan/fetch-usage";
+  type ClaudeAccountUsage,
+  fetchClaudeAccountUsage,
+} from "./lib/providers/claude-account/fetch-usage";
 export {
   type ClaudeCodeRelease,
   claudeCodeRelease,
-} from "./lib/providers/claude-plan/release";
-export { claudeCodeEnvironment } from "./lib/providers/claude-plan/environment";
+} from "./lib/providers/claude-account/release";
+export { claudeCodeEnvironment } from "./lib/providers/claude-account/environment";
 export {
   type ClaudeCodeSignIn,
   startClaudeCodeSignIn,
   UnusableCodeError,
-} from "./lib/providers/claude-plan/sign-in";
+} from "./lib/providers/claude-account/sign-in";
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";

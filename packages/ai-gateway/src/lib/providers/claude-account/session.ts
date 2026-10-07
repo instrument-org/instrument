@@ -54,7 +54,7 @@ export interface SessionShape {
  * step. Our loop still runs every tool: a call the model makes is answered
  * over MCP only when our next request arrives carrying its result.
  */
-export class ClaudePlanSession {
+export class ClaudeCodeSession {
   /** Tool calls from the last step, waiting on our loop to run them. */
   awaitingToolCallIds: string[] = [];
   busy = false;

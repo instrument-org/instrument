@@ -22,7 +22,7 @@ export function ClaudeLoginButton({
   onSuccess: () => void;
 }) {
   const { data: status } = useQuery(
-    rpcClient.claudePlan.live.status.experimental_liveOptions(),
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
   const [pressed, setPressed] = useState(false);
   const [hint, setHint] = useState<string>();
@@ -33,9 +33,11 @@ export function ClaudeLoginButton({
       return;
     }
     connecting.current = true;
-    const result = await rpcClient.claudePlan.connect.call({}).finally(() => {
-      connecting.current = false;
-    });
+    const result = await rpcClient.claudeAccount.connect
+      .call({})
+      .finally(() => {
+        connecting.current = false;
+      });
     if (result.status.kind !== "signed-in") {
       return;
     }
@@ -62,7 +64,7 @@ export function ClaudeLoginButton({
       await connect();
       return;
     }
-    const result = await rpcClient.claudePlan.signIn.call({});
+    const result = await rpcClient.claudeAccount.signIn.call({});
     if (!result.opened) {
       setPressed(false);
       setHint(
@@ -81,10 +83,10 @@ export function ClaudeLoginButton({
     <div className="flex w-full flex-col items-center gap-y-2">
       <BrowserHandoffButton
         className={className}
-        icon={<AIProviderIcon className="size-4" type="claude-plan" />}
+        icon={<AIProviderIcon className="size-4" type="claude-account" />}
         onCancel={() => {
           setPressed(false);
-          void rpcClient.claudePlan.cancelSignIn.call({});
+          void rpcClient.claudeAccount.cancelSignIn.call({});
         }}
         onStart={() => {
           void continueWithClaude();

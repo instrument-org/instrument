@@ -203,7 +203,7 @@ describe("MessageError", () => {
     expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
   });
 
-  it("offers Instrument when the Claude plan's limit was reached", async () => {
+  it("offers Instrument when the Claude account's limit was reached", async () => {
     renderError({
       error: {
         classification: "usage-limit",
@@ -211,9 +211,9 @@ describe("MessageError", () => {
         message: "You've hit your limit",
         name: "AI_APICallError",
         statusCode: 429,
-        url: "claude-plan://",
+        url: "claude-account://",
       },
-      provider: "claude-plan",
+      provider: "claude-account",
     });
 
     expect(screen.getByText("Claude usage limit reached")).not.toBeNull();

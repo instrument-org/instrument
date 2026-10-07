@@ -74,7 +74,7 @@ interface PublisherEvents {
   // started or ended, or a token was refreshed.
   "chatgpt-plan.updated": null;
   // What the Claude Code CLI on this computer says about its sign-in changed.
-  "claude-plan.updated": null;
+  "claude-account.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   "preferences.updated": null;

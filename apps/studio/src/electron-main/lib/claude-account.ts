@@ -11,14 +11,14 @@ import {
   type AIGatewayProviderConfig,
   claudeCodeEnvironment,
   type ClaudeCodeSignIn,
-  fetchClaudePlanUsage,
+  fetchClaudeAccountUsage,
   startClaudeCodeSignIn,
   UnusableCodeError,
 } from "@instrument-org/ai-gateway";
 import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
-  CLAUDE_PLAN_PROVIDER_CONFIG,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { execFile, spawn } from "node:child_process";
 import {
@@ -36,7 +36,7 @@ import { promisify } from "node:util";
 import { app, shell } from "electron";
 import { z } from "zod";
 
-const log = createScopedLogger("claude-plan");
+const log = createScopedLogger("claude-account");
 const run = promisify(execFile);
 
 /** Re-checked at most this often, however often a window takes focus. */
@@ -61,7 +61,7 @@ export type ClaudeCodeInstall =
   | { failed: string; state: "failed" }
   | { received: number; state: "downloading"; total: number };
 
-export type ClaudePlanStatus = {
+export type ClaudeAccountStatus = {
   /** Whether this platform has a Claude Code build we can install. */
   canInstall: boolean;
   install: ClaudeCodeInstall | undefined;
@@ -90,7 +90,7 @@ export type ClaudePlanStatus = {
     }
 );
 
-let status: ClaudePlanStatus = {
+let status: ClaudeAccountStatus = {
   canInstall: false,
   install: undefined,
   kind: "not-installed",
@@ -100,7 +100,7 @@ let status: ClaudePlanStatus = {
 let install: ClaudeCodeInstall | undefined;
 let pendingSignIn: ClaudeCodeSignIn | undefined;
 let lastRefresh = 0;
-let refreshing: Promise<ClaudePlanStatus> | undefined;
+let refreshing: Promise<ClaudeAccountStatus> | undefined;
 
 /**
  * Where our copy of Claude Code keeps its Claude sign-in, as its config
@@ -112,7 +112,7 @@ function accountDir() {
   return path.join(app.getPath("userData"), "claude-account");
 }
 
-export function claudePlanStatus() {
+export function claudeAccountStatus() {
   return status;
 }
 
@@ -121,30 +121,30 @@ export function claudePlanStatus() {
  * signed in to one. It holds no credential: Claude Code keeps the sign-in,
  * and we only drive it.
  */
-export function claudePlanProviderConfigs(): AIGatewayProviderConfig.Type[] {
+export function claudeAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
   if (status.kind !== "signed-in") {
     return [];
   }
   return [
     {
-      ...CLAUDE_PLAN_PROVIDER_CONFIG,
+      ...CLAUDE_ACCOUNT_PROVIDER_CONFIG,
       apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
       configDir: accountDir(),
       executablePath: status.executablePath,
-      id: AIProviderConfigIdSchema.parse(CLAUDE_PLAN_PROVIDER_CONFIG.id),
+      id: AIProviderConfigIdSchema.parse(CLAUDE_ACCOUNT_PROVIDER_CONFIG.id),
     },
   ];
 }
 
 /** Ask our copy of Claude Code who is signed in, unless that was just done. */
-export function refreshClaudePlanStatus({
+export function refreshClaudeAccountStatus({
   force = false,
-} = {}): Promise<ClaudePlanStatus> {
+} = {}): Promise<ClaudeAccountStatus> {
   if (refreshing) {
     // A forced read follows something that just changed, which a read
     // already under way may have started before.
     return force
-      ? refreshing.then(() => refreshClaudePlanStatus({ force: true }))
+      ? refreshing.then(() => refreshClaudeAccountStatus({ force: true }))
       : refreshing;
   }
   if (!force && Date.now() - lastRefresh < REFRESH_INTERVAL_MS) {
@@ -168,27 +168,27 @@ export function refreshClaudePlanStatus({
   return refreshing;
 }
 
-function setStatus(next: ClaudePlanStatus) {
+function setStatus(next: ClaudeAccountStatus) {
   const changed = JSON.stringify(next) !== JSON.stringify(status);
   status = next;
   if (changed) {
-    publisher.publish("claude-plan.updated", null);
+    publisher.publish("claude-account.updated", null);
     publisher.publish("provider-config.updated", null);
   }
 }
 
 /** How much of the subscription is used, or nothing while none is signed in. */
-export async function claudePlanUsage() {
+export async function claudeAccountUsage() {
   if (status.kind !== "signed-in") {
     return null;
   }
-  return fetchClaudePlanUsage({
+  return fetchClaudeAccountUsage({
     configDir: accountDir(),
     executablePath: status.executablePath,
   });
 }
 
-async function readStatus(): Promise<ClaudePlanStatus> {
+async function readStatus(): Promise<ClaudeAccountStatus> {
   const executablePath = await installedCopy();
   return {
     ...(executablePath
@@ -269,7 +269,7 @@ export async function openClaudeSignIn(): Promise<{
   opened: boolean;
   via: "browser" | "terminal";
 }> {
-  let current = await refreshClaudePlanStatus({ force: true });
+  let current = await refreshClaudeAccountStatus({ force: true });
   if (current.kind === "not-installed" && current.canInstall) {
     await installClaudeCode();
     current = status;
@@ -333,7 +333,7 @@ async function beginSignIn(executablePath: string) {
     if (pendingSignIn === signIn) {
       pendingSignIn = undefined;
     }
-    void refreshClaudePlanStatus({ force: true }).then((after) => {
+    void refreshClaudeAccountStatus({ force: true }).then((after) => {
       if (after.kind === "signed-in") {
         focusAppWindow();
       }
@@ -399,7 +399,7 @@ export async function signOutOfClaude() {
       log.warn("Claude Code's sign-out failed", error);
     });
   }
-  return refreshClaudePlanStatus({ force: true });
+  return refreshClaudeAccountStatus({ force: true });
 }
 
 /** Give up on a sign-in still waiting on the browser. */
@@ -494,7 +494,7 @@ async function runInstall() {
   const publish = (next: ClaudeCodeInstall | undefined) => {
     install = next;
     status = { ...status, install };
-    publisher.publish("claude-plan.updated", null);
+    publisher.publish("claude-account.updated", null);
   };
   publish({ received: 0, state: "downloading", total: 0 });
   try {
@@ -509,7 +509,7 @@ async function runInstall() {
       state: "failed",
     });
   }
-  await refreshClaudePlanStatus({ force: true });
+  await refreshClaudeAccountStatus({ force: true });
 }
 
 /** The environment our copy runs in for status checks, as for every request. */

@@ -42,7 +42,7 @@ export function ClaudeSignInCode({
   const submit = async () => {
     setSubmitting(true);
     setError(undefined);
-    const result = await rpcClient.claudePlan.submitSignInCode
+    const result = await rpcClient.claudeAccount.submitSignInCode
       .call({ code })
       .catch(() => ({ error: "Claude didn't accept that code." }));
     setSubmitting(false);

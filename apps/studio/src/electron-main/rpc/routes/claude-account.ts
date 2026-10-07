@@ -1,15 +1,15 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import {
   cancelClaudeSignIn,
-  claudePlanStatus,
-  claudePlanUsage,
+  claudeAccountStatus,
+  claudeAccountUsage,
   installClaudeCode,
   openClaudeSignIn,
   signOutOfClaude,
   submitClaudeSignInCode,
-  refreshClaudePlanStatus,
-} from "@/electron-main/lib/claude-plan";
-import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
+  refreshClaudeAccountStatus,
+} from "@/electron-main/lib/claude-account";
+import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { z } from "zod";
@@ -18,9 +18,9 @@ import { publisher } from "../publisher";
 
 const live = {
   status: base.handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("claude-plan.updated", { signal });
-    void refreshClaudePlanStatus({ force: true });
-    yield* liveRead({ changes: [changes], read: claudePlanStatus });
+    const changes = publisher.subscribe("claude-account.updated", { signal });
+    void refreshClaudeAccountStatus({ force: true });
+    yield* liveRead({ changes: [changes], read: claudeAccountStatus });
   }),
 };
 
@@ -47,7 +47,7 @@ const cancelSignIn = base.handler(() => {
 const signOut = base.handler(() => signOutOfClaude());
 
 /** Looks again, after the person says they have signed in. */
-const refresh = base.handler(() => refreshClaudePlanStatus({ force: true }));
+const refresh = base.handler(() => refreshClaudeAccountStatus({ force: true }));
 
 /**
  * Uses the Claude account Claude Code is signed in to, when it is: setup is
@@ -55,15 +55,15 @@ const refresh = base.handler(() => refreshClaudePlanStatus({ force: true }));
  * status either way, and the model's name when one was chosen.
  */
 const connect = base.handler(async ({ context }) => {
-  const status = await refreshClaudePlanStatus({ force: true });
+  const status = await refreshClaudeAccountStatus({ force: true });
   if (status.kind !== "signed-in") {
     return { modelName: undefined, status };
   }
   getWorkspaceState().set("hasCompletedProviderSetup", true);
   context.workspaceConfig.captureEvent("provider.created", {
-    provider_type: "claude-plan",
+    provider_type: "claude-account",
   });
-  return { modelName: await setClaudePlanDefaultModel(), status };
+  return { modelName: await setClaudeAccountDefaultModel(), status };
 });
 
 /**
@@ -73,9 +73,9 @@ const connect = base.handler(async ({ context }) => {
 const install = base.handler(() => installClaudeCode());
 
 /** The subscription's usage by window, read fresh from Claude Code each time. */
-const usage = base.handler(() => claudePlanUsage());
+const usage = base.handler(() => claudeAccountUsage());
 
-export const claudePlan = {
+export const claudeAccount = {
   cancelSignIn,
   connect,
   install,

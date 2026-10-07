@@ -4,16 +4,16 @@ import { expect, it } from "vitest";
 import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
-import { fetchClaudePlanUsage } from "./fetch-usage";
-import { createClaudePlanLanguageModel } from "./language-model";
+import { fetchClaudeAccountUsage } from "./fetch-usage";
+import { createClaudeAccountLanguageModel } from "./language-model";
 
 // Runs against the real `claude` CLI in ~/.local/bin and spends the signed-in
-// account's plan, so it only runs when asked: CLAUDE_PLAN_LIVE=1.
-it.skipIf(process.env.CLAUDE_PLAN_LIVE !== "1")(
+// account's plan, so it only runs when asked: CLAUDE_ACCOUNT_LIVE=1.
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   "runs a multi-step tool turn and a follow-up through the CLI",
   { timeout: 180_000 },
   async () => {
-    const model = createClaudePlanLanguageModel({
+    const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
     })("claude-haiku-4-5");
@@ -78,11 +78,11 @@ it.skipIf(process.env.CLAUDE_PLAN_LIVE !== "1")(
   },
 );
 
-it.skipIf(process.env.CLAUDE_PLAN_LIVE !== "1")(
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   "reads the plan's usage windows",
   { timeout: 60_000 },
   async () => {
-    const usage = await fetchClaudePlanUsage({
+    const usage = await fetchClaudeAccountUsage({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
     });

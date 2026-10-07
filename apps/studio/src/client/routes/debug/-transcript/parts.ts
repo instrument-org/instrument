@@ -60,19 +60,19 @@ export const CHATGPT_PLAN_MODEL: AIGatewayModel.Type = {
 };
 
 /** A model on the user's Claude subscription, run through Claude Code. */
-export const CLAUDE_PLAN_MODEL: AIGatewayModel.Type = {
+export const CLAUDE_ACCOUNT_MODEL: AIGatewayModel.Type = {
   author: "anthropic",
   canonicalId: "claude-sonnet-5-5" as AIGatewayModel.CanonicalId,
   features: ["inputText", "outputText", "tools"],
   name: "Sonnet",
   params: {
-    provider: "claude-plan",
-    providerConfigId: AIProviderConfigIdSchema.parse("claude-plan"),
+    provider: "claude-account",
+    providerConfigId: AIProviderConfigIdSchema.parse("claude-account"),
   },
   providerId: "claude-sonnet-5-5" as AIGatewayModel.ProviderId,
   providerName: "Claude account",
   tags: [],
-  uri: "anthropic/claude-sonnet-5-5?provider=claude-plan&providerConfigId=claude-plan" as AIGatewayModelURI.Type,
+  uri: "anthropic/claude-sonnet-5-5?provider=claude-account&providerConfigId=claude-account" as AIGatewayModelURI.Type,
 };
 
 /** A file the turn touched, for the grid of what changed. */

@@ -49,8 +49,8 @@ export async function startClaudeCodeSignIn({
   configDir: string | undefined;
   executablePath: string;
 }): Promise<ClaudeCodeSignIn> {
-  const { ClaudePlanSession } = await import("./session");
-  const session = new ClaudePlanSession(
+  const { ClaudeCodeSession } = await import("./session");
+  const session = new ClaudeCodeSession(
     "sign-in",
     {
       builtInTools: [],

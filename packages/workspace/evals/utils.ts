@@ -10,7 +10,7 @@ import {
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
   CHATGPT_PLAN_PROVIDER_CONFIG,
-  CLAUDE_PLAN_PROVIDER_CONFIG,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { writeFileSync } from "node:fs";
@@ -361,10 +361,10 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   // Studio does once it finds the CLI signed in.
   if (env.APP_CLAUDE_CODE_PATH) {
     configs.push({
-      ...CLAUDE_PLAN_PROVIDER_CONFIG,
+      ...CLAUDE_ACCOUNT_PROVIDER_CONFIG,
       apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
       executablePath: withRealHome(env.APP_CLAUDE_CODE_PATH),
-      id: AIProviderConfigIdSchema.parse(CLAUDE_PLAN_PROVIDER_CONFIG.id),
+      id: AIProviderConfigIdSchema.parse(CLAUDE_ACCOUNT_PROVIDER_CONFIG.id),
     });
   }
 

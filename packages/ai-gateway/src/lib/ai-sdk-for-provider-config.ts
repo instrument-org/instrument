@@ -27,13 +27,13 @@ export async function aiSDKForProviderConfig(
   const apiKey = internalAPIKey();
   const packageName = getPackageForProviderType(config.type);
 
-  if (config.type === "claude-plan") {
+  if (config.type === "claude-account") {
     if (!config.executablePath) {
       throw new Error("The Claude account has no Claude Code to run.");
     }
-    const { createClaudePlanLanguageModel } =
-      await import("./providers/claude-plan/language-model");
-    return createClaudePlanLanguageModel({
+    const { createClaudeAccountLanguageModel } =
+      await import("./providers/claude-account/language-model");
+    return createClaudeAccountLanguageModel({
       configDir: config.configDir,
       executablePath: config.executablePath,
     });

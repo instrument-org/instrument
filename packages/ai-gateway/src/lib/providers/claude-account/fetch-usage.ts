@@ -1,8 +1,8 @@
 /**
- * How much of the Claude plan is used, by window, as the CLI reports it: the
+ * How much of the Claude account is used, by window, as the CLI reports it: the
  * account's whole use, including outside this app.
  */
-export interface ClaudePlanUsage {
+export interface ClaudeAccountUsage {
   windows: {
     label: string;
     /** When the window starts over, as an ISO date. */
@@ -16,15 +16,15 @@ export interface ClaudePlanUsage {
  * Read the plan's usage from a short-lived CLI process. Loaded on demand, so
  * nothing that imports the gateway's index pulls in the Agent SDK.
  */
-export async function fetchClaudePlanUsage({
+export async function fetchClaudeAccountUsage({
   configDir,
   executablePath,
 }: {
   configDir: string | undefined;
   executablePath: string;
-}): Promise<ClaudePlanUsage> {
-  const { ClaudePlanSession } = await import("./session");
-  const session = new ClaudePlanSession(
+}): Promise<ClaudeAccountUsage> {
+  const { ClaudeCodeSession } = await import("./session");
+  const session = new ClaudeCodeSession(
     "usage",
     {
       builtInTools: [],
@@ -39,7 +39,7 @@ export async function fetchClaudePlanUsage({
   );
   try {
     const { rate_limits: limits } = await session.usage();
-    const windows: ClaudePlanUsage["windows"] = [];
+    const windows: ClaudeAccountUsage["windows"] = [];
     const add = (
       label: string,
       window:

@@ -9,7 +9,7 @@ import { TypedError } from "../../errors";
 import { generateModelName } from "../../generate-model-name";
 import { getModelFeatures } from "../../get-model-features";
 import { getProviderMetadata } from "../metadata";
-import { ClaudePlanSession } from "./session";
+import { ClaudeCodeSession } from "./session";
 
 /** The CLI's short names, which stand for whichever model is current. */
 const ALIASES = new Set(["haiku", "opus", "sonnet"]);
@@ -18,13 +18,13 @@ const ALIASES = new Set(["haiku", "opus", "sonnet"]);
  * The models the user's plan offers, as the signed-in CLI lists them. Read
  * from a short-lived process, since only the CLI knows what the plan includes.
  */
-export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
+export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
   return Result.fromAsyncCatching(
     async () => {
       if (!config.executablePath) {
         throw new Error("No Claude Code executable is configured.");
       }
-      const session = new ClaudePlanSession(
+      const session = new ClaudeCodeSession(
         "models",
         {
           builtInTools: [],
@@ -44,7 +44,7 @@ export function fetchClaudePlanModels(config: AIGatewayProviderConfig.Type) {
       }
     },
     (error) =>
-      new TypedError.Unknown("Failed to list the Claude plan's models", {
+      new TypedError.Unknown("Failed to list the Claude account's models", {
         cause: error,
       }),
   ).map((listed) => {

@@ -27,13 +27,13 @@ import {
   turnContent,
 } from "./prompt";
 import {
-  ClaudePlanSession,
+  ClaudeCodeSession,
   type SessionShape,
   sessionShapeKey,
   TOOL_PREFIX,
 } from "./session";
 
-export const CLAUDE_PLAN_PROVIDER_ID = "claude-plan";
+export const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
 
 /**
  * The live CLI processes, keyed by our session id and the request's shape. A
@@ -41,7 +41,7 @@ export const CLAUDE_PLAN_PROVIDER_ID = "claude-plan";
  * summary), each with a prompt and tools of its own, and those must not take
  * over the process its steps run in.
  */
-const sessions = new Map<string, ClaudePlanSession>();
+const sessions = new Map<string, ClaudeCodeSession>();
 
 /**
  * A Claude account's subscription as an AI SDK model, run through the Claude
@@ -49,7 +49,7 @@ const sessions = new Map<string, ClaudePlanSession>();
  * takes is one `doStream`, so our agent loop, tools and transcript work as
  * they do for any other model.
  */
-export function createClaudePlanLanguageModel({
+export function createClaudeAccountLanguageModel({
   configDir,
   executablePath,
 }: {
@@ -65,7 +65,7 @@ export function createClaudePlanLanguageModel({
       doGenerate: async (options) => collect(await doStream(options)),
       doStream,
       modelId,
-      provider: CLAUDE_PLAN_PROVIDER_ID,
+      provider: CLAUDE_ACCOUNT_PROVIDER_ID,
       specificationVersion: "v4",
       supportedUrls: {},
     };
@@ -114,7 +114,7 @@ function fingerprintOf(message: LanguageModelV4Message) {
  * called or a new turn.
  */
 export function continuationOf(
-  session: Pick<ClaudePlanSession, "awaitingToolCallIds" | "seen">,
+  session: Pick<ClaudeCodeSession, "awaitingToolCallIds" | "seen">,
   kept: LanguageModelV4Message[],
   keptPrints: string[],
   transient: LanguageModelV4Message[],
@@ -176,7 +176,7 @@ function streamStep({
       (tool): tool is LanguageModelV4FunctionTool => tool.type === "function",
     ),
   };
-  let running: ClaudePlanSession | undefined;
+  let running: ClaudeCodeSession | undefined;
 
   return new ReadableStream<LanguageModelV4StreamPart>({
     // The reader went away mid-step: its process cannot finish the step for
@@ -210,14 +210,14 @@ function streamStep({
             // The running process saw something other than what this request
             // continues, so it starts over from a lossy replay of ours.
             console.warn(
-              `[claude-plan] session ${session.key} restarted from a transcript replay`,
+              `[claude-account] session ${session.key} restarted from a transcript replay`,
             );
             session.close();
           }
           if (key !== undefined && !ephemeral) {
             closeOtherIdleSlots(key, slot);
           }
-          const created = new ClaudePlanSession(
+          const created = new ClaudeCodeSession(
             slot ?? randomUUID(),
             shape,
             () => {
@@ -295,7 +295,7 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
 
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
 async function pumpStep(
-  session: ClaudePlanSession,
+  session: ClaudeCodeSession,
   controller: ReadableStreamDefaultController<LanguageModelV4StreamPart>,
 ) {
   const blocks = new Map<
@@ -322,7 +322,7 @@ async function pumpStep(
       finishReason,
       providerMetadata: rateLimit
         ? {
-            [CLAUDE_PLAN_PROVIDER_ID]: {
+            [CLAUDE_ACCOUNT_PROVIDER_ID]: {
               // The plan's usage, for a surface that shows it later.
               rateLimit: {
                 rateLimitType: rateLimit.rateLimitType ?? null,
@@ -617,11 +617,11 @@ const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
 /**
  * Claude Code's own tools a request asks to have run, as a search does with
- * `{ "claude-plan": { builtInTools: ["WebSearch"] } }`.
+ * `{ "claude-account": { builtInTools: ["WebSearch"] } }`.
  */
 function builtInToolsOf(options: LanguageModelV4CallOptions) {
   const asked =
-    options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.builtInTools;
+    options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.builtInTools;
   return Array.isArray(asked)
     ? asked.filter((tool): tool is string => typeof tool === "string")
     : [];
@@ -651,7 +651,7 @@ function webSearchSources(result: unknown) {
 }
 
 function effortOf(options: LanguageModelV4CallOptions) {
-  const asked = options.providerOptions?.[CLAUDE_PLAN_PROVIDER_ID]?.effort;
+  const asked = options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.effort;
   return EFFORTS.find((effort) => effort === asked);
 }
 
@@ -690,7 +690,7 @@ function planError(
       }
       case "rate_limit": {
         return rateLimit?.status === "rejected"
-          ? [429, "claude_plan_usage_limit_exceeded", false]
+          ? [429, "claude_account_usage_limit_exceeded", false]
           : [429, "rate_limit_error", true];
       }
       case "overloaded": {
@@ -711,7 +711,7 @@ function planError(
     requestBodyValues: {},
     responseBody: JSON.stringify({ error: { message, type } }),
     statusCode,
-    url: "claude-plan://",
+    url: "claude-account://",
   });
 }
 

@@ -53,7 +53,7 @@ const PROVIDER_ICON_MAP: Record<
   anthropic: SiAnthropic,
   cerebras: Cerebras,
   chatgpt: SiOpenai,
-  "claude-plan": SiAnthropic,
+  "claude-account": SiAnthropic,
   deepinfra: DeepInfra,
   deepseek: DeepSeek,
   fireworks: Fireworks,

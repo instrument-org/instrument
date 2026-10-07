@@ -49,9 +49,11 @@ export async function setChatGPTPlanDefaultModel({
  * makes the model Claude Code recommends the default. Answers with the
  * model's name, so the connection can say what changed.
  */
-export async function setClaudePlanDefaultModel(): Promise<string | undefined> {
+export async function setClaudeAccountDefaultModel(): Promise<
+  string | undefined
+> {
   const config = getAIProviderConfigs().find(
-    (candidate) => candidate.type === "claude-plan",
+    (candidate) => candidate.type === "claude-account",
   );
   if (!config) {
     return undefined;

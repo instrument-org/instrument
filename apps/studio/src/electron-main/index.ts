@@ -8,9 +8,9 @@ import {
 } from "@/electron-main/lib/chatgpt-plan";
 import {
   keepClaudeCodeCurrent,
-  refreshClaudePlanStatus,
-} from "@/electron-main/lib/claude-plan";
-import { setClaudePlanDefaultModel } from "@/electron-main/lib/set-default-model";
+  refreshClaudeAccountStatus,
+} from "@/electron-main/lib/claude-account";
+import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
@@ -221,17 +221,17 @@ async function bootstrapPrimaryInstance() {
   scheduleChatGPTPlanRefresh();
   powerMonitor.on("resume", refreshChatGPTPlanAfterWake);
 
-  // The Claude plan is whatever the CLI says: someone installs it or signs
+  // The Claude account is whatever the CLI says: someone installs it or signs
   // in from a terminal, then comes back to the app.
   // A workspace with no model chosen yet runs on the subscription it found.
-  void refreshClaudePlanStatus().then(async (found) => {
+  void refreshClaudeAccountStatus().then(async (found) => {
     if (found.kind === "signed-in" && !getDefaultModelURI()) {
-      await setClaudePlanDefaultModel();
+      await setClaudeAccountDefaultModel();
     }
   });
   void keepClaudeCodeCurrent();
   app.on("browser-window-focus", () => {
-    void refreshClaudePlanStatus();
+    void refreshClaudeAccountStatus();
   });
 
   startAgentCompletionNotifications({

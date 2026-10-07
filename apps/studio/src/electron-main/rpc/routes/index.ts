@@ -5,7 +5,7 @@ import { apps } from "./apps";
 import { auth } from "./auth";
 import { browser } from "./browser";
 import { chatgptPlan } from "./chatgpt-plan";
-import { claudePlan } from "./claude-plan";
+import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
 import { features } from "./features";
 import { files } from "./files";
@@ -33,7 +33,7 @@ export const router = {
   auth,
   browser,
   chatgptPlan,
-  claudePlan,
+  claudeAccount,
   debug,
   features,
   files,

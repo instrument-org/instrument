@@ -55,7 +55,7 @@ const PROVIDER_METADATA = {
     type: "chatgpt",
     url: addRef("https://chatgpt.com"),
   },
-  "claude-plan": {
+  "claude-account": {
     api: {
       defaultBaseURL: "",
     },
@@ -66,7 +66,7 @@ const PROVIDER_METADATA = {
     quirks: { supportsMultipartToolResults: true },
     // Searches with Claude Code's own WebSearch, run on Anthropic's side.
     tags: ["webSearch"],
-    type: "claude-plan",
+    type: "claude-account",
     url: addRef("https://claude.ai"),
   },
   deepinfra: {

@@ -119,9 +119,9 @@ export const CHATGPT_PLAN_PROVIDER_CONFIG = {
  * It carries no key: Claude Code holds the sign-in, and requests run through
  * it.
  */
-export const CLAUDE_PLAN_PROVIDER_CONFIG = {
-  cacheIdentifier: "claude-plan",
+export const CLAUDE_ACCOUNT_PROVIDER_CONFIG = {
+  cacheIdentifier: "claude-account",
   displayName: "Claude account",
-  id: "claude-plan",
-  type: "claude-plan",
+  id: "claude-account",
+  type: "claude-account",
 } as const;

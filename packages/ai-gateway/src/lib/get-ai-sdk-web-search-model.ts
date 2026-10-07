@@ -40,7 +40,7 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Last, so a search from a chat on another provider spends the user's
   // plan only when nothing else can search.
   "chatgpt",
-  "claude-plan",
+  "claude-account",
 ];
 
 export interface AISDKWebSearchModelResult {
@@ -113,7 +113,7 @@ export async function getAISDKWebSearchModel({
       };
       break;
     }
-    case "claude-plan": {
+    case "claude-account": {
       // The chat's own model, searching with Claude Code's WebSearch, which
       // runs on Anthropic's side and draws on the same subscription. Only a
       // chat on the account searches here: a Claude account is never another
@@ -125,15 +125,15 @@ export async function getAISDKWebSearchModel({
           ),
         );
       }
-      const { createClaudePlanLanguageModel } =
-        await import("./providers/claude-plan/language-model");
+      const { createClaudeAccountLanguageModel } =
+        await import("./providers/claude-account/language-model");
       result = {
-        model: createClaudePlanLanguageModel({
+        model: createClaudeAccountLanguageModel({
           configDir: config.configDir,
           executablePath: config.executablePath,
         })(callingModel.providerId),
         providerOptions: {
-          "claude-plan": { builtInTools: ["WebSearch"] },
+          "claude-account": { builtInTools: ["WebSearch"] },
         },
       };
       break;

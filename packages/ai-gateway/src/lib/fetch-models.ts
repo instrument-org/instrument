@@ -44,10 +44,10 @@ export function fetchModelsForProvider(
         case "chatgpt": {
           return fetchAndParseChatGPTPlanModels(config);
         }
-        case "claude-plan": {
-          const { fetchClaudePlanModels } =
-            await import("./providers/claude-plan/models");
-          return fetchClaudePlanModels(config);
+        case "claude-account": {
+          const { fetchClaudeAccountModels } =
+            await import("./providers/claude-account/models");
+          return fetchClaudeAccountModels(config);
         }
         case "google": {
           return fetchAndParseGoogleModels(config);

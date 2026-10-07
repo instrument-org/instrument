@@ -11,9 +11,9 @@ describe("splitPastedCode", () => {
     // A state the app never issued is Anthropic's to define, so it passes.
     ["abc123#unknown", "from-link", { code: "abc123", state: "unknown" }],
   ])("reads %j", (pasted, stateOfLink, expected) => {
-    expect(splitPastedCode(pasted, stateOfLink, new Set(["earlier-link"]))).toEqual(
-      expected,
-    );
+    expect(
+      splitPastedCode(pasted, stateOfLink, new Set(["earlier-link"])),
+    ).toEqual(expected);
   });
 
   it.each([

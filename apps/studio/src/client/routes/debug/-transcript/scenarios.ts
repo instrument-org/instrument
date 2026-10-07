@@ -2,7 +2,7 @@ import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_PLAN_MODEL,
-  CLAUDE_PLAN_MODEL,
+  CLAUDE_ACCOUNT_MODEL,
   file,
   folder,
   OUR_MODEL,
@@ -1503,7 +1503,7 @@ done`,
     ],
   },
   {
-    id: "claude-plan-errors",
+    id: "claude-account-errors",
     name: "Claude account refusals",
     script: [
       user("Summarize this thread for me."),
@@ -1518,13 +1518,13 @@ done`,
           responseBody: JSON.stringify({
             error: {
               message: "You've hit your limit · resets 1:50pm",
-              type: "claude_plan_usage_limit_exceeded",
+              type: "claude_account_usage_limit_exceeded",
             },
           }),
           statusCode: 429,
-          url: "claude-plan://",
+          url: "claude-account://",
         },
-        CLAUDE_PLAN_MODEL,
+        CLAUDE_ACCOUNT_MODEL,
       ),
     ],
   },

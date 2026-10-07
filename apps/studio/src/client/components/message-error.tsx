@@ -252,7 +252,7 @@ function describeForProvider(
     provider,
   }: { classification: string | undefined; provider: string | undefined },
 ): { detail: string; summary: string } {
-  if (provider === "claude-plan") {
+  if (provider === "claude-account") {
     if (classification === "usage-limit") {
       return {
         detail: `You've reached your Claude subscription's usage limit. It starts over when the window resets; Settings shows when. Until then, switch to another model.`,
@@ -321,7 +321,7 @@ function detailsText(facts: [string, string][], body: string | undefined) {
  * Instrument's own models, as a choice and never as a silent fallback.
  */
 function isPlanProvider(provider: string | undefined) {
-  return provider === "chatgpt" || provider === "claude-plan";
+  return provider === "chatgpt" || provider === "claude-account";
 }
 
 function errorActions({
@@ -388,7 +388,7 @@ function errorActions({
               },
             ]
           : [];
-    if (provider === "claude-plan") {
+    if (provider === "claude-account") {
       return [...offer, providerSettings, ...tryAgain];
     }
     return provider === "chatgpt"
@@ -408,7 +408,7 @@ function errorActions({
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
-    return provider === "chatgpt" || provider === "claude-plan"
+    return provider === "chatgpt" || provider === "claude-account"
       ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }

@@ -6,7 +6,7 @@ export const AIProviderTypeSchema = z.enum([
   "anthropic",
   "cerebras",
   "chatgpt",
-  "claude-plan",
+  "claude-account",
   "deepinfra",
   "deepseek",
   "fireworks",

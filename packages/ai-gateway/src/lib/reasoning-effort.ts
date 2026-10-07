@@ -38,10 +38,10 @@ const PROVIDERS: Record<string, ProviderReasoning> = {
     levels: { high: "high", low: "low", max: "max", medium: "medium" },
     options: (effort) => ({ anthropic: { effort } }),
   },
-  // The Claude plan's CLI, which names its levels as Anthropic does.
-  "claude-plan": {
+  // The Claude account's CLI, which names its levels as Anthropic does.
+  "claude-account": {
     levels: { high: "high", low: "low", max: "max", medium: "medium" },
-    options: (effort) => ({ "claude-plan": { effort } }),
+    options: (effort) => ({ "claude-account": { effort } }),
   },
   google: {
     // `minimal` is the lowest thinking this provider offers and the nearest

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
 
-type Status = RPCOutput["claudePlan"]["refresh"];
+type Status = RPCOutput["claudeAccount"]["refresh"];
 
 /**
  * The Claude account as a row among the providers, laid out like the ChatGPT
@@ -26,12 +26,14 @@ type Status = RPCOutput["claudePlan"]["refresh"];
  * Claude Code when it needs to, and the sign-in finishes on Anthropic's page
  * in the browser. Usage opens on request, since reading it starts Claude Code.
  */
-export function ClaudePlanCard() {
+export function ClaudeAccountCard() {
   const { data: status } = useQuery(
-    rpcClient.claudePlan.live.status.experimental_liveOptions(),
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
-  const signIn = useMutation(rpcClient.claudePlan.signIn.mutationOptions());
-  const signOut = useMutation(rpcClient.claudePlan.signOut.mutationOptions());
+  const signIn = useMutation(rpcClient.claudeAccount.signIn.mutationOptions());
+  const signOut = useMutation(
+    rpcClient.claudeAccount.signOut.mutationOptions(),
+  );
   const [hint, setHint] = useState<string>();
   const [showUsage, setShowUsage] = useState(false);
   const wasSigningIn = useRef(false);
@@ -47,7 +49,7 @@ export function ClaudePlanCard() {
       return;
     }
     wasSigningIn.current = false;
-    void rpcClient.claudePlan.connect.call({}).then((result) => {
+    void rpcClient.claudeAccount.connect.call({}).then((result) => {
       toast.success("Connected your Claude account", {
         description: result.modelName
           ? `New chats use ${result.modelName} from your subscription.`
@@ -68,7 +70,7 @@ export function ClaudePlanCard() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center">
-            <AIProviderIcon type="claude-plan" />
+            <AIProviderIcon type="claude-account" />
           </div>
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className="truncate font-medium text-foreground">
@@ -111,7 +113,7 @@ export function ClaudePlanCard() {
           ) : (
             <BrowserHandoffButton
               onCancel={() => {
-                void rpcClient.claudePlan.cancelSignIn.call({});
+                void rpcClient.claudeAccount.cancelSignIn.call({});
               }}
               onStart={() => {
                 setHint(undefined);
@@ -179,7 +181,7 @@ function describe(status: Status) {
 /** The subscription's usage windows, read when opened and on request. */
 function PlanUsage() {
   const usage = useQuery({
-    ...rpcClient.claudePlan.usage.queryOptions(),
+    ...rpcClient.claudeAccount.usage.queryOptions(),
     staleTime: 60_000,
   });
   const { data: hasToken } = useQuery(

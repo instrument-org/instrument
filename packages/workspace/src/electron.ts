@@ -89,6 +89,10 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";
+export {
+  defaultOutputFolderPath,
+  outputFolderPath,
+} from "./lib/chat/output-folder";
 export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 

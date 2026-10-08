@@ -371,6 +371,7 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
+      outputFolder?: WorkspaceConfig["outputFolder"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
@@ -410,6 +411,7 @@ export const workspaceMachine = setup({
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
+      ...(input.outputFolder ? { outputFolder: input.outputFolder } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),

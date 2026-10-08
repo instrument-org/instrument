@@ -4,6 +4,11 @@
  * drawing them.
  */
 
+import {
+  type AIProviderConfigId,
+  type AIProviderType,
+} from "@instrument-org/shared";
+
 /** Every page the assistant can show. */
 export type SetupStep =
   // Ways in.
@@ -49,12 +54,24 @@ export type SetupAnswers = {
   useAIDuringSetup: boolean;
   /** The tasks offered on the tasks page, and which of them are checked. */
   tasks: { checked: boolean; task: SetupTask }[];
-  /** The provider chosen on the own-key path, by its config id. */
-  providerId: string | null;
+  /** The provider config the own-key path saved, once its key is accepted. */
+  providerId: AIProviderConfigId | null;
+  /** The provider picked on the own-key path, before its key is pasted. */
+  keyProvider: AIProviderType | null;
   /** Their first name, known only from a Google sign-in. */
   firstName: string | null;
   /** Whether the way in is out of usage, so setup skips what needs AI. */
   isOutOfUsage: boolean;
+  /**
+   * Why the ChatGPT or Claude account they just connected can't carry them,
+   * for the no-paid-plan and out-of-usage pages. `resetsAt` is an ISO date,
+   * when the account said when its usage comes back.
+   */
+  connectTrouble: {
+    provider: "chatgpt" | "claude";
+    reason: "could-not-connect" | "no-paid-plan" | "out-of-usage";
+    resetsAt?: string;
+  } | null;
 };
 
 export type SetupState = {
@@ -66,8 +83,10 @@ export type SetupState = {
 };
 
 export const INITIAL_ANSWERS: SetupAnswers = {
+  connectTrouble: null,
   firstName: null,
   isOutOfUsage: false,
+  keyProvider: null,
   memories: { chatgpt: true, claude: false, gemini: false },
   providerId: null,
   tasks: [],

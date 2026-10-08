@@ -97,6 +97,7 @@ const create = base
       skipValidation: z.boolean().optional(),
     }),
   )
+  .output(z.object({ id: AIProviderConfigIdSchema }))
   .handler(
     async ({
       context,
@@ -167,6 +168,8 @@ const create = base
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: configToSave.type,
       });
+
+      return { id: configToSave.id };
     },
   );
 

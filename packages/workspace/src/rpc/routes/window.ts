@@ -4,6 +4,7 @@ import { z } from "zod";
 import { folderReach } from "../../lib/chat/folder-reach";
 import {
   ensureOutputFolder,
+  isOutputFolderHeld,
   outputFolderPath,
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
@@ -31,15 +32,19 @@ const ensure = base
   )
   .handler(async ({ context }) => {
     await ensureWindowDir();
-    await ensureOutputFolder();
-    // Folder decoration must not prevent a conversation from opening.
-    void context.workspaceConfig
-      .ensureOutputFolderIcon?.(outputFolderPath())
-      .catch((error: unknown) => {
-        context.workspaceConfig.captureException(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      });
+    // While setup is asking where the output folder goes, it makes the folder
+    // itself once the person says.
+    if (!isOutputFolderHeld()) {
+      await ensureOutputFolder();
+      // Folder decoration must not prevent a conversation from opening.
+      void context.workspaceConfig
+        .ensureOutputFolderIcon?.(outputFolderPath())
+        .catch((error: unknown) => {
+          context.workspaceConfig.captureException(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        });
+    }
     return { attachedFolders: await folderReach(WINDOW_ID) };
   });
 

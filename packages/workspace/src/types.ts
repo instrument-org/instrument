@@ -181,6 +181,16 @@ export interface WorkspaceConfig {
   defaultTaskTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * The app's say over the output folder: where the person chose to keep it,
+   * when they chose somewhere other than Documents, and whether making it
+   * waits (while first-run setup is still asking where it goes). Both read on
+   * every use, so a choice applies at once.
+   */
+  outputFolder?: {
+    chosenPath: () => string | undefined;
+    isHeld: () => boolean;
+  };
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

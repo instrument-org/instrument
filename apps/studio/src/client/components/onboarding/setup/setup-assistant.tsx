@@ -5,10 +5,15 @@ import {
   setupReducer,
 } from "@/client/components/onboarding/setup/flow";
 import { SetupStepPage } from "@/client/components/onboarding/setup/screens";
+import {
+  DraftsReadyPanel,
+  useSaveSetupDrafts,
+} from "@/client/components/onboarding/setup/tasks-landing";
+import { useTaskWriting } from "@/client/components/onboarding/setup/tasks-writing";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 
 /**
@@ -19,6 +24,7 @@ import { useReducer, useState } from "react";
  * finishing fades the assistant away onto an app that is already there.
  */
 export function SetupAssistant() {
+  const queryClient = useQueryClient();
   const { data: status } = useQuery(
     rpcClient.onboarding.live.status.experimental_liveOptions(),
   );
@@ -32,7 +38,7 @@ export function SetupAssistant() {
   }
 
   if (returning === undefined || (!status?.pending && !isLeaving)) {
-    return null;
+    return <DraftsReadyPanel />;
   }
   return (
     <div
@@ -48,7 +54,14 @@ export function SetupAssistant() {
       <SetupFlow
         onFinish={() => {
           setIsLeaving(true);
-          void rpcClient.onboarding.finish.call();
+          // The window read where the Instrument folder is while setup held
+          // it, and made nothing; done, it reads again and makes the folder
+          // if the folder step never did.
+          void rpcClient.onboarding.finish.call().then(() =>
+            queryClient.invalidateQueries({
+              queryKey: rpcClient.workspace.window.ensure.key(),
+            }),
+          );
         }}
         returning={returning}
       />
@@ -69,8 +82,15 @@ function SetupFlow({
     { returning },
     initialSetupState,
   );
+  // Starts writing the person's tasks as they leave "What fills your week?".
+  useTaskWriting(state);
+  const saveDrafts = useSaveSetupDrafts();
+  const finish = () => {
+    saveDrafts(state.answers);
+    onFinish();
+  };
   return (
-    <SetupContext value={{ dispatch, finish: onFinish, returning, state }}>
+    <SetupContext value={{ dispatch, finish, returning, state }}>
       <SetupGround>
         <SetupStepPage step={state.step} />
       </SetupGround>

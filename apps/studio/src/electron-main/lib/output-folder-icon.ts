@@ -23,13 +23,18 @@ function run(argv) {
 }
 `;
 
-/** Decorate only the app's default output folder, preserving custom icons. */
+/**
+ * Decorate only the app's output folder, preserving custom icons: the default
+ * one in Documents, or `chosenPath` where setup put it somewhere else.
+ */
 export async function ensureOutputFolderIcon(
   folderPath: string,
+  chosenPath?: string,
 ): Promise<void> {
   if (
     !["darwin", "linux", "win32"].includes(process.platform) ||
-    folderPath !== path.join(os.homedir(), "Documents", "Instrument")
+    (folderPath !== path.join(os.homedir(), "Documents", "Instrument") &&
+      folderPath !== chosenPath)
   ) {
     return;
   }

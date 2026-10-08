@@ -6,6 +6,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { type ComponentProps, type ReactNode } from "react";
 
 /**
@@ -220,9 +221,12 @@ export function SetupRow({
 
 /** A small pill naming the account or provider the person connected. */
 export function ConnectedChip({
+  checked = false,
   icon,
   label,
 }: {
+  /** A brand check after the label, for a connection that just worked. */
+  checked?: boolean;
   icon?: ReactNode;
   label: string;
 }) {
@@ -234,6 +238,12 @@ export function ConnectedChip({
         </span>
       )}
       {label}
+      {checked && (
+        <CheckCircleIcon
+          className="-mr-1 size-3.5 text-brand-600 dark:text-brand-400"
+          weight="fill"
+        />
+      )}
     </div>
   );
 }

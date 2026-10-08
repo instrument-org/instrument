@@ -17,6 +17,7 @@ import { pageEditor } from "./page-editor";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
+import { setupFolder } from "./setup-folder";
 import { syntax } from "./syntax";
 import { telemetry } from "./telemetry";
 import { transcript } from "./transcript";
@@ -44,6 +45,7 @@ export const router = {
   preferences,
   providerConfig,
   releases,
+  setupFolder,
   syntax,
   telemetry,
   transcript,

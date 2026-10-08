@@ -1081,7 +1081,7 @@ function SourceTile({
 }
 
 /** What an import from a website says to the conversation. */
-function webPrompt({ name, site }: { name: string; site: string }) {
+export function webPrompt({ name, site }: { name: string; site: string }) {
   return `Import what ${name} knows about me.
 
 Open ${site} and check I am signed in; if I am not, open it in a tab for me to sign in, say so, and wait for me rather than guessing. Then ask ${name}, in a new chat, the question below, read the whole reply, and if it says there is more, ask it to keep going.

@@ -10,9 +10,11 @@ import {
 } from "@/electron-main/lib/quit";
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
+import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { isSetupPending } from "@/electron-main/windows/setup-mode";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
@@ -141,7 +143,11 @@ export function createWorkspaceActor() {
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
-      ensureOutputFolderIcon,
+      ensureOutputFolderIcon: (folderPath) =>
+        ensureOutputFolderIcon(
+          folderPath,
+          getMachinePreferences().get("outputFolder"),
+        ),
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
@@ -150,6 +156,12 @@ export function createWorkspaceActor() {
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,
+      outputFolder: {
+        chosenPath: () => getMachinePreferences().get("outputFolder"),
+        // Setup asks where the folder goes, so opening the window behind it
+        // must not make it in Documents first.
+        isHeld: isSetupPending,
+      },
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process
         // See https://www.electronjs.org/docs/latest/api/environment-variables

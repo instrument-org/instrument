@@ -7,6 +7,7 @@ import { memory } from "./routes/memory";
 import { message } from "./routes/message";
 
 import { session } from "./routes/session";
+import { setup } from "./routes/setup";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
 import { task } from "./routes/task";
@@ -22,6 +23,7 @@ export const router = {
   memory,
   message,
   session,
+  setup,
   skill,
   storage,
   task,

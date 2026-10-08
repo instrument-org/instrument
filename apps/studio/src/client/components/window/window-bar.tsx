@@ -7,6 +7,7 @@ import { lazy, type ReactNode, Suspense } from "react";
 
 import { PlatformApiIndicator } from "./platform-api-indicator";
 import { ServerExceptionsIndicator } from "./server-exceptions";
+import { TrialBadge } from "./trial-badge";
 
 // The developer panel: loaded only where developer mode already put it.
 const DevPanel = lazy(() =>
@@ -94,6 +95,7 @@ export function WindowCorner() {
       {/* A build waiting to be installed is the window's news, not a
         chat's, so it sits in the window's corner. */}
       <UpdateStatusIndicator />
+      <TrialBadge />
     </>
   );
 }

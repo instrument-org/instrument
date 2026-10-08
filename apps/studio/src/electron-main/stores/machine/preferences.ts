@@ -11,6 +11,11 @@ import { z } from "zod";
  */
 export const MachinePreferencesSchema = z.object({
   enableUsageMetrics: z.boolean().catch(true),
+  /**
+   * Where the Instrument folder lives when the person chose a place other
+   * than Documents during setup; absent for the default.
+   */
+  outputFolder: z.string().optional().catch(undefined),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z
     .enum(["latest", "beta", "alpha"])

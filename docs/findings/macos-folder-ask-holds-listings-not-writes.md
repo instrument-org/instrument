@@ -1,6 +1,6 @@
 # The macOS folder ask holds a listing, not a write
 
-**Status:** observed on macOS 27 with an installed beta build, and worked around in `task new`. The mechanism inside macOS is not established; the behavior is. Workaround checked against the code 2026-10-02.
+**Status:** observed on macOS 27 with an installed beta build, and worked around in `task new`. The mechanism inside macOS is not established; the behavior is. Workaround checked against the code 2026-10-02. Since then `task new` hands no folders (every task is a fork that reaches its chat's) and held tasks are gone: the look and the wait below now live in `task folder --add` (`requireFoldersOnDisk` and `awaitAnswers` in `task-args.ts`), which refuses with the reason when the answer has not come, so the held-task section describes removed behavior.
 
 ## What happened
 

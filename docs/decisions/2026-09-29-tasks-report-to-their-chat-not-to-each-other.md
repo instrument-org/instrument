@@ -1,5 +1,7 @@
 # Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred
 
+> Partly overtaken by [2026-10-07-one-agent-that-forks.md](2026-10-07-one-agent-that-forks.md): a task is a fork of its chat, `task app` and `task tab` are gone, and nothing holds a task from starting. The `needs` fence and the chat as the only agent that directs work stand.
+
 Date: 2026-09-29
 
 ## Context

@@ -100,7 +100,7 @@ Same environment as the real agent:
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
 - **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads `/mnt` directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
 - **Custom shims**: `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
-- **Not here**: the chat agent's commands (`task`, `chat`, `tab`, `memory`); this runner builds a task agent's shell
+- **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `/apps` mount; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 

@@ -1,6 +1,6 @@
 # A fetch that succeeds and returns no content
 
-**Status:** open. The mechanism is measured and understood. The fix belongs in what `web_fetch` reports, and which signal actually changes an agent's behavior is an open question for the eval harness rather than something to guess at. The first candidate below shipped in a301cca52 (the URL rule in `main.ts` now says resolving a relative link on a fetched page is following it), without an eval run; `web_fetch` still returns `success` for a page that is only navigation. Last checked 2026-10-02.
+**Status:** open. The mechanism is measured and understood. The fix belongs in what `web_fetch` reports, and which signal actually changes an agent's behavior is an open question for the eval harness rather than something to guess at. The first candidate below shipped in a301cca52 (the URL rule in `main.ts` now says resolving a relative link on a fetched page is following it), without an eval run; `web_fetch` still returns `success` for a page that is only navigation. Last checked 2026-10-02. The task prompt `main.ts` is gone; the URL rule is in `agents/instrument.ts`, the one agent, still counting a page's relative link, and there is no brief to paraphrase a skill since tasks are forks that inherit the conversation.
 
 A user pointed the conversation's agent at a skill kept in a public repository, by pasting the URL of its directory. Three tasks were told to use it. All three reported success. None of them read it, and none of them said they could not.
 

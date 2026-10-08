@@ -43,6 +43,8 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills and apps |
 | [Render a file to look at it](active/render-a-file-to-look-at-it.md): letting a task look at what it made | proposed, nothing built |
+| [Chat status line and loading states](active/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | proposed |
+| [Fork sessions in the chat's task.db](active/fork-sessions-in-chat-task-db.md): a fork's session lives in its chat's database, with no record folder | proposed |
 
 ### Files, folders, skills, and storage
 
@@ -51,6 +53,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
 | [Agent-requested folder access](active/agent-requested-folder-access.md) | phase 1 landed, reduced phase 2 |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
+| [A 1.x task becomes the chat](active/1x-task-becomes-the-chat.md): migration makes the old task's session and folder the chat | proposed, not approved |
 | [Skills mount instead of copy](active/skills-mount-instead-of-copy.md) | step 3 copy removal left |
 | [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, waits on skills mount |
 

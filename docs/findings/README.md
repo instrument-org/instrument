@@ -39,7 +39,7 @@ Grouped by area; status is the short form of each file's own line.
 | [macOS Command Line Tools dialog](macos-command-line-tools-dialog.md) — a Python skill popped the system installer | resolved |
 | [What the orchestrator can reach](orchestrator-file-access-model.md) — whether the conversation should read the whole disk, and why read and write have to come apart first | open question, nothing built |
 | [Electron reads an app's archive as a folder](electron-reads-asar-archives-as-folders.md) — `du` counted every Electron app's `app.asar` twice; `ls`, `find` and This Mac still see a folder | `du` fixed, rest open |
-| [The macOS folder ask holds a listing, not a write](macos-folder-ask-holds-listings-not-writes.md) | worked around in `task new` |
+| [The macOS folder ask holds a listing, not a write](macos-folder-ask-holds-listings-not-writes.md) | worked around in `task folder --add` |
 | [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md) | resolved |
 
 ### The agent browser and the in-app browser

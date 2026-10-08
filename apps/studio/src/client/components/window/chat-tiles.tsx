@@ -369,11 +369,10 @@ function AddTile({
 }
 
 /**
- * A picture at its tile's full width, hung from the top and cut off at the
- * tile's foot: the head of a page or a document is what says what it is, so
- * it is kept whole across, never cropped at the sides. A picture wider than
- * the tile's shape leaves the card's ground under it. The tile's mark rides
- * its lower corner; a tile with no picture shows its mark large instead.
+ * A picture covering its tile, anchored at the top: the head of a page or a
+ * document is what says what it is, so a picture taller than the tile loses
+ * its foot, and one wider loses its sides. The tile's mark rides its lower
+ * corner; a tile with no picture shows its mark large instead.
  */
 function FittedPicture({
   mark,
@@ -389,7 +388,7 @@ function FittedPicture({
     <>
       <img
         alt=""
-        className="absolute inset-x-0 top-0 h-auto w-full"
+        className="absolute inset-0 size-full object-cover object-top"
         draggable={false}
         onError={onError}
         src={src}

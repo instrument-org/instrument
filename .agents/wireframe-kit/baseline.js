@@ -147,6 +147,19 @@ const states = [
     }),
   },
   {
+    title: "Model picker",
+    note: "The picker opens on the connection holding the chosen model. While Auto is all Instrument offers, we draw it centered with its one button.",
+    w: PICKER_W,
+    h: PICKER_H,
+    body: pickerCrop(
+      modelPicker({
+        open: "instrument",
+        held: "instrument",
+        list: pickerAutoOnly({ on: true }),
+      }),
+    ),
+  },
+  {
     title: "Menu and sheet",
     note: "The window uses two kinds of overlay, a popover menu and a sheet over the dimmed window.",
     body: appWindow({

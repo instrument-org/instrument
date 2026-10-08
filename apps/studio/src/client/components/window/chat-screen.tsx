@@ -2,6 +2,7 @@ import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
+import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
@@ -146,6 +147,31 @@ function ChatScreenOfRecord({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [isUp, taskId, newestSettledMessageId]);
 
+  const loadError = task.error ?? state.error;
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <Alert className="max-w-md" variant="warning">
+          <AlertDescription className="flex flex-col gap-4">
+            <div className="font-semibold">This chat couldn’t open</div>
+            <div className="text-sm">
+              {loadError.message || "Something went wrong reading it."}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  void task.refetch();
+                  void state.refetch();
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
   if (!task.data || !state.data) {
     return (
       <div className="flex h-full items-center justify-center">

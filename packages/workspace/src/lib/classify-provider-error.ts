@@ -184,6 +184,18 @@ export function classifyProviderError(
   return { evidence: "none", kind: "unknown" };
 }
 
+/**
+ * The machine-readable codes a provider error carries, from a response body or
+ * a streamed error, for a caller that needs more than the kind: which of the
+ * `auth` codes it was, say.
+ */
+export function providerErrorCodes(error: unknown): string[] {
+  if (APICallError.isInstance(error)) {
+    return structuredCodes(error.responseBody);
+  }
+  return readStreamedError(error)?.codes ?? [];
+}
+
 /** Whether a `gateway-not-listed-error` is anywhere in the cause chain. */
 function isUnlistedModel(error: unknown) {
   let current: unknown = error;

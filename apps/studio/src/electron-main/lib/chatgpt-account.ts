@@ -249,6 +249,35 @@ async function verifyAccount(id: string): Promise<void> {
   }
 }
 
+/**
+ * The plan the account's access token names (`chatgpt_plan_type`, such as
+ * "plus"), read without verifying the token: a label for an account check's
+ * answer, never the reason for one.
+ */
+export function chatGPTAccountPlan(id: string): string | undefined {
+  const payload = registrationById(id)?.accessToken?.split(".")[1];
+  if (!payload) {
+    return undefined;
+  }
+  try {
+    const claims: unknown = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    );
+    const parsed = z
+      .object({
+        "https://api.openai.com/auth": z.object({
+          chatgpt_plan_type: z.string(),
+        }),
+      })
+      .safeParse(claims);
+    return parsed.success
+      ? parsed.data["https://api.openai.com/auth"].chatgpt_plan_type
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function accountStatus(
   registration: Registration,
   all: Registration[],

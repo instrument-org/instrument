@@ -1255,7 +1255,7 @@ async function openChatUnderTopics(
  * ("refuses", "refused") and a command line it could not parse.
  */
 const REFUSED =
-  /\brefus(?:es|ed|ing)\b|not yours to run|unknown (?:flag|option|command|subcommand|argument)|unrecognized (?:option|argument|command)|invalid (?:flag|option)/i;
+  /\brefus(?:es|ed|ing)\b|unknown (?:flag|option|command|subcommand|argument)|unrecognized (?:option|argument|command)|invalid (?:flag|option)/i;
 
 /** See `RunMetrics`. */
 async function metricsFor(

@@ -86,9 +86,10 @@ export function FilterHead(props: FilterProps) {
   return (
     <div
       aria-label="Filters"
-      // 8px in from the card's side and 12px down from its top, and 12px
-      // with the list's own 4px down to the first row: the rhythm of a row.
-      className="flex shrink-0 items-center gap-1.5 px-2 pt-3 pb-2 select-none"
+      // 8px in from the card's side and 12px down from its top, and 16px
+      // with the list's own 4px down to the first row: a heading over the
+      // rows, set apart from them as well as larger than their titles.
+      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3 select-none"
       role="group"
     >
       <ViewPicker {...model} isCompact={isSearching} />
@@ -188,7 +189,7 @@ function TopicFace({ size, topic }: { size: "chip" | "row"; topic: Topic }) {
     <span
       className={cn(
         "leading-none",
-        size === "chip" ? "text-[13px]" : "text-lg",
+        size === "chip" ? "text-[15px]" : "text-lg",
       )}
     >
       {topic.emoji}
@@ -363,8 +364,8 @@ function ViewPicker({
         <button
           aria-label={`View: ${label}`}
           className={cn(
-            "flex h-8 max-w-44 min-w-0 shrink-0 items-center rounded-full text-[13px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
-            isCompact ? "px-2" : hasFace ? "pr-2 pl-2.5" : "pr-2 pl-3",
+            "flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-full text-[15px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
+            isCompact ? "px-2.5" : hasFace ? "pr-2.5 pl-3" : "pr-2.5 pl-3.5",
             chosenTopic
               ? "bg-(--topic-tint-surface) text-foreground topic-tint hover:bg-(--topic-tint-edge)"
               : current.tone,
@@ -390,7 +391,7 @@ function ViewPicker({
             <span
               className={cn("flex w-max items-center gap-1", hasFace && "pl-1")}
             >
-              <span className="max-w-32 truncate">{label}</span>
+              <span className="max-w-36 truncate">{label}</span>
               <ChevronDown
                 absoluteStrokeWidth
                 className="size-3.5 shrink-0 opacity-50"

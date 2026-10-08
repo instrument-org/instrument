@@ -28,7 +28,7 @@ export function SearchField({
       <Input
         aria-label="Search chats"
         autoFocus={autoFocus}
-        className="h-8 rounded-full pr-7 pl-8 text-[13px] md:text-[13px]"
+        className="h-9 rounded-full pr-7 pl-8 text-[13px] md:text-[13px]"
         onBlur={() => {
           onFocusChange?.(false);
         }}

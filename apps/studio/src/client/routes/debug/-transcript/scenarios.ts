@@ -1431,17 +1431,64 @@ done`,
     ],
   },
   {
-    id: "out-of-credits",
-    name: "Out of credits",
+    id: "plan-refusals",
+    name: "Plan refusals",
     script: [
       user("Can you help me analyze this code?"),
       fail(
         platformFailure({
-          code: "insufficient-credits",
-          message:
-            "Your account has insufficient credits to complete this request.",
-          name: "InsufficientCreditsError",
+          classification: "usage-limit",
+          code: "subscription-required",
+          details: { reason: "trial-ended" },
+          message: "Your free trial has ended. Choose a plan to keep going.",
+          name: "AI_APICallError",
           statusCode: 402,
+        }),
+        OUR_MODEL,
+      ),
+      user("I picked a plan. Try again."),
+      fail(
+        platformFailure({
+          classification: "usage-limit",
+          code: "usage-limit-exceeded",
+          details: {
+            resetsAt: "2026-08-14T14:00:00.000Z",
+            window: "5h",
+            windows: [
+              {
+                key: "5h",
+                percentUsed: 100,
+                resetsAt: "2026-08-14T14:00:00.000Z",
+              },
+            ],
+          },
+          message:
+            "Usage limit reached. It resets at 2026-08-14T14:00:00.000Z.",
+          name: "AI_APICallError",
+          statusCode: 429,
+        }),
+        OUR_MODEL,
+      ),
+      user("And again."),
+      fail(
+        platformFailure({
+          classification: "rate-limit",
+          code: "concurrency-limit",
+          message:
+            "Too many requests are running at once. Try again when one ends.",
+          name: "AI_APICallError",
+          statusCode: 429,
+        }),
+        OUR_MODEL,
+      ),
+      user("Once more."),
+      fail(
+        platformFailure({
+          classification: "transient",
+          code: "meter-unavailable",
+          message: "Usage could not be checked. Please try again shortly.",
+          name: "AI_APICallError",
+          statusCode: 503,
         }),
         OUR_MODEL,
       ),
@@ -1551,10 +1598,11 @@ done`,
       user("Can you help me analyze this code?"),
       fail(
         platformFailure({
-          code: "insufficient-credits",
-          message:
-            "Your account has insufficient credits to complete this request.",
-          name: "InsufficientCreditsError",
+          classification: "usage-limit",
+          code: "subscription-required",
+          details: { reason: "trial-ended" },
+          message: "Your free trial has ended. Choose a plan to keep going.",
+          name: "AI_APICallError",
           statusCode: 402,
         }),
         OUR_MODEL,

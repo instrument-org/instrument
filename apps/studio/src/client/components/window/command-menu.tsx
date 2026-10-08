@@ -252,6 +252,7 @@ export function CommandMenu({
   // before, so the empty menu stays short. General is the Settings row
   // itself; the tabs for building the app only show in developer mode.
   const settingsTabs: SettingsTab[] = [
+    "Usage and billing",
     "Providers",
     "Skills",
     "Memory",

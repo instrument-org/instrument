@@ -8,6 +8,7 @@ import {
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
+import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
@@ -26,7 +28,7 @@ import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
-import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
+import { Spinner } from "./ui/spinner";
 
 interface ErrorAction {
   label: string;
@@ -42,7 +44,6 @@ interface MessageErrorProps {
   isDeveloperMode: boolean;
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
-  onContinue: () => void;
   /** Switches the chat to another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
@@ -71,7 +72,6 @@ export function MessageError({
   isDeveloperMode,
   isLastMessage,
   message,
-  onContinue,
   onModelChange,
   onRunAgain,
 }: MessageErrorProps) {
@@ -91,21 +91,32 @@ export function MessageError({
   }
 
   const platformError = parsePlatformApiError(message);
+  // A turn our platform turned away for the plan ends on one plain line: the
+  // way forward is the notice over the reply box, not a card in the
+  // transcript. Too many tasks at once is a wait while the turn waits it out.
+  const stopLine = platformError ? stopLineText(platformError) : undefined;
+  if (stopLine) {
+    if (platformError?.code === "concurrency-limit") {
+      if (isLastMessage && isAgentRunning) {
+        return <WaitingForCapacityLine />;
+      }
+      if (!isLastMessage) {
+        return null;
+      }
+    }
+    return <BillingStopLine text={stopLine} />;
+  }
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, credits they have since topped up, or a throttle the
-  // machine waited out before the turn that followed succeeded.
+  // stopped themselves, or a throttle the machine waited out before the turn
+  // that followed succeeded.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    (platformError?.code === "insufficient-credits" && !isLastMessage) ||
     ((classification === "rate-limit" || classification === "transient") &&
       !isLastMessage);
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
-  }
-  if (!isHiddenFromReader && platformError?.code === "insufficient-credits") {
-    return <UpgradeSubscriptionAlert onContinue={onContinue} />;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;
@@ -118,10 +129,12 @@ export function MessageError({
   const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
-  const { detail, summary } = describeForProvider(describeMessageError(error), {
-    classification,
-    provider,
-  });
+  const { detail, summary } =
+    (platformError && describePlatformRefusal(platformError)) ??
+    describeForProvider(describeMessageError(error), {
+      classification,
+      provider,
+    });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
   const needsAutoRecovery =
     !!platformError && requiresAutoModelRecovery(message);
@@ -237,6 +250,28 @@ export function MessageError({
       </div>
     </div>
   );
+}
+
+/**
+ * Our platform's refusals of a hosted request that are still errors, said for
+ * the person rather than the integrator. The plan's refusals end the turn on
+ * a stop line instead (`stopLineText`). Undefined for a code with no wording
+ * of its own here.
+ */
+function describePlatformRefusal(
+  platformError: NonNullable<ReturnType<typeof parsePlatformApiError>>,
+): undefined | { detail: string; summary: string } {
+  switch (platformError.code) {
+    case "meter-unavailable": {
+      return {
+        detail: `${APP_NAME} couldn't check your usage just now. Try again in a moment.`,
+        summary: "Usage check unavailable",
+      };
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 /**
@@ -521,6 +556,37 @@ function providerSentence(error: MessageErrorData): string {
     }
   }
   return error.message;
+}
+
+/** How a turn our platform turned away for the plan ends: one plain line. */
+function BillingStopLine({ text }: { text: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground"
+      data-billing-stop-line
+    >
+      <PauseCircleIcon className="size-3.5 shrink-0" />
+      {text}
+    </div>
+  );
+}
+
+/**
+ * The turn waiting its place behind the person's other tasks on our models,
+ * drawn as work in flight: it starts on its own when one of them finishes.
+ */
+function WaitingForCapacityLine() {
+  return (
+    <div
+      className="flex items-center gap-2 px-1 text-xs"
+      data-billing-waiting-line
+    >
+      <Spinner className="size-3.5 text-muted-foreground" delay={0} />
+      <span className="brand-shiny-text">
+        Waiting for one of your other tasks to finish
+      </span>
+    </div>
+  );
 }
 
 const isAuto = (model: AIGatewayModel.Type) =>

@@ -15,6 +15,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { type TurnError } from "./script";
+import { type ProviderErrorKind } from "@instrument-org/shared";
 
 /**
  * The pieces of a message that are neither a tool call nor something said.
@@ -119,30 +120,40 @@ export function folder({
  * An error our own gateway reports, rather than one a provider raised.
  *
  * The code is carried in the response body and read back out of it, and only
- * for a turn that named one of our models, so the recovery a card offers -- top
- * up, switch to Auto -- depends on both halves being right.
+ * for a turn that named one of our models, so the recovery a card offers -- choose
+ * a plan, switch to Auto -- depends on both halves being right.
  */
 export function platformFailure({
+  classification,
   code,
+  details,
   message,
   name,
   statusCode,
 }: {
+  /** What `classifyProviderError` makes of it, as llm-request records it. */
+  classification?: ProviderErrorKind;
   code:
-    | "insufficient-credits"
+    | "concurrency-limit"
+    | "meter-unavailable"
     | "model-not-allowed"
     | "model-not-found"
-    | "no-model-requested";
+    | "no-model-requested"
+    | "subscription-required"
+    | "usage-limit-exceeded";
+  /** The body's other `error` fields: `reason`, `window`, `resetsAt`. */
+  details?: Record<string, unknown>;
   message: string;
   name: string;
   statusCode: number;
 }): TurnError {
   return {
+    ...(classification && { classification }),
     kind: "api-call",
     message,
     name,
     responseBody: JSON.stringify({
-      error: { code, message, retryable: false },
+      error: { code, message, retryable: false, ...details },
     }),
     statusCode,
     url: "https://example.com",

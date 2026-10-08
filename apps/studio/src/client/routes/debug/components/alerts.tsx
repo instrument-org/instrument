@@ -1,8 +1,4 @@
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import {
-  type UpgradeSubscriptionAlertState,
-  UpgradeSubscriptionAlertView,
-} from "@/client/components/upgrade-subscription-alert";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -12,32 +8,6 @@ export const Route = createFileRoute("/debug/components/alerts")({
     meta: [{ title: "Debug alerts" }],
   }),
 });
-
-const upgradeStates: {
-  description: string;
-  state: UpgradeSubscriptionAlertState;
-}[] = [
-  {
-    description: "User has credits — shown after purchasing/waiting for reset.",
-    state: "credits-available",
-  },
-  {
-    description: "The critical state: no credits left, must contact support.",
-    state: "out-of-credits",
-  },
-  {
-    description: "Not logged in — shown when there is no auth token.",
-    state: "logged-out",
-  },
-  {
-    description: "Subscription status RPC failed.",
-    state: "status-error",
-  },
-  {
-    description: "Waiting for subscription status to load.",
-    state: "loading",
-  },
-];
 
 function RouteComponent() {
   return (
@@ -53,32 +23,6 @@ function RouteComponent() {
             session.
           </p>
         </header>
-
-        <section className="flex flex-col gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Upgrade / credit alert</h2>
-            <p className="text-sm text-muted-foreground">
-              Shown inline in the chat when a session fails due to credits.
-            </p>
-          </div>
-          <div className="flex flex-col gap-6">
-            {upgradeStates.map(({ description, state }) => (
-              <div className="flex flex-col gap-2" key={state}>
-                <div>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {state}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </div>
-                <UpgradeSubscriptionAlertView
-                  onContinue={() => toast.info("onContinue")}
-                  onLogin={() => toast.info("onLogin")}
-                  state={state}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="flex flex-col gap-3">
           <div>

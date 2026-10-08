@@ -9,7 +9,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { ContactErrorAlert } from "./contact-error-alert";
-import { SubscriptionCard } from "./subscription-card";
 import { UserInfoCard } from "./user-info-card";
 
 export function AccountInfo() {
@@ -28,10 +27,7 @@ export function AccountInfo() {
   return (
     <div className="space-y-3">
       {user?.id ? (
-        <>
-          <UserInfoCard />
-          <SubscriptionCard />
-        </>
+        <UserInfoCard />
       ) : (
         <Card className="p-4">
           <div className="space-y-3">

@@ -78,6 +78,7 @@ function openDetails() {
 }
 
 function renderError({
+  isAgentRunning = false,
   error = {
     classification: "rate-limit",
     kind: "unknown",
@@ -88,6 +89,7 @@ function renderError({
   provider = OUR_MODELS.providerType,
 }: {
   error?: MessageErrorData;
+  isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   provider?: null | string;
@@ -95,11 +97,10 @@ function renderError({
   return renderWithProviders(
     <TooltipProvider>
       <MessageError
-        isAgentRunning={false}
+        isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         message={messageWithError(error, provider)}
-        onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRunAgain={vi.fn()}
       />
@@ -251,5 +252,70 @@ describe("MessageError", () => {
     const { container } = renderError({ isLastMessage: false });
 
     expect(container.innerHTML).toBe("");
+  });
+
+  describe("our platform's refusals for the plan", () => {
+    const refusal = (body: object, statusCode: number): MessageErrorData => ({
+      classification: "usage-limit",
+      kind: "api-call",
+      message: "Refused",
+      name: "AI_APICallError",
+      responseBody: JSON.stringify({ error: body }),
+      statusCode,
+      url: "http://localhost/gateway/openrouter/v1/chat/completions",
+    });
+
+    // The way forward is the notice over the reply box, so the transcript
+    // keeps one plain line and no card, buttons, or retry.
+    it.each([
+      {
+        body: { code: "subscription-required", reason: "trial-ended" },
+        line: "Stopped: your free trial has ended.",
+        statusCode: 402,
+      },
+      {
+        body: { code: "usage-limit-exceeded", window: "5h" },
+        line: "Stopped: you've reached your plan's limit for now.",
+        statusCode: 429,
+      },
+    ])("ends the turn on one line for $body.code", ({ body, line, statusCode }) => {
+      renderError({ error: refusal(body, statusCode) });
+
+      expect(screen.getByText(line)).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("keeps the line once the chat has moved on", () => {
+      renderError({
+        error: refusal({ code: "subscription-required", reason: "no-plan" }, 402),
+        isLastMessage: false,
+      });
+
+      expect(
+        screen.getByText("Stopped: Instrument's AI needs a plan."),
+      ).not.toBeNull();
+    });
+
+    it("waits rather than erring while too many tasks are running", () => {
+      renderError({
+        error: refusal({ code: "concurrency-limit" }, 429),
+        isAgentRunning: true,
+      });
+
+      expect(
+        screen.getByText("Waiting for one of your other tasks to finish"),
+      ).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("says nothing about a wait the turn got past", () => {
+      const { container } = renderError({
+        error: refusal({ code: "concurrency-limit" }, 429),
+        isLastMessage: false,
+      });
+
+      expect(container.innerHTML).toBe("");
+    });
   });
 });

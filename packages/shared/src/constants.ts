@@ -52,7 +52,7 @@ export const X_URL = `https://x.com/${X_HANDLE}`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
-export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
+export const CONTACT_EMAIL = `support@${APP_DOMAIN}`;
 // Identity every commit the agent makes is authored and committed under, so a
 // repository's history never attributes agent work to the user.
 export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;

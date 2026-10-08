@@ -660,7 +660,6 @@ describe("sessionMachine", () => {
     const searchWeb: WebSearchClient = () =>
       Promise.resolve({
         data: {
-          costDollars: 0.007,
           results: [
             {
               text: "TypeScript 5.7 introduces new features.",
@@ -694,7 +693,6 @@ describe("sessionMachine", () => {
             <output>
               {
                 "results": {
-                  "costDollars": 0.007,
                   "kind": "excerpts",
                   "sources": [
                     {

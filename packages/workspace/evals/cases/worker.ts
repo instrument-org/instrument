@@ -1,12 +1,10 @@
 /**
- * Can a model do the work, as opposed to decide who should?
+ * Can a model do the work, as opposed to talk about it?
  *
- * The conversation and the tasks under it are two different jobs, and a model
- * good at one is not thereby good at the other: the conversation has four tools
- * and has to choose, while a task has every file tool, a shell with real
- * binaries, a browser and skills, and has to finish something. Measuring only
- * the conversation picks models that delegate beautifully to workers that
- * cannot deliver.
+ * Each case here runs as a task told what to do in so many words, the way a
+ * fork is: every file tool, a shell with real binaries, a browser and skills,
+ * and something to finish. Measuring only the conversation picks models that
+ * answer well and cannot deliver.
  *
  * These are the deliverables the transcript is actually full of. Documents come
  * first because they are the hardest honest test in the suite: nothing here can
@@ -53,7 +51,7 @@ const MIN_DOCUMENT_BYTES = 4000;
 
 /**
  * Every file this task could have written: its own folder, and the workspace
- * folder, since a brief naming one is answered in the other about as often.
+ * folder, since a prompt naming one is answered in the other about as often.
  */
 async function deliverables(taskId: TaskId): Promise<string[]> {
   const home = process.env.HOME ?? "";
@@ -614,7 +612,7 @@ export const sheetHasAChart: Assertion = {
   text: "put a chart in the workbook",
 };
 
-/** Every option the brief supplied, so a comparison cannot quietly drop half. */
+/** Every option the prompt supplied, so a comparison cannot quietly drop half. */
 function comparedEvery(names: string[]): Assertion {
   const text = `compared all ${names.length} of them`;
   return {
@@ -655,7 +653,7 @@ function firstNamed(window: string, names: string[]): string | undefined {
  * The pick the supplied data actually supports.
  *
  * A shopping comparison is only worth anything if the recommendation survives
- * the constraints in the brief, and those constraints have exactly one or two
+ * the constraints in the prompt, and those constraints have exactly one or two
  * right answers here. Read from the recommendation itself rather than the whole
  * page, because every option is named somewhere on a comparison page by
  * definition; the run of text after the word "recommend" is where the model
@@ -694,7 +692,7 @@ function recommended(allowed: string[], rejected: string[]): Assertion {
           : fail(
               text,
               firstPick
-                ? `picked ${firstPick}, which the brief rules out`
+                ? `picked ${firstPick}, which the prompt rules out`
                 : `named none of ${allowed.join(" or ")}`,
             );
       }

@@ -270,25 +270,6 @@ const assertNoteEdited: Assertion = {
   text: "Added the items at the bottom of the first section",
 };
 
-/** The task's receipt named the note it changed, by the path it reached. */
-const assertTaskFencedEditedNote: Assertion = {
-  check: async ({ childSessions }) => {
-    const text = "The task's receipt fenced the note it changed";
-    const children = await childSessions();
-    const receipts = children.map((child) => lastAssistantText(child.sessions));
-    const named = receipts.flatMap(namesEditedNote);
-    return {
-      evidence:
-        named.length > 0
-          ? named.join(" | ")
-          : `No fenced note; receipts: ${JSON.stringify(receipts)}`,
-      passed: named.length > 0,
-      text,
-    };
-  },
-  text: "The task's receipt fenced the note it changed",
-};
-
 // A link whose target is the note, either as its path or as the app's own
 // address for a file; both draw the same chip the fence's card opens.
 const NOTE_LINK = new RegExp(
@@ -365,8 +346,7 @@ export const FILES_FENCE_EVALS = [
   }),
   defineEval({
     // A file the work found rather than made reaches the user through the
-    // conversation's fence; a task answers such a question in its receipt and
-    // fences only what it made or changed.
+    // conversation's fence.
     assertions: [
       assertEmittedFence,
       assertLinesResolve,
@@ -385,14 +365,9 @@ export const FILES_FENCE_EVALS = [
       "In two sentences, what is the difference between a semaphore and a mutex?",
   }),
   defineEval({
-    // A file of the user's that a task changed in place is handed back where
-    // it sits, by the task to the conversation and by the conversation to the
-    // user, so they can check what was written.
-    assertions: [
-      assertTaskFencedEditedNote,
-      assertConversationHandedBackNote,
-      assertNoteEdited,
-    ],
+    // A file of the user's changed in place is handed back where it sits,
+    // so they can check what was written.
+    assertions: [assertConversationHandedBackNote, assertNoteEdited],
     folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],
     kind: "chat",
     name: "files-fence-chat-edited-note",

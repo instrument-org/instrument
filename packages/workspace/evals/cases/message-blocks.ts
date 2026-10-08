@@ -2,14 +2,14 @@
  * Does the conversation hand over words to send as a message?
  *
  * A message is an email, a text, a post: words the user sends as their own.
- * The conversation writes a short one itself as a ```message fence; one a task
- * wrote is a Markdown file whose front matter says `message:`, handed over in
- * the files fence rather than typed out again. Both draw one card.
+ * The conversation writes one as a ```message fence; one already written to a
+ * Markdown file whose front matter says `message:` is handed over in the files
+ * fence rather than typed out again. Both draw one card.
  *
  * The asks are worded the way a person asks for help writing, never naming the
  * block, because what is measured is whether a model reaches for it unprompted:
- * the conversation writing it directly, the conversation reading a connected
- * app first, and a task that has to work something out before it drafts. Two
+ * the conversation writing it directly, reading a connected app first, and
+ * working something out before it drafts, in the chat or in a fork. Two
  * mirror cases ask for no message at all.
  */
 import fs from "node:fs";
@@ -166,48 +166,43 @@ const handedOverNoMessage: Assertion = {
 };
 
 /**
- * A message a task wrote reached the user as its file, not typed out again in
- * a fence: the words the task wrote are the words the user sees.
+ * Each message reached the user once: a message file handed over is not also
+ * typed out in a fence, and a fence is not a copy of words a fork already
+ * wrote in its reply.
  */
-const didNotRetypeATasksMessage: Assertion = {
+const didNotRetypeAMessage: Assertion = {
   check: async (context) => {
-    const text = "did not retype a task's message";
-    // The conversation writes no files of its own, so any message file this
-    // run left, in a task's folder or one it was handed, is a task's.
-    const ownDir = taskDir(context.taskId);
-    const files = await messageFiles(context);
-    const fromTasks = files.filter(({ file }) => !file.startsWith(ownDir));
+    const text = "did not retype a message";
     const fenced = fencedMessages(context.sessions);
-    // The other way to retype one: the task put the words in its reply and
-    // the conversation copied them into a fence.
+    const opening = (message: MessageDraft) =>
+      message.body
+        .split("\n")
+        .find((line) => line.length > 30)
+        ?.slice(0, 30);
     const children = await context.childSessions();
-    const taskTexts = children.flatMap((child) =>
+    const forkTexts = children.flatMap((child) =>
       assistantTexts(child.sessions),
     );
-    const copied = fenced.filter((message) => {
-      const opening = message.body.split("\n").find((line) => line.length > 30);
+    const files = await messageFiles(context);
+    const retyped = fenced.filter((message) => {
+      const start = opening(message);
       return (
-        opening !== undefined &&
-        taskTexts.some((taskText) => taskText.includes(opening.slice(0, 30)))
+        start !== undefined &&
+        (forkTexts.some((forkText) => forkText.includes(start)) ||
+          files.some((file) => file.message.body.includes(start)))
       );
     });
-    if (copied.length > 0) {
-      return fail(
-        text,
-        `copied from a task's reply: ${copied.map(describe).join(" | ")}`,
-      );
-    }
-    if (fromTasks.length === 0) {
-      return pass(text, "no task wrote a message file");
-    }
-    return fenced.length === 0
-      ? pass(text, fromTasks.map(({ file }) => path.basename(file)).join(", "))
+    return retyped.length === 0
+      ? pass(
+          text,
+          `${fenced.length} fenced, ${files.length} message files: ${files.map(({ file }) => path.basename(file)).join(", ") || "none"}`,
+        )
       : fail(
           text,
-          `task wrote ${fromTasks.map(({ file }) => path.basename(file)).join(", ")}; conversation also fenced ${fenced.map(describe).join(" | ")}`,
+          `fenced again what a fork or a file already held: ${retyped.map(describe).join(" | ")}`,
         );
   },
-  text: "did not retype a task's message",
+  text: "did not retype a message",
 };
 
 // `[Your name]`, `{recipient}`, `<date>`, the gaps a draft leaves for the
@@ -294,12 +289,12 @@ export const MESSAGE_BLOCK_EVALS = [
 
   defineEval({
     // The data is in a connected app, which the conversation may read itself
-    // or hand to a task; either way what reaches the user is one message.
+    // or in a fork; either way what reaches the user is one message.
     apps: [{ name: "Beacon", slug: "beacon" }],
     assertions: [
       handedOverAMessage(["chat"]),
       readyToSend,
-      didNotRetypeATasksMessage,
+      didNotRetypeAMessage,
     ],
     kind: "chat",
     name: "message-slack-update-from-an-app",
@@ -308,16 +303,16 @@ export const MESSAGE_BLOCK_EVALS = [
   }),
 
   defineEval({
-    // Work first, then the draft: the comparison is a file a task writes, and
-    // the email is the task's too, so the conversation hands it over as a file.
+    // Work first, then the draft: the comparison is a file, and the email
+    // reaches the user once, whoever did the work.
     assertions: [
       handedOverAMessage(["email"]),
       readyToSend,
-      didNotRetypeATasksMessage,
+      didNotRetypeAMessage,
     ],
     folders: [{ access: "read-only", path: path.join(FIXTURES, "Quotes") }],
     kind: "chat",
-    name: "message-after-a-task-compares",
+    name: "message-after-a-comparison",
     prompt:
       "Compare the three bathroom quotes in my Quotes folder in a one-page writeup in my Instrument folder, then draft the email to whichever one we should go with asking when they can start.",
   }),

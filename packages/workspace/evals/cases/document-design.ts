@@ -2,8 +2,8 @@
  * Does a task make a designed PDF or deck the way the pdf and powerpoint
  * skills say to, and does what it hands over hold up?
  *
- * Briefs are written the way the chat writes them for a PDF: the goal, the
- * user's words, and "Use the pdf skill". Which route the task takes is the
+ * Prompts are written the way a task is told what to do for a PDF: the goal,
+ * the user's words, and "Use the pdf skill". Which route the task takes is the
  * skill's to decide, and every run so far followed the skill's first table,
  * so these mostly measure the skill rather than the model's taste.
  *

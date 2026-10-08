@@ -2,16 +2,16 @@
  * Does the conversation arrange the user's tabs the way it is told to?
  *
  * The conversation acts on the window's tabs with `tab` (open, replace, close,
- * show), and hands a tab already open to a task with `--tab`. A task opens the
- * pages it works on itself, so `tab open` is for showing the user something
- * and never a step in handing work over. Every case here starts from a note
+ * show), browses pages of its own with `agent-browser`, and hands a tab the
+ * user has open to a fork with `task new --tab`. `tab open` is for showing the
+ * user something and never a step in starting work. Every case here starts from a note
  * naming the tabs the user has open, answered by the harness's stand-in
  * window, and scores the commands the conversation ran.
  *
- * - **A new page is the task's to open.** The failure that prompted this: a
- *   conversation ran `open` and `task new` in one command, wrote a brief that
- *   said the tab id would come from `open`, and passed no `--tab`, so the
- *   task had nothing and stopped.
+ * - **A new page is the browser's to open.** The failure that prompted this: a
+ *   conversation ran `open` and `task new` in one command, told the task the
+ *   tab id would come from `open`, and passed no `--tab`, so the task had
+ *   nothing and stopped.
  * - **A page on screen is handed over, not opened again.**
  * - **Closing is exact.** It closes the tabs named, and nothing else of the
  *   user's.
@@ -62,18 +62,23 @@ function tabCalls(command: string): { args: string[]; verb: string }[] {
 
 const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/;
 
-const delegated: Assertion = {
+/** The work was browsed: by the chat in a page of its own, or by a fork. */
+const browsedOrForked: Assertion = {
   check: ({ sessions }) => {
-    const started = bashCommands(sessions).filter((command) =>
-      STARTS_A_TASK.test(command),
+    const commands = bashCommands(sessions).filter(
+      (command) =>
+        STARTS_A_TASK.test(command) || /\bagent-browser\b/.test(command),
     );
     return {
-      evidence: started.length > 0 ? started.join("\n---\n") : "no task new",
-      passed: started.length > 0,
-      text: "Started a task for the work",
+      evidence:
+        commands.length > 0
+          ? commands.join("\n---\n")
+          : "no agent-browser and no task new",
+      passed: commands.length > 0,
+      text: "Browsed the pages itself or forked the work",
     };
   },
-  text: "Started a task for the work",
+  text: "Browsed the pages itself or forked the work",
 };
 
 const startedNoTask: Assertion = {
@@ -91,8 +96,8 @@ const startedNoTask: Assertion = {
 };
 
 /**
- * Never opened a page and started a task in the same command, where the brief
- * is written before the tab id exists, and never passed a `--tab` it had not
+ * Never opened a page and started a task in the same command, where what the
+ * task is told is written before the tab id exists, and never passed a `--tab` it had not
  * yet been told.
  */
 const neverOpenedToHandOver: Assertion = {
@@ -282,7 +287,7 @@ export const WINDOW_TABS_EVALS = [
 
   defineEval({
     // The Windows run that started this, in the words it was typed in.
-    assertions: [delegated, neverOpenedToHandOver],
+    assertions: [browsedOrForked, neverOpenedToHandOver],
     kind: "chat",
     name: "window-tabs-new-page",
     prompt:
@@ -291,7 +296,8 @@ export const WINDOW_TABS_EVALS = [
   }),
 
   defineEval({
-    assertions: [delegated, handedTab(JAR_TAB), neverRanTab("open")],
+    // The user's tab is driven by a fork it is handed to.
+    assertions: [handedTab(JAR_TAB), neverRanTab("open")],
     kind: "chat",
     name: "window-tabs-hands-open-page",
     prompt: "follow five links from this page, one after another",
@@ -352,7 +358,7 @@ export const WINDOW_TABS_EVALS = [
   defineEval({
     // A page, which only means something on screen: a few lines of text the
     // conversation can fairly quote instead.
-    assertions: [delegated, ranTab("open", { matching: /\.html$/ })],
+    assertions: [ranTab("open", { matching: /\.html$/ })],
     followUps: ["Put it on my screen."],
     kind: "chat",
     name: "window-tabs-show-result",

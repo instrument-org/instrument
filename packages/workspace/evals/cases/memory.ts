@@ -10,11 +10,12 @@
  *   in a chat next week; the conversation saves it in the same reply.
  * - **It was a reply, not a task.** Keeping a fact is the conversation's own
  *   job, and nothing about the ask needs a task.
- * - **A preference inside a work ask is still saved.** Measured, this is the
- *   one that fails: a turn ends the moment a task is created, so a model that
- *   means to save after handing off never gets the step, and says it
- *   remembered something it did not. The save has to ride in the same command
- *   as the hand-off, which is what the prompt now shows.
+ * - **A preference inside a work ask is saved before the work.** Measured,
+ *   this is the one that fails: a turn ends the moment a task is created, so
+ *   a model that means to save after forking never gets the step, and says it
+ *   remembered something it did not. The save comes first, whether the chat
+ *   does the work itself or forks it, in the same command as the fork when
+ *   there is one.
  * - **It did not claim a memory it does not hold.** The failure above is only
  *   dangerous because the user is told it happened.
  *
@@ -127,17 +128,41 @@ function firstReply(sessions: Session.WithMessagesAndParts[]): string {
 const CLAIMS_A_MEMORY =
   /\b(?:noted|remember(?:ed|ing)?|saved|keep(?:ing)? that in mind|got it)\b/i;
 
-const delegatedTheWork: Assertion = {
+/**
+ * The save came before any fork: in an earlier command, or earlier in the
+ * same one. A run with no fork passes on the save alone.
+ */
+const savedBeforeForking: Assertion = {
   check: ({ sessions }) => {
-    const text = "handed the work to a task";
-    const started = bashParts(sessions).filter(({ command }) =>
+    const text = "saved the preference before starting any task";
+    const commands = bashParts(sessions).map(({ command }) => command);
+    const forkAt = commands.findIndex((command) =>
       /(?:^|[\n;&|])\s*task new\b/.test(command),
     );
-    return started.length > 0
-      ? pass(text, `${started.length} task(s)`)
-      : fail(text, "no task, though the ask needed one");
+    if (forkAt === -1) {
+      return commands.some((command) => SAVES_A_MEMORY.test(command))
+        ? pass(text, "saved, and did the work without a task")
+        : fail(text, "no save");
+    }
+    const fork = commands[forkAt] ?? "";
+    const savedEarlier = commands
+      .slice(0, forkAt)
+      .some((command) => SAVES_A_MEMORY.test(command));
+    const saveInFork = SAVES_A_MEMORY.exec(fork)?.index;
+    const savedFirstInFork =
+      saveInFork !== undefined &&
+      saveInFork < fork.search(/(?:^|[\n;&|])\s*task new\b/);
+    return savedEarlier || savedFirstInFork
+      ? pass(
+          text,
+          savedEarlier ? "in an earlier command" : (fork.split("\n")[0] ?? ""),
+        )
+      : fail(
+          text,
+          `the first fork came before any save: ${fork.split("\n")[0] ?? ""}`,
+        );
   },
-  text: "handed the work to a task",
+  text: "saved the preference before starting any task",
 };
 
 /**
@@ -172,12 +197,11 @@ export const MEMORY_EVALS = [
   }),
 
   defineEval({
-    // The measured failure: the preference rides along with work, the turn
-    // ends at the hand-off, and the save has nowhere to go unless it is in the
-    // same command.
-    assertions: [savedAMemory, delegatedTheWork, didNotClaimWhatItDidNotSave],
+    // The measured failure: the preference rides along with work, a fork
+    // ends the turn, and the save has nowhere to go unless it comes first.
+    assertions: [savedAMemory, savedBeforeForking, didNotClaimWhatItDidNotSave],
     kind: "chat",
-    name: "memory-saves-beside-a-hand-off",
+    name: "memory-saves-before-the-work",
     prompt:
       "Find me three electric kettles under $60 and put a short comparison in my Instrument folder. Also, for future reference, I only ever want decaf: any coffee or tea you suggest, now or later, has to be decaf.",
   }),

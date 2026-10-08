@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WebSocket } from "ws";
 
 import {
   CDP_METHODS,
@@ -14,7 +13,8 @@ import { type WorkspaceServerParentRef } from "../types";
 import {
   createLocalFileGate,
   createMainFrameLoadGate,
-  handleCdpClient,
+  openTargetSession,
+  parseCdpMessage,
 } from "./cdp-bridge";
 
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
@@ -60,6 +60,25 @@ function track(p: Promise<void>): () => boolean {
   });
   return () => done;
 }
+
+describe("parseCdpMessage", () => {
+  it("takes a command with an id and a method, with or without a session", () => {
+    expect(
+      parseCdpMessage(
+        Buffer.from(JSON.stringify({ id: 1, method: "Page.enable" })),
+      ),
+    ).toEqual({ id: 1, method: "Page.enable" });
+  });
+
+  it.each([
+    ["not JSON", "{"],
+    ["no id", JSON.stringify({ method: "Page.enable" })],
+    ["no method", JSON.stringify({ id: 1 })],
+    ["a method that is not a string", JSON.stringify({ id: 1, method: 7 })],
+  ])("drops a frame with %s", (_label, frame) => {
+    expect(parseCdpMessage(Buffer.from(frame))).toBeUndefined();
+  });
+});
 
 describe("createMainFrameLoadGate", () => {
   afterEach(() => {
@@ -202,7 +221,7 @@ describe("createLocalFileGate", () => {
   });
 });
 
-describe("handleCdpClient on a local page", () => {
+describe("openTargetSession on a local page", () => {
   const TASK = "/Users/me/Tasks/t1";
   const own = `file://${TASK}/output/confine.html`;
   const secret = "file:///Users/me/other/secret.txt";
@@ -214,15 +233,7 @@ describe("handleCdpClient on a local page", () => {
     const guest = { url: own as string | undefined };
     const sent: unknown[] = [];
     let scripts = 0;
-    const listeners: Record<string, (data: unknown) => void> = {};
     const events: { emit?: (method: string, params: unknown) => void } = {};
-    const ws = {
-      on: (event: string, cb: (data: unknown) => void) => {
-        listeners[event] = cb;
-      },
-      readyState: WebSocket.OPEN,
-      send: (data: string) => sent.push(JSON.parse(data)),
-    };
     const sendCommand = vi.fn(
       (_target: unknown, method: string, params: unknown) => {
         const expression = (params as { expression?: string }).expression ?? "";
@@ -264,13 +275,18 @@ describe("handleCdpClient on a local page", () => {
       },
       captureException: vi.fn(),
     } as unknown as WorkspaceConfig;
-    handleCdpClient(ws as unknown as WebSocket, target, config, {
-      send: vi.fn(),
-    } as unknown as WorkspaceServerParentRef);
+    const session = openTargetSession({
+      onDetach: vi.fn(),
+      send: (frame) => sent.push(frame),
+      sessionId: `session-${target}`,
+      targetId: target,
+      workspaceConfig: config,
+      workspaceRef: { send: vi.fn() } as unknown as WorkspaceServerParentRef,
+    });
     let nextId = 0;
     const command = async (method: string, params: unknown = {}) => {
       const id = ++nextId;
-      listeners.message?.(Buffer.from(JSON.stringify({ id, method, params })));
+      session.run({ id, method, params });
       for (let i = 0; i < 20; i++) {
         await flush();
       }
@@ -280,7 +296,7 @@ describe("handleCdpClient on a local page", () => {
       };
     };
     return {
-      close: () => listeners.close?.(undefined),
+      close: session.end,
       command,
       emit: (m: string, p: unknown) => {
         events.emit?.(m, p);
@@ -292,21 +308,23 @@ describe("handleCdpClient on a local page", () => {
     };
   }
 
-  it.each(Object.keys(CDP_METHODS).filter(isKnownCdpMethod))(
-    "handles %s as the table of CDP methods says",
-    async (method) => {
-      const { command, sendCommand } = connect();
-      const reply = await command(method);
-      const forwarded = sendCommand.mock.calls.some(
-        ([, sent]) => sent === method,
-      );
-      const handling = cdpHandlingOf(method, "page");
-      expect({ error: reply.error !== undefined, forwarded }).toEqual({
-        error: handling === "refuse",
-        forwarded: handling === "passthrough" || handling === "wrapped",
-      });
-    },
-  );
+  // The task endpoint answers the Target domain before a session sees it.
+  it.each(
+    Object.keys(CDP_METHODS)
+      .filter(isKnownCdpMethod)
+      .filter((method) => !method.startsWith("Target.")),
+  )("handles %s as the table of CDP methods says", async (method) => {
+    const { command, sendCommand } = connect();
+    const reply = await command(method);
+    const forwarded = sendCommand.mock.calls.some(
+      ([, sent]) => sent === method,
+    );
+    const handling = cdpHandlingOf(method, "session");
+    expect({ error: reply.error !== undefined, forwarded }).toEqual({
+      error: handling === "refuse",
+      forwarded: handling === "passthrough" || handling === "wrapped",
+    });
+  });
 
   it("tells the main process which folders the agent can read", async () => {
     const { command, setAgentFileRoots } = connect();
@@ -356,9 +374,6 @@ describe("handleCdpClient on a local page", () => {
   it.each([
     "Page.disable",
     "Runtime.disable",
-    "Target.sendMessageToTarget",
-    "Target.exposeDevToolsProtocol",
-    "Target.getTargetInfo",
     "Page.captureScreenshot",
     "DOM.getDocument",
     "Fetch.enable",
@@ -379,12 +394,10 @@ describe("handleCdpClient on a local page", () => {
     expect(sendCommand).not.toHaveBeenCalled();
   });
 
-  it("still answers the target commands it handles itself, and lets the agent leave", async () => {
+  it("lets the agent leave", async () => {
     const { command, guest } = connect();
     await command("Page.enable");
     guest.url = secret;
-    const targets = await command("Target.getTargets");
-    expect(targets.error).toBeUndefined();
     const left = await command("Page.navigate", {
       url: "https://example.com/",
     });
@@ -573,6 +586,68 @@ describe("handleCdpClient on a local page", () => {
         ],
       ]
     `);
+  });
+
+  it("puts back the place, time, language, and browser it emulated, and ends its trace, when it leaves", async () => {
+    const { close, command, sendCommand } = connect();
+    await command("Emulation.setGeolocationOverride", {
+      latitude: 1,
+      longitude: 2,
+    });
+    await command("Emulation.setTimezoneOverride", {
+      timezoneId: "Asia/Tokyo",
+    });
+    await command("Emulation.setLocaleOverride", { locale: "ja-JP" });
+    await command("Emulation.setUserAgentOverride", { userAgent: "bot" });
+    await command("Tracing.start", {});
+    sendCommand.mockClear();
+    close();
+    const undone = sendCommand.mock.calls
+      .map(([, method, params]) => [method, params])
+      .filter(([method]) =>
+        /^(?:Emulation\.(?:clearGeolocation|setTimezone|setLocale|setUserAgent)|Tracing\.)/.test(
+          String(method),
+        ),
+      );
+    expect(undone).toMatchInlineSnapshot(`
+      [
+        [
+          "Emulation.clearGeolocationOverride",
+          {},
+        ],
+        [
+          "Emulation.setTimezoneOverride",
+          {
+            "timezoneId": "",
+          },
+        ],
+        [
+          "Emulation.setLocaleOverride",
+          {},
+        ],
+        [
+          "Emulation.setUserAgentOverride",
+          {
+            "userAgent": "",
+          },
+        ],
+        [
+          "Tracing.end",
+          {},
+        ],
+      ]
+    `);
+  });
+
+  it("ends no trace the agent already ended", async () => {
+    const { close, command, sendCommand } = connect();
+    await command("Tracing.start", {});
+    await command("Tracing.end", {});
+    sendCommand.mockClear();
+    close();
+    expect(
+      sendCommand.mock.calls.some(([, method]) => method === "Tracing.end"),
+    ).toBe(false);
   });
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {

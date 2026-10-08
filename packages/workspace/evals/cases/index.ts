@@ -1,8 +1,10 @@
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
+import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
+import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
@@ -23,10 +25,12 @@ import { WORKER_EVALS } from "./worker";
 
 export const EVALS = [
   ...APP_IMPORT_FILE_EVALS,
+  ...APP_SCRIPTING_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,
+  ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
   ...GIT_OVER_MOUNTS_EVALS,
   ...IMAGE_REGION_EVALS,

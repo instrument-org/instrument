@@ -73,8 +73,8 @@ export function sessionStorePath(dir: TaskDir): AbsolutePath {
 }
 
 // The on-disk directory for a task or a chat. The id doubles as the folder
-// name; where that folder sits (flat under `tasks/`, a chat's own under
-// `chats/`, or inside the chat that started it) is `recordDir`'s to say.
+// name; where that folder sits (a chat's own under `chats/`, or inside the
+// chat that started it) is `recordDir`'s to say.
 export function taskDir(id: TaskId): TaskDir {
   return recordDir(id);
 }

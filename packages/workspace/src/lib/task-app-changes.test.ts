@@ -3,15 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { initializeTask } from "./initialize-task";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { setTaskAppsBaseline } from "./task-apps-baseline";
 import { updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
 
 // A task of its own per test: the session store is cached by task id, so a
 // second task under one name in a fresh temp directory reuses the handle on the
@@ -58,6 +58,8 @@ function useWorkspace(taskId: string) {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    // Chats go under a workspace of the test's own, beside its folders.
+    rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
     appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../templates/default"),
@@ -69,17 +71,10 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-app-changes-"));
   TASK_ID = TaskIdSchema.parse(`file-the-issue-${++taskCount}`);
   useWorkspace(TASK_ID);
-  const created = await initializeTask(
-    {
-      initialSettings: { apps: [], name: "File the issue" },
-      taskId: TASK_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (created.isErr()) {
-    throw created.error;
-  }
+  await initializeTaskInChat({
+    initialSettings: { apps: [], name: "File the issue" },
+    taskId: TASK_ID,
+  });
   sessionId = StoreId.newSessionId();
 });
 
@@ -114,17 +109,10 @@ describe("detectTaskAppChanges", () => {
   it("says nothing to a task a person made, which reaches every app", async () => {
     const personMade = TaskIdSchema.parse(`someones-own-task-${taskCount}`);
     useWorkspace(personMade);
-    const created = await initializeTask(
-      {
-        initialSettings: { name: "Theirs" },
-        taskId: personMade,
-        workspaceConfig: getWorkspaceConfig(),
-      },
-      {},
-    );
-    if (created.isErr()) {
-      throw created.error;
-    }
+    await initializeTaskInChat({
+      initialSettings: { name: "Theirs" },
+      taskId: personMade,
+    });
 
     const result = await detectTaskAppChanges({
       messageId: StoreId.newMessageId(),

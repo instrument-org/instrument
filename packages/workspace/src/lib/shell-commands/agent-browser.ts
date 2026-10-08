@@ -14,7 +14,6 @@ import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
-import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
@@ -27,24 +26,23 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
+import { agentBrowserGuide } from "../agent-browser-guide";
+import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { chatOf, resolveChat } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
-  getBrowserSessionDir,
   getDownloadsDir,
   getExternalBrowserTmpDir,
   getScreenshotsDir,
   taskDir,
 } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { getWindowState } from "../window-state";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
@@ -97,16 +95,16 @@ export const AGENT_BROWSER_COMMAND = {
 export function agentBrowserCommandDescription() {
   const external = getWorkspaceConfig().isExternalBrowserEnabled()
     ? [
-        `Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
+        `Defaults to the in-app browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
         `The host's browser installs and Chrome profiles are NOT visible in the filesystem; inspect them only via \`agent-browser profiles\`.`,
       ]
     : [
-        `Drives the Instrument-managed task browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
+        `Drives the in-app browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
       ];
 
   return [
     `Control a browser to navigate the web, interact with pages, and extract content.`,
-    `The first agent-browser command in a session returns the \`${AGENT_BROWSER_SKILL_NAME}\` skill with its output, documenting the subcommands and the workflow this wrapper expects; read it before the next command rather than loading the skill first.`,
+    `The first agent-browser command in a session returns agent-browser's guide with its output, led by what differs in this app; read it before the next command. \`agent-browser skills get core\` prints it again.`,
     `A bash call whose last page-changing command (open, click, press, select, check, back, ...) is not followed by a read of the page ends with the page's interactive snapshot, or only what changed in it, so act on those refs instead of running \`snapshot -i\` after it.`,
     `IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.`,
     ...external,
@@ -119,16 +117,16 @@ export function agentBrowserCommandDescription() {
 // config/plugin-registry discovery. Connection targeting (--cdp,
 // --auto-connect, --provider, --profile, --state, --restore*) passes through
 // and routes the invocation to an external browser session instead.
-const BLOCKED_FLAGS = new Set([
+export const BLOCKED_FLAGS = new Set([
   "--config", // A managed empty config is injected so task-local agent-browser.json (agent-writable, can register plugins) is never discovered.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
   "--session", // Harness injects this; derived from our session id.
-  "--session-name", // Legacy restore/session key alias.
+  "--session-name", // Upstream's alias for --session.
 ]);
 
 // Launch-state flags that imply an external local Chrome launch when no
 // connection-identity flag (--cdp, --auto-connect, --provider) is present:
-// the task browser is a provider connection that ignores local launch
+// the in-app browser is a provider connection that ignores local launch
 // options, so these only mean something against an external browser.
 const EXTERNAL_STATE_FLAGS = new Set([
   "--executable-path",
@@ -144,7 +142,7 @@ const EXTERNAL_STATE_FLAGS = new Set([
 // Subcommands rejected because they don't apply to our proxied target or
 // duplicate workspace-managed features. CLI-side check; action-policy only
 // gates in-session actions, not these meta-commands.
-const BLOCKED_SUBCOMMANDS = new Set([
+export const BLOCKED_SUBCOMMANDS = new Set([
   "auth", // Credential vault; we don't expose it.
   "batch", // Each line is parsed as a full command (quoted args or --json stdin), which would bypass this argv-level policy.
   "chat", // Built-in AI REPL; the agent is the AI.
@@ -158,15 +156,10 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
   "session", // Session metadata is owned by the workspace.
-  "skills", // Workspace manages skill loading.
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
   "upgrade", // Binary is bundled; agent shouldn't self-update.
 ]);
-
-// Subcommands that open or switch to another page: a task's browser has them,
-// and a connection pinned to one page would quietly act on that page instead.
-const SECOND_PAGE_SUBCOMMANDS = new Set(["tab", "window"]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
 // because the harness controls them via env vars and must always win.
@@ -207,6 +200,39 @@ const PROXY_ENV_VARS = new Set([
 ]);
 
 const ADBLOCK_SUBCOMMAND = "adblock";
+
+const SKILLS_SUBCOMMAND = "skills";
+
+/**
+ * `agent-browser skills`: the CLI's own guide, answered here so it comes with
+ * what differs in this app (`agent-browser-guide.ts`). Only the core guide is
+ * offered; the others describe running agent-browser somewhere else.
+ */
+function skills(
+  operands: (string | undefined)[],
+  full: boolean,
+): { exitCode: number; stderr: string; stdout: string } {
+  const [action = "list", ...names] = operands.filter(
+    (operand) => operand !== undefined && !operand.startsWith("-"),
+  );
+  if (action === "list") {
+    return {
+      exitCode: 0,
+      stderr: "",
+      stdout:
+        "core  The guide to agent-browser in this app. Run `agent-browser skills get core`, with --full for its references.\n",
+    };
+  }
+  if (action === "get" && names.length === 1 && names[0] === "core") {
+    return { exitCode: 0, stderr: "", stdout: agentBrowserGuide({ full }) };
+  }
+  return {
+    exitCode: 1,
+    stderr:
+      "agent-browser: only `skills get core` is available in this app; the other skills describe running agent-browser somewhere else.\n",
+    stdout: "",
+  };
+}
 
 /**
  * `agent-browser adblock [on|off]`: the task's own say over the ad and tracker
@@ -304,7 +330,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
 const WORKSPACE_HELP_EXTERNAL = dedent`
   External browsers (flags apply per invocation; a bare command targets the
-  managed task browser again):
+  in-app browser again):
     profiles                    List the user's Chrome profiles
     --profile <name>            Launch Chrome with an existing profile (logins)
     --auto-connect              Connect to a Chromium already running with
@@ -424,9 +450,28 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
- * Resolve virtual absolute paths for native agent-browser, then validate and
- * bridge every file operand of `upload`. CDP reports success for missing files,
- * so the wrapper must fail before handing them to the browser process.
+ * Subcommands whose operands include a file the browser process reads or
+ * writes. Every other subcommand's operands are text the page receives as
+ * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
+ * leading `/` is a comment, a regex or a slash command, never a path.
+ */
+const FILE_OPERAND_SUBCOMMANDS = new Set([
+  "diff",
+  "download",
+  "network",
+  "pdf",
+  "profiler",
+  "record",
+  "screenshot",
+  "trace",
+  "upload",
+]);
+
+/**
+ * Resolve virtual absolute paths in global flag values and in the operands of
+ * subcommands that take a file, then validate and bridge every file operand of
+ * `upload`. CDP reports success for missing files, so the wrapper must fail
+ * before handing them to the browser process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
@@ -439,8 +484,17 @@ export async function resolveAgentBrowserPathArgs(
     };
   },
 ): Promise<{ args: string[] } | { error: string }> {
-  const resolved = resolvePathArgs(args, taskId, ctx);
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const textOperands = new Set(
+    subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
+      ? subArgs.slice(1).map(({ index }) => index)
+      : [],
+  );
+  const resolved = args.map((arg, index) =>
+    textOperands.has(index)
+      ? arg
+      : (resolvePathArgs([arg], taskId, ctx)[0] ?? arg),
+  );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
@@ -487,7 +541,7 @@ function executablePathMessage() {
   return [
     "agent-browser: --executable-path is not available.",
     "It names a program for the workspace to launch on the host rather than a browser to target, so the binary that runs is not the agent's to choose.",
-    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the task browser is the default target, and the app ships the browser it drives.",
+    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the in-app browser is the default target, and the app ships the browser it drives.",
     "",
   ].join("\n");
 }
@@ -549,7 +603,7 @@ function profileDirMessage(value: string) {
   return [
     `agent-browser: --profile takes the name of one of the user's Chrome profiles, and "${value}" is a directory.`,
     "The value is handed to Chrome as its data directory unchanged, so a relative one resolves against Chrome's own working directory rather than the task, and either way the profile it opens holds none of the logins --profile exists to reuse.",
-    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the task browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
+    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the in-app browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
     "",
   ].join("\n");
 }
@@ -635,10 +689,12 @@ export function createAgentBrowserCommand({
     if (subcommand === ADBLOCK_SUBCOMMAND) {
       return adblock(workspaceConfig.browser, id, subArgs[1]?.value);
     }
-    const asksForASecondPage =
-      !isExternalBrowserInvocation(args) &&
-      ((subcommand !== undefined && SECOND_PAGE_SUBCOMMANDS.has(subcommand)) ||
-        args.includes("--new-tab"));
+    if (subcommand === SKILLS_SUBCOMMAND) {
+      return skills(
+        subArgs.slice(1).map((arg) => arg.value),
+        args.includes("--full"),
+      );
+    }
     if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
       return {
         exitCode: 1,
@@ -689,8 +745,6 @@ export function createAgentBrowserCommand({
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const layout = await taskFsLayout(taskId);
-    // Before resolvePathArgs, which would otherwise turn a `/task/...`
-    // navigation target into a quarantined host path.
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
       layout,
@@ -731,7 +785,6 @@ export function createAgentBrowserCommand({
     const browserFreeRead = isBrowserFreeRead(resolvedArgs);
 
     const commandArgs: string[] = [];
-    let targetId: BrowserTargetId | undefined;
     // A chat's task, which drives the tabs it holds rather than one page.
     let drivesHeldTabs = false;
     let pluginRegistry: string | undefined;
@@ -750,9 +803,9 @@ export function createAgentBrowserCommand({
       commandArgs.push(...resolvedArgs);
     } else if (isExternal) {
       // External targets run under a sibling daemon session so switching
-      // between the task browser and an external browser never tears down the
+      // between the in-app browser and an external browser never tears down the
       // other's connection. External intent is per-invocation: a bare
-      // follow-up command routes back to the task browser.
+      // follow-up command routes back to the in-app browser.
       commandArgs.push(
         "--session",
         externalBrowserSessionName(sessionId),
@@ -766,7 +819,7 @@ export function createAgentBrowserCommand({
     } else if (browserFreeRead) {
       // A fetch needs no view either; creating one would leave the user staring
       // at an empty browser panel the agent never navigates. It still needs a
-      // daemon, which gets its own session so the task browser's daemon is
+      // daemon, which gets its own session so the in-app browser's daemon is
       // still only ever started by an invocation that resolves the provider:
       // one started without it holds no CDP endpoint and would launch its own
       // browser the next time a command needed a page.
@@ -789,30 +842,13 @@ export function createAgentBrowserCommand({
         ...resolvedArgs,
       );
     } else {
-      const resolved = await resolveBrowserTarget({ id, sessionId });
-      if ("error" in resolved) {
-        return { exitCode: 1, stderr: resolved.error, stdout: "" };
+      const refused = await refuseBrowserFor(id);
+      if (refused !== undefined) {
+        return { exitCode: 1, stderr: refused, stdout: "" };
       }
-      if (resolved.kind === "page" && asksForASecondPage) {
-        // A connection pinned to one page would quietly act on that page.
-        return {
-          exitCode: 1,
-          stderr:
-            "agent-browser: this browser has one tab. Open a page in it with `agent-browser open <url>`; the page it replaces stays in its history.\n",
-          stdout: "",
-        };
-      }
-      if (resolved.kind === "page" && resolved.isOwnGuest) {
-        targetId = resolved.targetId;
-      }
-      drivesHeldTabs = resolved.kind === "task";
+      drivesHeldTabs = true;
 
-      const cdpUrl = cdpBridgeUrl(
-        serverPort,
-        resolved.kind === "task"
-          ? { id, kind: "task" }
-          : { id: resolved.targetId, kind: "page" },
-      );
+      const cdpUrl = cdpBridgeUrl(serverPort, id);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -847,7 +883,7 @@ export function createAgentBrowserCommand({
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
     // An external invocation drives the host's browser stack, so it runs with
-    // the host's environment; only the task browser gets the sandbox's.
+    // the host's environment; only the in-app browser gets the sandbox's.
     const baseEnv = isExternal ? externalBrowserBaseEnv() : env;
 
     const spawnEnv = {
@@ -893,10 +929,10 @@ export function createAgentBrowserCommand({
       // The daemon spawns the provider plugin via process.execPath. In
       // packaged builds that is the Electron binary, which this var makes
       // behave as plain node. Inert for the Rust CLI and for Chrome; set
-      // only for task-browser invocations so an external --executable-path
+      // only for in-app browser invocations so an external --executable-path
       // launch of an Electron-based app is unaffected.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // Task-browser invocations write to a per-task sink instead of the host
+      // In-app browser invocations write to a per-task sink instead of the host
       // home. External ones keep whatever the host uses to locate the user's
       // browser data, which is the base env's HOME on macOS and Linux and is
       // not HOME at all on Windows.
@@ -918,14 +954,6 @@ export function createAgentBrowserCommand({
         input: subprocessStdin(ctx.stdin),
       });
     } finally {
-      if (targetId) {
-        await enrichBrowserState({
-          id,
-          sessionId,
-          targetId,
-          taskId,
-        });
-      }
       if (drivesHeldTabs) {
         await recordHeldTabHosts({ sessionId, taskId });
       }
@@ -982,7 +1010,7 @@ export function createAgentBrowserCommand({
  * browser. Mirrors upstream connection-identity precedence (cdp >
  * auto-connect > provider > local launch): an explicit `--provider
  * instrument` keeps a mixed invocation like `--profile x --provider
- * instrument` on the task browser, exactly as the CLI itself would resolve
+ * instrument` on the in-app browser, exactly as the CLI itself would resolve
  * it, and a literal `--auto-connect false` opt-out is honored.
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {
@@ -1045,55 +1073,6 @@ export function isExternalLocalLaunch(args: string[]): boolean {
   );
 }
 
-async function enrichBrowserState({
-  id,
-  sessionId,
-  targetId,
-  taskId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-  targetId: BrowserTargetId;
-  taskId: TaskId;
-}) {
-  try {
-    const targets = await getWorkspaceConfig().browser.listTargets(id);
-    const target = targets.find((t) => t.id === targetId);
-    if (target) {
-      await recordBrowserUseBestEffort({
-        sessionId,
-        taskId,
-        title: target.title,
-        url: target.url,
-      });
-    }
-  } catch (error) {
-    getWorkspaceConfig().captureException(error);
-  }
-}
-
-async function recordBrowserUseBestEffort({
-  sessionId,
-  taskId,
-  title,
-  url,
-}: {
-  sessionId: StoreId.Session;
-  taskId: TaskId;
-  title?: string;
-  url?: string;
-}) {
-  const result = await recordBrowserUse({
-    sessionId,
-    taskId,
-    title,
-    url,
-  });
-  if (result.isErr()) {
-    getWorkspaceConfig().captureException(result.error);
-  }
-}
-
 /**
  * The hosts of the pages in the tabs a chat's task holds, recorded as the
  * sites its work used: read after the command, so a tab it just opened and a
@@ -1109,7 +1088,7 @@ async function recordHeldTabHosts({
   const { browser } = getWorkspaceConfig();
   try {
     const { browserTabs } = await getTaskState(taskDir(taskId));
-    const urls = (browserTabs ?? []).flatMap((tab) => {
+    const urls = browserTabs.flatMap((tab) => {
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
@@ -1123,85 +1102,42 @@ async function recordHeldTabHosts({
 }
 
 /**
- * The browser an invocation acts on.
- *
- * A chat drives the tab on the window's screen, which the window keeps in its
- * own state rather than on any chat's: one page. A task in a chat drives
- * the tabs it holds, through a browser of their own: tabs the conversation
- * handed it, which are the user's and outlive the task, and tabs it opened
- * itself, each opened behind whatever the user has up, so every page a task
- * works in is one the user can find in the chat's tabs and none is put in
- * front of them. Only a task no chat owns still browses in a guest of its
- * own, on its task page.
+ * Why a task cannot browse right now, or nothing when it can. A task drives
+ * the tabs of its chat it holds: tabs the conversation handed it, which are
+ * the user's and outlive the task, and tabs it opened itself, each opened
+ * behind whatever the user has up, so every page a task works in is one the
+ * user can find in the chat's tabs and none is put in front of them. A chat
+ * does not browse; it hands a page to a task.
  */
-async function resolveBrowserTarget({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}): Promise<
-  | { error: string }
-  | { isOwnGuest: boolean; kind: "page"; targetId: BrowserTargetId }
-  | { kind: "task" }
-> {
-  const { browser } = getWorkspaceConfig();
-  const noTabUp = {
-    error:
-      "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
-  };
+async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
   if (resolveChat(id)) {
-    const { browserTargetId: onScreen } = await getWindowState();
-    // The conversation drives the tab on the user's screen and never a
-    // browser of its own; with no tab up there is nothing to drive.
-    return onScreen && browser.getTargetMeta(onScreen)
-      ? { isOwnGuest: false, kind: "page", targetId: onScreen }
-      : noTabUp;
-  }
-  if (!chatOf(id)) {
-    // Idempotent: createTarget returns the existing view for this (id,
-    // sessionId) pair if one is already live, so sub-agents and repeat
-    // invocations within the same session reuse the same browsing surface
-    // (cookies, page, debugger).
-    const target = await browser.createTarget(
-      id,
-      sessionId,
-      getBrowserSessionDir(),
-    );
-    await recordBrowserUseBestEffort({ sessionId, taskId: id });
-    return { isOwnGuest: true, kind: "page", targetId: target.targetId };
+    return "agent-browser: a chat does not browse. Hand the page to a task with `task new --tab <id>`.\n";
   }
   const state = await getTaskState(taskDir(id));
-  const heldTabs = state.browserTabs ?? [];
+  const heldTabs = state.browserTabs;
   const live = await liveHeldTabs(id, heldTabs);
   if (live.length > 0) {
     if (live.length < heldTabs.length) {
       // Tabs closed since: the browser already told the agent they are gone.
       await setTaskState(taskDir(id), { browserTabs: live });
     }
-    return { kind: "task" };
+    return undefined;
   }
   if (heldTabs.some((tab) => tab.openedBy === "handed")) {
     // The user closed the tabs, or the window they were in, since the task
     // was handed them.
-    return {
-      error:
-        "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n",
-    };
+    return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
   }
   if (heldTabs.length > 0) {
     // The task's own tabs, closed by the user or by the conversation: said
     // once, so the task knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
-    await setTaskState(taskDir(id), { browserTabs: undefined });
-    return {
-      error:
-        "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n",
-    };
+    await setTaskState(taskDir(id), { browserTabs: [] });
+    return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
   }
   // None yet: agent-browser asks a browser with no pages for one, which the
   // task's browser opens as a tab of the chat behind whatever is up.
-  return { kind: "task" };
+  return undefined;
 }
 
 async function runAgentBrowser(options: SpawnAgentBrowserOptions) {

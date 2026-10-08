@@ -227,8 +227,7 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
   );
   const running = await Promise.all(
     children.map(async (child) => {
-      const chat =
-        child.chatId === undefined ? undefined : sessionOfChat(child.chatId);
+      const chat = sessionOfChat(child.chatId);
       const held = taskHold(child.id);
       return {
         ...(held ? { waiting: held.userReason } : await runningLines(child.id)),

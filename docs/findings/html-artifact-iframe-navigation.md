@@ -15,7 +15,7 @@ The iframe's `src` is a per-task asset origin (`http://assets.<taskId>.localhost
 
 Together these mean the parent cannot read `contentWindow.location`, cannot call `history.back()`/`forward()` on it (not on the cross-origin allowlist), and cannot observe where in-iframe links lead. Load events fire but expose no URL. So `canGoBack`/`canGoForward`/current-URL — everything real browser chrome needs — is unreadable.
 
-The separate agent browser panel (`apps/studio/src/client/components/task/browser-panel.tsx`) has full chrome only because it wraps an Electron `<webview>` guest, whose `goBack()` / `goForward()` / `getURL()` / navigation events are all available. A plain iframe has none of that.
+The separate agent browser panel (`apps/studio/src/client/components/window/browser-panel.tsx`) has full chrome only because it wraps an Electron `<webview>` guest, whose `goBack()` / `goForward()` / `getURL()` / navigation events are all available. A plain iframe has none of that.
 
 ## Current behavior (fix)
 

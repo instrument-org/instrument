@@ -1,6 +1,7 @@
 import {
   getToolNameByType,
   isInteractiveTool,
+  isToolPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
@@ -32,18 +33,19 @@ export function isAwaitingUser(part: SessionMessagePart.ToolPart) {
  */
 export function isToolCallVisible({
   isDeveloperMode,
-  isStreaming,
+  isRunning,
   part,
 }: {
   isDeveloperMode: boolean;
-  isStreaming: boolean;
+  /** Streaming in the live session and running by `isToolPartRunning`. */
+  isRunning: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   return (
     hasTerminalToolState(part) ||
     isDeveloperMode ||
     isAwaitingUser(part) ||
-    (isStreaming && isToolPartRunning(part))
+    isRunning
   );
 }
 
@@ -55,16 +57,24 @@ export function isToolCallVisible({
  *
  * Input that is still arriving counts: the call is being written, which is the
  * agent doing something. So does a preliminary output, which a streaming tool
- * emits while it keeps going.
+ * emits while it keeps going. So does a call with nothing unfinished ahead of
+ * it in its message: it is next, and the runtime marks it started in a write of
+ * its own a moment after its input lands. Read as queued for that moment, the
+ * row would drop out between its input arriving and its run starting and come
+ * back a beat later, every step.
  */
-export function isToolPartRunning(part: SessionMessagePart.ToolPart): boolean {
+export function isToolPartRunning(
+  part: SessionMessagePart.ToolPart,
+  message: { parts: readonly SessionMessagePart.Type[] },
+): boolean {
   switch (part.state) {
     case "input-available": {
       // An interactive call never reaches the queue: it is handed to the user
       // and waits there, so having been asked for is the whole of its running.
       return (
         part.metadata.startedAt !== undefined ||
-        isInteractiveTool(getToolNameByType(part.type))
+        isInteractiveTool(getToolNameByType(part.type)) ||
+        isNextInLine(part, message)
       );
     }
     case "input-streaming": {
@@ -77,6 +87,22 @@ export function isToolPartRunning(part: SessionMessagePart.ToolPart): boolean {
       return false;
     }
   }
+}
+
+// Whether every call ahead of this one in its message has finished.
+function isNextInLine(
+  part: SessionMessagePart.ToolPart,
+  message: { parts: readonly SessionMessagePart.Type[] },
+): boolean {
+  for (const other of message.parts) {
+    if (other.metadata.id === part.metadata.id) {
+      return true;
+    }
+    if (isToolPart(other) && !hasTerminalToolState(other)) {
+      return false;
+    }
+  }
+  return false;
 }
 
 /**

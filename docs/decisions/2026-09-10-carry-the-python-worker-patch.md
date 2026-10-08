@@ -1,5 +1,7 @@
 # Carry the just-bash python worker fixes as a local patch until they are released
 
+> The #423 piece is retired: just-bash 3.6.0 ships #444, the same pin with `/usr/bin/python3` as the name. #424 and #425 are still carried. See [just-bash-upstream.md](../architecture/just-bash-upstream.md).
+
 Date: 2026-09-10
 
 Narrows [2026-08-27-no-local-just-bash-patches.md](2026-08-27-no-local-just-bash-patches.md) a fourth time, alongside [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md), [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md), and [2026-09-10-carry-the-cross-mount-copy-patch.md](2026-09-10-carry-the-cross-mount-copy-patch.md).

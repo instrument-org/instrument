@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
@@ -13,6 +14,16 @@ type MessageErrorData = NonNullable<
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    auth: {
+      live: {
+        hasToken: {
+          experimental_liveOptions: () => ({
+            queryFn: () => Promise.resolve(false),
+            queryKey: ["auth", "hasToken"],
+          }),
+        },
+      },
+    },
     gateway: {
       models: {
         live: {
@@ -175,6 +186,31 @@ describe("MessageError", () => {
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeNull();
   });
 
+  // The gateway's own sentence is written for its logs, so a refused model
+  // reads as ours, naming the model the turn ran on.
+  it.each([
+    ["model-not-allowed", "Your plan doesn't include Test Model."],
+    ["model-not-found", "Instrument doesn't offer Test Model anymore."],
+    ["no-model-requested", "This chat doesn't have a model chosen."],
+  ])("says what a %s refusal means", (code, sentence) => {
+    const { container } = renderError({
+      error: {
+        kind: "api-call",
+        message: "Forbidden",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code, message: "The requested model is not allowed." },
+        }),
+        statusCode: 403,
+        url: "http://localhost/ai-gateway/providers/instrument/responses",
+      },
+    });
+
+    expect(screen.getByText("Test Model isn't available")).not.toBeNull();
+    expect(screen.getByText(sentence)).not.toBeNull();
+    expect(container.textContent).not.toContain("requested model");
+  });
+
   it("names ChatGPT when its plan's limit was reached", () => {
     renderError({
       error: {
@@ -184,13 +220,32 @@ describe("MessageError", () => {
           "The ChatGPT user has reached their Subscription Sharing usage limit.",
         name: "AI_APICallError",
         statusCode: 400,
-        url: "http://localhost/ai-gateway/providers/chatgpt-plan/responses",
+        url: "http://localhost/ai-gateway/providers/chatgpt-account/responses",
       },
-      provider: "chatgpt",
+      provider: "chatgpt-account",
     });
 
-    expect(screen.getByText("ChatGPT usage limit reached")).not.toBeNull();
+    expect(screen.getByText("ChatGPT is out of usage for now")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
+  });
+
+  it("offers Instrument when the Claude account's limit was reached", async () => {
+    renderError({
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "You've hit your limit",
+        name: "AI_APICallError",
+        statusCode: 429,
+        url: "claude-account://",
+      },
+      provider: "claude-account",
+    });
+
+    expect(screen.getByText("Claude usage limit reached")).not.toBeNull();
+    expect(
+      await screen.findByRole("button", { name: `Try ${APP_NAME}` }),
+    ).not.toBeNull();
   });
 
   it("says nothing about a throttle the session already got past", () => {

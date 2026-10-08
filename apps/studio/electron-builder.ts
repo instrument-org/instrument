@@ -1,6 +1,5 @@
 import {
   APP_BUNDLE_ID,
-  APP_DOMAIN,
   APP_EXECUTABLE,
   APP_NAME,
   APP_PREVIEW_NAME,
@@ -173,16 +172,11 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // quickjs-emscripten backs just-bash's `js-exec`, which the workspace
-    // enables. Its index requires all four wasm variants by name, so each
-    // variant's small `index`/`ffi` entry has to ship, but a variant only
-    // loads its `emscripten-module` glue and wasm when asked for, and
-    // `getQuickJS()` asks for release-sync alone. The other three variants'
-    // modules (~5MB), the release variant's browser and Cloudflare glue, and
-    // the package's 2.3MB browser bundle are weight nothing loads.
-    "!**/node_modules/quickjs-emscripten/dist/index.global.js",
-    "!**/node_modules/@jitl/quickjs-wasmfile-{debug-sync,debug-asyncify,release-asyncify}/dist/emscripten-module.*",
-    "!**/node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.{browser,cloudflare}.*",
+    // typescript ships only as the optional peer of `run`, the runtime under
+    // just-bash's `js-exec`, which strips types with Node's own
+    // `stripTypeScriptTypes` and loads the package only on a Node without it.
+    // Electron's Node has it, so the package's ~20MB is weight nothing loads.
+    "!**/node_modules/typescript/**",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.
@@ -208,14 +202,13 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: true,
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
-    category: "Utility",
+    category: "Office",
     executableName: APP_EXECUTABLE,
     icon: "build/icons",
-    maintainer: APP_DOMAIN,
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
-    category: "public.app-category.developer-tools",
+    category: "public.app-category.productivity",
     // Split deliberately. The app's own entitlements carry what the
     // provisioning profile grants; the helpers get the hardened-runtime keys
     // and nothing else. Naming only entitlementsInherit once left both
@@ -288,6 +281,11 @@ const config: Configuration = {
   nsis: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     createDesktopShortcut: "always",
+    // The asar is stored uncompressed inside the installer, so a differential
+    // update fetches the changed bytes of it rather than the whole compressed
+    // member, which any code change rewrites. The installer grows by what
+    // compressing the asar would have saved.
+    differentialPackage: "store-asar",
     // The installer drawn at the display's scale, and Open With for the
     // types Instrument shows. Not `win.fileAssociations`, whose macro makes
     // the app each extension's default.

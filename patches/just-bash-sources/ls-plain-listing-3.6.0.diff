@@ -1,0 +1,70 @@
+diff --git a/packages/just-bash/src/commands/ls/ls.limits.security.test.ts b/packages/just-bash/src/commands/ls/ls.limits.security.test.ts
+index 8346a02..454470f 100644
+--- a/packages/just-bash/src/commands/ls/ls.limits.security.test.ts
++++ b/packages/just-bash/src/commands/ls/ls.limits.security.test.ts
+@@ -96,7 +96,7 @@ describe("ls directory collection limits", () => {
+   });
+ 
+   it.each(
+-    commands,
++    commands.filter((command) => command.includes("-R")),
+   )("charges the traversal entry budget for `%s`", async (command) => {
+     const { bash } = hugeDirBash({ maxTraversalEntries: LIMIT });
+     const result = await bash.exec(command);
+@@ -107,6 +107,17 @@ describe("ls directory collection limits", () => {
+     expect(result.exitCode).toBe(126);
+   });
+ 
++  // One directory listed on its own is not a walk: only the collection bound
++  // applies to it, so a folder wider than the traversal budget still lists.
++  it.each(
++    commands.filter((command) => !command.includes("-R")),
++  )("lists past the traversal entry budget for `%s`", async (command) => {
++    const { bash } = hugeDirBash({ maxTraversalEntries: LIMIT });
++    const result = await bash.exec(command);
++    expect(result.stdout).not.toBe("");
++    expect(result.stderr).not.toContain("traversal entry limit");
++  });
++
+   it("fails before any per-entry stat or classify work runs", async () => {
+     const { bash, fs } = hugeDirBash({ maxArrayElements: LIMIT });
+     const result = await bash.exec("ls -lF /large");
+@@ -162,14 +173,14 @@ describe("ls directory collection limits", () => {
+     expect(result.exitCode).toBe(126);
+   });
+ 
+-  it("charges every operand of a multi-directory listing", async () => {
++  it("charges every operand of a recursive multi-directory listing", async () => {
+     const bash = new Bash({
+       files: { "/a/f1": "", "/a/f2": "", "/b/f1": "", "/b/f2": "" },
+       cwd: "/",
+       executionLimits: { maxTraversalEntries: 5 },
+     });
+     // Two roots plus four children is six entries against a budget of five.
+-    const result = await bash.exec("ls /a /b");
++    const result = await bash.exec("ls -R /a /b");
+     expect(result.stdout).toBe("");
+     expect(result.stderr).toBe(
+       "bash: ls: filesystem traversal entry limit exceeded (5)\n",
+diff --git a/packages/just-bash/src/commands/ls/ls.ts b/packages/just-bash/src/commands/ls/ls.ts
+index 45ccbd6..df8532a 100644
+--- a/packages/just-bash/src/commands/ls/ls.ts
++++ b/packages/just-bash/src/commands/ls/ls.ts
+@@ -526,8 +526,15 @@ async function listPath(
+     traversalBudget.checkpoint();
+     // `-a` prepends the synthetic "." and ".." below, so charge for them here
+     // rather than letting a directory of exactly `maxArrayElements` entries
+-    // build an array two elements over the limit.
+-    admitEntries(ctx, traversalBudget, entries.length + (showAll ? 2 : 0));
++    // build an array two elements over the limit. A recursive listing also
++    // charges every name read against the traversal entry limit, as find
++    // does; one directory listed on its own is not a walk, so a folder of any
++    // size within the collection bound lists.
++    if (recursive) {
++      admitEntries(ctx, traversalBudget, entries.length + (showAll ? 2 : 0));
++    } else {
++      checkEntryCount(ctx, entries.length + (showAll ? 2 : 0));
++    }
+ 
+     // Filter hidden files unless -a or -A
+     if (!showHidden) {

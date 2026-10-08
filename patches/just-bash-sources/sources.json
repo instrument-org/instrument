@@ -1,14 +1,13 @@
 {
   "package": "just-bash",
-  "version": "3.4.1",
-  "tag": "just-bash@3.4.1",
+  "version": "3.6.0",
+  "tag": "just-bash@3.6.0",
   "repository": "https://github.com/vercel-labs/just-bash.git",
   "skip": ["dist/bundle/browser.js", "dist/bundle/index.cjs"],
   "parts": [
     {
       "name": "find",
       "pulls": [
-        { "number": 414, "commit": "a4dca0dfea516e9a5ea03d74635263382c3892fa" },
         { "number": 451, "commit": "3c2ec04e4a5358fa75f69b7f3a387552eacd02e7" }
       ]
     },
@@ -20,28 +19,27 @@
     },
     {
       "name": "cross-mount copy",
-      "pulls": [
-        { "number": 422, "commit": "5769dcc73f88cde6c34c73ead48d1b47b6440647" }
-      ]
+      "diff": "cross-mount-copy-3.6.0.diff",
+      "ports": [422]
     },
     {
       "name": "python3 worker",
       "pulls": [
-        { "number": 423, "commit": "5d94d11fef6d1c9df04cf9a1d4bf51ef184f4a4c" },
         { "number": 424, "commit": "760ca23baa1519cbb783008d1139325ca9ce0591" },
         { "number": 425, "commit": "64423f7054752db54036257004fea5770663d7ad" }
       ]
     },
     {
       "name": "stdinConnected",
-      "pulls": [
-        { "number": 448, "commit": "f39246de455f829e7489799905a80db9f48edfb6" }
-      ]
+      "diff": "stdin-connected-3.6.0.diff",
+      "ports": [448]
     },
     {
       "name": "ls",
-      "diff": "ls-3.4.1.diff",
-      "ports": [449, 390]
+      "pulls": [
+        { "number": 449, "commit": "9056cdaa8101614d34bd29ce1a61a05494941c38" }
+      ],
+      "diff": "ls-plain-listing-3.6.0.diff"
     },
     {
       "name": "awk printf",
@@ -57,7 +55,9 @@
     },
     {
       "name": "worker exit",
-      "diff": "worker-exit-3.4.1.diff"
+      "pulls": [
+        { "number": 501, "commit": "3b8d605255b105ae2d4879223fd5c221aba7b094" }
+      ]
     },
     {
       "name": "rmdir",

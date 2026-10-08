@@ -76,7 +76,7 @@ function makeExecuteArgs(
     model,
     signal: AbortSignal.timeout(30_000),
     taskId,
-    taskState: { attachedFolders },
+    taskState: { attachedFolders, browserTabs: [] },
   };
 }
 
@@ -267,6 +267,7 @@ describe("GenerateImage source images", () => {
         prompt: "A cat",
       }),
       taskState: {
+        browserTabs: [],
         attachedFolders: { Photos: { ...photos, access: "read-write" } },
       },
     });

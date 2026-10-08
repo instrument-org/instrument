@@ -60,6 +60,14 @@ async function applyIcon(folderPath: string): Promise<void> {
     );
     finderInfo = Buffer.from(stdout.replaceAll(/\s/g, ""), "hex");
   } catch (error) {
+    // Without Documents access the icon cannot be written either; decoration
+    // is cosmetic, so a refusal skips it rather than reporting.
+    if (
+      error instanceof Error &&
+      /Operation not permitted|Permission denied/.test(error.message)
+    ) {
+      return;
+    }
     // A folder without Finder metadata has no custom icon to preserve.
     if (!(error instanceof Error) || !error.message.includes("No such xattr")) {
       throw error;

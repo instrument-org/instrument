@@ -29,7 +29,7 @@ import {
   stepTrail,
   stepVisit,
   tabsIn,
-  upIn,
+  selectedTabIn,
   visitScreen,
   type WindowTabs,
 } from "./tab-model";
@@ -144,7 +144,7 @@ export function useWindowTabs() {
 
   return {
     /** The tab the group on screen has up. */
-    active: upIn(state, groupOnScreen),
+    active: selectedTabIn(state, groupOnScreen),
     /** Hands a draft's tabs to the chat it started, the one up still up. */
     adoptGroup: (from: string, to: string) => {
       apply((current) => adoptGroup(current, from, to));
@@ -318,7 +318,7 @@ export function useWindowTabs() {
         return { state: stepped.state, value: stepped.next };
       }, undefined),
     /** The tab a group has up, or would come on screen at. */
-    tabUpIn: (group: string | undefined) => upIn(state, group),
+    selectedTabIn: (group: string | undefined) => selectedTabIn(state, group),
     /** The tabs of the group on screen, in strip order. */
     tabs: tabsIn(state, groupOnScreen),
     /** Sends a screen tab to another address, a step on in its history. */

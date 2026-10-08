@@ -1,12 +1,8 @@
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { decodeBrowserTargetId, encodeBrowserTargetId } from "../types";
-import {
-  BLANK_PAGE_URL,
-  getBrowserState,
-  takeBrowserClosed,
-} from "./browser-state";
+import { decodeBrowserTargetId } from "../types";
+import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { WINDOW_ID } from "../schemas/window-id";
 import { taskFsLayout } from "./resolve-workspace-file-path";
@@ -31,108 +27,14 @@ export async function createBrowserStatusPart({
     const layout = await taskFsLayout(taskId);
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
     const held = await heldTabsStatus(taskId, spell);
-    if (held !== null) {
-      return held.length > 0
-        ? createPart({
-            createdAt,
-            data: { status: "tabs", tabs: held },
-            messageId,
-            sessionId,
-          })
-        : undefined;
-    }
-    const targets = await getWorkspaceConfig().browser.listTargets(taskId);
-    const target = targets.find(
-      ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
-    );
-
-    // A teardown since the model last looked outranks whatever is there now.
-    // Reopening the panel builds a new tab, so by the time this runs the reap
-    // is invisible from the target list -- either nothing is there or a blank
-    // (or freshly restored) tab is, and none of those say on their own that the
-    // page the model was working in has been thrown away.
-    const closedResult = await takeBrowserClosed(taskId, sessionId);
-    if (closedResult.isErr()) {
-      getWorkspaceConfig().captureException(closedResult.error);
-    }
-    const closed = closedResult.isOk() ? closedResult.value : undefined;
-    if (closed?.lastUrl) {
-      const previousTarget = {
-        ...(closed.lastTitle ? { title: closed.lastTitle } : {}),
-        url: spell(closed.lastUrl),
-      };
-      return createPart({
-        createdAt,
-        data:
-          target && target.url === closed.lastUrl
-            ? { status: "reopened", target: previousTarget }
-            : { previousTarget, status: "closed" },
-        messageId,
-        sessionId,
-      });
-    }
-
-    if (target) {
-      // Telling the model "a browser tab is already open" about a blank one
-      // invites it to keep addressing a browser that has nothing in it.
-      if (target.url === BLANK_PAGE_URL) {
-        return undefined;
-      }
-
-      const browserStateResult = await getBrowserState(taskId, sessionId);
-      if (browserStateResult.isErr()) {
-        getWorkspaceConfig().captureException(browserStateResult.error);
-        return undefined;
-      }
-
-      const browserState = browserStateResult.value;
-      if (
-        browserState?.lastUrl === target.url &&
-        browserState.lastTitle === target.title
-      ) {
-        return undefined;
-      }
-
-      return createPart({
-        createdAt,
-        data: {
-          status: "open",
-          target: { title: target.title, url: spell(target.url) },
-        },
-        messageId,
-        sessionId,
-      });
-    }
-
-    const browserStateResult = await getBrowserState(taskId, sessionId);
-    if (browserStateResult.isErr()) {
-      getWorkspaceConfig().captureException(browserStateResult.error);
-      return undefined;
-    }
-
-    const browserState = browserStateResult.value;
-    const lastUrl =
-      browserState?.lastUrl === BLANK_PAGE_URL
-        ? undefined
-        : browserState?.lastUrl;
-    // No page to name means the browser closed without ever holding one, so
-    // there is nothing for the model to restore and no reason to raise it.
-    if (!lastUrl) {
-      return undefined;
-    }
-
-    return createPart({
-      createdAt,
-      data: {
-        previousTarget: {
-          ...(browserState?.lastTitle ? { title: browserState.lastTitle } : {}),
-          url: spell(lastUrl),
-        },
-        status: "closed",
-      },
-      messageId,
-      sessionId,
-    });
+    return held !== null && held.length > 0
+      ? createPart({
+          createdAt,
+          data: { status: "tabs", tabs: held },
+          messageId,
+          sessionId,
+        })
+      : undefined;
   } catch (error) {
     getWorkspaceConfig().captureException(error);
     return undefined;
@@ -167,7 +69,7 @@ function createPart({
 
 /**
  * The tabs of its chat a task holds, open ones only, as the task names them;
- * null for a task that holds none, whose browser is a guest of its own. Where
+ * null for a task that holds none yet. Where
  * there is no window (the eval harness) a task browses in a browser of its
  * own whatever it holds, so there is nothing true to tell it.
  */
@@ -180,7 +82,7 @@ async function heldTabsStatus(
 > {
   const { browser } = getWorkspaceConfig();
   const state = await getTaskState(taskDir(taskId));
-  const heldTabs = state.browserTabs ?? [];
+  const heldTabs = state.browserTabs;
   if (heldTabs.length === 0 || browser.hasNoWindow) {
     return null;
   }

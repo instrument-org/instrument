@@ -17,16 +17,16 @@ It reads the skill from `~/.claude/skills/wireframe`, or from `WIREFRAME_SKILL_D
 
 ```js
 const META = {
-  title: "Thread pages: live tile column", // surface, then what this take tries
-  line: "What is proposed and what the frames settle, in one line.",
-  source: "What the frames are drawn against, and what was invented.",
+  title: "Thread pages: live tile column", // the surface, a colon, then what this version tries
+  line: "What we're proposing, and what these frames should help decide.",
+  source: "What we drew from, and what we made up.",
   slotH: 320, // optional: the tile height in the grid
 };
 
 const states = [
   {
-    title: "A press opens the pane",
-    note: "What this frame proves, not what it shows.",
+    title: "Pane open",
+    note: "We open a tile in the pane when you press it, so you can watch the agent work without leaving the chat.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
       body:
@@ -52,6 +52,7 @@ const states = [
 | `rail(on, { mark, user })`                                                               | The 76px rail: New (feather), Chat, Files, Browser, Apps, and Settings or the signed-in avatar                                                                                                                                                                                |
 | `noChatOpen()`                                                                           | What Chat shows beside the inbox with nothing open. There is no Home page                                                                                                                                                                                                     |
 | `inboxCol({ on, w, rows, waiting })`, `row(r, { on })`                                   | The 320px inbox: the Chats picker, Starred, Drafts, All, search, and hairline-divided rows; `on: -1` opens none                                                                                                                                                               |
+| `inboxCol({ drafts })`, `draftRow(d)`, `inboxHead({ place })`                            | The inbox standing in Drafts: that place's mark lit and named, the picker a plain Chats mark, and `drafts` (`{ title, time }`) as draft rows                                                                                                                                  |
 | `thread({ title, body, working, tiles, head, foot, reply })`                             | A chat: header (the work in flight at its right while `working` names a step), centered transcript, then its tiles and the reply box                                                                                                                                          |
 | `threadHead`, `you`, `agent`, `workLine`, `replyBox`                                     | Its pieces: the sage user bubble, the white agent bubble, the work in flight (spinner, step, +N; `compact` for the count), the "Talk to Instrument" pill                                                                                                                      |
 | `fileRow(key)`, `pageRow(site)`                                                          | A file or page the agent linked, in the transcript                                                                                                                                                                                                                            |
@@ -117,11 +118,11 @@ When the product moves, measure it again rather than trusting this file: boot a 
 
 ## Naming a page
 
-The `wireframe` skill sets the rule: the surface, a colon, then what this take tries, with the claim in the line under it. The surfaces, in the words to use:
+The `wireframe` skill sets the rules. A page is named for the surface, a colon, then what this version tries. Each frame is named like an artboard, with the screen's name in a word or two, and its note says in one first-person sentence what we're doing there and why. When a frame shows Studio as it ships today, add _(Current design)_ to its title, as in _Welcome (Current design)_. Use these names for the surfaces:
 
 Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Onboarding, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
 
-A page about how two surfaces share the screen names the pair (_Page and chat: chat as corner picture_). Takes on one question share the surface so they sort together: _Chat tiles: dock over reply box_, _Chat tiles: dock under reply box_.
+A page about how two surfaces share the screen names both of them (_Page and chat: chat as corner picture_). Versions that answer the same question start with the same surface, so they sort together: _Chat tiles: dock over reply box_, _Chat tiles: dock under reply box_.
 
 ## Where the files go
 

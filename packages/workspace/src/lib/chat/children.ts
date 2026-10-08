@@ -4,7 +4,7 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
 import { type TaskDir } from "../../schemas/paths";
-import { type Task } from "../../schemas/task";
+import { type TaskInChat } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasksIn } from "../get-tasks";
 import { chatTaskDirs, chatTaskIds } from "../record-folders";
@@ -32,13 +32,14 @@ export async function childTaskMounts(
 export async function listChildTasks(
   chatId: ChatId,
   which: (id: TaskId) => boolean = () => true,
-): Promise<Task[]> {
-  return getTasksIn(
+): Promise<TaskInChat[]> {
+  const tasks = await getTasksIn(
     chatTaskIds(chatId)
       .filter((id) => which(id))
       .map((id) => taskDir(id)),
     { direction: "desc", sortBy: "updatedAt" },
   );
+  return tasks.filter((task): task is TaskInChat => !task.isChat);
 }
 
 /**

@@ -59,7 +59,7 @@ export async function fetchModel({
     const model = models.find((m) => m.uri === modelURI);
     if (!model) {
       return Result.error(
-        new TypedError.NotFound(`Model ${modelURI} not found`),
+        new TypedError.NotListed(`Model ${modelURI} not found`),
       );
     }
 

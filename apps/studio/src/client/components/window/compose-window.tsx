@@ -263,7 +263,7 @@ export function ComposeWindow({
   // What was marked in files and moved here, as pills that go with the words.
   const marked = useComposerAsks({ draftId: draft.id, kind: "draft" });
   const { moveTo: moveAsks } = useStagedAskActions();
-  const up = windowTabs.tabUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
   const isExpanded = placement === "expanded";
   // What the window has in view, and the thing the draft was opened over,
   // while it is still there to point at, wherever its tab stands now.

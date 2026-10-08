@@ -1,6 +1,7 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { SettingsSection } from "@/client/components/settings/general-section";
+import { StateArrival } from "@/client/components/state-arrival";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
@@ -32,7 +33,7 @@ type Status = RPCOutput["billing"]["status"];
  * Settings > Usage and billing: the plan and how it is paid first, then how
  * much of it is used, as percentages and reset times. Changing the plan opens
  * the plan sheet; the card, invoices, and canceling are Stripe's portal.
- * Signing in with ChatGPT is a provider, so it lives in Providers, not here.
+ * A ChatGPT or Claude account is a provider, so it lives in Providers, not here.
  */
 export function UsageAndBillingSection() {
   const {
@@ -48,7 +49,7 @@ export function UsageAndBillingSection() {
       <SettingsSection title="Plan">
         <Card className="gap-0 p-0">
           <Row
-            detail={`Sign in to use ${APP_NAME}'s AI. Your own key and ChatGPT work without an account.`}
+            detail={`Sign in to use ${APP_NAME}'s AI. Your ChatGPT or Claude account, or your own key, works without signing in.`}
             title="Not signed in"
           >
             <Button
@@ -101,7 +102,17 @@ export function UsageAndBillingSection() {
 
   return (
     <div className="space-y-4">
-      <PlanGroup status={status} />
+      {/* The plan settles in when a change made in Stripe's portal or
+          Checkout lands as the window takes focus. */}
+      <StateArrival
+        state={[
+          status.plan,
+          status.subscription?.status,
+          subscriptionEndsAt(status)?.toISOString(),
+        ].join(" ")}
+      >
+        <PlanGroup status={status} />
+      </StateArrival>
       <UsageGroup status={status} />
     </div>
   );
@@ -252,7 +263,7 @@ function PlanGroup({ status }: { status: Status }) {
               ? trialEndsAt
                 ? `Ends ${describeDay(trialEndsAt)}`
                 : `Starts with your first message to ${APP_NAME}'s AI${days ? ` and runs ${days} days` : ""}.`
-              : `${APP_NAME}'s models need a plan. Your own key and ChatGPT work without one.`
+              : `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`
           }
           title={isTrial ? "Free trial" : "No plan"}
         >

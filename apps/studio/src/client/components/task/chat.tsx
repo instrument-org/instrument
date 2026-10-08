@@ -11,7 +11,7 @@ import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -333,7 +333,7 @@ export function TaskChat({
           appWindow.openScreen(APPS_HREF, { ownTab: true });
         },
         onOpenComputer: () => {
-          appWindow.openScreen(instrumentFolderHref(), { ownTab: true });
+          appWindow.openScreen(outputFolderHref(), { ownTab: true });
         },
         onOpenWeb: () => {
           appWindow.openScreen(BROWSER_HREF, { ownTab: true });

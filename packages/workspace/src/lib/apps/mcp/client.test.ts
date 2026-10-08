@@ -4,11 +4,12 @@ import http from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { getWorkspaceServerPort } from "../../../logic/server/url";
 import { callMcpTool, listMcpTools, withMcpClient } from "./client";
 
-// Only the private-address case below reaches a resolver -- every other case
-// here talks to a loopback server, which the guard answers without a lookup --
-// but it is mocked so the suite never depends on the network.
+// Only the workspace-server case below reaches a resolver -- every other case
+// here is on a port the guard answers without a lookup -- but it is mocked so
+// the suite never depends on the network.
 vi.mock("node:dns/promises", () => ({
   default: { lookup: vi.fn() },
 }));
@@ -132,21 +133,24 @@ describe("withMcpClient", () => {
   });
 
   // The agent writes the manifest, so an mcp app must not be the softer
-  // way to reach a private address than an api one.
-  it("rejects an https URL whose hostname resolves to a private address", async () => {
+  // way to reach the workspace server than an api one.
+  it("rejects an https URL whose hostname resolves to the workspace server", async () => {
     // @ts-expect-error -- the `all: true` overload is one of several on lookup.
     vi.mocked(dns.lookup).mockResolvedValue([
-      { address: "169.254.169.254", family: 4 },
+      { address: "127.0.0.1", family: 4 },
     ]);
 
     const result = await withMcpClient({
-      config: { auth: { kind: "none" }, url: "https://metadata.example/mcp" },
+      config: {
+        auth: { kind: "none" },
+        url: `https://loopback.example:${getWorkspaceServerPort()}/mcp`,
+      },
       run: (client) => listMcpTools(client),
     });
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.reason).toBe("connect");
-    expect(error.message).toContain("private or non-public");
+    expect(error.message).toContain("workspace server");
   });
 });

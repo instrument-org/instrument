@@ -1,7 +1,8 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
-  CHATGPT_PLAN_MODEL,
+  CHATGPT_ACCOUNT_MODEL,
+  CLAUDE_ACCOUNT_MODEL,
   file,
   folder,
   OUR_MODEL,
@@ -1494,8 +1495,8 @@ done`,
     ],
   },
   {
-    id: "chatgpt-plan-errors",
-    name: "ChatGPT plan refusals",
+    id: "chatgpt-account-errors",
+    name: "ChatGPT account refusals",
     script: [
       user("Summarize this thread for me."),
       // Recorded after the app was disconnected in ChatGPT's settings.
@@ -1517,9 +1518,9 @@ done`,
             status: 401,
           }),
           statusCode: 401,
-          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-account/responses",
         },
-        CHATGPT_PLAN_MODEL,
+        CHATGPT_ACCOUNT_MODEL,
       ),
       user("Try that again."),
       // Recorded with the app switched off in ChatGPT's usage settings.
@@ -1542,9 +1543,35 @@ done`,
             type: "error",
           }),
           statusCode: 400,
-          url: "http://localhost:48300/ai-gateway/providers/chatgpt-plan/responses",
+          url: "http://localhost:48300/ai-gateway/providers/chatgpt-account/responses",
         },
-        CHATGPT_PLAN_MODEL,
+        CHATGPT_ACCOUNT_MODEL,
+      ),
+    ],
+  },
+  {
+    id: "claude-account-errors",
+    name: "Claude account refusals",
+    script: [
+      user("Summarize this thread for me."),
+      // Shaped as the Claude account's model reports a spent subscription:
+      // the CLI's own sentence, under our usage-limit code.
+      fail(
+        {
+          classification: "usage-limit",
+          kind: "api-call",
+          message: "You've hit your limit · resets 1:50pm",
+          name: "AI_APICallError",
+          responseBody: JSON.stringify({
+            error: {
+              message: "You've hit your limit · resets 1:50pm",
+              type: "claude_account_usage_limit_exceeded",
+            },
+          }),
+          statusCode: 429,
+          url: "claude-account://",
+        },
+        CLAUDE_ACCOUNT_MODEL,
       ),
     ],
   },

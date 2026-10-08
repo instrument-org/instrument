@@ -47,11 +47,11 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId?: string) {
+async function make(id: string, chatId: string) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
-      ...(chatId ? { chatId: ChatIdSchema.parse(chatId) } : {}),
+      chatId: ChatIdSchema.parse(chatId),
       initialSettings: { name: id },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
@@ -67,7 +67,7 @@ describe("trashChat", () => {
     const chat = chatFor();
     await make("2026-09-24-first-task", chat);
     await make("2026-09-24-second-task", chat);
-    const other = await make("2026-09-24-not-this-chats");
+    const other = await make("2026-09-24-not-this-chats", chatFor());
 
     const result = await trashChat({
       id: chat,

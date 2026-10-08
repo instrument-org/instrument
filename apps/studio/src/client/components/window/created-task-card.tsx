@@ -25,7 +25,8 @@ import { useTaskStatus } from "./task-working";
  * click puts it in a tab of its own; the way out shows on hover where a tool
  * row keeps its chevron. A task held from starting says what it waits on, in
  * the warning tone, until it starts. While the task works or waits, a stop
- * follows the row.
+ * follows the row. In a chat it draws only in developer mode, since a chat
+ * shows the user none of its tool calls; the chat's header carries the step.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const appWindow = useWindow();

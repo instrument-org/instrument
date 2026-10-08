@@ -1,4 +1,4 @@
-import { isEqual } from "radashi";
+import { isEqual, omit } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -117,13 +117,20 @@ export async function createMemoryPart({
   }
 }
 
-/** Marks what memory holds as told to this session. */
+/**
+ * Marks one memory as told to this session, after the session's own command
+ * saved, corrected, or forgot it. Only that name: a change another chat or
+ * the user made in the meantime is still news, and the next note carries it.
+ */
 export async function recordMemoryReported({
-  memories,
+  memory,
+  name,
   sessionId,
   taskId,
 }: {
-  memories: Memory[];
+  /** What the name holds now, or nothing once it is forgotten. */
+  memory: Memory | undefined;
+  name: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<void> {
@@ -131,12 +138,37 @@ export async function recordMemoryReported({
   if (storage.isErr()) {
     return;
   }
-  await setParsedStorageItem(
+  const reported = await getParsedStorageItem(
     StorageKey.memoryReported(sessionId),
-    memoryDigests(memories),
     ToldSchema,
     storage.value,
   );
+  const told = omit(reported.isOk() ? reported.value : {}, [name]);
+  await setParsedStorageItem(
+    StorageKey.memoryReported(sessionId),
+    memory ? { ...told, ...memoryDigests([memory]) } : told,
+    ToldSchema,
+    storage.value,
+  );
+}
+
+/**
+ * Marks this session as told nothing, so its next message carries the whole
+ * of memory again. For a session whose history was cut at a rollover: the
+ * note that told it the whole sat on a message it no longer sends.
+ */
+export async function resetMemoryReported({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}): Promise<void> {
+  const storage = await getSessionsStoreStorage(taskId);
+  if (storage.isErr()) {
+    return;
+  }
+  await storage.value.removeItem(StorageKey.memoryReported(sessionId));
 }
 
 function noteRow(memory: Memory) {

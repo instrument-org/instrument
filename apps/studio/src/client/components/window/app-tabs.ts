@@ -23,7 +23,7 @@ import {
   type TabsModel,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
@@ -268,7 +268,7 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return chat ? `${CHATS_HREF}/${chat}` : INBOX_HREF;
     }
     case "files": {
-      return instrumentFolderHref();
+      return outputFolderHref();
     }
   }
 }

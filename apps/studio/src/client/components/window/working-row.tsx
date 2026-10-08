@@ -5,8 +5,8 @@ import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
  * or its agent is between steps, and the next thing to land here is theirs.
  * Drawn at the transcript's tail where the reply will arrive, as the agent's
  * breathing dot and a line saying so, rather than as a bubble, since a bubble
- * is a reply and this is the promise of one. The line over the composer says
- * which task and what step; this says only that the wait is a live one.
+ * is a reply and this is the promise of one. The chat's header says which
+ * task and what step; this says only that the wait is a live one.
  */
 export function WorkingRow() {
   return (

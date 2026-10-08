@@ -83,7 +83,7 @@ describe("ReadFile", () => {
         return AbortSignal.timeout(30_000);
       },
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     };
 
     it("should list files when given a directory path", async () => {
@@ -899,7 +899,7 @@ describe("ReadFile", () => {
             explanation: "read",
             filePath: "/mnt/Test Folder/grep-test.txt",
           },
-          taskState: { attachedFolders },
+          taskState: { attachedFolders, browserTabs: [] },
         })
       )._unsafeUnwrap();
 
@@ -968,7 +968,7 @@ describe("ReadFile", () => {
             explanation: "read",
             filePath: path.join(fixturesPath, "grep-test.txt"),
           },
-          taskState: { attachedFolders },
+          taskState: { attachedFolders, browserTabs: [] },
         })
       )._unsafeUnwrapErr();
 
@@ -1009,7 +1009,7 @@ describe("ReadFile Unicode path fallbacks", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         taskId: tmpTaskConfig,
-        taskState: {},
+        taskState: { browserTabs: [] },
       })
     )._unsafeUnwrap();
 

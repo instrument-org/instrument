@@ -22,7 +22,7 @@ export function useTaskTitles(): Map<TaskId, string> {
     }
   }
   for (const tab of windowTabs.tabs) {
-    const task = tab.kind === "page" ? tab.taskId : tasksOfHref(tab.href)?.task;
+    const task = tab.kind === "page" ? undefined : tasksOfHref(tab.href)?.task;
     if (task) {
       ids.add(task);
     }

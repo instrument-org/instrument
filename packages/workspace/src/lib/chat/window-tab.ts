@@ -159,7 +159,7 @@ export async function tabHolders(
       continue;
     }
     const state = await getTaskState(taskDir(task.id));
-    for (const held of state.browserTabs ?? []) {
+    for (const held of state.browserTabs) {
       const decoded = decodeBrowserTargetId(held.id);
       if (decoded) {
         holders.set(decoded.sessionId, { id: task.id, title: task.title });

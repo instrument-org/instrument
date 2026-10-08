@@ -109,7 +109,7 @@ export function EditTopicDialog({
       <TopicForm
         action="Save"
         deleting={{ name: topic.name, onDelete }}
-        description="Changes apply to every chat filed under it."
+        description="Changes apply to every chat filed under this topic."
         initial={{
           color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
           emoji: topic.emoji ?? "",
@@ -173,7 +173,7 @@ export function NewTopicDialog({
       <TopicForm
         action="Create"
         candidates={candidates}
-        description="File chats under it to find them later."
+        description="Filing chats under a topic makes them easier to find later."
         // Seeded from how many topics there already are, so opening the
         // dialog twice in a row offers two different marks without the
         // render being random.
@@ -337,7 +337,8 @@ function DeleteTopicButton({
         <AlertDialogHeader>
           <AlertDialogTitle>{`Delete “${name}”?`}</AlertDialogTitle>
           <AlertDialogDescription>
-            Chats filed under it keep everything; they lose the tag.
+            Your chats will stay. They just won’t be filed under “{name}”
+            anymore.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

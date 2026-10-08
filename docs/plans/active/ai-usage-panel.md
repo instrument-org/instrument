@@ -56,7 +56,7 @@ Untouched: `task.db` and its schema, how messages are saved, the agent machines,
 Each provider type answers in one of a few shapes, and the recorder needs one reader per shape, each for both a streamed (SSE) and a whole JSON response:
 
 - **Chat Completions** (OpenRouter's chat path and the OpenAI-compatible providers): `usage` on the last chunk, sent in a stream only when the request asked for it (`stream_options.include_usage`).
-- **Responses** (OpenAI, the first-party and OpenRouter paths for OpenAI models, the ChatGPT plan): `response.usage` on `response.completed`.
+- **Responses** (OpenAI, the first-party and OpenRouter paths for OpenAI models, the ChatGPT account): `response.usage` on `response.completed`.
 - **Anthropic Messages**: input on `message_start`, output on `message_delta`.
 - **Gemini**: `usageMetadata` on the chunks.
 - **Decision model** (`/systemone`) and **images**: read their bodies to see what they carry; tokens may simply be absent.
@@ -69,7 +69,7 @@ A response a reader does not understand still produces a row, with its tokens ab
 2. **The purpose header must not reach a provider.** Removing it sits beside the existing `x-client-session-id` handling, with a test that a third-party request never carries it.
 3. **Recording is best effort.** No reader error or database failure may throw into the response or delay it. Parsing keeps a small line buffer across chunks and does no work on chunks that cannot contain usage; the row is written once, after the stream ends.
 4. **Streams that omit usage.** OpenAI-compatible providers report stream usage only when asked. Whether the proxy or the SDK configuration starts asking is decided per provider during the build, since it changes what we send; until then those rows show tokens as not reported.
-5. **The ChatGPT plan path rewrites the stream** (`collapseResponsesStream` for a request that did not ask to stream), so the recorder wraps the response after that rewrite, not before.
+5. **The ChatGPT account path rewrites the stream** (`collapseResponsesStream` for a request that did not ask to stream), so the recorder wraps the response after that rewrite, not before.
 6. **Write cost.** One small insert per request after its stream ends, on the workspace server's thread. Negligible against a model request, but the store must open lazily and never block a request on a slow or locked file.
 
 ## Out of scope
@@ -84,4 +84,4 @@ A response a reader does not understand still produces a row, with its tokens ab
 
 - Unit tests per usage reader against recorded streams of each shape, including a stream cut off mid-way.
 - The cancel test from risk 1 and the header test from risk 2.
-- In the running app, one request of each purpose against the first-party provider, an OpenRouter key, a direct Anthropic or OpenAI key, and the ChatGPT plan, then read the panel: each row present, correctly tagged, with the served model where a router chose one.
+- In the running app, one request of each purpose against the first-party provider, an OpenRouter key, a direct Anthropic or OpenAI key, and the ChatGPT account, then read the panel: each row present, correctly tagged, with the served model where a router chose one.

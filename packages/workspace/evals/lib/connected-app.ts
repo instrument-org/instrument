@@ -5,9 +5,15 @@ import path from "node:path";
 import { loadApp } from "../../src/lib/apps/store";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type WorkspaceAppsConfig } from "../../src/types";
+import { startMcpTracker } from "./mcp-tracker";
 
 /** A connected app a case wants to exist before it runs. */
 export interface AppFixture {
+  /**
+   * `api` (the default) serves the small REST tracker below; `mcp` serves
+   * the larger issue tracker in `mcp-tracker.ts` over MCP.
+   */
+  kind?: "api" | "mcp";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   slug: string;
@@ -32,7 +38,33 @@ export async function seedConnectedApps(
   { apps, appsDir }: { apps: WorkspaceAppsConfig; appsDir: string },
 ): Promise<{ close: () => Promise<void> }> {
   const servers: http.Server[] = [];
+  const closers: (() => Promise<void>)[] = [];
   for (const fixture of fixtures) {
+    const dir = path.join(appsDir, fixture.slug);
+    await fs.mkdir(dir, { recursive: true });
+    if (fixture.kind === "mcp") {
+      const tracker = await startMcpTracker();
+      closers.push(tracker.close);
+      await fs.writeFile(
+        path.join(dir, "app.json"),
+        `${JSON.stringify(
+          {
+            auth: { kind: "none" },
+            name: fixture.name,
+            type: "mcp",
+            url: tracker.url,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      await fs.writeFile(
+        path.join(dir, "guide.md"),
+        `# ${fixture.name}\n\n${fixture.name} tracks the team's issues.\n`,
+      );
+      await recordConnected(fixture.slug, { apps, appsDir });
+      continue;
+    }
     const server = http.createServer((request, response) => {
       const body = respondTo(request.method ?? "GET", request.url ?? "/");
       response.writeHead(body === undefined ? 404 : 200, {
@@ -49,8 +81,6 @@ export async function seedConnectedApps(
       throw new Error(`${fixture.slug}: the fixture server has no port`);
     }
 
-    const dir = path.join(appsDir, fixture.slug);
-    await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, "app.json"),
       `${JSON.stringify(
@@ -81,26 +111,14 @@ export async function seedConnectedApps(
       ].join("\n"),
     );
 
-    // Through the loader, so the hash the connection records is the one the
-    // connection check will compute.
-    const loaded = await loadApp(
-      AbsolutePathSchema.parse(appsDir),
-      fixture.slug,
-    );
-    if (loaded.isErr()) {
-      throw new Error(`${fixture.slug}: ${loaded.error.message}`);
-    }
-    await apps.connections.set(fixture.slug, {
-      manifestHash: loaded.value.manifestHash,
-      status: "connected",
-      updatedAt: Date.now(),
-    });
+    await recordConnected(fixture.slug, { apps, appsDir });
   }
 
   return {
     close: async () => {
-      await Promise.all(
-        servers.map(
+      await Promise.all([
+        ...closers.map((close) => close()),
+        ...servers.map(
           (server) =>
             new Promise<void>((resolve) => {
               server.close(() => {
@@ -108,9 +126,28 @@ export async function seedConnectedApps(
               });
             }),
         ),
-      );
+      ]);
     },
   };
+}
+
+/**
+ * Puts the app's connection on record. Through the loader, so the hash the
+ * connection records is the one the connection check will compute.
+ */
+async function recordConnected(
+  slug: string,
+  { apps, appsDir }: { apps: WorkspaceAppsConfig; appsDir: string },
+) {
+  const loaded = await loadApp(AbsolutePathSchema.parse(appsDir), slug);
+  if (loaded.isErr()) {
+    throw new Error(`${slug}: ${loaded.error.message}`);
+  }
+  await apps.connections.set(slug, {
+    manifestHash: loaded.value.manifestHash,
+    status: "connected",
+    updatedAt: Date.now(),
+  });
 }
 
 const ISSUES = [

@@ -56,6 +56,25 @@ describe("listingCommandOf", () => {
     expect(listingCommandOf(press("⌘a"), false)).toBeNull();
     expect(listingCommandOf(press("⌃a"), true)).toBeNull();
   });
+
+  it.each([
+    // The Finder's Move to Trash, and only that.
+    [true, "⌘Backspace", { type: "trash" }],
+    [true, "Backspace", null],
+    [true, "Delete", null],
+    [true, "⌘Delete", null],
+    [true, "⌥⌘Backspace", null],
+    [true, "⌃Backspace", null],
+    // Explorer's and the Linux file managers' Delete; Shift+Delete skips the
+    // bin, which nothing here does.
+    [false, "Delete", { type: "trash" }],
+    [false, "⇧Delete", null],
+    [false, "⌃Delete", null],
+    [false, "Backspace", null],
+    [false, "⌃Backspace", null],
+  ])("reads the trash key (Mac: %s) from %s", (isMac, chord, command) => {
+    expect(listingCommandOf(press(chord), isMac)).toEqual(command);
+  });
 });
 
 describe("typeAhead", () => {

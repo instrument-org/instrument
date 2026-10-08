@@ -2,7 +2,7 @@ import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -188,7 +188,7 @@ export function ChatWindow({
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
-  const up = windowTabs.tabUpIn(chatId);
+  const up = windowTabs.selectedTabIn(chatId);
   const isExpanded = placement === "expanded";
   // Whether the thing up is drawn large; only a grown window has the room.
   const [isViewOpen, setViewOpen] = useState(false);
@@ -375,7 +375,7 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(instrumentFolderHref());
+          openHere(outputFolderHref());
         }}
         onAddWeb={() => {
           openHere(BROWSER_HREF);
@@ -395,10 +395,7 @@ export function ChatWindow({
         }}
         tabs={tabs}
         targetOf={(tab) =>
-          encodeBrowserTargetId(
-            tab.taskId ?? WINDOW_ID,
-            StoreId.SessionSchema.parse(tab.id),
-          )
+          encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
         }
         taskTitles={taskTitles}
       />

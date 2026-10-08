@@ -161,13 +161,20 @@ describe("sendCommand", () => {
       ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.printToPDF",
-      params: { landscape: true, printBackground: false },
+      // What agent-browser's CLI sends on every print.
+      params: {
+        landscape: true,
+        preferCSSPageSize: false,
+        printBackground: false,
+      },
       targetId: TARGET_ID,
     });
 
     expect(printToPDF).toHaveBeenCalledWith({
+      generateDocumentOutline: true,
+      generateTaggedPDF: true,
       landscape: true,
-      preferCSSPageSize: false,
+      preferCSSPageSize: true,
       printBackground: false,
     });
     expect(result).toEqual({

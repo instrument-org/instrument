@@ -379,6 +379,7 @@ export const workspaceMachine = setup({
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       preparedSkillsDir: string;
+      refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
       reportPlatformRefusal?: WorkspaceConfig["reportPlatformRefusal"];
       rootDir: string;
@@ -417,6 +418,9 @@ export const workspaceMachine = setup({
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
+      ...(input.refreshExpiredCredentials
+        ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
+        : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       ...(input.reportPlatformRefusal && {
         reportPlatformRefusal: input.reportPlatformRefusal,
@@ -428,7 +432,9 @@ export const workspaceMachine = setup({
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined
         ? {}
-        : { macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath) }),
+        : {
+            macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
+          }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };

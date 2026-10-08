@@ -43,7 +43,7 @@ const dismissedUsageWarningAtom = keptAtom<null | string>(
  * was reached, a payment failed, a plan is needed), turning into Continue
  * once the reason has gone; otherwise the quiet line at 80% of the trial or
  * of a window. The reply box stays usable throughout, for a model on the
- * person's own key or ChatGPT plan.
+ * person's own key or ChatGPT or Claude account.
  */
 export function ChatBillingNotice({
   isAgentRunning,

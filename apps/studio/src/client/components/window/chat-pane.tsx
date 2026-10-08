@@ -39,6 +39,7 @@ import { backfillCandidates } from "./use-topic-backfill";
 export function ChatPane({
   arrivedId,
   drafts,
+  onArchiveOpen,
   onDeleteDraft,
   onListed,
   onOpenChat,
@@ -49,6 +50,8 @@ export function ChatPane({
   arrivedId?: string;
   /** Every draft not yet started, for the Drafts place and its count. */
   drafts: Draft[];
+  /** Told when the open chat is archived from its row, so the window can put the chat away with it. */
+  onArchiveOpen?: () => void;
   /** Deletes a draft outright; the caller says so and offers it back. */
   onDeleteDraft: (id: string) => void;
   /** Told the chats the list shows, in its order, whenever that changes: what a chord steps through. */
@@ -209,6 +212,7 @@ export function ChatPane({
         // The drafts are kept on this computer, so they are never on
         // their way.
         isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
+        onArchiveOpen={onArchiveOpen}
         onDeleteDraft={onDeleteDraft}
         onNewTopic={(chat, name) => {
           setNewTopic({ forChat: chat, ...(name ? { name } : {}) });

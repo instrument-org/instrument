@@ -35,6 +35,7 @@ const ListedChat = memo(function ListedChat({
   appsBySlug: AppsBySlug;
   chat: Chat;
   handlers: RefObject<{
+    onArchived: (chat: Chat) => void;
     onNewTopic: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
     onSetTopics: (chat: Chat, topics: string[]) => void;
@@ -47,7 +48,17 @@ const ListedChat = memo(function ListedChat({
   return (
     <ChatRow
       {...row}
-      actions={actionsFor(chat)}
+      actions={actionsFor(chat).map((action) =>
+        action.id === "archive"
+          ? {
+              ...action,
+              run: () => {
+                action.run();
+                handlers.current.onArchived(chat);
+              },
+            }
+          : action,
+      )}
       chat={chat}
       onNewTopic={(name) => {
         handlers.current.onNewTopic(chat, name);
@@ -98,6 +109,7 @@ export function ChatList({
   drafts,
   emptyLine,
   isLoading,
+  onArchiveOpen,
   onDeleteDraft,
   onNewTopic,
   onOpen,
@@ -119,6 +131,8 @@ export function ChatList({
   emptyLine: string;
   /** Whether the chats are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
+  /** Told when the open chat's row archives it, so the window can put the chat away with it. */
+  onArchiveOpen?: () => void;
   onDeleteDraft: (id: string) => void;
   /** Opens the new-topic dialog for a chat: the topic it makes is filed on that chat. */
   onNewTopic: (chat: Chat, name?: string) => void;
@@ -142,9 +156,14 @@ export function ChatList({
   // the list is handed are new whenever the window re-renders, and a row
   // handed a new one would render again with every other row each time a
   // chat is opened.
-  const handlers = useRef({ onNewTopic, onOpen, onSetTopics });
+  const onArchived = (chat: Chat) => {
+    if (chat.id === openId) {
+      onArchiveOpen?.();
+    }
+  };
+  const handlers = useRef({ onArchived, onNewTopic, onOpen, onSetTopics });
   useLayoutEffect(() => {
-    handlers.current = { onNewTopic, onOpen, onSetTopics };
+    handlers.current = { onArchived, onNewTopic, onOpen, onSetTopics };
   });
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });

@@ -53,7 +53,7 @@ describe("bash background processes, end to end", () => {
       sessionId,
       signal: new AbortController().signal,
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     };
   }
 

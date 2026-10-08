@@ -12,7 +12,7 @@ export function ModelPreview({ id }: { id: TaskId }) {
   );
 
   const { data: modelsResponse } = useQuery(
-    rpcClient.gateway.models.list.queryOptions(),
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
 
   if (!taskState?.selectedModelURI) {

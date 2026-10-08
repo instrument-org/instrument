@@ -14,7 +14,11 @@ export namespace AIGatewayProviderConfig {
     ),
     baseURL: z.string().optional(),
     cacheIdentifier: z.string(),
+    /** The config folder a provider that runs through a CLI points it at. */
+    configDir: z.string().optional(),
     displayName: z.string().optional(),
+    /** The CLI a provider that runs through one is driven by. */
+    executablePath: z.string().optional(),
     id: AIProviderConfigIdSchema,
     type: AIProviderTypeSchema,
   });

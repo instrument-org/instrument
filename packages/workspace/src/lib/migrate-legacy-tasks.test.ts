@@ -391,9 +391,7 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(windowSeen()[chat]).toBe(
-      messageIds(chat).at(-1),
-    );
+    expect(windowSeen()[chat]).toBe(messageIds(chat).at(-1));
   });
 
   it("writes the window's state when there is none, so the marks have a home", () => {

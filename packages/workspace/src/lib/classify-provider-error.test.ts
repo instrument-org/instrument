@@ -37,7 +37,7 @@ const cases: {
     name: "an error the SDK did not raise",
   },
   {
-    // Recorded from a ChatGPT plan with the app switched off in ChatGPT's
+    // Recorded from a ChatGPT account with the app switched off in ChatGPT's
     // usage settings: the stream opened, then carried this, and the SDK
     // raised it under a 400.
     error: apiCallError({
@@ -48,7 +48,7 @@ const cases: {
       statusCode: 400,
     }),
     expected: { evidence: "structured", kind: "usage-limit" },
-    name: "a ChatGPT plan's usage limit inside a stream",
+    name: "a ChatGPT account's usage limit inside a stream",
   },
   // Our own platform's refusals, as its gateway sends them (apps/api in the
   // internal repo, `TypedError`).
@@ -424,6 +424,37 @@ describe("classifyProviderError, on a connection that failed", () => {
     expect(
       classifyProviderError(
         new TypeError("Cannot read properties of undefined"),
+      ),
+    ).toEqual({ evidence: "none", kind: "unknown" });
+  });
+});
+
+// The provider's catalog was read and the model was not on it, which a ChatGPT
+// plan has been seen doing for a few seconds at a time. Any other lookup miss
+// is ours to fix and stays unknown.
+describe("classifyProviderError, on a model lookup that missed", () => {
+  function gatewayError(type: string) {
+    return Object.assign(new Error("Model openai/gpt-6.1-sol not found"), {
+      type,
+    });
+  }
+
+  it("retries a model the catalog left out, through the turn's wrapper", () => {
+    expect(
+      classifyProviderError(
+        new Error("Failed to fetch AI SDK model", {
+          cause: gatewayError("gateway-not-listed-error"),
+        }),
+      ),
+    ).toEqual({ evidence: "structured", kind: "transient" });
+  });
+
+  it("leaves a missing provider config alone", () => {
+    expect(
+      classifyProviderError(
+        new Error("Failed to fetch AI SDK model", {
+          cause: gatewayError("gateway-not-found-error"),
+        }),
       ),
     ).toEqual({ evidence: "none", kind: "unknown" });
   });

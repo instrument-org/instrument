@@ -595,7 +595,7 @@ function reportNotes(notes: ReplayNotes) {
     });
   }
   if (notes.byPosition > 0) {
-    toast.message("Placed your edits by position", {
+    toast.message("Your edits were matched by row and column", {
       description:
         "The agent changed the rows or columns you edited, so your edits were matched by row number and column name.",
     });

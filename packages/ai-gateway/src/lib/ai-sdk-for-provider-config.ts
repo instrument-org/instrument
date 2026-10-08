@@ -72,6 +72,10 @@ export async function aiSDKForProviderConfig(
       const { createGroq } = await import("@ai-sdk/groq");
       return createGroq({ apiKey, baseURL });
     }
+    case "@ai-sdk/minimax": {
+      const { createMiniMax } = await import("@ai-sdk/minimax");
+      return createMiniMax({ apiKey, baseURL });
+    }
     case "@ai-sdk/mistral": {
       const { createMistral } = await import("@ai-sdk/mistral");
       return createMistral({ apiKey, baseURL });

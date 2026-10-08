@@ -20,6 +20,7 @@ type BundledProviderPackage =
   | "@ai-sdk/gateway"
   | "@ai-sdk/google"
   | "@ai-sdk/groq"
+  | "@ai-sdk/minimax"
   | "@ai-sdk/mistral"
   | "@ai-sdk/openai"
   | "@ai-sdk/openai-compatible"
@@ -95,6 +96,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     },
     exportName: "createGroq",
     package: "@ai-sdk/groq",
+  },
+  minimax: {
+    envVars: {
+      apiKey: "MINIMAX_API_KEY",
+      baseURL: "MINIMAX_BASE_URL",
+    },
+    exportName: "createMiniMax",
+    package: "@ai-sdk/minimax",
   },
   mistral: {
     envVars: {

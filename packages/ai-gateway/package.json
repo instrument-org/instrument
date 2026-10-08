@@ -32,6 +32,7 @@
     "@ai-sdk/gateway": "^4.0.94",
     "@ai-sdk/google": "^4.0.82",
     "@ai-sdk/groq": "^4.0.50",
+    "@ai-sdk/minimax": "^3.0.42",
     "@ai-sdk/mistral": "^4.0.52",
     "@ai-sdk/openai": "^4.0.78",
     "@ai-sdk/openai-compatible": "^3.0.57",

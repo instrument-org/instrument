@@ -28,17 +28,17 @@ const states = [
     title: "Pane open",
     note: "We open a tile in the pane when you press it, so you can watch the agent work without leaving the chat.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0 }) +
         thread({
-          working: "Checking fares on flytap.com",
+          working: "Reading plans on zendesk.com",
           tiles: chatTiles(
-            [{ site: "tap", agent: true }, { file: "itinerary" }],
+            [{ site: "zendesk", agent: true }, { file: "comparison" }],
             0,
           ),
         }) +
-        paneCard({ tab: { site: "tap", agent: true } }),
+        paneCard({ tab: { site: "zendesk", agent: true } }),
     }),
   },
 ];
@@ -58,7 +58,7 @@ const states = [
 | `fileRow(key)`, `pageRow(site)`                                                          | A file or page the agent linked, in the transcript                                                                                                                                                                                                                            |
 | `chatTiles(tabs, active, { more })`, `chatTile(t, { on, icon })`                         | A chat's tiles in a row over its reply box: 96px, the picture at the tile's width from the top with its mark on a small corner badge, the name under it, the one shown large ringed, New at the end; `more` draws the paging arrows over fades, `icon` a tile with no picture |
 | `paneCard({ tab, body, w })`                                                             | The pane flush beside a chat: location row ending in the × that puts it away, and the page                                                                                                                                                                                    |
-| `locRow(tab, { close, expand })`, `page(tab)`                                            | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the Lisbon sites, the files, a fresh tab)                                                                                                                                                              |
+| `locRow(tab, { close, expand })`, `page(tab)`                                            | The back/forward/omnibar row, and a plausible body for a tab (`PAGES`: the competitors' pricing pages, the files, a fresh tab)                                                                                                                                                |
 | `placeCard({ tab, body, loc })`                                                          | Files, Browser, an app or a skill filling the card under its location row (`loc: false` for Apps)                                                                                                                                                                             |
 | `finder({ pick })`                                                                       | Files' Finder                                                                                                                                                                                                                                                                 |
 | `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)`                         | The floating chat, 420 wide at the bottom right with its tiles over its reply box; `peek` opens a tile in a card over the conversation, with Expand and ×                                                                                                                     |
@@ -67,7 +67,7 @@ const states = [
 | `replyBoxOpen({ extras, text })`, `modelProblem(text)`, `plusMenu({ left, top, model })` | The reply box opened up with a row over the words (the amber model notice leads it), and its plus menu, where the reply box offers the model                                                                                                                                  |
 | `onboardWin({ body, foot, tone })`, `onboardLogin()`, `brandMark(cls)`                   | Onboarding's own 480x600 window (brand or subtle gradient), its sign-in step as built, and the app mark                                                                                                                                                                       |
 
-A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Lisbon trip itinerary with ticket prices" (`LISBON_TITLE`, `lisbon(stage)` for its transcript); keep to it so a round's files compare. It and the other `ROWS` are invented rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
+A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans. Keep to it so a round's files compare, and keep new scenario data to work people do for a business, not errands from home. It and the other `ROWS` are invented, as are the prices on the competitors' pages, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
 
 ## Outside the window
 
@@ -106,7 +106,7 @@ The kit is meant to be edited by whoever draws with it. When a round draws a sur
 - **Draw the real window.** The template says to draw no chrome a proposal is not about; in this product the opposite holds, because a proposal is judged by how it sits in the window as it is. Start from `appWindow` and the baseline frame nearest the proposal, and crop to a part only when the frame is about one control.
 - **Draw only what the app has, unless the proposal adds it.** No Home page, no inline task cards, no invented panels or widths. Anything new is wrapped in `fresh` so it reads as the proposal, and everything else matches the baseline.
 - **Mark sparingly.** One `clickable` per frame at most, on the frame before the click, never over the content it reveals. Leave marks off a page meant for screenshots.
-- **Copy is short and real.** No taglines, tags, or explanatory blurbs inside the frame; a zero state is a line, not a paragraph. Use the Lisbon scenario's words where they fit.
+- **Copy is short and real.** No taglines, tags, or explanatory blurbs inside the frame; a zero state is a line, not a paragraph. Use the pricing scenario's words where they fit.
 - **Fewer takes when the question is narrow.** Several sibling files suit an open question; a narrow one gets one file.
 - **Stay in the kit's look.** Kit classes and tokens only; a frame that drifts into a generic component library's styling is the wrong product.
 

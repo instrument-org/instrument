@@ -7,6 +7,7 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { type FileUpload } from "../../schemas/file-upload";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
+import { TOOL_NAMES } from "../../tools/name";
 import { getMimeType } from "../get-mime-type";
 import { readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
@@ -345,11 +346,19 @@ export function parseDelay(raw: string): number | undefined {
   return delay > 0 ? Math.round(delay) : undefined;
 }
 
+/** The folder a spec names, without the access it asks for. */
+function folderOfSpec(spec: string): string {
+  const { name, subpath } = parseFolderSpec(spec);
+  return [`${MOUNT.attachedFolders}/${name}`, subpath]
+    .filter(Boolean)
+    .join("/");
+}
+
 function refusal(error: unknown, spec: string) {
   const code =
     error instanceof Error && "code" in error ? String(error.code) : "";
   return readRefusalOf(error) === "system"
-    ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
+    ? `macOS has not let ${APP_NAME} into "${spec}". Call ${TOOL_NAMES.requestFolder} with folder "${folderOfSpec(spec)}": it opens the system's own panel at that folder, a pick there lets ${APP_NAME} in for good, and the same command then works.`
     : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`;
 }
 

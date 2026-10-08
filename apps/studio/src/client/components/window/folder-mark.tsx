@@ -52,7 +52,7 @@ export function FolderMark({
     return <CloudIcon className={iconClassName} />;
   }
   const outputFolder =
-    places.data?.favorites.find((place) => place.name === "Instrument")?.path ??
+    places.data?.favorites.find((each) => each.name === "Instrument")?.path ??
     expandHomePath(OUTPUT_FOLDER, home);
   return (
     <FileSystemFolderGlyph

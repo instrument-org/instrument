@@ -33,7 +33,7 @@ export interface Metrics {
   positives?: number[];
 }
 
-export interface ShapeCase {
+interface ShapeCase {
   label: string;
   run: (model: DecisionModel) => Promise<{ asked: Asked; metrics: Metrics }>;
 }

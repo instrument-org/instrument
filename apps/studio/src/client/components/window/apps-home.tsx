@@ -383,7 +383,7 @@ function AddAppMark({ onOpen }: { onOpen: () => void }) {
       onClick={onOpen}
       type="button"
     >
-      <span className="grid size-16 place-items-center rounded-2xl border border-dashed border-border text-muted-foreground transition-colors group-hover:text-foreground">
+      <span className="grid size-16 place-items-center rounded-2xl border border-dashed border-border text-muted-foreground group-hover:text-foreground">
         <PlusIcon className="size-6" />
       </span>
       <span className="w-full truncate text-[13px] leading-4 font-medium text-muted-foreground group-hover:text-foreground">

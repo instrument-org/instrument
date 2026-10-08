@@ -51,7 +51,7 @@ export function ToolCall({
     taskId: task.id,
   });
 
-  if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
+  if (!isToolCallVisible({ isDeveloperMode, isRunning, part })) {
     return null;
   }
 

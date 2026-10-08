@@ -24,7 +24,7 @@ type Spec = {
 const connection =
   (
     config: string,
-    provider: "anthropic" | "chatgpt" | "instrument" | "openrouter",
+    provider: "anthropic" | "chatgpt-account" | "instrument" | "openrouter",
     providerName: string,
     defaultAuthor: string,
   ) =>
@@ -78,13 +78,13 @@ const anthropic = connection(
 );
 const chatgptWork = connection(
   "chatgpt-a",
-  "chatgpt",
+  "chatgpt-account",
   "me@example.com",
   "openai",
 );
 const chatgptHome = connection(
   "chatgpt-b",
-  "chatgpt",
+  "chatgpt-account",
   "me@example.com (2)",
   "openai",
 );
@@ -202,8 +202,8 @@ describe("connectionsOf", () => {
       [
         "Instrument (instrument)",
         "Anthropic (anthropic)",
-        "me@example.com (chatgpt)",
-        "me@example.com (2) (chatgpt)",
+        "me@example.com (chatgpt-account)",
+        "me@example.com (2) (chatgpt-account)",
       ]
     `);
   });

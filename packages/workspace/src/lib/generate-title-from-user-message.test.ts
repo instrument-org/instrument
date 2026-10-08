@@ -1,3 +1,4 @@
+import { MAX_TITLE_WORDS } from "@instrument-org/shared";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import os from "node:os";
@@ -10,10 +11,7 @@ import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
-import {
-  generateTitleFromUserMessage,
-  MAX_TITLE_WORDS,
-} from "./generate-title-from-user-message";
+import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
 

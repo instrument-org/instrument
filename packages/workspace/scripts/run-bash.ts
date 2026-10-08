@@ -209,9 +209,9 @@ process.stderr.write(
   `task dir: ${taskDir}\ntask: ${taskId}  session: ${sessionId}\n\n`,
 );
 
-// js-exec keeps its QuickJS worker for reuse past the end of a command, and
-// the port behind it holds the process open, so the exit has to be explicit,
-// once both pipes (asynchronous on macOS) have drained.
+// The exit is explicit, so nothing a command left running (a background job,
+// a pooled worker) holds the process open, and waits for both pipes
+// (asynchronous on macOS) to drain.
 function exit(exitCode: number) {
   process.stdout.write("", () => {
     process.stderr.write("", () => process.exit(exitCode));

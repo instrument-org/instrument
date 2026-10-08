@@ -130,6 +130,11 @@ export const componentPages = [
     label: "Form elements",
     to: "/debug/components/form-elements",
   },
+  {
+    id: "model-notices",
+    label: "Model notices",
+    to: "/debug/components/model-notices",
+  },
 ] as const;
 
 export const onboardingScreens = [

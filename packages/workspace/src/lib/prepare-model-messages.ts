@@ -20,6 +20,7 @@ import {
 } from "./context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
+import { resetMemoryReported } from "./create-memory-part";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
@@ -34,6 +35,14 @@ import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
+ * Marks a message said for this request only and kept nowhere. A model that
+ * keeps its own copy of the conversation (a Claude account's Claude Code)
+ * sends it with the turn but does not count it as part of what it has seen,
+ * since the next request leaves it out or says it differently.
+ */
+const TRANSIENT = { instrument: { transient: true } };
+
+/**
  * The shape of the session baseline this build writes.
  *
  * A change to an agent's system prompt needs no bump: a stored system message
@@ -43,6 +52,7 @@ import { getWorkspaceConfig } from "./workspace-config";
  * would otherwise never see. Without a bump such a session keeps the context
  * message it was opened with for the rest of its life.
  */
+
 export const SESSION_CONTEXT_VERSION = 40;
 
 export async function prepareModelMessages({
@@ -243,6 +253,10 @@ export async function prepareModelMessages({
           taskId,
           { signal },
         );
+
+        // The whole of memory was told on a message the cut just dropped, so
+        // the chat's next message tells it again.
+        await resetMemoryReported({ sessionId, taskId });
       }
     }
   }
@@ -404,6 +418,7 @@ export async function prepareModelMessages({
   if (nonContextMessages.length < allNonContextMessages.length) {
     preparedMessages.push({
       content: contextRolloverNotice(await readHandoffNotes(taskId)),
+      providerOptions: TRANSIENT,
       role: "user",
     });
   }
@@ -415,7 +430,11 @@ export async function prepareModelMessages({
   const notice = contextBudgetNotice(budget);
 
   if (notice !== undefined) {
-    preparedMessages.push({ content: notice, role: "user" });
+    preparedMessages.push({
+      content: notice,
+      providerOptions: TRANSIENT,
+      role: "user",
+    });
   }
 
   return ok(preparedMessages);

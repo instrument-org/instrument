@@ -53,7 +53,7 @@ describe("background job commands", () => {
       sessionId,
       signal: new AbortController().signal,
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     });
     return result._unsafeUnwrap();
   }

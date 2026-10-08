@@ -5,6 +5,7 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { lazy, type ReactNode, Suspense } from "react";
 
+import { PlatformApiIndicator } from "./platform-api-indicator";
 import { ServerExceptionsIndicator } from "./server-exceptions";
 
 // The developer panel: loaded only where developer mode already put it.
@@ -81,6 +82,9 @@ export function WindowCorner() {
     <>
       {/* What the main process threw, beside the panel a developer would
         reach for next; developer mode only, like the panel. */}
+      {/* A local API server that is not running; development builds only,
+        whatever the mode, since that is who runs one. */}
+      <PlatformApiIndicator />
       {isDeveloperMode && <ServerExceptionsIndicator />}
       {isDeveloperMode && (
         <Suspense fallback={null}>

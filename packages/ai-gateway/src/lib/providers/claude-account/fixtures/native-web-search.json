@@ -1,0 +1,920 @@
+[
+  {
+    "builtInTools": [
+      "WebSearch"
+    ],
+    "messages": [
+      {
+        "rate_limit_info": {
+          "rateLimitType": "five_hour",
+          "resetsAt": 1800000000,
+          "status": "allowed",
+          "utilization": 0.5
+        },
+        "type": "rate_limit_event"
+      },
+      {
+        "event": {
+          "type": "message_start",
+          "message": {
+            "model": "claude-sonnet-5-5",
+            "id": "msg_011CfoY4LN52yjqdUNQHadYa",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "container": null,
+            "stop_reason": null,
+            "stop_sequence": null,
+            "stop_details": null,
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 1344,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "output_tokens": 24,
+              "service_tier": "standard",
+              "inference_geo": "not_available"
+            },
+            "input_transformations": [],
+            "diagnostics": null,
+            "context_management": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_start",
+          "index": 0,
+          "content_block": {
+            "type": "tool_use",
+            "id": "toolu_01E4kBybuW8A83xpKPTwtgg3",
+            "name": "WebSearch",
+            "input": {},
+            "caller": {
+              "type": "direct"
+            }
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": ""
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "{\"query"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "\": \"Ele"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "ctron l"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "atest s"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "table r"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "elease "
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "version"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "input_json_delta",
+            "partial_json": "\"}"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "error": null,
+        "message": {
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01E4kBybuW8A83xpKPTwtgg3",
+              "name": "WebSearch",
+              "input": {
+                "query": "Electron latest stable release version"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        "parent_tool_use_id": null,
+        "type": "assistant"
+      },
+      {
+        "event": {
+          "type": "content_block_stop",
+          "index": 0
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_delta",
+          "delta": {
+            "stop_reason": "tool_use",
+            "stop_sequence": null,
+            "stop_details": null,
+            "container": null
+          },
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 1344,
+            "output_tokens": 57,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            }
+          },
+          "context_management": {
+            "applied_edits": []
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_stop"
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "tool_use_result": {
+          "query": "Electron latest stable release version",
+          "results": [
+            {
+              "tool_use_id": "srvtoolu_019iq92Ws8VYmGUxan8a2Xb5",
+              "content": [
+                {
+                  "title": "Electron Releases",
+                  "url": "https://releases.electronjs.org/"
+                },
+                {
+                  "title": "Electron (software framework)",
+                  "url": "https://en.wikipedia.org/wiki/Electron_(software_framework)"
+                },
+                {
+                  "title": "Releasealert",
+                  "url": "https://releasealert.dev/github/electron/electron"
+                },
+                {
+                  "title": "Electron release notes",
+                  "url": "https://releases.electronjs.org/releases/stable"
+                },
+                {
+                  "title": "Project News: Electron, releases a new version",
+                  "url": "https://openjsf.org/blog/project-news-electron-releases-a-new-version"
+                },
+                {
+                  "title": "Electron's blog",
+                  "url": "https://www.electronjs.org/blog"
+                },
+                {
+                  "title": "Zettlr",
+                  "url": "https://en.wikipedia.org/wiki/Zettlr"
+                },
+                {
+                  "title": "All",
+                  "url": "https://releases.electronjs.org/release"
+                },
+                {
+                  "title": "electron - npm",
+                  "url": "https://www.npmjs.com/package/electron"
+                },
+                {
+                  "title": "Bootstrap Studio",
+                  "url": "https://en.wikipedia.org/wiki/Bootstrap_Studio"
+                }
+              ]
+            },
+            "The latest stable Electron release is **44.7.0**, from October 7, 2026. That's the newest entry on the official releases page, and it's the top of the 44.x line, the newest stable major.\n\n- 44.7.0 was released Oct 7, 2026, with Chromium 152.0.7977.130 and Node.js 24.21.0.\n- Electron 44 is the newest major version. It was announced August 25, 2026, with Chromium 152, V8 15.2 and Node v24.18.1.\n- Older supported lines are still getting patches. 43.7.9 and 42.11.12 were released Oct 6 and Oct 7.\n- Electron 45 isn't stable yet. Its alpha builds are on branch 45-x-y.\n\nSome other sources I found are out of date. The npm page showed 44.4.5 and Wikipedia showed 44.4.5, both older snapshots. The official releases site is the most current.\n\nTo install it, run `npm install electron@latest`."
+          ],
+          "durationSeconds": 7.164888458,
+          "searchCount": 1
+        },
+        "type": "user"
+      },
+      {
+        "event": {
+          "type": "message_start",
+          "message": {
+            "model": "claude-sonnet-5-5",
+            "id": "msg_011CfoY57UhSKjiT4S6t2K3P",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "container": null,
+            "stop_reason": null,
+            "stop_sequence": null,
+            "stop_details": null,
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 821,
+              "cache_read_input_tokens": 1344,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 821
+              },
+              "output_tokens": 3,
+              "service_tier": "standard",
+              "inference_geo": "not_available"
+            },
+            "input_transformations": [],
+            "diagnostics": null,
+            "context_management": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_start",
+          "index": 0,
+          "content_block": {
+            "type": "thinking",
+            "thinking": "",
+            "signature": ""
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "I",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " notice the t",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ool result ",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ends with a \"RE",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "MINDER\" as",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "king to",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " include sources,",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " which actually aligns with the",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " system pr",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ompt's own instruction to",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " end with a s",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ources list,",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " so it's not really a con",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "flicting inj",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ection,",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " just an o",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ddly-",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "placed but",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " consistent direct",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ive.",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n\n",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "error": null,
+        "message": {
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "I notice the tool result ends with a \"REMINDER\" asking to include sources, which actually aligns with the system prompt's own instruction to end with a sources list, so it's not really a conflicting injection, just an oddly-placed but consistent directive.\n\n",
+              "signature": ""
+            }
+          ]
+        },
+        "parent_tool_use_id": null,
+        "type": "assistant"
+      },
+      {
+        "event": {
+          "type": "content_block_stop",
+          "index": 0
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_start",
+          "index": 1,
+          "content_block": {
+            "type": "text",
+            "text": ""
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "The"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " latest stable Electron is"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " "
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "44.7.0,"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " released"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " Oct 7, 2026"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ", with Chromium 152"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " and Node.js 24"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".21"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".0"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".\n\nSources:\n-"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " [Electron Releases]("
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "https://releases.electronj"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "s.org/)\n- ["
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "Electron release notes](https"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "://releases.electronjs"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".org/releases/stable"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ")"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "error": null,
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "The latest stable Electron is 44.7.0, released Oct 7, 2026, with Chromium 152 and Node.js 24.21.0.\n\nSources:\n- [Electron Releases](https://releases.electronjs.org/)\n- [Electron release notes](https://releases.electronjs.org/releases/stable)"
+            }
+          ]
+        },
+        "parent_tool_use_id": null,
+        "type": "assistant"
+      },
+      {
+        "event": {
+          "type": "content_block_stop",
+          "index": 1
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_delta",
+          "delta": {
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "stop_details": null,
+            "container": null
+          },
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 821,
+            "cache_read_input_tokens": 1344,
+            "output_tokens": 338,
+            "output_tokens_details": {
+              "thinking_tokens": 233
+            }
+          },
+          "context_management": {
+            "applied_edits": []
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_stop"
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "is_error": false,
+        "result": "The latest stable Electron is 44.7.0, released Oct 7, 2026, with Chromium 152 and Node.js 24.21.0.\n\nSources:\n- [Electron Releases](https://releases.electronjs.org/)\n- [Electron release notes](https://releases.electronjs.org/releases/stable)",
+        "subtype": "success",
+        "type": "result"
+      }
+    ]
+  }
+]

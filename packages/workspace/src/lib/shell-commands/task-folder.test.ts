@@ -10,7 +10,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { attachFolder } from "../attach-folder";
-import { initializeTask } from "../initialize-task";
+import { initializeChat, initializeTask } from "../initialize-task";
 import { outputFolderPath } from "../chat/output-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
@@ -144,23 +144,25 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  for (const [id, settings, chatId] of [
-    [CHAT_ID, { chatSessionId: CHAT_SESSION, name: "Conversation" }, undefined],
-    [CHILD_ID, { name: "Find the vault" }, CHAT_ID],
-  ] as const) {
-    const created = await initializeTask(
+  (
+    await initializeChat({
+      chatId: CHAT_ID,
+      initialSettings: { name: "Conversation" },
+      sessionId: CHAT_SESSION,
+      workspaceConfig: getWorkspaceConfig(),
+    })
+  )._unsafeUnwrap();
+  (
+    await initializeTask(
       {
-        ...(chatId ? { chatId } : {}),
-        initialSettings: settings,
-        taskId: id,
+        chatId: CHAT_ID,
+        initialSettings: { name: "Find the vault" },
+        taskId: CHILD_ID,
         workspaceConfig: getWorkspaceConfig(),
       },
       {},
-    );
-    if (created.isErr()) {
-      throw created.error;
-    }
-  }
+    )
+  )._unsafeUnwrap();
   await setTaskState(taskDir(CHAT_ID), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",

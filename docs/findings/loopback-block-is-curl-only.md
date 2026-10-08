@@ -1,12 +1,12 @@
 # The loopback block stops curl, not native interpreters
 
-**Status:** still open, working as designed, checked 2026-10-02. Recorded 2026-07-27. Since then `python`/`python3` became the in-sandbox WASM CPython, so the native interpreters below are `node` and `python-native`, and the bash tool description now points the agent at exactly those to reach a server it started (6cdae3d3a): the gap is relied on, not just tolerated.
+**Status:** resolved by lifting the block rather than enforcing it: `curl` and `web_fetch` reach the whole local network and refuse only Instrument's own workspace server ([decision](../decisions/2026-10-06-curl-and-web-fetch-reach-the-local-network.md)). The record below describes the block as it stood, which is why it went.
 
 ## Context
 
-`create-bash-env.ts` pairs `dangerouslyAllowFullInternetAccess: true` with `denyPrivateRanges: true`, described in place as "SSRF block: loopback/RFC1918/metadata, with DNS check + redirect re-check. Enforced even when the dangerously-allow flag is on."
+`create-bash-env.ts` paired `dangerouslyAllowFullInternetAccess: true` with `denyPrivateRanges: true`, described in place as "SSRF block: loopback/RFC1918/metadata, with DNS check + redirect re-check. Enforced even when the dangerously-allow flag is on."
 
-The intent is to refuse the obvious injection route: fetched web content that says "now request `http://169.254.169.254/...`" or "now request `http://localhost:3000/`" should not quietly succeed.
+The intent was to refuse the obvious injection route: fetched web content that says "now request `http://169.254.169.254/...`" or "now request `http://localhost:3000/`" should not quietly succeed.
 
 This has been investigated twice (once while adding an unsandboxed fetch tool, once while adding background shell processes, each time reaching for the same evidence), so the verified behavior is recorded here rather than in a branch.
 
@@ -30,24 +30,22 @@ node    net.connect(9999, ...)   ->  ECONNREFUSED
 
 **What is actually listening on loopback is narrower than it looks.** The workspace server binds `LOOPBACK_HOST` and mounts the AI gateway, but the gateway is authenticated: `createAuthMiddleware` requires an internal key, and that key is a per-process `randomBytes(32)` value, not a build-time constant. The sandbox environment is seeded with only `NO_COLOR`, `TZ`, and `PATH`, so the key is not in the agent's environment to find. Provider credentials are therefore not one raw socket away.
 
-What remains reachable by a native interpreter, and unaudited as of this writing: the workspace server's other route (the CDP bridge), other tasks' dev servers, and whatever the user happens to be running locally.
+What a native interpreter reached, unaudited: the workspace server's other route (the CDP bridge), other tasks' dev servers, and whatever the user happens to be running locally.
 
-## What would actually close it
+## How it was resolved
 
-Enforcing the range check where connections are made rather than where `curl` is parsed, which means an OS-level network boundary around the sandbox rather than a shim-level one. That is a different class of change than a flag, and nothing in the current architecture provides it.
+An OS-level network boundary around the sandbox, the only thing that would have made the block real, is a different class of change than a flag, and nothing in the architecture provides it. Scoping loopback to a task's own ports needs port attribution per task, which does not exist either.
 
-The narrower and more likely useful direction is the opposite one: if the agent should be able to reach a server it started, allow only that task's own ports rather than the loopback range, so the workspace server and the user's local services stay refused. This requires port attribution per task, which does not exist today.
+So the block went the other way: the tools the agent reaches for first reach what the native interpreters already could, and the single refusal kept is the one this record found unaudited, the workspace server's own port (`lib/workspace-server-address.ts`), for `curl`, `web_fetch`, and app requests alike, on every redirect hop.
 
 ## Guidance
 
-- Treat the block as **friction on the path the model reaches for first**, which is what it is good at, and which is where injected instructions land. Do not build anything on it that assumes the agent _cannot_ reach a private address.
-- Reaching a user's own `localhost:3000` is refused today by design. Enabling it is a deliberate change to the `denyPrivateRanges` policy, not a per-tool exception, and it should be scoped to task-owned ports rather than opened wholesale.
-- Legitimate interaction with the in-workspace app already goes through `agent-browser` against the workspace-served origin, not an arbitrary loopback fetch.
-- Any new HTTP path that runs **outside** the sandbox (main-process tools, for instance) does not inherit this at all and needs its own guard to stay consistent with `curl`.
+- The workspace-server refusal is friction on the obvious path, the same shape the old block was, not a boundary: `node` and `python-native` reach that port directly. Do not build anything on it that assumes the agent _cannot_ call the workspace server.
+- Any new HTTP path the agent drives should refuse the same port through `isWorkspaceServerUrl`, checked per hop, so the tools agree about the one address they refuse.
 
 ## Related
 
-- `packages/workspace/src/lib/create-bash-env.ts` — the `network` block, and the env allowlist that keeps the gateway key out of the sandbox.
+- `packages/workspace/src/lib/create-bash-env.ts` and `sandbox-fetch.ts` — the shell's fetch, and the env allowlist that keeps the gateway key out of the sandbox.
 - `packages/workspace/src/tools/bash.ts` — joins stderr into model-visible output.
 - `packages/ai-gateway/src/lib/auth-middleware.ts` and `key-for-provider.ts` — why loopback exposure of the gateway is not credential exposure.
 - `docs/findings/private-dir-masking-is-not-a-boundary.md` — the same friction-not-a-boundary shape, same underlying cause.

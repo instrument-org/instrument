@@ -99,8 +99,21 @@ function options(): BashEnvOptions {
   return { sessionId: StoreId.newSessionId(), taskId };
 }
 
+/** Answers a script's `tools.*` with what it was called with, or refuses `tools.no.*`. */
+function echoTool(toolPath: string, argsJson: string) {
+  return toolPath.startsWith("no.")
+    ? Promise.reject(new Error(`refused ${toolPath}`))
+    : Promise.resolve(
+        JSON.stringify({ args: JSON.parse(argsJson), path: toolPath }),
+      );
+}
+
 function remoteBash(bashOptions = options()) {
-  return createRemoteBash(bashOptions, () => createLocalBashEnv(bashOptions));
+  return createRemoteBash(
+    bashOptions,
+    () => createLocalBashEnv(bashOptions),
+    echoTool,
+  );
 }
 
 describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
@@ -125,6 +138,18 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     ]);
     expect(remote.stdout).toBe(onMain.stdout);
     expect(remote.exitCode).toBe(onMain.exitCode);
+  });
+
+  it("makes a script's tool calls on the main thread", async () => {
+    const result = await remoteBash().exec(
+      `js-exec -c 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "{"args":{"page":2},"path":"my-app.list"}
+      refused no.way
+      "
+    `);
   });
 
   it("credits a skill written from the shell to the turn that wrote it", async () => {

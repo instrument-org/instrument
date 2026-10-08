@@ -26,10 +26,10 @@ export const StoredTaskStateSchema = z
     // guide over once and then gets out of the way.
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
-    browserTabs: z.array(HeldTabSchema).optional(),
+    browserTabs: z.array(HeldTabSchema).default([]),
     selectedModelURI: z.string().optional(),
   })
-  .default(() => ({}));
+  .default(() => ({ browserTabs: [] }));
 
 // The RPC-facing shape.
 export const TaskStateSchema = z.object({
@@ -38,7 +38,7 @@ export const TaskStateSchema = z.object({
    * The window's tabs a task drives, first one first: tabs the conversation
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
-  browserTabs: z.array(HeldTabSchema).optional(),
+  browserTabs: z.array(HeldTabSchema).default([]),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
 });
 

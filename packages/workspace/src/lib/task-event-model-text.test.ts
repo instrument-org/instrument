@@ -100,6 +100,37 @@ describe("taskEventModelNote", () => {
     expect(note).not.toContain("background");
   });
 
+  it("names the pages a task left open by the tab ids `tab show` takes", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          status: "done",
+          summary: "The cart is ready.",
+          tabs: [
+            {
+              id: "ses_01M48PS7HWJZEM6M3D3PA0CS8Z",
+              openedBy: "task",
+              url: "https://unscentedco.com/cart",
+            },
+            { id: "ses_01M48PS7HWJZEM6M3D3PA0CS90", openedBy: "handed" },
+          ],
+          taskId: TASK_ID,
+          title: "Optimize the cart",
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created has finished:
+      - 2026-09-08-find-the-vault ("Optimize the cart") finished a turn. It said:
+            The cart is ready.
+        Its pages still open in the window: https://unscentedco.com/cart (tab ses_01M48PS7HWJZEM6M3D3PA0CS8Z), a blank page (tab ses_01M48PS7HWJZEM6M3D3PA0CS90, handed to it).
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+  });
+
   // An overdue note is read to decide whether to stop the task, so it carries
   // where the turn has been going, and names the cache share of a total that
   // would otherwise read as full-price spend.

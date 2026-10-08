@@ -1,0 +1,1413 @@
+[
+  {
+    "builtInTools": [],
+    "messages": [
+      {
+        "event": {
+          "type": "message_start",
+          "message": {
+            "model": "claude-haiku-4-5-20251001",
+            "id": "msg_011CfoY3a9X2JVPSDYfzVnWm",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "container": null,
+            "stop_reason": null,
+            "stop_sequence": null,
+            "stop_details": null,
+            "usage": {
+              "input_tokens": 505,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 0,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "output_tokens": 1,
+              "service_tier": "standard",
+              "inference_geo": "not_available"
+            },
+            "input_transformations": [],
+            "diagnostics": null,
+            "context_management": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_start",
+          "index": 0,
+          "content_block": {
+            "type": "thinking",
+            "thinking": "",
+            "signature": ""
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "Let",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " me work",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " through this classic",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " problem",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " carefully",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".\n\nLet",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " b",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " = price",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " of the",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " ball\nLet bat",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " = price of the",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " bat\n\nFrom the",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "rate_limit_info": {
+          "rateLimitType": "five_hour",
+          "resetsAt": 1800000000,
+          "status": "allowed",
+          "utilization": 0.5
+        },
+        "type": "rate_limit_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " problem:\n1",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ". bat",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " +",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " ball = $1",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".10\n2",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ". bat = ball",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " + $1.",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "00",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n\nSubstituting equation",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " 2 into",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " equation 1:",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n(ball +",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " $1.00",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ") + ball =",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " $1.10",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n2(",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "ball)",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " + $1.",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "00 = $",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "1.10",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n2(ball)",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " = $0.",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "10\nball =",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " $0.05",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\n\nLet",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " me verify",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ":\n- Ball",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " costs $0.",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "05\n-",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " Bat costs $0",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".05 +",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " $1.00",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " = $1",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".05\n-",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " Total: $0",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".05 +",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " $1.05",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " = $1",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": ".10 ",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "\u2713\n\nThe",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " ball",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " costs **",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "$0.05",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": "**",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " (or 5",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 0,
+          "delta": {
+            "type": "thinking_delta",
+            "thinking": " cents).",
+            "estimated_tokens": null
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "error": null,
+        "message": {
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Let me work through this classic problem carefully.\n\nLet b = price of the ball\nLet bat = price of the bat\n\nFrom the problem:\n1. bat + ball = $1.10\n2. bat = ball + $1.00\n\nSubstituting equation 2 into equation 1:\n(ball + $1.00) + ball = $1.10\n2(ball) + $1.00 = $1.10\n2(ball) = $0.10\nball = $0.05\n\nLet me verify:\n- Ball costs $0.05\n- Bat costs $0.05 + $1.00 = $1.05\n- Total: $0.05 + $1.05 = $1.10 \u2713\n\nThe ball costs **$0.05** (or 5 cents).",
+              "signature": ""
+            }
+          ]
+        },
+        "parent_tool_use_id": null,
+        "type": "assistant"
+      },
+      {
+        "event": {
+          "type": "content_block_stop",
+          "index": 0
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_start",
+          "index": 1,
+          "content_block": {
+            "type": "text",
+            "text": ""
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "Let"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " me set"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " this"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " up:"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n\n-"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " Let b = ball"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "'s price\n-"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " Bat costs b"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " + $1."
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "00"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n\nEquation"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ":"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " b + ("
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "b + $1"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".00) ="
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " $1.10"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n\nSolving"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ":"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n-"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " 2b +"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " $1.00"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " = $1"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".10\n-"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " 2b ="
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " $0.10"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n- b ="
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " $0.05"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n\n**"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "The ball costs $"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "0.05 "
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "("
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "5"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " cents)**"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "\n\nCheck"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ": Ball"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " ($"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "0.05)"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " + Bat ($"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": "1"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": ".05) ="
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " $1.10"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "content_block_delta",
+          "index": 1,
+          "delta": {
+            "type": "text_delta",
+            "text": " \u2713"
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "error": null,
+        "message": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Let me set this up:\n\n- Let b = ball's price\n- Bat costs b + $1.00\n\nEquation: b + (b + $1.00) = $1.10\n\nSolving:\n- 2b + $1.00 = $1.10\n- 2b = $0.10\n- b = $0.05\n\n**The ball costs $0.05 (5 cents)**\n\nCheck: Ball ($0.05) + Bat ($1.05) = $1.10 \u2713"
+            }
+          ]
+        },
+        "parent_tool_use_id": null,
+        "type": "assistant"
+      },
+      {
+        "event": {
+          "type": "content_block_stop",
+          "index": 1
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_delta",
+          "delta": {
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "stop_details": null,
+            "container": null
+          },
+          "usage": {
+            "input_tokens": 505,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 323,
+            "output_tokens_details": {
+              "thinking_tokens": 195
+            }
+          },
+          "context_management": {
+            "applied_edits": []
+          }
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "event": {
+          "type": "message_stop"
+        },
+        "parent_tool_use_id": null,
+        "type": "stream_event"
+      },
+      {
+        "is_error": false,
+        "result": "Let me set this up:\n\n- Let b = ball's price\n- Bat costs b + $1.00\n\nEquation: b + (b + $1.00) = $1.10\n\nSolving:\n- 2b + $1.00 = $1.10\n- 2b = $0.10\n- b = $0.05\n\n**The ball costs $0.05 (5 cents)**\n\nCheck: Ball ($0.05) + Bat ($1.05) = $1.10 \u2713",
+        "subtype": "success",
+        "type": "result"
+      }
+    ]
+  }
+]

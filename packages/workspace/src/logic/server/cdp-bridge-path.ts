@@ -11,28 +11,22 @@ import { CDP_BASE_PATH } from "./constants";
  */
 const CDP_BRIDGE_SECRET = randomBytes(32).toString("base64url");
 
-const PAGE_SEGMENT = "/devtools/page/";
 const TASK_SEGMENT = "/devtools/task/";
 
-/** What a bridge connection drives: a task's whole browser, or one page by its target id. */
-type CdpBridgeTarget =
-  | { id: string; kind: "page" }
-  | { id: string; kind: "task" };
-
-/** The bridge URL for one target, on the port the workspace server bound. */
-export function cdpBridgeUrl(port: number, target: CdpBridgeTarget): string {
-  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${target.kind === "task" ? TASK_SEGMENT : PAGE_SEGMENT}${target.id}`;
+/** The bridge URL for a task's browser, on the port the workspace server bound. */
+export function cdpBridgeUrl(port: number, taskId: string): string {
+  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${TASK_SEGMENT}${taskId}`;
 }
 
 /**
- * The target a bridge path names, when it carries this launch's secret.
+ * The task a bridge path names, when it carries this launch's secret.
  * Undefined for a path outside the bridge, `"refused"` for one inside it with
  * a missing or wrong secret or an unknown shape. The id is returned unparsed;
- * the caller validates it for its kind.
+ * the caller validates it.
  */
 export function parseCdpBridgePath(
   url: string | undefined,
-): CdpBridgeTarget | "refused" | undefined {
+): { taskId: string } | "refused" | undefined {
   const pathname = url?.split("?")[0];
   if (!pathname?.startsWith(`${CDP_BASE_PATH}/`)) {
     return undefined;
@@ -43,13 +37,9 @@ export function parseCdpBridgePath(
     return "refused";
   }
   const after = rest.slice(slash);
-  if (after.startsWith(TASK_SEGMENT)) {
-    return { id: after.slice(TASK_SEGMENT.length), kind: "task" };
-  }
-  if (after.startsWith(PAGE_SEGMENT)) {
-    return { id: after.slice(PAGE_SEGMENT.length), kind: "page" };
-  }
-  return "refused";
+  return after.startsWith(TASK_SEGMENT)
+    ? { taskId: after.slice(TASK_SEGMENT.length) }
+    : "refused";
 }
 
 function isBridgeSecret(candidate: string): boolean {

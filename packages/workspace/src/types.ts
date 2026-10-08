@@ -1,6 +1,7 @@
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
 import {
+  type AIGatewayEnv,
   type GetProviderConfigs,
   type ModelCache,
   type ReportPlatformRefusal,
@@ -48,7 +49,7 @@ export interface BrowserConfig {
    * every attempt a task makes to look at what it wrote dies on a protocol
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
-  hasNoWindow?: boolean;
+  hasNoWindow: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   /**
    * Whether ads and trackers are blocked in this task's tabs: off when the
@@ -196,6 +197,15 @@ export interface WorkspaceConfig {
    * then every read derives from the stores.
    */
   indexesDir?: AbsolutePath;
+  /**
+   * Replace a provider config's credential if it has already expired,
+   * resolving once the replacement is in or the wait gave up. The model proxy
+   * awaits it for the config a request names before reading the configs, so
+   * a request made before a refresh timer fires (just after launch or a wake)
+   * carries a credential the provider accepts. Absent where no credential
+   * expires.
+   */
+  refreshExpiredCredentials?: AIGatewayEnv["Variables"]["refreshExpiredCredentials"];
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;

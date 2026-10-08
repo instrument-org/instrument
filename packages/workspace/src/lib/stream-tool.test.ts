@@ -25,7 +25,7 @@ function makeOptions(sessionId: StoreId.Session) {
     sessionId,
     signal: AbortSignal.timeout(10_000),
     taskId,
-    taskState: {},
+    taskState: { browserTabs: [] },
   };
 }
 

@@ -82,7 +82,6 @@ export function useOpeners({
     isChatOnScreen: chatOfGroup(windowTabs.groupOnScreen) !== undefined,
     up: active && {
       isFresh: isFreshTab(active),
-      isTasks: active.kind === "page" && Boolean(active.taskId),
       kind: active.kind,
     },
   };
@@ -231,7 +230,7 @@ export function useOpeners({
       void queryClient
         .fetchQuery(taskRecordOptions(task))
         .then(
-          (record) => record.chatId,
+          (record) => (record.isChat ? undefined : record.chatId),
           () => undefined,
         )
         .then((filedIn) => {
@@ -247,7 +246,7 @@ export function useOpeners({
         tasks.task === undefined
           ? tasksHref(owner)
           : taskHref(tasks.task, owner);
-      const up = windowTabs.tabUpIn(owner);
+      const up = windowTabs.selectedTabIn(owner);
       const placement = tasksPlacementOf(owner, options, {
         groupOnScreen: windowTabs.groupOnScreen,
         upInOwner: up?.kind === "screen" ? up.href : undefined,

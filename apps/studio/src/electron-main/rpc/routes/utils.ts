@@ -16,6 +16,7 @@ import {
   resolveOzonePlatform,
 } from "@/electron-main/lib/ozone-platform";
 import { requestQuitApproval } from "@/electron-main/lib/quit";
+import { getPlatformApiReachability } from "@/electron-main/platform-api/reachability";
 import {
   clearServerExceptions,
   getServerExceptions,
@@ -490,6 +491,25 @@ const events = {
 };
 
 const live = {
+  // Whether the platform API answers, for the window's corner. Development
+  // builds only; a packaged one always reads "unknown".
+  platformApiReachability: base
+    .output(
+      eventIterator(
+        z.object({
+          baseUrl: z.string(),
+          status: z.enum(["reachable", "unknown", "unreachable"]),
+        }),
+      ),
+    )
+    .handler(async function* ({ signal }) {
+      yield* liveRead({
+        changes: [
+          publisher.subscribe("platform-api.reachability.updated", { signal }),
+        ],
+        read: getPlatformApiReachability,
+      });
+    }),
   serverExceptions: base
     .output(
       eventIterator(

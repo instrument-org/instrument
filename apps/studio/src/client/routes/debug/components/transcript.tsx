@@ -17,6 +17,7 @@ import { Switch } from "@/client/components/ui/switch";
 import { TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
+  ChatIdSchema,
   getToolNameByType,
   type Task,
   TaskIdSchema,
@@ -89,6 +90,7 @@ const WHEEL_STEP = 24;
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("debug-transcript"),
+  chatId: ChatIdSchema.parse("a-chat"),
   isChat: false,
   title: "Transcript",
   updatedAt: new Date(0),

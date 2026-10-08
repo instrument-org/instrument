@@ -181,4 +181,39 @@ export const MEMORY_EVALS = [
     prompt:
       "Find me three electric kettles under $60 and put a short comparison in my Instrument folder. Also, for future reference, I only ever want decaf: any coffee or tea you suggest, now or later, has to be decaf.",
   }),
+
+  defineEval({
+    // A preference said in passing, with no "remember" anywhere: how most
+    // of what is worth keeping actually arrives.
+    assertions: [savedAMemory, didNotClaimWhatItDidNotSave],
+    kind: "chat",
+    name: "memory-keeps-an-unflagged-preference",
+    prompt:
+      "What's the difference between a Roth and a traditional IRA? And please keep your answers to me short, a few sentences. I hate walls of text.",
+  }),
+
+  defineEval({
+    // A standing fact that only explains the ask it rides in.
+    assertions: [savedAMemory, didNotClaimWhatItDidNotSave],
+    finishesAs: {
+      said: "Found three vegetarian weeknight dinners under 30 minutes and saved them to dinners.md in your Instrument folder.",
+    },
+    kind: "chat",
+    name: "memory-keeps-a-fact-inside-an-ask",
+    prompt:
+      "I'm vegetarian, so find me three weeknight dinner recipes that take under 30 minutes.",
+  }),
+
+  defineEval({
+    // Tasks have no memory command, so a fact about the user that a task
+    // turns up is kept only if the conversation saves it on the report.
+    assertions: [savedAMemory],
+    finishesAs: {
+      said: "Booked Kaze Sushi for two this Friday at 7pm under your Resy account. Your Resy profile says you are allergic to shellfish, so I added that to the reservation notes, and it lists your home as 412 Alder St, Portland.",
+    },
+    kind: "chat",
+    name: "memory-keeps-what-a-task-reported",
+    prompt:
+      "Book me a table for two at Kaze Sushi this Friday at 7 on Resy. I'm signed in there.",
+  }),
 ];

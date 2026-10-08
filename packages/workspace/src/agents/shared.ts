@@ -98,12 +98,16 @@ export function createSystemMessage({
   };
 }
 
-export function getSystemInfoText() {
+/**
+ * `network` names what reaches the network, for an agent whose shell and
+ * tools have any; the chat's have none.
+ */
+export function getSystemInfoText({ network }: { network?: string } = {}) {
   const now = getCurrentDate();
   return dedent`
     <system_info>
     The user's computer: ${getSystemInfo()}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.
-    Your shell: a sandboxed POSIX shell with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
+    Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.${network === undefined ? "" : ` ${network}`}
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
     Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}, the computer's and so a fair guide to where the user is. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
     </system_info>

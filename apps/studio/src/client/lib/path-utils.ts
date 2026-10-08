@@ -18,11 +18,11 @@ export function folderLabel(folderPath: string): string {
 }
 
 /**
- * The workspace folder, Documents/Instrument in the home folder: where a
+ * The output folder, Documents/Instrument in the home folder: where a
  * task's results go when nobody said where. Every task holds it, so it is
  * never news on a task.
  */
-export function isWorkspaceFolder(folderPath: string): boolean {
+export function isOutputFolder(folderPath: string): boolean {
   const home = window.api.homeDir;
   const separator = home.includes("\\") ? "\\" : "/";
   return folderPath === [home, "Documents", "Instrument"].join(separator);

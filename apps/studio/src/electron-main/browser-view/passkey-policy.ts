@@ -5,7 +5,7 @@ import {
 } from "electron";
 
 /**
- * The task browser has no passkeys, and says so the moment a site asks.
+ * The in-app browser has no passkeys, and says so the moment a site asks.
  *
  * Electron carries Chromium's WebAuthn plumbing but none of Chrome's browser
  * layer: no sheet to pick a phone or a security key, no password manager, and

@@ -19,10 +19,9 @@ import {
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const OTHER = ChatIdSchema.parse("2026-10-02-trip");
 
-const OWN_PAGE = { isFresh: false, isTasks: false, kind: "page" } as const;
-const TASK_PAGE = { isFresh: false, isTasks: true, kind: "page" } as const;
-const SCREEN = { isFresh: false, isTasks: false, kind: "screen" } as const;
-const FRESH = { isFresh: true, isTasks: false, kind: "screen" } as const;
+const OWN_PAGE = { isFresh: false, kind: "page" } as const;
+const SCREEN = { isFresh: false, kind: "screen" } as const;
+const FRESH = { isFresh: true, kind: "screen" } as const;
 
 const inChat = (
   up: PlacementContext["up"],
@@ -72,12 +71,6 @@ describe("where a page opens", () => {
       {},
       inChat(SCREEN),
       { kind: "new-page", replacesUp: true },
-    ],
-    [
-      "beside a task's page, which is the task's",
-      {},
-      inChat(TASK_PAGE),
-      { kind: "new-page", replacesUp: false },
     ],
     [
       "in a tab of its own when asked",

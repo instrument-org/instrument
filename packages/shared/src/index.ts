@@ -1,4 +1,5 @@
 export * from "./add-ref";
+export * from "./chat-title";
 export * from "./constants";
 export * from "./file-extensions";
 export * from "./folder-paths";

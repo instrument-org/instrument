@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type ApiAppManifest, AppManifestSchema } from "./manifest";
 import { buildAppUrl, performAppRequest, redactCredential } from "./request";
 
@@ -241,47 +242,69 @@ describe("performAppRequest", () => {
     });
   });
 
-  // The agent writes the manifest, so it picks the hostname: a public-looking
-  // name that resolves inward must not get through on its spelling alone.
+  // A self-hosted service on the user's network is as reachable here as it is
+  // from `curl` or `web_fetch`, whatever the name resolves to.
   it.each([
     { address: "127.0.0.1", label: "loopback" },
-    { address: "169.254.169.254", label: "the metadata endpoint" },
-    { address: "10.1.2.3", label: "an RFC1918 address" },
-    { address: "::1", family: 6, label: "IPv6 loopback" },
-    { address: "::ffff:127.0.0.1", family: 6, label: "v4-mapped loopback" },
+    { address: "10.110.1.20", label: "an RFC1918 address" },
+    { address: "169.254.10.10", label: "a link-local address" },
     { address: "fd00::1", family: 6, label: "a unique-local address" },
-  ])(
-    "refuses a public hostname resolving to $label",
-    async ({ address, family }) => {
-      resolvesTo(address, family ?? 4);
-      const fetchMock = vi.fn();
-      vi.stubGlobal("fetch", fetchMock);
+  ])("reaches a hostname resolving to $label", async ({ address, family }) => {
+    resolvesTo(address, family ?? 4);
+    const fetchMock = vi.fn(() => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
 
-      const result = await performAppRequest({
-        body: undefined,
-        credential: null,
-        manifest: publicManifest(),
-        method: "GET",
-        params: {},
-        path: "/items",
-        signal: AbortSignal.timeout(1000),
-      });
+    const result = await performAppRequest({
+      body: undefined,
+      credential: null,
+      manifest: publicManifest(),
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
 
-      const error = result._unsafeUnwrapErr();
-      expect(error.reason).toBe("unsafe-url");
-      expect(error.message).toContain(address);
-      // The point of resolving before connecting: nothing was sent.
-      expect(fetchMock).not.toHaveBeenCalled();
-    },
-  );
+    expect(result.isOk()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 
-  it("refuses when any one answer in a multi-address set is private", async () => {
-    // @ts-expect-error -- the `all: true` overload is one of several on lookup.
-    lookup.mockResolvedValue([
-      { address: "93.184.216.34", family: 4 },
-      { address: "192.168.1.10", family: 4 },
-    ]);
+  // The agent writes the manifest, so it picks the hostname: a name that
+  // resolves to loopback on the workspace server's port is that server.
+  it("refuses a hostname resolving to the workspace server", async () => {
+    resolvesTo("127.0.0.1");
     const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await performAppRequest({
+      body: undefined,
+      credential: null,
+      manifest: {
+        ...publicManifest(),
+        baseUrl: `https://api.example.com:${getWorkspaceServerPort()}`,
+      },
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    const error = result._unsafeUnwrapErr();
+    expect(error.reason).toBe("unsafe-url");
+    expect(error.message).toContain("workspace server");
+    // The point of resolving before connecting: nothing was sent.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a redirect into the workspace server", async () => {
+    const fetchMock = vi.fn(
+      () =>
+        new Response(null, {
+          headers: {
+            Location: `http://127.0.0.1:${getWorkspaceServerPort()}/`,
+          },
+          status: 302,
+        }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await performAppRequest({
@@ -295,7 +318,7 @@ describe("performAppRequest", () => {
     });
 
     expect(result._unsafeUnwrapErr().reason).toBe("unsafe-url");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   // The agent's own shell has no base64 and the user pastes the key exactly as

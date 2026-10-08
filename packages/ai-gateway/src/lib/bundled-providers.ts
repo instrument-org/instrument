@@ -48,7 +48,7 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createCerebras",
     package: "@ai-sdk/cerebras",
   },
-  chatgpt: {
+  "chatgpt-account": {
     envVars: {
       apiKey: "CHATGPT_ACCESS_TOKEN",
       baseURL: "CHATGPT_BASE_URL",

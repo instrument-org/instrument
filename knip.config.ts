@@ -68,6 +68,7 @@ const config: KnipConfig = {
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path
         "@parcel/watcher", // Needed for electron.vite.config.ts to build
+        "@anthropic-ai/claude-agent-sdk", // Resolved at runtime by ai-gateway's createRequire for the Claude Code manifest
       ],
       paths: {
         "@/*": ["src/*"],

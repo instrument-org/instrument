@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -177,6 +178,28 @@ describe("chat read", () => {
     expect(result.stderr).toContain("matches 2 chats");
     expect(result.stderr).toContain("Trip to Lisbon");
     expect(result.stderr).toContain("Trip to Porto");
+  });
+
+  it("reads a chat by its whole id when another chat's id begins with it", async () => {
+    await freshTask();
+    const id = (await chat("Weather page", "make me a weather page")).chatId;
+    const sessionId = StoreId.newSessionId();
+    await Store.saveSession(
+      {
+        createdAt: new Date(),
+        id: sessionId,
+        title: "Weather page",
+        updatedAt: new Date(),
+      },
+      chatFor(sessionId, ChatIdSchema.parse(`${id}-2`)),
+    );
+
+    const result = await run("read", id);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(
+      `${id}  "Weather page"\nuser: make me a weather page\n`,
+    );
   });
 });
 

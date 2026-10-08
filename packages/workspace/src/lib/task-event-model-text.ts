@@ -81,11 +81,17 @@ export function taskEventModelNote(
     const holds = event.holds
       ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
       : "";
+    // Where a result that lives on a page is: the tab, by the id `tab show`
+    // takes, since the task's transcript holds only its account of the page.
+    const tabs =
+      event.tabs && event.tabs.length > 0
+        ? `\n  Its pages still open in the window: ${event.tabs.map((tab) => `${tab.url ?? "a blank page"} (tab ${tab.id}${tab.openedBy === "handed" ? ", handed to it" : ""})`).join(", ")}.`
+        : "";
     const running =
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${event.taskId} --all\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${running}`;
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${tabs}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);

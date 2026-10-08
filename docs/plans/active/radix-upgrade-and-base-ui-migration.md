@@ -25,7 +25,7 @@ Counted 2026-10-02:
 - 164 `data-[state=…]` class selectors across 41 files, plus keyframe `animate-in`/`animate-out` from tw-animate-css.
 - 11 sites reading `--radix-*` sizing vars, all of them dividing by `--content-zoom`.
 - 11 files using `onOpenAutoFocus` / `onCloseAutoFocus` / `onFocusOutside` / `onInteractOutside` with `preventDefault`.
-- One non-modal overlay over the browser view ([browser-panel.tsx](../../../apps/studio/src/client/components/task/browser-panel.tsx)).
+- One non-modal overlay over the browser view ([browser-panel.tsx](../../../apps/studio/src/client/components/window/browser-panel.tsx)).
 
 Not affected either way: sonner, react-resizable-panels. cmdk is affected indirectly: it depends on Radix internally and has not released since March 2025, so Radix stays installed until the command palette moves too.
 

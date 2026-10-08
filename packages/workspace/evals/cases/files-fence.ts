@@ -364,13 +364,17 @@ export const FILES_FENCE_EVALS = [
       "Using these numbers -- Jan 48200, Feb 51150, Mar 60400, Apr 57300, May 71900, Jun 83250 -- make me three separate PNG charts: a line chart of the trend, a bar chart by month, and a chart of month-over-month growth.",
   }),
   defineEval({
+    // A file the work found rather than made reaches the user through the
+    // conversation's fence; a task answers such a question in its receipt and
+    // fences only what it made or changed.
     assertions: [
       assertEmittedFence,
       assertLinesResolve,
       assertNamedMountedFile,
     ],
     folders: [{ access: "read-only", path: path.join(FIXTURES, "Notes") }],
-    name: "files-fence-retrieval-from-shared-folder",
+    kind: "chat",
+    name: "files-fence-chat-retrieval-from-shared-folder",
     prompt:
       "Which of the notes in my Notes folder has the Helsinki launch date in it?",
   }),

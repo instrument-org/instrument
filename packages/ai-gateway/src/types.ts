@@ -9,6 +9,13 @@ export interface AIGatewayEnv {
     getAIProviderConfigs: GetProviderConfigs;
     /** Told about each request our own platform refused; see `PlatformRefusal`. */
     reportPlatformRefusal?: ReportPlatformRefusal;
+    /**
+     * Replace the named config's credential if it has already expired,
+     * resolving once the replacement is in or the wait gave up. Awaited
+     * before the configs are read, so a request made before a refresh timer
+     * fires carries a credential the provider accepts.
+     */
+    refreshExpiredCredentials?: (providerConfigId: string) => Promise<void>;
   };
 }
 

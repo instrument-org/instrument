@@ -8,13 +8,12 @@ import { WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { createMemoryPart, recordMemoryReported } from "./create-memory-part";
 import {
-  forgetMemory,
-  listMemories,
-  memoryDir,
-  saveMemory,
-} from "./memory/store";
+  createMemoryPart,
+  recordMemoryReported,
+  resetMemoryReported,
+} from "./create-memory-part";
+import { forgetMemory, memoryDir, saveMemory } from "./memory/store";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -118,13 +117,69 @@ describe("createMemoryPart", () => {
   });
 
   it("stays quiet about a change the chat was told of by its own command", async () => {
-    await saveMemory(memoryDir(), { name: "one", text: "One." });
+    const { memory } = await saveMemory(memoryDir(), {
+      name: "one",
+      text: "One.",
+    });
     await recordMemoryReported({
-      memories: await listMemories(memoryDir()),
+      memory,
+      name: memory.name,
       sessionId,
       taskId,
     });
 
     expect(await build()).toBeUndefined();
+  });
+
+  it("still tells a change made elsewhere before the chat's own", async () => {
+    await saveMemory(memoryDir(), { name: "address", text: "Portland." });
+    await build();
+
+    await saveMemory(memoryDir(), { name: "roofer", text: "Dale." });
+    const { memory } = await saveMemory(memoryDir(), {
+      name: "pacific-time",
+      text: "Pacific.",
+    });
+    await recordMemoryReported({
+      memory,
+      name: memory.name,
+      sessionId,
+      taskId,
+    });
+
+    expect(await build()).toMatchObject({
+      data: {
+        forgotten: [],
+        memories: [{ name: "roofer", text: "Dale." }],
+        tells: "changes",
+      },
+    });
+  });
+
+  it("stays quiet about a memory the chat forgot itself", async () => {
+    await saveMemory(memoryDir(), { name: "one", text: "One." });
+    await saveMemory(memoryDir(), { name: "two", text: "Two." });
+    await build();
+
+    await forgetMemory(memoryDir(), "one");
+    await recordMemoryReported({
+      memory: undefined,
+      name: "one",
+      sessionId,
+      taskId,
+    });
+
+    expect(await build()).toBeUndefined();
+  });
+
+  it("tells the whole again once the session was reset", async () => {
+    await saveMemory(memoryDir(), { name: "one", text: "One." });
+    await build();
+
+    await resetMemoryReported({ sessionId, taskId });
+
+    expect(await build()).toMatchObject({
+      data: { memories: [{ name: "one" }], tells: "whole" },
+    });
   });
 });

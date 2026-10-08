@@ -21,3 +21,21 @@ export function getForegroundWindow(): BrowserWindow | null {
   }
   return getAppWindow();
 }
+
+/**
+ * Bring the foreground window to the front, as a sign-in that finished in the
+ * browser does, so the person lands back where they started.
+ */
+export function focusAppWindow() {
+  const target = getForegroundWindow();
+  if (target) {
+    if (target.isMinimized()) {
+      target.restore();
+    }
+    target.show();
+    // Temporarily set always-on-top to reliably bring window to front on Windows
+    target.setAlwaysOnTop(true);
+    target.focus();
+    target.setAlwaysOnTop(false);
+  }
+}

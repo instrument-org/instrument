@@ -131,6 +131,10 @@ export function createStandInWindow() {
         });
       });
     },
+    /** Opens a page tab under the id given, the way a task's own tab arrives behind. */
+    openPage({ at, id }: { at: string; id: string }) {
+      tabs.set(id, { at, id, kind: "page" });
+    },
     /** Opens the tabs a case's note names, under the ids the note gives them. */
     seed(viewing: SessionMessageDataPart.ViewContextDataPart | undefined) {
       for (const tab of [

@@ -64,7 +64,7 @@ function baseExecuteArgs() {
     model,
     signal: AbortSignal.timeout(10_000),
     taskId: createTaskConfigWithDirs(),
-    taskState: {},
+    taskState: { browserTabs: [] },
   };
 }
 

@@ -9,7 +9,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 
 import { groupScreenTabsOnly } from "./group-screen";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
-import { parseHref, sameHref } from "./window-href";
+import { chatOfGroup, parseHref, sameHref } from "./window-href";
 
 /**
  * What the window has open: every group's tabs in strip order, and the tab
@@ -20,7 +20,7 @@ import { parseHref, sameHref } from "./window-href";
  * Every change to it is one of the functions below, each pure.
  */
 export interface WindowTabs {
-  /** The tab each group has up, by its key. A group not named has its first tab up. */
+  /** The tab chosen in each group, by its key; `selectedTabIn` says what a group with none has up. */
   activeByGroup: Record<string, string>;
   tabs: WindowTab[];
 }
@@ -87,8 +87,12 @@ export function tabsIn(state: WindowTabs, group: string | undefined) {
     : state.tabs.filter((tab) => tab.group === group);
 }
 
-/** The tab a group has up: the one it last had, or its first. */
-export function upIn(
+/**
+ * The tab a group has up: the one chosen in it. A draft or a site with none
+ * chosen has its first up; a chat has nothing up until someone chooses one,
+ * so a page a task opens behind waits as a tile rather than filling the pane.
+ */
+export function selectedTabIn(
   state: WindowTabs,
   group: string | undefined,
 ): undefined | WindowTab {
@@ -96,7 +100,8 @@ export function upIn(
     return undefined;
   }
   const own = tabsIn(state, group);
-  return own.find((tab) => tab.id === state.activeByGroup[group]) ?? own[0];
+  const chosen = own.find((tab) => tab.id === state.activeByGroup[group]);
+  return chosen ?? (chatOfGroup(group) === undefined ? own[0] : undefined);
 }
 
 /**
@@ -190,7 +195,7 @@ export function openOrFocusScreen(
       state: select ? selectTab(state, existing.id) : state,
     };
   }
-  const up = isWaiting ? upIn(state, group) : undefined;
+  const up = isWaiting ? selectedTabIn(state, group) : undefined;
   if (up && isHomeTab(up)) {
     const told = mapTab(state, up.id, (tab) => {
       if (tab.kind !== "screen") {
@@ -262,7 +267,7 @@ export function navigateScreen(
   state: WindowTabs,
   { group, href, id }: { group: string; href: string; id: string },
 ): WindowTabs {
-  const up = upIn(state, group);
+  const up = selectedTabIn(state, group);
   if (up?.kind === "page") {
     return replaceTab(
       state,
@@ -347,7 +352,7 @@ export function closeTab(
   }
   const { group } = closing;
   const remaining = state.tabs.filter((tab) => tab.id !== id);
-  const wasUp = upIn(state, group)?.id === id;
+  const wasUp = selectedTabIn(state, group)?.id === id;
   if (group === undefined) {
     return { ...state, tabs: remaining };
   }

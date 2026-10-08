@@ -13,7 +13,7 @@ import { markReplacedModels } from "./mark-replaced-models";
 import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 import { TypedError } from "./errors";
 import { fetchAndParseAnthropicModels } from "./fetch-models/anthropic";
-import { fetchAndParseChatGPTPlanModels } from "./fetch-models/chatgpt";
+import { fetchAndParseChatGPTAccountModels } from "./fetch-models/chatgpt";
 import { fetchAndParseGoogleModels } from "./fetch-models/google";
 import { fetchAndParseOpenAIModels } from "./fetch-models/openai";
 import { fetchAndParseOpenAICompatibleModels } from "./fetch-models/openai-compatible";
@@ -41,8 +41,13 @@ export function fetchModelsForProvider(
         case "anthropic": {
           return fetchAndParseAnthropicModels(config);
         }
-        case "chatgpt": {
-          return fetchAndParseChatGPTPlanModels(config);
+        case "chatgpt-account": {
+          return fetchAndParseChatGPTAccountModels(config);
+        }
+        case "claude-account": {
+          const { fetchClaudeAccountModels } =
+            await import("./providers/claude-account/models");
+          return fetchClaudeAccountModels(config);
         }
         case "google": {
           return fetchAndParseGoogleModels(config);

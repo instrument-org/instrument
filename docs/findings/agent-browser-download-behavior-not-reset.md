@@ -19,7 +19,7 @@ a GUID filename until the browser restarts.
 ## Mitigations in place
 
 - The `agent-browser` skill's External browsers section tells the agent to
-  avoid `download` in the user's own browser and prefer the task browser or
+  avoid `download` in the user's own browser and prefer the in-app browser or
   a page-level fetch for file downloads.
 
 ## Proper fix (written, unpublished)

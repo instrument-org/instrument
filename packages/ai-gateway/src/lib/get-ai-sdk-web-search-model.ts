@@ -20,7 +20,7 @@ import {
   createXAISDK,
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
-import { chatGPTPlanSearchModel } from "./fetch-models/chatgpt";
+import { chatGPTAccountSearchModel } from "./fetch-models/chatgpt";
 import { type ModelCache } from "./model-cache";
 import {
   filterWebSearchConfigs,
@@ -39,7 +39,8 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   "vercel",
   // Last, so a search from a chat on another provider spends the user's
   // plan only when nothing else can search.
-  "chatgpt",
+  "chatgpt-account",
+  "claude-account",
 ];
 
 export interface AISDKWebSearchModelResult {
@@ -86,7 +87,7 @@ export async function getAISDKWebSearchModel({
       };
       break;
     }
-    case "chatgpt": {
+    case "chatgpt-account": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
       // Always the plan's lightest model, not thinking and reading little: a
       // search is a lookup, and on the plan every search model's own
@@ -100,14 +101,40 @@ export async function getAISDKWebSearchModel({
           // The account's own catalog decides, so a newer Luna is used the
           // day the plan lists it. The chat's model stands in only when the
           // catalog was never read.
-          chatGPTPlanSearchModel(modelCache?.read(config.cacheIdentifier) ?? [])
-            ?.providerId ?? callingModel.providerId,
+          chatGPTAccountSearchModel(
+            modelCache?.read(config.cacheIdentifier) ?? [],
+          )?.providerId ?? callingModel.providerId,
         ),
         providerOptions: {
           openai: { reasoningEffort: "none" },
         },
         tools: {
           web_search: sdk.tools.webSearch({ searchContextSize: "low" }),
+        },
+      };
+      break;
+    }
+    case "claude-account": {
+      // The chat's own model, searching with Claude Code's WebSearch, which
+      // runs on Anthropic's side and draws on the same subscription. Only a
+      // chat on the account searches here: a Claude account is never another
+      // provider's fallback.
+      if (!config.executablePath) {
+        return Result.error(
+          new TypedError.NotFound(
+            "The Claude account has no Claude Code to run.",
+          ),
+        );
+      }
+      const { createClaudeAccountLanguageModel } =
+        await import("./providers/claude-account/language-model");
+      result = {
+        model: createClaudeAccountLanguageModel({
+          configDir: config.configDir,
+          executablePath: config.executablePath,
+        })(callingModel.providerId),
+        providerOptions: {
+          "claude-account": { builtInTools: ["WebSearch"] },
         },
       };
       break;

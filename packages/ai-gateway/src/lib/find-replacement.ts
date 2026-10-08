@@ -1,18 +1,24 @@
+import { type AIProviderType } from "@instrument-org/shared";
+
 import { type AIGatewayModel } from "../schemas/model";
 import { AIGatewayModelURI } from "../schemas/model-uri";
 import { readModelRelease } from "./read-model-release";
 
 /**
  * What a model URI names, for a selection the models list no longer resolves:
- * which connection it was reached through and which model it was.
+ * which connection it was reached through, what kind of provider that was,
+ * and which model it was.
  */
-export function readModelURI(
-  uri: string,
-): null | { canonicalId: string; providerConfigId: string } {
+export function readModelURI(uri: string): null | {
+  canonicalId: string;
+  provider: AIProviderType;
+  providerConfigId: string;
+} {
   const parsed = AIGatewayModelURI.parse(uri);
   return parsed.ok
     ? {
         canonicalId: parsed.value.canonicalId,
+        provider: parsed.value.params.provider,
         providerConfigId: parsed.value.params.providerConfigId,
       }
     : null;

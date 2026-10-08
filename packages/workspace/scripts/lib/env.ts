@@ -14,8 +14,11 @@ export const env = createEnv({
     APP_AI_GATEWAY_API_KEY: z.string().optional(),
     APP_ANTHROPIC_API_KEY: z.string().optional(),
     APP_CEREBRAS_API_KEY: z.string().optional(),
-    // A ChatGPT plan access token, as `script:chatgpt-plan-token` prints it.
-    APP_CHATGPT_PLAN_TOKEN: z.string().optional(),
+    // A ChatGPT account access token, as `script:chatgpt-account-token` prints it.
+    APP_CHATGPT_ACCOUNT_TOKEN: z.string().optional(),
+    // The `claude` CLI a Claude account runs through, signed in to a Claude
+    // subscription, as Studio would find it.
+    APP_CLAUDE_CODE_PATH: z.string().optional(),
     APP_GOOGLE_API_KEY: z.string().optional(),
     APP_GROQ_API_KEY: z.string().optional(),
     APP_OPENAI_API_KEY: z.string().optional(),

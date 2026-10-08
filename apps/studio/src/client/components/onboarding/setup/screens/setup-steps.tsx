@@ -443,12 +443,12 @@ export function WeekPage() {
 const LOOKS = [
   { label: "Light", theme: "light" },
   { label: "Dark", theme: "dark" },
-  { label: "Auto", theme: "system" },
+  { label: "System", theme: "system" },
 ] as const;
 
 /**
- * F12: light, dark, or automatic, applied as soon as it is picked. Auto is
- * the app's System theme, which follows the computer's setting.
+ * F12: light, dark, or System, which follows the computer's setting, applied
+ * as soon as it is picked.
  */
 export function LookPage() {
   const { dispatch } = useSetup();

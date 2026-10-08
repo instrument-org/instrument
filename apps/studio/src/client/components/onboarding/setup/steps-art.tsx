@@ -477,7 +477,7 @@ function MiniWindow({ dark }: { dark: boolean }) {
   );
 }
 
-/** F12: the app in light, dark, or split along the diagonal for automatic. */
+/** F12: the app in light, dark, or split along the diagonal for System. */
 export function LookMiniature({ look }: { look: "dark" | "light" | "system" }) {
   return (
     <div className="relative h-37.5 w-58 overflow-hidden rounded-[11px]">
